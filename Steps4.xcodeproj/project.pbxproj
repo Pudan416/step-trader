@@ -7,13 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2089F0B82E71A18E00ABF5FA /* Steps4App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0B72E71A18E00ABF5FA /* Steps4App.swift */; };
-		2089F0BA2E71A18E00ABF5FA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0B92E71A18E00ABF5FA /* ContentView.swift */; };
 		2089F0BC2E71A18F00ABF5FA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */; };
 		2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */; };
 		2089F0C92E71A18F00ABF5FA /* Steps4Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0C82E71A18F00ABF5FA /* Steps4Tests.swift */; };
 		2089F0D32E71A18F00ABF5FA /* Steps4UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0D22E71A18F00ABF5FA /* Steps4UITests.swift */; };
 		2089F0D52E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0D42E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
+		2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */; };
+		2089F0EC2E71AE3400ABF5FA /* Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E22E71AE3400ABF5FA /* Types.swift */; };
+		2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */; };
+		2089F0EE2E71AE3400ABF5FA /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */; };
+		2089F0EF2E71AE3400ABF5FA /* Date+Today.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E72E71AE3400ABF5FA /* Date+Today.swift */; };
+		2089F0F02E71AE3400ABF5FA /* StepTimeLimiterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E92E71AE3400ABF5FA /* StepTimeLimiterApp.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -35,8 +39,6 @@
 
 /* Begin PBXFileReference section */
 		2089F0B42E71A18E00ABF5FA /* Steps4.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Steps4.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		2089F0B72E71A18E00ABF5FA /* Steps4App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4App.swift; sourceTree = "<group>"; };
-		2089F0B92E71A18E00ABF5FA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		2089F0C42E71A18F00ABF5FA /* Steps4Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Steps4Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -44,6 +46,14 @@
 		2089F0CE2E71A18F00ABF5FA /* Steps4UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Steps4UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0D22E71A18F00ABF5FA /* Steps4UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITests.swift; sourceTree = "<group>"; };
 		2089F0D42E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
+		2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BudgetEngine.swift; sourceTree = "<group>"; };
+		2089F0E22E71AE3400ABF5FA /* Types.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Types.swift; sourceTree = "<group>"; };
+		2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FamilyControlsService.swift; sourceTree = "<group>"; };
+		2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
+		2089F0E72E71AE3400ABF5FA /* Date+Today.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Date+Today.swift"; sourceTree = "<group>"; };
+		2089F0E92E71AE3400ABF5FA /* StepTimeLimiterApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepTimeLimiterApp.swift; sourceTree = "<group>"; };
+		2089F0F12E72D68C00ABF5FA /* Steps4.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Steps4.entitlements; sourceTree = "<group>"; };
+		2089F0F42E72EC1700ABF5FA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +84,7 @@
 		2089F0AB2E71A18E00ABF5FA = {
 			isa = PBXGroup;
 			children = (
+				2089F0EA2E71AE3400ABF5FA /* StepTimeLimiter */,
 				2089F0B62E71A18E00ABF5FA /* Steps4 */,
 				2089F0C72E71A18F00ABF5FA /* Steps4Tests */,
 				2089F0D12E71A18F00ABF5FA /* Steps4UITests */,
@@ -94,8 +105,8 @@
 		2089F0B62E71A18E00ABF5FA /* Steps4 */ = {
 			isa = PBXGroup;
 			children = (
-				2089F0B72E71A18E00ABF5FA /* Steps4App.swift */,
-				2089F0B92E71A18E00ABF5FA /* ContentView.swift */,
+				2089F0F42E72EC1700ABF5FA /* Info.plist */,
+				2089F0F12E72D68C00ABF5FA /* Steps4.entitlements */,
 				2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */,
 				2089F0BD2E71A18F00ABF5FA /* Preview Content */,
 			);
@@ -125,6 +136,43 @@
 				2089F0D42E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
 			);
 			path = Steps4UITests;
+			sourceTree = "<group>";
+		};
+		2089F0E32E71AE3400ABF5FA /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */,
+				2089F0E22E71AE3400ABF5FA /* Types.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		2089F0E62E71AE3400ABF5FA /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */,
+				2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		2089F0E82E71AE3400ABF5FA /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				2089F0E72E71AE3400ABF5FA /* Date+Today.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		2089F0EA2E71AE3400ABF5FA /* StepTimeLimiter */ = {
+			isa = PBXGroup;
+			children = (
+				2089F0E32E71AE3400ABF5FA /* Models */,
+				2089F0E62E71AE3400ABF5FA /* Services */,
+				2089F0E82E71AE3400ABF5FA /* Utilities */,
+				2089F0E92E71AE3400ABF5FA /* StepTimeLimiterApp.swift */,
+			);
+			path = StepTimeLimiter;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -257,8 +305,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2089F0BA2E71A18E00ABF5FA /* ContentView.swift in Sources */,
-				2089F0B82E71A18E00ABF5FA /* Steps4App.swift in Sources */,
+				2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */,
+				2089F0EE2E71AE3400ABF5FA /* HealthKitService.swift in Sources */,
+				2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */,
+				2089F0F02E71AE3400ABF5FA /* StepTimeLimiterApp.swift in Sources */,
+				2089F0EF2E71AE3400ABF5FA /* Date+Today.swift in Sources */,
+				2089F0EC2E71AE3400ABF5FA /* Types.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -419,12 +471,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Steps4/Steps4.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Steps4/Preview Content\"";
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Steps4/Info.plist;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Нужен доступ к шагам для лимита времени приложений";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -448,12 +503,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Steps4/Steps4.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Steps4/Preview Content\"";
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Steps4/Info.plist;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Нужен доступ к шагам для лимита времени приложений";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

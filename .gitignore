@@ -1,0 +1,112 @@
+# Xcode
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+build/
+DerivedData/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# CocoaPods
+Pods/
+*.xcworkspace
+
+# Carthage
+Carthage/Build/
+Carthage/Checkouts/
+
+# Accio dependency management
+Dependencies/
+.accio/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Code Injection
+iOSInjectionProject/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+
+# IDEs
+.vscode/
+.idea/
+
+# Backup files
+*.backup
+*_backup.swift
+*.bak
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Project specific backup files we created
+fix_family_controls.swift
+entitlements_guide.txt
+notification_additions.swift
+
+# Provisioning profiles (contain sensitive data)
+*.mobileprovision
+*.provisionprofile
+
+# Certificate files (sensitive)
+*.p12
+*.cer
+*.certSigningRequest
+
+# Build outputs
+*.app
+*.framework
+*.xcarchive
+
+# Debug symbols
+*.dSYM/
+
+# Testing
+*.gcda
+*.gcno
+TestResults/
+*.trace
+
+# Environment variables
+.env
+.env.local
+.env.development
+
+# Documentation build
+docs/
+documentation/
