@@ -2,15 +2,30 @@ import Foundation
 import Combine
 
 final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
-    // Фиксированный тариф: 500 шагов = 1 минута
-    let stepsPerMinute: Double = 500
-    let difficultyLevel: DifficultyLevel = .easy
+    @Published var tariff: Tariff {
+        didSet {
+            UserDefaults.standard.set(tariff.rawValue, forKey: "selectedTariff")
+            print("💰 Tariff updated to: \(tariff.displayName) (\(Int(tariff.stepsPerMinute)) steps/min)")
+        }
+    }
+    
+    var stepsPerMinute: Double { tariff.stepsPerMinute }
+    
+    // Backward compatibility
+    var difficultyLevel: DifficultyLevel {
+        get { tariff }
+        set { tariff = newValue }
+    }
     
     @Published private(set) var todayAnchor: Date
     @Published private(set) var dailyBudgetMinutes: Int = 0
     @Published private(set) var remainingMinutes: Int = 0
 
     init() {
+        // Загружаем сохраненный тариф или используем medium по умолчанию
+        let savedTariffString = UserDefaults.standard.string(forKey: "selectedTariff") ?? Tariff.medium.rawValue
+        self.tariff = Tariff(rawValue: savedTariffString) ?? .medium
+        
         let savedAnchor = UserDefaults.standard.object(forKey: "todayAnchor") as? Date ?? Calendar.current.startOfDay(for: Date())
         self.todayAnchor = savedAnchor
         
@@ -21,6 +36,8 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         if !Calendar.current.isDateInToday(savedAnchor) { 
             resetForToday() 
         }
+        
+        print("💰 BudgetEngine initialized with tariff: \(tariff.displayName)")
     }
 
     func minutes(from steps: Double) -> Int { max(0, Int(steps / stepsPerMinute)) }
@@ -47,6 +64,11 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         persist()
     }
 
+    func updateTariff(_ newTariff: Tariff) {
+        print("💰 Updating tariff from \(tariff.displayName) to \(newTariff.displayName)")
+        tariff = newTariff
+    }
+    
     private func persist() {
         let d = UserDefaults.standard
         d.set(todayAnchor, forKey: "todayAnchor")

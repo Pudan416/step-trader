@@ -57,39 +57,38 @@ class DeviceActivityMonitor: DeviceActivityMonitor {
             print("💾 Updated spent time: \(budgetMinutes) minutes (limit reached)")
         }
         
-        // Блокируем приложения на основе выбранных категорий
+        // Блокируем выбранные приложения
         let store = ManagedSettingsStore()
         
-        // Определяем какие категории блокировать на основе выбранных приложений
-        var categoriesToBlock: [ActivityCategory] = []
-        
-        if let appsData = userDefaults?.array(forKey: "selectedAppsInfo") as? [[String: String]] {
-            let appNames = appsData.compactMap { $0["name"] }.joined(separator: ", ")
-            print("📊 Selected apps that triggered the limit: \(appNames)")
+        // Пытаемся получить ApplicationTokens из UserDefaults
+        if let tokensData = userDefaults?.data(forKey: "selectedApplicationTokens"),
+           !tokensData.isEmpty {
             
-            // Проверяем категории выбранных приложений
-            let categories = Set(appsData.compactMap { $0["category"] })
-            
-            if categories.contains("Social Media") {
-                categoriesToBlock.append(.socialMedia)
+            do {
+                // Пытаемся декодировать ApplicationTokens
+                if let applicationTokens = try NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSSet.self], from: tokensData) as? Set<ApplicationToken> {
+                    print("📊 Blocking \(applicationTokens.count) selected applications using ApplicationTokens")
+                    store.shield.applications = applicationTokens
+                    print("🛡️ Shield enabled for specific ApplicationTokens")
+                } else {
+                    print("❌ Failed to decode ApplicationTokens, using category fallback")
+                    useCategoryFallback()
+                }
+            } catch {
+                print("❌ Error decoding ApplicationTokens: \(error), using category fallback")
+                useCategoryFallback()
             }
-            if categories.contains("Entertainment") {
-                categoriesToBlock.append(.entertainment)
-            }
-            if categories.contains("Games") {
-                categoriesToBlock.append(.games)
-            }
-            
-            print("🎯 Blocking categories: \(categories.joined(separator: ", "))")
         } else {
-            // Fallback - блокируем все основные категории
-            categoriesToBlock = [.socialMedia, .entertainment, .games]
-            print("🔄 Fallback: blocking all main categories")
+            print("⚠️ No ApplicationTokens found, using category fallback")
+            useCategoryFallback()
         }
         
-        // Применяем блокировку
-        store.shield.applicationCategories = ShieldSettings.ActivityCategoryPolicy.specific(categoriesToBlock)
-        print("🛡️ Shield enabled for categories: \(categoriesToBlock)")
+        func useCategoryFallback() {
+            // Fallback - блокируем основные категории
+            let categoriesToBlock: [ActivityCategory] = [.socialMedia, .entertainment, .games]
+            store.shield.applicationCategories = ShieldSettings.ActivityCategoryPolicy.specific(categoriesToBlock)
+            print("🔄 Fallback: blocking categories \(categoriesToBlock)")
+        }
         
         // Отправляем уведомление о том, что время истекло
         sendTimeExpiredNotification()

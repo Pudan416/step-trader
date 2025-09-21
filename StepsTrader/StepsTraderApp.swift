@@ -130,6 +130,7 @@ final class AppModel: ObservableObject {
             if appSelection.applicationTokens != oldValue.applicationTokens || 
                appSelection.categoryTokens != oldValue.categoryTokens {
                 syncAppSelectionToService()
+                saveAppSelection() // Сохраняем выбор пользователя
             }
         }
     }
@@ -153,11 +154,92 @@ final class AppModel: ObservableObject {
         // Синхронизируем начальное состояние без вызова didSet
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.appSelection = self.familyControlsService.selection
+            
+            // Сначала загружаем сохраненный выбор приложений
+            self.loadAppSelection()
+            
+            // Затем синхронизируем с FamilyControlsService
+            if self.appSelection.applicationTokens.isEmpty && self.appSelection.categoryTokens.isEmpty {
+                self.appSelection = self.familyControlsService.selection
+            }
             
             // Восстанавливаем сохраненное время использования
             self.loadSpentTime()
             print("🔄 Initial sync: \(self.appSelection.applicationTokens.count) apps")
+        }
+        
+        // Подписываемся на уведомления о жизненном цикле приложения
+        setupAppLifecycleObservers()
+    }
+    
+    private func setupAppLifecycleObservers() {
+        // Когда приложение уходит в фон
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleAppDidEnterBackground()
+        }
+        
+        // Когда приложение возвращается на передний план
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleAppWillEnterForeground()
+        }
+    }
+    
+    private func handleAppDidEnterBackground() {
+        print("📱 App entered background - timer will be suspended")
+        if isTrackingTime {
+            // Сохраняем время ухода в фон
+            UserDefaults.standard.set(Date(), forKey: "backgroundTime")
+            print("💾 Saved background time for tracking calculation")
+        }
+    }
+    
+    private func handleAppWillEnterForeground() {
+        print("📱 App entering foreground - checking elapsed time")
+        
+        guard isTrackingTime else { return }
+        
+        // Проверяем, сколько времени прошло в фоне
+        if let backgroundTime = UserDefaults.standard.object(forKey: "backgroundTime") as? Date {
+            let elapsedSeconds = Date().timeIntervalSince(backgroundTime)
+            let elapsedMinutes = Int(elapsedSeconds / 60)
+            
+            if elapsedMinutes > 0 {
+                print("⏰ App was in background for \(elapsedMinutes) minutes")
+                
+                // Симулируем использование приложения за время в фоне
+                for _ in 0..<elapsedMinutes {
+                    guard budgetEngine.remainingMinutes > 0 else {
+                        // Время истекло пока были в фоне
+                        stopTracking()
+                        isBlocked = true
+                        message = "⏰ Время истекло пока вы были вне приложения!"
+                        
+                        if let familyService = familyControlsService as? FamilyControlsService {
+                            familyService.enableShield()
+                        }
+                        
+                        notificationService.sendTimeExpiredNotification()
+                        sendReturnToAppNotification()
+                        AudioServicesPlaySystemSound(1005)
+                        break
+                    }
+                    
+                    updateSpentTime(minutes: spentMinutes + 1)
+                    budgetEngine.consume(mins: 1)
+                }
+                
+                print("⏱️ Updated: spent \(spentMinutes) min, remaining \(budgetEngine.remainingMinutes) min")
+            }
+            
+            UserDefaults.standard.removeObject(forKey: "backgroundTime")
         }
     }
     
@@ -204,7 +286,7 @@ final class AppModel: ObservableObject {
             spentSteps = 0
             saveSpentTime()
             print("🔄 Reset spent time for new day")
-        } else {
+                } else {
             spentMinutes = savedSpentMinutes
             spentSteps = spentMinutes * Int(budgetEngine.stepsPerMinute)
             print("📊 Loaded spent time: \(spentMinutes) minutes, \(spentSteps) steps")
@@ -223,6 +305,197 @@ final class AppModel: ObservableObject {
         spentSteps = spentMinutes * Int(budgetEngine.stepsPerMinute)
         saveSpentTime()
         print("🕐 Updated spent time: \(spentMinutes) minutes (\(spentSteps) steps)")
+    }
+    
+    // MARK: - App Selection Persistence
+    
+    private func saveAppSelection() {
+        let userDefaults = UserDefaults(suiteName: "group.personal-project.StepsTrader")
+        
+        // Сохраняем ApplicationTokens
+        if !appSelection.applicationTokens.isEmpty {
+            do {
+                let tokensData = try NSKeyedArchiver.archivedData(withRootObject: appSelection.applicationTokens, requiringSecureCoding: true)
+                userDefaults?.set(tokensData, forKey: "persistentApplicationTokens")
+                print("💾 Saved app selection: \(appSelection.applicationTokens.count) apps")
+            } catch {
+                print("❌ Failed to save app selection: \(error)")
+            }
+                } else {
+            userDefaults?.removeObject(forKey: "persistentApplicationTokens")
+        }
+        
+        // Сохраняем CategoryTokens
+        if !appSelection.categoryTokens.isEmpty {
+            do {
+                let categoriesData = try NSKeyedArchiver.archivedData(withRootObject: appSelection.categoryTokens, requiringSecureCoding: true)
+                userDefaults?.set(categoriesData, forKey: "persistentCategoryTokens")
+                print("💾 Saved category selection: \(appSelection.categoryTokens.count) categories")
+            } catch {
+                print("❌ Failed to save category selection: \(error)")
+            }
+                                } else {
+            userDefaults?.removeObject(forKey: "persistentCategoryTokens")
+        }
+        
+        // Сохраняем дату сохранения
+        userDefaults?.set(Date(), forKey: "appSelectionSavedDate")
+    }
+    
+    private func loadAppSelection() {
+        let userDefaults = UserDefaults(suiteName: "group.personal-project.StepsTrader")
+        var hasSelection = false
+        var newSelection = FamilyActivitySelection()
+        
+        // Восстанавливаем ApplicationTokens
+        if let tokensData = userDefaults?.data(forKey: "persistentApplicationTokens") {
+            do {
+                if let applicationTokens = try NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(tokensData) as? Set<ApplicationToken> {
+                    newSelection.applicationTokens = applicationTokens
+                    hasSelection = true
+                    print("📱 Restored app selection: \(applicationTokens.count) apps")
+                }
+            } catch {
+                print("❌ Failed to restore app selection: \(error)")
+            }
+        }
+        
+        // Восстанавливаем CategoryTokens
+        if let categoriesData = userDefaults?.data(forKey: "persistentCategoryTokens") {
+            do {
+                if let categoryTokens = try NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(categoriesData) as? Set<ActivityCategoryToken> {
+                    newSelection.categoryTokens = categoryTokens
+                    hasSelection = true
+                    print("📱 Restored category selection: \(categoryTokens.count) categories")
+                }
+            } catch {
+                print("❌ Failed to restore category selection: \(error)")
+            }
+        }
+        
+        if hasSelection {
+            // Обновляем выбор без вызова didSet (чтобы избежать повторного сохранения)
+            self.appSelection = newSelection
+            print("✅ App selection restored successfully")
+            
+            // Проверяем дату сохранения
+            if let savedDate = userDefaults?.object(forKey: "appSelectionSavedDate") as? Date {
+                let formatter = DateFormatter()
+                formatter.dateStyle = .medium
+                formatter.timeStyle = .short
+                print("📅 App selection was saved on: \(formatter.string(from: savedDate))")
+            }
+        } else {
+            print("📱 No saved app selection found")
+        }
+    }
+    
+    func runDiagnostics() {
+        print("🔍 === ДИАГНОСТИКА FAMILY CONTROLS ===")
+        
+        // 1. Проверка авторизации
+        if let familyService = familyControlsService as? FamilyControlsService {
+            familyService.checkAuthorizationStatus()
+        }
+        
+        // 2. Проверка выбранных приложений
+        print("📱 Выбранные приложения:")
+        print("   - ApplicationTokens: \(appSelection.applicationTokens.count)")
+        print("   - CategoryTokens: \(appSelection.categoryTokens.count)")
+        
+        // 3. Проверка бюджета
+        print("💰 Бюджет:")
+        print("   - Всего минут: \(budgetEngine.dailyBudgetMinutes)")
+        print("   - Осталось минут: \(budgetEngine.remainingMinutes)")
+        print("   - Потрачено минут: \(spentMinutes)")
+        
+        // 4. Проверка состояния отслеживания
+        print("⏱️ Состояние отслеживания:")
+        print("   - Активно: \(isTrackingTime)")
+        print("   - Заблокировано: \(isBlocked)")
+        
+        // 5. Проверка UserDefaults
+        let userDefaults = UserDefaults(suiteName: "group.personal-project.StepsTrader")
+        print("💾 Shared UserDefaults:")
+        print("   - Budget minutes: \(userDefaults?.object(forKey: "budgetMinutes") ?? "nil")")
+        print("   - Spent minutes: \(userDefaults?.object(forKey: "spentMinutes") ?? "nil")")
+        print("   - Monitoring start: \(userDefaults?.object(forKey: "monitoringStartTime") ?? "nil")")
+        
+        // 6. DeviceActivity диагностика
+        if let familyService = familyControlsService as? FamilyControlsService {
+            familyService.checkDeviceActivityStatus()
+        }
+        
+        message = "🔍 Диагностика завершена. Проверьте консоль Xcode для деталей."
+    }
+    
+    func resetStatistics() {
+        print("🔄 === СБРОС СТАТИСТИКИ ===")
+        
+        // 1. Останавливаем отслеживание если активно
+        if isTrackingTime {
+            stopTracking()
+        }
+        
+        // 2. Сбрасываем время и состояние
+        spentMinutes = 0
+        spentSteps = 0
+        isBlocked = false
+        currentSessionElapsed = nil
+        
+        // 3. Очищаем UserDefaults (App Group)
+        let userDefaults = UserDefaults(suiteName: "group.personal-project.StepsTrader")
+        userDefaults?.removeObject(forKey: "spentMinutes")
+        userDefaults?.removeObject(forKey: "spentTimeDate")
+        userDefaults?.removeObject(forKey: "budgetMinutes")
+        userDefaults?.removeObject(forKey: "monitoringStartTime")
+        userDefaults?.removeObject(forKey: "selectedAppsCount")
+        userDefaults?.removeObject(forKey: "selectedCategoriesCount")
+        userDefaults?.removeObject(forKey: "selectedApplicationTokens")
+        userDefaults?.removeObject(forKey: "persistentApplicationTokens")
+        userDefaults?.removeObject(forKey: "persistentCategoryTokens")
+        userDefaults?.removeObject(forKey: "appSelectionSavedDate")
+        print("💾 Очищены App Group UserDefaults")
+        
+        // 4. Очищаем обычные UserDefaults
+        UserDefaults.standard.removeObject(forKey: "dailyBudgetMinutes")
+        UserDefaults.standard.removeObject(forKey: "remainingMinutes")
+        UserDefaults.standard.removeObject(forKey: "todayAnchor")
+        print("💾 Очищены стандартные UserDefaults")
+        
+        // 5. Сбрасываем бюджет вручную (так как resetForToday приватный)
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        UserDefaults.standard.set(todayStart, forKey: "todayAnchor")
+        UserDefaults.standard.set(0, forKey: "dailyBudgetMinutes")
+        UserDefaults.standard.set(0, forKey: "remainingMinutes")
+        print("💰 Сброшен бюджет")
+        
+        // 6. Снимаем все блокировки
+        if let familyService = familyControlsService as? FamilyControlsService {
+            familyService.stopMonitoring()
+            familyService.disableShield()
+            print("🛡️ Отключены блокировки")
+        }
+        
+        // 7. Очищаем выбор приложений (как выбор, так и сохраненные данные)
+        appSelection = FamilyActivitySelection()
+        print("📱 Очищен выбор приложений и сохраненные данные")
+        
+        // 8. Пересчитываем бюджет с текущими шагами
+        Task {
+            do {
+                stepsToday = try await healthKitService.fetchTodaySteps()
+                let mins = budgetEngine.minutes(from: stepsToday)
+                budgetEngine.setBudget(minutes: mins)
+                message = "🔄 Статистика сброшена! Новый бюджет: \(mins) минут из \(Int(stepsToday)) шагов"
+                print("✅ Статистика сброшена. Новый бюджет: \(mins) минут")
+        } catch {
+                message = "🔄 Статистика сброшена, но ошибка обновления шагов: \(error.localizedDescription)"
+                print("❌ Ошибка при обновлении шагов: \(error)")
+            }
+        }
+        
+        print("✅ === СБРОС ЗАВЕРШЕН ===")
     }
     
     private func sendReturnToAppNotification() {
@@ -323,14 +596,37 @@ final class AppModel: ObservableObject {
             print("✅ Notification permissions completed")
             
             print("📈 Fetching today's steps...")
-            stepsToday = try await healthKitService.fetchTodaySteps()
-            print("✅ Today's steps: \(Int(stepsToday))")
+            do {
+                stepsToday = try await healthKitService.fetchTodaySteps()
+                print("✅ Today's steps: \(Int(stepsToday))")
+        } catch {
+                print("⚠️ Could not fetch step data: \(error)")
+                // На симуляторе или если нет данных, используем демо-значение
+                #if targetEnvironment(simulator)
+                stepsToday = 2500 // Демо-значение для симулятора
+                print("🎮 Using demo steps for Simulator: \(Int(stepsToday))")
+                #else
+                stepsToday = 0
+                print("📱 No step data available on device, using 0")
+                #endif
+            }
             
             print("💰 Calculating budget...")
             budgetEngine.resetIfNeeded()
             let budgetMinutes = budgetEngine.minutes(from: stepsToday)
             budgetEngine.setBudget(minutes: budgetMinutes)
-            print("✅ Budget calculated: \(budgetMinutes) minutes")
+            
+            if stepsToday == 0 {
+                print("⚠️ No steps available - budget is 0 minutes")
+                #if targetEnvironment(simulator)
+                message = "🎮 Демо-режим: \(Int(stepsToday)) шагов = \(budgetMinutes) мин"
+                #else
+                message = "📱 Нет данных о шагах. Пройдите несколько шагов и обновите."
+                #endif
+            } else {
+                print("✅ Budget calculated: \(budgetMinutes) minutes from \(Int(stepsToday)) steps")
+                message = "✅ Бюджет рассчитан: \(budgetMinutes) мин"
+            }
             
             print("🎉 Bootstrap completed successfully!")
             
@@ -339,22 +635,44 @@ final class AppModel: ObservableObject {
             message = "Ошибка инициализации: \(error.localizedDescription)"
         }
     }
-    
+
     func recalc() async throws {
         budgetEngine.resetIfNeeded()
-        stepsToday = try await healthKitService.fetchTodaySteps()
+        
+        do {
+            stepsToday = try await healthKitService.fetchTodaySteps()
+        } catch {
+            print("⚠️ Could not fetch step data for recalc: \(error)")
+            #if targetEnvironment(simulator)
+            stepsToday = 2500 // Демо-значение для симулятора
+            #else
+            stepsToday = 0
+            #endif
+        }
+        
         let mins = budgetEngine.minutes(from: stepsToday)
         budgetEngine.setBudget(minutes: mins)
-        message = "✅ Бюджет пересчитан: \(mins) минут"
+        message = "✅ Бюджет пересчитан: \(mins) минут (\(Int(stepsToday)) шагов)"
     }
     
     func recalcSilently() async {
         do {
             budgetEngine.resetIfNeeded()
-            stepsToday = try await healthKitService.fetchTodaySteps()
+            
+            do {
+                stepsToday = try await healthKitService.fetchTodaySteps()
+            } catch {
+                print("⚠️ Could not fetch step data for silent recalc: \(error)")
+                #if targetEnvironment(simulator)
+                stepsToday = 2500 // Демо-значение для симулятора
+                #else
+                stepsToday = 0
+                #endif
+            }
+            
             let mins = budgetEngine.minutes(from: stepsToday)
             budgetEngine.setBudget(minutes: mins)
-            print("🔄 Silent budget recalculation: \(mins) minutes")
+            print("🔄 Silent budget recalculation: \(mins) minutes from \(Int(stepsToday)) steps")
         } catch {
             print("❌ Ошибка при автопересчете: \(error)")
         }
@@ -416,17 +734,32 @@ final class AppModel: ObservableObject {
             print("❌ Failed to cast familyControlsService to FamilyControlsService")
         }
         
-        // Запускаем таймер для отслеживания времени (fallback без DeviceActivity)
-        print("⚠️ Using timer-based tracking (DeviceActivity entitlement not available)")
-        
-        // Таймер каждые 30 секунд симулирует 1 минуту использования
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+        // Проверяем, работает ли DeviceActivity
+        #if targetEnvironment(simulator)
+        // В симуляторе используем таймер как fallback
+        print("⚠️ Using timer-based tracking (Simulator - DeviceActivity not available)")
+        startTimerFallback()
+        #else
+        // На реальном устройстве проверяем наличие DeviceActivity
+        if familyControlsService.isAuthorized {
+            print("✅ Using DeviceActivity for real background tracking")
+            message = "✅ Реальное отслеживание активировано. Время считается в фоне."
+        } else {
+            print("⚠️ Using timer-based tracking (Family Controls not authorized)")
+            startTimerFallback()
+        }
+        #endif
+    }
+    
+    private func startTimerFallback() {
+        // Таймер каждые 60 секунд симулирует 1 минуту использования (1:1 соответствие)
+        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.simulateAppUsage()
             }
         }
         
-        message = "⚠️ Демо-режим: время списывается автоматически каждые 30 сек"
+        message = "⚠️ Демо-режим: время списывается каждую реальную минуту (только в приложении)"
     }
     
     func stopTracking() {
@@ -463,36 +796,17 @@ final class AppModel: ObservableObject {
             stopTracking()
             isBlocked = true
             message = "⏰ ДЕМО: Время истекло!"
+            
+            // Применяем реальную блокировку приложений через ManagedSettings
+            if let familyService = familyControlsService as? FamilyControlsService {
+                familyService.enableShield()
+                print("🛡️ Applied real app blocking via ManagedSettings")
+            }
+            
             notificationService.sendTimeExpiredNotification()
             sendReturnToAppNotification()
             AudioServicesPlaySystemSound(1005)
         }
-    }
-    
-    private func enableAppBlocking() {
-        guard familyControlsService.isAuthorized else {
-            print("❌ Cannot enable blocking: Family Controls not authorized")
-            return
-        }
-        
-        // Используем ApplicationToken для блокировки конкретных приложений
-        guard !appSelection.applicationTokens.isEmpty || !appSelection.categoryTokens.isEmpty else {
-            print("❌ No applications selected for blocking")
-            return
-        }
-        
-        // Включаем блокировку через ManagedSettings
-        if let familyService = familyControlsService as? FamilyControlsService {
-            let store = familyService.store
-            store.shield.applications = appSelection.applicationTokens
-        }
-        
-        let appCount = appSelection.applicationTokens.count
-        print("🛡️ Enabled blocking for \(appCount) selected applications")
-        
-        // Отправляем уведомление
-        notificationService.sendTimeExpiredNotification()
-        AudioServicesPlaySystemSound(1005) // Звук уведомления
     }
 }
 
@@ -500,56 +814,6 @@ final class AppModel: ObservableObject {
 struct StepsTraderApp: App {
     var body: some Scene {
         WindowGroup { ContentView() }
-    }
-}
-
-// MARK: - StatCard
-struct StatCard: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-    
-    init(title: String, value: String, icon: String, color: Color) {
-        self.title = title
-        self.value = value
-        self.icon = icon
-        self.color = color
-    }
-    
-    init(title: String, value: Int, icon: String, color: Color) {
-        self.init(title: title, value: "\(value)", icon: icon, color: color)
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(icon)
-                    .font(.title2)
-                Spacer()
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                
-                Text(value)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(color)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(.ultraThinMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(color.opacity(0.3), lineWidth: 1)
-        )
     }
 }
 
@@ -609,9 +873,9 @@ struct BlockScreen: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.green)
                     }
-                }
-                .padding()
-                .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
                 
                 // Action buttons
                 VStack(spacing: 12) {
@@ -624,7 +888,7 @@ struct BlockScreen: View {
                         .fontWeight(.medium)
                         .foregroundColor(.blue)
                     
-                    Text("500 шагов = 1 минута развлечений")
+                    Text("\(Int(model.budget.tariff.stepsPerMinute)) шагов = 1 минута развлечений")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -661,6 +925,14 @@ struct BlockScreen: View {
                     .buttonStyle(.bordered)
                     .controlSize(.large)
                     .foregroundColor(.red)
+                    
+                    Button("🗑️ Сбросить всю статистику") {
+                        model.resetStatistics()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .foregroundColor(.orange)
                 }
             }
             .padding()
@@ -682,304 +954,615 @@ struct BlockScreen: View {
 // MARK: - ContentView
 struct ContentView: View {
     @StateObject private var model: AppModel
-    @State private var showAppSelector = false
     
     init() {
         self._model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
     }
 
-    // MARK: - Header
-    private var headerView: some View {
-                    HStack(spacing: 8) {
-                        Text("👟")
-                            .font(.title)
-                            .scaleEffect(1.2)
-                            .rotationEffect(.degrees(model.isTrackingTime ? 15 : 0))
-                            .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: model.isTrackingTime)
-                        
-                        Text("Step Trader")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.blue, .purple, .pink],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                        
-                        Text("⚡")
-                            .font(.title)
-                            .scaleEffect(1.2)
-                            .opacity(model.isTrackingTime ? 1.0 : 0.6)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: model.isTrackingTime)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 15)
-                    .padding(.bottom, 5)
-    }
-                    
-    // MARK: - Stats Grid
-    private var statsGridView: some View {
-                    LazyVGrid(columns: [
-                        GridItem(.flexible(), spacing: 10),
-                        GridItem(.flexible(), spacing: 10)
-                    ], spacing: 15) {
-                        StatCard(
-                            title: "Шаги сегодня",
-                            value: Int(model.stepsToday).formatted(),
-                            icon: "👟",
-                            color: .green
-                        )
-                        
-                        StatCard(
-                            title: "Потрачено времени",
-                            value: formatTime(minutes: model.spentMinutes),
-                            icon: "📱",
-                            color: .orange
-                        )
-                        
-                        StatCard(
-                            title: "Бюджет минут",
-                            value: model.budget.dailyBudgetMinutes.formatted(),
-                            icon: "⏰",
-                            color: .blue
-                        )
-                        
-                        StatCard(
-                title: "Остаток",
-                value: formatTime(minutes: model.budget.remainingMinutes),
-                            icon: "⏳",
-                            color: model.budget.remainingMinutes > 0 ? .green : .red
-                        )
-                    }
-                    .padding(.horizontal)
-    }
-                    
-    // MARK: - Progress Bar
-    private var progressBarView: some View {
-                    VStack(spacing: 8) {
-                        HStack {
-                            Text("Использование времени")
-                                .font(.headline)
-                            Spacer()
-                Text("\(Int((Double(model.budget.dailyBudgetMinutes - model.budget.remainingMinutes) / Double(max(1, model.budget.dailyBudgetMinutes))) * 100))%")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        
-            ProgressView(value: Double(max(0, model.budget.dailyBudgetMinutes - model.budget.remainingMinutes)), total: Double(max(1, model.budget.dailyBudgetMinutes)))
-                .progressViewStyle(LinearProgressViewStyle(tint: model.budget.remainingMinutes > 0 ? .blue : .red))
-                .scaleEffect(x: 1, y: 2, anchor: .center)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(.red.opacity(0.3), lineWidth: 1)
-                )
-                    }
-                    .padding()
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
-                    .padding(.horizontal)
-    }
-                    
-                    
-    // MARK: - App Controls
-    private var appControlsView: some View {
-                    VStack(spacing: 12) {
-            // Выбор приложения для блокировки
-            VStack(spacing: 8) {
-                Text("Приложение для блокировки:")
-                                .font(.headline)
-                
-                if model.appSelection.applicationTokens.isEmpty && model.appSelection.categoryTokens.isEmpty {
-                    Text("Приложение не выбрано")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("✅ Приложение выбрано")
-                        .font(.body)
-                        .foregroundStyle(.green)
-                }
-                
-                Button("📱 Выбрать приложение") {
-                                showAppSelector = true
-                            }
-                            .buttonStyle(.bordered)
-                .controlSize(.regular)
-                    }
-                    .padding()
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
-                    .padding(.horizontal)
-                    
-            // Блокировка выбранного приложения
-            Button(model.isTrackingTime ? "🔓 Снять блокировку" : "🛡️ Включить блокировку") {
-                model.toggleRealBlocking()
-            }
-            .frame(maxWidth: .infinity)
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(model.isTrackingTime ? .red : .blue)
-            .disabled(!model.familyControlsService.isAuthorized || 
-                     (model.appSelection.applicationTokens.isEmpty && model.appSelection.categoryTokens.isEmpty) || 
-                     (!model.isTrackingTime && model.budget.remainingMinutes <= 0))
-            
-            // Предупреждение о недостатке минут
-            if !model.isTrackingTime && model.budget.remainingMinutes <= 0 {
-                Text("⚠️ Нет доступного времени! Сделайте больше шагов.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 4)
-            }
-        }
-    }
-    
-    // MARK: - Tracking Status
-    private var trackingStatusView: some View {
-        Group {
-                    if model.isTrackingTime {
-                        VStack(spacing: 8) {
-                            HStack {
-                                Text("🔴")
-                                Text("Отслеживание активно")
-                                    .font(.headline)
-                                    .foregroundColor(.red)
-                                Spacer()
-                            }
-                            
-                            HStack {
-                        if model.appSelection.applicationTokens.isEmpty && model.appSelection.categoryTokens.isEmpty {
-                            Text("Приложение: не выбрано")
-                        } else {
-                            Text("Приложение: выбрано")
-                                }
-                                Spacer()
-                                if let elapsed = model.currentSessionElapsed {
-                                    Text("Сессия: \(elapsed) мин")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(RoundedRectangle(cornerRadius: 16).fill(.red.opacity(0.1)))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(.red.opacity(0.3), lineWidth: 1)
-                        )
-                        .padding(.horizontal)
-                    }
-        }
-    }
-    
-    // MARK: - Authorization Status
-    private var authorizationStatusView: some View {
-        Group {
-            if !model.familyControlsService.isAuthorized {
-                VStack(spacing: 8) {
-                    VStack(spacing: 4) {
-                        Text("⚠️ Family Controls не авторизован")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                        
-                        Text("⚠️ ДЕМО-РЕЖИМ: DeviceActivity недоступен")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                        Text("Время списывается автоматически каждые 30 сек")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                        
-                        #if targetEnvironment(simulator)
-                        Text("📱 Family Controls НЕ работает в симуляторе!")
-                            .font(.caption2)
-                            .foregroundStyle(.red)
-                        Text("Запустите на реальном устройстве")
-                            .font(.caption2)
-                            .foregroundStyle(.red)
-                        #endif
-                        
-                        Button("🔔 Тест уведомления") {
-                            NotificationManager.shared.sendTimeExpiredNotification()
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        
-                        Button("🔍 Диагностика DeviceActivity") {
-                            if let familyService = model.familyControlsService as? FamilyControlsService {
-                                familyService.checkDeviceActivityStatus()
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        
-                        Button("🔐 Запросить Family Controls") {
-                            Task {
-                                do {
-                                    try await model.family.requestAuthorization()
-                                    model.message = "✅ Family Controls авторизация запрошена"
-                                } catch {
-                                    model.message = "❌ Ошибка авторизации: \(error.localizedDescription)"
-                                }
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        }
-                    }
-                    .padding(.horizontal)
-            }
-        }
-    }
-    
-    
-    // MARK: - Helper Functions
-    private func formatTime(minutes: Int) -> String {
-        if minutes < 60 {
-            return "\(minutes)m"
-        } else {
-            let hours = minutes / 60
-            let remainingMinutes = minutes % 60
-            if remainingMinutes == 0 {
-                return "\(hours)h"
-            } else {
-                return "\(hours)h \(remainingMinutes)m"
-            }
-        }
-    }
-
     var body: some View {
-        NavigationStack {
-            // Show block screen if blocked, otherwise show main interface
-            if model.isBlocked {
-                BlockScreen(model: model)
-            } else {
-                ScrollView {
-                    VStack(spacing: 20) {
-                        headerView
-                    
-                    statsGridView
-                    
-                    progressBarView
-                    
-                    trackingStatusView
-                    
-                    appControlsView
-                    
-                    authorizationStatusView
-                    
-                    Spacer(minLength: 20)
-                }
+        // Show block screen if blocked, otherwise show tab interface
+        if model.isBlocked {
+            BlockScreen(model: model)
+        } else {
+            TabView {
+                StatusView(model: model)
+                    .tabItem {
+                        Image(systemName: "house.fill")
+                        Text("Статус")
+                    }
+                
+                SettingsView(model: model)
+                    .tabItem {
+                        Image(systemName: "gearshape.fill")
+                        Text("Настройки")
+                    }
             }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
             .task { await model.bootstrap() }
             .alert("Информация", isPresented: Binding(get: { model.message != nil }, set: { _ in model.message = nil })) {
                 Button("OK", role: .cancel) {}
             } message: { Text(model.message ?? "") }
-                .familyActivityPicker(isPresented: $showAppSelector, selection: $model.appSelection)
+        }
+    }
+}
+
+// MARK: - StatusView
+struct StatusView: View {
+    @ObservedObject var model: AppModel
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Мини-статистика сверху
+                    miniStatsView
+                    
+                    // Большое отображение времени в центре
+                    bigTimeDisplayView
+                    
+                    // Прогресс-бар
+                    progressBarView
+                    
+                    Spacer(minLength: 20)
+                }
+                .padding()
             }
         }
     }
+    
+    // MARK: - Mini Stats
+    private var miniStatsView: some View {
+        HStack(spacing: 16) {
+            StatMiniCard(
+                icon: "figure.walk",
+                title: "Шаги сегодня",
+                value: "\(Int(model.stepsToday))",
+                color: .blue
+            )
+            
+            StatMiniCard(
+                icon: "clock",
+                title: "Всего минут",
+                value: "\(model.budget.dailyBudgetMinutes)",
+                color: .green
+            )
+            
+            StatMiniCard(
+                icon: "timer",
+                title: "Потрачено",
+                value: formatTime(minutes: model.spentMinutes),
+                color: .orange
+            )
+        }
+    }
+    
+    // MARK: - Big Time Display
+    private var bigTimeDisplayView: some View {
+        VStack(spacing: 12) {
+            if model.isBlocked {
+                VStack(spacing: 8) {
+                    Text("⏰")
+                        .font(.system(size: 60))
+                    
+                    Text("Время прошло!")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                }
+            } else {
+                VStack(spacing: 8) {
+                    Text("Осталось")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                    
+                    Text("\(model.budget.remainingMinutes)")
+                        .font(.system(size: 80, weight: .bold, design: .rounded))
+                        .foregroundColor(timeColor)
+                        .contentTransition(.numericText())
+                    
+                    Text(model.budget.remainingMinutes == 1 ? "минута" : "минут")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(timeBackgroundColor)
+                .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+        )
+    }
+    
+    // MARK: - Progress Bar
+    private var progressBarView: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text("Использовано времени")
+                    .font(.headline)
+                Spacer()
+                Text("\(progressPercentage)%")
+                    .font(.headline)
+                    .foregroundColor(timeColor)
+            }
+            
+            ProgressView(value: progressValue, total: 1.0)
+                .progressViewStyle(LinearProgressViewStyle(tint: timeColor))
+                .scaleEffect(x: 1, y: 2, anchor: .center)
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+    }
+    
+    // MARK: - Control Buttons
+    private var controlButtonsView: some View {
+        VStack(spacing: 12) {
+            // Основная кнопка управления
+            Button(model.isTrackingTime ? "🔓 Остановить отслеживание" : "🛡️ Начать отслеживание") {
+                model.toggleRealBlocking()
+            }
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(model.isTrackingTime ? Color.red : Color.blue)
+            .foregroundColor(.white)
+            .font(.headline)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .disabled(!model.familyControlsService.isAuthorized || 
+                     (!model.isTrackingTime && model.budget.remainingMinutes <= 0) ||
+                     (model.appSelection.applicationTokens.isEmpty && model.appSelection.categoryTokens.isEmpty))
+            
+            // Предупреждение если нет времени
+            if !model.isTrackingTime && model.budget.remainingMinutes <= 0 {
+                Text("⚠️ Нет доступного времени! Сделайте больше шагов.")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                    .multilineTextAlignment(.center)
+            }
+            
+            // Предупреждение если приложение не выбрано
+            if model.appSelection.applicationTokens.isEmpty && model.appSelection.categoryTokens.isEmpty {
+                Text("⚠️ Выберите приложение в настройках")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+    }
+    
+    // MARK: - Computed Properties
+    private var timeColor: Color {
+        let percentage = progressValue
+        if percentage >= 0.9 {
+            return .red
+        } else if percentage >= 0.7 {
+            return .orange
+        } else {
+            return .green
+        }
+    }
+    
+    private var timeBackgroundColor: Color {
+        if model.isBlocked {
+            return .red.opacity(0.1)
+        } else {
+            return timeColor.opacity(0.1)
+        }
+    }
+    
+    private var progressValue: Double {
+        guard model.budget.dailyBudgetMinutes > 0 else { return 0 }
+        let used = model.budget.dailyBudgetMinutes - model.budget.remainingMinutes
+        return Double(used) / Double(model.budget.dailyBudgetMinutes)
+    }
+    
+    private var progressPercentage: Int {
+        Int(progressValue * 100)
+    }
+    
+    private func formatTime(minutes: Int) -> String {
+        if minutes < 60 {
+            return "\(minutes)м"
+        } else {
+            let hours = minutes / 60
+            let remainingMinutes = minutes % 60
+            return "\(hours)ч \(remainingMinutes)м"
+        }
+    }
+}
 
+// MARK: - StatMiniCard Component
+struct StatMiniCard: View {
+    let icon: String
+    let title: String
+    let value: String
+    let color: Color
 
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color)
+            
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            
+            Text(value)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(color)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(color.opacity(0.1))
+        )
+    }
+}
+
+// MARK: - SettingsView
+struct SettingsView: View {
+    @ObservedObject var model: AppModel
+    @State private var showAppSelector = false
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                // 1. Секция тарифа (сначала)
+                tariffSection
+                
+                // 2. Секция выбора приложения
+                appSelectionSection
+                
+                // 3. Секция отслеживания (кнопка начать/остановить)
+                trackingSection
+                
+                // 4. Секция управления
+                managementSection
+                
+                // 5. Секция статуса системы
+                systemStatusSection
+            }
+            .familyActivityPicker(isPresented: $showAppSelector, selection: $model.appSelection)
+        }
+    }
+    
+    // MARK: - App Selection Section
+    private var appSelectionSection: some View {
+        Section("Выбор приложения") {
+            VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                    Image(systemName: "iphone.and.arrow.forward")
+                        .foregroundColor(.blue)
+                    .font(.title2)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Приложение для отслеживания")
+                            .font(.headline)
+                        
+                        if model.appSelection.applicationTokens.isEmpty && model.appSelection.categoryTokens.isEmpty {
+                            Text("Не выбрано")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        } else {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("✅ Выбрано и сохранено")
+                                    .font(.body)
+                                    .foregroundColor(.green)
+                                
+                                Text("💾 Будет использоваться автоматически")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    
+                Spacer()
+            }
+            
+                VStack(spacing: 8) {
+                    Button(model.appSelection.applicationTokens.isEmpty && model.appSelection.categoryTokens.isEmpty ? "📱 Выбрать приложение" : "🔄 Изменить приложение") {
+                        showAppSelector = true
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.bordered)
+                    
+                    // Кнопка очистки выбора (только если что-то выбрано)
+                    if !model.appSelection.applicationTokens.isEmpty || !model.appSelection.categoryTokens.isEmpty {
+                        Button("🗑️ Очистить выбор") {
+                            model.appSelection = FamilyActivitySelection()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .buttonStyle(.bordered)
+                        .foregroundColor(.red)
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+        }
+    }
+    
+    // MARK: - Tariff Section
+    private var tariffSection: some View {
+        Section("Тариф обмена") {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Выберите сколько шагов нужно для получения 1 минуты времени:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                ForEach(Tariff.allCases, id: \.self) { tariff in
+                    TariffOptionView(
+                        tariff: tariff,
+                        isSelected: model.budget.tariff == tariff
+                    ) {
+                        selectTariff(tariff)
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+        }
+    }
+    
+    // MARK: - Tracking Section
+    private var trackingSection: some View {
+        Section("Отслеживание времени") {
+            VStack(spacing: 16) {
+                // Основная кнопка управления
+                Button(model.isTrackingTime ? "🔓 Остановить отслеживание" : "🛡️ Начать отслеживание") {
+                    model.toggleRealBlocking()
+                }
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .background(model.isTrackingTime ? Color.red : Color.blue)
+                .foregroundColor(.white)
+                .font(.headline)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .disabled(!model.familyControlsService.isAuthorized || 
+                         (!model.isTrackingTime && model.budget.remainingMinutes <= 0) ||
+                         (model.appSelection.applicationTokens.isEmpty && model.appSelection.categoryTokens.isEmpty))
+                
+                // Статус отслеживания
+                if model.isTrackingTime {
+                    HStack {
+                        Image(systemName: "circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text("Отслеживание активно")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                }
+                
+                // Предупреждения
+                VStack(spacing: 8) {
+                    if !model.isTrackingTime && model.budget.remainingMinutes <= 0 {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("Нет доступного времени! Сделайте больше шагов.")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    }
+                    
+                    if model.appSelection.applicationTokens.isEmpty && model.appSelection.categoryTokens.isEmpty {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("Сначала выберите приложение выше")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    }
+                    
+                    if !model.familyControlsService.isAuthorized {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                            Text("Family Controls не авторизован")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+        }
+    }
+    
+    // MARK: - Management Section
+    private var managementSection: some View {
+        Section("Управление") {
+            VStack(spacing: 12) {
+                Button("🔄 Пересчитать бюджет") {
+                    Task {
+                        await model.recalcSilently()
+                        model.message = "✅ Бюджет пересчитан"
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .buttonStyle(.bordered)
+                
+                Button("🗑️ Сбросить статистику") {
+                    model.resetStatistics()
+                }
+                .frame(maxWidth: .infinity)
+                .buttonStyle(.bordered)
+                .foregroundColor(.orange)
+                
+                Button("🔍 Диагностика") {
+                    model.runDiagnostics()
+                }
+                .frame(maxWidth: .infinity)
+                .buttonStyle(.bordered)
+                .foregroundColor(.blue)
+            }
+            .padding(.vertical, 8)
+        }
+    }
+    
+    // MARK: - System Status Section
+    private var systemStatusSection: some View {
+        Section("Статус системы") {
+            VStack(alignment: .leading, spacing: 12) {
+                StatusRow(
+                    icon: "heart.fill",
+                    title: "HealthKit",
+                    status: .connected,
+                    description: "Доступ к данным о шагах"
+                )
+                
+                StatusRow(
+                    icon: "shield.fill",
+                    title: "Family Controls",
+                    status: model.familyControlsService.isAuthorized ? .connected : .disconnected,
+                    description: model.familyControlsService.isAuthorized ? "Блокировка приложений активна" : "Требуется авторизация"
+                )
+                
+                StatusRow(
+                    icon: "bell.fill",
+                    title: "Уведомления",
+                    status: .connected,
+                    description: "Push-уведомления включены"
+                )
+                
+                if !model.familyControlsService.isAuthorized {
+                    Button("🔐 Запросить Family Controls") {
+                        Task {
+                            do {
+                                try await model.familyControlsService.requestAuthorization()
+                                model.message = "✅ Family Controls авторизация запрошена"
+                            } catch {
+                                model.message = "❌ Ошибка авторизации: \(error.localizedDescription)"
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.borderedProminent)
+                    .foregroundColor(.white)
+                }
+            }
+            .padding(.vertical, 8)
+        }
+    }
+    
+    // MARK: - Actions
+    private func selectTariff(_ tariff: Tariff) {
+        model.budget.updateTariff(tariff)
+        
+        // Пересчитываем бюджет с новым тарифом
+        Task {
+            await model.recalcSilently()
+            await MainActor.run {
+                model.message = "✅ Тариф изменен на \(tariff.displayName)"
+            }
+        }
+    }
+}
+
+// MARK: - TariffOptionView Component
+struct TariffOptionView: View {
+    let tariff: Tariff
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                // Иконка тарифа
+                Text(tariffIcon)
+                    .font(.title2)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                    Text(tariff.displayName)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text(tariff.description)
+                    .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                // Индикатор выбора
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? .blue : .gray)
+                    .font(.title2)
+        }
+        .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color.blue.opacity(0.1) : Color.clear)
+        .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(isSelected ? Color.blue : Color.gray.opacity(0.3), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var tariffIcon: String {
+        switch tariff {
+        case .easy: return "💎"
+        case .medium: return "🔥"
+        case .hard: return "💪"
+        }
+    }
+}
+
+// MARK: - StatusRow Component
+struct StatusRow: View {
+    let icon: String
+    let title: String
+    let status: ConnectionStatus
+    let description: String
+    
+    enum ConnectionStatus {
+        case connected, disconnected, warning
+        
+        var color: Color {
+            switch self {
+            case .connected: return .green
+            case .disconnected: return .red
+            case .warning: return .orange
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .connected: return "checkmark.circle.fill"
+            case .disconnected: return "xmark.circle.fill"
+            case .warning: return "exclamationmark.triangle.fill"
+            }
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(status.color)
+                .font(.title3)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Image(systemName: status.icon)
+                .foregroundColor(status.color)
+                .font(.title3)
+        }
+        .padding(.vertical, 4)
+    }
 }

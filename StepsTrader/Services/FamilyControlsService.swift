@@ -59,7 +59,7 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
         }
     }
     
-    private func checkAuthorizationStatus() {
+    func checkAuthorizationStatus() {
         let status = AuthorizationCenter.shared.authorizationStatus
         isAuthorized = status == .approved
         
@@ -101,10 +101,23 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
         }
         
         // Сохраняем метаданные для диагностики
-        UserDefaults(suiteName: "group.personal-project.StepsTrader")?.set(selection.applicationTokens.count, forKey: "selectedAppsCount")
-        UserDefaults(suiteName: "group.personal-project.StepsTrader")?.set(selection.categoryTokens.count, forKey: "selectedCategoriesCount")
-        UserDefaults(suiteName: "group.personal-project.StepsTrader")?.set(budgetMinutes, forKey: "budgetMinutes")
-        UserDefaults(suiteName: "group.personal-project.StepsTrader")?.set(Date(), forKey: "monitoringStartTime")
+        let userDefaults = UserDefaults(suiteName: "group.personal-project.StepsTrader")
+        userDefaults?.set(selection.applicationTokens.count, forKey: "selectedAppsCount")
+        userDefaults?.set(selection.categoryTokens.count, forKey: "selectedCategoriesCount")
+        userDefaults?.set(budgetMinutes, forKey: "budgetMinutes")
+        userDefaults?.set(Date(), forKey: "monitoringStartTime")
+        
+        // Сохраняем ApplicationTokens для DeviceActivityMonitor
+        if !selection.applicationTokens.isEmpty {
+            do {
+                let tokensData = try NSKeyedArchiver.archivedData(withRootObject: selection.applicationTokens, requiringSecureCoding: true)
+                userDefaults?.set(tokensData, forKey: "selectedApplicationTokens")
+                print("💾 Saved ApplicationTokens for DeviceActivityMonitor")
+            } catch {
+                print("❌ Failed to save ApplicationTokens: \(error)")
+            }
+        }
+        
         print("📝 Saved monitoring metadata: \(selection.applicationTokens.count) apps, \(selection.categoryTokens.count) categories, budget: \(budgetMinutes) min, start time: \(Date())")
         
         // Токены передаются через DeviceActivityEvent

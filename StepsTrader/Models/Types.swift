@@ -12,6 +12,7 @@ protocol HealthKitServiceProtocol {
 }
 
 // MARK: - Family Controls Service Protocol
+@MainActor
 protocol FamilyControlsServiceProtocol {
     var isAuthorized: Bool { get }
     var selection: FamilyActivitySelection { get set }
@@ -28,7 +29,7 @@ protocol NotificationServiceProtocol {
 
 // MARK: - Budget Engine Protocol
 protocol BudgetEngineProtocol: ObservableObject {
-    var difficultyLevel: DifficultyLevel { get }
+    var tariff: Tariff { get set }
     var stepsPerMinute: Double { get }
     var dailyBudgetMinutes: Int { get }
     var remainingMinutes: Int { get }
@@ -37,24 +38,41 @@ protocol BudgetEngineProtocol: ObservableObject {
     func setBudget(minutes: Int)
     func consume(mins: Int)
     func resetIfNeeded()
+    func updateTariff(_ newTariff: Tariff)
+    
+    // Backward compatibility
+    var difficultyLevel: DifficultyLevel { get set }
 }
 
-enum DifficultyLevel: String, CaseIterable {
-    case easy = "EASY"
-    case medium = "MEDIUM" 
-    case hard = "HARD"
-    case hardcore = "HARDCORE"
+enum Tariff: String, CaseIterable {
+    case easy = "easy"     // 100 шагов = 1 мин
+    case medium = "medium" // 500 шагов = 1 мин  
+    case hard = "hard"     // 1000 шагов = 1 мин
     
     var stepsPerMinute: Double {
         switch self {
-        case .easy: return 500
-        case .medium: return 1000
-        case .hard: return 2000
-        case .hardcore: return 5000
+        case .easy: return 100
+        case .medium: return 500
+        case .hard: return 1000
+        }
+    }
+    
+    var displayName: String {
+        switch self {
+        case .easy: return "💎 EASY"
+        case .medium: return "🔥 MEDIUM"
+        case .hard: return "💪 HARD"
         }
     }
     
     var description: String {
-        "\(rawValue): \(Int(stepsPerMinute)) шагов/мин"
+        switch self {
+        case .easy: return "100 шагов = 1 минута"
+        case .medium: return "500 шагов = 1 минута"
+        case .hard: return "1000 шагов = 1 минута"
+        }
     }
 }
+
+// Backward compatibility
+typealias DifficultyLevel = Tariff
