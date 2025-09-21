@@ -1,4 +1,4 @@
-# StepTimeLimiter (iOS 17+, SwiftUI)
+# 👟⚡ Steps Trader (iOS 17+, SwiftUI)
 
 ## Capabilities
 - HealthKit (Read)
@@ -6,7 +6,7 @@
 - Device Activity
 
 Add to Info.plist:
-- NSHealthShareUsageDescription = "Нужен доступ к шагам для лимита времени приложений"
+- NSHealthShareUsageDescription = "Steps Trader нужен доступ к шагам для управления временем приложений"
 
 ## Notes
 - Run on a real device. Family Controls/Device Activity require device and Apple entitlements.

@@ -4,5 +4,9 @@
 <dict>
 	<key>com.apple.developer.healthkit</key>
 	<true/>
+	<key>com.apple.developer.family-controls</key>
+	<true/>
+	<key>com.apple.developer.deviceactivity</key>
+	<true/>
 </dict>
 </plist>

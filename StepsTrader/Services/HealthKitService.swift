@@ -1,6 +1,6 @@
 import HealthKit
 
-final class HealthKitService {
+final class HealthKitService: HealthKitServiceProtocol {
     private let store = HKHealthStore()
     private let stepType = HKObjectType.quantityType(forIdentifier: .stepCount)!
 

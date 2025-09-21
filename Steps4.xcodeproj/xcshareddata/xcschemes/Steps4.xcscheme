@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "2089F0B32E71A18E00ABF5FA"
-               BuildableName = "Steps4.app"
+               BuildableName = "Steps Trader.app"
                BlueprintName = "Steps4"
                ReferencedContainer = "container:Steps4.xcodeproj">
             </BuildableReference>
@@ -36,7 +36,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "2089F0C32E71A18F00ABF5FA"
-               BuildableName = "Steps4Tests.xctest"
+               BuildableName = "Steps Trader.xctest"
                BlueprintName = "Steps4Tests"
                ReferencedContainer = "container:Steps4.xcodeproj">
             </BuildableReference>
@@ -47,7 +47,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "2089F0CD2E71A18F00ABF5FA"
-               BuildableName = "Steps4UITests.xctest"
+               BuildableName = "Steps Trader.xctest"
                BlueprintName = "Steps4UITests"
                ReferencedContainer = "container:Steps4.xcodeproj">
             </BuildableReference>
@@ -69,7 +69,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "2089F0B32E71A18E00ABF5FA"
-            BuildableName = "Steps4.app"
+            BuildableName = "Steps Trader.app"
             BlueprintName = "Steps4"
             ReferencedContainer = "container:Steps4.xcodeproj">
          </BuildableReference>
@@ -93,7 +93,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "2089F0B32E71A18E00ABF5FA"
-            BuildableName = "Steps4.app"
+            BuildableName = "Steps Trader.app"
             BlueprintName = "Steps4"
             ReferencedContainer = "container:Steps4.xcodeproj">
          </BuildableReference>

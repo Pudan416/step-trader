@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2035D7582E7D9CF90011B21D /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
 		2089F0BC2E71A18F00ABF5FA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */; };
 		2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */; };
 		2089F0C92E71A18F00ABF5FA /* Steps4Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0C82E71A18F00ABF5FA /* Steps4Tests.swift */; };
@@ -17,7 +18,7 @@
 		2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */; };
 		2089F0EE2E71AE3400ABF5FA /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */; };
 		2089F0EF2E71AE3400ABF5FA /* Date+Today.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E72E71AE3400ABF5FA /* Date+Today.swift */; };
-		2089F0F02E71AE3400ABF5FA /* StepTimeLimiterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E92E71AE3400ABF5FA /* StepTimeLimiterApp.swift */; };
+		2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E92E71AE3400ABF5FA /* StepsTraderApp.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,13 +38,26 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		20E8EF8F2E7D41B200C092A1 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		2089F0B42E71A18E00ABF5FA /* Steps4.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Steps4.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0B42E71A18E00ABF5FA /* Steps Trader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Steps Trader.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		2089F0C42E71A18F00ABF5FA /* Steps4Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Steps4Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0C42E71A18F00ABF5FA /* Steps4Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = Steps4Tests.xctest; path = "Steps Trader.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0C82E71A18F00ABF5FA /* Steps4Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4Tests.swift; sourceTree = "<group>"; };
-		2089F0CE2E71A18F00ABF5FA /* Steps4UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Steps4UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0CE2E71A18F00ABF5FA /* Steps4UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = Steps4UITests.xctest; path = "Steps Trader.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0D22E71A18F00ABF5FA /* Steps4UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITests.swift; sourceTree = "<group>"; };
 		2089F0D42E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
 		2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BudgetEngine.swift; sourceTree = "<group>"; };
@@ -51,9 +65,13 @@
 		2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FamilyControlsService.swift; sourceTree = "<group>"; };
 		2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		2089F0E72E71AE3400ABF5FA /* Date+Today.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Date+Today.swift"; sourceTree = "<group>"; };
-		2089F0E92E71AE3400ABF5FA /* StepTimeLimiterApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepTimeLimiterApp.swift; sourceTree = "<group>"; };
+		2089F0E92E71AE3400ABF5FA /* StepsTraderApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepsTraderApp.swift; sourceTree = "<group>"; };
 		2089F0F12E72D68C00ABF5FA /* Steps4.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Steps4.entitlements; sourceTree = "<group>"; };
 		2089F0F42E72EC1700ABF5FA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		20D04B042E7D46340047518D /* DeviceActivityMonitorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceActivityMonitorExtension.swift; sourceTree = "<group>"; };
+		20D04B062E7D46340047518D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		20D04B072E7D46340047518D /* StepsTraderMonitor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StepsTraderMonitor.entitlements; sourceTree = "<group>"; };
+		20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -61,6 +79,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2035D7582E7D9CF90011B21D /* DeviceActivity.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -84,10 +103,12 @@
 		2089F0AB2E71A18E00ABF5FA = {
 			isa = PBXGroup;
 			children = (
-				2089F0EA2E71AE3400ABF5FA /* StepTimeLimiter */,
+				2089F0EA2E71AE3400ABF5FA /* StepsTrader */,
 				2089F0B62E71A18E00ABF5FA /* Steps4 */,
 				2089F0C72E71A18F00ABF5FA /* Steps4Tests */,
 				2089F0D12E71A18F00ABF5FA /* Steps4UITests */,
+				20D04B032E7D46340047518D /* StepsTraderMonitor */,
+				20E8EF842E7D41B200C092A1 /* Frameworks */,
 				2089F0B52E71A18E00ABF5FA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -95,7 +116,7 @@
 		2089F0B52E71A18E00ABF5FA /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				2089F0B42E71A18E00ABF5FA /* Steps4.app */,
+				2089F0B42E71A18E00ABF5FA /* Steps Trader.app */,
 				2089F0C42E71A18F00ABF5FA /* Steps4Tests.xctest */,
 				2089F0CE2E71A18F00ABF5FA /* Steps4UITests.xctest */,
 			);
@@ -164,15 +185,33 @@
 			path = Utilities;
 			sourceTree = "<group>";
 		};
-		2089F0EA2E71AE3400ABF5FA /* StepTimeLimiter */ = {
+		2089F0EA2E71AE3400ABF5FA /* StepsTrader */ = {
 			isa = PBXGroup;
 			children = (
 				2089F0E32E71AE3400ABF5FA /* Models */,
 				2089F0E62E71AE3400ABF5FA /* Services */,
 				2089F0E82E71AE3400ABF5FA /* Utilities */,
-				2089F0E92E71AE3400ABF5FA /* StepTimeLimiterApp.swift */,
+				2089F0E92E71AE3400ABF5FA /* StepsTraderApp.swift */,
 			);
-			path = StepTimeLimiter;
+			path = StepsTrader;
+			sourceTree = "<group>";
+		};
+		20D04B032E7D46340047518D /* StepsTraderMonitor */ = {
+			isa = PBXGroup;
+			children = (
+				20D04B042E7D46340047518D /* DeviceActivityMonitorExtension.swift */,
+				20D04B062E7D46340047518D /* Info.plist */,
+				20D04B072E7D46340047518D /* StepsTraderMonitor.entitlements */,
+			);
+			path = StepsTraderMonitor;
+			sourceTree = "<group>";
+		};
+		20E8EF842E7D41B200C092A1 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -185,6 +224,7 @@
 				2089F0B02E71A18E00ABF5FA /* Sources */,
 				2089F0B12E71A18E00ABF5FA /* Frameworks */,
 				2089F0B22E71A18E00ABF5FA /* Resources */,
+				20E8EF8F2E7D41B200C092A1 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -192,7 +232,7 @@
 			);
 			name = Steps4;
 			productName = Steps4;
-			productReference = 2089F0B42E71A18E00ABF5FA /* Steps4.app */;
+			productReference = 2089F0B42E71A18E00ABF5FA /* Steps Trader.app */;
 			productType = "com.apple.product-type.application";
 		};
 		2089F0C32E71A18F00ABF5FA /* Steps4Tests */ = {
@@ -308,7 +348,7 @@
 				2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */,
 				2089F0EE2E71AE3400ABF5FA /* HealthKitService.swift in Sources */,
 				2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */,
-				2089F0F02E71AE3400ABF5FA /* StepTimeLimiterApp.swift in Sources */,
+				2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */,
 				2089F0EF2E71AE3400ABF5FA /* Date+Today.swift in Sources */,
 				2089F0EC2E71AE3400ABF5FA /* Types.swift in Sources */,
 			);
@@ -469,6 +509,7 @@
 		2089F0D92E71A18F00ABF5FA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Steps4/Steps4.entitlements;
@@ -479,7 +520,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Нужен доступ к шагам для лимита времени приложений";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Steps Trader нужен доступ к шагам для управления временем приложений";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -490,8 +531,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
+				PRODUCT_NAME = "Steps Trader";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -501,6 +542,7 @@
 		2089F0DA2E71A18F00ABF5FA /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Steps4/Steps4.entitlements;
@@ -511,7 +553,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Нужен доступ к шагам для лимита времени приложений";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Steps Trader нужен доступ к шагам для управления временем приложений";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -522,8 +564,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
+				PRODUCT_NAME = "Steps Trader";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -542,7 +584,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Steps Trader";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -562,7 +604,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Steps Trader";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -580,7 +622,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Steps Trader";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -598,7 +640,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Steps Trader";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

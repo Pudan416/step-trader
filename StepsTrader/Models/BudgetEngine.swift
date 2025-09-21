@@ -1,34 +1,23 @@
 import Foundation
 import Combine
 
-final class BudgetEngine: ObservableObject {
-    @Published var difficultyLevel: DifficultyLevel {
-        didSet { 
-            UserDefaults.standard.set(difficultyLevel.rawValue, forKey: "difficultyLevel")
-            stepsPerMinute = difficultyLevel.stepsPerMinute
-        }
-    }
+final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
+    // Фиксированный тариф: 500 шагов = 1 минута
+    let stepsPerMinute: Double = 500
+    let difficultyLevel: DifficultyLevel = .easy
     
-    @Published private(set) var stepsPerMinute: Double
     @Published private(set) var todayAnchor: Date
     @Published private(set) var dailyBudgetMinutes: Int = 0
     @Published private(set) var remainingMinutes: Int = 0
 
     init() {
-        // Сначала инициализируем все stored properties
-        let savedLevel = UserDefaults.standard.string(forKey: "difficultyLevel")
-        let initialLevel = DifficultyLevel(rawValue: savedLevel ?? "") ?? .easy
-        
-        self.difficultyLevel = initialLevel
-        self.stepsPerMinute = initialLevel.stepsPerMinute
-        
         let savedAnchor = UserDefaults.standard.object(forKey: "todayAnchor") as? Date ?? Calendar.current.startOfDay(for: Date())
         self.todayAnchor = savedAnchor
         
         self.dailyBudgetMinutes = UserDefaults.standard.integer(forKey: "dailyBudgetMinutes")
         self.remainingMinutes = UserDefaults.standard.integer(forKey: "remainingMinutes")
         
-        // Только после полной инициализации вызываем методы
+        // Проверяем, нужно ли сбросить на новый день
         if !Calendar.current.isDateInToday(savedAnchor) { 
             resetForToday() 
         }
