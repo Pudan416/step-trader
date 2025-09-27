@@ -1,0 +1,13 @@
+
+// MARK: - App Intents Support
+
+#if canImport(AppIntents)
+import AppIntents
+
+@available(iOS 16.0, *)
+extension StepsTraderApp {
+    var appShortcutsProvider: StepsTraderShortcuts.Type {
+        StepsTraderShortcuts.self
+    }
+}
+#endif

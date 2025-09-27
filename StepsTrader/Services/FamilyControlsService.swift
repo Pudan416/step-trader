@@ -14,6 +14,7 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
     
     init() {
         checkAuthorizationStatus()
+        restorePersistentSelection()
         
         // Если статус не определен, автоматически запрашиваем авторизацию
         if AuthorizationCenter.shared.authorizationStatus == .notDetermined {
@@ -85,6 +86,12 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
     }
     
     func startMonitoring(budgetMinutes: Int) {
+        print("🔧 === НАЧАЛО START MONITORING ===")
+        print("🔐 Авторизован: \(isAuthorized)")
+        print("💰 Бюджет минут: \(budgetMinutes)")
+        print("📱 Выбрано приложений: \(selection.applicationTokens.count)")
+        print("📂 Выбрано категорий: \(selection.categoryTokens.count)")
+        
         guard isAuthorized else {
             print("❌ Cannot start monitoring: not authorized")
             return
@@ -100,18 +107,33 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
             return
         }
         
+        print("✅ Все проверки пройдены, запускаем асинхронный мониторинг")
+        // Запускаем мониторинг в фоновом потоке чтобы не блокировать UI
+        Task {
+            print("🔄 Создана асинхронная задача для мониторинга")
+            await startMonitoringAsync(budgetMinutes: budgetMinutes)
+            print("✅ Асинхронный мониторинг завершен")
+        }
+        print("🔧 === ЗАВЕРШЕНИЕ START MONITORING ===")
+    }
+    
+    private func startMonitoringAsync(budgetMinutes: Int) async {
+        print("🔧 === НАЧАЛО START MONITORING ASYNC ===")
+        
         // Сохраняем метаданные для диагностики
-        let userDefaults = UserDefaults(suiteName: "group.personal-project.StepsTrader")
-        userDefaults?.set(selection.applicationTokens.count, forKey: "selectedAppsCount")
-        userDefaults?.set(selection.categoryTokens.count, forKey: "selectedCategoriesCount")
-        userDefaults?.set(budgetMinutes, forKey: "budgetMinutes")
-        userDefaults?.set(Date(), forKey: "monitoringStartTime")
+        let userDefaults = UserDefaults.stepsTrader()
+        print("💾 Сохраняем метаданные в UserDefaults")
+        userDefaults.set(selection.applicationTokens.count, forKey: "selectedAppsCount")
+        userDefaults.set(selection.categoryTokens.count, forKey: "selectedCategoriesCount")
+        userDefaults.set(budgetMinutes, forKey: "budgetMinutes")
+        userDefaults.set(Date(), forKey: "monitoringStartTime")
+        print("✅ Метаданные сохранены: \(selection.applicationTokens.count) apps, \(selection.categoryTokens.count) categories, \(budgetMinutes) min")
         
         // Сохраняем ApplicationTokens для DeviceActivityMonitor
         if !selection.applicationTokens.isEmpty {
             do {
                 let tokensData = try NSKeyedArchiver.archivedData(withRootObject: selection.applicationTokens, requiringSecureCoding: true)
-                userDefaults?.set(tokensData, forKey: "selectedApplicationTokens")
+                userDefaults.set(tokensData, forKey: "selectedApplicationTokens")
                 print("💾 Saved ApplicationTokens for DeviceActivityMonitor")
             } catch {
                 print("❌ Failed to save ApplicationTokens: \(error)")
@@ -218,6 +240,7 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
         // Основная логика перенесена в AppModel для избежания циклов
         DispatchQueue.main.async { [weak self] in
             self?.selection = newSelection
+            self?.savePersistentSelection()
             print("📱 Service selection updated: \(newSelection.applicationTokens.count) apps, \(newSelection.categoryTokens.count) categories")
         }
     }
@@ -235,9 +258,9 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
         print("   - ✅ Running on real device - DeviceActivity should work")
         #endif
         
-        let userDefaults = UserDefaults(suiteName: "group.personal-project.StepsTrader")
-        let budgetMinutes = userDefaults?.object(forKey: "budgetMinutes") as? Int ?? 0
-        let startTime = userDefaults?.object(forKey: "monitoringStartTime") as? Date
+        let userDefaults = UserDefaults.stepsTrader()
+        let budgetMinutes = userDefaults.object(forKey: "budgetMinutes") as? Int ?? 0
+        let startTime = userDefaults.object(forKey: "monitoringStartTime") as? Date
         
         print("   - Saved budget minutes: \(budgetMinutes)")
         print("   - Monitoring start time: \(startTime?.description ?? "none")")
@@ -247,6 +270,47 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
         } else {
             print("   - ❌ NO SELECTION - Cannot monitor without apps or categories")
         }
+    }
+
+    // MARK: - Persistence
+    private func restorePersistentSelection() {
+        let userDefaults = UserDefaults.stepsTrader()
+        var newSelection = FamilyActivitySelection()
+        var restored = false
+        
+        if let appsData = userDefaults.data(forKey: "persistentApplicationTokens"),
+           let obj = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSSet.self, from: appsData),
+           let apps = obj as? Set<ApplicationToken> {
+            newSelection.applicationTokens = apps
+            restored = true
+        }
+        if let catsData = userDefaults.data(forKey: "persistentCategoryTokens"),
+           let obj = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSSet.self, from: catsData),
+           let cats = obj as? Set<ActivityCategoryToken> {
+            newSelection.categoryTokens = cats
+            restored = true
+        }
+        if restored {
+            self.selection = newSelection
+            print("📱 Restored FamilyControlsService.selection: \(newSelection.applicationTokens.count) apps, \(newSelection.categoryTokens.count) categories")
+        } else {
+            print("ℹ️ No persisted selection to restore in FamilyControlsService")
+        }
+    }
+
+    private func savePersistentSelection() {
+        let userDefaults = UserDefaults.stepsTrader()
+        if !selection.applicationTokens.isEmpty {
+            if let data = try? NSKeyedArchiver.archivedData(withRootObject: selection.applicationTokens, requiringSecureCoding: true) {
+                userDefaults.set(data, forKey: "persistentApplicationTokens")
+            }
+        }
+        if !selection.categoryTokens.isEmpty {
+            if let data = try? NSKeyedArchiver.archivedData(withRootObject: selection.categoryTokens, requiringSecureCoding: true) {
+                userDefaults.set(data, forKey: "persistentCategoryTokens")
+            }
+        }
+        userDefaults.set(Date(), forKey: "appSelectionSavedDate")
     }
 }
 

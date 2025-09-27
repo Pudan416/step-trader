@@ -5,7 +5,20 @@ import FamilyControls
 import UserNotifications
 import AudioToolbox
 
-class DeviceActivityMonitor: DeviceActivityMonitor {
+// MARK: - Local UserDefaults Helper for Extension Target
+extension UserDefaults {
+    static func stepsTrader() -> UserDefaults {
+        if let appGroup = UserDefaults(suiteName: "group.personal-project.StepsTrader") {
+            return appGroup
+        } else {
+            // Simulator fallback to avoid CFPrefsPlistSource error
+            print("⚠️ [Monitor] App Group not available, using standard UserDefaults")
+            return .standard
+        }
+    }
+}
+
+class StepsTraderDeviceActivityMonitor: DeviceActivityMonitor {
     
     override func intervalDidStart(for activity: DeviceActivityName) {
         super.intervalDidStart(for: activity)
@@ -13,12 +26,12 @@ class DeviceActivityMonitor: DeviceActivityMonitor {
         print("   Time: \(Date())")
         
         // Проверяем информацию о выбранных приложениях
-        let userDefaults = UserDefaults(suiteName: "group.personal-project.StepsTrader")
+        let userDefaults = UserDefaults.stepsTrader()
         
-        let selectedAppsCount = userDefaults?.integer(forKey: "selectedAppsCount") ?? 0
-        let selectedCategoriesCount = userDefaults?.integer(forKey: "selectedCategoriesCount") ?? 0
-        let budgetMinutes = userDefaults?.object(forKey: "budgetMinutes") as? Int ?? 0
-        let startTime = userDefaults?.object(forKey: "monitoringStartTime") as? Date
+        let selectedAppsCount = userDefaults.integer(forKey: "selectedAppsCount")
+        let selectedCategoriesCount = userDefaults.integer(forKey: "selectedCategoriesCount")
+        let budgetMinutes = userDefaults.object(forKey: "budgetMinutes") as? Int ?? 0
+        let startTime = userDefaults.object(forKey: "monitoringStartTime") as? Date
         
         print("📊 MONITOR STATUS:")
         print("   - Selected apps: \(selectedAppsCount)")
@@ -50,10 +63,10 @@ class DeviceActivityMonitor: DeviceActivityMonitor {
         print("   Time: \(Date())")
         
         // Обновляем потраченное время в shared UserDefaults
-        let userDefaults = UserDefaults(suiteName: "group.personal-project.StepsTrader")
-        if let budgetMinutes = userDefaults?.object(forKey: "budgetMinutes") as? Int {
-            userDefaults?.set(budgetMinutes, forKey: "spentMinutes")
-            userDefaults?.set(Date(), forKey: "spentTimeDate")
+        let userDefaults = UserDefaults.stepsTrader()
+        if let budgetMinutes = userDefaults.object(forKey: "budgetMinutes") as? Int {
+            userDefaults.set(budgetMinutes, forKey: "spentMinutes")
+            userDefaults.set(Date(), forKey: "spentTimeDate")
             print("💾 Updated spent time: \(budgetMinutes) minutes (limit reached)")
         }
         
@@ -61,7 +74,7 @@ class DeviceActivityMonitor: DeviceActivityMonitor {
         let store = ManagedSettingsStore()
         
         // Пытаемся получить ApplicationTokens из UserDefaults
-        if let tokensData = userDefaults?.data(forKey: "selectedApplicationTokens"),
+        if let tokensData = userDefaults.data(forKey: "selectedApplicationTokens"),
            !tokensData.isEmpty {
             
             do {
@@ -85,7 +98,7 @@ class DeviceActivityMonitor: DeviceActivityMonitor {
         
         func useCategoryFallback() {
             // Fallback - блокируем основные категории
-            let categoriesToBlock: [ActivityCategory] = [.socialMedia, .entertainment, .games]
+            let categoriesToBlock: [ActivityCategory] = [.socialNetworking, .entertainment, .games]
             store.shield.applicationCategories = ShieldSettings.ActivityCategoryPolicy.specific(categoriesToBlock)
             print("🔄 Fallback: blocking categories \(categoriesToBlock)")
         }

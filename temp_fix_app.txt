@@ -1,0 +1,14 @@
+// Заменить блок App Intents Support в StepsTraderApp.swift на:
+
+// MARK: - App Intents Support
+
+#if canImport(AppIntents)
+extension StepsTraderApp {
+    init() {
+        if #available(iOS 16.0, *) {
+            // App Intents автоматически обнаружат наши Intent структуры
+            // Ничего дополнительного не нужно
+        }
+    }
+}
+#endif

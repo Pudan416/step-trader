@@ -1,0 +1,20 @@
+ИНСТРУКЦИИ ПО ИСПРАВЛЕНИЮ:
+
+1. В файле StepsTrader/StepsTraderApp.swift удалить весь блок:
+
+// MARK: - App Intents Support
+
+#if canImport(AppIntents)
+import AppIntents
+
+@available(iOS 16.0, *)
+extension StepsTraderApp {
+    var appShortcutsProvider: StepsTraderShortcuts.Type {
+        StepsTraderShortcuts.self
+    }
+}
+#endif
+
+2. App Intents в файле AllAppIntents.swift будут автоматически обнаружены системой iOS 16+
+
+3. Файл AllAppIntents.swift уже содержит все необходимые Intent'ы

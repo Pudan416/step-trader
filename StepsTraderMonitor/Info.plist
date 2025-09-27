@@ -19,7 +19,7 @@
         <key>NSExtensionPointIdentifier</key>
         <string>com.apple.DeviceActivity.monitor</string>
         <key>NSExtensionPrincipalClass</key>
-        <string>StepsTraderMonitor.DeviceActivityMonitor</string>
+        <string>StepsTraderMonitor.StepsTraderDeviceActivityMonitor</string>
     </dict>
     <key>LSRequiresIPhoneOS</key>
     <true/>
