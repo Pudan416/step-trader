@@ -10,9 +10,6 @@
 		2035D7582E7D9CF90011B21D /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
 		2089F0BC2E71A18F00ABF5FA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */; };
 		2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */; };
-		2089F0C92E71A18F00ABF5FA /* Steps4Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0C82E71A18F00ABF5FA /* Steps4Tests.swift */; };
-		2089F0D32E71A18F00ABF5FA /* Steps4UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0D22E71A18F00ABF5FA /* Steps4UITests.swift */; };
-		2089F0D52E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0D42E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
 		2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */; };
 		2089F0EC2E71AE3400ABF5FA /* Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E22E71AE3400ABF5FA /* Types.swift */; };
 		2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */; };
@@ -29,6 +26,8 @@
 		209424C82E85952D00904A0A /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424C52E85952D00904A0A /* NotificationManager.swift */; };
 		209424C92E85952D00904A0A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424C62E85952D00904A0A /* AppModel.swift */; };
 		209424CA2E85952D00904A0A /* DIContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424C72E85952D00904A0A /* DIContainer.swift */; };
+		20B0A3522E8C658800D5EBE4 /* ShieldConfigurationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3502E8C658800D5EBE4 /* ShieldConfigurationProvider.swift */; };
+		20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,11 +64,8 @@
 		2089F0B42E71A18E00ABF5FA /* Steps Trader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Steps Trader.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		2089F0C42E71A18F00ABF5FA /* Steps4Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = Steps4Tests.xctest; path = "Steps Trader.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		2089F0C82E71A18F00ABF5FA /* Steps4Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4Tests.swift; sourceTree = "<group>"; };
-		2089F0CE2E71A18F00ABF5FA /* Steps4UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = Steps4UITests.xctest; path = "Steps Trader.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		2089F0D22E71A18F00ABF5FA /* Steps4UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITests.swift; sourceTree = "<group>"; };
-		2089F0D42E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
+		2089F0C42E71A18F00ABF5FA /* Steps Trader.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Steps Trader.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0CE2E71A18F00ABF5FA /* Steps Trader.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Steps Trader.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BudgetEngine.swift; sourceTree = "<group>"; };
 		2089F0E22E71AE3400ABF5FA /* Types.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Types.swift; sourceTree = "<group>"; };
 		2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FamilyControlsService.swift; sourceTree = "<group>"; };
@@ -88,7 +84,8 @@
 		209424C52E85952D00904A0A /* NotificationManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		209424C62E85952D00904A0A /* AppModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		209424C72E85952D00904A0A /* DIContainer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DIContainer.swift; sourceTree = "<group>"; };
-		20D04B042E7D46340047518D /* DeviceActivityMonitorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceActivityMonitorExtension.swift; sourceTree = "<group>"; };
+		20B0A3502E8C658800D5EBE4 /* ShieldConfigurationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldConfigurationProvider.swift; sourceTree = "<group>"; };
+		20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StepsTrader.swift"; sourceTree = "<group>"; };
 		20D04B062E7D46340047518D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		20D04B072E7D46340047518D /* StepsTraderMonitor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StepsTraderMonitor.entitlements; sourceTree = "<group>"; };
 		20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
@@ -125,8 +122,6 @@
 			children = (
 				2089F0EA2E71AE3400ABF5FA /* StepsTrader */,
 				2089F0B62E71A18E00ABF5FA /* Steps4 */,
-				2089F0C72E71A18F00ABF5FA /* Steps4Tests */,
-				2089F0D12E71A18F00ABF5FA /* Steps4UITests */,
 				20D04B032E7D46340047518D /* StepsTraderMonitor */,
 				20E8EF842E7D41B200C092A1 /* Frameworks */,
 				2089F0B52E71A18E00ABF5FA /* Products */,
@@ -137,8 +132,8 @@
 			isa = PBXGroup;
 			children = (
 				2089F0B42E71A18E00ABF5FA /* Steps Trader.app */,
-				2089F0C42E71A18F00ABF5FA /* Steps4Tests.xctest */,
-				2089F0CE2E71A18F00ABF5FA /* Steps4UITests.xctest */,
+				2089F0C42E71A18F00ABF5FA /* Steps Trader.xctest */,
+				2089F0CE2E71A18F00ABF5FA /* Steps Trader.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -162,23 +157,6 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
-		2089F0C72E71A18F00ABF5FA /* Steps4Tests */ = {
-			isa = PBXGroup;
-			children = (
-				2089F0C82E71A18F00ABF5FA /* Steps4Tests.swift */,
-			);
-			path = Steps4Tests;
-			sourceTree = "<group>";
-		};
-		2089F0D12E71A18F00ABF5FA /* Steps4UITests */ = {
-			isa = PBXGroup;
-			children = (
-				2089F0D22E71A18F00ABF5FA /* Steps4UITests.swift */,
-				2089F0D42E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
-			);
-			path = Steps4UITests;
-			sourceTree = "<group>";
-		};
 		2089F0E32E71AE3400ABF5FA /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -200,6 +178,7 @@
 		2089F0E82E71AE3400ABF5FA /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */,
 				2089F0E72E71AE3400ABF5FA /* Date+Today.swift */,
 			);
 			path = Utilities;
@@ -208,8 +187,8 @@
 		2089F0EA2E71AE3400ABF5FA /* StepsTrader */ = {
 			isa = PBXGroup;
 			children = (
+				20B0A3512E8C658800D5EBE4 /* Shield */,
 				209424B62E80C53A00904A0A /* Core */,
-				209424B52E80C53500904A0A /* Features */,
 				209424AE2E80C52C00904A0A /* Intents */,
 				209424AC2E80C51300904A0A /* Shield */,
 				209424AB2E80C50600904A0A /* UI */,
@@ -263,53 +242,6 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		209424B02E80C53500904A0A /* Components */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Components;
-			sourceTree = "<group>";
-		};
-		209424B12E80C53500904A0A /* SettingsTab */ = {
-			isa = PBXGroup;
-			children = (
-				209424B02E80C53500904A0A /* Components */,
-			);
-			path = SettingsTab;
-			sourceTree = "<group>";
-		};
-		209424B22E80C53500904A0A /* Shared */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Shared;
-			sourceTree = "<group>";
-		};
-		209424B32E80C53500904A0A /* Components */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Components;
-			sourceTree = "<group>";
-		};
-		209424B42E80C53500904A0A /* StatusTab */ = {
-			isa = PBXGroup;
-			children = (
-				209424B32E80C53500904A0A /* Components */,
-			);
-			path = StatusTab;
-			sourceTree = "<group>";
-		};
-		209424B52E80C53500904A0A /* Features */ = {
-			isa = PBXGroup;
-			children = (
-				209424B12E80C53500904A0A /* SettingsTab */,
-				209424B22E80C53500904A0A /* Shared */,
-				209424B42E80C53500904A0A /* StatusTab */,
-			);
-			path = Features;
-			sourceTree = "<group>";
-		};
 		209424B62E80C53A00904A0A /* Core */ = {
 			isa = PBXGroup;
 			children = (
@@ -338,10 +270,17 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		20B0A3512E8C658800D5EBE4 /* Shield */ = {
+			isa = PBXGroup;
+			children = (
+				20B0A3502E8C658800D5EBE4 /* ShieldConfigurationProvider.swift */,
+			);
+			path = Shield;
+			sourceTree = "<group>";
+		};
 		20D04B032E7D46340047518D /* StepsTraderMonitor */ = {
 			isa = PBXGroup;
 			children = (
-				20D04B042E7D46340047518D /* DeviceActivityMonitorExtension.swift */,
 				20D04B062E7D46340047518D /* Info.plist */,
 				20D04B072E7D46340047518D /* StepsTraderMonitor.entitlements */,
 			);
@@ -392,7 +331,7 @@
 			);
 			name = Steps4Tests;
 			productName = Steps4Tests;
-			productReference = 2089F0C42E71A18F00ABF5FA /* Steps4Tests.xctest */;
+			productReference = 2089F0C42E71A18F00ABF5FA /* Steps Trader.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		2089F0CD2E71A18F00ABF5FA /* Steps4UITests */ = {
@@ -410,7 +349,7 @@
 			);
 			name = Steps4UITests;
 			productName = Steps4UITests;
-			productReference = 2089F0CE2E71A18F00ABF5FA /* Steps4UITests.xctest */;
+			productReference = 2089F0CE2E71A18F00ABF5FA /* Steps Trader.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -421,7 +360,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1540;
-				LastUpgradeCheck = 1540;
+				LastUpgradeCheck = 1640;
 				TargetAttributes = {
 					2089F0B32E71A18E00ABF5FA = {
 						CreatedOnToolsVersion = 15.4;
@@ -493,11 +432,13 @@
 				2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */,
 				209424C82E85952D00904A0A /* NotificationManager.swift in Sources */,
 				209424C02E8593DA00904A0A /* StatusRow.swift in Sources */,
+				20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */,
 				2089F0EE2E71AE3400ABF5FA /* HealthKitService.swift in Sources */,
 				2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */,
 				2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */,
 				2089F0EF2E71AE3400ABF5FA /* Date+Today.swift in Sources */,
 				209424C12E8593DA00904A0A /* TariffOptionView.swift in Sources */,
+				20B0A3522E8C658800D5EBE4 /* ShieldConfigurationProvider.swift in Sources */,
 				209424C32E8593DA00904A0A /* SettingsView.swift in Sources */,
 				209424CA2E85952D00904A0A /* DIContainer.swift in Sources */,
 				2089F0EC2E71AE3400ABF5FA /* Types.swift in Sources */,
@@ -510,7 +451,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2089F0C92E71A18F00ABF5FA /* Steps4Tests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -518,8 +458,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2089F0D32E71A18F00ABF5FA /* Steps4UITests.swift in Sources */,
-				2089F0D52E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -574,6 +512,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 39V44D64DY;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -637,6 +576,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 39V44D64DY;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -661,14 +601,12 @@
 		2089F0D92E71A18F00ABF5FA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Steps4/Steps4.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Steps4/Preview Content\"";
-				DEVELOPMENT_TEAM = 39V44D64DY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
@@ -694,14 +632,12 @@
 		2089F0DA2E71A18F00ABF5FA /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Steps4/Steps4.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Steps4/Preview Content\"";
-				DEVELOPMENT_TEAM = 39V44D64DY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
@@ -727,11 +663,9 @@
 		2089F0DC2E71A18F00ABF5FA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				MARKETING_VERSION = 1.0;
@@ -747,11 +681,9 @@
 		2089F0DD2E71A18F00ABF5FA /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				MARKETING_VERSION = 1.0;
@@ -767,10 +699,8 @@
 		2089F0DF2E71A18F00ABF5FA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
@@ -785,10 +715,8 @@
 		2089F0E02E71A18F00ABF5FA /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";

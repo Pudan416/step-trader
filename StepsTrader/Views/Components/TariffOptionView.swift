@@ -5,12 +5,14 @@ struct TariffOptionView: View {
     let tariff: Tariff
     let isSelected: Bool
     let isDisabled: Bool
+    let stepsToday: Double
     let action: () -> Void
     
-    init(tariff: Tariff, isSelected: Bool, isDisabled: Bool = false, action: @escaping () -> Void) {
+    init(tariff: Tariff, isSelected: Bool, isDisabled: Bool = false, stepsToday: Double = 0, action: @escaping () -> Void) {
         self.tariff = tariff
         self.isSelected = isSelected
         self.isDisabled = isDisabled
+        self.stepsToday = stepsToday
         self.action = action
     }
     
@@ -30,6 +32,13 @@ struct TariffOptionView: View {
                     Text(isDisabled ? "Недостаточно шагов" : tariff.description)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    
+                    if !isDisabled && stepsToday > 0 {
+                        Text("Получите: \(minutesFromSteps) мин")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .fontWeight(.medium)
+                    }
                 }
                 
                 Spacer()
@@ -65,5 +74,10 @@ struct TariffOptionView: View {
         case .medium: return "🔥"
         case .hard: return "💪"
         }
+    }
+    
+    private var minutesFromSteps: Int {
+        // Рассчитываем минуты на основе всех шагов за день, а не оставшихся
+        return max(0, Int(stepsToday / tariff.stepsPerMinute))
     }
 }

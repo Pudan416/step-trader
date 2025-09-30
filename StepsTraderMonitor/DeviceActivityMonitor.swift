@@ -50,9 +50,28 @@ class StepsTraderDeviceActivityMonitor: DeviceActivityMonitor {
         super.intervalDidEnd(for: activity)
         print("📱 Device activity monitoring ended for: \(activity)")
         
-        // Снимаем блокировку в конце дня
+        // Если платный сеанс завершился — вернуть щит немедленно
         let store = ManagedSettingsStore()
-        store.clearAllSettings()
+        let g = UserDefaults.stepsTrader()
+        let now = Date()
+        if let until = g.object(forKey: "sessionAllowedUntil") as? Date, now >= until {
+            if let data = g.data(forKey: "sessionAllowedTokens"),
+               let set = try? NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSSet.self], from: data) as? Set<ApplicationToken> {
+                store.shield.applications = set
+                print("🛡️ Re-enabled shield after paid session for \(set.count) apps")
+                g.removeObject(forKey: "sessionAllowedUntil")
+                g.removeObject(forKey: "sessionAllowedTokens")
+            }
+        } else {
+            // В конце интервала — повторно включаем щит для выбранных приложений
+            if let tokensData = g.data(forKey: "selectedApplicationTokens"),
+               let applicationTokens = try? NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSSet.self], from: tokensData) as? Set<ApplicationToken> {
+                store.shield.applications = applicationTokens
+                print("🛡️ Re-enabled shields at interval end for \(applicationTokens.count) apps")
+            } else {
+                print("ℹ️ No application tokens to re-enable at interval end")
+            }
+        }
     }
     
     override func eventDidReachThreshold(_ event: DeviceActivityEvent.Name, activity: DeviceActivityName) {

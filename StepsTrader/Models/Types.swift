@@ -4,6 +4,7 @@ import FamilyControls
 import HealthKit
 
 // MARK: - Service Protocols
+// NOTE: Avoid exposing FamilyControls token types in shared protocol to prevent cross-target build issues.
 
 // MARK: - HealthKit Service Protocol
 protocol HealthKitServiceProtocol {
@@ -18,12 +19,20 @@ protocol FamilyControlsServiceProtocol {
     var selection: FamilyActivitySelection { get set }
     func requestAuthorization() async throws
     func updateSelection(_ newSelection: FamilyActivitySelection)
+    // Shield controls
+    func enableShield()
+    func disableShield()
+    func allowOneSession() // uses current selection
+    func reenableShield()  // uses current selection
 }
 
 // MARK: - Notification Service Protocol
 protocol NotificationServiceProtocol {
     func requestPermission() async throws
     func sendTimeExpiredNotification()
+    func sendTimeExpiredNotification(remainingMinutes: Int)
+    func sendUnblockNotification(remainingMinutes: Int)
+    func sendRemainingTimeNotification(remainingMinutes: Int)
     func sendTestNotification()
 }
 
@@ -57,6 +66,15 @@ enum Tariff: String, CaseIterable {
         }
     }
     
+    // Стоимость одного входа (шаги за вход)
+    var entryCostSteps: Int {
+        switch self {
+        case .easy: return 100
+        case .medium: return 500
+        case .hard: return 1000
+        }
+    }
+    
     var displayName: String {
         switch self {
         case .easy: return "💎 EASY"
@@ -67,9 +85,9 @@ enum Tariff: String, CaseIterable {
     
     var description: String {
         switch self {
-        case .easy: return "100 шагов = 1 минута"
-        case .medium: return "500 шагов = 1 минута"
-        case .hard: return "1000 шагов = 1 минута"
+        case .easy: return "100 шагов = 1 минута • вход: 100 шагов"
+        case .medium: return "500 шагов = 1 минута • вход: 500 шагов"
+        case .hard: return "1000 шагов = 1 минута • вход: 1000 шагов"
         }
     }
 }

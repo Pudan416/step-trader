@@ -234,6 +234,24 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
         print("🔓 Disabling shield")
         store.clearAllSettings()
     }
+
+    // Разрешить один сеанс для конкретного приложения (снять щит)
+    func allowOneSession() {
+        guard isAuthorized else { return }
+        var apps = store.shield.applications ?? []
+        for token in selection.applicationTokens { apps.remove(token) }
+        store.shield.applications = apps
+        print("🔓 Allow one session for current selection: \(selection.applicationTokens.count) apps")
+    }
+    
+    // Повторно включить щит для приложения
+    func reenableShield() {
+        guard isAuthorized else { return }
+        var apps = store.shield.applications ?? []
+        for token in selection.applicationTokens { if !apps.contains(token) { apps.insert(token) } }
+        store.shield.applications = apps
+        print("🛡️ Re-enabled shield for current selection: \(selection.applicationTokens.count) apps")
+    }
     
     func updateSelection(_ newSelection: FamilyActivitySelection) {
         // Этот метод теперь используется только для внешних вызовов

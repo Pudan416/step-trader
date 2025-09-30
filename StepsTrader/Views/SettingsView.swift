@@ -9,56 +9,68 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             Form {
-                // 0. Шкала остатка шагов
-                remainingStepsSection
-                
-                // 1. Секция тарифа (сначала)
+                // Баланс и стоимость входа
+                balanceSection
+
+                // Стоимость входа (тариф)
                 tariffSection
-                
-                // 2. Секция выбора приложения
+
+                // Выбор целевого приложения
                 appSelectionSection
-                
-                // 3. Секция отслеживания (кнопка начать/остановить)
-                trackingSection
-                
-                // 4. Секция управления
-                managementSection
-                
-                // 5. Секция статуса системы
+
+                // Статус системы и управление
                 systemStatusSection
+                managementSection
             }
         }
     }
     
     // MARK: - Computed Properties
     private var remainingStepsToday: Int {
-        let spentSteps = model.spentMinutes * Int(model.budget.stepsPerMinute)
+        // Используем тариф, по которому были потрачены минуты, а не текущий выбранный тариф
+        let spentSteps = model.spentMinutes * Int(model.spentTariff.stepsPerMinute)
         return max(0, Int(model.stepsToday) - spentSteps)
     }
     
     private func isTariffAvailable(_ tariff: Tariff) -> Bool {
         let requiredSteps = Int(tariff.stepsPerMinute)
-        return remainingStepsToday >= requiredSteps
+        // Проверяем доступность на основе оставшихся шагов, а не потраченных минут
+        return Int(model.stepsToday) >= requiredSteps
     }
     
-    // MARK: - Remaining Steps Section
-    private var remainingStepsSection: some View {
-        Section {
-            VStack(spacing: 8) {
+    // MARK: - Balance Section (пер-входовая модель)
+    private var balanceSection: some View {
+        Section("Баланс") {
+            VStack(spacing: 12) {
                 HStack {
-                    Text("Остаток шагов")
+                    Text("Баланс шагов")
                         .font(.headline)
                     Spacer()
-                    Text("\(remainingStepsToday)")
+                    Text("\(model.stepsBalance)")
                         .font(.headline)
+                        .foregroundColor(model.stepsBalance < model.entryCostSteps ? .red : .green)
+                }
+                HStack {
+                    Text("Стоимость входа")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("\(model.entryCostSteps)")
+                        .foregroundColor(.primary)
+                }
+                HStack {
+                    Text("Остаток шагов")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("\(remainingStepsToday)")
                         .foregroundColor(.blue)
                 }
-                
-                ProgressView(value: Double(remainingStepsToday), total: Double(Int(model.stepsToday)))
-                    .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                    .scaleEffect(x: 1, y: 2, anchor: .center)
+                Button("Обновить баланс") {
+                    Task { await model.refreshStepsBalance() }
+                }
+                .frame(maxWidth: .infinity)
+                .buttonStyle(.borderedProminent)
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
         }
     }
     
@@ -134,7 +146,7 @@ struct SettingsView: View {
     private var tariffSection: some View {
         Section("Тариф обмена") {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Выберите сколько шагов нужно для получения 1 минуты времени:")
+                Text("Выберите стоимость входа и курс шаги→минуты")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
@@ -142,9 +154,17 @@ struct SettingsView: View {
                     TariffOptionView(
                         tariff: tariff,
                         isSelected: model.budget.tariff == tariff,
-                        isDisabled: !isTariffAvailable(tariff)
+                        isDisabled: !isTariffAvailable(tariff),
+                        stepsToday: model.stepsToday
                     ) {
                         selectTariff(tariff)
+                        model.persistEntryCost(tariff: tariff)
+                    }
+                    .overlay(alignment: .trailing) {
+                        Text("вход: \(tariff.entryCostSteps) шагов")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.trailing, 8)
                     }
                 }
             }
@@ -240,22 +260,6 @@ struct SettingsView: View {
     private var managementSection: some View {
         Section("Управление") {
             VStack(spacing: 12) {
-                Button("🔄 Пересчитать бюджет") {
-                    Task {
-                        await model.recalcSilently()
-                        model.message = "✅ Бюджет пересчитан"
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.bordered)
-                
-                Button("🗑️ Сбросить статистику") {
-                    model.resetStatistics()
-                }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.bordered)
-                .foregroundColor(.orange)
-                
                 Button("🔍 Диагностика") {
                     model.runDiagnostics()
                 }
@@ -314,15 +318,9 @@ struct SettingsView: View {
     
     // MARK: - Actions
     private func selectTariff(_ tariff: Tariff) {
+        // Только сохраняем выбор тарифа, не пересчитываем бюджет
         model.budget.updateTariff(tariff)
-        
-        // Пересчитываем бюджет с новым тарифом
-        Task {
-            await model.recalcSilently()
-            await MainActor.run {
-                model.message = "✅ Тариф изменен на \(tariff.displayName)"
-            }
-        }
+        model.message = "✅ Тариф выбран: \(tariff.displayName). Бюджет пересчитается при запуске отслеживания."
     }
     
     private func getPendingShortcutApp() -> String? {

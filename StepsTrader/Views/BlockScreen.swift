@@ -123,13 +123,6 @@ struct BlockScreen: View {
     }
     
     private func formatTime(minutes: Int) -> String {
-        let hours = minutes / 60
-        let remainingMinutes = minutes % 60
-        
-        if hours > 0 {
-            return "\(hours)ч \(remainingMinutes)мин"
-        } else {
-            return "\(remainingMinutes)мин"
-        }
+        return "\(minutes) мин"
     }
 }

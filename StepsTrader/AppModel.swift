@@ -16,17 +16,23 @@ final class AppModel: ObservableObject {
     // Dependencies
     private let healthKitService: any HealthKitServiceProtocol
     let familyControlsService: any FamilyControlsServiceProtocol
-    private let notificationService: any NotificationServiceProtocol
+    let notificationService: any NotificationServiceProtocol
     private let budgetEngine: any BudgetEngineProtocol
     
     // Published properties
     @Published var stepsToday: Double = 0
     @Published var spentSteps: Int = 0
     @Published var spentMinutes: Int = 0  // Реальное время проведенное в приложении
+    @Published var spentTariff: Tariff = .easy  // Тариф, по которому были потрачены минуты
     @Published var isTrackingTime = false
     @Published var isBlocked = false  // Показывать ли экран блокировки
     @Published var message: String?
     @Published var currentSessionElapsed: Int?
+    
+    // Оплата входа шагами
+    @Published var entryCostSteps: Int = Tariff.easy.entryCostSteps
+    @Published var stepsBalance: Int = 0
+    @Published var spentStepsToday: Int = 0
     
     // Budget properties that mirror BudgetEngine for UI updates
     @Published var dailyBudgetMinutes: Int = 0
@@ -35,6 +41,11 @@ final class AppModel: ObservableObject {
     @Published var showFocusGate: Bool = false
     @Published var focusGateTargetBundleId: String? = nil
     @Published var showQuickStatusPage = false  // Показывать ли страницу быстрого статуса
+    
+    // Shortcut message handling
+    @Published var shortcutMessage: String? = nil
+    @Published var showShortcutMessage = false
+    
     @Published var appSelection = FamilyActivitySelection() {
         didSet {
             // Синхронизируем с FamilyControlsService только если есть реальные изменения
@@ -42,10 +53,13 @@ final class AppModel: ObservableObject {
                appSelection.categoryTokens != oldValue.categoryTokens {
                 syncAppSelectionToService()
                 saveAppSelection() // Сохраняем выбор пользователя
+                if let service = familyControlsService as? FamilyControlsService {
+                    service.updateSelection(appSelection)
+                }
             }
         }
     }
-    
+
     @Published var isInstagramSelected: Bool = false {
         didSet {
             // Предотвращаем рекурсию
@@ -80,6 +94,17 @@ final class AppModel: ObservableObject {
         // Initialize budget properties
         self.dailyBudgetMinutes = budgetEngine.dailyBudgetMinutes
         self.remainingMinutes = budgetEngine.remainingMinutes
+
+        // Восстановим закреплённый выбор приложений (если есть)
+        if let service = familyControlsService as? FamilyControlsService {
+            // FamilyControlsService сам вызвал restorePersistentSelection() в init
+            self.appSelection = service.selection
+        }
+
+        // Загрузка баланса шагов
+        loadSpentStepsBalance()
+        // Загрузка стоимости входа
+        loadEntryCost()
         
         print("🎯 AppModel initialized with dependencies")
         
@@ -93,14 +118,22 @@ final class AppModel: ObservableObject {
             // Сначала загружаем сохраненный выбор приложений
             self.loadAppSelection()
             
-            // Затем синхронизируем с FamilyControlsService
+            // Если нет сохраненного выбора, пробуем загрузить из FamilyControlsService
             if self.appSelection.applicationTokens.isEmpty && self.appSelection.categoryTokens.isEmpty {
-                self.appSelection = self.familyControlsService.selection
+                print("🔄 No saved selection found, checking FamilyControlsService...")
+                if !self.familyControlsService.selection.applicationTokens.isEmpty || !self.familyControlsService.selection.categoryTokens.isEmpty {
+                    self.appSelection = self.familyControlsService.selection
+                    print("🔄 Loaded from FamilyControlsService: \(self.appSelection.applicationTokens.count) apps")
+                }
+            } else {
+                // Если есть сохраненный выбор, синхронизируем его с FamilyControlsService
+                print("🔄 Found saved selection, syncing to FamilyControlsService...")
+                self.syncAppSelectionToService()
             }
             
             // Восстанавливаем сохраненное время использования
             self.loadSpentTime()
-            print("🔄 Initial sync: \(self.appSelection.applicationTokens.count) apps")
+            print("🔄 Initial sync complete: \(self.appSelection.applicationTokens.count) apps, \(self.appSelection.categoryTokens.count) categories")
         }
         
         // Подписываемся на уведомления о жизненном цикле приложения
@@ -126,14 +159,40 @@ final class AppModel: ObservableObject {
         )
     }
 
-    // MARK: - Focus Gate handlers
+    // MARK: - Focus Gate handlers + Pay per entry
     func handleIncomingURL(_ url: URL) {
-        // поддержка: steps-trader://focus?target=instagram | myfocusapp://guard?target=instagram
-        let isFocus = (url.host == "focus" || url.path.contains("focus"))
-        let isGuard = (url.host == "guard" || url.path.contains("guard"))
-        guard isFocus || isGuard else { return }
+        let host = url.host?.lowercased() ?? ""
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let target = components?.queryItems?.first(where: { $0.name == "target" })?.value
+
+        if host == "pay" {
+            Task { @MainActor in
+                await refreshStepsBalance()
+                guard !appSelection.applicationTokens.isEmpty else {
+                    message = "❌ Нет выбранного приложения"
+                    return
+                }
+                if canPayForEntry() {
+                    _ = payForEntry()
+                    familyControlsService.allowOneSession()
+                    // Записываем окно сеанса в App Group, чтобы монитор мог вернуть щит
+                    let g = UserDefaults.stepsTrader()
+                    g.set(Date().addingTimeInterval(60 * 5), forKey: "sessionAllowedUntil") // 5 минут сессия
+                    if let data = try? NSKeyedArchiver.archivedData(withRootObject: appSelection.applicationTokens as NSSet, requiringSecureCoding: true) {
+                        g.set(data, forKey: "sessionAllowedTokens")
+                    }
+                    message = "✅ Списано \(entryCostSteps) шагов. Вход разрешен."
+                } else {
+                    message = "❌ Недостаточно шагов. Нужно еще: \(max(0, entryCostSteps - stepsBalance))"
+                }
+            }
+            return
+        }
+
+        // поддержка: steps-trader://focus?target=instagram | steps-trader://guard?target=instagram
+        let isFocus = (host == "focus" || url.path.contains("focus"))
+        let isGuard = (host == "guard" || url.path.contains("guard"))
+        guard isFocus || isGuard else { return }
         var bundleId: String? = target
         if let t = target, !t.contains(".") {
             // маппинг короткого имени в bundle id
@@ -197,7 +256,7 @@ final class AppModel: ObservableObject {
         }
     }
     
-    private func handleAppDidEnterBackground() {
+    func handleAppDidEnterBackground() {
         print("📱 App entered background - timer will be suspended")
         if isTrackingTime {
             // Сохраняем время ухода в фон
@@ -206,8 +265,11 @@ final class AppModel: ObservableObject {
         }
     }
     
-    private func handleAppWillEnterForeground() {
+    func handleAppWillEnterForeground() {
         print("📱 App entering foreground - checking elapsed time")
+        
+        // Принудительно восстанавливаем выбор приложений при возврате в приложение
+        forceRestoreAppSelection()
         
         // Проверяем, сколько времени прошло в фоне (только если включено отслеживание)
         if isTrackingTime {
@@ -249,6 +311,7 @@ final class AppModel: ObservableObject {
         
         // Проверяем, нужно ли показать Quick Status Page (независимо от tracking)
         checkForQuickStatusPage()
+        
     }
     
     // Convenience computed properties for backward compatibility
@@ -282,49 +345,135 @@ final class AppModel: ObservableObject {
         }
         
         // Обновляем сервис напрямую без вызова updateSelection (избегаем циклов)
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            (self.familyControlsService as? FamilyControlsService)?.selection = finalSelection
-            print("✅ Service updated with \(finalSelection.applicationTokens.count) apps")
+        if let familyService = familyControlsService as? FamilyControlsService {
+            familyService.selection = finalSelection
+            print("✅ Service updated with \(finalSelection.applicationTokens.count) apps, \(finalSelection.categoryTokens.count) categories")
+        } else {
+            print("❌ Failed to cast familyControlsService to FamilyControlsService")
         }
     }
 
-    private func loadSpentTime() {
+    func loadSpentTime() {
         let userDefaults = UserDefaults.stepsTrader()
         let savedSpentMinutes = userDefaults.integer(forKey: "spentMinutes")
         let savedDate = userDefaults.object(forKey: "spentTimeDate") as? Date ?? Date()
+        let savedSpentTariffRaw = userDefaults.string(forKey: "spentTariff") ?? "easy"
+        let savedSpentTariff = Tariff(rawValue: savedSpentTariffRaw) ?? .easy
         
         // Сбрасываем время если прошел день
         if !Calendar.current.isDate(savedDate, inSameDayAs: Date()) {
             spentMinutes = 0
             spentSteps = 0
+            spentTariff = .easy
             saveSpentTime()
             print("🔄 Reset spent time for new day")
         } else {
-            spentMinutes = savedSpentMinutes
-            spentSteps = spentMinutes * Int(budgetEngine.stepsPerMinute)
+            // Ограничиваем загруженное время максимальным доступным бюджетом
+            let maxSpentMinutes = budgetEngine.dailyBudgetMinutes
+            spentMinutes = min(savedSpentMinutes, maxSpentMinutes)
+            spentTariff = savedSpentTariff
+            spentSteps = spentMinutes * Int(spentTariff.stepsPerMinute)
             syncBudgetProperties() // Sync budget properties for UI updates
-            print("📊 Loaded spent time: \(spentMinutes) minutes, \(spentSteps) steps")
+            print("📊 Loaded spent time: \(spentMinutes) minutes, \(spentSteps) steps (max: \(maxSpentMinutes))")
         }
     }
     
     private func saveSpentTime() {
         let userDefaults = UserDefaults.stepsTrader()
         userDefaults.set(spentMinutes, forKey: "spentMinutes")
+        userDefaults.set(spentTariff.rawValue, forKey: "spentTariff")
         userDefaults.set(Date(), forKey: "spentTimeDate")
-        print("💾 Saved spent time: \(spentMinutes) minutes")
+        print("💾 Saved spent time: \(spentMinutes) minutes with tariff: \(spentTariff.rawValue)")
+    }
+
+    // MARK: - Steps Balance (per-entry payment)
+    func refreshStepsBalance() async {
+        do {
+            stepsToday = try await healthKitService.fetchTodaySteps()
+        } catch {
+            #if targetEnvironment(simulator)
+            stepsToday = 2500
+            #else
+            stepsToday = 0
+            #endif
+        }
+        let g = UserDefaults.stepsTrader()
+        let anchor = g.object(forKey: "stepsBalanceAnchor") as? Date ?? .distantPast
+        if !Calendar.current.isDateInToday(anchor) {
+            spentStepsToday = 0
+            g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
+        }
+        stepsBalance = max(0, Int(stepsToday) - spentStepsToday)
+        g.set(spentStepsToday, forKey: "spentStepsToday")
+        g.set(stepsBalance, forKey: "stepsBalance")
+    }
+    
+    func canPayForEntry() -> Bool {
+        stepsBalance >= entryCostSteps
+    }
+    
+    @discardableResult
+    func payForEntry() -> Bool {
+        guard canPayForEntry() else { return false }
+        spentStepsToday += entryCostSteps
+        stepsBalance = max(0, stepsBalance - entryCostSteps)
+        let g = UserDefaults.stepsTrader()
+        g.set(spentStepsToday, forKey: "spentStepsToday")
+        g.set(stepsBalance, forKey: "stepsBalance")
+        g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
+        return true
+    }
+    
+    func loadSpentStepsBalance() {
+        let g = UserDefaults.stepsTrader()
+        let anchor = g.object(forKey: "stepsBalanceAnchor") as? Date ?? .distantPast
+        if !Calendar.current.isDateInToday(anchor) {
+            spentStepsToday = 0
+            g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
+        } else {
+            spentStepsToday = g.integer(forKey: "spentStepsToday")
+        }
+        stepsBalance = g.integer(forKey: "stepsBalance")
+        if stepsBalance == 0 {
+            stepsBalance = max(0, Int(stepsToday) - spentStepsToday)
+        }
+    }
+
+    func loadEntryCost() {
+        let g = UserDefaults.stepsTrader()
+        let raw = g.string(forKey: "entryCostTariff")
+        if let raw, let t = Tariff(rawValue: raw) {
+            entryCostSteps = t.entryCostSteps
+        } else {
+            entryCostSteps = Tariff.easy.entryCostSteps
+        }
+    }
+
+    func persistEntryCost(tariff: Tariff) {
+        let g = UserDefaults.stepsTrader()
+        g.set(tariff.rawValue, forKey: "entryCostTariff")
+        entryCostSteps = tariff.entryCostSteps
     }
     
     func updateSpentTime(minutes: Int) {
-        spentMinutes = minutes
-        spentSteps = spentMinutes * Int(budgetEngine.stepsPerMinute)
+        // Ограничиваем потраченное время максимальным доступным бюджетом
+        let maxSpentMinutes = budgetEngine.dailyBudgetMinutes
+        spentMinutes = min(minutes, maxSpentMinutes)
+        spentSteps = spentMinutes * Int(spentTariff.stepsPerMinute)
         saveSpentTime()
         syncBudgetProperties() // Sync budget properties for UI updates
-        print("🕐 Updated spent time: \(spentMinutes) minutes (\(spentSteps) steps)")
+        print("🕐 Updated spent time: \(spentMinutes) minutes (\(spentSteps) steps) (max: \(maxSpentMinutes))")
     }
     
     func consumeMinutes(_ minutes: Int) {
         budgetEngine.consume(mins: minutes)
+        
+        // Устанавливаем тариф, по которому тратятся минуты
+        spentTariff = budgetEngine.tariff
+        
+        // Обновляем потраченное время с учетом ограничений
+        updateSpentTime(minutes: spentMinutes + minutes)
+        
         syncBudgetProperties() // Sync budget properties for UI updates
         print("⏱️ Consumed \(minutes) minutes, remaining: \(remainingMinutes)")
     }
@@ -464,12 +613,14 @@ final class AppModel: ObservableObject {
         // 2. Сбрасываем время и состояние
         spentMinutes = 0
         spentSteps = 0
+        spentTariff = .easy
         isBlocked = false
         currentSessionElapsed = nil
         
         // 3. Очищаем UserDefaults (App Group)
         let userDefaults = UserDefaults.stepsTrader()
         userDefaults.removeObject(forKey: "spentMinutes")
+        userDefaults.removeObject(forKey: "spentTariff")
         userDefaults.removeObject(forKey: "spentTimeDate")
         userDefaults.removeObject(forKey: "budgetMinutes")
         userDefaults.removeObject(forKey: "monitoringStartTime")
@@ -523,7 +674,7 @@ final class AppModel: ObservableObject {
         print("✅ === СБРОС ЗАВЕРШЕН ===")
     }
     
-    private func sendReturnToAppNotification() {
+    func sendReturnToAppNotification() {
         // Отправляем первое уведомление через 30 секунд после блокировки
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
             self?.scheduleReturnNotification()
@@ -677,6 +828,13 @@ final class AppModel: ObservableObject {
         
         let mins = budgetEngine.minutes(from: stepsToday)
         budgetEngine.setBudget(minutes: mins)
+        
+        // Проверяем и корректируем потраченное время после пересчета бюджета
+        if spentMinutes > mins {
+            print("⚠️ Spent time (\(spentMinutes)) exceeds budget (\(mins)), correcting...")
+            updateSpentTime(minutes: mins)
+        }
+        
         syncBudgetProperties() // Sync budget properties for UI updates
         message = "✅ Бюджет пересчитан: \(mins) минут (\(Int(stepsToday)) шагов)"
     }
@@ -697,6 +855,13 @@ final class AppModel: ObservableObject {
         
         let mins = budgetEngine.minutes(from: stepsToday)
         budgetEngine.setBudget(minutes: mins)
+        
+        // Проверяем и корректируем потраченное время после пересчета бюджета
+        if spentMinutes > mins {
+            print("⚠️ Spent time (\(spentMinutes)) exceeds budget (\(mins)), correcting...")
+            updateSpentTime(minutes: mins)
+        }
+        
         syncBudgetProperties() // Sync budget properties for UI updates
         print("🔄 Silent budget recalculation: \(mins) minutes from \(Int(stepsToday)) steps")
     }
@@ -751,13 +916,27 @@ final class AppModel: ObservableObject {
     
     private func startTracking() {
         print("🎯 === НАЧАЛО START TRACKING ===")
-        print("💰 Проверяем бюджет: \(budgetEngine.remainingMinutes) минут")
         
-        guard budgetEngine.remainingMinutes > 0 else {
-            print("❌ Нет доступного времени - выход")
-            message = "Steps Trader: Нет доступного времени! Сделайте больше шагов."
-            return
+        // Пересчитываем бюджет с текущим тарифом перед запуском отслеживания
+        Task {
+            await recalcSilently()
+            await MainActor.run {
+                print("💰 Бюджет пересчитан: \(budgetEngine.remainingMinutes) минут")
+                
+                guard budgetEngine.remainingMinutes > 0 else {
+                    print("❌ Нет доступного времени - выход")
+                    message = "Steps Trader: Нет доступного времени! Сделайте больше шагов."
+                    return
+                }
+                
+                continueStartTracking()
+            }
         }
+    }
+    
+    private func continueStartTracking() {
+        print("🎯 === ПРОДОЛЖЕНИЕ START TRACKING ===")
+        print("💰 Проверяем бюджет: \(budgetEngine.remainingMinutes) минут")
         
         print("📱 Проверяем выбор приложений: \(appSelection.applicationTokens.count) apps, \(appSelection.categoryTokens.count) categories")
         guard !appSelection.applicationTokens.isEmpty || !appSelection.categoryTokens.isEmpty else {
@@ -938,6 +1117,62 @@ final class AppModel: ObservableObject {
         }
     }
     
+    func forceRestoreAppSelection() {
+        print("🔄 Force restoring app selection...")
+        
+        // Сначала загружаем из UserDefaults
+        let userDefaults = UserDefaults.stepsTrader()
+        var hasSelection = false
+        var newSelection = FamilyActivitySelection()
+        
+        // Восстанавливаем ApplicationTokens
+        if let tokensData = userDefaults.data(forKey: "persistentApplicationTokens") {
+            do {
+                let obj = try NSKeyedUnarchiver.unarchivedObject(ofClass: NSSet.self, from: tokensData)
+                if let applicationTokens = obj as? Set<ApplicationToken> {
+                    newSelection.applicationTokens = applicationTokens
+                    hasSelection = true
+                    print("📱 Restored app selection: \(applicationTokens.count) apps")
+                }
+            } catch {
+                print("❌ Failed to restore app selection: \(error)")
+            }
+        }
+        
+        // Восстанавливаем CategoryTokens
+        if let categoriesData = userDefaults.data(forKey: "persistentCategoryTokens") {
+            do {
+                let obj = try NSKeyedUnarchiver.unarchivedObject(ofClass: NSSet.self, from: categoriesData)
+                if let categoryTokens = obj as? Set<ActivityCategoryToken> {
+                    newSelection.categoryTokens = categoryTokens
+                    hasSelection = true
+                    print("📱 Restored category selection: \(categoryTokens.count) categories")
+                }
+            } catch {
+                print("❌ Failed to restore category selection: \(error)")
+            }
+        }
+        
+        if hasSelection {
+            // Принудительно обновляем appSelection (это вызовет didSet и обновит UI)
+            self.appSelection = newSelection
+            print("✅ App selection restored and UI updated")
+            // Включаем always-on shield
+            if let svc = familyControlsService as? FamilyControlsService {
+                svc.enableShield()
+                print("🛡️ Always-on shield enabled after restore")
+            }
+        } else {
+            print("ℹ️ No saved selection found")
+        }
+    }
+    
+    func forceSaveAppSelection() {
+        print("💾 Force saving current app selection...")
+        saveAppSelection()
+        print("✅ Current selection saved to UserDefaults")
+    }
+    
     private func openTargetApp(_ appName: String) {
         print("🚀 Attempting to open target app: \(appName)")
         
@@ -989,10 +1224,16 @@ final class AppModel: ObservableObject {
         } else {
             print("🔗 Apps already selected, using existing selection")
         }
+
+        // Показываем Focus Gate для выбранной цели
+        focusGateTargetBundleId = bundleId
+        showFocusGate = true
         
         // Очищаем флаг после обработки
         userDefaults.removeObject(forKey: "shortcutTargetBundleId")
     }
+    
+    
     
     private func getBundleIdDisplayName(_ bundleId: String) -> String {
         switch bundleId {
@@ -1120,3 +1361,4 @@ private func requestNotificationPermissionIfNeeded() async {
     do { try await DIContainer.shared.makeNotificationService().requestPermission() }
     catch { print("❌ Notification permission failed: \(error)") }
 }
+

@@ -1,72 +1,233 @@
 import SwiftUI
-import Foundation
-import Combine
-
-// MARK: - UserDefaults Helper
-extension UserDefaults {
-    static func stepsTrader() -> UserDefaults {
-        // Try App Group first, fallback to standard UserDefaults for simulator
-        if let appGroup = UserDefaults(suiteName: "group.personal-project.StepsTrader") {
-            return appGroup
-        } else {
-            print("⚠️ App Group not available, using standard UserDefaults")
-            return UserDefaults.standard
-        }
-    }
-}
+import FamilyControls
 
 @main
 struct StepsTraderApp: App {
+    @StateObject private var model: AppModel
+    
+    init() {
+        _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
+    }
+    
     var body: some Scene {
-        WindowGroup { 
-            ContentView() 
+        WindowGroup {
+            ZStack {
+                if model.showFocusGate {
+                    FocusGateView(model: model)
+                } else if model.showQuickStatusPage {
+                    QuickStatusView(model: model)
+                } else {
+                    MainTabView()
+                        .environmentObject(model)
+                }
+                
+                // Shortcut message overlay
+                if model.showShortcutMessage, let message = model.shortcutMessage {
+                    ShortcutMessageView(message: message) {
+                        model.showShortcutMessage = false
+                        model.shortcutMessage = nil
+                    }
+                }
+            }
+            .onAppear {
+                print("🎭 StepsTraderApp appeared - showFocusGate: \(model.showFocusGate), showQuickStatusPage: \(model.showQuickStatusPage)")
+                checkForShortcutMessage()
+            }
+            .onOpenURL { url in
+                model.handleIncomingURL(url)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                model.handleAppDidEnterBackground()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                model.handleAppWillEnterForeground()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.refresh"))) { _ in
+                model.handleAppWillEnterForeground()
+            }
+        }
+    }
+    
+    private func checkForShortcutMessage() {
+        let userDefaults = UserDefaults.stepsTrader()
+        
+        // Проверяем, не открывалось ли приложение недавно через наше приложение
+        if let lastAppOpenTime = userDefaults.object(forKey: "lastAppOpenedFromStepsTrader") as? Date {
+            let timeSinceAppOpen = Date().timeIntervalSince(lastAppOpenTime)
+            print("⏰ Time since app opened from Steps Trader: \(timeSinceAppOpen) seconds")
+            
+            // Если приложение открывалось из нашего приложения менее 30 секунд назад, игнорируем шорткат
+            if timeSinceAppOpen < 30.0 {
+                print("🚫 App recently opened from Steps Trader, ignoring shortcut to prevent loop")
+                return
+            }
+        }
+        
+        // Проверяем, есть ли сообщение от шортката
+        if let message = userDefaults.string(forKey: "shortcutMessage") {
+            model.shortcutMessage = message
+            model.showShortcutMessage = true
+            
+            // Очищаем сообщение после показа
+            userDefaults.removeObject(forKey: "shortcutMessage")
+        }
+        
+        // Проверяем, нужно ли показать Focus Gate
+        if userDefaults.bool(forKey: "shouldShowFocusGate") {
+            if let targetBundleId = userDefaults.string(forKey: "focusGateTargetBundleId") {
+                model.focusGateTargetBundleId = targetBundleId
+                model.showFocusGate = true
+            }
+            
+            // Очищаем флаги
+            userDefaults.removeObject(forKey: "shouldShowFocusGate")
+            userDefaults.removeObject(forKey: "focusGateTargetBundleId")
         }
     }
 }
 
-// MARK: - ContentView
-struct ContentView: View {
-    @StateObject private var model: AppModel
-    
-    init() {
-        self._model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
-    }
+// MARK: - Main Tab View
+struct MainTabView: View {
+    @EnvironmentObject var model: AppModel
     
     var body: some View {
-        // Show block screen if blocked
-        if model.isBlocked {
-            BlockScreen(model: model)
+        TabView {
+            StatusView(model: model)
+                .tabItem {
+                    Image(systemName: "chart.bar.fill")
+                    Text("Статус")
+                }
+            
+            SettingsView(model: model)
+                .tabItem {
+                    Image(systemName: "gear")
+                    Text("Настройки")
+                }
         }
-        // Show Focus Gate if triggered by deeplink
-        else if model.showFocusGate {
-            FocusGateView(model: model)
-        }
-        // Show Quick Status for Intent
-        else if model.showQuickStatusPage {
-            QuickStatusView(model: model)
-        }
-        // Show normal tab interface
-        else {
-            TabView {
-                StatusView(model: model)
-                    .tabItem {
-                        Image(systemName: "house.fill")
-                        Text("Статус")
-                    }
+    }
+}
+
+// MARK: - Quick Status View
+struct QuickStatusView: View {
+    @ObservedObject var model: AppModel
+    
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: [.green.opacity(0.1), .blue.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 30) {
+                VStack(spacing: 16) {
+                    Text("📊")
+                        .font(.system(size: 60))
+                    
+                    Text("Быстрый статус")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                    
+                    Text("Обзор вашего прогресса")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
                 
-                SettingsView(model: model)
-                    .tabItem {
-                        Image(systemName: "gearshape.fill")
-                        Text("Настройки")
+                VStack(spacing: 20) {
+                    // Шаги сегодня
+                    HStack {
+                        Text("Шаги сегодня:")
+                            .font(.title2)
+                        Spacer()
+                        Text("\(Int(model.stepsToday))")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(.green)
                     }
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+                    
+                    // Бюджет времени
+                    HStack {
+                        Text("Бюджет времени:")
+                            .font(.title2)
+                        Spacer()
+                        Text("\(model.remainingMinutes) мин")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(model.remainingMinutes > 0 ? .blue : .red)
+                    }
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+                    
+                    // Потрачено времени
+                    HStack {
+                        Text("Потрачено:")
+                            .font(.title2)
+                        Spacer()
+                        Text("\(model.spentMinutes) мин")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(.orange)
+                    }
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+                    
+                    // Баланс шагов для входа
+                    HStack {
+                        Text("Баланс для входа:")
+                            .font(.title2)
+                        Spacer()
+                        Text("\(model.stepsBalance) шагов")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(model.stepsBalance >= model.entryCostSteps ? .green : .red)
+                    }
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+                }
+                .padding(.horizontal, 20)
+                
+                Button("Закрыть") {
+                    model.showQuickStatusPage = false
+                }
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .font(.headline)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 20)
             }
-            .task { await model.bootstrap() }
-            .alert("Информация", isPresented: Binding(get: { model.message != nil }, set: { _ in model.message = nil })) {
-                Button("OK", role: .cancel) {}
-            } message: { Text(model.message ?? "") }
-            .onOpenURL { url in
-                model.handleIncomingURL(url)
+        }
+    }
+}
+
+// MARK: - Shortcut Message View
+struct ShortcutMessageView: View {
+    let message: String
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 20) {
+                Text("📱 Шорткат")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Text(message)
+                    .font(.body)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.primary)
+                
+                Button("OK") {
+                    onDismiss()
+                }
+                .buttonStyle(.borderedProminent)
             }
+            .padding(20)
+            .background(RoundedRectangle(cornerRadius: 16).fill(.regularMaterial))
+            .padding(.horizontal, 40)
         }
     }
 }
@@ -85,232 +246,118 @@ struct FocusGateView: View {
                     Text("🎯")
                         .font(.system(size: 60))
                     
-                    Text("Focus Gate")
+                    Text("Steps Trader")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                     
-                    Text("Проверьте свой баланс времени")
+                    Text("Оплатите вход шагами")
                         .font(.title3)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 
                 VStack(spacing: 20) {
+                    // Баланс шагов
                     HStack {
-                        Text("Доступно минут:")
+                        Text("Баланс шагов:")
                             .font(.title2)
                         Spacer()
-                        Text("\(model.budget.remainingMinutes)")
+                        Text("\(model.stepsBalance)")
                             .font(.title)
                             .fontWeight(.bold)
-                            .foregroundColor(model.budget.remainingMinutes > 0 ? .green : .red)
+                            .foregroundColor(model.stepsBalance >= model.entryCostSteps ? .green : .red)
+                    }
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+                    
+                    // Стоимость входа
+                    HStack {
+                        Text("Стоимость входа:")
+                            .font(.title2)
+                        Spacer()
+                        Text("\(model.entryCostSteps) шагов")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(.blue)
                     }
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
                     
                     if let bundleId = model.focusGateTargetBundleId {
-                        Button("Открыть \(getAppDisplayName(bundleId))") {
-                            openTargetAppAndClose(bundleId)
+                        Button("Оплатить и открыть \(getAppDisplayName(bundleId))") {
+                            Task {
+                                await model.refreshStepsBalance()
+                                if model.canPayForEntry() {
+                                    _ = model.payForEntry()
+                                    openTargetAppAndClose(bundleId)
+                                } else {
+                                    model.message = "❌ Недостаточно шагов. Нужно еще: \(model.entryCostSteps - model.stepsBalance) шагов."
+                                }
+                            }
                         }
                         .frame(maxWidth: .infinity, minHeight: 50)
-                        .background(model.budget.remainingMinutes > 0 ? Color.blue : Color.gray)
+                        .background(model.stepsBalance >= model.entryCostSteps ? Color.blue : Color.gray)
                         .foregroundColor(.white)
                         .font(.headline)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .disabled(model.budget.remainingMinutes <= 0)
+                        .disabled(model.stepsBalance < model.entryCostSteps)
                     }
                     
                     Button("Закрыть") {
                         model.showFocusGate = false
                         model.focusGateTargetBundleId = nil
                     }
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .background(Color.gray.opacity(0.3))
+                    .foregroundColor(.primary)
+                    .font(.headline)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .padding(.horizontal, 20)
             }
-            .padding()
-        }
-        .onAppear {
-            model.reloadBudgetFromStorage()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            model.reloadBudgetFromStorage()
-        }
-    }
-    
-    private func getAppDisplayName(_ bundleId: String) -> String {
-        switch bundleId {
-        case "com.burbn.instagram": return "Instagram"
-        case "com.zhiliaoapp.musically": return "TikTok"
-        case "com.google.ios.youtube": return "YouTube"
-        default: return "приложение"
         }
     }
     
     private func openTargetAppAndClose(_ bundleId: String) {
-        // Записываем время открытия для anti-loop механизма
+        // Устанавливаем флаг, что приложение открывается через наше приложение
         let userDefaults = UserDefaults.stepsTrader()
-        userDefaults.set(Date(), forKey: "focusGateLastOpen")
+        let now = Date()
+        userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
         
-        // Закрываем Focus Gate
-        model.showFocusGate = false
-        model.focusGateTargetBundleId = nil
+        print("🚀 Opening \(bundleId) and setting protection flag at \(now)")
         
-        // Открываем приложение
+        // Открываем целевое приложение
         let scheme: String
         switch bundleId {
-        case "com.burbn.instagram": scheme = "instagram://"
+        case "com.burbn.instagram": scheme = "instagram://app"
         case "com.zhiliaoapp.musically": scheme = "tiktok://"
         case "com.google.ios.youtube": scheme = "youtube://"
-        default: return
+        default: scheme = "instagram://app" // fallback
         }
         
         if let url = URL(string: scheme) {
-            UIApplication.shared.open(url)
+            UIApplication.shared.open(url) { success in
+                if success {
+                    print("✅ Successfully opened \(bundleId)")
+                    // Закрываем Focus Gate после успешного открытия
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        model.showFocusGate = false
+                        model.focusGateTargetBundleId = nil
+                    }
+                } else {
+                    print("❌ Failed to open \(bundleId)")
+                }
+            }
         }
     }
 }
 
-// MARK: - QuickStatusView (только для Intent)
-struct QuickStatusView: View {
-    @ObservedObject var model: AppModel
-    
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Заголовок
-                    headerView
-                    
-                    // Мини-статистика
-                    miniStatsView
-                    
-                    // Большое отображение времени
-                    bigTimeDisplayView
-                    
-                    // Кнопки управления
-                    controlButtonsView
-                    
-                    Spacer(minLength: 20)
-                }
-                .padding()
-            }
-            .navigationBarHidden(true)
-        }
-    }
-    
-    private var headerView: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("📱")
-                    .font(.title)
-                Text("Steps Trader")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundStyle(
-                        LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing)
-                    )
-                Text("📱")
-                    .font(.title)
-            }
-            
-            Text("Quick Status")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-    
-    private var miniStatsView: some View {
-        HStack(spacing: 16) {
-            StatMiniCard(
-                icon: "figure.walk",
-                title: "Шаги",
-                value: "\(Int(model.stepsToday))",
-                color: .blue
-            )
-            
-            StatMiniCard(
-                icon: "timer",
-                title: "Потрачено",
-                value: "\(model.spentMinutes)м",
-                color: .orange
-            )
-        }
-    }
-    
-    private var bigTimeDisplayView: some View {
-        VStack(spacing: 12) {
-            if model.isBlocked {
-                VStack(spacing: 8) {
-                    Text("⏰")
-                        .font(.system(size: 60))
-                    
-                    Text("Время прошло!")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.red)
-                }
-            } else {
-                VStack(spacing: 8) {
-                    Text("Осталось")
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                    
-                    Text("\(model.budget.remainingMinutes)")
-                        .font(.system(size: 60, weight: .bold, design: .rounded))
-                        .foregroundColor(model.budget.remainingMinutes > 10 ? .green : .orange)
-                    
-                    Text("минут")
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 30)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .shadow(radius: 5)
-        )
-    }
-    
-    private var controlButtonsView: some View {
-        VStack(spacing: 12) {
-            Button("🔙 Закрыть и вернуться") {
-                returnToBlockedApp()
-            }
-            .frame(maxWidth: .infinity)
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            
-            Button("📱 Остаться в приложении") {
-                stayInApp()
-            }
-            .frame(maxWidth: .infinity)
-            .buttonStyle(.bordered)
-            .controlSize(.large)
-        }
-    }
-    
-    private func returnToBlockedApp() {
-        // Устанавливаем anti-loop флаг на 30 секунд
-        let userDefaults = UserDefaults.stepsTrader()
-        userDefaults.set(Date(), forKey: "returnModeActivatedTime")
-        
-        // Закрываем Quick Status
-        model.showQuickStatusPage = false
-        
-        // Пользователь должен вручную переключиться на предыдущее приложение
-        print("🔄 User should manually switch to the previous app")
-    }
-    
-    private func stayInApp() {
-        // Устанавливаем anti-loop флаг
-        let userDefaults = UserDefaults.stepsTrader()
-        userDefaults.set(Date(), forKey: "returnModeActivatedTime")
-        
-        // Закрываем Quick Status и остаемся в основном приложении
-        model.showQuickStatusPage = false
+// MARK: - Helper Functions
+private func getAppDisplayName(_ bundleId: String) -> String {
+    switch bundleId {
+    case "com.burbn.instagram": return "Instagram"
+    case "com.zhiliaoapp.musically": return "TikTok"
+    case "com.google.ios.youtube": return "YouTube"
+    default: return bundleId
     }
 }

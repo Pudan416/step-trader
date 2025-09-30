@@ -17,7 +17,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendTimeExpiredNotification() {
         let content = UNMutableNotificationContent()
         content.title = "⏰ Steps Trader"
-        content.body = "Время для развлечений истекло! Сделайте больше шагов, чтобы разблокировать приложения."
+        content.body = "Время истекло! Проверьте, может еще есть время? Сделайте больше шагов для разблокировки."
         content.sound = .default
         content.badge = 1
         
@@ -32,6 +32,76 @@ final class NotificationManager: NotificationServiceProtocol {
                 print("❌ Failed to send time expired notification: \(error)")
             } else {
                 print("📤 Sent time expired notification")
+            }
+        }
+    }
+    
+    func sendTimeExpiredNotification(remainingMinutes: Int) {
+        let content = UNMutableNotificationContent()
+        content.title = "⏰ Steps Trader"
+        if remainingMinutes > 0 {
+            content.body = "Время истекло! У вас было \(remainingMinutes) мин. Сделайте больше шагов для разблокировки."
+        } else {
+            content.body = "Время истекло! Сделайте больше шагов для разблокировки."
+        }
+        content.sound = .default
+        content.badge = 1
+        
+        let request = UNNotificationRequest(
+            identifier: "timeExpired-\(UUID().uuidString)",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to send time expired notification: \(error)")
+            } else {
+                print("📤 Sent time expired notification with \(remainingMinutes) minutes")
+            }
+        }
+    }
+    
+    func sendUnblockNotification(remainingMinutes: Int) {
+        let content = UNMutableNotificationContent()
+        content.title = "🎉 Steps Trader"
+        content.body = "Время восстановлено! Доступно: \(remainingMinutes) минут"
+        content.sound = .default
+        content.badge = 1
+        
+        let request = UNNotificationRequest(
+            identifier: "unblocked-\(UUID().uuidString)",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to send unblock notification: \(error)")
+            } else {
+                print("📤 Sent unblock notification with \(remainingMinutes) minutes")
+            }
+        }
+    }
+    
+    func sendRemainingTimeNotification(remainingMinutes: Int) {
+        let content = UNMutableNotificationContent()
+        content.title = "⏱️ Steps Trader"
+        content.body = "Осталось времени: \(remainingMinutes) мин"
+        content.sound = .default
+        content.badge = 1
+        
+        let request = UNNotificationRequest(
+            identifier: "remainingTime-\(UUID().uuidString)",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to send remaining time notification: \(error)")
+            } else {
+                print("📤 Sent remaining time notification: \(remainingMinutes) minutes")
             }
         }
     }
