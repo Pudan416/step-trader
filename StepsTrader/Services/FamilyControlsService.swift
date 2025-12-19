@@ -34,8 +34,8 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
         print("📱 Current authorization status: \(AuthorizationCenter.shared.authorizationStatus)")
         
         #if targetEnvironment(simulator)
-        print("❌ СИМУЛЯТОР ОБНАРУЖЕН! Family Controls НЕ РАБОТАЕТ в симуляторе!")
-        print("📱 Запустите приложение на РЕАЛЬНОМ УСТРОЙСТВЕ для тестирования Family Controls")
+        print("❌ SIMULATOR DETECTED! Family Controls DOES NOT WORK in the simulator!")
+        print("📱 Run the app on a REAL DEVICE to test Family Controls")
         throw FamilyControlsError.simulatorNotSupported
         #endif
         
@@ -86,11 +86,11 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
     }
     
     func startMonitoring(budgetMinutes: Int) {
-        print("🔧 === НАЧАЛО START MONITORING ===")
-        print("🔐 Авторизован: \(isAuthorized)")
-        print("💰 Бюджет минут: \(budgetMinutes)")
-        print("📱 Выбрано приложений: \(selection.applicationTokens.count)")
-        print("📂 Выбрано категорий: \(selection.categoryTokens.count)")
+        print("🔧 === START MONITORING BEGIN ===")
+        print("🔐 Authorized: \(isAuthorized)")
+        print("💰 Budget minutes: \(budgetMinutes)")
+        print("📱 Selected applications: \(selection.applicationTokens.count)")
+        print("📂 Selected categories: \(selection.categoryTokens.count)")
         
         guard isAuthorized else {
             print("❌ Cannot start monitoring: not authorized")
@@ -107,27 +107,27 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
             return
         }
         
-        print("✅ Все проверки пройдены, запускаем асинхронный мониторинг")
+        print("✅ All checks passed, starting async monitoring")
         // Запускаем мониторинг в фоновом потоке чтобы не блокировать UI
         Task {
-            print("🔄 Создана асинхронная задача для мониторинга")
+            print("🔄 Created async monitoring task")
             await startMonitoringAsync(budgetMinutes: budgetMinutes)
-            print("✅ Асинхронный мониторинг завершен")
+            print("✅ Async monitoring finished")
         }
-        print("🔧 === ЗАВЕРШЕНИЕ START MONITORING ===")
+        print("🔧 === START MONITORING END ===")
     }
     
     private func startMonitoringAsync(budgetMinutes: Int) async {
-        print("🔧 === НАЧАЛО START MONITORING ASYNC ===")
+        print("🔧 === START MONITORING ASYNC BEGIN ===")
         
         // Сохраняем метаданные для диагностики
         let userDefaults = UserDefaults.stepsTrader()
-        print("💾 Сохраняем метаданные в UserDefaults")
+        print("💾 Saving metadata to UserDefaults")
         userDefaults.set(selection.applicationTokens.count, forKey: "selectedAppsCount")
         userDefaults.set(selection.categoryTokens.count, forKey: "selectedCategoriesCount")
         userDefaults.set(budgetMinutes, forKey: "budgetMinutes")
         userDefaults.set(Date(), forKey: "monitoringStartTime")
-        print("✅ Метаданные сохранены: \(selection.applicationTokens.count) apps, \(selection.categoryTokens.count) categories, \(budgetMinutes) min")
+        print("✅ Metadata saved: \(selection.applicationTokens.count) apps, \(selection.categoryTokens.count) categories, \(budgetMinutes) min")
         
         // Сохраняем ApplicationTokens для DeviceActivityMonitor
         if !selection.applicationTokens.isEmpty {
@@ -339,9 +339,9 @@ enum FamilyControlsError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notAuthorized:
-            return "Family Controls не авторизован. Разрешите доступ в настройках."
+            return "Family Controls is not authorized. Grant access in Settings."
         case .simulatorNotSupported:
-            return "Family Controls не работает в симуляторе. Запустите на реальном устройстве."
+            return "Family Controls is not available in the simulator. Run on a real device."
         }
     }
 }

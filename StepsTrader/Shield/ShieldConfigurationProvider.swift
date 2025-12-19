@@ -20,16 +20,16 @@ final class ShieldConfigurationProvider: NSObject {
         let (balance, cost) = getStepsInfo()
         
         // Show balance and cost in subtitle
-        let balanceText = "У вас на счету: \(balance) шагов\nСтоимость входа: \(cost) шагов"
+        let balanceText = "Balance: \(balance) steps\nEntry cost: \(cost) steps"
         
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterial,
             icon: UIImage(systemName: "shoeprints.fill"),
             title: ShieldConfiguration.Label(text: title, color: .white),
             subtitle: ShieldConfiguration.Label(text: balanceText, color: .white),
-            primaryButtonLabel: ShieldConfiguration.Label(text: "Оплатить вход", color: .white),
+            primaryButtonLabel: ShieldConfiguration.Label(text: "Pay to unlock", color: .white),
             primaryButtonBackgroundColor: balance >= cost ? .blue : .red,
-            secondaryButtonLabel: ShieldConfiguration.Label(text: "Закрыть", color: .white)
+            secondaryButtonLabel: ShieldConfiguration.Label(text: "Close", color: .white)
         )
     }
 
@@ -44,39 +44,48 @@ final class ShieldConfigurationProvider: NSObject {
     }
 
     func configuration(shielding category: ActivityCategory) -> ShieldConfiguration {
-        return makeConfiguration(title: "Категория заблокирована",
+        return makeConfiguration(title: "Category blocked",
                                  subtitle: nil)
     }
 
     func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
-        return makeConfiguration(title: "Сайт заблокирован",
+        return makeConfiguration(title: "Website blocked",
                                  subtitle: nil)
     }
 
     // MARK: - Shield Action Methods
     func handle(action: ShieldAction, for application: Application) {
-        openPayDeepLink()
+        openPayDeepLink(for: application.bundleIdentifier)
     }
 
     func handle(action: ShieldAction, for application: Application, in category: ActivityCategory) {
-        openPayDeepLink()
+        openPayDeepLink(for: application.bundleIdentifier)
     }
 
     func handle(action: ShieldAction, for category: ActivityCategory) {
-        openPayDeepLink()
+        openPayDeepLink(for: nil)
     }
 
     func handle(action: ShieldAction, for webDomain: WebDomain) {
-        openPayDeepLink()
+        openPayDeepLink(for: nil)
     }
 
-    private func openPayDeepLink() {
+    private func openPayDeepLink(for bundleIdentifier: String?) {
         // Anti-loop guard: don't re-open instantly if just launched
         let g = UserDefaults.stepsTrader()
-        if let last = g.object(forKey: "focusGateLastOpen") as? Date, Date().timeIntervalSince(last) < 3 {
+        let now = Date()
+        if let last = g.object(forKey: "focusGateLastOpen") as? Date,
+           now.timeIntervalSince(last) < 1 {
             return
         }
-        guard let url = URL(string: "steps-trader://focus?target=instagram") else { return }
+        g.set(now, forKey: "focusGateLastOpen")
+
+        let target = bundleIdentifier ?? "com.burbn.instagram"
+        guard let encodedTarget = target.addingPercentEncoding(
+            withAllowedCharacters: .urlQueryAllowed)
+        else { return }
+
+        guard let url = URL(string: "steps-trader://focus?target=\(encodedTarget)") else { return }
         UIApplication.shared.open(url, options: [:], completionHandler: nil)
     }
 }

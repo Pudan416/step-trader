@@ -1,11 +1,9 @@
 import SwiftUI
-import FamilyControls
 
 // MARK: - SettingsView
 struct SettingsView: View {
     @ObservedObject var model: AppModel
-    @State private var isPickerPresented = false
-    
+
     var body: some View {
         NavigationView {
             Form {
@@ -15,141 +13,80 @@ struct SettingsView: View {
                 // Стоимость входа (тариф)
                 tariffSection
 
-                // Выбор целевого приложения
-                appSelectionSection
-
                 // Статус системы и управление
                 systemStatusSection
                 managementSection
             }
         }
     }
-    
+
     // MARK: - Computed Properties
     private var remainingStepsToday: Int {
-        // Используем тариф, по которому были потрачены минуты, а не текущий выбранный тариф
-        let spentSteps = model.spentMinutes * Int(model.spentTariff.stepsPerMinute)
-        return max(0, Int(model.stepsToday) - spentSteps)
+        // Остаток шагов = шаги из HealthKit - шаги потраченные на входы
+        return max(0, Int(model.stepsToday) - model.spentStepsToday)
     }
-    
+
     private func isTariffAvailable(_ tariff: Tariff) -> Bool {
         let requiredSteps = Int(tariff.stepsPerMinute)
         // Проверяем доступность на основе оставшихся шагов, а не потраченных минут
         return Int(model.stepsToday) >= requiredSteps
     }
-    
+
     // MARK: - Balance Section (пер-входовая модель)
     private var balanceSection: some View {
-        Section("Баланс") {
-            VStack(spacing: 12) {
-                HStack {
-                    Text("Баланс шагов")
-                        .font(.headline)
-                    Spacer()
-                    Text("\(model.stepsBalance)")
-                        .font(.headline)
-                        .foregroundColor(model.stepsBalance < model.entryCostSteps ? .red : .green)
+        Section("Step balance") {
+            VStack(spacing: 14) {
+                // Шкала остатка шагов
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Remaining: \(remainingStepsToday) of \(Int(model.stepsToday))")
+                            .font(.headline)
+                        Spacer()
+                    }
+                    ProgressView(
+                        value: Double(remainingStepsToday),
+                        total: max(1.0, Double(Int(model.stepsToday)))
+                    )
+                    .tint(remainingStepsToday <= 0 ? .red : .blue)
                 }
-                HStack {
-                    Text("Стоимость входа")
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("\(model.entryCostSteps)")
-                        .foregroundColor(.primary)
+
+                // Мини-статы под шкалой
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Steps today")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(Int(model.stepsToday))")
+                            .foregroundColor(.primary)
+                    }
+                    HStack {
+                        Text("Steps spent")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(model.spentStepsToday)")
+                            .foregroundColor(.primary)
+                    }
+                    HStack {
+                        Text("Entry cost")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(model.entryCostSteps)")
+                            .foregroundColor(.primary)
+                    }
                 }
-                HStack {
-                    Text("Остаток шагов")
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("\(remainingStepsToday)")
-                        .foregroundColor(.blue)
-                }
-                Button("Обновить баланс") {
-                    Task { await model.refreshStepsBalance() }
-                }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.borderedProminent)
             }
             .padding(.vertical, 6)
         }
     }
-    
-    // MARK: - App Selection Section (пользователь выбирает в системном списке)
-    private var appSelectionSection: some View {
-        Section("Выбор приложения для отслеживания") {
-            VStack(alignment: .leading, spacing: 12) {
-                // Подсказка из Shortcuts
-                if let desired = getAutoSelectedApp() {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "lightbulb.fill").foregroundColor(.yellow)
-                        Text("Из шортката: выберите \(desired) в системном списке ниже")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
 
-                // Текущее состояние выбора
-                if !model.appSelection.applicationTokens.isEmpty || !model.appSelection.categoryTokens.isEmpty {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                        Text("Выбрано: \(model.appSelection.applicationTokens.isEmpty ? "категория" : "приложение")")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                } else {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
-                        Text("Пока не выбрано ни одного приложения")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
-                }
-
-                // Кнопка для открытия системного FamilyActivityPicker
-                Button("Выбрать приложение из списка") {
-                    isPickerPresented = true
-                }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
-            }
-            .padding(.vertical, 8)
-        }
-        .sheet(isPresented: $isPickerPresented) {
-            NavigationView {
-                FamilyActivityPicker(selection: $model.appSelection)
-                    .navigationTitle("Выбор приложений")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Готово") { isPickerPresented = false }
-                        }
-                    }
-            }
-            .ignoresSafeArea()
-        }
-        // Авто‑закрытие как только пользователь что‑то выбрал
-        .onChange(of: model.appSelection.applicationTokens.count) { _, newValue in
-            if newValue > 0 || model.appSelection.categoryTokens.count > 0 {
-                isPickerPresented = false
-            }
-        }
-        .onChange(of: model.appSelection.categoryTokens.count) { _, newValue in
-            if newValue > 0 || model.appSelection.applicationTokens.count > 0 {
-                isPickerPresented = false
-            }
-        }
-        
-    }
-    
     // MARK: - Tariff Section
     private var tariffSection: some View {
-        Section("Тариф обмена") {
+        Section("Step-to-time tariff") {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Выберите стоимость входа и курс шаги→минуты")
+                Text("Choose the entry cost and step-to-minute rate")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
+
                 ForEach(Tariff.allCases, id: \.self) { tariff in
                     TariffOptionView(
                         tariff: tariff,
@@ -161,7 +98,7 @@ struct SettingsView: View {
                         model.persistEntryCost(tariff: tariff)
                     }
                     .overlay(alignment: .trailing) {
-                        Text("вход: \(tariff.entryCostSteps) шагов")
+                        Text("Entry: \(tariff.entryCostSteps) steps")
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .padding(.trailing, 8)
@@ -171,97 +108,23 @@ struct SettingsView: View {
             .padding(.vertical, 8)
         }
     }
-    
-    // MARK: - Tracking Section
-    private var trackingSection: some View {
-        Section("Отслеживание времени") {
-            VStack(spacing: 16) {
-                
-                
-                // Показать информацию об автовыборе
-                if let autoSelected = getAutoSelectedApp() {
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Автоматически выбрано: \(autoSelected)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.green.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                
-                // Основная кнопка управления
-                Button(model.isTrackingTime ? "🔓 Остановить отслеживание" : "🛡️ Начать отслеживание") {
-                    model.toggleRealBlocking()
-                }
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .background(model.isTrackingTime ? Color.red : Color.blue)
-                .foregroundColor(.white)
-                .font(.headline)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .disabled(!model.familyControlsService.isAuthorized || 
-                         (!model.isTrackingTime && model.remainingMinutes <= 0) ||
-                         (model.appSelection.applicationTokens.isEmpty && model.appSelection.categoryTokens.isEmpty))
-                
-                // Статус отслеживания
-                if model.isTrackingTime {
-                    HStack {
-                        Image(systemName: "circle.fill")
-                            .foregroundColor(.green)
-                            .font(.caption)
-                        Text("Отслеживание активно")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                    }
-                }
-                
-                // Предупреждения
-                VStack(spacing: 8) {
-                    if !model.isTrackingTime && model.remainingMinutes <= 0 {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                            Text("Нет доступного времени! Сделайте больше шагов.")
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                        }
-                    }
-                    
-                    if model.appSelection.applicationTokens.isEmpty && model.appSelection.categoryTokens.isEmpty {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                            Text("Сначала выберите приложение выше")
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                        }
-                    }
-                    
-                    if !model.familyControlsService.isAuthorized {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.red)
-                            Text("Family Controls не авторизован")
-                                .font(.caption)
-                                .foregroundColor(.red)
-                        }
-                    }
-                }
-            }
-            .padding(.vertical, 8)
-        }
-    }
-    
+
     // MARK: - Management Section
     private var managementSection: some View {
-        Section("Управление") {
+        Section("Management") {
             VStack(spacing: 12) {
-                Button("🔍 Диагностика") {
+                Button("📲 Install PayGate Shortcut") {
+                    model.installPayGateShortcut()
+                }
+                .frame(maxWidth: .infinity)
+
+                Button("🔍 Diagnostics") {
                     model.runDiagnostics()
+                }
+                .frame(maxWidth: .infinity)
+
+                Button("🧪 Test handoff") {
+                    testHandoffToken()
                 }
                 .frame(maxWidth: .infinity)
                 .buttonStyle(.bordered)
@@ -270,84 +133,59 @@ struct SettingsView: View {
             .padding(.vertical, 8)
         }
     }
-    
+
     // MARK: - System Status Section
     private var systemStatusSection: some View {
-        Section("Статус системы") {
+        Section("System status") {
             VStack(alignment: .leading, spacing: 12) {
                 StatusRow(
                     icon: "heart.fill",
                     title: "HealthKit",
                     status: .connected,
-                    description: "Доступ к данным о шагах"
+                    description: "Access to step data"
                 )
-                
-                StatusRow(
-                    icon: "shield.fill",
-                    title: "Family Controls",
-                    status: model.familyControlsService.isAuthorized ? .connected : .disconnected,
-                    description: model.familyControlsService.isAuthorized ? "Блокировка приложений активна" : "Требуется авторизация"
-                )
-                
+
                 StatusRow(
                     icon: "bell.fill",
-                    title: "Уведомления",
+                    title: "Notifications",
                     status: .connected,
-                    description: "Push-уведомления включены"
+                    description: "Push notifications enabled"
                 )
-                
-                if !model.familyControlsService.isAuthorized {
-                    Button("🔐 Запросить Family Controls") {
-                        Task {
-                            do {
-                                try await model.familyControlsService.requestAuthorization()
-                                model.message = "✅ Family Controls авторизация запрошена"
-                            } catch {
-                                model.message = "❌ Ошибка авторизации: \(error.localizedDescription)"
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(.borderedProminent)
-                    .foregroundColor(.white)
-                }
             }
             .padding(.vertical, 8)
         }
     }
-    
+
     // MARK: - Actions
     private func selectTariff(_ tariff: Tariff) {
         // Только сохраняем выбор тарифа, не пересчитываем бюджет
-        model.budget.updateTariff(tariff)
-        model.message = "✅ Тариф выбран: \(tariff.displayName). Бюджет пересчитается при запуске отслеживания."
+                        model.budget.updateTariff(tariff)
+                        // Sync entry cost with new tariff
+                        model.persistEntryCost(tariff: tariff)
+        model.message =
+            "✅ Tariff selected: \(tariff.displayName). The budget will recalculate when tracking starts."
     }
-    
-    private func getPendingShortcutApp() -> String? {
+
+    private func testHandoffToken() {
+        print("🧪 Testing handoff token creation...")
+
+        let testToken = HandoffToken(
+            targetBundleId: "com.burbn.instagram",
+            targetAppName: "Instagram",
+            createdAt: Date(),
+            tokenId: UUID().uuidString
+        )
+
         let userDefaults = UserDefaults.stepsTrader()
-        guard let bundleId = userDefaults.string(forKey: "pendingShortcutApp") else {
-            return nil
-        }
-        
-        switch bundleId {
-        case "com.burbn.instagram": return "Instagram"
-        case "com.zhiliaoapp.musically": return "TikTok"
-        case "com.google.ios.youtube": return "YouTube"
-        default: return bundleId
-        }
-    }
-    
-    private func getAutoSelectedApp() -> String? {
-        let userDefaults = UserDefaults.stepsTrader()
-        guard let bundleId = userDefaults.string(forKey: "autoSelectedAppBundleId") else {
-            return nil
-        }
-        
-        switch bundleId {
-        case "com.burbn.instagram": return "Instagram"
-        case "com.zhiliaoapp.musically": return "TikTok"
-        case "com.google.ios.youtube": return "YouTube"
-        default: return bundleId
+
+        if let tokenData = try? JSONEncoder().encode(testToken) {
+            userDefaults.set(tokenData, forKey: "handoffToken")
+            print("🧪 Test token created and saved: \(testToken.tokenId)")
+            model.message =
+                "🧪 Test handoff token created! Relaunch the app to verify."
+        } else {
+            print("❌ Failed to create test token")
+            model.message = "❌ Failed to create test token"
         }
     }
 }

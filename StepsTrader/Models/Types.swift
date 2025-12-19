@@ -3,6 +3,18 @@ import Combine
 import FamilyControls
 import HealthKit
 
+// MARK: - Handoff Token Model
+struct HandoffToken: Codable {
+    let targetBundleId: String
+    let targetAppName: String
+    let createdAt: Date
+    let tokenId: String
+    
+    var isExpired: Bool {
+        Date().timeIntervalSince(createdAt) > 60 // Токен действителен 1 минуту
+    }
+}
+
 // MARK: - Service Protocols
 // NOTE: Avoid exposing FamilyControls token types in shared protocol to prevent cross-target build issues.
 
@@ -10,6 +22,8 @@ import HealthKit
 protocol HealthKitServiceProtocol {
     func requestAuthorization() async throws
     func fetchTodaySteps() async throws -> Double
+    func startObservingSteps(updateHandler: @escaping (Double) -> Void)
+    func stopObservingSteps()
 }
 
 // MARK: - Family Controls Service Protocol
@@ -54,9 +68,9 @@ protocol BudgetEngineProtocol: ObservableObject {
 }
 
 enum Tariff: String, CaseIterable {
-    case easy = "easy"     // 100 шагов = 1 мин
-    case medium = "medium" // 500 шагов = 1 мин  
-    case hard = "hard"     // 1000 шагов = 1 мин
+    case easy = "easy"     // 100 steps = 1 minute
+    case medium = "medium" // 500 steps = 1 minute
+    case hard = "hard"     // 1000 steps = 1 minute
     
     var stepsPerMinute: Double {
         switch self {
@@ -85,9 +99,9 @@ enum Tariff: String, CaseIterable {
     
     var description: String {
         switch self {
-        case .easy: return "100 шагов = 1 минута • вход: 100 шагов"
-        case .medium: return "500 шагов = 1 минута • вход: 500 шагов"
-        case .hard: return "1000 шагов = 1 минута • вход: 1000 шагов"
+        case .easy: return "100 steps = 1 minute • entry: 100 steps"
+        case .medium: return "500 steps = 1 minute • entry: 500 steps"
+        case .hard: return "1000 steps = 1 minute • entry: 1000 steps"
         }
     }
 }

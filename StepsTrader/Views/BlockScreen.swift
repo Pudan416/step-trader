@@ -20,12 +20,12 @@ struct BlockScreen: View {
                     Text("⏰")
                         .font(.system(size: 80))
                     
-                    Text("Время истекло!")
+                    Text("Time's up!")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .foregroundColor(.red)
                     
-                    Text("Ваше время для развлечений закончилось")
+                    Text("Your entertainment time has run out")
                         .font(.title2)
                         .multilineTextAlignment(.center)
                         .foregroundColor(.secondary)
@@ -34,14 +34,14 @@ struct BlockScreen: View {
                 // Stats
                 VStack(spacing: 12) {
                     HStack {
-                        Text("Потрачено времени:")
+                        Text("Time spent:")
                         Spacer()
                         Text(formatTime(minutes: model.spentMinutes))
                             .fontWeight(.semibold)
                     }
                     
                     HStack {
-                        Text("Потрачено шагов:")
+                        Text("Steps spent:")
                         Spacer()
                         Text("\(model.spentSteps)")
                             .fontWeight(.semibold)
@@ -50,7 +50,7 @@ struct BlockScreen: View {
                     Divider()
                     
                     HStack {
-                        Text("Шагов сегодня:")
+                        Text("Steps today:")
                         Spacer()
                         Text("\(Int(model.stepsToday))")
                             .fontWeight(.semibold)
@@ -62,16 +62,16 @@ struct BlockScreen: View {
                 
                 // Action buttons
                 VStack(spacing: 12) {
-                    Text("Чтобы получить больше времени:")
+                    Text("To get more time:")
                         .font(.headline)
                         .multilineTextAlignment(.center)
                     
-                    Text("🚶‍♂️ Сделайте больше шагов")
+                    Text("🚶‍♂️ Walk more steps")
                         .font(.title3)
                         .fontWeight(.medium)
                         .foregroundColor(.blue)
                     
-                    Text("\(Int(model.budget.tariff.stepsPerMinute)) шагов = 1 минута развлечений")
+                    Text("\(Int(model.budget.tariff.stepsPerMinute)) steps = 1 minute of fun")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -80,19 +80,19 @@ struct BlockScreen: View {
                 
                 // Bottom buttons
                 VStack(spacing: 12) {
-                    Button("🔄 Обновить баланс") {
+                    Button("🔄 Refresh balance") {
                         Task {
                             do {
                                 try await model.recalc()
                                 // Если появились новые минуты, снимаем блокировку
                                 if model.remainingMinutes > 0 {
                                     model.isBlocked = false
-                                    model.message = "✅ Время восстановлено! Доступно: \(model.remainingMinutes) мин"
+                                    model.message = "✅ Time restored! Available: \(model.remainingMinutes) min"
                                 } else {
-                                    model.message = "❌ Недостаточно шагов для разблокировки"
+                                    model.message = "❌ Not enough steps to unlock"
                                 }
                             } catch {
-                                model.message = "❌ Ошибка обновления: \(error.localizedDescription)"
+                                model.message = "❌ Refresh failed: \(error.localizedDescription)"
                             }
                         }
                     }
@@ -100,7 +100,7 @@ struct BlockScreen: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     
-                    Button("❌ Завершить сессию") {
+                    Button("❌ End session") {
                         model.stopTracking()
                         model.isBlocked = false
                     }
@@ -109,7 +109,7 @@ struct BlockScreen: View {
                     .controlSize(.large)
                     .foregroundColor(.red)
                     
-                    Button("🗑️ Сбросить всю статистику") {
+                    Button("🗑️ Reset all stats") {
                         model.resetStatistics()
                     }
                     .frame(maxWidth: .infinity)
@@ -123,6 +123,6 @@ struct BlockScreen: View {
     }
     
     private func formatTime(minutes: Int) -> String {
-        return "\(minutes) мин"
+        return "\(minutes) min"
     }
 }

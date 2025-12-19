@@ -17,7 +17,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendTimeExpiredNotification() {
         let content = UNMutableNotificationContent()
         content.title = "⏰ Steps Trader"
-        content.body = "Время истекло! Проверьте, может еще есть время? Сделайте больше шагов для разблокировки."
+        content.body = "Time is up! Check whether you earned more time—walk additional steps to unlock."
         content.sound = .default
         content.badge = 1
         
@@ -40,9 +40,9 @@ final class NotificationManager: NotificationServiceProtocol {
         let content = UNMutableNotificationContent()
         content.title = "⏰ Steps Trader"
         if remainingMinutes > 0 {
-            content.body = "Время истекло! У вас было \(remainingMinutes) мин. Сделайте больше шагов для разблокировки."
+            content.body = "Time is up! You had \(remainingMinutes) min. Walk more steps to unlock."
         } else {
-            content.body = "Время истекло! Сделайте больше шагов для разблокировки."
+            content.body = "Time is up! Walk more steps to unlock."
         }
         content.sound = .default
         content.badge = 1
@@ -65,7 +65,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendUnblockNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
         content.title = "🎉 Steps Trader"
-        content.body = "Время восстановлено! Доступно: \(remainingMinutes) минут"
+        content.body = "Time restored! Available: \(remainingMinutes) minutes"
         content.sound = .default
         content.badge = 1
         
@@ -87,7 +87,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendRemainingTimeNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
         content.title = "⏱️ Steps Trader"
-        content.body = "Осталось времени: \(remainingMinutes) мин"
+        content.body = "Time remaining: \(remainingMinutes) min"
         content.sound = .default
         content.badge = 1
         
@@ -109,7 +109,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendTestNotification() {
         let content = UNMutableNotificationContent()
         content.title = "🧪 Steps Trader Test"
-        content.body = "Тестовое уведомление для проверки работы системы."
+        content.body = "Test notification to confirm the system works."
         content.sound = .default
         content.badge = 1
         
@@ -136,7 +136,7 @@ enum NotificationError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .permissionDenied:
-            return "Уведомления отклонены пользователем"
+            return "Notifications were denied by the user"
         }
     }
 }

@@ -29,12 +29,12 @@ struct TariffOptionView: View {
                         .font(.headline)
                         .foregroundColor(isDisabled ? .secondary : .primary)
                     
-                    Text(isDisabled ? "Недостаточно шагов" : tariff.description)
+                    Text(isDisabled ? "Not enough steps" : tariff.description)
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
                     if !isDisabled && stepsToday > 0 {
-                        Text("Получите: \(minutesFromSteps) мин")
+                        Text("Earn: \(minutesFromSteps) min")
                             .font(.caption)
                             .foregroundColor(.blue)
                             .fontWeight(.medium)

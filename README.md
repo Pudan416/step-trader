@@ -6,9 +6,9 @@
 - Device Activity
 
 Add to Info.plist:
-- NSHealthShareUsageDescription = "Steps Trader нужен доступ к шагам для управления временем приложений"
+- NSHealthShareUsageDescription = "Steps Trader needs access to your step count to manage app time."
 
 ## Notes
 - Run on a real device. Family Controls/Device Activity require device and Apple entitlements.
 - First launch requests HealthKit and Family Controls.
-- "Выбрать приложения" opens the picker; toggle starts monitoring.
+- "Choose from system list" opens the picker; the toggle starts monitoring.
