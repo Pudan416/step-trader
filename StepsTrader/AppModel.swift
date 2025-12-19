@@ -173,44 +173,31 @@ final class AppModel: ObservableObject {
         setupAppLifecycleObservers()
 
         // Подписка на дарвиновское уведомление от сниппета/интента (безопасная привязка observer)
-        let notificationCallback: CFNotificationCallback = { _, observer, name, object, userInfo in
-            guard let observer = observer, let name = name else { return }
-            let `self` = Unmanaged<AppModel>.fromOpaque(observer).takeUnretainedValue()
-            if name.rawValue as String == "com.steps.trader.refresh" {
-                Task { @MainActor in
-                    await `self`.recalcSilently()
-                    `self`.loadSpentTime()
-                }
-            } else if name.rawValue as String == "com.steps.trader.focusgate" {
-                Task { @MainActor in
-                    print("📱 Received FocusGate notification from shortcut")
-                    if let userInfo = userInfo as? [String: Any],
-                       let target = userInfo["target"] as? String,
-                       let bundleId = userInfo["bundleId"] as? String {
-                        print("📱 FocusGate notification - target: \(target), bundleId: \(bundleId)")
-                        `self`.focusGateTargetBundleId = bundleId
-                        `self`.showFocusGate = true
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(),
+            { _, observer, name, object, userInfo in
+                guard let observer = observer, let name = name else { return }
+                let `self` = Unmanaged<AppModel>.fromOpaque(observer).takeUnretainedValue()
+                if name.rawValue as String == "com.steps.trader.refresh" {
+                    Task { @MainActor in
+                        await `self`.recalcSilently()
+                        `self`.loadSpentTime()
+                    }
+                } else if name.rawValue as String == "com.steps.trader.focusgate" {
+                    Task { @MainActor in
+                        print("📱 Received FocusGate notification from shortcut")
+                        if let userInfo = userInfo as? [String: Any],
+                           let target = userInfo["target"] as? String,
+                           let bundleId = userInfo["bundleId"] as? String {
+                            print("📱 FocusGate notification - target: \(target), bundleId: \(bundleId)")
+                            `self`.focusGateTargetBundleId = bundleId
+                            `self`.showFocusGate = true
+                        }
                     }
                 }
-            }
-        }
-        
-        // Register observer for refresh notifications
-        CFNotificationCenterAddObserver(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            Unmanaged.passUnretained(self).toOpaque(),
-            notificationCallback,
+            },
             "com.steps.trader.refresh" as CFString,
-            nil,
-            .deliverImmediately
-        )
-        
-        // Register observer for focusgate notifications
-        CFNotificationCenterAddObserver(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            Unmanaged.passUnretained(self).toOpaque(),
-            notificationCallback,
-            "com.steps.trader.focusgate" as CFString,
             nil,
             .deliverImmediately
         )
