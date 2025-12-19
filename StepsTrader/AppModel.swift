@@ -228,36 +228,6 @@ final class AppModel: ObservableObject {
         // Update last URL handle time
         userDefaults.set(now, forKey: "lastURLHandleTime")
 
-        // Intercept Instagram launches
-        if scheme == "instagram" {
-            print("🎯 Instagram launch intercepted: \(url)")
-            print("🎯 Current FocusGate state - showFocusGate: \(showFocusGate), targetBundleId: \(focusGateTargetBundleId ?? "nil")")
-            
-            // Check if we just opened Instagram ourselves (anti-loop protection)
-            let userDefaults = UserDefaults.stepsTrader()
-            if let lastAppOpenTime = userDefaults.object(forKey: "lastAppOpenedFromStepsTrader") as? Date {
-                let timeSinceOpen = Date().timeIntervalSince(lastAppOpenTime)
-                if timeSinceOpen < 3.0 {
-                    print("🚫 Ignoring Instagram launch - we just opened it ourselves (\(Int(timeSinceOpen))s ago)")
-                    return
-                }
-            }
-            
-            // Clear any existing handoff tokens for Instagram
-            if handoffToken?.targetBundleId == "com.burbn.instagram" {
-                handoffToken = nil
-                showHandoffProtection = false
-                userDefaults.removeObject(forKey: "handoffToken")
-            }
-            
-            // Show pay gate for Instagram immediately
-            print("🎯 Setting FocusGate for Instagram - showFocusGate: \(showFocusGate) -> true")
-            focusGateTargetBundleId = "com.burbn.instagram"
-            showFocusGate = true
-            print("🎯 FocusGate set - showFocusGate: \(showFocusGate), targetBundleId: \(focusGateTargetBundleId ?? "nil")")
-            return
-        }
-
         if host == "pay" {
             Task { @MainActor in
                 await refreshStepsBalance()
@@ -345,6 +315,11 @@ final class AppModel: ObservableObject {
         userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
         userDefaults.set(now, forKey: "lastFocusGateAction")
         userDefaults.set(now, forKey: "focusGateLastOpen")
+        userDefaults.removeObject(forKey: "shouldShowFocusGate")
+        userDefaults.removeObject(forKey: "focusGateTargetBundleId")
+        userDefaults.removeObject(forKey: "shortcutTriggered")
+        userDefaults.removeObject(forKey: "shortcutTarget")
+        userDefaults.removeObject(forKey: "shortcutTriggerTime")
 
         openTargetAppFromFocusGate(bundleId)
     }
@@ -369,9 +344,10 @@ final class AppModel: ObservableObject {
             return
         }
 
+        let target = bundleId
         showFocusGate = false
-        focusGateTargetBundleId = bundleId
-        attemptOpen(schemes: schemes, index: 0, bundleId: bundleId)
+        focusGateTargetBundleId = nil
+        attemptOpen(schemes: schemes, index: 0, bundleId: target)
     }
 
     private func attemptOpen(schemes: [String], index: Int, bundleId: String) {

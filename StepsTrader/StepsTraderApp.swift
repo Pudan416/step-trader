@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 @main
 struct StepsTraderApp: App {
@@ -437,6 +438,9 @@ struct ShortcutMessageView: View {
 // MARK: - FocusGateView
 struct FocusGateView: View {
     @ObservedObject var model: AppModel
+    @State private var countdown: Int = 10
+    @State private var didForfeit: Bool = false
+    private let countdownTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     var body: some View {
         ZStack {
@@ -488,11 +492,19 @@ struct FocusGateView: View {
                     }
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+
+                    // Countdown timer
+                    Text("Pay within \(countdown)s or steps will be charged without opening the app.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.vertical, 8)
                     
                     if let bundleId = model.focusGateTargetBundleId {
                         Button("Pay and open \(getAppDisplayName(bundleId))") {
                             print("🎯 FocusGate: User clicked pay button for \(bundleId)")
                             
+                            didForfeit = true
                             // Anti-loop check for FocusGate button clicks
                             let userDefaults = UserDefaults.stepsTrader()
                             let now = Date()
@@ -530,6 +542,34 @@ struct FocusGateView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .padding(.horizontal, 20)
+            }
+        }
+    }
+}
+
+extension FocusGateView {
+    private func handleCountdownTick() {
+        guard model.showFocusGate, !didForfeit else { return }
+        if countdown > 0 {
+            countdown -= 1
+        }
+        if countdown == 0 {
+            didForfeit = true
+            if let bundleId = model.focusGateTargetBundleId {
+                print("⏰ FocusGate countdown expired for \(bundleId)")
+            }
+            Task {
+                await model.refreshStepsBalance()
+                await MainActor.run {
+                    if model.canPayForEntry() {
+                        _ = model.payForEntry()
+                        model.message = "⏰ Time expired. Steps deducted without opening the app."
+                    } else {
+                        model.message = "⏰ Time expired, but not enough steps to deduct."
+                    }
+                    model.showFocusGate = false
+                    model.focusGateTargetBundleId = nil
+                }
             }
         }
     }
