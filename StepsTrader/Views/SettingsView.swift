@@ -12,10 +12,6 @@ struct SettingsView: View {
 
                 // Стоимость входа (тариф)
                 tariffSection
-
-                // Статус системы и управление
-                systemStatusSection
-                managementSection
             }
         }
     }
@@ -66,13 +62,6 @@ struct SettingsView: View {
                         Text("\(model.spentStepsToday)")
                             .foregroundColor(.primary)
                     }
-                    HStack {
-                        Text("Entry cost")
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text("\(model.entryCostSteps)")
-                            .foregroundColor(.primary)
-                    }
                 }
             }
             .padding(.vertical, 6)
@@ -97,60 +86,7 @@ struct SettingsView: View {
                         selectTariff(tariff)
                         model.persistEntryCost(tariff: tariff)
                     }
-                    .overlay(alignment: .trailing) {
-                        Text("Entry: \(tariff.entryCostSteps) steps")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.trailing, 8)
-                    }
                 }
-            }
-            .padding(.vertical, 8)
-        }
-    }
-
-    // MARK: - Management Section
-    private var managementSection: some View {
-        Section("Management") {
-            VStack(spacing: 12) {
-                Button("📲 Install PayGate Shortcut") {
-                    model.installPayGateShortcut()
-                }
-                .frame(maxWidth: .infinity)
-
-                Button("🔍 Diagnostics") {
-                    model.runDiagnostics()
-                }
-                .frame(maxWidth: .infinity)
-
-                Button("🧪 Test handoff") {
-                    testHandoffToken()
-                }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.bordered)
-                .foregroundColor(.blue)
-            }
-            .padding(.vertical, 8)
-        }
-    }
-
-    // MARK: - System Status Section
-    private var systemStatusSection: some View {
-        Section("System status") {
-            VStack(alignment: .leading, spacing: 12) {
-                StatusRow(
-                    icon: "heart.fill",
-                    title: "HealthKit",
-                    status: .connected,
-                    description: "Access to step data"
-                )
-
-                StatusRow(
-                    icon: "bell.fill",
-                    title: "Notifications",
-                    status: .connected,
-                    description: "Push notifications enabled"
-                )
             }
             .padding(.vertical, 8)
         }

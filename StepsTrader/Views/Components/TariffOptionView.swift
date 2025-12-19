@@ -32,13 +32,6 @@ struct TariffOptionView: View {
                     Text(isDisabled ? "Not enough steps" : tariff.description)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    
-                    if !isDisabled && stepsToday > 0 {
-                        Text("Earn: \(minutesFromSteps) min")
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                            .fontWeight(.medium)
-                    }
                 }
                 
                 Spacer()

@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import Combine
 
 @main
 struct StepsTraderApp: App {
@@ -440,6 +441,8 @@ struct FocusGateView: View {
     @ObservedObject var model: AppModel
     @State private var countdown: Int = 10
     @State private var didForfeit: Bool = false
+    @State private var timedOut: Bool = false
+    private let totalCountdown: Int = 10
     private let countdownTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     var body: some View {
@@ -466,69 +469,115 @@ struct FocusGateView: View {
                 }
 
                 VStack(spacing: 20) {
-                    // Баланс шагов
-                    HStack {
-                        Text("Step balance:")
-                            .font(.title2)
-                        Spacer()
-                        Text("\(model.stepsBalance)")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(
-                                model.stepsBalance >= model.entryCostSteps ? .green : .red)
-                    }
-                    .padding()
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+                    if !timedOut {
+                        // Баланс шагов
+                        HStack {
+                            Text("Step balance:")
+                                .font(.title2)
+                            Spacer()
+                            Text("\(model.stepsBalance)")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(
+                                    model.stepsBalance >= model.entryCostSteps ? .green : .red)
+                        }
+                        .padding()
+                        .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
 
-                    // Стоимость входа
-                    HStack {
-                        Text("Entry cost:")
-                            .font(.title2)
-                        Spacer()
-                        Text("\(model.entryCostSteps) steps")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(.blue)
-                    }
-                    .padding()
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+                        // Стоимость входа
+                        HStack {
+                            Text("Entry cost:")
+                                .font(.title2)
+                            Spacer()
+                            Text("\(model.entryCostSteps) steps")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                        }
+                        .padding()
+                        .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
 
-                    // Countdown timer
-                    Text("Pay within \(countdown)s or steps will be charged without opening the app.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.vertical, 8)
-                    
-                    if let bundleId = model.focusGateTargetBundleId {
-                        Button("Pay and open \(getAppDisplayName(bundleId))") {
-                            print("🎯 FocusGate: User clicked pay button for \(bundleId)")
-                            
-                            didForfeit = true
-                            // Anti-loop check for FocusGate button clicks
-                            let userDefaults = UserDefaults.stepsTrader()
-                            let now = Date()
-                            
-                            if let lastFocusGateAction = userDefaults.object(forKey: "lastFocusGateAction") as? Date {
-                                let timeSinceLastAction = now.timeIntervalSince(lastFocusGateAction)
-                                if timeSinceLastAction < 1.0 {
-                                    print("🚫 FocusGate button clicked too recently (\(String(format: "%.1f", timeSinceLastAction))s), ignoring to prevent loop")
+                        // Countdown timer with ring
+                        VStack(spacing: 8) {
+                            ZStack {
+                                Circle()
+                                    .stroke(Color.gray.opacity(0.2), lineWidth: 8)
+                                    .frame(width: 90, height: 90)
+                                Circle()
+                                    .trim(from: 0, to: CGFloat(max(0, countdown)) / CGFloat(totalCountdown))
+                                    .stroke(
+                                        AngularGradient(
+                                            gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
+                                            center: .center),
+                                        style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                                    .rotationEffect(.degrees(-90))
+                                    .frame(width: 90, height: 90)
+                                    .animation(.easeInOut(duration: 0.2), value: countdown)
+                                Text("\(max(0, countdown))s")
+                                    .font(.headline)
+                                    .monospacedDigit()
+                            }
+                            Text("Pay within 10 seconds to enter.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        
+                        if let bundleId = model.focusGateTargetBundleId {
+                            Button("Pay and open \(getAppDisplayName(bundleId))") {
+                                print("🎯 FocusGate: User clicked pay button for \(bundleId)")
+                                guard countdown > 0, !didForfeit else {
+                                    print("🚫 FocusGate: Timer expired, ignoring pay action")
                                     return
                                 }
+
+                                didForfeit = true
+                                // Anti-loop check for FocusGate button clicks
+                                let userDefaults = UserDefaults.stepsTrader()
+                                let now = Date()
+                                
+                                if let lastFocusGateAction = userDefaults.object(forKey: "lastFocusGateAction") as? Date {
+                                    let timeSinceLastAction = now.timeIntervalSince(lastFocusGateAction)
+                                    if timeSinceLastAction < 1.0 {
+                                        print("🚫 FocusGate button clicked too recently (\(String(format: "%.1f", timeSinceLastAction))s), ignoring to prevent loop")
+                                        return
+                                    }
+                                }
+                                
+                                Task {
+                                    await model.handleFocusGatePayment(for: bundleId)
+                                }
                             }
-                            
-                            Task {
-                                await model.handleFocusGatePayment(for: bundleId)
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .background(
+                                model.stepsBalance >= model.entryCostSteps && countdown > 0 && !didForfeit
+                                    ? Color.blue : Color.gray
+                            )
+                            .foregroundColor(.white)
+                            .font(.headline)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .disabled(model.stepsBalance < model.entryCostSteps || countdown <= 0 || didForfeit)
+                        }
+                    } else {
+                        VStack(spacing: 12) {
+                            if let bundleId = model.focusGateTargetBundleId {
+                                Text("You missed opening \(getAppDisplayName(bundleId)).")
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
+                                    .multilineTextAlignment(.center)
+                                Text("At least you saved \(model.entryCostSteps) steps.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                            } else {
+                                Text("You missed the window.")
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
                             }
                         }
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .background(
-                            model.stepsBalance >= model.entryCostSteps ? Color.blue : Color.gray
-                        )
-                        .foregroundColor(.white)
-                        .font(.headline)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .disabled(model.stepsBalance < model.entryCostSteps)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
                     }
                     
                     Button("Close") {
@@ -544,9 +593,19 @@ struct FocusGateView: View {
                 .padding(.horizontal, 20)
             }
         }
+        .onAppear {
+            countdown = totalCountdown
+            didForfeit = false
+            timedOut = false
+        }
+        .onReceive(countdownTimer) { _ in
+            handleCountdownTick()
+        }
+        .onDisappear {
+            didForfeit = true
+        }
     }
 }
-
 extension FocusGateView {
     private func handleCountdownTick() {
         guard model.showFocusGate, !didForfeit else { return }
@@ -555,21 +614,12 @@ extension FocusGateView {
         }
         if countdown == 0 {
             didForfeit = true
+            timedOut = true
             if let bundleId = model.focusGateTargetBundleId {
                 print("⏰ FocusGate countdown expired for \(bundleId)")
             }
-            Task {
-                await model.refreshStepsBalance()
-                await MainActor.run {
-                    if model.canPayForEntry() {
-                        _ = model.payForEntry()
-                        model.message = "⏰ Time expired. Steps deducted without opening the app."
-                    } else {
-                        model.message = "⏰ Time expired, but not enough steps to deduct."
-                    }
-                    model.showFocusGate = false
-                    model.focusGateTargetBundleId = nil
-                }
+            Task { @MainActor in
+                model.message = "⏰ Time expired. Please re-run the shortcut to try again."
             }
         }
     }

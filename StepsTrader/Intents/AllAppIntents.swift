@@ -16,7 +16,7 @@ struct PayGateIntent: AppIntent {
 
     func perform() async throws -> some ReturnsValue<Bool> & IntentResult {
         let userDefaults = UserDefaults.stepsTrader()
-        let now = Date()
+        _ = Date()
         var settings = IntentSettings(defaults: userDefaults)
 
         print("🔍 PayGateIntent triggered for \(target.bundleId) at \(Date())")

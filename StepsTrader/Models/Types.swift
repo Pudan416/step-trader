@@ -99,9 +99,9 @@ enum Tariff: String, CaseIterable {
     
     var description: String {
         switch self {
-        case .easy: return "100 steps = 1 minute • entry: 100 steps"
-        case .medium: return "500 steps = 1 minute • entry: 500 steps"
-        case .hard: return "1000 steps = 1 minute • entry: 1000 steps"
+        case .easy: return "100 steps"
+        case .medium: return "500 steps"
+        case .hard: return "1000 steps"
         }
     }
 }
