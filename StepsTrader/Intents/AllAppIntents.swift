@@ -98,6 +98,13 @@ struct CanOpenPayGateIntent: AppIntent {
 
         // Remember the target scheme so the next Open Pay Gate uses the same app
         userDefaults.set(target.urlScheme, forKey: "selectedAppScheme")
+        userDefaults.set(true, forKey: "automationConfigured")
+        userDefaults.set(target.bundleId, forKey: "automationBundleId")
+        var configured = userDefaults.array(forKey: "automationConfiguredBundles") as? [String] ?? []
+        if !configured.contains(target.bundleId) {
+            configured.append(target.bundleId)
+            userDefaults.set(configured, forKey: "automationConfiguredBundles")
+        }
         return .result(value: true)
     }
 }
@@ -106,18 +113,21 @@ struct CanOpenPayGateIntent: AppIntent {
 enum TargetApp: String, AppEnum, CaseDisplayRepresentable {
     case instagram
     case tiktok
+    case youtube
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "App"
 
     static var caseDisplayRepresentations: [TargetApp: DisplayRepresentation] = [
         .instagram: "📱 Instagram",
         .tiktok: "🎵 TikTok",
+        .youtube: "▶️ YouTube",
     ]
 
     var bundleId: String {
         switch self {
         case .instagram: return "com.burbn.instagram"
         case .tiktok: return "com.zhiliaoapp.musically"
+        case .youtube: return "com.google.ios.youtube"
         }
     }
     
@@ -125,6 +135,7 @@ enum TargetApp: String, AppEnum, CaseDisplayRepresentable {
         switch self {
         case .instagram: return "instagram://"
         case .tiktok: return "tiktok://"
+        case .youtube: return "youtube://"
         }
     }
 }
