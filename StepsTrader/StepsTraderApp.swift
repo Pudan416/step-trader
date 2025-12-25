@@ -5,6 +5,7 @@ import Combine
 @main
 struct StepsTraderApp: App {
     @StateObject private var model: AppModel
+    @AppStorage("appLanguage") private var appLanguage: String = "en"
 
     init() {
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
@@ -13,10 +14,10 @@ struct StepsTraderApp: App {
     var body: some Scene {
         WindowGroup { 
             ZStack {
-                if model.showFocusGate {
-                    FocusGateView(model: model)
+                if model.showPayGate {
+                    PayGateView(model: model)
                         .onAppear {
-                            print("🎯 FocusGateView appeared - target: \(model.focusGateTargetBundleId ?? "nil")")
+                            print("🎯 PayGateView appeared - target: \(model.payGateTargetBundleId ?? "nil")")
                         }
                 } else if model.showQuickStatusPage {
                     QuickStatusView(model: model)
@@ -48,16 +49,16 @@ struct StepsTraderApp: App {
                 // Ensure bootstrap runs once on first launch to request permissions
                 Task { await model.bootstrap() }
                 print(
-                    "🎭 StepsTraderApp appeared - showFocusGate: \(model.showFocusGate), showQuickStatusPage: \(model.showQuickStatusPage)"
+                    "🎭 StepsTraderApp appeared - showPayGate: \(model.showPayGate), showQuickStatusPage: \(model.showQuickStatusPage)"
                 )
                 print(
                     "🎭 App state - showHandoffProtection: \(model.showHandoffProtection), handoffToken: \(model.handoffToken?.targetAppName ?? "nil")"
                 )
                 print(
-                    "🎭 FocusGate state - showFocusGate: \(model.showFocusGate), targetBundleId: \(model.focusGateTargetBundleId ?? "nil")"
+                    "🎭 PayGate state - showPayGate: \(model.showPayGate), targetBundleId: \(model.payGateTargetBundleId ?? "nil")"
                 )
                 checkForHandoffToken()
-                checkForFocusGateFlags()
+                checkForPayGateFlags()
             }
             .onOpenURL { url in
                 print("🔗 App received URL: \(url)")
@@ -78,37 +79,45 @@ struct StepsTraderApp: App {
             ) { _ in
                 model.handleAppWillEnterForeground()
                 checkForHandoffToken()
-                checkForFocusGateFlags()
+                checkForPayGateFlags()
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.refresh")))
             { _ in
                 model.handleAppWillEnterForeground()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.focusgate")))
+            .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.paygate")))
             { notification in
-                print("📱 App received FocusGate notification")
+                print("📱 App received PayGate notification")
                 if let userInfo = notification.userInfo,
                    let target = userInfo["target"] as? String,
                    let bundleId = userInfo["bundleId"] as? String {
-                    print("📱 FocusGate notification - target: \(target), bundleId: \(bundleId)")
-                    model.focusGateTargetBundleId = bundleId
-                    model.showFocusGate = true
+                    print("📱 PayGate notification - target: \(target), bundleId: \(bundleId)")
+                    model.payGateTargetBundleId = bundleId
+                    model.showPayGate = true
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.local.focusgate")))
+            .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.local.paygate")))
             { notification in
                 print("📱 App received local notification")
                 if let userInfo = notification.userInfo,
                    let action = userInfo["action"] as? String,
-                   action == "focusgate",
+                   action == "paygate",
                    let target = userInfo["target"] as? String,
                    let bundleId = userInfo["bundleId"] as? String {
-                    print("📱 Local notification FocusGate - target: \(target), bundleId: \(bundleId)")
-                    print("📱 Setting FocusGate - showFocusGate: \(model.showFocusGate) -> true")
-                    print("📱 Setting FocusGate - targetBundleId: \(model.focusGateTargetBundleId ?? "nil") -> \(bundleId)")
-                    model.focusGateTargetBundleId = bundleId
-                    model.showFocusGate = true
-                    print("📱 FocusGate state after setting - showFocusGate: \(model.showFocusGate), targetBundleId: \(model.focusGateTargetBundleId ?? "nil")")
+                    let lastOpen = UserDefaults.stepsTrader().object(forKey: "lastAppOpenedFromStepsTrader") as? Date
+                    if let lastOpen {
+                        let elapsed = Date().timeIntervalSince(lastOpen)
+                        if elapsed < 10 {
+                            print("🚫 PayGate local ignored to avoid loop (\(String(format: "%.1f", elapsed))s since last open)")
+                            return
+                        }
+                    }
+                    print("📱 Local notification PayGate - target: \(target), bundleId: \(bundleId)")
+                    print("📱 Setting PayGate - showPayGate: \(model.showPayGate) -> true")
+                    print("📱 Setting PayGate - targetBundleId: \(model.payGateTargetBundleId ?? "nil") -> \(bundleId)")
+                    model.payGateTargetBundleId = bundleId
+                    model.showPayGate = true
+                    print("📱 PayGate state after setting - showPayGate: \(model.showPayGate), targetBundleId: \(model.payGateTargetBundleId ?? "nil")")
                 }
             }
         }
@@ -119,7 +128,7 @@ struct StepsTraderApp: App {
 
         print("🔍 Checking for handoff token...")
         print(
-            "🔍 Current app state - showFocusGate: \(model.showFocusGate), showHandoffProtection: \(model.showHandoffProtection)"
+            "🔍 Current app state - showPayGate: \(model.showPayGate), showHandoffProtection: \(model.showHandoffProtection)"
         )
 
         // Проверяем handoff-токен
@@ -164,22 +173,22 @@ struct StepsTraderApp: App {
         }
     }
     
-    private func checkForFocusGateFlags() {
+    private func checkForPayGateFlags() {
         let userDefaults = UserDefaults.stepsTrader()
         
-        // Check if shortcut set flags to show FocusGate
-        let shouldShowFocusGate = userDefaults.bool(forKey: "shouldShowFocusGate")
+        // Check if shortcut set flags to show PayGate
+        let shouldShowPayGate = userDefaults.bool(forKey: "shouldShowPayGate")
         let shortcutTriggered = userDefaults.bool(forKey: "shortcutTriggered")
         
-        print("🔍 Checking FocusGate flags - shouldShowFocusGate: \(shouldShowFocusGate), shortcutTriggered: \(shortcutTriggered)")
+        print("🔍 Checking PayGate flags - shouldShowPayGate: \(shouldShowPayGate), shortcutTriggered: \(shortcutTriggered)")
         
-        if shouldShowFocusGate || shortcutTriggered {
-            let targetBundleId = userDefaults.string(forKey: "focusGateTargetBundleId")
+        if shouldShowPayGate || shortcutTriggered {
+            let targetBundleId = userDefaults.string(forKey: "payGateTargetBundleId")
             let shortcutTarget = userDefaults.string(forKey: "shortcutTarget")
             let target = targetBundleId ?? shortcutTarget ?? "unknown"
             
-            print("🎯 Shortcut triggered FocusGate for: \(target)")
-            print("🎯 shouldShowFocusGate: \(shouldShowFocusGate), shortcutTriggered: \(shortcutTriggered)")
+            print("🎯 Shortcut triggered PayGate for: \(target)")
+            print("🎯 shouldShowPayGate: \(shouldShowPayGate), shortcutTriggered: \(shortcutTriggered)")
             
             // Map shortcut target to bundle ID if needed
             var finalBundleId = targetBundleId
@@ -193,19 +202,19 @@ struct StepsTraderApp: App {
             }
             
             print("🎯 Final bundle ID: \(finalBundleId ?? "nil")")
-            model.focusGateTargetBundleId = finalBundleId
-            model.showFocusGate = true
+            model.payGateTargetBundleId = finalBundleId
+            model.showPayGate = true
             
             // Clear the flags
-            userDefaults.removeObject(forKey: "shouldShowFocusGate")
-            userDefaults.removeObject(forKey: "focusGateTargetBundleId")
+            userDefaults.removeObject(forKey: "shouldShowPayGate")
+            userDefaults.removeObject(forKey: "payGateTargetBundleId")
             userDefaults.removeObject(forKey: "shortcutTriggered")
             userDefaults.removeObject(forKey: "shortcutTarget")
             userDefaults.removeObject(forKey: "shortcutTriggerTime")
             
-            print("🎯 FocusGate should now be visible!")
+            print("🎯 PayGate should now be visible!")
         } else {
-            print("🔍 No FocusGate flags found")
+            print("🔍 No PayGate flags found")
         }
     }
     
@@ -242,11 +251,14 @@ struct HandoffProtectionView: View {
                 VStack(spacing: 20) {
                     let totalSteps = Int(model.stepsToday)
                     let spent = model.spentStepsToday
-                    let cost = max(1, model.entryCostSteps)
+                    let cost = model.entryCostSteps
                     let available = max(0, totalSteps - spent)
-                    let opensLeft = available / cost
+                    let opensLeftText: String = {
+                        if cost == 0 { return "Unlimited" }
+                        return "\(available / max(cost, 1))"
+                    }()
 
-                    Text("Entries left today: \(opensLeft)")
+                    Text("Entries left today: \(opensLeftText)")
                         .font(.body)
                         .foregroundColor(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
@@ -289,21 +301,60 @@ struct HandoffProtectionView: View {
 // MARK: - Main Tab View
 struct MainTabView: View {
     @ObservedObject var model: AppModel
+    @State private var selection: Int = 0
+    @AppStorage("appLanguage") private var appLanguage: String = "en"
 
     var body: some View {
-            TabView {
+        VStack(spacing: 12) {
+            StepBalanceCard(
+                remainingSteps: remainingStepsToday,
+                totalSteps: Int(model.stepsToday)
+            )
+            .padding(.horizontal)
+            TabView(selection: $selection) {
                 StatusView(model: model)
                     .tabItem {
-                    Image(systemName: "chart.bar.fill")
-                        Text("Status")
+                        Image(systemName: "chart.bar.fill")
+                        Text(loc(appLanguage, "Status", "Статус"))
                     }
+                    .tag(0)
+
+                AppsPage(model: model, automationApps: SettingsView.automationAppsStatic, tariffs: Tariff.allCases)
+                    .tabItem {
+                        Image(systemName: "square.grid.2x2")
+                        Text(loc(appLanguage, "Modules", "Модули"))
+                    }
+                    .tag(1)
+                
+                FAQPage(model: model)
+                    .tabItem {
+                        Image(systemName: "questionmark.circle")
+                        Text(loc(appLanguage, "FAQ", "FAQ"))
+                    }
+                    .tag(2)
                 
                 SettingsView(model: model)
                     .tabItem {
-                    Image(systemName: "gear")
-                        Text("Settings")
+                        Image(systemName: "gear")
+                        Text(loc(appLanguage, "Settings", "Настройки"))
+                    }
+                    .tag(3)
+            }
+            .gesture(
+                DragGesture().onEnded { value in
+                    let threshold: CGFloat = 50
+                    if value.translation.width > threshold {
+                        selection = max(0, selection - 1)
+                    } else if value.translation.width < -threshold {
+                        selection = min(3, selection + 1)
+                    }
                 }
+            )
         }
+    }
+    
+    private var remainingStepsToday: Int {
+        max(0, Int(model.stepsToday) - model.spentStepsToday)
     }
 }
 
@@ -436,8 +487,8 @@ struct ShortcutMessageView: View {
     }
 }
 
-// MARK: - FocusGateView
-struct FocusGateView: View {
+// MARK: - PayGateView
+struct PayGateView: View {
     @ObservedObject var model: AppModel
     @State private var countdown: Int = 10
     @State private var didForfeit: Bool = false
@@ -470,6 +521,17 @@ struct FocusGateView: View {
 
                 VStack(spacing: 20) {
                     if !timedOut {
+                        let bundleId = model.payGateTargetBundleId
+                        let settings = model.unlockSettings(for: bundleId)
+                        let hasPass = model.hasDayPass(for: bundleId)
+                        let isFree = settings.entryCostSteps == 0
+                        let canPayEntry = hasPass || isFree || model.stepsBalance >= settings.entryCostSteps
+                        let canPayDayPass =
+                            bundleId != nil
+                            && !hasPass
+                            && !isFree
+                            && model.stepsBalance >= settings.dayPassCostSteps
+                        
                         // Баланс шагов
                         HStack {
                             Text("Step balance:")
@@ -479,20 +541,7 @@ struct FocusGateView: View {
                                 .font(.title)
                                 .fontWeight(.bold)
                                 .foregroundColor(
-                                    model.stepsBalance >= model.entryCostSteps ? .green : .red)
-                        }
-                        .padding()
-                        .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
-
-                        // Стоимость входа
-                        HStack {
-                            Text("Entry cost:")
-                                .font(.title2)
-                            Spacer()
-                            Text("\(model.entryCostSteps) steps")
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(.blue)
+                                    hasPass || model.stepsBalance >= settings.entryCostSteps ? .green : .red)
                         }
                         .padding()
                         .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
@@ -523,49 +572,103 @@ struct FocusGateView: View {
                                 .multilineTextAlignment(.center)
                         }
                         
-                        if let bundleId = model.focusGateTargetBundleId {
-                            Button("Pay and open \(getAppDisplayName(bundleId))") {
-                                print("🎯 FocusGate: User clicked pay button for \(bundleId)")
-                                guard countdown > 0, !didForfeit else {
-                                    print("🚫 FocusGate: Timer expired, ignoring pay action")
-                                    return
-                                }
-
-                                didForfeit = true
-                                // Anti-loop check for FocusGate button clicks
-                                let userDefaults = UserDefaults.stepsTrader()
-                                let now = Date()
-                                
-                                if let lastFocusGateAction = userDefaults.object(forKey: "lastFocusGateAction") as? Date {
-                                    let timeSinceLastAction = now.timeIntervalSince(lastFocusGateAction)
-                                    if timeSinceLastAction < 1.0 {
-                                        print("🚫 FocusGate button clicked too recently (\(String(format: "%.1f", timeSinceLastAction))s), ignoring to prevent loop")
+                        if let bundleId {
+                            if hasPass || isFree {
+                                Button("Open \(getAppDisplayName(bundleId)) for free") {
+                                    print("🎯 PayGate: User clicked open with day pass for \(bundleId)")
+                                    guard countdown > 0, !didForfeit else {
+                                        print("🚫 PayGate: Timer expired, ignoring open action")
                                         return
                                     }
+                                    didForfeit = true
+                                    Task {
+                                        await model.handlePayGatePayment(for: bundleId)
+                                    }
                                 }
+                                .frame(maxWidth: .infinity, minHeight: 50)
+                                .background(Color.green)
+                                .foregroundColor(.white)
+                                .font(.headline)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                                 
-                                Task {
-                                    await model.handleFocusGatePayment(for: bundleId)
+                                Text("Day pass active today")
+                                    .font(.subheadline)
+                                    .foregroundColor(.green)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            } else {
+                            let entryTitle = settings.entryCostSteps == 0
+                                ? "Open \(getAppDisplayName(bundleId)) for free"
+                                : "Pay \(settings.entryCostSteps) steps & open \(getAppDisplayName(bundleId))"
+                                Button(entryTitle) {
+                                    print("🎯 PayGate: User clicked pay button for \(bundleId)")
+                                    guard countdown > 0, !didForfeit else {
+                                        print("🚫 PayGate: Timer expired, ignoring pay action")
+                                        return
+                                    }
+
+                                    didForfeit = true
+                                    // Anti-loop check for PayGate button clicks
+                                    let userDefaults = UserDefaults.stepsTrader()
+                                    let now = Date()
+                                    
+                                    if let lastPayGateAction = userDefaults.object(forKey: "lastPayGateAction") as? Date {
+                                        let timeSinceLastAction = now.timeIntervalSince(lastPayGateAction)
+                                        if timeSinceLastAction < 1.0 {
+                                            print("🚫 PayGate button clicked too recently (\(String(format: "%.1f", timeSinceLastAction))s), ignoring to prevent loop")
+                                            return
+                                        }
+                                    }
+                                    
+                                    Task {
+                                        await model.handlePayGatePayment(for: bundleId)
+                                    }
                                 }
+                                .frame(maxWidth: .infinity, minHeight: 50)
+                                .background(
+                                    canPayEntry && countdown > 0 && !didForfeit
+                                        ? Color.blue : Color.gray
+                                )
+                                .foregroundColor(.white)
+                                .font(.headline)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .disabled(!canPayEntry || countdown <= 0 || didForfeit)
+                                
+                                let dayPassTitle = "Pay \(settings.dayPassCostSteps) steps for day pass"
+                                Button(dayPassTitle) {
+                                    print("🌞 PayGate: User clicked day pass for \(bundleId)")
+                                    guard countdown > 0, !didForfeit else {
+                                        print("🚫 PayGate: Timer expired, ignoring day pass action")
+                                        return
+                                    }
+                                    didForfeit = true
+                                    Task { @MainActor in
+                                        let success = model.payForDayPass(for: bundleId)
+                                        if success {
+                                            await model.handlePayGatePayment(for: bundleId)
+                                        } else {
+                                            model.message = "❌ Not enough steps for day pass (\(settings.dayPassCostSteps))"
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .background(
+                                    canPayDayPass ? Color.orange : Color.gray
+                                )
+                                .foregroundColor(.white)
+                                .font(.headline)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .disabled(!canPayDayPass || countdown <= 0 || didForfeit)
                             }
-                            .frame(maxWidth: .infinity, minHeight: 50)
-                            .background(
-                                model.stepsBalance >= model.entryCostSteps && countdown > 0 && !didForfeit
-                                    ? Color.blue : Color.gray
-                            )
-                            .foregroundColor(.white)
-                            .font(.headline)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .disabled(model.stepsBalance < model.entryCostSteps || countdown <= 0 || didForfeit)
                         }
                     } else {
                         VStack(spacing: 12) {
-                            if let bundleId = model.focusGateTargetBundleId {
+                            if let bundleId = model.payGateTargetBundleId {
                                 Text("You missed opening \(getAppDisplayName(bundleId)).")
                                     .font(.title3)
                                     .fontWeight(.semibold)
                                     .multilineTextAlignment(.center)
-                                Text("At least you saved \(model.entryCostSteps) steps.")
+                                let settings = model.unlockSettings(for: bundleId)
+                                Text("At least you saved \(settings.entryCostSteps) steps.")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
@@ -581,8 +684,8 @@ struct FocusGateView: View {
                     }
                     
                     Button("Close") {
-                        model.showFocusGate = false
-                        model.focusGateTargetBundleId = nil
+                        didForfeit = true
+                        model.dismissPayGate()
                     }
                     .frame(maxWidth: .infinity, minHeight: 40)
                     .background(Color.gray.opacity(0.3))
@@ -606,17 +709,17 @@ struct FocusGateView: View {
         }
     }
 }
-extension FocusGateView {
+extension PayGateView {
     private func handleCountdownTick() {
-        guard model.showFocusGate, !didForfeit else { return }
+        guard model.showPayGate, !didForfeit else { return }
         if countdown > 0 {
             countdown -= 1
         }
         if countdown == 0 {
             didForfeit = true
             timedOut = true
-            if let bundleId = model.focusGateTargetBundleId {
-                print("⏰ FocusGate countdown expired for \(bundleId)")
+            if let bundleId = model.payGateTargetBundleId {
+                print("⏰ PayGate countdown expired for \(bundleId)")
             }
             Task { @MainActor in
                 model.message = "⏰ Time expired. Please re-run the shortcut to try again."

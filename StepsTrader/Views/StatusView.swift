@@ -1,6 +1,7 @@
 import AudioToolbox
 import SwiftUI
 import UserNotifications
+import Charts
 
 // MARK: - StatusView
 struct StatusView: View {
@@ -8,31 +9,47 @@ struct StatusView: View {
     @State private var timer: Timer?
     @State private var lastAvailableMinutes: Int = 0
     @State private var lastNotificationMinutes: Int = -1
+    @State private var selectedBundleForChart: String? = nil
+    @State private var chartRange: ChartRange = .week
+    @State private var chartZoom: CGFloat = 1.0
+    @State private var chartZoomBase: CGFloat = 1.0
+    @AppStorage("appLanguage") private var appLanguage: String = "en"
+
+    private enum ChartRange: String, CaseIterable {
+        case week
+        case month
+        
+        var days: Int {
+            switch self {
+            case .week: return 7
+            case .month: return 30
+            }
+        }
+        
+        var title: String {
+            switch self {
+            case .week: return "7"
+            case .month: return "30"
+            }
+        }
+    }
 
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Полоса с остатком шагов сверху
-                    remainingStepsBarView
-
-                    // Мини-статистика (как просили: Шаги, Всего минут, Потрачено)
                     miniStatsView
-
-                    // Большой дисплей оставшихся открытий по центру
-                    bigOpensDisplayView
+                    openFrequencyChart
 
                     Spacer(minLength: 20)
                 }
                 .padding()
             }
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarHidden(true)
         }
-        .onAppear {
-            onAppear()
-        }
-        .onDisappear {
-            onDisappear()
-        }
+        .onAppear { onAppear() }
+        .onDisappear { onDisappear() }
         .onChange(of: model.isTrackingTime) { _, isTracking in
             if isTracking {
                 startTimer()
@@ -42,126 +59,39 @@ struct StatusView: View {
         }
     }
 
-    // MARK: - Remaining Steps Bar
-    private var remainingStepsBarView: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("Step balance")
-                    .font(.headline)
-                Spacer()
-                Text("\(remainingStepsToday)")
-                    .font(.headline)
-                    .foregroundColor(.blue)
-            }
-
-            ProgressView(
-                value: Double(remainingStepsToday), total: max(1.0, Double(Int(model.stepsToday)))
-            )
-            .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-            .scaleEffect(x: 1, y: 2, anchor: .center)
-        }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
-    }
-
-    // MARK: - Mini Stats (Шаги сегодня, Потрачено шагов, Тариф)
+    // MARK: - Mini Stats
     private var miniStatsView: some View {
         HStack(spacing: 16) {
-            StatMiniCard(
-                icon: "figure.walk",
-                title: "Steps today",
-                value: "\(Int(model.stepsToday))",
-                color: .blue
-            )
+                    StatMiniCard(
+                        icon: "figure.walk",
+                        title: loc(appLanguage, "Made", "Сделано"),
+                        value: "\(Int(model.stepsToday))",
+                        color: .blue
+                    )
 
-            StatMiniCard(
-                icon: "shoeprints.fill",
-                title: "Steps spent",
-                value: "\(model.spentStepsToday)",
-                color: .green
-            )
+                    StatMiniCard(
+                        icon: "shoeprints.fill",
+                        title: loc(appLanguage, "Spent", "Потрачено"),
+                        value: "\(model.spentStepsToday)",
+                        color: .green
+                    )
 
-            StatMiniCard(
-                icon: "creditcard",
-                title: "Tariff",
-                value: "\(model.budget.tariff.displayName)",
-                color: .orange
-            )
+                    StatMiniCard(
+                        icon: "bolt.circle",
+                        title: loc(appLanguage, "Left", "Осталось"),
+                        value: "\(remainingStepsToday)",
+                        color: .orange
+                    )
         }
-    }
-
-    // MARK: - Big Opens Display
-    private var bigOpensDisplayView: some View {
-        VStack(spacing: 12) {
-            if model.isBlocked {
-                VStack(spacing: 8) {
-                    Text("⏰")
-                        .font(.system(size: 60))
-
-                    Text("Time expired!")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.red)
-                        .multilineTextAlignment(.center)
-                }
-            } else {
-                VStack(spacing: 8) {
-                    Text("\(opensLeftToday)")
-                        .font(.system(size: 80, weight: .bold, design: .rounded))
-                        .foregroundColor(timeColor)
-                        .contentTransition(.numericText())
-
-                    Text("Opens left today: \(opensLeftToday)")
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(timeBackgroundColor)
-                .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-        )
-    }
-
-    // MARK: - Progress Bar
-    private var progressBarView: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("Time used")
-                    .font(.headline)
-                Spacer()
-                Text("\(progressPercentage)%")
-                    .font(.headline)
-                    .foregroundColor(timeColor)
-            }
-
-            ProgressView(value: progressValue, total: 1.0)
-                .progressViewStyle(LinearProgressViewStyle(tint: timeColor))
-                .scaleEffect(x: 1, y: 2, anchor: .center)
-        }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
     }
 
     // MARK: - Computed Properties
     private var remainingStepsToday: Int {
-        return max(0, Int(model.stepsToday) - model.spentStepsToday)
+        max(0, Int(model.stepsToday) - model.spentStepsToday)
     }
 
     private var calculatedRemainingMinutes: Int {
-        return max(0, model.dailyBudgetMinutes - model.spentMinutes)
-    }
-
-    // Количество оставшихся открытий сегодня по формуле: (stepsToday - spentStepsToday) / entryCostSteps
-    private var opensLeftToday: Int {
-        let totalSteps = Int(model.stepsToday)
-        let spent = model.spentStepsToday
-        let cost = max(1, model.entryCostSteps)
-        let available = max(0, totalSteps - spent)
-        return available / cost
+        max(0, model.dailyBudgetMinutes - model.spentMinutes)
     }
 
     private var timeColor: Color {
@@ -194,64 +124,319 @@ struct StatusView: View {
         Int(progressValue * 100)
     }
 
-    private func formatTime(minutes: Int) -> String { "\(minutes) min" }
+    // MARK: - Opens frequency chart
+    private struct DailyOpen: Identifiable {
+        let id = UUID()
+        let day: Date
+        let bundleId: String
+        let count: Int
+        let appName: String
+    }
+    
+    private var recentOpenLogs: [AppModel.AppOpenLog] {
+        let days = chartRange.days
+        let cutoff = Calendar.current.date(byAdding: .day, value: -(days - 1), to: Calendar.current.startOfDay(for: Date())) ?? Date()
+        return model.appOpenLogs.filter { $0.date >= cutoff }
+    }
+    
+    private var bundleIdsForChart: [String] {
+        var set = Set(recentOpenLogs.map { $0.bundleId })
+        if let selected = selectedBundleForChart { set.insert(selected) }
+        return Array(set).sorted()
+    }
+    
+    private var dailyOpenData: [DailyOpen] {
+        let cal = Calendar.current
+        var grouped: [String: [Date: Int]] = [:]
+        for log in recentOpenLogs {
+            let day = cal.startOfDay(for: log.date)
+            grouped[log.bundleId, default: [:]][day, default: 0] += 1
+        }
+        let days = (0..<chartRange.days).compactMap { offset -> Date? in
+            guard let d = cal.date(byAdding: .day, value: -offset, to: cal.startOfDay(for: Date())) else { return nil }
+            return d
+        }.reversed()
+        
+        var result: [DailyOpen] = []
+        for bundle in bundleIdsForChart {
+            for day in days {
+                let count = grouped[bundle]?[day] ?? 0
+                result.append(DailyOpen(day: day, bundleId: bundle, count: count, appName: appDisplayName(bundle)))
+            }
+        }
+        return result
+    }
+    
+    private func appDisplayName(_ bundleId: String) -> String {
+        switch bundleId {
+        case "com.burbn.instagram": return "Instagram"
+        case "com.zhiliaoapp.musically": return "TikTok"
+        case "com.google.ios.youtube": return "YouTube"
+        case "com.facebook.Facebook": return "Facebook"
+        case "com.linkedin.LinkedIn": return "LinkedIn"
+        case "com.atebits.Tweetie2": return "X"
+        case "com.toyopagroup.picaboo": return "Snapchat"
+        case "net.whatsapp.WhatsApp": return "WhatsApp"
+        case "ph.telegra.Telegraph": return "Telegram"
+        case "com.duolingo.DuolingoMobile": return "Duolingo"
+        case "com.pinterest": return "Pinterest"
+        case "com.reddit.Reddit": return "Reddit"
+        default: return bundleId
+        }
+    }
+    
+    private func colorForBundle(_ bundleId: String) -> Color {
+        switch bundleId {
+        case "com.burbn.instagram": return .pink
+        case "com.zhiliaoapp.musically": return .red
+        case "com.google.ios.youtube": return .red.opacity(0.8)
+        case "com.facebook.Facebook": return .blue
+        case "com.linkedin.LinkedIn": return .blue.opacity(0.6)
+        case "com.atebits.Tweetie2": return .gray
+        case "com.toyopagroup.picaboo": return .yellow
+        case "net.whatsapp.WhatsApp": return .green
+        case "ph.telegra.Telegraph": return .cyan
+        case "com.duolingo.DuolingoMobile": return .green.opacity(0.7)
+        case "com.pinterest": return .red
+        case "com.reddit.Reddit": return .orange
+        case "__placeholder": return .clear
+        default: return .purple
+        }
+    }
+    
+    private var openFrequencyChart: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(chartRange == .week
+                     ? loc(appLanguage, "Opens last 7 days", "Открытия за 7 дней")
+                     : loc(appLanguage, "Opens last 30 days", "Открытия за 30 дней"))
+                .font(.headline)
+                Spacer()
+                Picker("", selection: $chartRange) {
+                    Text("7d").tag(ChartRange.week)
+                    Text("30d").tag(ChartRange.month)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 140)
+            }
+            
+            let chartData = dailyOpenData
+            if chartData.isEmpty {
+                Text(loc(appLanguage, "No opens yet.", "Нет открытий"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                // Горизонтальный скролл + зум
+                let baseWidth = CGFloat(chartRange.days) * 50
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Chart(chartData) { item in
+                        let isHighlighted = (selectedBundleForChart == nil) || (selectedBundleForChart == item.bundleId)
+                        let baseColor = colorForBundle(item.bundleId)
+                        let lineColor = baseColor.opacity(isHighlighted ? 1.0 : 0.25)
+                        
+                        LineMark(
+                            x: .value("Day", item.day, unit: .day),
+                            y: .value("Opens", item.count),
+                            series: .value("App", item.appName)
+                        )
+                        .foregroundStyle(lineColor)
+                        .lineStyle(StrokeStyle(lineWidth: isHighlighted ? 3 : 1.5))
+                        .symbol(Circle())
+                        PointMark(
+                            x: .value("Day", item.day, unit: .day),
+                            y: .value("Opens", item.count)
+                        )
+                        .foregroundStyle(lineColor)
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: .stride(by: .day)) { value in
+                            if let date = value.as(Date.self) {
+                                AxisGridLine()
+                                AxisValueLabel {
+                                    Text(dateLabelFormatter.string(from: date))
+                                }
+                            }
+                        }
+                    }
+                    .chartYAxis { AxisMarks() }
+                    .frame(width: max(UIScreen.main.bounds.width - 32, baseWidth * chartZoom), height: 220)
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                let newZoom = chartZoomBase * value
+                                chartZoom = min(max(newZoom, 0.6), 3.0)
+                            }
+                            .onEnded { _ in chartZoomBase = chartZoom }
+                    )
+                }
+            }
+            
+            trackedAppsTodayList
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+    }
+    
+    private var dateLabelFormatter: DateFormatter {
+        let df = DateFormatter()
+        if chartRange == .week {
+            df.dateFormat = "E"
+        } else {
+            df.dateFormat = "d MMM"
+        }
+        return df
+    }
+
+    private struct AppUsageToday: Identifiable {
+        let id = UUID()
+        let bundleId: String
+        let name: String
+        let imageName: String?
+        let opens: Int
+        let steps: Int
+    }
+    
+    private var trackedAppsToday: [AppUsageToday] {
+        let today = Calendar.current.startOfDay(for: Date())
+        var opensDict: [String: Int] = [:]
+        for log in model.appOpenLogs where Calendar.current.isDate(log.date, inSameDayAs: today) {
+            opensDict[log.bundleId, default: 0] += 1
+        }
+        let spentDict = model.appStepsSpentToday
+        let bundleIds = Set(opensDict.keys).union(spentDict.keys)
+        let usages = bundleIds.map { bundle -> AppUsageToday in
+            AppUsageToday(
+                bundleId: bundle,
+                name: appDisplayName(bundle),
+                imageName: appImageName(bundle),
+                opens: opensDict[bundle, default: 0],
+                steps: spentDict[bundle, default: 0]
+            )
+        }
+        return usages.sorted { $0.opens > $1.opens }
+    }
+    
+    @ViewBuilder
+    private var trackedAppsTodayList: some View {
+        if trackedAppsToday.isEmpty {
+            Text(loc(appLanguage, "No tracked opens today.", "Сегодня открытий нет."))
+                .font(.caption)
+                .foregroundColor(.secondary)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(trackedAppsToday) { item in
+                    let isSelected = selectedBundleForChart == item.bundleId
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(colorForBundle(item.bundleId))
+                            .frame(width: 10, height: 10)
+                        appIconImage(item.imageName)
+                            .frame(width: 32, height: 32)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.name)
+                                .font(.subheadline)
+                            Text(loc(appLanguage, "Opens today", "Открытий сегодня") + ": \(item.opens) • " + loc(appLanguage, "Steps spent", "Шагов потрачено") + ": \(item.steps)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if isSelected {
+                            selectedBundleForChart = nil
+                        } else {
+                            selectedBundleForChart = item.bundleId
+                        }
+                    }
+                    .opacity(isSelected ? 1.0 : 0.85)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(isSelected ? colorForBundle(item.bundleId) : Color.clear, lineWidth: 1)
+                    )
+                }
+            }
+        }
+    }
+    
+    private func appImageName(_ bundleId: String) -> String? {
+        switch bundleId {
+        case "com.burbn.instagram": return "instagram"
+        case "com.zhiliaoapp.musically": return "tiktok"
+        case "com.google.ios.youtube": return "youtube"
+        case "com.facebook.Facebook": return "facebook"
+        case "com.linkedin.LinkedIn": return "linkedin"
+        case "com.atebits.Tweetie2": return "x"
+        case "com.toyopagroup.picaboo": return "snapchat"
+        case "net.whatsapp.WhatsApp": return "whatsapp"
+        case "ph.telegra.Telegraph": return "telegram"
+        case "com.duolingo.DuolingoMobile": return "duolingo"
+        case "com.pinterest": return "pinterest"
+        case "com.reddit.Reddit": return "reddit"
+        default: return nil
+        }
+    }
+    
+    @ViewBuilder
+    private func appIconImage(_ imageName: String?) -> some View {
+        if let imageName,
+           let uiImage = UIImage(named: imageName) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFit()
+        } else {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.gray.opacity(0.2))
+                .overlay(
+                    Image(systemName: "questionmark")
+                        .foregroundColor(.secondary)
+                )
+        }
+    }
 
     // MARK: - Timer Management
     private func startTimer() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            // Принудительно обновляем бюджет из хранилища
             Task { @MainActor in
                 model.reloadBudgetFromStorage()
             }
 
-            // Принудительно обновляем потраченное время
             Task { @MainActor in
                 model.loadSpentTime()
             }
 
-            // Обновляем последнее доступное время
             if calculatedRemainingMinutes > 0 {
                 lastAvailableMinutes = calculatedRemainingMinutes
             }
 
-            // Отправляем уведомление с оставшимся временем
             sendRemainingTimeNotificationIfNeeded()
-
-            // Проверяем, не истекло ли время
             checkTimeExpiration()
         }
     }
 
     private func checkTimeExpiration() {
-        // Проверяем, не истекло ли время и активно ли отслеживание
         if model.isTrackingTime && calculatedRemainingMinutes <= 0 && !model.isBlocked {
             print("⏰ Time expired in StatusView - triggering blocking")
 
-            // Сохраняем последнее доступное время для уведомления
             let minutesBeforeBlocking = lastAvailableMinutes > 0 ? lastAvailableMinutes : 0
 
-            // Останавливаем отслеживание
             model.stopTracking()
-
-            // Устанавливаем блокировку
             model.isBlocked = true
             model.message = "⏰ Time is up!"
 
-            // Применяем реальную блокировку приложений
             if let familyService = model.familyControlsService as? FamilyControlsService {
                 familyService.enableShield()
                 print("🛡️ Applied real app blocking via ManagedSettings")
             }
 
-            // Отправляем уведомления с количеством минут, которое было доступно
             model.notificationService.sendTimeExpiredNotification(
                 remainingMinutes: minutesBeforeBlocking)
             model.sendReturnToAppNotification()
             AudioServicesPlaySystemSound(1005)
         }
 
-        // Проверяем, не появилось ли новое время после блокировки
         if model.isBlocked && calculatedRemainingMinutes > 0 {
             print("🔄 New time available after blocking - unblocking app")
             unblockApp()
@@ -259,20 +444,17 @@ struct StatusView: View {
     }
 
     private func unblockApp() {
-        // Снимаем блокировку
         model.isBlocked = false
         model.message = "✅ Time restored! Available: \(calculatedRemainingMinutes) min"
 
-        // Снимаем реальную блокировку приложений
         if let familyService = model.familyControlsService as? FamilyControlsService {
             familyService.disableShield()
             print("🔓 Removed app blocking via ManagedSettings")
         }
 
-        // Отправляем уведомление о разблокировке
         model.notificationService.sendUnblockNotification(
             remainingMinutes: calculatedRemainingMinutes)
-        AudioServicesPlaySystemSound(1003)  // Success sound
+        AudioServicesPlaySystemSound(1003)
     }
 
     private func stopTimer() {
@@ -281,8 +463,6 @@ struct StatusView: View {
     }
 
     private func sendRemainingTimeNotificationIfNeeded() {
-        // Отправляем уведомление только если время меньше 10 минут и больше 0
-        // И только если минуты изменились (чтобы не спамить)
         if calculatedRemainingMinutes > 0 && calculatedRemainingMinutes < 10
             && calculatedRemainingMinutes != lastNotificationMinutes
         {
@@ -300,29 +480,5 @@ struct StatusView: View {
 
     private func onDisappear() {
         stopTimer()
-    }
-
-    private func openInstagram() {
-        // Устанавливаем флаг, что Instagram открывается через наше приложение
-        let userDefaults = UserDefaults.stepsTrader()
-        userDefaults.set(Date(), forKey: "instagramOpenedFromStepsTrader")
-
-        // Открываем Instagram через основной URL scheme
-        if let url = URL(string: "instagram://app") {
-            UIApplication.shared.open(url) { success in
-                if !success {
-                    // Если не удалось открыть Instagram, открываем App Store
-                    if let appStoreURL = URL(
-                        string: "https://apps.apple.com/app/instagram/id389801252")
-                    {
-                        UIApplication.shared.open(appStoreURL)
-                    }
-                } else {
-                    // Instagram открылся успешно, НЕ минимизируем приложение
-                    // Пусть пользователь сам переключится на Instagram
-                    print("✅ Instagram opened successfully")
-                }
-            }
-        }
     }
 }

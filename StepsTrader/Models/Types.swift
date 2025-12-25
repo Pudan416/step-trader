@@ -68,12 +68,14 @@ protocol BudgetEngineProtocol: ObservableObject {
 }
 
 enum Tariff: String, CaseIterable {
+    case free = "free"     // 0 steps = 1 minute (free entry tracking only)
     case easy = "easy"     // 100 steps = 1 minute
     case medium = "medium" // 500 steps = 1 minute
     case hard = "hard"     // 1000 steps = 1 minute
     
     var stepsPerMinute: Double {
         switch self {
+        case .free: return 100 // avoid divide-by-zero; treat as easy for tracking
         case .easy: return 100
         case .medium: return 500
         case .hard: return 1000
@@ -83,6 +85,7 @@ enum Tariff: String, CaseIterable {
     // Стоимость одного входа (шаги за вход)
     var entryCostSteps: Int {
         switch self {
+        case .free: return 0
         case .easy: return 100
         case .medium: return 500
         case .hard: return 1000
@@ -91,6 +94,7 @@ enum Tariff: String, CaseIterable {
     
     var displayName: String {
         switch self {
+        case .free: return "🆓 FREE"
         case .easy: return "💎 EASY"
         case .medium: return "🔥 MEDIUM"
         case .hard: return "💪 HARD"
@@ -99,6 +103,7 @@ enum Tariff: String, CaseIterable {
     
     var description: String {
         switch self {
+        case .free: return "0 steps"
         case .easy: return "100 steps"
         case .medium: return "500 steps"
         case .hard: return "1000 steps"

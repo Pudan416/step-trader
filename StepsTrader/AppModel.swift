@@ -34,13 +34,32 @@ final class AppModel: ObservableObject {
     @Published var entryCostSteps: Int = Tariff.easy.entryCostSteps
     @Published var stepsBalance: Int = 0
     @Published var spentStepsToday: Int = 0
+    
+    struct AppUnlockSettings: Codable {
+        var entryCostSteps: Int
+        var dayPassCostSteps: Int
+    }
+    
+    struct AppOpenLog: Codable, Identifiable {
+        var id: UUID = UUID()
+        let bundleId: String
+        let date: Date
+    }
+    
+    @Published var appOpenLogs: [AppOpenLog] = []
+    @Published var appStepsSpentToday: [String: Int] = [:]
+    
+    // Персональные настройки для приложений
+    @Published private(set) var appUnlockSettings: [String: AppUnlockSettings] = [:]
+    // Активированные безлимиты на день по bundleId (дата активации)
+    @Published private var dayPassGrants: [String: Date] = [:]
 
     // Budget properties that mirror BudgetEngine for UI updates
     @Published var dailyBudgetMinutes: Int = 0
     @Published var remainingMinutes: Int = 0
-    // Focus-gate state
-    @Published var showFocusGate: Bool = false
-    @Published var focusGateTargetBundleId: String? = nil
+    // PayGate state
+    @Published var showPayGate: Bool = false
+    @Published var payGateTargetBundleId: String? = nil
     @Published var showQuickStatusPage = false  // Показывать ли страницу быстрого статуса
 
     // Shortcut message handling
@@ -116,6 +135,11 @@ final class AppModel: ObservableObject {
         loadSpentStepsBalance()
         // Загрузка стоимости входа
         loadEntryCost()
+        // Загрузка индивидуальных настроек
+        loadAppUnlockSettings()
+        loadDayPassGrants()
+        loadAppOpenLogs()
+        loadAppStepsSpentToday()
 
         // Инициализируем значения по умолчанию если их нет
         if entryCostSteps == 0 {
@@ -184,15 +208,15 @@ final class AppModel: ObservableObject {
                         await `self`.recalcSilently()
                         `self`.loadSpentTime()
                     }
-                } else if name.rawValue as String == "com.steps.trader.focusgate" {
+                } else if name.rawValue as String == "com.steps.trader.paygate" {
                     Task { @MainActor in
-                        print("📱 Received FocusGate notification from shortcut")
+                        print("📱 Received PayGate notification from shortcut")
                         if let userInfo = userInfo as? [String: Any],
                            let target = userInfo["target"] as? String,
                            let bundleId = userInfo["bundleId"] as? String {
-                            print("📱 FocusGate notification - target: \(target), bundleId: \(bundleId)")
-                            `self`.focusGateTargetBundleId = bundleId
-                            `self`.showFocusGate = true
+                            print("📱 PayGate notification - target: \(target), bundleId: \(bundleId)")
+                            `self`.payGateTargetBundleId = bundleId
+                            `self`.showPayGate = true
                         }
                     }
                 }
@@ -203,7 +227,7 @@ final class AppModel: ObservableObject {
         )
     }
 
-    // MARK: - Focus Gate handlers + Pay per entry
+    // MARK: - PayGate handlers + Pay per entry
     func handleIncomingURL(_ url: URL) {
         let host = url.host?.lowercased() ?? ""
         let scheme = url.scheme?.lowercased() ?? ""
@@ -224,28 +248,40 @@ final class AppModel: ObservableObject {
                 return
             }
         }
-        
+
         // Update last URL handle time
         userDefaults.set(now, forKey: "lastURLHandleTime")
 
         if host == "pay" {
+            var bundleIdForPay = target
+            if let t = target, !t.contains(".") {
+                switch t.lowercased() {
+                case "instagram": bundleIdForPay = "com.burbn.instagram"
+                case "tiktok": bundleIdForPay = "com.zhiliaoapp.musically"
+                case "youtube": bundleIdForPay = "com.google.ios.youtube"
+                default: break
+                }
+            }
             Task { @MainActor in
                 await refreshStepsBalance()
-                if canPayForEntry() {
-                    _ = payForEntry()
-                    message = "✅ \(entryCostSteps) steps deducted. Access granted."
+                let settings = unlockSettings(for: bundleIdForPay)
+                if hasDayPass(for: bundleIdForPay) {
+                    message = "✅ Day pass already active for today."
+                } else if canPayForEntry(for: bundleIdForPay) {
+                    _ = payForEntry(for: bundleIdForPay)
+                    message = "✅ \(settings.entryCostSteps) steps deducted. Access granted."
                 } else {
                     message =
-                        "❌ Not enough steps. Need another \(max(0, entryCostSteps - stepsBalance))."
+                        "❌ Not enough steps. Need another \(max(0, settings.entryCostSteps - stepsBalance))."
                 }
             }
             return
         }
 
-        // поддержка: steps-trader://focus?target=instagram | steps-trader://guard?target=instagram
-        let isFocus = (host == "focus" || url.path.contains("focus"))
+        // поддержка: steps-trader://pay?target=instagram | steps-trader://guard?target=instagram
+        let isPay = (host == "pay" || url.path.contains("pay"))
         let isGuard = (host == "guard" || url.path.contains("guard"))
-        guard isFocus || isGuard else { return }
+        guard isPay || isGuard else { return }
         var bundleId: String? = target
         if let t = target, !t.contains(".") {
             // маппинг короткого имени в bundle id
@@ -256,7 +292,7 @@ final class AppModel: ObservableObject {
             default: break
             }
         }
-        focusGateTargetBundleId = bundleId
+        payGateTargetBundleId = bundleId
         print("🎯 Deeplink: host=\(url.host ?? "nil") target=\(bundleId ?? "nil")")
 
         // Если guard-режим: сразу включаем shielding и открываем целевое приложение → iOS покажет системную шторку
@@ -277,51 +313,59 @@ final class AppModel: ObservableObject {
             return
         }
 
-        // Otherwise show our focus gate overlay with a pay button
-        showFocusGate = bundleId != nil
-        print("🎯 FocusGate: target=\(focusGateTargetBundleId ?? "nil") show=\(showFocusGate)")
+        // Otherwise show our pay gate overlay with a pay button
+        showPayGate = bundleId != nil
+        print("🎯 PayGate: target=\(payGateTargetBundleId ?? "nil") show=\(showPayGate)")
         if let engine = budgetEngine as? BudgetEngine { engine.reloadFromStorage() }
     }
 
-    // MARK: - Focus Gate payment pipeline
-    func handleFocusGatePayment(for bundleId: String) async {
+    // MARK: - PayGate payment pipeline
+    func handlePayGatePayment(for bundleId: String) async {
         let userDefaults = UserDefaults.stepsTrader()
         await refreshStepsBalance()
-        print("🎯 FocusGate: Evaluating payment for \(bundleId)")
+        let settings = unlockSettings(for: bundleId)
+        print("🎯 PayGate: Evaluating payment for \(bundleId)")
         print("   - stepsToday: \(Int(stepsToday))")
         print("   - stepsBalance: \(stepsBalance)")
-        print("   - entryCostSteps: \(entryCostSteps)")
+        print("   - entryCostSteps: \(settings.entryCostSteps)")
+        print("   - dayPassCostSteps: \(settings.dayPassCostSteps)")
         print("   - selected apps: \(appSelection.applicationTokens.count)")
         print("   - selected categories: \(appSelection.categoryTokens.count)")
 
-        guard canPayForEntry() else {
-            message =
-                "❌ Not enough steps. Need another \(max(0, entryCostSteps - stepsBalance)) steps."
-            print("❌ FocusGate: Not enough steps (balance \(stepsBalance) < cost \(entryCostSteps))")
-            return
+        if hasDayPass(for: bundleId) {
+            message = "✅ Day pass active for today."
+            print("✅ PayGate: Day pass already active for \(bundleId)")
+        } else {
+            guard canPayForEntry(for: bundleId) else {
+                message =
+                    "❌ Not enough steps. Need another \(max(0, settings.entryCostSteps - stepsBalance)) steps."
+                print("❌ PayGate: Not enough steps (balance \(stepsBalance) < cost \(settings.entryCostSteps))")
+                return
+            }
+
+            guard payForEntry(for: bundleId) else {
+                print("❌ PayGate: payForEntry() returned false")
+                return
+            }
+            print("✅ PayGate: payForEntry() succeeded; new balance \(stepsBalance)")
+
+            message = "✅ \(settings.entryCostSteps) steps deducted. Access granted."
         }
 
-        guard payForEntry() else {
-            print("❌ FocusGate: payForEntry() returned false")
-            return
-        }
-        print("✅ FocusGate: payForEntry() succeeded; new balance \(stepsBalance)")
-
-        message = "✅ \(entryCostSteps) steps deducted. Access granted."
-        print("✅ FocusGate: Steps deducted, proceeding to open target app")
+        print("✅ PayGate: Steps deducted or day pass active, proceeding to open target app")
 
         // Update guard flags before attempting to open the target app
         let now = Date()
         userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
-        userDefaults.set(now, forKey: "lastFocusGateAction")
-        userDefaults.set(now, forKey: "focusGateLastOpen")
-        userDefaults.removeObject(forKey: "shouldShowFocusGate")
-        userDefaults.removeObject(forKey: "focusGateTargetBundleId")
+        userDefaults.set(now, forKey: "lastPayGateAction")
+        userDefaults.set(now, forKey: "payGateLastOpen")
+        userDefaults.removeObject(forKey: "shouldShowPayGate")
+        userDefaults.removeObject(forKey: "payGateTargetBundleId")
         userDefaults.removeObject(forKey: "shortcutTriggered")
         userDefaults.removeObject(forKey: "shortcutTarget")
         userDefaults.removeObject(forKey: "shortcutTriggerTime")
 
-        openTargetAppFromFocusGate(bundleId)
+        openTargetAppFromPayGate(bundleId)
     }
 
     private func persistSessionAllowanceMetadata() {
@@ -337,45 +381,46 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func openTargetAppFromFocusGate(_ bundleId: String) {
+    private func openTargetAppFromPayGate(_ bundleId: String) {
         let schemes = primaryAndFallbackSchemes(for: bundleId)
         guard !schemes.isEmpty else {
-            print("❌ FocusGate: No URL schemes available for bundle \(bundleId)")
+            print("❌ PayGate: No URL schemes available for bundle \(bundleId)")
             return
         }
 
         let target = bundleId
-        showFocusGate = false
-        focusGateTargetBundleId = nil
+        showPayGate = false
+        payGateTargetBundleId = nil
         attemptOpen(schemes: schemes, index: 0, bundleId: target)
     }
 
     private func attemptOpen(schemes: [String], index: Int, bundleId: String) {
         guard index < schemes.count else {
-            print("❌ FocusGate: Failed to open \(bundleId) after trying all schemes")
+            print("❌ PayGate: Failed to open \(bundleId) after trying all schemes")
             return
         }
 
         let scheme = schemes[index]
         guard let url = URL(string: scheme) else {
-            print("⚠️ FocusGate: Invalid URL scheme \(scheme), trying next")
+            print("⚠️ PayGate: Invalid URL scheme \(scheme), trying next")
             attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId)
             return
         }
 
-        print("🚀 FocusGate: Attempting to open \(bundleId) with scheme \(scheme)")
+        print("🚀 PayGate: Attempting to open \(bundleId) with scheme \(scheme)")
         UIApplication.shared.open(url) { [weak self] success in
             guard let self = self else { return }
 
             if success {
-                print("✅ FocusGate: Successfully opened \(bundleId)")
+                print("✅ PayGate: Successfully opened \(bundleId)")
+                self.recordAutomationOpen(bundleId: bundleId)
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 500_000_000)
-                    self.showFocusGate = false
-                    self.focusGateTargetBundleId = nil
+                    self.showPayGate = false
+                    self.payGateTargetBundleId = nil
                 }
             } else {
-                print("❌ FocusGate: Scheme \(scheme) failed for \(bundleId), trying next")
+                print("❌ PayGate: Scheme \(scheme) failed for \(bundleId), trying next")
                 self.attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId)
             }
         }
@@ -395,7 +440,7 @@ final class AppModel: ObservableObject {
         case "com.google.ios.youtube":
             return ["youtube://"]
         default:
-            print("⚠️ FocusGate: Unknown bundle id \(bundleId), using instagram fallback")
+            print("⚠️ PayGate: Unknown bundle id \(bundleId), using instagram fallback")
             return ["instagram://"]
         }
     }
@@ -608,18 +653,69 @@ final class AppModel: ObservableObject {
         stepsBalance = max(0, Int(stepsToday) - spentStepsToday)
         g.set(spentStepsToday, forKey: "spentStepsToday")
         g.set(stepsBalance, forKey: "stepsBalance")
+        clearExpiredDayPasses()
+    }
+    
+    // MARK: - App open logs
+    private func loadAppOpenLogs() {
+        let g = UserDefaults.stepsTrader()
+        guard let data = g.data(forKey: "appOpenLogs_v1"),
+              let decoded = try? JSONDecoder().decode([AppOpenLog].self, from: data) else { return }
+        appOpenLogs = decoded
+        trimOpenLogs()
+    }
+    
+    private func persistAppOpenLogs() {
+        let g = UserDefaults.stepsTrader()
+        if let data = try? JSONEncoder().encode(appOpenLogs) {
+            g.set(data, forKey: "appOpenLogs_v1")
+        }
+    }
+    
+    private func trimOpenLogs() {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+        appOpenLogs = appOpenLogs.filter { $0.date >= cutoff }
     }
 
-    func canPayForEntry() -> Bool {
-        stepsBalance >= entryCostSteps
+    func canPayForEntry(for bundleId: String? = nil) -> Bool {
+        if hasDayPass(for: bundleId) { return true }
+        let cost = unlockSettings(for: bundleId).entryCostSteps
+        return stepsBalance >= cost
+    }
+
+    func canPayForDayPass(for bundleId: String?) -> Bool {
+        guard let bundleId else { return false }
+        if hasDayPass(for: bundleId) { return true }
+        let cost = unlockSettings(for: bundleId).dayPassCostSteps
+        return stepsBalance >= cost
     }
 
     @discardableResult
-    func payForEntry() -> Bool {
-        guard canPayForEntry() else { return false }
+    func payForEntry(for bundleId: String? = nil) -> Bool {
+        if hasDayPass(for: bundleId) { return true }
+        let cost = unlockSettings(for: bundleId).entryCostSteps
+        let success = pay(cost: cost)
+        if success, let bundleId { addSpentSteps(cost, for: bundleId) }
+        return success
+    }
+    
+    @discardableResult
+    func payForDayPass(for bundleId: String?) -> Bool {
+        guard let bundleId else { return false }
+        if hasDayPass(for: bundleId) { return true }
+        let cost = unlockSettings(for: bundleId).dayPassCostSteps
+        guard pay(cost: cost) else { return false }
+        addSpentSteps(cost, for: bundleId)
+        dayPassGrants[bundleId] = Date()
+        persistDayPassGrants()
+        return true
+    }
+    
+    private func pay(cost: Int) -> Bool {
+        guard stepsBalance >= cost else { return false }
         // Не позволяем тратить больше, чем пройдено сегодня
         let todaysSteps = Int(stepsToday)
-        let newSpent = min(spentStepsToday + entryCostSteps, max(0, todaysSteps))
+        let newSpent = min(spentStepsToday + cost, max(0, todaysSteps))
         spentStepsToday = newSpent
         stepsBalance = max(0, todaysSteps - spentStepsToday)
         let g = UserDefaults.stepsTrader()
@@ -662,6 +758,190 @@ final class AppModel: ObservableObject {
         let g = UserDefaults.stepsTrader()
         g.set(tariff.rawValue, forKey: "entryCostTariff")
         entryCostSteps = tariff.entryCostSteps
+    }
+    
+    // MARK: - Per-app unlock settings
+    func unlockSettings(for bundleId: String?) -> AppUnlockSettings {
+        let fallback = AppUnlockSettings(
+            entryCostSteps: entryCostSteps,
+            dayPassCostSteps: defaultDayPassCost(forEntryCost: entryCostSteps)
+        )
+        guard let bundleId else { return fallback }
+        return appUnlockSettings[bundleId] ?? fallback
+    }
+    
+    func presetTariff(for bundleId: String?) -> Tariff? {
+        let settings = unlockSettings(for: bundleId)
+        switch (settings.entryCostSteps, settings.dayPassCostSteps) {
+        case (Tariff.easy.entryCostSteps, 1000): return .easy
+        case (Tariff.medium.entryCostSteps, 5000): return .medium
+        case (Tariff.hard.entryCostSteps, 10000): return .hard
+        default: return nil
+        }
+    }
+    
+    func updateUnlockSettings(for bundleId: String, tariff: Tariff) {
+        updateUnlockSettings(
+            for: bundleId,
+            entryCost: tariff.entryCostSteps,
+            dayPassCost: dayPassCost(for: tariff)
+        )
+    }
+    
+    func updateUnlockSettings(for bundleId: String, entryCost: Int? = nil, dayPassCost: Int? = nil) {
+        var settings = unlockSettings(for: bundleId)
+        if let entryCost { settings.entryCostSteps = max(0, entryCost) }
+        if let dayPassCost { settings.dayPassCostSteps = max(0, dayPassCost) }
+        appUnlockSettings[bundleId] = settings
+        persistAppUnlockSettings()
+    }
+    
+    func hasDayPass(for bundleId: String?) -> Bool {
+        guard let bundleId, let date = dayPassGrants[bundleId] else { return false }
+        if Calendar.current.isDateInToday(date) { return true }
+        dayPassGrants.removeValue(forKey: bundleId)
+        persistDayPassGrants()
+        return false
+    }
+    
+    func clearExpiredDayPasses() {
+        let today = Calendar.current.startOfDay(for: Date())
+        dayPassGrants = dayPassGrants.filter { _, value in
+            Calendar.current.isDate(value, inSameDayAs: today)
+        }
+        persistDayPassGrants()
+    }
+    
+    private func loadAppUnlockSettings() {
+        let g = UserDefaults.stepsTrader()
+        guard let data = g.data(forKey: "appUnlockSettings_v1") else { return }
+        if let decoded = try? JSONDecoder().decode([String: AppUnlockSettings].self, from: data) {
+            // Normalize values that were previously clamped to 1
+            appUnlockSettings = decoded.mapValues { settings in
+                var s = settings
+                if s.entryCostSteps == 1 { s.entryCostSteps = 0 }
+                if s.dayPassCostSteps == 1 { s.dayPassCostSteps = 0 }
+                return s
+            }
+        }
+    }
+    
+    private func persistAppUnlockSettings() {
+        let g = UserDefaults.stepsTrader()
+        if let data = try? JSONEncoder().encode(appUnlockSettings) {
+            g.set(data, forKey: "appUnlockSettings_v1")
+        }
+    }
+    
+    private func loadDayPassGrants() {
+        let g = UserDefaults.stepsTrader()
+        guard let data = g.data(forKey: "appDayPassGrants_v1") else { return }
+        if let decoded = try? JSONDecoder().decode([String: Date].self, from: data) {
+            dayPassGrants = decoded
+            clearExpiredDayPasses()
+        }
+    }
+    
+    private func persistDayPassGrants() {
+        let g = UserDefaults.stepsTrader()
+        if let data = try? JSONEncoder().encode(dayPassGrants) {
+            g.set(data, forKey: "appDayPassGrants_v1")
+        }
+    }
+    
+    private func loadAppStepsSpentToday() {
+        let g = UserDefaults.stepsTrader()
+        let anchor = g.object(forKey: "appStepsSpentAnchor") as? Date ?? .distantPast
+        if !Calendar.current.isDateInToday(anchor) {
+            appStepsSpentToday = [:]
+            g.set(Calendar.current.startOfDay(for: Date()), forKey: "appStepsSpentAnchor")
+            g.removeObject(forKey: "appStepsSpentToday_v1")
+        } else if let data = g.data(forKey: "appStepsSpentToday_v1"),
+                  let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+            appStepsSpentToday = decoded
+        }
+    }
+    
+    private func persistAppStepsSpentToday() {
+        let g = UserDefaults.stepsTrader()
+        if let data = try? JSONEncoder().encode(appStepsSpentToday) {
+            g.set(data, forKey: "appStepsSpentToday_v1")
+        }
+        g.set(Calendar.current.startOfDay(for: Date()), forKey: "appStepsSpentAnchor")
+    }
+    
+    private func dayPassCost(for tariff: Tariff) -> Int {
+        switch tariff {
+        case .free: return 0
+        case .easy: return 1000
+        case .medium: return 5000
+        case .hard: return 10000
+        }
+    }
+    
+    private func defaultDayPassCost(forEntryCost entryCost: Int) -> Int {
+        switch entryCost {
+        case 100: return 1000
+        case 500: return 5000
+        case 1000: return 10000
+        default: return max(entryCost * 10, entryCost)
+        }
+    }
+    
+    private func addSpentSteps(_ cost: Int, for bundleId: String) {
+        let anchor = Calendar.current.startOfDay(for: Date())
+        let g = UserDefaults.stepsTrader()
+        let storedAnchor = g.object(forKey: "appStepsSpentAnchor") as? Date ?? .distantPast
+        if !Calendar.current.isDate(storedAnchor, inSameDayAs: anchor) {
+            appStepsSpentToday = [:]
+        }
+        appStepsSpentToday[bundleId, default: 0] += cost
+        persistAppStepsSpentToday()
+    }
+    
+    // MARK: - PayGate helpers
+    func dismissPayGate() {
+        showPayGate = false
+        payGateTargetBundleId = nil
+        let g = UserDefaults.stepsTrader()
+        g.removeObject(forKey: "shouldShowPayGate")
+        g.removeObject(forKey: "payGateTargetBundleId")
+    }
+    
+    private func recordAutomationOpen(bundleId: String) {
+        let defaults = UserDefaults.stepsTrader()
+        var dict: [String: Date] = [:]
+        if let data = defaults.data(forKey: "automationLastOpened_v1"),
+           let decoded = try? JSONDecoder().decode([String: Date].self, from: data) {
+            dict = decoded
+        }
+        dict[bundleId] = Date()
+        if let data = try? JSONEncoder().encode(dict) {
+            defaults.set(data, forKey: "automationLastOpened_v1")
+        }
+        
+        // Mark as configured and clear pending once opened
+        var configured = defaults.array(forKey: "automationConfiguredBundles") as? [String] ?? []
+        if !configured.contains(bundleId) {
+            configured.append(bundleId)
+            defaults.set(configured, forKey: "automationConfiguredBundles")
+        }
+        var pending = defaults.array(forKey: "automationPendingBundles") as? [String] ?? []
+        if let idx = pending.firstIndex(of: bundleId) {
+            pending.remove(at: idx)
+            defaults.set(pending, forKey: "automationPendingBundles")
+        }
+        if let pendingData = defaults.data(forKey: "automationPendingTimestamps_v1"),
+           var ts = try? JSONDecoder().decode([String: Date].self, from: pendingData) {
+            ts.removeValue(forKey: bundleId)
+            if let data = try? JSONEncoder().encode(ts) {
+                defaults.set(data, forKey: "automationPendingTimestamps_v1")
+            }
+        }
+        // Log open for chart analytics
+        appOpenLogs.append(AppOpenLog(bundleId: bundleId, date: Date()))
+        trimOpenLogs()
+        persistAppOpenLogs()
     }
     
     // Sync entry cost with current tariff
@@ -852,6 +1132,8 @@ final class AppModel: ObservableObject {
         userDefaults.removeObject(forKey: "persistentApplicationTokens")
         userDefaults.removeObject(forKey: "persistentCategoryTokens")
         userDefaults.removeObject(forKey: "appSelectionSavedDate")
+        userDefaults.removeObject(forKey: "appUnlockSettings_v1")
+        userDefaults.removeObject(forKey: "appDayPassGrants_v1")
         print("💾 Cleared App Group UserDefaults")
 
         // 4. Очищаем обычные UserDefaults
@@ -877,6 +1159,8 @@ final class AppModel: ObservableObject {
         // 7. Очищаем выбор приложений (как выбор, так и сохраненные данные)
         appSelection = FamilyActivitySelection()
         print("📱 Cleared app selection and cached data")
+        appUnlockSettings = [:]
+        dayPassGrants = [:]
 
         // 8. Пересчитываем бюджет с текущими шагами
         Task {
@@ -1292,7 +1576,7 @@ final class AppModel: ObservableObject {
         let userDefaults = UserDefaults.stepsTrader()
         let now = Date()
         let shouldShow = userDefaults.bool(forKey: "shouldShowQuickStatusPage")
-        let shouldShowFocusGate = userDefaults.bool(forKey: "shouldShowFocusGate")
+        let shouldShowPayGate = userDefaults.bool(forKey: "shouldShowPayGate")
         let shouldAutoSelectApps = userDefaults.bool(forKey: "shouldAutoSelectApps")
         let shouldPayBeforeOpen = userDefaults.bool(forKey: "shouldPayBeforeOpen")
 
@@ -1350,12 +1634,21 @@ final class AppModel: ObservableObject {
             print("🔍 No Quick Status flag found")
         }
 
-        if shouldShowFocusGate {
-            focusGateTargetBundleId = userDefaults.string(forKey: "focusGateTargetBundleId")
-            showFocusGate = focusGateTargetBundleId != nil
-            userDefaults.removeObject(forKey: "shouldShowFocusGate")
+        if shouldShowPayGate {
+            if let lastOpen = userDefaults.object(forKey: "lastAppOpenedFromStepsTrader") as? Date {
+                let elapsed = now.timeIntervalSince(lastOpen)
+                if elapsed < 10 {
+                    print("🚫 PayGate ignored to avoid loop (\(String(format: "%.1f", elapsed))s since last open)")
+                    userDefaults.removeObject(forKey: "shouldShowPayGate")
+                    userDefaults.removeObject(forKey: "payGateTargetBundleId")
+                    return
+                }
+            }
+            payGateTargetBundleId = userDefaults.string(forKey: "payGateTargetBundleId")
+            showPayGate = payGateTargetBundleId != nil
+            userDefaults.removeObject(forKey: "shouldShowPayGate")
             print(
-                "🎯 FocusGate (from UserDefaults): show=\(showFocusGate), target=\(focusGateTargetBundleId ?? "nil")"
+                "🎯 PayGate (from UserDefaults): show=\(showPayGate), target=\(payGateTargetBundleId ?? "nil")"
             )
         }
     }
@@ -1467,6 +1760,14 @@ final class AppModel: ObservableObject {
             UIApplication.shared.open(url) { success in
                 if success {
                     print("✅ Successfully opened \(appName)")
+                    let bundleId: String?
+                    switch appName.lowercased() {
+                    case "instagram": bundleId = "com.burbn.instagram"
+                    case "tiktok": bundleId = "com.zhiliaoapp.musically"
+                    case "youtube": bundleId = "com.google.ios.youtube"
+                    default: bundleId = nil
+                    }
+                    if let bundleId { self.recordAutomationOpen(bundleId: bundleId) }
                 } else {
                     print("❌ Failed to open \(appName) - app might not be installed")
                 }
@@ -1496,9 +1797,9 @@ final class AppModel: ObservableObject {
             print("🔗 Apps already selected, using existing selection")
         }
 
-        // Показываем Focus Gate для выбранной цели
-        focusGateTargetBundleId = bundleId
-        showFocusGate = true
+        // Показываем PayGate для выбранной цели
+        payGateTargetBundleId = bundleId
+        showPayGate = true
 
         // Очищаем флаг после обработки
         userDefaults.removeObject(forKey: "shortcutTargetBundleId")

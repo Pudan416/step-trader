@@ -29,6 +29,10 @@
 		20B0A3522E8C658800D5EBE4 /* ShieldConfigurationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3502E8C658800D5EBE4 /* ShieldConfigurationProvider.swift */; };
 		20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */; };
 		20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */; };
+		20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A00F2FFF020000000000 /* StepBalanceCard.swift */; };
+		20F5A0112FFF030000000002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0122FFF030000000003 /* Localization.swift */; };
+		20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0012FFF000100000001 /* AutomationUIModels.swift */; };
+		20F5A0042FFF000100000004 /* AppsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0022FFF000100000002 /* AppsPage.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -88,8 +92,10 @@
 		20B0A3502E8C658800D5EBE4 /* ShieldConfigurationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldConfigurationProvider.swift; sourceTree = "<group>"; };
 		20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StepsTrader.swift"; sourceTree = "<group>"; };
 		20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffManager.swift; sourceTree = "<group>"; };
-		20D04B062E7D46340047518D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		20D04B072E7D46340047518D /* StepsTraderMonitor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StepsTraderMonitor.entitlements; sourceTree = "<group>"; };
+		20F5A00F2FFF020000000000 /* StepBalanceCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepBalanceCard.swift; sourceTree = "<group>"; };
+		20F5A0122FFF030000000003 /* Localization.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		20F5A0012FFF000100000001 /* AutomationUIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationUIModels.swift; sourceTree = "<group>"; };
+		20F5A0022FFF000100000002 /* AppsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsPage.swift; sourceTree = "<group>"; };
 		20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -124,7 +130,6 @@
 			children = (
 				2089F0EA2E71AE3400ABF5FA /* StepsTrader */,
 				2089F0B62E71A18E00ABF5FA /* Steps4 */,
-				20D04B032E7D46340047518D /* StepsTraderMonitor */,
 				20E8EF842E7D41B200C092A1 /* Frameworks */,
 				2089F0B52E71A18E00ABF5FA /* Products */,
 			);
@@ -145,7 +150,6 @@
 			children = (
 				2089F0F42E72EC1700ABF5FA /* Info.plist */,
 				2089F0F12E72D68C00ABF5FA /* Steps4.entitlements */,
-				2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */,
 				2089F0BD2E71A18F00ABF5FA /* Preview Content */,
 			);
 			path = Steps4;
@@ -164,6 +168,7 @@
 			children = (
 				2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */,
 				2089F0E22E71AE3400ABF5FA /* Types.swift */,
+				20F5A0012FFF000100000001 /* AutomationUIModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -181,6 +186,7 @@
 			isa = PBXGroup;
 			children = (
 				20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */,
+				20F5A0122FFF030000000003 /* Localization.swift */,
 				2089F0E72E71AE3400ABF5FA /* Date+Today.swift */,
 			);
 			path = Utilities;
@@ -190,10 +196,8 @@
 			isa = PBXGroup;
 			children = (
 				20B0A3512E8C658800D5EBE4 /* Shield */,
-				209424B62E80C53A00904A0A /* Core */,
 				209424AE2E80C52C00904A0A /* Intents */,
 				209424AC2E80C51300904A0A /* Shield */,
-				209424AB2E80C50600904A0A /* UI */,
 				2089F0E32E71AE3400ABF5FA /* Models */,
 				2089F0E62E71AE3400ABF5FA /* Services */,
 				209424BE2E8593DA00904A0A /* Views */,
@@ -203,31 +207,9 @@
 				209424C62E85952D00904A0A /* AppModel.swift */,
 				209424C72E85952D00904A0A /* DIContainer.swift */,
 				209424C52E85952D00904A0A /* NotificationManager.swift */,
+				2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */,
 			);
 			path = StepsTrader;
-			sourceTree = "<group>";
-		};
-		209424A92E80C50600904A0A /* Components */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Components;
-			sourceTree = "<group>";
-		};
-		209424AA2E80C50600904A0A /* Theme */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Theme;
-			sourceTree = "<group>";
-		};
-		209424AB2E80C50600904A0A /* UI */ = {
-			isa = PBXGroup;
-			children = (
-				209424A92E80C50600904A0A /* Components */,
-				209424AA2E80C50600904A0A /* Theme */,
-			);
-			path = UI;
 			sourceTree = "<group>";
 		};
 		209424AC2E80C51300904A0A /* Shield */ = {
@@ -245,19 +227,13 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		209424B62E80C53A00904A0A /* Core */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Core;
-			sourceTree = "<group>";
-		};
 		209424BA2E8593DA00904A0A /* Components */ = {
 			isa = PBXGroup;
 			children = (
 				209424B72E8593DA00904A0A /* StatMiniCard.swift */,
 				209424B82E8593DA00904A0A /* StatusRow.swift */,
 				209424B92E8593DA00904A0A /* TariffOptionView.swift */,
+				20F5A00F2FFF020000000000 /* StepBalanceCard.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -269,6 +245,7 @@
 				209424BB2E8593DA00904A0A /* BlockScreen.swift */,
 				209424BC2E8593DA00904A0A /* SettingsView.swift */,
 				209424BD2E8593DA00904A0A /* StatusView.swift */,
+				20F5A0022FFF000100000002 /* AppsPage.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -279,15 +256,6 @@
 				20B0A3502E8C658800D5EBE4 /* ShieldConfigurationProvider.swift */,
 			);
 			path = Shield;
-			sourceTree = "<group>";
-		};
-		20D04B032E7D46340047518D /* StepsTraderMonitor */ = {
-			isa = PBXGroup;
-			children = (
-				20D04B062E7D46340047518D /* Info.plist */,
-				20D04B072E7D46340047518D /* StepsTraderMonitor.entitlements */,
-			);
-			path = StepsTraderMonitor;
 			sourceTree = "<group>";
 		};
 		20E8EF842E7D41B200C092A1 /* Frameworks */ = {
@@ -441,12 +409,16 @@
 				2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */,
 				2089F0EF2E71AE3400ABF5FA /* Date+Today.swift in Sources */,
 				209424C12E8593DA00904A0A /* TariffOptionView.swift in Sources */,
+				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
+				20F5A0112FFF030000000002 /* Localization.swift in Sources */,
 				20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */,
 				20B0A3522E8C658800D5EBE4 /* ShieldConfigurationProvider.swift in Sources */,
 				209424C32E8593DA00904A0A /* SettingsView.swift in Sources */,
+				20F5A0042FFF000100000004 /* AppsPage.swift in Sources */,
 				209424CA2E85952D00904A0A /* DIContainer.swift in Sources */,
 				2089F0EC2E71AE3400ABF5FA /* Types.swift in Sources */,
 				209424C92E85952D00904A0A /* AppModel.swift in Sources */,
+				20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */,
 				209424AF2E80C52C00904A0A /* AllAppIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

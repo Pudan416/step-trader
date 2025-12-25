@@ -63,6 +63,7 @@ struct TariffOptionView: View {
     
     private var tariffIcon: String {
         switch tariff {
+        case .free: return "🆓"
         case .easy: return "💎"
         case .medium: return "🔥"
         case .hard: return "💪"
