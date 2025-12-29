@@ -31,7 +31,7 @@ final class HealthKitService: HealthKitServiceProtocol {
         let predicate = HKQuery.predicateForSamples(withStart: .startOfToday, end: now, options: .strictStartDate)
         
         return try await withCheckedThrowingContinuation { continuation in
-            let query = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, stats, error in
+            let query = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: predicate, options: .cumulativeSum) { [weak self] _, stats, error in
                 if let error = error {
                     // If the error is "No data available", return 0 instead of failing
                     let nsError = error as NSError
@@ -49,7 +49,7 @@ final class HealthKitService: HealthKitServiceProtocol {
                 let steps = stats?.sumQuantity()?.doubleValue(for: .count()) ?? 0
                 print("📊 Fetched \(Int(steps)) steps for today")
                 if steps > 0 {
-                    self.logAuthorizationStatus(context: "fetchTodaySteps:data-available")
+                    self?.logAuthorizationStatus(context: "fetchTodaySteps:data-available")
                 }
                 continuation.resume(returning: steps)
             }

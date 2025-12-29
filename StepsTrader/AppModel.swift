@@ -49,6 +49,14 @@ final class AppModel: ObservableObject {
     @Published var appOpenLogs: [AppOpenLog] = []
     @Published var appStepsSpentToday: [String: Int] = [:]
     
+    struct DailyStory: Codable {
+        let dateKey: String
+        let english: String
+        let russian: String
+        let createdAt: Date
+    }
+    @Published var dailyStories: [String: DailyStory] = [:]
+    
     // Персональные настройки для приложений
     @Published private(set) var appUnlockSettings: [String: AppUnlockSettings] = [:]
     // Активированные безлимиты на день по bundleId (дата активации)
@@ -59,7 +67,18 @@ final class AppModel: ObservableObject {
     @Published var remainingMinutes: Int = 0
     // PayGate state
     @Published var showPayGate: Bool = false
-    @Published var payGateTargetBundleId: String? = nil
+    @Published var payGateTargetBundleId: String? = nil  // Mirrors current session for legacy uses
+    
+    struct PayGateSession: Identifiable {
+        let id: String  // bundleId
+        let bundleId: String
+        let startedAt: Date
+    }
+    @Published var payGateSessions: [String: PayGateSession] = [:]
+    @Published var currentPayGateSessionId: String? = nil
+    
+    // Tariff selection per app per day
+    @Published var dailyTariffSelections: [String: Tariff] = [:]
     @Published var showQuickStatusPage = false  // Показывать ли страницу быстрого статуса
 
     // Shortcut message handling
@@ -140,6 +159,8 @@ final class AppModel: ObservableObject {
         loadDayPassGrants()
         loadAppOpenLogs()
         loadAppStepsSpentToday()
+        loadDailyTariffSelections()
+        loadDailyStories()
 
         // Инициализируем значения по умолчанию если их нет
         if entryCostSteps == 0 {
@@ -215,8 +236,7 @@ final class AppModel: ObservableObject {
                            let target = userInfo["target"] as? String,
                            let bundleId = userInfo["bundleId"] as? String {
                             print("📱 PayGate notification - target: \(target), bundleId: \(bundleId)")
-                            `self`.payGateTargetBundleId = bundleId
-                            `self`.showPayGate = true
+                            `self`.startPayGateSession(for: bundleId)
                         }
                     }
                 }
@@ -259,11 +279,21 @@ final class AppModel: ObservableObject {
                 case "instagram": bundleIdForPay = "com.burbn.instagram"
                 case "tiktok": bundleIdForPay = "com.zhiliaoapp.musically"
                 case "youtube": bundleIdForPay = "com.google.ios.youtube"
+                case "telegram": bundleIdForPay = "ph.telegra.Telegraph"
+                case "whatsapp": bundleIdForPay = "net.whatsapp.WhatsApp"
+                case "snapchat": bundleIdForPay = "com.toyopagroup.picaboo"
+                case "facebook": bundleIdForPay = "com.facebook.Facebook"
+                case "linkedin": bundleIdForPay = "com.linkedin.LinkedIn"
+                case "x", "twitter": bundleIdForPay = "com.atebits.Tweetie2"
+                case "reddit": bundleIdForPay = "com.reddit.Reddit"
+                case "pinterest": bundleIdForPay = "com.pinterest"
+                case "duolingo": bundleIdForPay = "com.duolingo.DuolingoMobile"
                 default: break
                 }
             }
             Task { @MainActor in
                 await refreshStepsBalance()
+                startPayGateSession(for: bundleIdForPay ?? "unknown")
                 let settings = unlockSettings(for: bundleIdForPay)
                 if hasDayPass(for: bundleIdForPay) {
                     message = "✅ Day pass already active for today."
@@ -289,10 +319,19 @@ final class AppModel: ObservableObject {
             case "instagram": bundleId = "com.burbn.instagram"
             case "tiktok": bundleId = "com.zhiliaoapp.musically"
             case "youtube": bundleId = "com.google.ios.youtube"
+            case "telegram": bundleId = "ph.telegra.Telegraph"
+            case "whatsapp": bundleId = "net.whatsapp.WhatsApp"
+            case "snapchat": bundleId = "com.toyopagroup.picaboo"
+            case "facebook": bundleId = "com.facebook.Facebook"
+            case "linkedin": bundleId = "com.linkedin.LinkedIn"
+            case "x", "twitter": bundleId = "com.atebits.Tweetie2"
+            case "reddit": bundleId = "com.reddit.Reddit"
+            case "pinterest": bundleId = "com.pinterest"
+            case "duolingo": bundleId = "com.duolingo.DuolingoMobile"
             default: break
             }
         }
-        payGateTargetBundleId = bundleId
+        if let bid = bundleId { startPayGateSession(for: bid) }
         print("🎯 Deeplink: host=\(url.host ?? "nil") target=\(bundleId ?? "nil")")
 
         // Если guard-режим: сразу включаем shielding и открываем целевое приложение → iOS покажет системную шторку
@@ -314,7 +353,9 @@ final class AppModel: ObservableObject {
         }
 
         // Otherwise show our pay gate overlay with a pay button
-        showPayGate = bundleId != nil
+        if let bundleId {
+            startPayGateSession(for: bundleId)
+        }
         print("🎯 PayGate: target=\(payGateTargetBundleId ?? "nil") show=\(showPayGate)")
         if let engine = budgetEngine as? BudgetEngine { engine.reloadFromStorage() }
     }
@@ -357,6 +398,7 @@ final class AppModel: ObservableObject {
         // Update guard flags before attempting to open the target app
         let now = Date()
         userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
+        userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader_\(bundleId)")
         userDefaults.set(now, forKey: "lastPayGateAction")
         userDefaults.set(now, forKey: "payGateLastOpen")
         userDefaults.removeObject(forKey: "shouldShowPayGate")
@@ -366,6 +408,7 @@ final class AppModel: ObservableObject {
         userDefaults.removeObject(forKey: "shortcutTriggerTime")
 
         openTargetAppFromPayGate(bundleId)
+        endPayGateSession(bundleId)
     }
 
     private func persistSessionAllowanceMetadata() {
@@ -391,6 +434,8 @@ final class AppModel: ObservableObject {
         let target = bundleId
         showPayGate = false
         payGateTargetBundleId = nil
+        payGateSessions.removeAll()
+        currentPayGateSessionId = nil
         attemptOpen(schemes: schemes, index: 0, bundleId: target)
     }
 
@@ -439,9 +484,54 @@ final class AppModel: ObservableObject {
             return ["tiktok://"]
         case "com.google.ios.youtube":
             return ["youtube://"]
+        case "ph.telegra.Telegraph":
+            return ["tg://", "telegram://"]
+        case "net.whatsapp.WhatsApp":
+            return ["whatsapp://"]
+        case "com.toyopagroup.picaboo":
+            return ["snapchat://"]
+        case "com.facebook.Facebook":
+            return ["fb://", "facebook://"]
+        case "com.linkedin.LinkedIn":
+            return ["linkedin://"]
+        case "com.atebits.Tweetie2":
+            return ["twitter://", "x://"]
+        case "com.reddit.Reddit":
+            return ["reddit://"]
+        case "com.pinterest":
+            return ["pinterest://"]
+        case "com.duolingo.DuolingoMobile":
+            return ["duolingo://"]
         default:
             print("⚠️ PayGate: Unknown bundle id \(bundleId), using instagram fallback")
             return ["instagram://"]
+        }
+    }
+
+    // MARK: - PayGate sessions
+    @MainActor
+    func startPayGateSession(for bundleId: String) {
+        let session = PayGateSession(id: bundleId, bundleId: bundleId, startedAt: Date())
+        payGateSessions[bundleId] = session
+        currentPayGateSessionId = bundleId
+        payGateTargetBundleId = bundleId
+        showPayGate = true
+        
+        let g = UserDefaults.stepsTrader()
+        g.set(true, forKey: "shouldShowPayGate")
+        g.set(bundleId, forKey: "payGateTargetBundleId")
+    }
+    
+    @MainActor
+    func endPayGateSession(_ bundleId: String) {
+        payGateSessions.removeValue(forKey: bundleId)
+        if currentPayGateSessionId == bundleId {
+            currentPayGateSessionId = payGateSessions.keys.first
+            payGateTargetBundleId = currentPayGateSessionId
+        }
+        if payGateSessions.isEmpty {
+            showPayGate = false
+            payGateTargetBundleId = nil
         }
     }
 
@@ -473,6 +563,9 @@ final class AppModel: ObservableObject {
 
     func handleAppDidEnterBackground() {
         print("📱 App entered background - timer will be suspended")
+        // Закрываем PayGate, если пользователь свернул приложение
+        dismissPayGate()
+
         if isTrackingTime {
             // Сохраняем время ухода в фон
             UserDefaults.standard.set(Date(), forKey: "backgroundTime")
@@ -527,6 +620,9 @@ final class AppModel: ObservableObject {
 
         // Проверяем, нужно ли показать Quick Status Page (независимо от tracking)
         checkForQuickStatusPage()
+        
+        // Автогенерация дневника за вчера (если ещё не сгенерирован)
+        ensureYesterdayStoryGenerated()
 
     }
 
@@ -676,6 +772,145 @@ final class AppModel: ObservableObject {
         let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
         appOpenLogs = appOpenLogs.filter { $0.date >= cutoff }
     }
+    
+    // MARK: - Daily stories
+    private func loadDailyStories() {
+        let g = UserDefaults.stepsTrader()
+        guard let data = g.data(forKey: "dailyStories_v1"),
+              let decoded = try? JSONDecoder().decode([String: DailyStory].self, from: data) else { return }
+        dailyStories = decoded
+    }
+    
+    private func persistDailyStories() {
+        let g = UserDefaults.stepsTrader()
+        if let data = try? JSONEncoder().encode(dailyStories) {
+            g.set(data, forKey: "dailyStories_v1")
+        }
+    }
+    
+    private func loadDailyTariffSelections() {
+        let g = UserDefaults.stepsTrader()
+        let anchor = g.object(forKey: "dailyTariffSelectionsAnchor") as? Date ?? .distantPast
+        if !Calendar.current.isDateInToday(anchor) {
+            dailyTariffSelections = [:]
+            g.set(Calendar.current.startOfDay(for: Date()), forKey: "dailyTariffSelectionsAnchor")
+            g.removeObject(forKey: "dailyTariffSelections_v1")
+            return
+        }
+        if let data = g.data(forKey: "dailyTariffSelections_v1"),
+           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
+            var result: [String: Tariff] = [:]
+            for (k,v) in decoded {
+                if let t = Tariff(rawValue: v) {
+                    result[k] = t
+                }
+            }
+            dailyTariffSelections = result
+        }
+    }
+    
+    private func persistDailyTariffSelections() {
+        let g = UserDefaults.stepsTrader()
+        let dict = dailyTariffSelections.mapValues { $0.rawValue }
+        if let data = try? JSONEncoder().encode(dict) {
+            g.set(data, forKey: "dailyTariffSelections_v1")
+        }
+        g.set(Calendar.current.startOfDay(for: Date()), forKey: "dailyTariffSelectionsAnchor")
+    }
+    
+    private func dateKey(_ date: Date) -> String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "yyyy-MM-dd"
+        return df.string(from: date)
+    }
+    
+    func story(for date: Date) -> DailyStory? {
+        dailyStories[dateKey(date)]
+    }
+    
+    @MainActor
+    func saveStory(for date: Date, english: String, russian: String) {
+        let key = dateKey(date)
+        dailyStories[key] = DailyStory(dateKey: key, english: english, russian: russian, createdAt: Date())
+        persistDailyStories()
+    }
+    
+    func ensureYesterdayStoryGenerated() {
+        let cal = Calendar.current
+        guard let yesterday = cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: Date())) else { return }
+        let key = dateKey(yesterday)
+        guard dailyStories[key] == nil else { return }
+        let entries = appOpenLogs.filter { cal.isDate($0.date, inSameDayAs: yesterday) }
+        guard !entries.isEmpty else { return }
+        Task {
+            await generateAndStoreStory(for: yesterday, entries: entries)
+        }
+    }
+    
+    private func generateAndStoreStory(for date: Date, entries: [AppOpenLog]) async {
+        let promptEN = buildStoryPromptEnglish(for: date, entries: entries)
+        do {
+            let english = try await LLMService.shared.generateCosmicJournal(prompt: promptEN)
+            let translatePrompt = "Translate the following captain's log into Russian, keep the cosmic pilot vibe and warmth, keep 4-6 sentences:\n\(english)"
+            let russian = try await LLMService.shared.generateCosmicJournal(prompt: translatePrompt)
+            await MainActor.run {
+                saveStory(for: date, english: english, russian: russian)
+            }
+        } catch {
+            print("❌ Failed to auto-generate story for \(dateKey(date)): \(error)")
+        }
+    }
+    
+    private func buildStoryPromptEnglish(for date: Date, entries: [AppOpenLog]) -> String {
+        let cal = Calendar.current
+        let uniqueUsageDays = usageDayCount()
+        let stepsMade = cal.isDateInToday(date) ? Int(stepsToday) : nil
+        let stepsSpent = cal.isDateInToday(date) ? appStepsSpentToday.values.reduce(0, +) : nil
+        let remaining = cal.isDateInToday(date) ? max(0, Int(stepsToday) - spentStepsToday) : nil
+        let dayPassActive: [String] = cal.isDateInToday(date)
+            ? Array(dayPassGrants.keys.filter { hasDayPass(for: $0) })
+            : []
+        
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        let tf = DateFormatter()
+        tf.dateFormat = "HH:mm:ss"
+        
+        var lines: [String] = []
+        lines.append("Date: \(df.string(from: date))")
+        lines.append("Days using app: \(uniqueUsageDays)")
+        if let made = stepsMade { lines.append("Steps made: \(made)") }
+        if let spent = stepsSpent { lines.append("Steps spent: \(spent)") }
+        if let rem = remaining { lines.append("Fuel left: \(rem)") }
+        if !dayPassActive.isEmpty {
+            let joined = dayPassActive.joined(separator: ", ")
+            lines.append("Day passes active: \(joined)")
+        }
+        lines.append("Jumps:")
+        
+        let sortedEntries = entries.sorted { $0.date < $1.date }
+        for (idx, entry) in sortedEntries.enumerated() {
+            let time = tf.string(from: entry.date)
+            let name = entry.bundleId
+            var gapText = ""
+            if idx > 0 {
+                let delta = entry.date.timeIntervalSince(sortedEntries[idx-1].date)
+                let minutes = Int(delta / 60)
+                gapText = " | pause \(minutes) min"
+            }
+            lines.append("- \(time): jumped to universe \(name)\(gapText)")
+        }
+        
+        lines.append("Write a short captain's log of a spaceship pilot, warm and imaginative (4-6 sentences). Use metaphors of fuel and jumps between universes. Language: English.")
+        return lines.joined(separator: "\n")
+    }
+
+    private func usageDayCount() -> Int {
+        let cal = Calendar.current
+        let unique = Set(appOpenLogs.map { cal.startOfDay(for: $0.date) })
+        return unique.count
+    }
 
     func canPayForEntry(for bundleId: String? = nil) -> Bool {
         if hasDayPass(for: bundleId) { return true }
@@ -734,11 +969,11 @@ final class AppModel: ObservableObject {
         } else {
             spentStepsToday = g.integer(forKey: "spentStepsToday")
         }
-        // Клэмп, чтобы потраченные шаги не превышали пройденные за сегодня
+        // Клэмп только если уже знаем число шагов (иначе при запуске с stepsToday=0 мы затираем данные)
         let todaysSteps = Int(stepsToday)
-        if spentStepsToday > todaysSteps { spentStepsToday = todaysSteps }
+        if todaysSteps > 0, spentStepsToday > todaysSteps { spentStepsToday = todaysSteps }
         stepsBalance = g.integer(forKey: "stepsBalance")
-        if stepsBalance == 0 {
+        if stepsBalance == 0, todaysSteps > 0 {
             stepsBalance = max(0, todaysSteps - spentStepsToday)
         }
     }
@@ -802,6 +1037,19 @@ final class AppModel: ObservableObject {
         dayPassGrants.removeValue(forKey: bundleId)
         persistDayPassGrants()
         return false
+    }
+    
+    func tariffForToday(_ bundleId: String) -> Tariff? {
+        if let t = dailyTariffSelections[bundleId] { return t }
+        let settings = unlockSettings(for: bundleId)
+        return Tariff.allCases.first(where: { $0.entryCostSteps == settings.entryCostSteps && dayPassCost(for: $0) == settings.dayPassCostSteps })
+    }
+    
+    @MainActor
+    func selectTariffForToday(_ tariff: Tariff, bundleId: String) {
+        dailyTariffSelections[bundleId] = tariff
+        persistDailyTariffSelections()
+        updateUnlockSettings(for: bundleId, tariff: tariff)
     }
     
     func clearExpiredDayPasses() {
@@ -903,6 +1151,8 @@ final class AppModel: ObservableObject {
     func dismissPayGate() {
         showPayGate = false
         payGateTargetBundleId = nil
+        payGateSessions.removeAll()
+        currentPayGateSessionId = nil
         let g = UserDefaults.stepsTrader()
         g.removeObject(forKey: "shouldShowPayGate")
         g.removeObject(forKey: "payGateTargetBundleId")
@@ -1635,17 +1885,18 @@ final class AppModel: ObservableObject {
         }
 
         if shouldShowPayGate {
-            if let lastOpen = userDefaults.object(forKey: "lastAppOpenedFromStepsTrader") as? Date {
-                let elapsed = now.timeIntervalSince(lastOpen)
-                if elapsed < 10 {
-                    print("🚫 PayGate ignored to avoid loop (\(String(format: "%.1f", elapsed))s since last open)")
-                    userDefaults.removeObject(forKey: "shouldShowPayGate")
-                    userDefaults.removeObject(forKey: "payGateTargetBundleId")
-                    return
+            if let bundleId = userDefaults.string(forKey: "payGateTargetBundleId") {
+                if let lastOpen = userDefaults.object(forKey: "lastAppOpenedFromStepsTrader_\(bundleId)") as? Date {
+                    let elapsed = now.timeIntervalSince(lastOpen)
+                    if elapsed < 10 {
+                        print("🚫 PayGate ignored for \(bundleId) to avoid loop (\(String(format: "%.1f", elapsed))s since last open)")
+                        userDefaults.removeObject(forKey: "shouldShowPayGate")
+                        userDefaults.removeObject(forKey: "payGateTargetBundleId")
+                        return
+                    }
                 }
+                startPayGateSession(for: bundleId)
             }
-            payGateTargetBundleId = userDefaults.string(forKey: "payGateTargetBundleId")
-            showPayGate = payGateTargetBundleId != nil
             userDefaults.removeObject(forKey: "shouldShowPayGate")
             print(
                 "🎯 PayGate (from UserDefaults): show=\(showPayGate), target=\(payGateTargetBundleId ?? "nil")"

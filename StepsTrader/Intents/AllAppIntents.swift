@@ -30,7 +30,6 @@ struct PayGateIntent: AppIntent {
         userDefaults.set(true, forKey: "shortcutTriggered")
         userDefaults.set(target.rawValue, forKey: "shortcutTarget")
         userDefaults.set(now, forKey: "shortcutTriggerTime")
-        userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
 
         // Send notification to app instead of trying URL schemes (works in background)
         print("📱 Sending notification to app for PayGate")
@@ -97,7 +96,8 @@ struct CanOpenPayGateIntent: AppIntent {
         let now = Date()
 
         // Anti-loop: if we opened the target app ourselves very recently, block to avoid a loop
-        if let lastOpen = userDefaults.object(forKey: "lastAppOpenedFromStepsTrader") as? Date {
+        let lastKey = "lastAppOpenedFromStepsTrader_\(target.bundleId)"
+        if let lastOpen = userDefaults.object(forKey: lastKey) as? Date {
             let elapsed = now.timeIntervalSince(lastOpen)
             if elapsed < 10 {
                 print("🚫 CanOpenPayGate: last open \(String(format: "%.1f", elapsed))s ago, returning false to prevent loop")
@@ -143,7 +143,8 @@ struct PopularModulesIntent: AppIntent {
         userDefaults.set(now, forKey: lastRunKey)
 
         // Anti-loop guard
-        if let lastOpen = userDefaults.object(forKey: "lastAppOpenedFromStepsTrader") as? Date {
+        let lastKey = "lastAppOpenedFromStepsTrader_\(target.bundleId)"
+        if let lastOpen = userDefaults.object(forKey: lastKey) as? Date {
             let elapsed = now.timeIntervalSince(lastOpen)
             if elapsed < 10 {
                 print("🚫 PopularModulesIntent: last open \(String(format: "%.1f", elapsed))s ago, skipping")
@@ -169,7 +170,6 @@ struct PopularModulesIntent: AppIntent {
         userDefaults.set(true, forKey: "shortcutTriggered")
         userDefaults.set(target.rawValue, forKey: "shortcutTarget")
         userDefaults.set(now, forKey: "shortcutTriggerTime")
-        userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
 
         let notificationName = CFNotificationName("com.steps.trader.paygate" as CFString)
         CFNotificationCenterPostNotification(

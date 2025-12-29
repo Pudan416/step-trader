@@ -9,8 +9,8 @@ struct SettingsView: View {
     
     // Popular apps list reused across the app
     static let automationAppsStatic: [AutomationApp] = [
-        .init(name: "YouTube", scheme: "youtube://", icon: "▶️", imageName: "youtube", link: "https://www.icloud.com/shortcuts/f880905ebcb244e2a4dcc43aee73a9fd", bundleId: "com.google.ios.youtube"),
-        .init(name: "Instagram", scheme: "instagram://", icon: "📸", imageName: "instagram", link: "https://www.icloud.com/shortcuts/34ba0e1e5a2a441f9a2a2d31358a92a4", bundleId: "com.burbn.instagram"),
+        .init(name: "YouTube", scheme: "youtube://", icon: "▶️", imageName: "youtube", link: "https://www.icloud.com/shortcuts/34ba0e1e5a2a441f9a2a2d31358a92a4", bundleId: "com.google.ios.youtube"),
+        .init(name: "Instagram", scheme: "instagram://", icon: "📸", imageName: "instagram", link: "https://www.icloud.com/shortcuts/f880905ebcb244e2a4dcc43aee73a9fd", bundleId: "com.burbn.instagram"),
         .init(name: "TikTok", scheme: "tiktok://", icon: "🎵", imageName: "tiktok", link: "https://www.icloud.com/shortcuts/6f2b49ec00ec4660b633b807decaa753", bundleId: "com.zhiliaoapp.musically"),
         .init(name: "Telegram", scheme: "tg://", icon: "✈️", imageName: "telegram", link: "https://www.icloud.com/shortcuts/b2b1b248690042f49698184fe47988c5", bundleId: "ph.telegra.Telegraph"),
         .init(name: "WhatsApp", scheme: "whatsapp://", icon: "💬", imageName: "whatsapp", link: "https://www.icloud.com/shortcuts/6e1bb2f78d6f47db8b63572aac924960", bundleId: "net.whatsapp.WhatsApp"),
@@ -90,7 +90,6 @@ struct SettingsView: View {
         NavigationView {
             Form {
                 languageSection
-                journalSection
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
@@ -106,17 +105,6 @@ struct SettingsView: View {
                 Text(loc(appLanguage, "Русский", "Русский")).tag("ru")
             }
             .pickerStyle(.segmented)
-        }
-    }
-    
-    // MARK: - Journal
-    private var journalSection: some View {
-        Section(loc(appLanguage, "Journal", "Журнал")) {
-            NavigationLink {
-                JournalView(model: model, automationApps: SettingsView.automationAppsStatic, appLanguage: appLanguage)
-            } label: {
-                Text(loc(appLanguage, "Open journal", "Открыть журнал"))
-            }
         }
     }
 
@@ -150,7 +138,25 @@ struct JournalView: View {
     @ObservedObject var model: AppModel
     let automationApps: [AutomationApp]
     let appLanguage: String
+    @State private var monthOffset: Int = 0
     @State private var selectedDate: Date = Date()
+    @State private var isGeneratingStory: Bool = false
+    @State private var generatedEnglish: String?
+    @State private var generatedRussian: String?
+    @State private var storyError: String?
+    @State private var showDetails: Bool = false
+    
+    private var storedStory: AppModel.DailyStory? {
+        model.story(for: selectedDate)
+    }
+    
+    private var storyToShow: String? {
+        if appLanguage == "ru" {
+            return generatedRussian ?? storedStory?.russian ?? generatedEnglish ?? storedStory?.english
+        } else {
+            return generatedEnglish ?? storedStory?.english ?? generatedRussian ?? storedStory?.russian
+        }
+    }
     
     private var isTodaySelected: Bool {
         Calendar.current.isDateInToday(selectedDate)
@@ -171,9 +177,9 @@ struct JournalView: View {
     
     private var currentMonthDays: [Date] {
         let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        guard let monthRange = cal.range(of: .day, in: .month, for: today),
-              let startOfMonth = cal.date(from: cal.dateComponents([.year, .month], from: today))
+        guard let baseMonth = cal.date(byAdding: .month, value: monthOffset, to: cal.startOfDay(for: Date())),
+              let monthRange = cal.range(of: .day, in: .month, for: baseMonth),
+              let startOfMonth = cal.date(from: cal.dateComponents([.year, .month], from: baseMonth))
         else { return [] }
         return monthRange.compactMap { day -> Date? in
             cal.date(byAdding: .day, value: day - 1, to: startOfMonth)
@@ -197,18 +203,55 @@ struct JournalView: View {
             VStack(alignment: .leading, spacing: 16) {
                 calendarGrid
                 Divider()
-                dayLogView
+                storyBlock
+                if showDetails {
+                    dayLogView
+                } else {
+                    Button {
+                        showDetails = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "chevron.down.circle")
+                            Text(loc(appLanguage, "Show detailed log", "Показать детальный лог"))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
+                    }
+                }
             }
             .padding()
         }
         .navigationTitle(loc(appLanguage, "Journal", "Журнал"))
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { preloadStory() }
+        .onChange(of: selectedDate) { _, _ in preloadStory() }
     }
     
     private var calendarGrid: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(monthTitle(for: selectedDate))
-                .font(.headline)
+            HStack {
+                Button {
+                    monthOffset -= 1
+                    adjustSelectionToDisplayedMonth()
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                Spacer()
+                Text(monthTitle(for: displayedMonth))
+                    .font(.headline)
+                Spacer()
+                Button {
+                    guard monthOffset < 0 else { return }
+                    monthOffset += 1
+                    adjustSelectionToDisplayedMonth()
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(monthOffset < 0 ? .blue : .gray.opacity(0.4))
+                }
+                .disabled(monthOffset >= 0)
+            }
+            
             let columns = Array(repeating: GridItem(.flexible()), count: 7)
             LazyVGrid(columns: columns, spacing: 10) {
                 ForEach(currentMonthDays, id: \.self) { day in
@@ -241,6 +284,52 @@ struct JournalView: View {
         }
     }
     
+    private var displayedMonth: Date {
+        Calendar.current.date(byAdding: .month, value: monthOffset, to: Calendar.current.startOfDay(for: Date())) ?? Date()
+    }
+    
+    private func adjustSelectionToDisplayedMonth() {
+        let cal = Calendar.current
+        if !cal.isDate(selectedDate, equalTo: displayedMonth, toGranularity: .month) {
+            if let start = cal.date(from: cal.dateComponents([.year, .month], from: displayedMonth)) {
+                selectedDate = start
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var storyBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(loc(appLanguage, "Cosmic log", "Космический лог"))
+                .font(.headline)
+            if isTodaySelected && storyToShow == nil {
+                Text(loc(appLanguage, "Journal will be updated at 00:00", "Журнал будет обновлен в 00:00"))
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
+            } else if let story = storyToShow {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(appLanguage == "ru" ? "Русский" : "English")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    markupText(story)
+                        .font(.subheadline)
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
+            } else if let error = storyError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+            } else {
+                Text(loc(appLanguage, "No story yet.", "История пока не создана."))
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+    
     private var dayLogView: some View {
         let dayEntries = entries(for: selectedDate)
         return VStack(alignment: .leading, spacing: 10) {
@@ -252,9 +341,20 @@ struct JournalView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             } else {
+                Button {
+                    showDetails = false
+                } label: {
+                    HStack {
+                        Image(systemName: "chevron.up.circle")
+                        Text(loc(appLanguage, "Hide detailed log", "Скрыть детальный лог"))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
+                }
+                
                 ForEach(dayEntries.indices, id: \.self) { idx in
                     let entry = dayEntries[idx]
-                    let previous = idx > 0 ? dayEntries[idx - 1] : nil
                     HStack(alignment: .top, spacing: 10) {
                         Circle()
                             .fill(colorForBundle(entry.bundleId))
@@ -262,7 +362,7 @@ struct JournalView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(appName(entry.bundleId))
                                 .font(.subheadline).bold()
-                            Text(richDescription(for: entry, previous: previous))
+                            Text(timeFormatter.string(from: entry.date))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             if isTodaySelected {
@@ -293,6 +393,7 @@ struct JournalView: View {
         let stepsSpent = isTodaySelected ? model.appStepsSpentToday.values.reduce(0, +) : nil
         let remaining = isTodaySelected ? max(0, Int(model.stepsToday) - model.spentStepsToday) : nil
         let opensCount = entries(for: selectedDate).count
+        let dayPassActiveCount = automationApps.filter { model.hasDayPass(for: $0.bundleId) }.count
         
         return VStack(alignment: .leading, spacing: 4) {
             HStack {
@@ -316,6 +417,12 @@ struct JournalView: View {
                 Text(remaining != nil ? "\(remaining!)" : "—")
             }.font(.caption)
             .foregroundColor(.secondary)
+            
+            if isTodaySelected, dayPassActiveCount > 0 {
+                Text(loc(appLanguage, "Day pass active for \(dayPassActiveCount) modules", "Дневной проход активен для \(dayPassActiveCount) модулей"))
+                    .font(.caption)
+                    .foregroundColor(.green)
+            }
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
@@ -339,6 +446,67 @@ struct JournalView: View {
             return "Открыто в \(timeString). Долгая пауза (\(minutes/60) ч) — возможно, было не до приложений."
         default:
             return "Открыто в \(timeString). Большой перерыв — тут я явно отдыхал от экранов."
+        }
+    }
+    
+    // MARK: - LLM prompt and call
+    private func buildPromptEnglish(dayEntries: [AppModel.AppOpenLog]) -> String {
+        let stepsMade = isTodaySelected ? Int(model.stepsToday) : nil
+        let stepsSpent = isTodaySelected ? model.appStepsSpentToday.values.reduce(0, +) : nil
+        let remaining = isTodaySelected ? max(0, Int(model.stepsToday) - model.spentStepsToday) : nil
+        let dayPassActive = isTodaySelected ? automationApps.filter { model.hasDayPass(for: $0.bundleId) }.map { $0.name } : []
+        
+        var lines: [String] = []
+        lines.append("Дата: \(dateFormatter.string(from: selectedDate))")
+        if let made = stepsMade { lines.append("Шагов сделано: \(made)") }
+        if let spent = stepsSpent { lines.append("Шагов потрачено: \(spent)") }
+        if let rem = remaining { lines.append("Топлива осталось: \(rem)") }
+        if !dayPassActive.isEmpty {
+            let joined = dayPassActive.joined(separator: ", ")
+            lines.append("Дневные пропуски активны: \(joined)")
+        }
+        lines.append("Путешествия:")
+        
+        for (idx, entry) in dayEntries.enumerated() {
+            let time = timeFormatter.string(from: entry.date)
+            let name = appName(entry.bundleId)
+            var gapText = ""
+            if idx > 0 {
+                let delta = entry.date.timeIntervalSince(dayEntries[idx-1].date)
+                let minutes = Int(delta / 60)
+                gapText = " | пауза \(minutes) мин"
+            }
+            lines.append("- \(time): jumped to universe \(name)\(gapText)")
+        }
+        
+        lines.append("Write a short captain's log of a spaceship pilot, warm and imaginative (4-6 sentences). Use metaphors of fuel and jumps between universes. Language: English.")
+        return lines.joined(separator: "\n")
+    }
+    
+    private func generateStory(dayEntries: [AppModel.AppOpenLog]) async {
+        storyError = nil
+        generatedEnglish = nil
+        generatedRussian = nil
+        guard !dayEntries.isEmpty else { return }
+        let promptEN = buildPromptEnglish(dayEntries: dayEntries)
+        isGeneratingStory = true
+        do {
+            let english = try await LLMService.shared.generateCosmicJournal(prompt: promptEN)
+            let translatePrompt = "Translate the following captain's log into Russian, keep the cosmic pilot vibe and warmth, keep 4-6 sentences:\n\(english)"
+            let russian = try await LLMService.shared.generateCosmicJournal(prompt: translatePrompt)
+            await MainActor.run {
+                generatedEnglish = english
+                generatedRussian = russian
+                isGeneratingStory = false
+            }
+            await MainActor.run {
+                model.saveStory(for: selectedDate, english: english, russian: russian)
+            }
+        } catch {
+            await MainActor.run {
+                storyError = loc(appLanguage, "Story generation failed. Add DEEPSEEK_API_KEY in Info.plist or set deepseek_api_key in UserDefaults.", "Ошибка генерации. Добавьте DEEPSEEK_API_KEY в Info.plist или установите deepseek_api_key в UserDefaults.")
+                isGeneratingStory = false
+            }
         }
     }
     
@@ -398,5 +566,24 @@ struct JournalView: View {
         let df = DateFormatter()
         df.dateFormat = "HH:mm:ss"
         return df
+    }
+    
+    private func preloadStory() {
+        if let stored = storedStory {
+            generatedEnglish = stored.english
+            generatedRussian = stored.russian
+        } else {
+            generatedEnglish = nil
+            generatedRussian = nil
+        }
+    }
+    
+    @ViewBuilder
+    private func markupText(_ text: String) -> some View {
+        if let attributed = try? AttributedString(markdown: text) {
+            Text(attributed)
+        } else {
+            Text(text)
+        }
     }
 }

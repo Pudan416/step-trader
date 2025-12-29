@@ -11,8 +11,6 @@ struct StatusView: View {
     @State private var lastNotificationMinutes: Int = -1
     @State private var selectedBundleForChart: String? = nil
     @State private var chartRange: ChartRange = .week
-    @State private var chartZoom: CGFloat = 1.0
-    @State private var chartZoomBase: CGFloat = 1.0
     @AppStorage("appLanguage") private var appLanguage: String = "en"
 
     private enum ChartRange: String, CaseIterable {
@@ -36,15 +34,15 @@ struct StatusView: View {
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    miniStatsView
-                    openFrequencyChart
-
-                    Spacer(minLength: 20)
+            VStack(spacing: 16) {
+                openFrequencyChart
+                ScrollView {
+                    trackedAppsTodayList
+                        .padding(.horizontal)
+                        .padding(.bottom, 16)
                 }
-                .padding()
             }
+            .padding(.top)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(true)
         }
@@ -57,37 +55,6 @@ struct StatusView: View {
                 stopTimer()
             }
         }
-    }
-
-    // MARK: - Mini Stats
-    private var miniStatsView: some View {
-        HStack(spacing: 16) {
-                    StatMiniCard(
-                        icon: "figure.walk",
-                        title: loc(appLanguage, "Made", "Сделано"),
-                        value: "\(Int(model.stepsToday))",
-                        color: .blue
-                    )
-
-                    StatMiniCard(
-                        icon: "shoeprints.fill",
-                        title: loc(appLanguage, "Spent", "Потрачено"),
-                        value: "\(model.spentStepsToday)",
-                        color: .green
-                    )
-
-                    StatMiniCard(
-                        icon: "bolt.circle",
-                        title: loc(appLanguage, "Left", "Осталось"),
-                        value: "\(remainingStepsToday)",
-                        color: .orange
-                    )
-        }
-    }
-
-    // MARK: - Computed Properties
-    private var remainingStepsToday: Int {
-        max(0, Int(model.stepsToday) - model.spentStepsToday)
     }
 
     private var calculatedRemainingMinutes: Int {
@@ -140,7 +107,7 @@ struct StatusView: View {
     }
     
     private var bundleIdsForChart: [String] {
-        var set = Set(recentOpenLogs.map { $0.bundleId })
+        var set = Set(recentOpenLogs.map { normalizeBundleId($0.bundleId) })
         if let selected = selectedBundleForChart { set.insert(selected) }
         return Array(set).sorted()
     }
@@ -150,7 +117,8 @@ struct StatusView: View {
         var grouped: [String: [Date: Int]] = [:]
         for log in recentOpenLogs {
             let day = cal.startOfDay(for: log.date)
-            grouped[log.bundleId, default: [:]][day, default: 0] += 1
+            let canonical = normalizeBundleId(log.bundleId)
+            grouped[canonical, default: [:]][day, default: 0] += 1
         }
         let days = (0..<chartRange.days).compactMap { offset -> Date? in
             guard let d = cal.date(byAdding: .day, value: -offset, to: cal.startOfDay(for: Date())) else { return nil }
@@ -226,29 +194,37 @@ struct StatusView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
-                // Горизонтальный скролл + зум
-                let baseWidth = CGFloat(chartRange.days) * 50
-                ScrollView(.horizontal, showsIndicators: false) {
-                    Chart(chartData) { item in
-                        let isHighlighted = (selectedBundleForChart == nil) || (selectedBundleForChart == item.bundleId)
-                        let baseColor = colorForBundle(item.bundleId)
-                        let lineColor = baseColor.opacity(isHighlighted ? 1.0 : 0.25)
-                        
-                        LineMark(
-                            x: .value("Day", item.day, unit: .day),
-                            y: .value("Opens", item.count),
-                            series: .value("App", item.appName)
-                        )
-                        .foregroundStyle(lineColor)
-                        .lineStyle(StrokeStyle(lineWidth: isHighlighted ? 3 : 1.5))
-                        .symbol(Circle())
-                        PointMark(
-                            x: .value("Day", item.day, unit: .day),
-                            y: .value("Opens", item.count)
-                        )
-                        .foregroundStyle(lineColor)
-                    }
-                    .chartXAxis {
+                let dateValues = Array(Set(chartData.map { Calendar.current.startOfDay(for: $0.day) })).sorted()
+                Chart(chartData) { item in
+                    let isHighlighted = (selectedBundleForChart == nil) || (selectedBundleForChart == item.bundleId)
+                    let baseColor = colorForBundle(item.bundleId)
+                    let lineColor = baseColor.opacity(isHighlighted ? 1.0 : 0.25)
+                    
+                    LineMark(
+                        x: .value("Day", item.day, unit: .day),
+                        y: .value("Opens", item.count),
+                        series: .value("App", item.appName)
+                    )
+                    .foregroundStyle(lineColor)
+                    .lineStyle(StrokeStyle(lineWidth: isHighlighted ? 3 : 1.5))
+                    .symbol(Circle())
+                    PointMark(
+                        x: .value("Day", item.day, unit: .day),
+                        y: .value("Opens", item.count)
+                    )
+                    .foregroundStyle(lineColor)
+                }
+                .chartXAxis {
+                    if chartRange == .month {
+                        AxisMarks(values: dateValues.filter { Calendar.current.component(.day, from: $0) == 1 || $0 == dateValues.first }) { value in
+                            if let date = value.as(Date.self) {
+                                AxisGridLine()
+                                AxisValueLabel {
+                                    Text(dateMonthFormatter.string(from: date))
+                                }
+                            }
+                        }
+                    } else {
                         AxisMarks(values: .stride(by: .day)) { value in
                             if let date = value.as(Date.self) {
                                 AxisGridLine()
@@ -258,20 +234,10 @@ struct StatusView: View {
                             }
                         }
                     }
-                    .chartYAxis { AxisMarks() }
-                    .frame(width: max(UIScreen.main.bounds.width - 32, baseWidth * chartZoom), height: 220)
-                    .gesture(
-                        MagnificationGesture()
-                            .onChanged { value in
-                                let newZoom = chartZoomBase * value
-                                chartZoom = min(max(newZoom, 0.6), 3.0)
-                            }
-                            .onEnded { _ in chartZoomBase = chartZoom }
-                    )
                 }
+                .chartYAxis { AxisMarks() }
+                .frame(height: 220)
             }
-            
-            trackedAppsTodayList
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
@@ -284,6 +250,12 @@ struct StatusView: View {
         } else {
             df.dateFormat = "d MMM"
         }
+        return df
+    }
+    
+    private var dateMonthFormatter: DateFormatter {
+        let df = DateFormatter()
+        df.dateFormat = "dd/MM"
         return df
     }
 
@@ -300,10 +272,11 @@ struct StatusView: View {
         let today = Calendar.current.startOfDay(for: Date())
         var opensDict: [String: Int] = [:]
         for log in model.appOpenLogs where Calendar.current.isDate(log.date, inSameDayAs: today) {
-            opensDict[log.bundleId, default: 0] += 1
+            let canonical = normalizeBundleId(log.bundleId)
+            opensDict[canonical, default: 0] += 1
         }
         let spentDict = model.appStepsSpentToday
-        let bundleIds = Set(opensDict.keys).union(spentDict.keys)
+        let bundleIds = Set(opensDict.keys).union(spentDict.keys.map { normalizeBundleId($0) })
         let usages = bundleIds.map { bundle -> AppUsageToday in
             AppUsageToday(
                 bundleId: bundle,
@@ -375,6 +348,25 @@ struct StatusView: View {
         case "com.pinterest": return "pinterest"
         case "com.reddit.Reddit": return "reddit"
         default: return nil
+        }
+    }
+    
+    private func normalizeBundleId(_ bundleId: String) -> String {
+        let lower = bundleId.lowercased()
+        switch lower {
+        case "instagram": return "com.burbn.instagram"
+        case "tiktok": return "com.zhiliaoapp.musically"
+        case "youtube": return "com.google.ios.youtube"
+        case "telegram": return "ph.telegra.Telegraph"
+        case "whatsapp": return "net.whatsapp.WhatsApp"
+        case "snapchat": return "com.toyopagroup.picaboo"
+        case "facebook": return "com.facebook.Facebook"
+        case "linkedin": return "com.linkedin.LinkedIn"
+        case "x", "twitter": return "com.atebits.Tweetie2"
+        case "reddit": return "com.reddit.Reddit"
+        case "pinterest": return "com.pinterest"
+        case "duolingo": return "com.duolingo.DuolingoMobile"
+        default: return bundleId
         }
     }
     
