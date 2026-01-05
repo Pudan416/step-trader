@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Combine
 import FamilyControls
 import HealthKit
@@ -22,6 +23,7 @@ struct HandoffToken: Codable {
 protocol HealthKitServiceProtocol {
     func requestAuthorization() async throws
     func fetchTodaySteps() async throws -> Double
+    func fetchSteps(from: Date, to: Date) async throws -> Double
     func startObservingSteps(updateHandler: @escaping (Double) -> Void)
     func stopObservingSteps()
 }
@@ -62,6 +64,7 @@ protocol BudgetEngineProtocol: ObservableObject {
     func consume(mins: Int)
     func resetIfNeeded()
     func updateTariff(_ newTariff: Tariff)
+    func updateDayEnd(hour: Int, minute: Int)
     
     // Backward compatibility
     var difficultyLevel: DifficultyLevel { get set }
@@ -69,7 +72,7 @@ protocol BudgetEngineProtocol: ObservableObject {
 
 enum Tariff: String, CaseIterable {
     case free = "free"     // 0 steps = 1 minute (free entry tracking only)
-    case easy = "easy"     // 100 steps = 1 minute
+    case easy = "lite"     // 100 steps = 1 minute
     case medium = "medium" // 500 steps = 1 minute
     case hard = "hard"     // 1000 steps = 1 minute
     
@@ -95,7 +98,7 @@ enum Tariff: String, CaseIterable {
     var displayName: String {
         switch self {
         case .free: return "🆓 FREE"
-        case .easy: return "💎 EASY"
+        case .easy: return "💡 LITE"
         case .medium: return "🔥 MEDIUM"
         case .hard: return "💪 HARD"
         }
@@ -113,3 +116,37 @@ enum Tariff: String, CaseIterable {
 
 // Backward compatibility
 typealias DifficultyLevel = Tariff
+
+// MARK: - App theme
+enum AppTheme: String, CaseIterable {
+    case system
+    case light
+    case dark
+    case cosmic
+    
+    var displayNameEn: String {
+        switch self {
+        case .system: return "System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        case .cosmic: return "Cosmic"
+        }
+    }
+    
+    var displayNameRu: String {
+        switch self {
+        case .system: return "Системная"
+        case .light: return "Светлая"
+        case .dark: return "Тёмная"
+        case .cosmic: return "Космическая"
+        }
+    }
+    
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark, .cosmic: return .dark
+        }
+    }
+}

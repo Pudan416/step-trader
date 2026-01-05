@@ -5,7 +5,7 @@ import UserNotifications
 final class NotificationManager: NotificationServiceProtocol {
     func requestPermission() async throws {
         let center = UNUserNotificationCenter.current()
-        let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+        let granted = try await center.requestAuthorization(options: [.alert, .sound])
         
         if !granted {
             throw NotificationError.permissionDenied
@@ -19,7 +19,7 @@ final class NotificationManager: NotificationServiceProtocol {
         content.title = "⏰ Steps Trader"
         content.body = "Time is up! Check whether you earned more time—walk additional steps to unlock."
         content.sound = .default
-        content.badge = 1
+        content.badge = nil
         
         let request = UNNotificationRequest(
             identifier: "timeExpired-\(UUID().uuidString)",
@@ -45,7 +45,7 @@ final class NotificationManager: NotificationServiceProtocol {
             content.body = "Time is up! Walk more steps to unlock."
         }
         content.sound = .default
-        content.badge = 1
+        content.badge = nil
         
         let request = UNNotificationRequest(
             identifier: "timeExpired-\(UUID().uuidString)",
@@ -67,7 +67,7 @@ final class NotificationManager: NotificationServiceProtocol {
         content.title = "🎉 Steps Trader"
         content.body = "Time restored! Available: \(remainingMinutes) minutes"
         content.sound = .default
-        content.badge = 1
+        content.badge = nil
         
         let request = UNNotificationRequest(
             identifier: "unblocked-\(UUID().uuidString)",
@@ -89,7 +89,7 @@ final class NotificationManager: NotificationServiceProtocol {
         content.title = "⏱️ Steps Trader"
         content.body = "Time remaining: \(remainingMinutes) min"
         content.sound = .default
-        content.badge = 1
+        content.badge = nil
         
         let request = UNNotificationRequest(
             identifier: "remainingTime-\(UUID().uuidString)",
@@ -111,7 +111,7 @@ final class NotificationManager: NotificationServiceProtocol {
         content.title = "🧪 Steps Trader Test"
         content.body = "Test notification to confirm the system works."
         content.sound = .default
-        content.badge = 1
+        content.badge = nil
         
         let request = UNNotificationRequest(
             identifier: "test-\(UUID().uuidString)",

@@ -5,6 +5,9 @@ import UIKit
 struct SettingsView: View {
     @ObservedObject var model: AppModel
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
+    @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
+    @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     private var tariffs: [Tariff] { Tariff.allCases }
     
     // Popular apps list reused across the app
@@ -89,22 +92,139 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             Form {
-                languageSection
+                Section {
+                    NavigationLink {
+                        LanguageSettingsView(appLanguage: $appLanguage)
+                            .navigationTitle(loc(appLanguage, "Language", "Язык"))
+                            .navigationBarTitleDisplayMode(.inline)
+                    } label: {
+                        HStack {
+                            Text(loc(appLanguage, "Language", "Язык"))
+                            Spacer()
+                            Text(appLanguage == "ru" ? "Русский" : "English")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    NavigationLink {
+                        ThemeSettingsView(appLanguage: appLanguage, selectedTheme: $appThemeRaw)
+                            .navigationTitle(loc(appLanguage, "Theme", "Тема"))
+                            .navigationBarTitleDisplayMode(.inline)
+                    } label: {
+                        HStack {
+                            Text(loc(appLanguage, "Theme", "Тема"))
+                            Spacer()
+                            Text(themeDisplayName(AppTheme(rawValue: appThemeRaw) ?? .system))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    NavigationLink {
+                        DayEndSettingsView(
+                            appLanguage: appLanguage,
+                            dayEndDateBinding: dayEndDateBinding
+                        )
+                        .navigationTitle(loc(appLanguage, "Day reset time", "Время окончания дня"))
+                        .navigationBarTitleDisplayMode(.inline)
+                    } label: {
+                        HStack {
+                            Text(loc(appLanguage, "Day reset time", "Время окончания дня"))
+                            Spacer()
+                            Text(formattedDayEnd())
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden)
+            .background(Color.clear)
         }
     }
-
-    // MARK: - Language
-    private var languageSection: some View {
-        Section(loc(appLanguage, "Language", "Язык")) {
-            Picker(loc(appLanguage, "Language", "Язык"), selection: $appLanguage) {
-                Text(loc(appLanguage, "English", "Английский")).tag("en")
-                Text(loc(appLanguage, "Русский", "Русский")).tag("ru")
+    
+    private var dayEndDateBinding: Binding<Date> {
+        Binding<Date>(
+            get: {
+                let cal = Calendar.current
+                let now = Date()
+                return cal.date(
+                    bySettingHour: dayEndHourSetting,
+                    minute: dayEndMinuteSetting,
+                    second: 0,
+                    of: now
+                ) ?? now
+            },
+            set: { newValue in
+                let cal = Calendar.current
+                dayEndHourSetting = cal.component(.hour, from: newValue)
+                dayEndMinuteSetting = cal.component(.minute, from: newValue)
+                model.updateDayEnd(hour: dayEndHourSetting, minute: dayEndMinuteSetting)
             }
-            .pickerStyle(.segmented)
+        )
+    }
+
+    private func formattedDayEnd() -> String {
+        var comps = DateComponents()
+        comps.hour = dayEndHourSetting
+        comps.minute = dayEndMinuteSetting
+        let cal = Calendar.current
+        let date = cal.date(from: comps) ?? Date()
+        let df = DateFormatter()
+        df.locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
+        df.dateFormat = "HH:mm"
+        return df.string(from: date)
+    }
+    
+    private func themeDisplayName(_ theme: AppTheme) -> String {
+        appLanguage == "ru" ? theme.displayNameRu : theme.displayNameEn
+    }
+
+    // MARK: - Nested detail views
+    private struct LanguageSettingsView: View {
+        @Binding var appLanguage: String
+        
+        var body: some View {
+            Form {
+                Picker(loc(appLanguage, "Language", "Язык"), selection: $appLanguage) {
+                    Text(loc(appLanguage, "English", "Английский")).tag("en")
+                    Text(loc(appLanguage, "Русский", "Русский")).tag("ru")
+                }
+                .pickerStyle(.inline)
+            }
+        }
+    }
+    
+    private struct ThemeSettingsView: View {
+        let appLanguage: String
+        @Binding var selectedTheme: String
+        
+        var body: some View {
+            Form {
+                Picker(loc(appLanguage, "Theme", "Тема"), selection: $selectedTheme) {
+                    ForEach(AppTheme.allCases, id: \.rawValue) { theme in
+                        Text(appLanguage == "ru" ? theme.displayNameRu : theme.displayNameEn)
+                            .tag(theme.rawValue)
+                    }
+                }
+                .pickerStyle(.inline)
+            }
+        }
+    }
+    
+    private struct DayEndSettingsView: View {
+        let appLanguage: String
+        let dayEndDateBinding: Binding<Date>
+        
+        var body: some View {
+            Form {
+                DatePicker(
+                    loc(appLanguage, "End of day", "Конец дня"),
+                    selection: dayEndDateBinding,
+                    displayedComponents: .hourAndMinute
+                )
+                .datePickerStyle(.wheel)
+            }
         }
     }
 
@@ -138,6 +258,8 @@ struct JournalView: View {
     @ObservedObject var model: AppModel
     let automationApps: [AutomationApp]
     let appLanguage: String
+    @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
+    @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
     @State private var monthOffset: Int = 0
     @State private var selectedDate: Date = Date()
     @State private var isGeneratingStory: Bool = false
@@ -222,6 +344,7 @@ struct JournalView: View {
             }
             .padding()
         }
+        .background(Color.clear)
         .navigationTitle(loc(appLanguage, "Journal", "Журнал"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { preloadStory() }
@@ -303,7 +426,13 @@ struct JournalView: View {
             Text(loc(appLanguage, "Cosmic log", "Космический лог"))
                 .font(.headline)
             if isTodaySelected && storyToShow == nil {
-                Text(loc(appLanguage, "Journal will be updated at 00:00", "Журнал будет обновлен в 00:00"))
+                Text(
+                    loc(
+                        appLanguage,
+                        "Journal will be updated at \(formattedDayEnd())",
+                        "Журнал будет обновлен в \(formattedDayEnd())"
+                    )
+                )
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .padding(10)
@@ -585,5 +714,17 @@ struct JournalView: View {
         } else {
             Text(text)
         }
+    }
+    
+    private func formattedDayEnd() -> String {
+        var comps = DateComponents()
+        comps.hour = dayEndHourSetting
+        comps.minute = dayEndMinuteSetting
+        let cal = Calendar.current
+        let date = cal.date(from: comps) ?? Date()
+        let df = DateFormatter()
+        df.locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
+        df.dateFormat = "HH:mm"
+        return df.string(from: date)
     }
 }

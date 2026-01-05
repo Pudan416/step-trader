@@ -10,15 +10,21 @@ struct StatusView: View {
     @State private var lastAvailableMinutes: Int = 0
     @State private var lastNotificationMinutes: Int = -1
     @State private var selectedBundleForChart: String? = nil
-    @State private var chartRange: ChartRange = .week
+    @State private var chartRange: ChartRange = .today
+    @State private var detailBundle: String? = nil
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    
+    private var dayEndHour: Int { model.dayEndHour }
+    private var dayEndMinute: Int { model.dayEndMinute }
 
     private enum ChartRange: String, CaseIterable {
+        case today
         case week
         case month
         
         var days: Int {
             switch self {
+            case .today: return 1
             case .week: return 7
             case .month: return 30
             }
@@ -26,8 +32,9 @@ struct StatusView: View {
         
         var title: String {
             switch self {
-            case .week: return "7"
-            case .month: return "30"
+            case .today: return "Today"
+            case .week: return "7 days"
+            case .month: return "30 days"
             }
         }
     }
@@ -46,6 +53,8 @@ struct StatusView: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(true)
         }
+        .background(Color.clear)
+        .scrollContentBackground(.hidden)
         .onAppear { onAppear() }
         .onDisappear { onDisappear() }
         .onChange(of: model.isTrackingTime) { _, isTracking in
@@ -102,14 +111,32 @@ struct StatusView: View {
     
     private var recentOpenLogs: [AppModel.AppOpenLog] {
         let days = chartRange.days
-        let cutoff = Calendar.current.date(byAdding: .day, value: -(days - 1), to: Calendar.current.startOfDay(for: Date())) ?? Date()
+        let cutoff = dateByAddingDays(to: currentDayStart, value: -(days - 1))
         return model.appOpenLogs.filter { $0.date >= cutoff }
     }
     
     private var bundleIdsForChart: [String] {
-        var set = Set(recentOpenLogs.map { normalizeBundleId($0.bundleId) })
-        if let selected = selectedBundleForChart { set.insert(selected) }
-        return Array(set).sorted()
+        var totals: [String: Int] = [:]
+        for log in recentOpenLogs {
+            let canonical = normalizeBundleId(log.bundleId)
+            totals[canonical, default: 0] += 1
+        }
+        // include any app that has spent steps today (even if no opens in range)
+        for (bid, _) in model.appStepsSpentToday {
+            let canonical = normalizeBundleId(bid)
+            totals[canonical, default: 0] += 0
+        }
+        if let selected = selectedBundleForChart {
+            totals[selected, default: 0] += 0
+        }
+        return totals
+            .sorted { lhs, rhs in
+                if lhs.value == rhs.value {
+                    return lhs.key < rhs.key
+                }
+                return lhs.value > rhs.value
+            }
+            .map { $0.key }
     }
     
     private var dailyOpenData: [DailyOpen] {
@@ -175,17 +202,16 @@ struct StatusView: View {
     private var openFrequencyChart: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(chartRange == .week
-                     ? loc(appLanguage, "Opens last 7 days", "Открытия за 7 дней")
-                     : loc(appLanguage, "Opens last 30 days", "Открытия за 30 дней"))
+                Text(loc(appLanguage, "Stats for", "Статистика за") + " " + chartRange.title)
                 .font(.headline)
                 Spacer()
                 Picker("", selection: $chartRange) {
-                    Text("7d").tag(ChartRange.week)
-                    Text("30d").tag(ChartRange.month)
+                    Text(loc(appLanguage, "Today", "Сегодня")).tag(ChartRange.today)
+                    Text(loc(appLanguage, "7 days", "7 дней")).tag(ChartRange.week)
+                    Text(loc(appLanguage, "30 days", "30 дней")).tag(ChartRange.month)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 140)
+                .frame(width: 260)
             }
             
             let chartData = dailyOpenData
@@ -194,49 +220,68 @@ struct StatusView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
-                let dateValues = Array(Set(chartData.map { Calendar.current.startOfDay(for: $0.day) })).sorted()
-                Chart(chartData) { item in
-                    let isHighlighted = (selectedBundleForChart == nil) || (selectedBundleForChart == item.bundleId)
-                    let baseColor = colorForBundle(item.bundleId)
-                    let lineColor = baseColor.opacity(isHighlighted ? 1.0 : 0.25)
-                    
-                    LineMark(
-                        x: .value("Day", item.day, unit: .day),
-                        y: .value("Opens", item.count),
-                        series: .value("App", item.appName)
-                    )
-                    .foregroundStyle(lineColor)
-                    .lineStyle(StrokeStyle(lineWidth: isHighlighted ? 3 : 1.5))
-                    .symbol(Circle())
-                    PointMark(
-                        x: .value("Day", item.day, unit: .day),
-                        y: .value("Opens", item.count)
-                    )
-                    .foregroundStyle(lineColor)
-                }
-                .chartXAxis {
-                    if chartRange == .month {
-                        AxisMarks(values: dateValues.filter { Calendar.current.component(.day, from: $0) == 1 || $0 == dateValues.first }) { value in
-                            if let date = value.as(Date.self) {
-                                AxisGridLine()
-                                AxisValueLabel {
-                                    Text(dateMonthFormatter.string(from: date))
+                if chartRange == .today {
+                    let todayData = trackedAppsToday
+                    Chart(todayData) { item in
+                        BarMark(
+                            x: .value("App", item.name),
+                            y: .value("Jumps", item.opens)
+                        )
+                        .foregroundStyle(colorForBundle(item.bundleId))
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: todayData.map { $0.name }) { _ in
+                            AxisGridLine()
+                            AxisValueLabel()
+                        }
+                    }
+                    .chartYAxis { AxisMarks() }
+                    .frame(height: 220)
+                } else {
+                    let dateValues = Array(Set(chartData.map { Calendar.current.startOfDay(for: $0.day) })).sorted()
+                    Chart(chartData) { item in
+                        let isHighlighted = (selectedBundleForChart == nil) || (selectedBundleForChart == item.bundleId)
+                        let baseColor = colorForBundle(item.bundleId)
+                        let lineColor = baseColor.opacity(isHighlighted ? 1.0 : 0.25)
+                        
+                        LineMark(
+                            x: .value("Day", item.day, unit: .day),
+                            y: .value("Jumps", item.count),
+                            series: .value("App", item.appName)
+                        )
+                        .foregroundStyle(lineColor)
+                        .lineStyle(StrokeStyle(lineWidth: isHighlighted ? 3 : 1.5))
+                        .symbol(Circle())
+                        PointMark(
+                            x: .value("Day", item.day, unit: .day),
+                            y: .value("Jumps", item.count)
+                        )
+                        .foregroundStyle(lineColor)
+                    }
+                    .chartXAxis {
+                        if chartRange == .month {
+                            AxisMarks(values: dateValues.filter { Calendar.current.component(.day, from: $0) == 1 || $0 == dateValues.first }) { value in
+                                if let date = value.as(Date.self) {
+                                    AxisGridLine()
+                                    AxisValueLabel {
+                                        Text(dateMonthFormatter.string(from: date))
+                                    }
                                 }
                             }
-                        }
-                    } else {
-                        AxisMarks(values: .stride(by: .day)) { value in
-                            if let date = value.as(Date.self) {
-                                AxisGridLine()
-                                AxisValueLabel {
-                                    Text(dateLabelFormatter.string(from: date))
+                        } else {
+                            AxisMarks(values: .stride(by: .day)) { value in
+                                if let date = value.as(Date.self) {
+                                    AxisGridLine()
+                                    AxisValueLabel {
+                                        Text(dateLabelFormatter.string(from: date))
+                                    }
                                 }
                             }
                         }
                     }
+                    .chartYAxis { AxisMarks() }
+                    .frame(height: 220)
                 }
-                .chartYAxis { AxisMarks() }
-                .frame(height: 220)
             }
         }
         .padding()
@@ -245,11 +290,7 @@ struct StatusView: View {
     
     private var dateLabelFormatter: DateFormatter {
         let df = DateFormatter()
-        if chartRange == .week {
-            df.dateFormat = "E"
-        } else {
-            df.dateFormat = "d MMM"
-        }
+        df.dateFormat = "d MMM"
         return df
     }
     
@@ -269,24 +310,37 @@ struct StatusView: View {
     }
     
     private var trackedAppsToday: [AppUsageToday] {
-        let today = Calendar.current.startOfDay(for: Date())
+        let cutoff = dateByAddingDays(to: currentDayStart, value: -(chartRange.days - 1))
         var opensDict: [String: Int] = [:]
-        for log in model.appOpenLogs where Calendar.current.isDate(log.date, inSameDayAs: today) {
+        for log in model.appOpenLogs where log.date >= cutoff {
             let canonical = normalizeBundleId(log.bundleId)
             opensDict[canonical, default: 0] += 1
         }
-        let spentDict = model.appStepsSpentToday
-        let bundleIds = Set(opensDict.keys).union(spentDict.keys.map { normalizeBundleId($0) })
-        let usages = bundleIds.map { bundle -> AppUsageToday in
+
+        // Для Today включаем все приложения с подключенными модулями
+        let baseIds: [String]
+        if chartRange == .today {
+            baseIds = Set(model.appOpenLogs.map { normalizeBundleId($0.bundleId) })
+                .union(model.appStepsSpentToday.keys.map { normalizeBundleId($0) })
+                .union(bundleIdsForChart)
+                .sorted()
+        } else {
+            baseIds = bundleIdsForChart
+        }
+
+        return baseIds.map { bundle in
             AppUsageToday(
                 bundleId: bundle,
                 name: appDisplayName(bundle),
                 imageName: appImageName(bundle),
                 opens: opensDict[bundle, default: 0],
-                steps: spentDict[bundle, default: 0]
+                steps: model.appStepsSpentToday[bundle, default: 0]
             )
         }
-        return usages.sorted { $0.opens > $1.opens }
+        .sorted {
+            if $0.opens == $1.opens { return $0.name < $1.name }
+            return $0.opens > $1.opens
+        }
     }
     
     @ViewBuilder
@@ -309,7 +363,7 @@ struct StatusView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.name)
                                 .font(.subheadline)
-                            Text(loc(appLanguage, "Opens today", "Открытий сегодня") + ": \(item.opens) • " + loc(appLanguage, "Steps spent", "Шагов потрачено") + ": \(item.steps)")
+                            Text(loc(appLanguage, "Jumps", "Прыжки") + ": \(item.opens) • " + loc(appLanguage, "Fuel spent", "Потрачено топлива") + ": \(item.steps)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -322,12 +376,22 @@ struct StatusView: View {
                         } else {
                             selectedBundleForChart = item.bundleId
                         }
+                        if detailBundle == item.bundleId {
+                            detailBundle = nil
+                        } else {
+                            detailBundle = item.bundleId
+                        }
                     }
                     .opacity(isSelected ? 1.0 : 0.85)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(isSelected ? colorForBundle(item.bundleId) : Color.clear, lineWidth: 1)
                     )
+                    
+                    if detailBundle == item.bundleId {
+                        detailEntriesView(bundleId: item.bundleId)
+                            .padding(.leading, 18)
+                    }
                 }
             }
         }
@@ -385,6 +449,57 @@ struct StatusView: View {
                         .foregroundColor(.secondary)
                 )
         }
+    }
+    
+    @ViewBuilder
+    private func detailEntriesView(bundleId: String) -> some View {
+        let cal = Calendar.current
+        let days = (0..<chartRange.days).compactMap { offset -> Date? in
+            dateByAddingDays(to: currentDayStart, value: -offset)
+        }.reversed()
+        let entries = days.map { day -> (Date, Int, Int) in
+            let count = model.appOpenLogs.filter { normalizeBundleId($0.bundleId) == bundleId && cal.isDate($0.date, inSameDayAs: day) }.count
+            let stepsSpent = cal.isDateInToday(day) ? model.appStepsSpentToday[bundleId, default: 0] : 0
+            return (day, count, stepsSpent)
+        }
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(entries, id: \.0) { entry in
+                HStack {
+                    Text(dateLabelFormatter.string(from: entry.0))
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(loc(appLanguage, "Jumps", "Прыжки") + ": \(entry.1)")
+                        Text(loc(appLanguage, "Fuel spent", "Потрачено топлива") + ": \(entry.2)")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .font(.caption)
+                Divider()
+            }
+        }
+    }
+
+    // MARK: - Day boundary helpers
+    private var currentDayStart: Date {
+        dayStart(for: Date())
+    }
+    
+    private func dayStart(for date: Date) -> Date {
+        let cal = Calendar.current
+        guard let cutoffToday = cal.date(bySettingHour: dayEndHour, minute: dayEndMinute, second: 0, of: date) else {
+            return cal.startOfDay(for: date)
+        }
+        if date >= cutoffToday {
+            return cutoffToday
+        } else if let prev = cal.date(byAdding: .day, value: -1, to: cutoffToday) {
+            return prev
+        } else {
+            return cal.startOfDay(for: date)
+        }
+    }
+    
+    private func dateByAddingDays(to date: Date, value: Int) -> Date {
+        Calendar.current.date(byAdding: .day, value: value, to: date) ?? date
     }
 
     // MARK: - Timer Management

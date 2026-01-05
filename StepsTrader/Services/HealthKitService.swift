@@ -19,6 +19,11 @@ final class HealthKitService: HealthKitServiceProtocol {
     }
 
     func fetchTodaySteps() async throws -> Double {
+        let now = Date()
+        return try await fetchSteps(from: .startOfToday, to: now)
+    }
+    
+    func fetchSteps(from start: Date, to end: Date) async throws -> Double {
         // Ensure authorization is determined before querying
         if #available(iOS 12.0, *) {
             let status = store.authorizationStatus(for: stepType)
@@ -27,8 +32,7 @@ final class HealthKitService: HealthKitServiceProtocol {
             }
         }
 
-        let now = Date()
-        let predicate = HKQuery.predicateForSamples(withStart: .startOfToday, end: now, options: .strictStartDate)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
         
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: predicate, options: .cumulativeSum) { [weak self] _, stats, error in
@@ -110,15 +114,9 @@ final class HealthKitService: HealthKitServiceProtocol {
                 return
             }
 
-            print("📊 HealthKit data changed, fetching updated steps")
-
+            print("📊 HealthKit data changed, requesting refresh via handler")
             Task { @MainActor in
-                do {
-                    let steps = try await self?.fetchTodaySteps() ?? 0
-                    updateHandler(steps)
-                } catch {
-                    print("❌ Failed to fetch updated steps: \(error)")
-                }
+                updateHandler(0) // Caller handles custom day window
                 completionHandler()
             }
         }

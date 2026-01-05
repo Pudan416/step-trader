@@ -2,13 +2,23 @@ import Foundation
 
 // MARK: - UserDefaults Extension for Steps Trader
 extension UserDefaults {
+    private static var hasLoggedFallback = false
+    
     static func stepsTrader() -> UserDefaults {
-        if let appGroup = UserDefaults(suiteName: "group.personal-project.StepsTrader") {
+        let groupId = "group.personal-project.StepsTrader"
+        print("bundle:", Bundle.main.bundleIdentifier ?? "nil")
+        print("group URL:", FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId) as Any)
+        
+        // Проверяем, доступен ли контейнер App Group (иначе suiteName может вернуть предупреждение).
+        if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId) != nil,
+           let appGroup = UserDefaults(suiteName: groupId) {
             return appGroup
-        } else {
-            // Fallback to standard UserDefaults if App Group is not available
-            print("⚠️ App Group not available, using standard UserDefaults")
-            return .standard
         }
+
+        if !hasLoggedFallback {
+            hasLoggedFallback = true
+            print("⚠️ App Group container unavailable, using standard UserDefaults")
+        }
+        return .standard
     }
 }

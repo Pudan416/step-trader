@@ -29,11 +29,11 @@
 		20B0A3522E8C658800D5EBE4 /* ShieldConfigurationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3502E8C658800D5EBE4 /* ShieldConfigurationProvider.swift */; };
 		20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */; };
 		20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */; };
-		20F5A0612FFF040000000007 /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0602FFF040000000006 /* LLMService.swift */; };
-		20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A00F2FFF020000000000 /* StepBalanceCard.swift */; };
-		20F5A0112FFF030000000002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0122FFF030000000003 /* Localization.swift */; };
 		20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0012FFF000100000001 /* AutomationUIModels.swift */; };
 		20F5A0042FFF000100000004 /* AppsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0022FFF000100000002 /* AppsPage.swift */; };
+		20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A00F2FFF020000000000 /* StepBalanceCard.swift */; };
+		20F5A0112FFF030000000002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0122FFF030000000003 /* Localization.swift */; };
+		20F5A0612FFF040000000007 /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0602FFF040000000006 /* LLMService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -93,12 +93,12 @@
 		20B0A3502E8C658800D5EBE4 /* ShieldConfigurationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldConfigurationProvider.swift; sourceTree = "<group>"; };
 		20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StepsTrader.swift"; sourceTree = "<group>"; };
 		20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffManager.swift; sourceTree = "<group>"; };
-		20F5A0602FFF040000000006 /* LLMService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
-		20F5A00F2FFF020000000000 /* StepBalanceCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepBalanceCard.swift; sourceTree = "<group>"; };
-		20F5A0122FFF030000000003 /* Localization.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
 		20F5A0012FFF000100000001 /* AutomationUIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationUIModels.swift; sourceTree = "<group>"; };
 		20F5A0022FFF000100000002 /* AppsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsPage.swift; sourceTree = "<group>"; };
-		20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
+		20F5A00F2FFF020000000000 /* StepBalanceCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepBalanceCard.swift; sourceTree = "<group>"; };
+		20F5A0122FFF030000000003 /* Localization.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		20F5A0602FFF040000000006 /* LLMService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -151,7 +151,6 @@
 			isa = PBXGroup;
 			children = (
 				2089F0F42E72EC1700ABF5FA /* Info.plist */,
-				2089F0F12E72D68C00ABF5FA /* Steps4.entitlements */,
 				2089F0BD2E71A18F00ABF5FA /* Preview Content */,
 			);
 			path = Steps4;
@@ -211,6 +210,7 @@
 				209424C72E85952D00904A0A /* DIContainer.swift */,
 				209424C52E85952D00904A0A /* NotificationManager.swift */,
 				2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */,
+				2089F0F12E72D68C00ABF5FA /* Steps4.entitlements */,
 			);
 			path = StepsTrader;
 			sourceTree = "<group>";
@@ -583,19 +583,24 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Steps4/Steps4.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = StepsTrader/Steps4.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Steps4/Preview Content\" \"StepsTrader/Preview Content\"";
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 39V44D64DY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Steps Trader needs access to your step count to manage app time.";
+				INFOPLIST_KEY_CFBundleDisplayName = "CTRL ME";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Steps Trader needs access to your step count to calculate entries.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Steps Trader may update Health data if required.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -603,6 +608,8 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_NAME = "Steps Trader";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "StepsTrader Dev";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -614,19 +621,24 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Steps4/Steps4.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = StepsTrader/Steps4.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Steps4/Preview Content\" \"StepsTrader/Preview Content\"";
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 39V44D64DY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Steps Trader needs access to your step count to manage app time.";
+				INFOPLIST_KEY_CFBundleDisplayName = "CTRL ME";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Steps Trader needs access to your step count to calculate entries.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Steps Trader may update Health data if required.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -634,6 +646,8 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_NAME = "Steps Trader";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "StepsTrader Dev";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

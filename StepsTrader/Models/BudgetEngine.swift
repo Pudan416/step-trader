@@ -20,6 +20,8 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     @Published private(set) var todayAnchor: Date
     @Published private(set) var dailyBudgetMinutes: Int = 0
     @Published private(set) var remainingMinutes: Int = 0
+    @Published private(set) var dayEndHour: Int
+    @Published private(set) var dayEndMinute: Int
 
     private var sharedDefaults: UserDefaults { UserDefaults.stepsTrader() }
 
@@ -30,10 +32,13 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         
         // Читаем из App Group, fallback на стандартные ключи для обратной совместимости
         let g = UserDefaults.stepsTrader()
+        let savedHour = (g.object(forKey: "dayEndHour_v1") as? Int) ?? (UserDefaults.standard.object(forKey: "dayEndHour_v1") as? Int) ?? 0
+        let savedMinute = (g.object(forKey: "dayEndMinute_v1") as? Int) ?? (UserDefaults.standard.object(forKey: "dayEndMinute_v1") as? Int) ?? 0
+        self.dayEndHour = max(0, min(23, savedHour))
+        self.dayEndMinute = max(0, min(59, savedMinute))
+        
         let savedAnchor = (g.object(forKey: "todayAnchor") as? Date)
             ?? (UserDefaults.standard.object(forKey: "todayAnchor") as? Date)
-            ?? Calendar.current.startOfDay(for: Date())
-        self.todayAnchor = savedAnchor
         
         let savedDaily = (g.object(forKey: "dailyBudgetMinutes") as? Int)
         ?? g.integer(forKey: "dailyBudgetMinutes")
@@ -41,11 +46,7 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         ?? g.integer(forKey: "remainingMinutes")
         self.dailyBudgetMinutes = savedDaily
         self.remainingMinutes = savedRemaining
-        
-        // Проверяем, нужно ли сбросить на новый день
-        if !Calendar.current.isDateInToday(savedAnchor) { 
-            resetForToday() 
-        }
+        self.todayAnchor = savedAnchor ?? Calendar.current.startOfDay(for: Date())
         
         print("💰 BudgetEngine initialized with tariff: \(tariff.displayName)")
     }
@@ -64,11 +65,12 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     }
 
     func resetIfNeeded() {
-        if !Calendar.current.isDateInToday(todayAnchor) { resetForToday() }
+        let currentAnchor = currentDayAnchor(for: Date())
+        if currentAnchor != todayAnchor { resetForToday(currentAnchor) }
     }
 
-    private func resetForToday() {
-        todayAnchor = Calendar.current.startOfDay(for: Date())
+    private func resetForToday(_ anchor: Date? = nil) {
+        todayAnchor = anchor ?? currentDayAnchor(for: Date())
         dailyBudgetMinutes = 0
         remainingMinutes = 0
         persist()
@@ -79,17 +81,28 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         tariff = newTariff
     }
     
+    func updateDayEnd(hour: Int, minute: Int) {
+        dayEndHour = max(0, min(23, hour))
+        dayEndMinute = max(0, min(59, minute))
+        persistDayEnd()
+        resetIfNeeded()
+    }
+    
     private func persist() {
         // Пишем в App Group, а также дублируем в стандартные для обратной совместимости
         let g = sharedDefaults
         g.set(todayAnchor, forKey: "todayAnchor")
         g.set(dailyBudgetMinutes, forKey: "dailyBudgetMinutes")
         g.set(remainingMinutes, forKey: "remainingMinutes")
+        g.set(dayEndHour, forKey: "dayEndHour_v1")
+        g.set(dayEndMinute, forKey: "dayEndMinute_v1")
         
         let d = UserDefaults.standard
         d.set(todayAnchor, forKey: "todayAnchor")
         d.set(dailyBudgetMinutes, forKey: "dailyBudgetMinutes")
         d.set(remainingMinutes, forKey: "remainingMinutes")
+        d.set(dayEndHour, forKey: "dayEndHour_v1")
+        d.set(dayEndMinute, forKey: "dayEndMinute_v1")
     }
 
     // Принудительно перечитать значения из App Group (для синхронизации со сниппетом/интентом)
@@ -100,6 +113,42 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         }
         dailyBudgetMinutes = g.integer(forKey: "dailyBudgetMinutes")
         remainingMinutes = g.integer(forKey: "remainingMinutes")
+        let savedHour = g.object(forKey: "dayEndHour_v1") as? Int ?? 0
+        let savedMinute = g.object(forKey: "dayEndMinute_v1") as? Int ?? 0
+        dayEndHour = max(0, min(23, savedHour))
+        dayEndMinute = max(0, min(59, savedMinute))
         print("🔄 BudgetEngine reloaded: daily=\(dailyBudgetMinutes), remaining=\(remainingMinutes)")
+    }
+    
+    // MARK: - Day boundary helpers
+    private func currentDayAnchor(for date: Date) -> Date {
+        let cal = Calendar.current
+        guard let cutoffToday = cal.date(
+            bySettingHour: dayEndHour,
+            minute: dayEndMinute,
+            second: 0,
+            of: date)
+        else { return cal.startOfDay(for: date) }
+        
+        if date >= cutoffToday {
+            return cutoffToday
+        } else if let prevCutoff = cal.date(byAdding: .day, value: -1, to: cutoffToday) {
+            return prevCutoff
+        } else {
+            return cal.startOfDay(for: date)
+        }
+    }
+    
+    private func isSamePeriod(anchor: Date, date: Date) -> Bool {
+        currentDayAnchor(for: date) == currentDayAnchor(for: anchor)
+    }
+    
+    private func persistDayEnd() {
+        let g = sharedDefaults
+        g.set(dayEndHour, forKey: "dayEndHour_v1")
+        g.set(dayEndMinute, forKey: "dayEndMinute_v1")
+        let d = UserDefaults.standard
+        d.set(dayEndHour, forKey: "dayEndHour_v1")
+        d.set(dayEndMinute, forKey: "dayEndMinute_v1")
     }
 }

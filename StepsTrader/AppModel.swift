@@ -65,6 +65,8 @@ final class AppModel: ObservableObject {
     // Budget properties that mirror BudgetEngine for UI updates
     @Published var dailyBudgetMinutes: Int = 0
     @Published var remainingMinutes: Int = 0
+    @Published var dayEndHour: Int = UserDefaults.standard.object(forKey: "dayEndHour_v1") as? Int ?? 0
+    @Published var dayEndMinute: Int = UserDefaults.standard.object(forKey: "dayEndMinute_v1") as? Int ?? 0
     // PayGate state
     @Published var showPayGate: Bool = false
     @Published var payGateTargetBundleId: String? = nil  // Mirrors current session for legacy uses
@@ -140,6 +142,10 @@ final class AppModel: ObservableObject {
         // Initialize budget properties
         self.dailyBudgetMinutes = budgetEngine.dailyBudgetMinutes
         self.remainingMinutes = budgetEngine.remainingMinutes
+        if let engine = budgetEngine as? BudgetEngine {
+            self.dayEndHour = engine.dayEndHour
+            self.dayEndMinute = engine.dayEndMinute
+        }
         
         // Sync entry cost with current tariff
         syncEntryCostWithTariff()
@@ -634,6 +640,10 @@ final class AppModel: ObservableObject {
     private func syncBudgetProperties() {
         dailyBudgetMinutes = budgetEngine.dailyBudgetMinutes
         remainingMinutes = budgetEngine.remainingMinutes
+        if let engine = budgetEngine as? BudgetEngine {
+            dayEndHour = engine.dayEndHour
+            dayEndMinute = engine.dayEndMinute
+        }
     }
 
     private func syncAppSelectionToService() {
@@ -673,7 +683,7 @@ final class AppModel: ObservableObject {
         let userDefaults = UserDefaults.stepsTrader()
         let savedSpentMinutes = userDefaults.integer(forKey: "spentMinutes")
         let savedDate = userDefaults.object(forKey: "spentTimeDate") as? Date ?? Date()
-        let savedSpentTariffRaw = userDefaults.string(forKey: "spentTariff") ?? "easy"
+        let savedSpentTariffRaw = userDefaults.string(forKey: "spentTariff") ?? "light"
         let savedSpentTariff = Tariff(rawValue: savedSpentTariffRaw) ?? .easy
 
         // Сбрасываем время если прошел день
@@ -707,7 +717,9 @@ final class AppModel: ObservableObject {
     // MARK: - Steps Balance (per-entry payment)
     func refreshStepsBalance() async {
         do {
-            stepsToday = try await healthKitService.fetchTodaySteps()
+            let now = Date()
+            let start = currentDayStart(for: now)
+            stepsToday = try await healthKitService.fetchSteps(from: start, to: now)
         } catch {
             print("❌ Failed to refresh steps from HealthKit: \(error.localizedDescription)")
 
@@ -742,14 +754,44 @@ final class AppModel: ObservableObject {
         }
         let g = UserDefaults.stepsTrader()
         let anchor = g.object(forKey: "stepsBalanceAnchor") as? Date ?? .distantPast
-        if !Calendar.current.isDateInToday(anchor) {
+        if !isSameCustomDay(anchor, Date()) {
             spentStepsToday = 0
-            g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
+            g.set(currentDayStart(for: Date()), forKey: "stepsBalanceAnchor")
         }
         stepsBalance = max(0, Int(stepsToday) - spentStepsToday)
         g.set(spentStepsToday, forKey: "spentStepsToday")
         g.set(stepsBalance, forKey: "stepsBalance")
         clearExpiredDayPasses()
+    }
+    
+    // MARK: - Custom day boundary
+    private func currentDayStart(for date: Date) -> Date {
+        let cal = Calendar.current
+        guard let cutoffToday = cal.date(
+            bySettingHour: dayEndHour,
+            minute: dayEndMinute,
+            second: 0,
+            of: date
+        ) else {
+            return cal.startOfDay(for: date)
+        }
+        if date >= cutoffToday {
+            return cutoffToday
+        } else if let prev = cal.date(byAdding: .day, value: -1, to: cutoffToday) {
+            return prev
+        } else {
+            return cal.startOfDay(for: date)
+        }
+    }
+    
+    private func isSameCustomDay(_ a: Date, _ b: Date) -> Bool {
+        currentDayStart(for: a) == currentDayStart(for: b)
+    }
+    
+    private func fetchStepsForCurrentDay() async throws -> Double {
+        let now = Date()
+        let start = currentDayStart(for: now)
+        return try await healthKitService.fetchSteps(from: start, to: now)
     }
     
     // MARK: - App open logs
@@ -1008,6 +1050,7 @@ final class AppModel: ObservableObject {
     func presetTariff(for bundleId: String?) -> Tariff? {
         let settings = unlockSettings(for: bundleId)
         switch (settings.entryCostSteps, settings.dayPassCostSteps) {
+        case (0, 0): return .free
         case (Tariff.easy.entryCostSteps, 1000): return .easy
         case (Tariff.medium.entryCostSteps, 5000): return .medium
         case (Tariff.hard.entryCostSteps, 10000): return .hard
@@ -1100,9 +1143,9 @@ final class AppModel: ObservableObject {
     private func loadAppStepsSpentToday() {
         let g = UserDefaults.stepsTrader()
         let anchor = g.object(forKey: "appStepsSpentAnchor") as? Date ?? .distantPast
-        if !Calendar.current.isDateInToday(anchor) {
+        if !isSameCustomDay(anchor, Date()) {
             appStepsSpentToday = [:]
-            g.set(Calendar.current.startOfDay(for: Date()), forKey: "appStepsSpentAnchor")
+            g.set(currentDayStart(for: Date()), forKey: "appStepsSpentAnchor")
             g.removeObject(forKey: "appStepsSpentToday_v1")
         } else if let data = g.data(forKey: "appStepsSpentToday_v1"),
                   let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
@@ -1115,7 +1158,7 @@ final class AppModel: ObservableObject {
         if let data = try? JSONEncoder().encode(appStepsSpentToday) {
             g.set(data, forKey: "appStepsSpentToday_v1")
         }
-        g.set(Calendar.current.startOfDay(for: Date()), forKey: "appStepsSpentAnchor")
+        g.set(currentDayStart(for: Date()), forKey: "appStepsSpentAnchor")
     }
     
     private func dayPassCost(for tariff: Tariff) -> Int {
@@ -1137,10 +1180,10 @@ final class AppModel: ObservableObject {
     }
     
     private func addSpentSteps(_ cost: Int, for bundleId: String) {
-        let anchor = Calendar.current.startOfDay(for: Date())
+        let anchor = currentDayStart(for: Date())
         let g = UserDefaults.stepsTrader()
         let storedAnchor = g.object(forKey: "appStepsSpentAnchor") as? Date ?? .distantPast
-        if !Calendar.current.isDate(storedAnchor, inSameDayAs: anchor) {
+        if !isSameCustomDay(storedAnchor, anchor) {
             appStepsSpentToday = [:]
         }
         appStepsSpentToday[bundleId, default: 0] += cost
@@ -1415,7 +1458,7 @@ final class AppModel: ObservableObject {
         // 8. Пересчитываем бюджет с текущими шагами
         Task {
             do {
-                stepsToday = try await healthKitService.fetchTodaySteps()
+                stepsToday = try await fetchStepsForCurrentDay()
                 let mins = budgetEngine.minutes(from: stepsToday)
                 budgetEngine.setBudget(minutes: mins)
                 syncBudgetProperties()  // Sync budget properties for UI updates
@@ -1449,7 +1492,7 @@ final class AppModel: ObservableObject {
         content.title = "🚶‍♂️ Steps Trader"
         content.body = "Walk more steps to earn extra entertainment time!"
         content.sound = .default
-        content.badge = 1
+        content.badge = nil
 
         // Добавляем action для быстрого возврата в приложение
         let returnAction = UNNotificationAction(
@@ -1531,7 +1574,7 @@ final class AppModel: ObservableObject {
 
             print("📈 Fetching today's steps...")
             do {
-                stepsToday = try await healthKitService.fetchTodaySteps()
+                stepsToday = try await fetchStepsForCurrentDay()
                 print("✅ Today's steps: \(Int(stepsToday))")
             } catch {
                 print("⚠️ Could not fetch step data: \(error)")
@@ -1574,7 +1617,7 @@ final class AppModel: ObservableObject {
         budgetEngine.resetIfNeeded()
 
         do {
-            stepsToday = try await healthKitService.fetchTodaySteps()
+            stepsToday = try await fetchStepsForCurrentDay()
         } catch {
             print("⚠️ Could not fetch step data for recalc: \(error)")
             #if targetEnvironment(simulator)
@@ -1601,7 +1644,7 @@ final class AppModel: ObservableObject {
         budgetEngine.resetIfNeeded()
 
         do {
-            stepsToday = try await healthKitService.fetchTodaySteps()
+            stepsToday = try await fetchStepsForCurrentDay()
         } catch {
             print("⚠️ Could not fetch step data for silent recalc: \(error)")
             #if targetEnvironment(simulator)
@@ -1911,6 +1954,14 @@ final class AppModel: ObservableObject {
             syncBudgetProperties()  // Sync budget properties for UI updates
         }
     }
+
+    func updateDayEnd(hour: Int, minute: Int) {
+        let clampedHour = max(0, min(23, hour))
+        let clampedMinute = max(0, min(59, minute))
+        dayEndHour = clampedHour
+        dayEndMinute = clampedMinute
+        budgetEngine.updateDayEnd(hour: clampedHour, minute: clampedMinute)
+    }
     
     func installPayGateShortcut() {
         guard let url = URL(string: shortcutInstallURLString) else {
@@ -2159,11 +2210,12 @@ final class AppModel: ObservableObject {
 
     // MARK: - Step Observation
     private func startStepObservation() {
-        healthKitService.startObservingSteps { [weak self] newSteps in
+        healthKitService.startObservingSteps { [weak self] _ in
             Task { @MainActor in
-                self?.stepsToday = newSteps
                 await self?.refreshStepsBalance()
-                print("📊 Auto-updated steps: \(Int(newSteps))")
+                if let steps = self?.stepsToday {
+                    print("📊 Auto-updated steps (custom day): \(Int(steps))")
+                }
             }
         }
     }

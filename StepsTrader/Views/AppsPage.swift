@@ -8,6 +8,7 @@ struct AppsPage: View {
     @State private var guideApp: GuideItem?
     @State private var showPopularPicker: Bool = false
     @State private var showOtherPicker: Bool = false
+    @State private var pendingTariffForPicker: Tariff? = nil
     @State private var statusVersion = UUID()
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     private var automationConfiguredSet: Set<String> {
@@ -50,6 +51,14 @@ struct AppsPage: View {
             return status != .none
         }
     }
+
+    private func groupedActivatedApps() -> [(Tariff, [AutomationApp])] {
+        let groups = Dictionary(grouping: activatedApps) { currentTariff(for: $0) }
+        return Tariff.allCases.map { tariff in
+            let list = groups[tariff] ?? []
+            return (tariff, list.sorted { $0.name < $1.name })
+        }
+    }
     
     private var deactivatedApps: [AutomationApp] {
         automationApps.filter {
@@ -73,14 +82,6 @@ struct AppsPage: View {
         .sorted { $0.name < $1.name }
     }
     
-    private var popularPreview: [AutomationApp] {
-        Array(deactivatedPopular.prefix(3))
-    }
-    
-    private var popularRest: [AutomationApp] {
-        Array(deactivatedPopular.dropFirst(3))
-    }
-    
     private var othersPreview: [AutomationApp] {
         Array(deactivatedOthers.prefix(3))
     }
@@ -95,6 +96,9 @@ struct AppsPage: View {
                 let horizontalPadding: CGFloat = 16
                 let columnSpacing: CGFloat = 12
                 let columnWidth = (geo.size.width - horizontalPadding * 2 - columnSpacing) / 2
+                let gridSpacing: CGFloat = 10
+                let gridItemSize = max(64.0, (columnWidth - gridSpacing) / 2)
+                let bottomPadding: CGFloat = 8
                 
                 HStack(alignment: .top, spacing: columnSpacing) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -102,23 +106,26 @@ struct AppsPage: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity, alignment: .center)
                         ScrollView {
-                            LazyVStack(spacing: 10) {
-                                if activatedApps.isEmpty {
-                                    Text(loc(appLanguage, "No modules here yet.", "Пока пусто."))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                } else {
-                                    ForEach(activatedApps) { app in
-                                        automationButton(
-                                            app,
-                                            status: statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet),
-                                            width: min(columnWidth - 12, 100)
-                                        )
+                            if activatedApps.isEmpty {
+                                Text(loc(appLanguage, "No modules here yet.", "Пока пусто."))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                LazyVStack(alignment: .leading, spacing: 14) {
+                                    ForEach(groupedActivatedApps(), id: \.0) { tariff, apps in
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text(tariffHeader(for: tariff))
+                                                .font(.subheadline)
+                                                .bold()
+                                            activatedGrid(for: apps, size: gridItemSize, spacing: gridSpacing, tariff: tariff)
+                                        }
                                     }
                                 }
+                                .padding(.vertical, 4)
                             }
-                            .padding(.vertical, 4)
                         }
+                        .padding(.bottom, bottomPadding)
+                        .scrollIndicators(.hidden)
                     }
                     .frame(width: columnWidth, height: geo.size.height, alignment: .topLeading)
                     
@@ -129,33 +136,16 @@ struct AppsPage: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 12) {
                                 // Popular subset
-                                Text(loc(appLanguage, "Popular", "Популярные"))
+                                Text(loc(appLanguage, "Main", "Главные"))
                                     .font(.subheadline).bold()
-                                let spacing: CGFloat = 10
-                                let itemSize = max(64.0, (columnWidth - spacing) / 2)
-                                let columns = Array(repeating: GridItem(.fixed(itemSize), spacing: spacing), count: 2)
-                                LazyVGrid(columns: columns, alignment: .center, spacing: spacing) {
-                                    ForEach(popularPreview) { app in
+                                let columns = Array(repeating: GridItem(.fixed(gridItemSize), spacing: gridSpacing), count: 2)
+                                LazyVGrid(columns: columns, alignment: .center, spacing: gridSpacing) {
+                                    ForEach(deactivatedPopular) { app in
                                         automationButton(
                                             app,
                                             status: statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet),
-                                            width: itemSize
+                                            width: gridItemSize
                                         )
-                                    }
-                                    if !popularRest.isEmpty {
-                                        Button {
-                                            showPopularPicker = true
-                                        } label: {
-                                            RoundedRectangle(cornerRadius: 18)
-                                                .fill(Color.gray.opacity(0.15))
-                                                .frame(width: itemSize, height: itemSize)
-                                                .overlay(
-                                                    Image(systemName: "plus")
-                                                        .font(.system(size: 28, weight: .bold))
-                                                        .foregroundColor(.blue)
-                                                )
-                                        }
-                                        .buttonStyle(PlainButtonStyle())
                                     }
                                 }
                                 .frame(maxWidth: .infinity, alignment: .center)
@@ -163,12 +153,12 @@ struct AppsPage: View {
                                 // Others list with preview + full list
                                 Text(loc(appLanguage, "Others", "Другие"))
                                     .font(.subheadline).bold()
-                                LazyVGrid(columns: columns, alignment: .center, spacing: spacing) {
+                                LazyVGrid(columns: columns, alignment: .center, spacing: gridSpacing) {
                                     ForEach(othersPreview) { app in
                                         automationButton(
                                             app,
                                             status: statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet),
-                                            width: itemSize
+                                            width: gridItemSize
                                         )
                                     }
                                     if !othersRest.isEmpty {
@@ -176,12 +166,12 @@ struct AppsPage: View {
                                             showOtherPicker = true
                                         } label: {
                                             RoundedRectangle(cornerRadius: 18)
-                                                .fill(Color.gray.opacity(0.15))
-                                                .frame(width: itemSize, height: itemSize)
+                                                .fill(Color.gray.opacity(0.08))
+                                                .frame(width: gridItemSize, height: gridItemSize)
                                                 .overlay(
-                                                    Image(systemName: "plus")
+                                                    Text("...")
                                                         .font(.system(size: 28, weight: .bold))
-                                                        .foregroundColor(.blue)
+                                                        .foregroundColor(Color.gray.opacity(0.7))
                                                 )
                                         }
                                         .buttonStyle(PlainButtonStyle())
@@ -207,6 +197,8 @@ struct AppsPage: View {
                             }
                             .padding(.vertical, 4)
                         }
+                        .scrollIndicators(.hidden)
+                        .padding(.bottom, bottomPadding)
                     }
                     .frame(width: columnWidth, height: geo.size.height, alignment: .topLeading)
                 }
@@ -254,6 +246,19 @@ struct AppsPage: View {
         case .none: return 2
         }
     }
+
+    private func tariffHeader(for tariff: Tariff) -> String {
+        let count = activatedApps.filter { currentTariff(for: $0) == tariff }.count
+        let maxText = "4"
+        let base: String
+        switch tariff {
+        case .free: base = loc(appLanguage, "Free", "Free")
+        case .easy: base = loc(appLanguage, "Lite", "Lite")
+        case .medium: base = loc(appLanguage, "Medium", "Medium")
+        case .hard: base = loc(appLanguage, "Hard", "Hard")
+        }
+        return "\(base) (\(count)/\(maxText))"
+    }
     
     @ViewBuilder
     private func statusIcon(for status: AutomationStatus) -> some View {
@@ -282,7 +287,7 @@ struct AppsPage: View {
         }
     }
     
-    private func automationButton(_ app: AutomationApp, status: AutomationStatus, width: CGFloat) -> some View {
+    private func automationButton(_ app: AutomationApp, status: AutomationStatus, width: CGFloat, tariff: Tariff? = nil) -> some View {
         Button {
             guard guideApp == nil else { return }
             UserDefaults.stepsTrader().set(app.scheme, forKey: "selectedAppScheme")
@@ -302,7 +307,7 @@ struct AppsPage: View {
             VStack(spacing: 8) {
                 ZStack(alignment: .topTrailing) {
                     RoundedRectangle(cornerRadius: 18)
-                        .fill(backgroundColor(for: status))
+                        .fill(tileColor(for: tariff, status: status))
                         .frame(width: width, height: width)
                         .overlay(appIconView(app)
                             .frame(width: width * 0.6, height: width * 0.6))
@@ -330,15 +335,27 @@ struct AppsPage: View {
                 }
             }
         }
-        .opacity(status == .none ? 0.6 : 1.0)
+        .opacity(status == .none ? 0.55 : 1.0)
     }
     
-    private func backgroundColor(for status: AutomationStatus) -> Color {
-        if status == .none { return Color.gray.opacity(0.1) }
-        switch status {
-        case .configured: return Color.green.opacity(0.15)
-        case .pending: return Color.yellow.opacity(0.15)
-        case .none: return Color.gray.opacity(0.1)
+    private func tileColor(for tariff: Tariff?, status: AutomationStatus) -> Color {
+        if status == .none { return Color.gray.opacity(0.08) }
+        let base: Color
+        switch tariff ?? .easy {
+        case .free: base = Color.cyan.opacity(status == .none ? 0.18 : 0.4)
+        case .easy: base = Color.green.opacity(status == .none ? 0.18 : 0.35)
+        case .medium: base = Color.orange.opacity(status == .none ? 0.2 : 0.4)
+        case .hard: base = Color.red.opacity(status == .none ? 0.2 : 0.35)
+        }
+        return base
+    }
+    
+    private func tileAccent(for tariff: Tariff) -> Color {
+        switch tariff {
+        case .free: return Color.cyan.opacity(0.7)
+        case .easy: return Color.green.opacity(0.7)
+        case .medium: return Color.orange.opacity(0.8)
+        case .hard: return Color.red.opacity(0.8)
         }
     }
     
@@ -392,8 +409,15 @@ struct AppsPage: View {
         statusVersion = UUID()
     }
     
-    private func activate(_ app: AutomationApp) {
+    private func activate(_ app: AutomationApp, tariff: Tariff? = nil) {
         markPending(bundleId: app.bundleId)
+        if let tariff {
+            model.updateUnlockSettings(
+                for: app.bundleId,
+                entryCost: tariff.entryCostSteps,
+                dayPassCost: dayPassCost(for: tariff)
+            )
+        }
         statusVersion = UUID()
     }
     
@@ -403,19 +427,26 @@ struct AppsPage: View {
             List {
                 ForEach(apps) { app in
                     Button {
-                        // Open guide without auto-activating
-                        let item = GuideItem(
-                            name: app.name,
-                            icon: app.icon,
-                            imageName: app.imageName,
-                            scheme: app.scheme,
-                            link: app.link,
-                            status: statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet),
-                            bundleId: app.bundleId
-                        )
-                        guideApp = item
-                        showPopularPicker = false
-                        showOtherPicker = false
+                        if let tariff = pendingTariffForPicker {
+                            activate(app, tariff: tariff)
+                            pendingTariffForPicker = nil
+                            showPopularPicker = false
+                            showOtherPicker = false
+                        } else {
+                            // Open guide without auto-activating
+                            let item = GuideItem(
+                                name: app.name,
+                                icon: app.icon,
+                                imageName: app.imageName,
+                                scheme: app.scheme,
+                                link: app.link,
+                                status: statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet),
+                                bundleId: app.bundleId
+                            )
+                            guideApp = item
+                            showPopularPicker = false
+                            showOtherPicker = false
+                        }
                     } label: {
                         HStack {
                             appIconView(app)
@@ -444,7 +475,16 @@ struct AppsPage: View {
             set: { newValue in
                 let idx = min(max(Int(newValue.rounded()), 0), tariffs.count - 1)
                 let tariff = tariffs[idx]
-                model.updateUnlockSettings(for: app.bundleId, entryCost: tariff.entryCostSteps)
+                guard canAssign(tariff: tariff, to: app) else {
+                    model.message = loc(appLanguage, "Limit reached for \(tariff.displayName)", "Достигнут лимит для \(tariff.displayName)")
+                    statusVersion = UUID()
+                    return
+                }
+                model.updateUnlockSettings(
+                    for: app.bundleId,
+                    entryCost: tariff.entryCostSteps,
+                    dayPassCost: dayPassCost(for: tariff)
+                )
             }
         )
     }
@@ -455,26 +495,29 @@ struct AppsPage: View {
             set: { newValue in
                 let idx = min(max(Int(newValue.rounded()), 0), tariffs.count - 1)
                 let tariff = tariffs[idx]
+                guard canAssign(tariff: tariff, to: app) else {
+                    model.message = loc(appLanguage, "Limit reached for \(tariff.displayName)", "Достигнут лимит для \(tariff.displayName)")
+                    statusVersion = UUID()
+                    return
+                }
                 let cost = dayPassCost(for: tariff)
-                model.updateUnlockSettings(for: app.bundleId, dayPassCost: cost)
+                model.updateUnlockSettings(
+                    for: app.bundleId,
+                    entryCost: tariff.entryCostSteps,
+                    dayPassCost: cost
+                )
             }
         )
     }
     
     private func indexForEntryTariff(_ app: AutomationApp) -> Int {
-        let settings = model.unlockSettings(for: app.bundleId)
-        if let idx = tariffs.firstIndex(where: { $0.entryCostSteps == settings.entryCostSteps }) {
-            return idx
-        }
-        return 0
+        let tariff = currentTariff(for: app)
+        return tariffs.firstIndex(of: tariff) ?? 0
     }
     
     private func indexForDayPassTariff(_ app: AutomationApp) -> Int {
-        let settings = model.unlockSettings(for: app.bundleId)
-        if let idx = tariffs.firstIndex(where: { dayPassCost(for: $0) == settings.dayPassCostSteps }) {
-            return idx
-        }
-        return 0
+        let tariff = currentTariff(for: app)
+        return tariffs.firstIndex(of: tariff) ?? 0
     }
     
     private func dayPassCost(for tariff: Tariff) -> Int {
@@ -488,6 +531,80 @@ struct AppsPage: View {
     
     private var remainingStepsToday: Int {
         max(0, Int(model.stepsToday) - model.spentStepsToday)
+    }
+    
+    // MARK: - Layout for activated groups
+    private func activatedGrid(for apps: [AutomationApp], size: CGFloat, spacing: CGFloat, tariff: Tariff) -> some View {
+        let columns = Array(repeating: GridItem(.fixed(size), spacing: spacing), count: 2)
+        return LazyVGrid(columns: columns, alignment: .leading, spacing: spacing) {
+            ForEach(0..<4, id: \.self) { idx in
+                if idx < apps.count {
+                    let app = apps[idx]
+                    automationButton(
+                        app,
+                        status: statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet),
+                        width: size,
+                        tariff: tariff
+                    )
+                } else {
+                    addCard(size: size, tariff: tariff)
+                }
+            }
+        }
+    }
+
+    private func addCard(size: CGFloat, tariff: Tariff) -> some View {
+        Button {
+            pendingTariffForPicker = tariff
+            showPopularPicker = true
+        } label: {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(tileColor(for: tariff, status: .none))
+                .overlay(
+                    Image(systemName: "plus")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(tileAccent(for: tariff))
+                )
+                .frame(width: size, height: size)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private func nextDeactivatedPopular() -> AutomationApp? {
+        deactivatedPopular.first
+    }
+    
+    private func currentTariff(for app: AutomationApp) -> Tariff {
+        let settings = model.unlockSettings(for: app.bundleId)
+        if let tariff = Tariff.allCases.first(where: {
+            $0.entryCostSteps == settings.entryCostSteps && dayPassCost(for: $0) == settings.dayPassCostSteps
+        }) {
+            return tariff
+        }
+        return .easy
+    }
+
+    private func maxAllowed(for tariff: Tariff) -> Int? {
+        switch tariff {
+        case .free: return 4
+        case .easy: return 4
+        case .medium: return 4
+        case .hard: return 4
+        }
+    }
+
+    private func canAssign(tariff: Tariff, to app: AutomationApp) -> Bool {
+        let current = currentTariff(for: app)
+        if current == tariff { return true }
+        guard let limit = maxAllowed(for: tariff) else { return true }
+
+        let activeCount = activatedApps.filter {
+            statusFor($0, configured: automationConfiguredSet, pending: automationPendingSet) != .none
+                && currentTariff(for: $0) == tariff
+                && $0.bundleId != app.bundleId
+        }.count
+
+        return activeCount < limit
     }
 }
 
@@ -763,32 +880,63 @@ struct AutomationGuideView: View {
     }
 }
 
-struct FAQPage: View {
+struct ManualsPage: View {
     @ObservedObject var model: AppModel
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @State private var isExpanded: Bool = false
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text(loc(appLanguage, "How to set up Shortcuts", "Как настроить шорткаты"))
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                    Text(appLanguage == "ru" ? """
-1. Откройте ссылку на шорткат и добавьте его в Приложение Команды.
-2. Зайдите в Команды → Автоматизация → + → Приложение.
-3. Выберите нужное приложение, включите «Открыто» и «Выполнять сразу».
-4. Укажите добавленный шорткат Steps Trader.
-5. Откройте приложение один раз, чтобы активировать автоматизацию.
-""" : """
-1. Open the provided shortcut link and add it to your Shortcuts app.
-2. Go to Shortcuts → Automation → + → App.
-3. Select the target app, enable \"Is Opened\" and \"Run Immediately\".
-4. Choose the Steps Trader shortcut you added.
-5. Open the app once to activate the automation.
-""")
-                        .font(.body)
-                        .foregroundColor(.secondary)
+                    Button {
+                        withAnimation(.easeInOut) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Text(appLanguage == "ru" ? "Как подключить модуль" : "How to set a module")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            Spacer()
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    
+                    if isExpanded {
+                        VStack(alignment: .leading, spacing: 12) {
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(height: 180)
+                                .overlay(
+                                    Text(appLanguage == "ru" ? "Место для картинки" : "Image placeholder")
+                                        .foregroundColor(.secondary)
+                                )
+                            
+                            Text(appLanguage == "ru" ? "Шаги" : "Steps")
+                                .font(.headline)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(appLanguage == "ru" ? "1. Откройте ссылку на модуль и добавьте его в Команды." : "1. Open the module link and add it to Shortcuts.")
+                                Text(appLanguage == "ru" ? "2. В Команды → Автоматизация → + → Приложение выберите нужное приложение и включите «Открыто» и «Выполнять сразу»." : "2. In Shortcuts → Automation → + → App, pick the target app and enable “Is Opened” and “Run Immediately”.")
+                                Text(appLanguage == "ru" ? "3. Укажите модуль Steps Trader и сохраните." : "3. Select the Steps Trader module and save.")
+                                Text(appLanguage == "ru" ? "4. Откройте приложение один раз, чтобы активировать автоматизацию." : "4. Open the app once to activate automation.")
+                            }
+                            .font(.body)
+                            .foregroundColor(.primary)
+                            
+                            Text(appLanguage == "ru" ? "Подсказка" : "Tip")
+                                .font(.headline)
+                            Text(appLanguage == "ru" ? "Если модуль не срабатывает, убедитесь, что включены уведомления и доступ к Командам." : "If the module doesn’t fire, ensure notifications and Shortcuts access are enabled.")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .background(RoundedRectangle(cornerRadius: 16).fill(Color.gray.opacity(0.08)))
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
                 .padding()
             }
@@ -796,5 +944,6 @@ struct FAQPage: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(true)
         }
+        .background(Color.clear)
     }
 }

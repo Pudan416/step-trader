@@ -2,10 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSHealthShareUsageDescription</key>
-	<string>Steps Trader needs access to your step count to calculate entries.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>Steps Trader may update Health data if required.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -22,5 +18,7 @@
 	</array>
 	<key>DEEPSEEK_API_KEY</key>
 	<string>sk-deb0bea2daa34ca8a9dc766db1468753</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string></string>
 </dict>
 </plist>
