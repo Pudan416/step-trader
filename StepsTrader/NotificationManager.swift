@@ -17,7 +17,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendTimeExpiredNotification() {
         let content = UNMutableNotificationContent()
         content.title = "⏰ Steps Trader"
-        content.body = "Time is up! Check whether you earned more time—walk additional steps to unlock."
+        content.body = "Fuel empty. Earn more steps to unlock."
         content.sound = .default
         content.badge = nil
         
@@ -40,9 +40,9 @@ final class NotificationManager: NotificationServiceProtocol {
         let content = UNMutableNotificationContent()
         content.title = "⏰ Steps Trader"
         if remainingMinutes > 0 {
-            content.body = "Time is up! You had \(remainingMinutes) min. Walk more steps to unlock."
+            content.body = "Fuel empty. You had \(remainingMinutes) min. Earn steps to unlock."
         } else {
-            content.body = "Time is up! Walk more steps to unlock."
+            content.body = "Fuel empty. Earn steps to unlock."
         }
         content.sound = .default
         content.badge = nil
@@ -65,7 +65,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendUnblockNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
         content.title = "🎉 Steps Trader"
-        content.body = "Time restored! Available: \(remainingMinutes) minutes"
+        content.body = "Fuel restored: \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
         
@@ -87,7 +87,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendRemainingTimeNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
         content.title = "⏱️ Steps Trader"
-        content.body = "Time remaining: \(remainingMinutes) min"
+        content.body = "Fuel left: \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
         
@@ -127,16 +127,90 @@ final class NotificationManager: NotificationServiceProtocol {
             }
         }
     }
-}
-
-// MARK: - Notification Errors
-enum NotificationError: Error, LocalizedError {
-    case permissionDenied
     
-    var errorDescription: String? {
-        switch self {
-        case .permissionDenied:
-            return "Notifications were denied by the user"
+    func sendAccessWindowReminder(remainingSeconds: Int, bundleId: String) {
+        let remainingMinutes = max(0, remainingSeconds / 60)
+        let content = UNMutableNotificationContent()
+        let displayName = TargetResolver.displayName(for: bundleId)
+        content.title = "⏱️ \(displayName)"
+        if remainingMinutes > 0 {
+            content.body = "\(displayName) off in \(remainingMinutes) min."
+        } else {
+            content.body = "\(displayName) off in \(remainingSeconds) sec."
+        }
+        content.sound = .default
+        content.badge = nil
+        
+        let request = UNNotificationRequest(
+            identifier: "accessWindow-\(bundleId)-\(UUID().uuidString)",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to send access window reminder: \(error)")
+            } else {
+                print("📤 Sent access window reminder for \(bundleId)")
+            }
+        }
+    }
+    
+    func scheduleAccessWindowStatus(remainingSeconds: Int, bundleId: String) {
+        guard remainingSeconds > 10 else { return }
+        
+        // Стоп-листы для разных окон: 5 минут, 1 час, день
+        let patterns: [[Int]]
+        switch remainingSeconds {
+        case ..<360: // ~5 минут
+            patterns = [[60], [240]] // через 1 и 4 минуты
+        case ..<4000: // ~1 час
+            patterns = [[60], [1800], [3300]] // через 1, 30 и 55 минут
+        default: // день и больше
+            patterns = [[max(0, remainingSeconds - 3600)]] // за час до окончания
+        }
+        
+        for offsets in patterns {
+            guard let fireIn = offsets.first else { continue }
+            guard fireIn > 0, fireIn < remainingSeconds else { continue }
+            
+            let content = UNMutableNotificationContent()
+            let displayName = TargetResolver.displayName(for: bundleId)
+            content.title = "⏱️ \(displayName)"
+            let minutesLeft = max(0, (remainingSeconds - fireIn) / 60)
+            if minutesLeft > 0 {
+                content.body = "\(displayName) off in \(minutesLeft) min."
+            } else {
+                content.body = "\(displayName) off in \(remainingSeconds - fireIn) sec."
+            }
+            content.sound = .default
+            content.badge = nil
+            
+            let request = UNNotificationRequest(
+                identifier: "accessWindow-status-\(bundleId)-\(UUID().uuidString)",
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(fireIn), repeats: false)
+            )
+            
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    print("❌ Failed to schedule access window status: \(error)")
+                } else {
+                    print("📤 Scheduled access window status for \(bundleId) in \(fireIn)s")
+                }
+            }
+        }
+    }
+    
+    // MARK: - Notification Errors
+    enum NotificationError: Error, LocalizedError {
+        case permissionDenied
+        
+        var errorDescription: String? {
+            switch self {
+            case .permissionDenied:
+                return "Notifications were denied by the user"
+            }
         }
     }
 }

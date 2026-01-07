@@ -279,24 +279,7 @@ final class AppModel: ObservableObject {
         userDefaults.set(now, forKey: "lastURLHandleTime")
 
         if host == "pay" {
-            var bundleIdForPay = target
-            if let t = target, !t.contains(".") {
-                switch t.lowercased() {
-                case "instagram": bundleIdForPay = "com.burbn.instagram"
-                case "tiktok": bundleIdForPay = "com.zhiliaoapp.musically"
-                case "youtube": bundleIdForPay = "com.google.ios.youtube"
-                case "telegram": bundleIdForPay = "ph.telegra.Telegraph"
-                case "whatsapp": bundleIdForPay = "net.whatsapp.WhatsApp"
-                case "snapchat": bundleIdForPay = "com.toyopagroup.picaboo"
-                case "facebook": bundleIdForPay = "com.facebook.Facebook"
-                case "linkedin": bundleIdForPay = "com.linkedin.LinkedIn"
-                case "x", "twitter": bundleIdForPay = "com.atebits.Tweetie2"
-                case "reddit": bundleIdForPay = "com.reddit.Reddit"
-                case "pinterest": bundleIdForPay = "com.pinterest"
-                case "duolingo": bundleIdForPay = "com.duolingo.DuolingoMobile"
-                default: break
-                }
-            }
+            let bundleIdForPay = TargetResolver.bundleId(from: target)
             Task { @MainActor in
                 await refreshStepsBalance()
                 startPayGateSession(for: bundleIdForPay ?? "unknown")
@@ -318,25 +301,7 @@ final class AppModel: ObservableObject {
         let isPay = (host == "pay" || url.path.contains("pay"))
         let isGuard = (host == "guard" || url.path.contains("guard"))
         guard isPay || isGuard else { return }
-        var bundleId: String? = target
-        if let t = target, !t.contains(".") {
-            // маппинг короткого имени в bundle id
-            switch t.lowercased() {
-            case "instagram": bundleId = "com.burbn.instagram"
-            case "tiktok": bundleId = "com.zhiliaoapp.musically"
-            case "youtube": bundleId = "com.google.ios.youtube"
-            case "telegram": bundleId = "ph.telegra.Telegraph"
-            case "whatsapp": bundleId = "net.whatsapp.WhatsApp"
-            case "snapchat": bundleId = "com.toyopagroup.picaboo"
-            case "facebook": bundleId = "com.facebook.Facebook"
-            case "linkedin": bundleId = "com.linkedin.LinkedIn"
-            case "x", "twitter": bundleId = "com.atebits.Tweetie2"
-            case "reddit": bundleId = "com.reddit.Reddit"
-            case "pinterest": bundleId = "com.pinterest"
-            case "duolingo": bundleId = "com.duolingo.DuolingoMobile"
-            default: break
-            }
-        }
+        let bundleId: String? = TargetResolver.bundleId(from: target)
         if let bid = bundleId { startPayGateSession(for: bid) }
         print("🎯 Deeplink: host=\(url.host ?? "nil") target=\(bundleId ?? "nil")")
 
@@ -367,14 +332,15 @@ final class AppModel: ObservableObject {
     }
 
     // MARK: - PayGate payment pipeline
-    func handlePayGatePayment(for bundleId: String) async {
+    func handlePayGatePayment(for bundleId: String, costOverride: Int? = nil) async {
         let userDefaults = UserDefaults.stepsTrader()
         await refreshStepsBalance()
         let settings = unlockSettings(for: bundleId)
+        let effectiveCost = costOverride ?? settings.entryCostSteps
         print("🎯 PayGate: Evaluating payment for \(bundleId)")
         print("   - stepsToday: \(Int(stepsToday))")
         print("   - stepsBalance: \(stepsBalance)")
-        print("   - entryCostSteps: \(settings.entryCostSteps)")
+        print("   - entryCostSteps: \(effectiveCost)")
         print("   - dayPassCostSteps: \(settings.dayPassCostSteps)")
         print("   - selected apps: \(appSelection.applicationTokens.count)")
         print("   - selected categories: \(appSelection.categoryTokens.count)")
@@ -383,20 +349,20 @@ final class AppModel: ObservableObject {
             message = "✅ Day pass active for today."
             print("✅ PayGate: Day pass already active for \(bundleId)")
         } else {
-            guard canPayForEntry(for: bundleId) else {
+            guard canPayForEntry(for: bundleId, costOverride: costOverride) else {
                 message =
-                    "❌ Not enough steps. Need another \(max(0, settings.entryCostSteps - stepsBalance)) steps."
-                print("❌ PayGate: Not enough steps (balance \(stepsBalance) < cost \(settings.entryCostSteps))")
+                    "❌ Not enough steps. Need another \(max(0, effectiveCost - stepsBalance)) steps."
+                print("❌ PayGate: Not enough steps (balance \(stepsBalance) < cost \(effectiveCost))")
                 return
             }
 
-            guard payForEntry(for: bundleId) else {
+            guard payForEntry(for: bundleId, costOverride: costOverride) else {
                 print("❌ PayGate: payForEntry() returned false")
                 return
             }
             print("✅ PayGate: payForEntry() succeeded; new balance \(stepsBalance)")
 
-            message = "✅ \(settings.entryCostSteps) steps deducted. Access granted."
+            message = "✅ \(effectiveCost) steps deducted. Access granted."
         }
 
         print("✅ PayGate: Steps deducted or day pass active, proceeding to open target app")
@@ -517,6 +483,13 @@ final class AppModel: ObservableObject {
     // MARK: - PayGate sessions
     @MainActor
     func startPayGateSession(for bundleId: String) {
+        if isAccessBlocked(for: bundleId) {
+            print("🚫 PayGate blocked until window expires for \(bundleId)")
+            if let remaining = remainingAccessSeconds(for: bundleId) {
+                notifyAccessWindow(remainingSeconds: remaining, bundleId: bundleId)
+            }
+            // Продолжаем показывать PayGate, чтобы пользователь видел статус и мог управлять доступом
+        }
         let session = PayGateSession(id: bundleId, bundleId: bundleId, startedAt: Date())
         payGateSessions[bundleId] = session
         currentPayGateSessionId = bundleId
@@ -581,6 +554,8 @@ final class AppModel: ObservableObject {
 
     func handleAppWillEnterForeground() {
         print("📱 App entering foreground - checking elapsed time")
+        purgeExpiredAccessWindows()
+        handleBlockedRedirect()
 
         // Принудительно восстанавливаем выбор приложений при возврате в приложение
         forceRestoreAppSelection()
@@ -954,9 +929,9 @@ final class AppModel: ObservableObject {
         return unique.count
     }
 
-    func canPayForEntry(for bundleId: String? = nil) -> Bool {
+    func canPayForEntry(for bundleId: String? = nil, costOverride: Int? = nil) -> Bool {
         if hasDayPass(for: bundleId) { return true }
-        let cost = unlockSettings(for: bundleId).entryCostSteps
+        let cost = costOverride ?? unlockSettings(for: bundleId).entryCostSteps
         return stepsBalance >= cost
     }
 
@@ -968,9 +943,9 @@ final class AppModel: ObservableObject {
     }
 
     @discardableResult
-    func payForEntry(for bundleId: String? = nil) -> Bool {
+    func payForEntry(for bundleId: String? = nil, costOverride: Int? = nil) -> Bool {
         if hasDayPass(for: bundleId) { return true }
-        let cost = unlockSettings(for: bundleId).entryCostSteps
+        let cost = costOverride ?? unlockSettings(for: bundleId).entryCostSteps
         let success = pay(cost: cost)
         if success, let bundleId { addSpentSteps(cost, for: bundleId) }
         return success
@@ -1188,6 +1163,105 @@ final class AppModel: ObservableObject {
         }
         appStepsSpentToday[bundleId, default: 0] += cost
         persistAppStepsSpentToday()
+    }
+
+    // MARK: - Access window helpers
+    func applyAccessWindow(_ window: AccessWindow, for bundleId: String) {
+        let g = UserDefaults.stepsTrader()
+        guard let until = accessWindowExpiration(window, now: Date()) else {
+            g.removeObject(forKey: accessBlockKey(for: bundleId))
+            return
+        }
+        g.set(until, forKey: accessBlockKey(for: bundleId))
+        let remaining = Int(until.timeIntervalSince(Date()))
+        print("⏱️ Access window set for \(bundleId) until \(until) (\(remaining) seconds)")
+        notificationService.scheduleAccessWindowStatus(remainingSeconds: remaining, bundleId: bundleId)
+    }
+
+    func isAccessBlocked(for bundleId: String) -> Bool {
+        let g = UserDefaults.stepsTrader()
+        guard let until = g.object(forKey: accessBlockKey(for: bundleId)) as? Date else {
+            return false
+        }
+        if Date() >= until {
+            g.removeObject(forKey: accessBlockKey(for: bundleId))
+            return false
+        }
+        let remaining = Int(until.timeIntervalSince(Date()))
+        print("⏱️ Access window active for \(bundleId), remaining \(remaining) seconds")
+        return true
+    }
+
+    func remainingAccessSeconds(for bundleId: String) -> Int? {
+        let g = UserDefaults.stepsTrader()
+        guard let until = g.object(forKey: accessBlockKey(for: bundleId)) as? Date else { return nil }
+        let remaining = Int(until.timeIntervalSince(Date()))
+        if remaining <= 0 {
+            g.removeObject(forKey: accessBlockKey(for: bundleId))
+            return nil
+        }
+        return remaining
+    }
+
+    private func accessBlockKey(for bundleId: String) -> String {
+        "shortcutBlockUntil_\(bundleId)"
+    }
+
+    private func purgeExpiredAccessWindows() {
+        let g = UserDefaults.stepsTrader()
+        let now = Date()
+        let keys = g.dictionaryRepresentation().keys.filter { $0.hasPrefix("shortcutBlockUntil_") }
+        for key in keys {
+            if let until = g.object(forKey: key) as? Date {
+                if now >= until {
+                    g.removeObject(forKey: key)
+                }
+            } else {
+                g.removeObject(forKey: key)
+            }
+        }
+    }
+
+    private func handleBlockedRedirect() {
+        let g = UserDefaults.stepsTrader()
+        guard let bundleId = g.string(forKey: "blockedPaygateBundleId"),
+              let ts = g.object(forKey: "blockedPaygateTimestamp") as? Date
+        else { return }
+        if Date().timeIntervalSince(ts) > 5 * 60 {
+            g.removeObject(forKey: "blockedPaygateBundleId")
+            g.removeObject(forKey: "blockedPaygateTimestamp")
+            return
+        }
+        print("🚫 Redirecting away due to active access window for \(bundleId)")
+        g.removeObject(forKey: "blockedPaygateBundleId")
+        g.removeObject(forKey: "blockedPaygateTimestamp")
+        if let scheme = TargetResolver.urlScheme(forBundleId: bundleId),
+           let url = URL(string: scheme) {
+            Task { @MainActor in
+                UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            }
+        }
+    }
+
+    private func accessWindowExpiration(_ window: AccessWindow, now: Date) -> Date? {
+        switch window {
+        case .single:
+            // Короткий кулдаун 10 секунд, чтобы предотвратить мгновенные повторы
+            return now.addingTimeInterval(10)
+        case .minutes5:
+            return now.addingTimeInterval(5 * 60)
+        case .hour1:
+            return now.addingTimeInterval(60 * 60)
+        case .day1:
+            var comps = DateComponents()
+            comps.hour = dayEndHour
+            comps.minute = dayEndMinute
+            let cal = Calendar.current
+            if let end = cal.nextDate(after: now, matching: comps, matchingPolicy: .nextTimePreservingSmallerComponents) {
+                return end
+            }
+            return now.addingTimeInterval(24 * 60 * 60)
+        }
     }
     
     // MARK: - PayGate helpers
@@ -1526,6 +1600,17 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func notifyAccessWindow(remainingSeconds: Int, bundleId: String) {
+        let state = UIApplication.shared.applicationState
+        if state == .active {
+            let mins = max(0, remainingSeconds / 60)
+            let secs = max(0, remainingSeconds % 60)
+            let timeText = mins > 0 ? "\(mins)m \(secs)s" : "\(secs)s"
+            message = "⏱️ Access active for \(bundleId): \(timeText) left"
+            print("⏱️ Foreground access reminder: \(bundleId) \(timeText)")
+        }
+    }
+    
     private func schedulePeriodicNotifications() {
         guard isBlocked else { return }
 
@@ -2108,12 +2193,7 @@ final class AppModel: ObservableObject {
     }
 
     private func getBundleIdDisplayName(_ bundleId: String) -> String {
-        switch bundleId {
-        case "com.burbn.instagram": return "Instagram"
-        case "com.zhiliaoapp.musically": return "TikTok"
-        case "com.google.ios.youtube": return "YouTube"
-        default: return bundleId
-        }
+        TargetResolver.displayName(for: bundleId)
     }
 
     // MARK: - App Selection Methods

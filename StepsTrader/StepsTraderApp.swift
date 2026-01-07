@@ -1,6 +1,5 @@
 import SwiftUI
 import Combine
-import Combine
 
 @main
 struct StepsTraderApp: App {
@@ -62,6 +61,11 @@ struct StepsTraderApp: App {
                 print(
                     "🎭 PayGate state - showPayGate: \(model.showPayGate), targetBundleId: \(model.payGateTargetBundleId ?? "nil")"
                 )
+                if let bundleId = model.payGateTargetBundleId, model.isAccessBlocked(for: bundleId) {
+                    print("🚫 PayGate dismissed on appear: access window active for \(bundleId)")
+                    model.dismissPayGate()
+                    clearPayGateFlags(UserDefaults.stepsTrader())
+                }
                 checkForHandoffToken()
                 checkForPayGateFlags()
             }
@@ -96,6 +100,17 @@ struct StepsTraderApp: App {
                 if let userInfo = notification.userInfo,
                    let target = userInfo["target"] as? String,
                    let bundleId = userInfo["bundleId"] as? String {
+                    if model.showPayGate {
+                        print("ℹ️ PayGate already visible, ignoring notification")
+                        return
+                    }
+                    if model.isAccessBlocked(for: bundleId) {
+                        print("🚫 PayGate notification ignored: access window active for \(bundleId)")
+                        model.dismissPayGate()
+                        clearPayGateFlags(UserDefaults.stepsTrader())
+                        reopenTargetIfPossible(bundleId: bundleId)
+                        return
+                    }
                     print("📱 PayGate notification - target: \(target), bundleId: \(bundleId)")
                     Task { @MainActor in
                         model.startPayGateSession(for: bundleId)
@@ -112,6 +127,17 @@ struct StepsTraderApp: App {
                    let bundleId = userInfo["bundleId"] as? String {
                     let g = UserDefaults.stepsTrader()
                     let lastOpen = g.object(forKey: "lastAppOpenedFromStepsTrader_\(bundleId)") as? Date
+                    if model.showPayGate {
+                        print("ℹ️ PayGate already visible, ignoring local notification")
+                        return
+                    }
+                    if model.isAccessBlocked(for: bundleId) {
+                        print("🚫 PayGate local ignored: access window active for \(bundleId)")
+                        model.dismissPayGate()
+                        clearPayGateFlags(UserDefaults.stepsTrader())
+                        reopenTargetIfPossible(bundleId: bundleId)
+                        return
+                    }
                     if let lastOpen {
                         let elapsed = Date().timeIntervalSince(lastOpen)
                         if elapsed < 10 {
@@ -190,7 +216,8 @@ struct StepsTraderApp: App {
         let triggerTime = userDefaults.object(forKey: "shortcutTriggerTime") as? Date
         let isRecentTrigger: Bool = {
             guard let triggerTime else { return false }
-            return Date().timeIntervalSince(triggerTime) < 20
+            // Даем больше времени на доставку уведомления/запуск приложения из шортката
+            return Date().timeIntervalSince(triggerTime) < 120
         }()
         
         print("🔍 Checking PayGate flags - shouldShowPayGate: \(shouldShowPayGate), shortcutTriggered: \(shortcutTriggered), isRecentTrigger: \(isRecentTrigger)")
@@ -204,48 +231,46 @@ struct StepsTraderApp: App {
             print("🎯 shouldShowPayGate: \(shouldShowPayGate), shortcutTriggered: \(shortcutTriggered)")
             
             // Map shortcut target to bundle ID if needed
-            var finalBundleId = targetBundleId
-            if finalBundleId == nil, let shortcutTarget = shortcutTarget {
-                switch shortcutTarget.lowercased() {
-                case "instagram": finalBundleId = "com.burbn.instagram"
-                case "tiktok": finalBundleId = "com.zhiliaoapp.musically"
-                case "youtube": finalBundleId = "com.google.ios.youtube"
-                case "telegram": finalBundleId = "ph.telegra.Telegraph"
-                case "whatsapp": finalBundleId = "net.whatsapp.WhatsApp"
-                case "snapchat": finalBundleId = "com.toyopagroup.picaboo"
-                case "facebook": finalBundleId = "com.facebook.Facebook"
-                case "linkedin": finalBundleId = "com.linkedin.LinkedIn"
-                case "x", "twitter": finalBundleId = "com.atebits.Tweetie2"
-                case "reddit": finalBundleId = "com.reddit.Reddit"
-                case "pinterest": finalBundleId = "com.pinterest"
-                case "duolingo": finalBundleId = "com.duolingo.DuolingoMobile"
-                default: finalBundleId = shortcutTarget
-                }
-            }
+            let finalBundleId = targetBundleId ?? TargetResolver.bundleId(from: shortcutTarget)
             
             print("🎯 Final bundle ID: \(finalBundleId ?? "nil")")
             if let bundleId = finalBundleId {
+                if model.isAccessBlocked(for: bundleId) {
+                    print("🚫 PayGate flags ignored: access window active for \(bundleId)")
+                    reopenTargetIfPossible(bundleId: bundleId)
+                    clearPayGateFlags(userDefaults)
+                    return
+                }
                 Task { @MainActor in
                     model.startPayGateSession(for: bundleId)
                 }
             }
             
             // Clear the flags
-            userDefaults.removeObject(forKey: "shouldShowPayGate")
-            userDefaults.removeObject(forKey: "payGateTargetBundleId")
-            userDefaults.removeObject(forKey: "shortcutTriggered")
-            userDefaults.removeObject(forKey: "shortcutTarget")
-            userDefaults.removeObject(forKey: "shortcutTriggerTime")
+            clearPayGateFlags(userDefaults)
             
             print("🎯 PayGate should now be visible!")
         } else {
             print("🔍 No PayGate flags found")
             // Cleanup stale flags so PayGate won't show on normal app launch
-            userDefaults.removeObject(forKey: "shouldShowPayGate")
-            userDefaults.removeObject(forKey: "payGateTargetBundleId")
-            userDefaults.removeObject(forKey: "shortcutTriggered")
-            userDefaults.removeObject(forKey: "shortcutTarget")
-            userDefaults.removeObject(forKey: "shortcutTriggerTime")
+            clearPayGateFlags(userDefaults)
+        }
+    }
+    
+    private func clearPayGateFlags(_ userDefaults: UserDefaults) {
+        userDefaults.removeObject(forKey: "shouldShowPayGate")
+        userDefaults.removeObject(forKey: "payGateTargetBundleId")
+        userDefaults.removeObject(forKey: "shortcutTriggered")
+        userDefaults.removeObject(forKey: "shortcutTarget")
+        userDefaults.removeObject(forKey: "shortcutTriggerTime")
+    }
+    
+    private func reopenTargetIfPossible(bundleId: String) {
+        guard let scheme = TargetResolver.urlScheme(forBundleId: bundleId),
+              let url = URL(string: scheme)
+        else { return }
+        Task { @MainActor in
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
         }
     }
     
@@ -255,7 +280,7 @@ private extension StepsTraderApp {
     var currentTheme: AppTheme {
         AppTheme(rawValue: appThemeRaw) ?? .system
     }
-    
+
     var cosmicBackground: some View {
         ZStack {
             LinearGradient(
@@ -632,6 +657,7 @@ struct PayGateView: View {
     @State private var lastSessionId: String? = nil
     @State private var showTransitionCircle: Bool = false
     @State private var transitionScale: CGFloat = 0.01
+    @State private var selectedWindow: AccessWindow = .single
     private let totalCountdown: Int = 10
     private let countdownTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
@@ -702,20 +728,15 @@ struct PayGateView: View {
                 Spacer(minLength: 12)
                 
                 VStack(spacing: 20) {
-                    if let bundleId = activeBundleId, let session = activeSession {
-                        let settings = model.unlockSettings(for: bundleId)
-                        let hasPass = model.hasDayPass(for: bundleId)
-                        let isFree = settings.entryCostSteps == 0
-                        let canPayEntry = hasPass || isFree || model.stepsBalance >= settings.entryCostSteps
-                        let canPayDayPass =
-                            !hasPass
-                            && !isFree
-                            && model.stepsBalance >= settings.dayPassCostSteps
-                        let isTimedOut = timedOutSessions.contains(bundleId) || remainingSeconds(for: session) <= 0
-                        let tariff = activeTariff
-                        
-                        if !isTimedOut {
-                            // Countdown timer with ring
+                        if let bundleId = activeBundleId, let session = activeSession {
+                            let settings = model.unlockSettings(for: bundleId)
+                            let hasPass = model.hasDayPass(for: bundleId)
+                            let isFree = settings.entryCostSteps == 0
+                            let isTimedOut = timedOutSessions.contains(bundleId) || remainingSeconds(for: session) <= 0
+                            let tariff = activeTariff
+                            
+                            if !isTimedOut {
+                                // Countdown timer with ring
                             VStack(spacing: 8) {
                                 ZStack {
                                     Circle()
@@ -741,108 +762,10 @@ struct PayGateView: View {
                                     .multilineTextAlignment(.center)
                             }
                             
-                            if isFree {
-                                Button("Jump right in") {
-                                    print("🎯 PayGate: User clicked free jump for \(bundleId)")
-                                    guard !isTimedOut, !isForfeited(bundleId) else { return }
-                                    setForfeit(bundleId)
-                                    performTransition {
-                                        Task { await model.handlePayGatePayment(for: bundleId) }
-                                    }
+                            VStack(spacing: 10) {
+                                ForEach(AccessWindow.allCases, id: \.self) { window in
+                                    accessWindowButton(window: window, bundleId: bundleId, isTimedOut: isTimedOut, isForfeited: isForfeited(bundleId))
                                 }
-                                .frame(maxWidth: .infinity, minHeight: 50)
-                                .background(accentColor(for: tariff))
-                                .foregroundColor(.white)
-                                .font(.headline)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                            } else if hasPass {
-                                Button("Jump right in") {
-                                    print("🎯 PayGate: User clicked open with daily boost for \(bundleId)")
-                                    guard !isTimedOut, !isForfeited(bundleId) else { return }
-                                    setForfeit(bundleId)
-                                    performTransition {
-                                        Task { await model.handlePayGatePayment(for: bundleId) }
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 50)
-                                .background(accentColor(for: tariff))
-                                .foregroundColor(.white)
-                                .font(.headline)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                                
-                                Text("Daily boost activated till \(dailyBoostEndTime())")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white.opacity(0.8))
-                                    .frame(maxWidth: .infinity, alignment: .center)
-                            } else {
-                                let entryTitle = "Jump in for \(settings.entryCostSteps) fuel"
-                                Button(entryTitle) {
-                                    print("🎯 PayGate: User clicked pay button for \(bundleId)")
-                                    guard !isTimedOut, !isForfeited(bundleId) else {
-                                        print("🚫 PayGate: Timer expired, ignoring pay action")
-                                        return
-                                    }
-
-                                    setForfeit(bundleId)
-                                    // Anti-loop check for PayGate button clicks
-                                    let userDefaults = UserDefaults.stepsTrader()
-                                    let now = Date()
-                                    
-                                    if let lastPayGateAction = userDefaults.object(forKey: "lastPayGateAction") as? Date {
-                                        let timeSinceLastAction = now.timeIntervalSince(lastPayGateAction)
-                                        if timeSinceLastAction < 1.0 {
-                                            print("🚫 PayGate button clicked too recently (\(String(format: "%.1f", timeSinceLastAction))s), ignoring to prevent loop")
-                                            return
-                                        }
-                                    }
-                                    
-                                    Task {
-                                        performTransition {
-                                            Task {
-                                                await model.handlePayGatePayment(for: bundleId)
-                                            }
-                                        }
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 50)
-                                .background(
-                                    canPayEntry && !isTimedOut && !isForfeited(bundleId)
-                                        ? accentColor(for: tariff) : Color.gray
-                                )
-                                .foregroundColor(.white)
-                                .font(.headline)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                                .disabled(!canPayEntry || isTimedOut || isForfeited(bundleId))
-                                
-                                let dayPassTitle = "Daily boost for \(settings.dayPassCostSteps) fuel"
-                                Button(dayPassTitle) {
-                                    print("🌞 PayGate: User clicked day pass for \(bundleId)")
-                                    guard !isTimedOut, !isForfeited(bundleId) else {
-                                        print("🚫 PayGate: Timer expired, ignoring day pass action")
-                                        return
-                                    }
-                                    setForfeit(bundleId)
-                                    Task { @MainActor in
-                                        performTransition {
-                                            Task { @MainActor in
-                                                let success = model.payForDayPass(for: bundleId)
-                                                if success {
-                                                    await model.handlePayGatePayment(for: bundleId)
-                                                } else {
-                                                    model.message = "❌ Not enough steps for day pass (\(settings.dayPassCostSteps))"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                                .background(
-                                    canPayDayPass && !isTimedOut && !isForfeited(bundleId) ? accentColor(for: tariff).opacity(0.85) : Color.gray
-                                )
-                                .foregroundColor(.white)
-                                .font(.headline)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                                .disabled(!canPayDayPass || isTimedOut || isForfeited(bundleId))
                             }
                         } else {
                             VStack(spacing: 12) {
@@ -1130,5 +1053,60 @@ extension PayGateView {
         }
         model.selectTariffForToday(tariff, bundleId: bundleId)
         await model.handlePayGatePayment(for: bundleId)
+    }
+
+    private func windowCost(for tariff: Tariff, window: AccessWindow) -> Int {
+        switch tariff {
+        case .free:
+            return 0
+        case .easy:
+            switch window {
+            case .single: return 10
+            case .minutes5: return 50
+            case .hour1: return 500
+            case .day1: return 5000
+            }
+        case .medium:
+            switch window {
+            case .single: return 50
+            case .minutes5: return 250
+            case .hour1: return 2500
+            case .day1: return 10000
+            }
+        case .hard:
+            switch window {
+            case .single: return 100
+            case .minutes5: return 500
+            case .hour1: return 5000
+            case .day1: return 20000
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func accessWindowButton(window: AccessWindow, bundleId: String, isTimedOut: Bool, isForfeited: Bool) -> some View {
+        let tariff = activeTariff
+        let baseCost = windowCost(for: tariff, window: window)
+        let hasPass = model.hasDayPass(for: bundleId)
+        let effectiveCost = hasPass ? 0 : baseCost
+        let canPay = effectiveCost == 0 || model.stepsBalance >= effectiveCost
+        let title = "\(window.displayName) • \(effectiveCost) fuel"
+
+        Button(title) {
+            guard !isTimedOut, !isForfeited else { return }
+            setForfeit(bundleId)
+            model.applyAccessWindow(window, for: bundleId)
+            Task {
+                performTransition {
+                    Task { await model.handlePayGatePayment(for: bundleId, costOverride: effectiveCost) }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .background(canPay && !isTimedOut && !isForfeited ? accentColor(for: tariff) : Color.gray)
+        .foregroundColor(.white)
+        .font(.headline)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .disabled(!canPay || isTimedOut || isForfeited)
     }
 }

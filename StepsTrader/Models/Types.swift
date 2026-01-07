@@ -50,6 +50,8 @@ protocol NotificationServiceProtocol {
     func sendUnblockNotification(remainingMinutes: Int)
     func sendRemainingTimeNotification(remainingMinutes: Int)
     func sendTestNotification()
+    func sendAccessWindowReminder(remainingSeconds: Int, bundleId: String)
+    func scheduleAccessWindowStatus(remainingSeconds: Int, bundleId: String)
 }
 
 // MARK: - Budget Engine Protocol

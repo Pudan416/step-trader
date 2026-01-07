@@ -5,6 +5,8 @@ struct AppsPage: View {
     @ObservedObject var model: AppModel
     let automationApps: [AutomationApp]
     let tariffs: [Tariff]
+    @State private var clockTick: Int = 0
+    private let tickTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @State private var guideApp: GuideItem?
     @State private var showPopularPicker: Bool = false
     @State private var showOtherPicker: Bool = false
@@ -227,6 +229,9 @@ struct AppsPage: View {
         .sheet(isPresented: $showOtherPicker) {
             pickerView(apps: deactivatedOthers, title: loc(appLanguage, "Other apps", "Другие приложения"))
         }
+        .onReceive(tickTimer) { _ in
+            clockTick &+= 1
+        }
     }
     
     private func statusFor(_ app: AutomationApp,
@@ -309,8 +314,27 @@ struct AppsPage: View {
                     RoundedRectangle(cornerRadius: 18)
                         .fill(tileColor(for: tariff, status: status))
                         .frame(width: width, height: width)
-                        .overlay(appIconView(app)
-                            .frame(width: width * 0.6, height: width * 0.6))
+                        .overlay(
+                            ZStack {
+                                appIconView(app)
+                                    .frame(width: width * 0.6, height: width * 0.6)
+                                if let remaining = model.remainingAccessSeconds(for: app.bundleId), remaining > 0 {
+                                    let mins = max(0, remaining / 60)
+                                    let secs = max(0, remaining % 60)
+                                    let formatted = String(format: "%02d:%02d", mins, secs)
+                                    Text(formatted)
+                                        .font(.caption.bold())
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.black.opacity(0.45))
+                                        .clipShape(Capsule())
+                                        .padding(.bottom, 6)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                                }
+                            }
+                            .id(clockTick)
+                        )
                     statusIcon(for: status)
                         .padding(6)
                 }

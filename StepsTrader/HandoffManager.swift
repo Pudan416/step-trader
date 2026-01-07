@@ -52,13 +52,7 @@ extension AppModel {
 
         print("🚀 Opening \(bundleId) from HandoffManager and setting protection flag at \(now)")
 
-        let scheme: String
-        switch bundleId {
-        case "com.burbn.instagram": scheme = "instagram://app"
-        case "com.zhiliaoapp.musically": scheme = "tiktok://"
-        case "com.google.ios.youtube": scheme = "youtube://"
-        default: scheme = "instagram://app"
-        }
+        let scheme = bundleScheme(for: bundleId)
 
         if let url = URL(string: scheme) {
             UIApplication.shared.open(url) { success in
@@ -69,5 +63,23 @@ extension AppModel {
                 }
             }
         }
+    }
+    
+    private func bundleScheme(for bundleId: String) -> String {
+        let map: [String: String] = [
+            "com.burbn.instagram": "instagram://app",
+            "com.zhiliaoapp.musically": "tiktok://",
+            "com.google.ios.youtube": "youtube://",
+            "ph.telegra.Telegraph": "tg://",
+            "net.whatsapp.WhatsApp": "whatsapp://",
+            "com.toyopagroup.picaboo": "snapchat://",
+            "com.facebook.Facebook": "fb://",
+            "com.linkedin.LinkedIn": "linkedin://",
+            "com.atebits.Tweetie2": "twitter://",
+            "com.reddit.Reddit": "reddit://",
+            "com.pinterest": "pinterest://",
+            "com.duolingo.DuolingoMobile": "duolingo://"
+        ]
+        return map[bundleId] ?? "instagram://app"
     }
 }

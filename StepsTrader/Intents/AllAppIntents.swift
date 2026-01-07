@@ -2,13 +2,11 @@ import AppIntents
 import Foundation
 import UserNotifications
 
-// Pay Gate shortcut with handoff token architecture
-
 @available(iOS 17.0, *)
-struct PayGateIntent: AppIntent {
-    static var title: LocalizedStringResource = "Steps Trader: Open Pay Gate"
+struct TestOneShortcutIntent: AppIntent {
+    static var title: LocalizedStringResource = "Steps Trader: Test one shortcut"
     static var description = IntentDescription(
-        "Opens the PayGate for the selected app. Pay with steps to proceed.")
+        "Opens PayGate for a selected app when no access window is active.")
     static var openAppWhenRun: Bool = true
 
     @Parameter(title: "App")
@@ -17,75 +15,74 @@ struct PayGateIntent: AppIntent {
     func perform() async throws -> some ReturnsValue<Bool> & IntentResult {
         let userDefaults = UserDefaults.stepsTrader()
         let now = Date()
-        var settings = IntentSettings(defaults: userDefaults)
+        let _: AccessWindow = .single
+        let selectedTarget: TargetApp = {
+            if let saved = userDefaults.string(forKey: "lastCheckedPaygateTarget"),
+               let resolved = TargetApp(rawValue: saved) {
+                return resolved
+            }
+            return target
+        }()
 
-        print("🔍 PayGateIntent triggered for \(target.bundleId) at \(Date())")
-        settings.selectedAppScheme = target.urlScheme
+        // Анти-луп: если окно уже активно — выходим без флагов
+        if isWithinBlockWindow(now: now, userDefaults: userDefaults, bundleId: selectedTarget.bundleId) {
+            let remaining = remainingBlockSeconds(now: now, userDefaults: userDefaults, bundleId: selectedTarget.bundleId) ?? -1
+            print("🚫 TestOneShortcutIntent: blocked until window expires for \(selectedTarget.bundleId) (\(remaining)s left)")
+            clearPayGateFlags(userDefaults)
+            return .result(value: false)
+        }
 
-        // Always show in-app paygate; no system shield.
+        // Анти-спам: не чаще, чем раз в 5 секунд
+        if let lastRun = userDefaults.object(forKey: "lastTestOneShortcutRun") as? Date {
+            let elapsed = now.timeIntervalSince(lastRun)
+            if elapsed < 5 {
+                print("🚫 TestOneShortcutIntent: last run \(String(format: "%.1f", elapsed))s ago, skipping")
+                return .result(value: false)
+            }
+        }
+        userDefaults.set(now, forKey: "lastTestOneShortcutRun")
+
+        print("🔍 TestOneShortcutIntent triggered for \(selectedTarget.bundleId) at \(Date())")
+        userDefaults.set(selectedTarget.urlScheme, forKey: "selectedAppScheme")
+
+        // Запрашиваем показ PayGate в приложении
         userDefaults.set(true, forKey: "shouldShowPayGate")
-        userDefaults.set(target.bundleId, forKey: "payGateTargetBundleId")
-        
-        // Also set a notification flag as backup
+        userDefaults.set(selectedTarget.bundleId, forKey: "payGateTargetBundleId")
         userDefaults.set(true, forKey: "shortcutTriggered")
-        userDefaults.set(target.rawValue, forKey: "shortcutTarget")
+        userDefaults.set(selectedTarget.rawValue, forKey: "shortcutTarget")
         userDefaults.set(now, forKey: "shortcutTriggerTime")
 
-        // Send notification to app instead of trying URL schemes (works in background)
-        print("📱 Sending notification to app for PayGate")
-        
-        // Send Darwin notification that the app can receive
+        // Уведомляем приложение через Darwin и локальное уведомление
         let notificationName = CFNotificationName("com.steps.trader.paygate" as CFString)
         CFNotificationCenterPostNotification(
             CFNotificationCenterGetDarwinNotifyCenter(),
             notificationName,
             nil,
-            ["target": target.rawValue, "bundleId": target.bundleId] as CFDictionary,
+            ["target": selectedTarget.rawValue, "bundleId": selectedTarget.bundleId] as CFDictionary,
             true
         )
-        
-        print("📱 Darwin notification sent for target: \(target.rawValue)")
-        
-        // Post a local notification to the app (no user-visible notification)
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             NotificationCenter.default.post(
                 name: .init("com.steps.trader.local.paygate"),
                 object: nil,
                 userInfo: [
-                    "target": target.rawValue,
-                    "bundleId": target.bundleId,
+                    "target": selectedTarget.rawValue,
+                    "bundleId": selectedTarget.bundleId,
                     "action": "paygate"
                 ]
             )
-            print("📱 Posted local notification to app")
         }
-        
-        return .result(value: true)
-    }
 
-    private func getAppDisplayName(_ bundleId: String) -> String {
-        switch bundleId {
-        case "com.burbn.instagram": return "Instagram"
-        case "com.zhiliaoapp.musically": return "TikTok"
-        case "com.google.ios.youtube": return "YouTube"
-        case "ph.telegra.Telegraph": return "Telegram"
-        case "net.whatsapp.WhatsApp": return "WhatsApp"
-        case "com.toyopagroup.picaboo": return "Snapchat"
-        case "com.facebook.Facebook": return "Facebook"
-        case "com.linkedin.LinkedIn": return "LinkedIn"
-        case "com.atebits.Tweetie2": return "X"
-        case "com.reddit.Reddit": return "Reddit"
-        case "com.pinterest": return "Pinterest"
-        default: return bundleId
-        }
+        return .result(value: true)
     }
 }
 
 @available(iOS 17.0, *)
-struct CanOpenPayGateIntent: AppIntent {
-    static var title: LocalizedStringResource = "Steps Trader: Can Open Pay Gate"
+struct CheckAccessWindowIntent: AppIntent {
+    static var title: LocalizedStringResource = "Steps Trader: Can trigger PayGate now?"
     static var description = IntentDescription(
-        "Checks if Pay Gate can be opened now for the selected app.")
+        "Returns whether PayGate is allowed right now for the selected app (false when paid window is active).")
     static var openAppWhenRun: Bool = false
 
     @Parameter(title: "App")
@@ -94,105 +91,16 @@ struct CanOpenPayGateIntent: AppIntent {
     func perform() async throws -> some ReturnsValue<Bool> & IntentResult {
         let userDefaults = UserDefaults.stepsTrader()
         let now = Date()
-
-        // Anti-loop: if we opened the target app ourselves very recently, block to avoid a loop
-        let lastKey = "lastAppOpenedFromStepsTrader_\(target.bundleId)"
-        if let lastOpen = userDefaults.object(forKey: lastKey) as? Date {
-            let elapsed = now.timeIntervalSince(lastOpen)
-            if elapsed < 10 {
-                print("🚫 CanOpenPayGate: last open \(String(format: "%.1f", elapsed))s ago, returning false to prevent loop")
-                return .result(value: false)
-            }
+        let isBlocked = isWithinBlockWindow(now: now, userDefaults: userDefaults, bundleId: target.bundleId)
+        if isBlocked {
+            let remaining = remainingBlockSeconds(now: now, userDefaults: userDefaults, bundleId: target.bundleId) ?? -1
+            print("🚫 CheckAccessWindowIntent: blocked for \(target.bundleId) (\(remaining)s left)")
+            return .result(value: false)
+        } else {
+            userDefaults.set(target.rawValue, forKey: "lastCheckedPaygateTarget")
+            print("✅ CheckAccessWindowIntent: allowed for \(target.bundleId)")
+            return .result(value: true)
         }
-
-        // Remember the target scheme so the next Open Pay Gate uses the same app
-        userDefaults.set(target.urlScheme, forKey: "selectedAppScheme")
-        userDefaults.set(true, forKey: "automationConfigured")
-        userDefaults.set(target.bundleId, forKey: "automationBundleId")
-        var configured = userDefaults.array(forKey: "automationConfiguredBundles") as? [String] ?? []
-        if !configured.contains(target.bundleId) {
-            configured.append(target.bundleId)
-            userDefaults.set(configured, forKey: "automationConfiguredBundles")
-        }
-        return .result(value: true)
-    }
-}
-
-@available(iOS 17.0, *)
-struct PopularModulesIntent: AppIntent {
-    static var title: LocalizedStringResource = "Steps Trader: Popular Modules"
-    static var description = IntentDescription(
-        "Single shortcut that checks and opens PayGate for a selected popular app.")
-    static var openAppWhenRun: Bool = true
-
-    @Parameter(title: "App")
-    var target: TargetApp
-
-    func perform() async throws -> some ReturnsValue<Bool> & IntentResult {
-        let userDefaults = UserDefaults.stepsTrader()
-        let now = Date()
-
-        let lastRunKey = "lastPopularModulesRun"
-        if let lastRun = userDefaults.object(forKey: lastRunKey) as? Date {
-            let elapsed = now.timeIntervalSince(lastRun)
-            if elapsed < 10 {
-                print("🚫 PopularModulesIntent: last run \(String(format: "%.1f", elapsed))s ago, skipping")
-                return .result(value: false)
-            }
-        }
-        userDefaults.set(now, forKey: lastRunKey)
-
-        // Anti-loop guard
-        let lastKey = "lastAppOpenedFromStepsTrader_\(target.bundleId)"
-        if let lastOpen = userDefaults.object(forKey: lastKey) as? Date {
-            let elapsed = now.timeIntervalSince(lastOpen)
-            if elapsed < 10 {
-                print("🚫 PopularModulesIntent: last open \(String(format: "%.1f", elapsed))s ago, skipping")
-                return .result(value: false)
-            }
-        }
-
-        var settings = IntentSettings(defaults: userDefaults)
-        settings.selectedAppScheme = target.urlScheme
-
-        // Mark configured
-        userDefaults.set(true, forKey: "automationConfigured")
-        userDefaults.set(target.bundleId, forKey: "automationBundleId")
-        var configured = userDefaults.array(forKey: "automationConfiguredBundles") as? [String] ?? []
-        if !configured.contains(target.bundleId) {
-            configured.append(target.bundleId)
-            userDefaults.set(configured, forKey: "automationConfiguredBundles")
-        }
-
-        // Trigger in-app PayGate/PayGate
-        userDefaults.set(true, forKey: "shouldShowPayGate")
-        userDefaults.set(target.bundleId, forKey: "payGateTargetBundleId")
-        userDefaults.set(true, forKey: "shortcutTriggered")
-        userDefaults.set(target.rawValue, forKey: "shortcutTarget")
-        userDefaults.set(now, forKey: "shortcutTriggerTime")
-
-        let notificationName = CFNotificationName("com.steps.trader.paygate" as CFString)
-        CFNotificationCenterPostNotification(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            notificationName,
-            nil,
-            ["target": target.rawValue, "bundleId": target.bundleId] as CFDictionary,
-            true
-        )
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            NotificationCenter.default.post(
-                name: .init("com.steps.trader.local.paygate"),
-                object: nil,
-                userInfo: [
-                    "target": target.rawValue,
-                    "bundleId": target.bundleId,
-                    "action": "paygate"
-                ]
-            )
-        }
-
-        return .result(value: true)
     }
 }
 
@@ -227,53 +135,75 @@ enum TargetApp: String, AppEnum, CaseDisplayRepresentable {
     ]
 
     var bundleId: String {
-        switch self {
-        case .instagram: return "com.burbn.instagram"
-        case .tiktok: return "com.zhiliaoapp.musically"
-        case .youtube: return "com.google.ios.youtube"
-        case .telegram: return "ph.telegra.Telegraph"
-        case .whatsapp: return "net.whatsapp.WhatsApp"
-        case .snapchat: return "com.toyopagroup.picaboo"
-        case .facebook: return "com.facebook.Facebook"
-        case .linkedin: return "com.linkedin.LinkedIn"
-        case .x: return "com.atebits.Tweetie2"
-        case .reddit: return "com.reddit.Reddit"
-        case .pinterest: return "com.pinterest"
-        }
+        TargetResolver.bundleId(from: rawValue) ?? rawValue
     }
     
     var urlScheme: String {
-        switch self {
-        case .instagram: return "instagram://"
-        case .tiktok: return "tiktok://"
-        case .youtube: return "youtube://"
-        case .telegram: return "tg://"
-        case .whatsapp: return "whatsapp://"
-        case .snapchat: return "snapchat://"
-        case .facebook: return "fb://"
-        case .linkedin: return "linkedin://"
-        case .x: return "twitter://"
-        case .reddit: return "reddit://"
-        case .pinterest: return "pinterest://"
-        }
+        TargetResolver.urlScheme(for: rawValue) ?? ""
     }
 }
 
-private struct IntentSettings {
-    private let defaults: UserDefaults
-    
-    init(defaults: UserDefaults) {
-        self.defaults = defaults
+// MARK: - Window helpers
+@available(iOS 17.0, *)
+private func blockKey(for bundleId: String) -> String {
+    "shortcutBlockUntil_\(bundleId)"
+}
+
+@available(iOS 17.0, *)
+private func isWithinBlockWindow(now: Date, userDefaults: UserDefaults, bundleId: String) -> Bool {
+    guard let until = userDefaults.object(forKey: blockKey(for: bundleId)) as? Date else {
+        return false
     }
-    
-    var selectedAppScheme: String? {
-        get { defaults.string(forKey: "selectedAppScheme") }
-        set {
-            if let value = newValue {
-                defaults.set(value, forKey: "selectedAppScheme")
-            } else {
-                defaults.removeObject(forKey: "selectedAppScheme")
-            }
+    if now >= until {
+        userDefaults.removeObject(forKey: blockKey(for: bundleId))
+        return false
+    }
+    return true
+}
+
+@available(iOS 17.0, *)
+private func remainingBlockSeconds(now: Date, userDefaults: UserDefaults, bundleId: String) -> Int? {
+    guard let until = userDefaults.object(forKey: blockKey(for: bundleId)) as? Date else { return nil }
+    let remaining = Int(until.timeIntervalSince(now))
+    return remaining > 0 ? remaining : nil
+}
+
+@available(iOS 17.0, *)
+private func blockUntilDate(from now: Date, window: AccessWindow, userDefaults: UserDefaults, bundleId: String) -> Date? {
+    switch window {
+    case .single:
+        return now.addingTimeInterval(10)
+    case .minutes5:
+        return now.addingTimeInterval(5 * 60)
+    case .hour1:
+        return now.addingTimeInterval(60 * 60)
+    case .day1:
+        let cal = Calendar.current
+        let startOfDay = cal.startOfDay(for: now)
+        if let endOfDay = cal.date(byAdding: DateComponents(day: 1, second: -1), to: startOfDay) {
+            return endOfDay
         }
+        return now.addingTimeInterval(24 * 60 * 60)
     }
+}
+
+@available(iOS 17.0, *)
+private func clearPayGateFlags(_ userDefaults: UserDefaults) {
+    userDefaults.removeObject(forKey: "shouldShowPayGate")
+    userDefaults.removeObject(forKey: "payGateTargetBundleId")
+    userDefaults.removeObject(forKey: "shortcutTriggered")
+    userDefaults.removeObject(forKey: "shortcutTarget")
+    userDefaults.removeObject(forKey: "shortcutTriggerTime")
+}
+
+// MARK: - AccessWindow AppIntents plumbing
+@available(iOS 17.0, *)
+extension AccessWindow: AppEnum, CaseDisplayRepresentable {
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Access window"
+    static var caseDisplayRepresentations: [AccessWindow: DisplayRepresentation] = [
+        .single: "🔓 Один раз",
+        .minutes5: "⏱️ 5 минут",
+        .hour1: "🕐 1 час",
+        .day1: "🌞 До конца дня"
+    ]
 }

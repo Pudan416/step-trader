@@ -163,21 +163,7 @@ struct StatusView: View {
     }
     
     private func appDisplayName(_ bundleId: String) -> String {
-        switch bundleId {
-        case "com.burbn.instagram": return "Instagram"
-        case "com.zhiliaoapp.musically": return "TikTok"
-        case "com.google.ios.youtube": return "YouTube"
-        case "com.facebook.Facebook": return "Facebook"
-        case "com.linkedin.LinkedIn": return "LinkedIn"
-        case "com.atebits.Tweetie2": return "X"
-        case "com.toyopagroup.picaboo": return "Snapchat"
-        case "net.whatsapp.WhatsApp": return "WhatsApp"
-        case "ph.telegra.Telegraph": return "Telegram"
-        case "com.duolingo.DuolingoMobile": return "Duolingo"
-        case "com.pinterest": return "Pinterest"
-        case "com.reddit.Reddit": return "Reddit"
-        default: return bundleId
-        }
+        TargetResolver.displayName(for: bundleId)
     }
     
     private func colorForBundle(_ bundleId: String) -> Color {
@@ -508,9 +494,6 @@ struct StatusView: View {
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in
                 model.reloadBudgetFromStorage()
-            }
-
-            Task { @MainActor in
                 model.loadSpentTime()
             }
 

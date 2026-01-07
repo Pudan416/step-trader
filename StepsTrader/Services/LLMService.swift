@@ -31,9 +31,18 @@ final class LLMService {
     
     /// Generates a cosmic pilot journal entry based on day data.
     func generateCosmicJournal(prompt: String) async throws -> String {
-        guard let apiKey = Self.loadAPIKey() else { throw LLMError.missingAPIKey }
+        guard let apiKey = Self.loadAPIKey(), !apiKey.isEmpty else { throw LLMError.missingAPIKey }
         
-        var request = URLRequest(url: URL(string: "https://api.deepseek.com/v1/chat/completions")!)
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 20
+        let session = URLSession(configuration: config)
+        
+        guard let url = URL(string: "https://api.deepseek.com/v1/chat/completions") else {
+            throw LLMError.badResponse
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -47,12 +56,17 @@ final class LLMService {
         )
         request.httpBody = try JSONEncoder().encode(body)
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
+            if let http = response as? HTTPURLResponse {
+                let bodyPreview = String(data: data.prefix(200), encoding: .utf8) ?? "n/a"
+                print("❌ LLM bad response: status=\(http.statusCode) body=\(bodyPreview)")
+            }
             throw LLMError.badResponse
         }
         guard let decoded = try? JSONDecoder().decode(ChatResponse.self, from: data),
               let content = decoded.choices.first?.message.content else {
+            print("❌ LLM decoding failed")
             throw LLMError.decodingFailed
         }
         return content.trimmingCharacters(in: .whitespacesAndNewlines)

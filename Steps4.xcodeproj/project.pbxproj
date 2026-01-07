@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47A2F0C795D0018004E /* TargetResolver.swift */; };
+		200AC47D2F0C825C0018004E /* AccessWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47C2F0C825C0018004E /* AccessWindow.swift */; };
 		2035D7582E7D9CF90011B21D /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
 		2089F0BC2E71A18F00ABF5FA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */; };
 		2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */; };
@@ -67,6 +69,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		200AC47A2F0C795D0018004E /* TargetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetResolver.swift; sourceTree = "<group>"; };
+		200AC47C2F0C825C0018004E /* AccessWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessWindow.swift; sourceTree = "<group>"; };
 		2089F0B42E71A18E00ABF5FA /* Steps Trader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Steps Trader.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -167,6 +171,7 @@
 		2089F0E32E71AE3400ABF5FA /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				200AC47C2F0C825C0018004E /* AccessWindow.swift */,
 				2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */,
 				2089F0E22E71AE3400ABF5FA /* Types.swift */,
 				20F5A0012FFF000100000001 /* AutomationUIModels.swift */,
@@ -205,6 +210,7 @@
 				209424BE2E8593DA00904A0A /* Views */,
 				2089F0E82E71AE3400ABF5FA /* Utilities */,
 				2089F0E92E71AE3400ABF5FA /* StepsTraderApp.swift */,
+				200AC47A2F0C795D0018004E /* TargetResolver.swift */,
 				20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */,
 				209424C62E85952D00904A0A /* AppModel.swift */,
 				209424C72E85952D00904A0A /* DIContainer.swift */,
@@ -413,6 +419,7 @@
 				2089F0EF2E71AE3400ABF5FA /* Date+Today.swift in Sources */,
 				209424C12E8593DA00904A0A /* TariffOptionView.swift in Sources */,
 				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
+				200AC47D2F0C825C0018004E /* AccessWindow.swift in Sources */,
 				20F5A0112FFF030000000002 /* Localization.swift in Sources */,
 				20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */,
 				20B0A3522E8C658800D5EBE4 /* ShieldConfigurationProvider.swift in Sources */,
@@ -423,6 +430,7 @@
 				209424C92E85952D00904A0A /* AppModel.swift in Sources */,
 				20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */,
 				209424AF2E80C52C00904A0A /* AllAppIntents.swift in Sources */,
+				200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */,
 				20F5A0612FFF040000000007 /* LLMService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -595,12 +603,12 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "CTRL ME";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Steps Trader needs access to your step count to calculate entries.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Steps Trader may update Health data if required.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Steps Trader needs access to your step count to manage app time.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Steps Trader uses your step count to calculate available time.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -633,12 +641,12 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "CTRL ME";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Steps Trader needs access to your step count to calculate entries.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Steps Trader may update Health data if required.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Steps Trader needs access to your step count to manage app time.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Steps Trader uses your step count to calculate available time.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
