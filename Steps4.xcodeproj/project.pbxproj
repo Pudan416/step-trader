@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47A2F0C795D0018004E /* TargetResolver.swift */; };
 		200AC47D2F0C825C0018004E /* AccessWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47C2F0C825C0018004E /* AccessWindow.swift */; };
-		200AC4832F0F1FF60018004E /* space ctrl icon 2.icon in Resources */ = {isa = PBXBuildFile; fileRef = 200AC4822F0F1FF60018004E /* space ctrl icon 2.icon */; };
 		2035D7582E7D9CF90011B21D /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
 		2089F0BC2E71A18F00ABF5FA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */; };
 		2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */; };
@@ -72,12 +71,11 @@
 /* Begin PBXFileReference section */
 		200AC47A2F0C795D0018004E /* TargetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetResolver.swift; sourceTree = "<group>"; };
 		200AC47C2F0C825C0018004E /* AccessWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessWindow.swift; sourceTree = "<group>"; };
-		200AC4822F0F1FF60018004E /* space ctrl icon 2.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = "space ctrl icon 2.icon"; sourceTree = "<group>"; };
 		2089F0B42E71A18E00ABF5FA /* Space CTRL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Space CTRL.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		2089F0C42E71A18F00ABF5FA /* Steps Trader.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Steps Trader.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		2089F0CE2E71A18F00ABF5FA /* Steps Trader.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Steps Trader.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0C42E71A18F00ABF5FA /* Steps Trader.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = "Steps Trader.xctest"; path = "Space CTRL.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0CE2E71A18F00ABF5FA /* Steps Trader.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = "Steps Trader.xctest"; path = "Space CTRL.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BudgetEngine.swift; sourceTree = "<group>"; };
 		2089F0E22E71AE3400ABF5FA /* Types.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Types.swift; sourceTree = "<group>"; };
 		2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FamilyControlsService.swift; sourceTree = "<group>"; };
@@ -217,7 +215,6 @@
 				209424C62E85952D00904A0A /* AppModel.swift */,
 				209424C72E85952D00904A0A /* DIContainer.swift */,
 				209424C52E85952D00904A0A /* NotificationManager.swift */,
-				200AC4822F0F1FF60018004E /* space ctrl icon 2.icon */,
 				2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */,
 				2089F0F12E72D68C00ABF5FA /* Steps4.entitlements */,
 			);
@@ -385,7 +382,6 @@
 			files = (
 				2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */,
 				2089F0BC2E71A18F00ABF5FA /* Assets.xcassets in Resources */,
-				200AC4832F0F1FF60018004E /* space ctrl icon 2.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
