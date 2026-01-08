@@ -9,12 +9,12 @@ struct StepBalanceCard: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Text("Fuel for \(dateString)")
+                Text("Tank volume for \(dateString)")
                     .font(.headline)
                 Spacer()
                 Text("\(totalSteps)")
                     .font(.headline)
-                    .foregroundColor(.green)
+                    .foregroundColor(pink)
             }
 
             ProgressView(
@@ -22,20 +22,19 @@ struct StepBalanceCard: View {
                 total: max(1.0, Double(totalSteps))
             )
             .progressViewStyle(
-                LinearProgressViewStyle(tint: .green)
+                LinearProgressViewStyle(tint: pink)
             )
             .scaleEffect(x: 1, y: 2, anchor: .center)
-            .accentColor(.green)
             .background(
                 GeometryReader { proxy in
-                    let filledRatio = max(0, min(1, totalSteps == 0 ? 0 : Double(remainingSteps) / Double(max(1, totalSteps))))
-                    let filledWidth = proxy.size.width * filledRatio
+                    let remainingRatio = max(0, min(1, totalSteps == 0 ? 0 : Double(remainingSteps) / Double(max(1, totalSteps))))
+                    let remainingWidth = proxy.size.width * remainingRatio
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.orange.opacity(0.4))
+                            .fill(Color.black.opacity(0.25))
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.green)
-                            .frame(width: filledWidth)
+                            .fill(pink)
+                            .frame(width: remainingWidth)
                     }
                 }
             )
@@ -45,12 +44,12 @@ struct StepBalanceCard: View {
                     summaryBox(
                         title: "Left",
                         value: "\(remainingSteps)",
-                        color: .green
+                        color: pink
                     )
                     summaryBox(
                         title: "Spent",
                         value: "\(spentSteps)",
-                        color: .orange
+                        color: .secondary
                     )
                 }
                 .transition(.move(edge: .top))
@@ -61,6 +60,8 @@ struct StepBalanceCard: View {
         // При выключении таба скрываем детали мгновенно, при показе — мягкая анимация.
         .animation(.easeInOut(duration: showDetails ? 0.3 : 0.0), value: showDetails)
     }
+
+    private var pink: Color { Color(red: 224/255, green: 130/255, blue: 217/255) }
     
     private var dateString: String {
         let df = DateFormatter()

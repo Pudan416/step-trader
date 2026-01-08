@@ -1,6 +1,6 @@
 import Foundation
 
-enum AccessWindow: String, CaseIterable, Sendable {
+enum AccessWindow: String, CaseIterable, Sendable, Codable {
     case single
     case minutes5
     case hour1

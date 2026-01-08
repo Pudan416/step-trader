@@ -13,6 +13,7 @@ struct StatusView: View {
     @State private var chartRange: ChartRange = .today
     @State private var detailBundle: String? = nil
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    private let openModulesNotification = Notification.Name("com.steps.trader.open.modules")
     
     private var dayEndHour: Int { model.dayEndHour }
     private var dayEndMinute: Int { model.dayEndMinute }
@@ -42,7 +43,11 @@ struct StatusView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 16) {
-                openFrequencyChart
+                if showConnectCTA {
+                    connectFirstModuleCTA
+                } else {
+                    openFrequencyChart
+                }
                 ScrollView {
                     trackedAppsTodayList
                         .padding(.horizontal)
@@ -64,6 +69,41 @@ struct StatusView: View {
                 stopTimer()
             }
         }
+    }
+
+    private var showConnectCTA: Bool {
+        let defaults = UserDefaults.stepsTrader()
+        let configured = defaults.array(forKey: "automationConfiguredBundles") as? [String] ?? []
+        let single = defaults.string(forKey: "automationBundleId")
+        let pending = defaults.array(forKey: "automationPendingBundles") as? [String] ?? []
+        return configured.isEmpty && single == nil && pending.isEmpty
+    }
+
+    private var connectFirstModuleCTA: some View {
+        VStack(spacing: 12) {
+            Text(loc(appLanguage, "No modules connected yet", "Модули еще не подключены"))
+                .font(.headline)
+                .multilineTextAlignment(.center)
+            Text(loc(appLanguage, "Connect your first module to start tracking time and steps.", "Подключите первый модуль, чтобы начать отслеживание времени и шагов."))
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                NotificationCenter.default.post(name: openModulesNotification, object: nil)
+            } label: {
+                Text(loc(appLanguage, "Connect your first module", "Подключить первый модуль"))
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+            }
+            .padding(.top, 4)
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.gray.opacity(0.1)))
+        .padding(.horizontal)
     }
 
     private var calculatedRemainingMinutes: Int {
@@ -188,7 +228,7 @@ struct StatusView: View {
     private var openFrequencyChart: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(loc(appLanguage, "Stats for", "Статистика за") + " " + chartRange.title)
+                Text(loc(appLanguage, "Stats for...", "Статистика за...") + " ")
                 .font(.headline)
                 Spacer()
                 Picker("", selection: $chartRange) {

@@ -1,11 +1,8 @@
 import AVFoundation
 import AudioToolbox
 import Combine
-import DeviceActivity
-import FamilyControls
 import Foundation
 import HealthKit
-import ManagedSettings
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -38,6 +35,7 @@ final class AppModel: ObservableObject {
     struct AppUnlockSettings: Codable {
         var entryCostSteps: Int
         var dayPassCostSteps: Int
+        var allowedWindows: Set<AccessWindow> = [.single, .minutes5, .hour1] // day pass off by default
     }
     
     struct AppOpenLog: Codable, Identifiable {
@@ -174,9 +172,9 @@ final class AppModel: ObservableObject {
             persistEntryCost(tariff: .easy)
         }
 
-        // Обновляем баланс шагов
+        // Обновляем баланс шагов и запрашиваем HealthKit
         Task {
-            await refreshStepsBalance()
+            await ensureHealthAuthorizationAndRefresh()
         }
         
         // Start automatic step updates
@@ -490,6 +488,10 @@ final class AppModel: ObservableObject {
             }
             // Продолжаем показывать PayGate, чтобы пользователь видел статус и мог управлять доступом
         }
+        
+        // Align PayGate cost with the current level available for this module
+        applyCurrentLevelTariff(for: bundleId)
+
         let session = PayGateSession(id: bundleId, bundleId: bundleId, startedAt: Date())
         payGateSessions[bundleId] = session
         currentPayGateSessionId = bundleId
@@ -758,6 +760,36 @@ final class AppModel: ObservableObject {
             return cal.startOfDay(for: date)
         }
     }
+
+    func ensureHealthAuthorizationAndRefresh() async {
+        let status = await healthKitService.authorizationStatus()
+        print("🏥 HealthKit status before ensure: \(status.rawValue)")
+        switch status {
+        case .sharingAuthorized:
+            print("🏥 HealthKit already authorized, refreshing steps")
+        case .sharingDenied:
+            print("❌ HealthKit access denied. Open the Health app → Sources → Steps Trader and enable step reading.")
+            return
+        case .notDetermined:
+            print("🏥 HealthKit not determined. Requesting authorization...")
+            do {
+                try await healthKitService.requestAuthorization()
+                print("✅ HealthKit authorization completed (ensureHealthAuthorizationAndRefresh)")
+            } catch {
+                print("❌ HealthKit authorization failed: \(error.localizedDescription)")
+                return
+            }
+        @unknown default:
+            print("❓ HealthKit status unknown: \(status.rawValue). Attempting authorization.")
+            do {
+                try await healthKitService.requestAuthorization()
+            } catch {
+                print("❌ HealthKit authorization failed: \(error.localizedDescription)")
+                return
+            }
+        }
+        await refreshStepsBalance()
+    }
     
     private func isSameCustomDay(_ a: Date, _ b: Date) -> Bool {
         currentDayStart(for: a) == currentDayStart(for: b)
@@ -1016,10 +1048,15 @@ final class AppModel: ObservableObject {
     func unlockSettings(for bundleId: String?) -> AppUnlockSettings {
         let fallback = AppUnlockSettings(
             entryCostSteps: entryCostSteps,
-            dayPassCostSteps: defaultDayPassCost(forEntryCost: entryCostSteps)
+            dayPassCostSteps: defaultDayPassCost(forEntryCost: entryCostSteps),
+            allowedWindows: [.single, .minutes5, .hour1]
         )
         guard let bundleId else { return fallback }
-        return appUnlockSettings[bundleId] ?? fallback
+        var settings = appUnlockSettings[bundleId] ?? fallback
+        if settings.allowedWindows.isEmpty {
+            settings.allowedWindows = [.single, .minutes5, .hour1]
+        }
+        return settings
     }
     
     func presetTariff(for bundleId: String?) -> Tariff? {
@@ -1047,6 +1084,42 @@ final class AppModel: ObservableObject {
         if let dayPassCost { settings.dayPassCostSteps = max(0, dayPassCost) }
         appUnlockSettings[bundleId] = settings
         persistAppUnlockSettings()
+    }
+
+    func allowedAccessWindows(for bundleId: String?) -> Set<AccessWindow> {
+        unlockSettings(for: bundleId).allowedWindows
+    }
+
+    func updateAccessWindow(_ window: AccessWindow, enabled: Bool, for bundleId: String) {
+        var settings = unlockSettings(for: bundleId)
+        if enabled {
+            settings.allowedWindows.insert(window)
+        } else {
+            settings.allowedWindows.remove(window)
+        }
+        if settings.allowedWindows.isEmpty {
+            settings.allowedWindows = [.single, .minutes5, .hour1]
+        }
+        appUnlockSettings[bundleId] = settings
+        persistAppUnlockSettings()
+    }
+    
+    // MARK: - Module level → tariff mapping
+    func currentLevelTariff(for bundleId: String) -> Tariff {
+        let spent = appStepsSpentToday[bundleId, default: 0]
+        switch spent {
+        case 100_000...: return .free   // Level IV
+        case 30_000...: return .easy    // Level III
+        case 10_000...: return .medium  // Level II
+        default: return .hard           // Level I
+        }
+    }
+    
+    func applyCurrentLevelTariff(for bundleId: String) {
+        let tariff = currentLevelTariff(for: bundleId)
+        dailyTariffSelections[bundleId] = tariff
+        persistDailyTariffSelections()
+        updateUnlockSettings(for: bundleId, tariff: tariff)
     }
     
     func hasDayPass(for bundleId: String?) -> Bool {
@@ -1117,14 +1190,11 @@ final class AppModel: ObservableObject {
     
     private func loadAppStepsSpentToday() {
         let g = UserDefaults.stepsTrader()
-        let anchor = g.object(forKey: "appStepsSpentAnchor") as? Date ?? .distantPast
-        if !isSameCustomDay(anchor, Date()) {
-            appStepsSpentToday = [:]
-            g.set(currentDayStart(for: Date()), forKey: "appStepsSpentAnchor")
-            g.removeObject(forKey: "appStepsSpentToday_v1")
-        } else if let data = g.data(forKey: "appStepsSpentToday_v1"),
-                  let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+        if let data = g.data(forKey: "appStepsSpentToday_v1"),
+           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
             appStepsSpentToday = decoded
+        } else {
+            appStepsSpentToday = [:]
         }
     }
     
@@ -1133,7 +1203,6 @@ final class AppModel: ObservableObject {
         if let data = try? JSONEncoder().encode(appStepsSpentToday) {
             g.set(data, forKey: "appStepsSpentToday_v1")
         }
-        g.set(currentDayStart(for: Date()), forKey: "appStepsSpentAnchor")
     }
     
     private func dayPassCost(for tariff: Tariff) -> Int {
@@ -1155,12 +1224,6 @@ final class AppModel: ObservableObject {
     }
     
     private func addSpentSteps(_ cost: Int, for bundleId: String) {
-        let anchor = currentDayStart(for: Date())
-        let g = UserDefaults.stepsTrader()
-        let storedAnchor = g.object(forKey: "appStepsSpentAnchor") as? Date ?? .distantPast
-        if !isSameCustomDay(storedAnchor, anchor) {
-            appStepsSpentToday = [:]
-        }
         appStepsSpentToday[bundleId, default: 0] += cost
         persistAppStepsSpentToday()
     }
@@ -1175,7 +1238,7 @@ final class AppModel: ObservableObject {
         g.set(until, forKey: accessBlockKey(for: bundleId))
         let remaining = Int(until.timeIntervalSince(Date()))
         print("⏱️ Access window set for \(bundleId) until \(until) (\(remaining) seconds)")
-        notificationService.scheduleAccessWindowStatus(remainingSeconds: remaining, bundleId: bundleId)
+        // Push notifications on payment/activation removed per request
     }
 
     func isAccessBlocked(for bundleId: String) -> Bool {
@@ -1275,7 +1338,7 @@ final class AppModel: ObservableObject {
         g.removeObject(forKey: "payGateTargetBundleId")
     }
     
-    private func recordAutomationOpen(bundleId: String) {
+    func recordAutomationOpen(bundleId: String) {
         let defaults = UserDefaults.stepsTrader()
         var dict: [String: Date] = [:]
         if let data = defaults.data(forKey: "automationLastOpened_v1"),
@@ -1640,9 +1703,15 @@ final class AppModel: ObservableObject {
         loadSpentTime()
 
         do {
-            print("📊 Requesting HealthKit authorization...")
-            try await healthKitService.requestAuthorization()
-            print("✅ HealthKit authorization completed")
+            let authStatus = await healthKitService.authorizationStatus()
+            print("🏥 HealthKit status at bootstrap: \(authStatus.rawValue)")
+            if authStatus == .sharingAuthorized {
+                print("📊 HealthKit already authorized (bootstrap)")
+            } else {
+                print("📊 Requesting HealthKit authorization...")
+                try await healthKitService.requestAuthorization()
+                print("✅ HealthKit authorization completed")
+            }
 
             print("🔐 Requesting Family Controls authorization...")
             do {
@@ -2311,18 +2380,6 @@ final class AppModel: ObservableObject {
             nil,
             nil
         )
-    }
-}
-
-@MainActor
-private func requestFamilyControlsIfNeeded() async {
-    let center = AuthorizationCenter.shared
-    switch center.authorizationStatus {
-    case .notDetermined:
-        do { try await center.requestAuthorization(for: .individual) } catch {
-            print("❌ FamilyControls auth failed: \(error)")
-        }
-    default: break
     }
 }
 

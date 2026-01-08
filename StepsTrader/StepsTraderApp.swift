@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import UIKit
 
 @main
 struct StepsTraderApp: App {
@@ -14,10 +15,6 @@ struct StepsTraderApp: App {
     var body: some Scene {
         WindowGroup { 
             ZStack {
-                if currentTheme == .cosmic {
-                    cosmicBackground
-                }
-                
                 if model.showPayGate {
                     PayGateView(model: model)
                         .onAppear {
@@ -81,6 +78,9 @@ struct StepsTraderApp: App {
                     for: UIApplication.didEnterBackgroundNotification)
             ) { _ in
                 model.handleAppDidEnterBackground()
+            }
+            .task {
+                await model.ensureHealthAuthorizationAndRefresh()
             }
             .onReceive(
                 NotificationCenter.default.publisher(
@@ -153,6 +153,8 @@ struct StepsTraderApp: App {
                     }
                 }
             }
+            .tint(currentTheme.accentColor)
+            .background(currentTheme.backgroundColor)
             .preferredColorScheme(currentTheme.colorScheme)
         }
     }
@@ -235,13 +237,14 @@ struct StepsTraderApp: App {
             
             print("🎯 Final bundle ID: \(finalBundleId ?? "nil")")
             if let bundleId = finalBundleId {
-                if model.isAccessBlocked(for: bundleId) {
-                    print("🚫 PayGate flags ignored: access window active for \(bundleId)")
-                    reopenTargetIfPossible(bundleId: bundleId)
-                    clearPayGateFlags(userDefaults)
-                    return
-                }
                 Task { @MainActor in
+                    model.recordAutomationOpen(bundleId: bundleId)
+                    if model.isAccessBlocked(for: bundleId) {
+                        print("🚫 PayGate flags ignored: access window active for \(bundleId)")
+                        reopenTargetIfPossible(bundleId: bundleId)
+                        clearPayGateFlags(userDefaults)
+                        return
+                    }
                     model.startPayGateSession(for: bundleId)
                 }
             }
@@ -279,50 +282,6 @@ struct StepsTraderApp: App {
 private extension StepsTraderApp {
     var currentTheme: AppTheme {
         AppTheme(rawValue: appThemeRaw) ?? .system
-    }
-
-    var cosmicBackground: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color.black,
-                    Color(red: 0.05, green: 0.08, blue: 0.15),
-                    Color(red: 0.08, green: 0.1, blue: 0.2)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    Color.white.opacity(0.05),
-                    Color.purple.opacity(0.35),
-                    Color.black.opacity(0.2)
-                ]),
-                center: .topLeading,
-                startRadius: 40,
-                endRadius: 500
-            )
-            starField
-        }
-        .ignoresSafeArea()
-    }
-    
-    var starField: some View {
-        Canvas { context, size in
-            for _ in 0..<160 {
-                let x = CGFloat.random(in: 0...size.width)
-                let y = CGFloat.random(in: 0...size.height)
-                let radius = CGFloat.random(in: 0.4...1.4)
-                let opacity = Double.random(in: 0.2...0.8)
-                let color = Bool.random() ? Color.cyan : Color.white
-                context.fill(
-                    Path(ellipseIn: CGRect(x: x, y: y, width: radius, height: radius)),
-                    with: .color(color.opacity(opacity))
-                )
-            }
-        }
-        .blendMode(.screen)
-        .allowsHitTesting(false)
     }
 }
 
@@ -413,10 +372,6 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack {
-            if theme == .cosmic {
-                cosmicBackground
-            }
-            
             VStack(spacing: 0) {
                 StepBalanceCard(
                     remainingSteps: remainingStepsToday,
@@ -436,7 +391,7 @@ struct MainTabView: View {
                         }
                         .tag(0)
 
-                    AppsPage(model: model, automationApps: SettingsView.automationAppsStatic, tariffs: Tariff.allCases)
+                    AppsPage(model: model, automationApps: SettingsView.automationAppsStatic)
                         .tabItem {
                             Image(systemName: "square.grid.2x2")
                             Text(loc(appLanguage, "Modules", "Модули"))
@@ -466,7 +421,10 @@ struct MainTabView: View {
                 }
                 .animation(.easeInOut(duration: 0.2), value: selection)
             }
-            .background(theme == .cosmic ? Color.clear : Color(.systemBackground))
+            .background(Color(.systemBackground))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in
+            selection = 1
         }
     }
     
@@ -474,49 +432,6 @@ struct MainTabView: View {
         max(0, Int(model.stepsToday) - model.spentStepsToday)
     }
     
-    private var cosmicBackground: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color.black,
-                    Color(red: 0.05, green: 0.08, blue: 0.15),
-                    Color(red: 0.08, green: 0.1, blue: 0.2)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    Color.white.opacity(0.05),
-                    Color.purple.opacity(0.35),
-                    Color.black.opacity(0.2)
-                ]),
-                center: .topLeading,
-                startRadius: 40,
-                endRadius: 500
-            )
-            starField
-        }
-        .ignoresSafeArea()
-    }
-    
-    private var starField: some View {
-        Canvas { context, size in
-            for _ in 0..<160 {
-                let x = CGFloat.random(in: 0...size.width)
-                let y = CGFloat.random(in: 0...size.height)
-                let radius = CGFloat.random(in: 0.4...1.4)
-                let opacity = Double.random(in: 0.2...0.8)
-                let color = Bool.random() ? Color.cyan : Color.white
-                context.fill(
-                    Path(ellipseIn: CGRect(x: x, y: y, width: radius, height: radius)),
-                    with: .color(color.opacity(opacity))
-                )
-            }
-        }
-        .blendMode(.screen)
-        .allowsHitTesting(false)
-    }
 }
 
 // MARK: - Quick Status View
@@ -673,6 +588,10 @@ struct PayGateView: View {
     
     private var activeBundleId: String? { activeSession?.bundleId }
     private var activeTariff: Tariff { tariff(for: activeBundleId) }
+    private var isCountdownActive: Bool {
+        guard let session = activeSession, let bundleId = activeBundleId else { return false }
+        return !timedOutSessions.contains(bundleId) && remainingSeconds(for: session) > 0
+    }
     
     private func remainingSeconds(for session: AppModel.PayGateSession) -> Int {
         let elapsed = Date().timeIntervalSince(session.startedAt)
@@ -690,90 +609,95 @@ struct PayGateView: View {
         return .hard
     }
     
+    @ViewBuilder
+    private var centeredAppIconOverlay: some View {
+        ZStack {
+            if isCountdownActive {
+                countdownBadge
+                    .offset(y: -200)
+            }
+            
+            VStack(spacing: 10) {
+                if let bundleId = activeBundleId {
+                    appIconView(bundleId)
+                        .frame(width: 70, height: 70)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .shadow(radius: 8)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+    
+    private var countdownBadge: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 6)
+                    .frame(width: 96, height: 96)
+                Circle()
+                    .trim(from: 0, to: CGFloat(max(0, countdown)) / CGFloat(totalCountdown))
+                    .stroke(
+                        AngularGradient(
+                            gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
+                            center: .center),
+                        style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 96, height: 96)
+                    .animation(.easeInOut(duration: 0.2), value: countdown)
+                Text("\(max(0, countdown))s")
+                    .font(.title3.bold())
+                    .monospacedDigit()
+            }
+            Text(loc("to pay", "до оплаты"))
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+    
     var body: some View {
         ZStack {
-            payGateGradient(for: activeTariff)
+            payGateBackground()
                 .ignoresSafeArea()
             
-            // Centered icon overlay
-            centeredAppIcon()
+            VStack {
+                stepsProgressBar
+                    .padding(.horizontal, 20)
+                    .padding(.top,60)
+                Spacer()
+            }
             
-            VStack(spacing: 24) {
-                VStack(spacing: 12) {
-                    Text("CTRL+ME")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                    
-                    if let bundleId = activeBundleId {
-                        let settings = model.unlockSettings(for: bundleId)
-                        let hasPass = model.hasDayPass(for: bundleId)
-                        let isFree = settings.entryCostSteps == 0
-                        let enough = hasPass || isFree || model.stepsBalance >= settings.entryCostSteps
-                        
-                        HStack {
-                            Text("Fuel status:")
-                                .font(.title2)
-                            Spacer()
-                            Text("\(model.stepsBalance)")
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(enough ? .green : .red)
-                        }
-                        .padding()
-                        .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
-                    }
-                }
-                .padding(.top, 28)
-
-                Spacer(minLength: 12)
+            ZStack {
+                centeredAppIconOverlay
                 
-                VStack(spacing: 20) {
-                        if let bundleId = activeBundleId, let session = activeSession {
-                            let settings = model.unlockSettings(for: bundleId)
-                            let hasPass = model.hasDayPass(for: bundleId)
-                            let isFree = settings.entryCostSteps == 0
-                            let isTimedOut = timedOutSessions.contains(bundleId) || remainingSeconds(for: session) <= 0
-                            let tariff = activeTariff
-                            
-                            if !isTimedOut {
-                                // Countdown timer with ring
-                            VStack(spacing: 8) {
-                                ZStack {
-                                    Circle()
-                                        .stroke(Color.gray.opacity(0.2), lineWidth: 8)
-                                        .frame(width: 90, height: 90)
-                                    Circle()
-                                        .trim(from: 0, to: CGFloat(max(0, countdown)) / CGFloat(totalCountdown))
-                                        .stroke(
-                                            AngularGradient(
-                                                gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
-                                                center: .center),
-                                            style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                                        .rotationEffect(.degrees(-90))
-                                        .frame(width: 90, height: 90)
-                                        .animation(.easeInOut(duration: 0.2), value: countdown)
-                                    Text("\(max(0, countdown))s")
-                                        .font(.headline)
-                                        .monospacedDigit()
-                                }
-                                Text("Pay within 10 seconds to enter.")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                            }
-                            
-                            VStack(spacing: 10) {
-                                ForEach(AccessWindow.allCases, id: \.self) { window in
-                                    accessWindowButton(window: window, bundleId: bundleId, isTimedOut: isTimedOut, isForfeited: isForfeited(bundleId))
+                VStack(spacing: 24) {
+                    Spacer(minLength: 12)
+                    
+                    VStack(spacing: 20) {
+                    if let bundleId = activeBundleId, let session = activeSession {
+                        let isTimedOut = timedOutSessions.contains(bundleId) || remainingSeconds(for: session) <= 0
+                        
+                        if !isTimedOut {
+                            VStack(spacing: 12) {
+                                Text(loc("Choose access", "Выберите доступ"))
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                let allowed = model.allowedAccessWindows(for: bundleId)
+                                let windows = [AccessWindow.day1, .hour1, .minutes5, .single].filter { allowed.contains($0) }
+                                VStack(spacing: 10) {
+                                    ForEach(windows, id: \.self) { window in
+                                        accessWindowButton(window: window, bundleId: bundleId, isTimedOut: isTimedOut, isForfeited: isForfeited(bundleId))
+                                    }
                                 }
                             }
                         } else {
                             VStack(spacing: 12) {
-                                Text("You missed opening \(getAppDisplayName(bundleId)).")
+                                Text(loc("You missed opening \(getAppDisplayName(bundleId)).", "Вы пропустили окно для \(getAppDisplayName(bundleId))."))
                                     .font(.title3)
                                     .fontWeight(.semibold)
                                     .multilineTextAlignment(.center)
-                                Text("At least you saved \(settings.entryCostSteps) steps.")
+                                Text("At least you saved some fuel.")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
@@ -785,17 +709,17 @@ struct PayGateView: View {
                     } else {
                         VStack(spacing: 12) {
                             if let bundleId = model.payGateTargetBundleId {
-                                Text("You missed opening \(getAppDisplayName(bundleId)).")
+                                Text(loc("You missed opening \(getAppDisplayName(bundleId)).", "Вы пропустили окно для \(getAppDisplayName(bundleId))."))
                                     .font(.title3)
                                     .fontWeight(.semibold)
                                     .multilineTextAlignment(.center)
                                 let settings = model.unlockSettings(for: bundleId)
-                                Text("At least you saved \(settings.entryCostSteps) steps.")
+                                Text(loc("At least you saved some fuel.", "Зато сохранили немного топлива."))
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
                             } else {
-                                Text("You missed the window.")
+                                Text(loc("You missed the window.", "Вы пропустили окно."))
                                     .font(.title3)
                                     .fontWeight(.semibold)
                             }
@@ -807,12 +731,13 @@ struct PayGateView: View {
                 }
                 .padding(.horizontal, 20)
                 
-                Button("Leave") {
+                Button(loc("Close", "Закрыть")) {
                     if let id = activeBundleId {
                         setForfeit(id)
                     }
-                    performTransition(duration: 1.0) {
+                    performTransition(duration: 0.8) {
                         model.dismissPayGate()
+                        sendAppToBackground()
                     }
                 }
                 .frame(maxWidth: .infinity, minHeight: 40)
@@ -821,7 +746,7 @@ struct PayGateView: View {
                 .font(.headline)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 20)
-                .padding(.bottom, 12)
+                .padding(.bottom, 72)
             }
         }
         .overlay(transitionOverlay)
@@ -845,6 +770,7 @@ struct PayGateView: View {
             model.dismissPayGate()
         }
     }
+}
 }
 extension PayGateView {
     private func refreshCountdown() {
@@ -939,29 +865,52 @@ extension PayGateView {
         }
     }
     
-    private func payGateGradient(for tariff: Tariff) -> some View {
-        let edgeColor: Color
-        switch tariff {
-        case .free:
-            edgeColor = Color.cyan.opacity(0.5)
-        case .easy:
-            edgeColor = Color.green.opacity(0.5)
-        case .medium:
-            edgeColor = Color.orange.opacity(0.45)
-        case .hard:
-            edgeColor = Color.red.opacity(0.5)
+    private func payGateBackground() -> some View {
+        ZStack {
+            Image("paygate")
+                .resizable()
+                .scaledToFill()
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.black.opacity(0.7),
+                    Color.black.opacity(0.45)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
-        return RadialGradient(
-            gradient: Gradient(stops: [
-                .init(color: Color.black, location: 0.0),
-                .init(color: Color.black.opacity(0.9), location: 0.12),
-                .init(color: Color.black.opacity(0.45), location: 0.24),
-                .init(color: edgeColor, location: 1.0)
-            ]),
-            center: .center,
-            startRadius: 0,
-            endRadius: 300
-        )
+    }
+    
+    private var stepsProgressBar: some View {
+        let total = max(1, Int(model.stepsToday))
+        let remaining = max(0, model.stepsBalance)
+        let used = max(0, total - remaining)
+        let remainingProgress = min(1, Double(remaining) / Double(total))
+        let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
+
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(loc("Steps today", "Шаги сегодня"))
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.85))
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.black.opacity(0.7))
+                    .frame(height: 10)
+                GeometryReader { proxy in
+                    Capsule()
+                        .fill(pink)
+                        .frame(width: proxy.size.width * CGFloat(remainingProgress), height: 10)
+                }
+                .frame(height: 10)
+            }
+            HStack {
+                Text("\(used) used")
+                Spacer()
+                Text("\(remaining) left")
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundColor(.white.opacity(0.9))
+        }
     }
     
     private func accentColor(for tariff: Tariff) -> Color {
@@ -1033,12 +982,7 @@ extension PayGateView {
     }
     
     private func tariffDisplayName(_ tariff: Tariff) -> String {
-        switch tariff {
-        case .free: return loc("en", "Free", "Бесплатно")
-        case .easy: return loc("en", "Easy", "Легко")
-        case .medium: return loc("en", "Medium", "Средне")
-        case .hard: return loc("en", "Hard", "Сложно")
-        }
+        tariff.displayName
     }
     
     @MainActor
@@ -1083,16 +1027,19 @@ extension PayGateView {
         }
     }
 
-    @ViewBuilder
     private func accessWindowButton(window: AccessWindow, bundleId: String, isTimedOut: Bool, isForfeited: Bool) -> some View {
         let tariff = activeTariff
         let baseCost = windowCost(for: tariff, window: window)
         let hasPass = model.hasDayPass(for: bundleId)
         let effectiveCost = hasPass ? 0 : baseCost
         let canPay = effectiveCost == 0 || model.stepsBalance >= effectiveCost
-        let title = "\(window.displayName) • \(effectiveCost) fuel"
+        let name = accessWindowName(window)
+        let fuelTitle = loc("fuel", "шагов")
+        let title = "\(name) • \(effectiveCost) \(fuelTitle)"
+        let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
+        let buttonColor = canPay && !isTimedOut && !isForfeited ? pink : Color.gray.opacity(0.6)
 
-        Button(title) {
+        return Button(title) {
             guard !isTimedOut, !isForfeited else { return }
             setForfeit(bundleId)
             model.applyAccessWindow(window, for: bundleId)
@@ -1103,10 +1050,31 @@ extension PayGateView {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 44)
-        .background(canPay && !isTimedOut && !isForfeited ? accentColor(for: tariff) : Color.gray)
+        .background(buttonColor)
         .foregroundColor(.white)
-        .font(.headline)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .font(.subheadline.weight(.semibold))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: buttonColor.opacity(0.35), radius: 6, x: 0, y: 3)
         .disabled(!canPay || isTimedOut || isForfeited)
+    }
+
+    private func accessWindowName(_ window: AccessWindow) -> String {
+        switch window {
+        case .day1:
+            return loc("Day pass", "Доступ на день")
+        case .single:
+            return loc("Single entry", "Однократный вход")
+        case .minutes5:
+            return loc("5 minutes", "5 минут")
+        case .hour1:
+            return loc("1 hour", "1 час")
+        }
+    }
+
+    private func sendAppToBackground() {
+        // Move app to background (returns user to home screen)
+        DispatchQueue.main.async {
+            UIApplication.shared.perform(#selector(NSXPCConnection.suspend))
+        }
     }
 }

@@ -1,7 +1,6 @@
 import Foundation
 import SwiftUI
 import Combine
-import FamilyControls
 import HealthKit
 
 // MARK: - Handoff Token Model
@@ -20,8 +19,12 @@ struct HandoffToken: Codable {
 // NOTE: Avoid exposing FamilyControls token types in shared protocol to prevent cross-target build issues.
 
 // MARK: - HealthKit Service Protocol
+@preconcurrency
 protocol HealthKitServiceProtocol {
+    @MainActor
     func requestAuthorization() async throws
+    @MainActor
+    func authorizationStatus() -> HKAuthorizationStatus
     func fetchTodaySteps() async throws -> Double
     func fetchSteps(from: Date, to: Date) async throws -> Double
     func startObservingSteps(updateHandler: @escaping (Double) -> Void)
@@ -73,10 +76,10 @@ protocol BudgetEngineProtocol: ObservableObject {
 }
 
 enum Tariff: String, CaseIterable {
-    case free = "free"     // 0 steps = 1 minute (free entry tracking only)
-    case easy = "lite"     // 100 steps = 1 minute
-    case medium = "medium" // 500 steps = 1 minute
     case hard = "hard"     // 1000 steps = 1 minute
+    case medium = "medium" // 500 steps = 1 minute
+    case easy = "lite"     // 100 steps = 1 minute
+    case free = "free"     // 0 steps = 1 minute (free entry tracking only)
     
     var stepsPerMinute: Double {
         switch self {
@@ -91,27 +94,27 @@ enum Tariff: String, CaseIterable {
     var entryCostSteps: Int {
         switch self {
         case .free: return 0
-        case .easy: return 100
-        case .medium: return 500
-        case .hard: return 1000
+        case .easy: return 10   // Level III
+        case .medium: return 50 // Level II
+        case .hard: return 100  // Level I
         }
     }
     
     var displayName: String {
         switch self {
-        case .free: return "🆓 FREE"
-        case .easy: return "💡 LITE"
-        case .medium: return "🔥 MEDIUM"
-        case .hard: return "💪 HARD"
+        case .hard: return "I"
+        case .medium: return "II"
+        case .easy: return "III"
+        case .free: return "IV"
         }
     }
     
     var description: String {
         switch self {
         case .free: return "0 steps"
-        case .easy: return "100 steps"
-        case .medium: return "500 steps"
-        case .hard: return "1000 steps"
+        case .easy: return "10 steps"
+        case .medium: return "50 steps"
+        case .hard: return "100 steps"
         }
     }
 }
@@ -119,19 +122,40 @@ enum Tariff: String, CaseIterable {
 // Backward compatibility
 typealias DifficultyLevel = Tariff
 
+// MARK: - FamilyControls placeholders
+struct FamilyActivitySelection {
+    var applicationTokens: Set<ApplicationToken> = []
+    var categoryTokens: Set<ActivityCategoryToken> = []
+    
+    init() {}
+}
+
+// Minimal stand-ins to keep compilation when Family Controls features are disabled.
+final class ApplicationToken: NSObject, NSSecureCoding {
+    static var supportsSecureCoding: Bool { true }
+    override init() { super.init() }
+    required init?(coder: NSCoder) { super.init() }
+    func encode(with coder: NSCoder) {}
+}
+
+final class ActivityCategoryToken: NSObject, NSSecureCoding {
+    static var supportsSecureCoding: Bool { true }
+    override init() { super.init() }
+    required init?(coder: NSCoder) { super.init() }
+    func encode(with coder: NSCoder) {}
+}
+
 // MARK: - App theme
 enum AppTheme: String, CaseIterable {
     case system
     case light
     case dark
-    case cosmic
     
     var displayNameEn: String {
         switch self {
         case .system: return "System"
         case .light: return "Light"
         case .dark: return "Dark"
-        case .cosmic: return "Cosmic"
         }
     }
     
@@ -140,7 +164,6 @@ enum AppTheme: String, CaseIterable {
         case .system: return "Системная"
         case .light: return "Светлая"
         case .dark: return "Тёмная"
-        case .cosmic: return "Космическая"
         }
     }
     
@@ -148,7 +171,22 @@ enum AppTheme: String, CaseIterable {
         switch self {
         case .system: return nil
         case .light: return .light
-        case .dark, .cosmic: return .dark
+        case .dark: return .dark
+        }
+    }
+    
+    var accentColor: Color {
+        switch self {
+        case .system: return Color.accentColor
+        case .light: return Color.blue
+        case .dark: return Color(red: 224/255, green: 130/255, blue: 217/255)
+        }
+    }
+    
+    var backgroundColor: Color {
+        switch self {
+        case .system, .light: return Color(.systemBackground)
+        case .dark: return Color(.black)
         }
     }
 }

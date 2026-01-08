@@ -4,15 +4,23 @@ import UIKit
 struct AppsPage: View {
     @ObservedObject var model: AppModel
     let automationApps: [AutomationApp]
-    let tariffs: [Tariff]
     @State private var clockTick: Int = 0
     private let tickTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @State private var guideApp: GuideItem?
-    @State private var showPopularPicker: Bool = false
-    @State private var showOtherPicker: Bool = false
-    @State private var pendingTariffForPicker: Tariff? = nil
+    @State private var showDeactivatedPicker: Bool = false
+    @State private var costInfoStage: ModuleLevelStage?
     @State private var statusVersion = UUID()
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    
+    private struct ModuleLevelStage: Identifiable {
+        let label: String
+        let tariff: Tariff
+        let threshold: Int
+        let nextThreshold: Int?
+        
+        var id: String { label }
+    }
+    
     private var automationConfiguredSet: Set<String> {
         let defaults = UserDefaults.stepsTrader()
         let configured = defaults.array(forKey: "automationConfiguredBundles") as? [String] ?? []
@@ -46,28 +54,21 @@ struct AppsPage: View {
     private var otherAppsList: [AutomationApp] {
         automationApps.filter { $0.category == .other }
     }
-    
+
     private var activatedApps: [AutomationApp] {
         automationApps.filter {
             let status = statusFor($0, configured: automationConfiguredSet, pending: automationPendingSet)
             return status != .none
         }
-    }
-
-    private func groupedActivatedApps() -> [(Tariff, [AutomationApp])] {
-        let groups = Dictionary(grouping: activatedApps) { currentTariff(for: $0) }
-        return Tariff.allCases.map { tariff in
-            let list = groups[tariff] ?? []
-            return (tariff, list.sorted { $0.name < $1.name })
+        .sorted { lhs, rhs in
+            let lhsRank = levelRank(for: lhs)
+            let rhsRank = levelRank(for: rhs)
+            if lhsRank != rhsRank { return lhsRank > rhsRank }
+            let lhsSpent = spentSteps(for: lhs)
+            let rhsSpent = spentSteps(for: rhs)
+            if lhsSpent != rhsSpent { return lhsSpent > rhsSpent }
+            return lhs.name < rhs.name
         }
-    }
-    
-    private var deactivatedApps: [AutomationApp] {
-        automationApps.filter {
-            let status = statusFor($0, configured: automationConfiguredSet, pending: automationPendingSet)
-            return status == .none
-        }
-        .sorted { $0.name < $1.name }
     }
     
     private var deactivatedPopular: [AutomationApp] {
@@ -84,130 +85,52 @@ struct AppsPage: View {
         .sorted { $0.name < $1.name }
     }
     
-    private var othersPreview: [AutomationApp] {
-        Array(deactivatedOthers.prefix(3))
+    private var deactivatedAll: [AutomationApp] {
+        deactivatedPopular + deactivatedOthers
     }
     
-    private var othersRest: [AutomationApp] {
-        Array(deactivatedOthers.dropFirst(3))
+    private var deactivatedPreview: [AutomationApp] {
+        Array(deactivatedPopular.prefix(11))
+    }
+    
+    private var deactivatedOverflow: [AutomationApp] {
+        deactivatedOthers
+    }
+
+    private func formatRemaining(_ seconds: Int) -> String {
+        let clamped = max(0, seconds)
+        let hours = clamped / 3600
+        let minutes = (clamped % 3600) / 60
+        let secs = clamped % 60
+        if hours > 0 {
+            return String(format: "%02d:%02d:%02d", hours, minutes, secs)
+        } else {
+            return String(format: "%02d:%02d", minutes, secs)
+        }
+    }
+    
+    private var moduleLevels: [ModuleLevelStage] {
+        [
+            .init(label: "I", tariff: .hard, threshold: 0, nextThreshold: 10_000),
+            .init(label: "II", tariff: .medium, threshold: 10_000, nextThreshold: 30_000),
+            .init(label: "III", tariff: .easy, threshold: 30_000, nextThreshold: 100_000),
+            .init(label: "IV", tariff: .free, threshold: 100_000, nextThreshold: nil)
+        ]
     }
     
     var body: some View {
         NavigationView {
-            GeometryReader { geo in
-                let horizontalPadding: CGFloat = 16
-                let columnSpacing: CGFloat = 12
-                let columnWidth = (geo.size.width - horizontalPadding * 2 - columnSpacing) / 2
-                let gridSpacing: CGFloat = 10
-                let gridItemSize = max(64.0, (columnWidth - gridSpacing) / 2)
-                let bottomPadding: CGFloat = 8
-                
-                HStack(alignment: .top, spacing: columnSpacing) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(loc(appLanguage, "Activated", "Активированные"))
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                        ScrollView {
-                            if activatedApps.isEmpty {
-                                Text(loc(appLanguage, "No modules here yet.", "Пока пусто."))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                LazyVStack(alignment: .leading, spacing: 14) {
-                                    ForEach(groupedActivatedApps(), id: \.0) { tariff, apps in
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            Text(tariffHeader(for: tariff))
-                                                .font(.subheadline)
-                                                .bold()
-                                            activatedGrid(for: apps, size: gridItemSize, spacing: gridSpacing, tariff: tariff)
-                                        }
-                                    }
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
-                        .padding(.bottom, bottomPadding)
-                        .scrollIndicators(.hidden)
-                    }
-                    .frame(width: columnWidth, height: geo.size.height, alignment: .topLeading)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(loc(appLanguage, "Deactivated", "Неактивные"))
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 12) {
-                                // Popular subset
-                                Text(loc(appLanguage, "Main", "Главные"))
-                                    .font(.subheadline).bold()
-                                let columns = Array(repeating: GridItem(.fixed(gridItemSize), spacing: gridSpacing), count: 2)
-                                LazyVGrid(columns: columns, alignment: .center, spacing: gridSpacing) {
-                                    ForEach(deactivatedPopular) { app in
-                                        automationButton(
-                                            app,
-                                            status: statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet),
-                                            width: gridItemSize
-                                        )
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                
-                                // Others list with preview + full list
-                                Text(loc(appLanguage, "Others", "Другие"))
-                                    .font(.subheadline).bold()
-                                LazyVGrid(columns: columns, alignment: .center, spacing: gridSpacing) {
-                                    ForEach(othersPreview) { app in
-                                        automationButton(
-                                            app,
-                                            status: statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet),
-                                            width: gridItemSize
-                                        )
-                                    }
-                                    if !othersRest.isEmpty {
-                                        Button {
-                                            showOtherPicker = true
-                                        } label: {
-                                            RoundedRectangle(cornerRadius: 18)
-                                                .fill(Color.gray.opacity(0.08))
-                                                .frame(width: gridItemSize, height: gridItemSize)
-                                                .overlay(
-                                                    Text("...")
-                                                        .font(.system(size: 28, weight: .bold))
-                                                        .foregroundColor(Color.gray.opacity(0.7))
-                                                )
-                                        }
-                                        .buttonStyle(PlainButtonStyle())
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                
-                                // Websites placeholder
-                                Text(loc(appLanguage, "Websites", "Сайты"))
-                                    .font(.subheadline).bold()
-                                Button {
-                                    // Placeholder, no action
-                                } label: {
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .fill(Color.gray.opacity(0.12))
-                                        .frame(height: 50)
-                                        .overlay(
-                                            Text(loc(appLanguage, "Web links", "Веб-сайты"))
-                                                .foregroundColor(.secondary)
-                                        )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                            .padding(.vertical, 4)
-                        }
-                        .scrollIndicators(.hidden)
-                        .padding(.bottom, bottomPadding)
-                    }
-                    .frame(width: columnWidth, height: geo.size.height, alignment: .topLeading)
+            let horizontalPadding: CGFloat = 16
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    deactivatedSection(horizontalPadding: horizontalPadding)
+                    activatedSection
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, horizontalPadding)
+                .padding(.top, 12)
                 .id(statusVersion)
             }
+            .scrollIndicators(.hidden)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(true)
@@ -217,20 +140,312 @@ struct AppsPage: View {
                 app: item,
                 model: model,
                 markPending: markPending(bundleId:),
-                deleteModule: deactivate(bundleId:),
-                entryTariffBinding: entryTariffSliderBinding(for:),
-                dayPassTariffBinding: dayPassTariffSliderBinding(for:),
-                tariffs: tariffs
+                deleteModule: deactivate(bundleId:)
             )
         }
-        .sheet(isPresented: $showPopularPicker) {
-            pickerView(apps: deactivatedPopular, title: loc(appLanguage, "Popular apps", "Популярные приложения"))
+        .sheet(isPresented: $showDeactivatedPicker) {
+            pickerView(apps: deactivatedOverflow, title: loc(appLanguage, "Other modules", "Остальные модули"))
         }
-        .sheet(isPresented: $showOtherPicker) {
-            pickerView(apps: deactivatedOthers, title: loc(appLanguage, "Other apps", "Другие приложения"))
+        .alert(item: $costInfoStage) { stage in
+            Alert(
+                title: Text(levelTitle(for: stage)),
+                message: Text(costInfoMessage(for: stage)),
+                dismissButton: .default(Text(loc(appLanguage, "OK", "Ок")))
+            )
         }
         .onReceive(tickTimer) { _ in
             clockTick &+= 1
+        }
+    }
+    
+    @ViewBuilder
+    private func deactivatedSection(horizontalPadding: CGFloat) -> some View {
+        let spacing: CGFloat = 10
+        let columns = 6
+        let availableWidth = UIScreen.main.bounds.width - horizontalPadding * 2
+        let tileSize = max(48, (availableWidth - CGFloat(columns - 1) * spacing) / CGFloat(columns))
+        
+        VStack(alignment: .leading, spacing: 12) {
+            Text(loc(appLanguage, "Deactivated modules", "Неактивные модули"))
+                .font(.headline)
+            
+            if deactivatedAll.isEmpty {
+                Text(loc(appLanguage, "All modules are connected", "Все модули подключены"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.fixed(tileSize), spacing: spacing), count: columns),
+                    alignment: .leading,
+                    spacing: spacing
+                ) {
+                    ForEach(deactivatedPreview) { app in
+                        automationButton(
+                            app,
+                            status: statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet),
+                            width: tileSize
+                        )
+                    }
+                    if !deactivatedOverflow.isEmpty {
+                        overflowTile(size: tileSize)
+                    }
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var activatedSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(loc(appLanguage, "Activated modules", "Подключенные модули"))
+                .font(.headline)
+            
+            if activatedApps.isEmpty {
+                Text(loc(appLanguage, "No modules here yet.", "Пока пусто."))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(activatedApps) { app in
+                            moduleLevelCard(for: app)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+    
+    private func overflowTile(size: CGFloat) -> some View {
+        Button {
+            showDeactivatedPicker = true
+        } label: {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.gray.opacity(0.08))
+                .frame(width: size, height: size)
+                .overlay(
+                    Text("...")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(Color.gray.opacity(0.7))
+                )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private func moduleLevelCard(for app: AutomationApp) -> some View {
+        let status = statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet)
+        let spent = spentSteps(for: app)
+        let current = currentLevel(forSpent: spent)
+        let nextSteps = stepsToNextLevel(forSpent: spent)
+        
+        return Button {
+            openGuide(for: app, status: status)
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center, spacing: 12) {
+                    appIconView(app)
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(app.name)
+                            .font(.headline)
+                        Text(moduleCardSubtitle(for: current, stepsLeft: nextSteps))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    statusIcon(for: status)
+                }
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(moduleLevels) { stage in
+                        moduleLevelRow(for: stage, spent: spent)
+                    }
+                }
+                
+                Text("\(formatSteps(spent)) " + loc(appLanguage, "steps spent in this module", "шагов потрачено в модуле"))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .frame(width: 280, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.gray.opacity(0.1))
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+        .contextMenu {
+            switch status {
+            case .configured, .pending:
+                Button(role: .destructive) {
+                    deactivate(app)
+                } label: {
+                    Label(loc(appLanguage, "Deactivate module", "Отключить модуль"), systemImage: "trash")
+                }
+            case .none:
+                Button {
+                    activate(app)
+                } label: {
+                    Label(loc(appLanguage, "Activate", "Активировать"), systemImage: "checkmark.circle")
+                }
+            }
+        }
+    }
+    
+    private func moduleLevelRow(for stage: ModuleLevelStage, spent: Int) -> some View {
+        let active = spent >= stage.threshold
+        let progress = levelProgress(for: stage, spent: spent)
+        let remaining = stage.nextThreshold.map { max(0, $0 - spent) }
+        
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(loc(appLanguage, "Level \(stage.label)", "Уровень \(stage.label)"))
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                if let remaining {
+                    Text(remaining == 0 ? loc(appLanguage, "Unlocked", "Открыт") : "\(formatSteps(remaining)) " + loc(appLanguage, "steps", "шагов"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(loc(appLanguage, "Max", "Макс"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Button {
+                    showCostInfo(for: stage)
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            ProgressView(value: progress)
+                .tint(tileAccent(for: stage.tariff))
+                .progressViewStyle(.linear)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(tileAccent(for: stage.tariff).opacity(active ? 0.16 : 0.08))
+        )
+    }
+    
+    private func moduleCardSubtitle(for level: ModuleLevelStage, stepsLeft: Int?) -> String {
+        if let stepsLeft, stepsLeft > 0 {
+            return loc(appLanguage, "Level \(level.label) • \(formatSteps(stepsLeft)) steps to next", "Уровень \(level.label) • \(formatSteps(stepsLeft)) шагов до следующего")
+        } else {
+            return loc(appLanguage, "Level \(level.label) • max level", "Уровень \(level.label) • максимальный уровень")
+        }
+    }
+    
+    private func levelProgress(for stage: ModuleLevelStage, spent: Int) -> Double {
+        if let next = stage.nextThreshold {
+            let denominator = max(1, next - stage.threshold)
+            let value = Double(spent - stage.threshold) / Double(denominator)
+            return min(max(value, 0), 1)
+        }
+        return spent >= stage.threshold ? 1 : 0
+    }
+    
+    private func currentLevel(forSpent spent: Int) -> ModuleLevelStage {
+        moduleLevels.last { spent >= $0.threshold } ?? moduleLevels.first!
+    }
+    
+    private func stepsToNextLevel(forSpent spent: Int) -> Int? {
+        let level = currentLevel(forSpent: spent)
+        guard let next = level.nextThreshold else { return nil }
+        return max(0, next - spent)
+    }
+    
+    private func levelRank(for app: AutomationApp) -> Int {
+        let spent = spentSteps(for: app)
+        let level = currentLevel(forSpent: spent)
+        if let idx = moduleLevels.firstIndex(where: { $0.id == level.id }) {
+            return idx
+        }
+        return 0
+    }
+    
+    private func spentSteps(for app: AutomationApp) -> Int {
+        model.appStepsSpentToday[app.bundleId, default: 0]
+    }
+    
+    private func formatSteps(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+    
+    private func openGuide(for app: AutomationApp, status: AutomationStatus) {
+        guard guideApp == nil else { return }
+        UserDefaults.stepsTrader().set(app.scheme, forKey: "selectedAppScheme")
+        let item = GuideItem(
+            name: app.name,
+            icon: app.icon,
+            imageName: app.imageName,
+            scheme: app.scheme,
+            link: app.link,
+            status: status,
+            bundleId: app.bundleId
+        )
+        DispatchQueue.main.async {
+            guideApp = item
+        }
+    }
+    
+    private func showCostInfo(for stage: ModuleLevelStage) {
+        costInfoStage = stage
+    }
+    
+    private func levelTitle(for stage: ModuleLevelStage) -> String {
+        loc(appLanguage, "Level \(stage.label)", "Уровень \(stage.label)")
+    }
+    
+    private func costInfoMessage(for stage: ModuleLevelStage) -> String {
+        let costs = levelCosts(for: stage.tariff)
+        let entryLine = loc(appLanguage, "Entry: \(formatSteps(costs.entry)) steps", "Вход: \(formatSteps(costs.entry)) шагов")
+        let fiveLine = loc(appLanguage, "5 minutes: \(formatSteps(costs.fiveMinutes)) steps", "5 минут: \(formatSteps(costs.fiveMinutes)) шагов")
+        let hourLine = loc(appLanguage, "1 hour: \(formatSteps(costs.hour)) steps", "1 час: \(formatSteps(costs.hour)) шагов")
+        let dayLine = loc(appLanguage, "Day: \(formatSteps(costs.day)) steps", "День: \(formatSteps(costs.day)) шагов")
+        return [entryLine, fiveLine, hourLine, dayLine].joined(separator: "\n")
+    }
+    
+    private func levelCosts(for tariff: Tariff) -> (entry: Int, fiveMinutes: Int, hour: Int, day: Int) {
+        let entry = tariff.entryCostSteps
+        let five = windowCost(for: tariff, window: .minutes5)
+        let hour = windowCost(for: tariff, window: .hour1)
+        let day = windowCost(for: tariff, window: .day1)
+        return (entry, five, hour, day)
+    }
+    
+    private func windowCost(for tariff: Tariff, window: AccessWindow) -> Int {
+        switch tariff {
+        case .free:
+            return 0
+        case .easy:
+            switch window {
+            case .single: return 10
+            case .minutes5: return 50
+            case .hour1: return 500
+            case .day1: return 5000
+            }
+        case .medium:
+            switch window {
+            case .single: return 50
+            case .minutes5: return 250
+            case .hour1: return 2500
+            case .day1: return 10000
+            }
+        case .hard:
+            switch window {
+            case .single: return 100
+            case .minutes5: return 500
+            case .hour1: return 5000
+            case .day1: return 20000
+            }
         }
     }
     
@@ -244,27 +459,6 @@ struct AppsPage: View {
         return .none
     }
 
-    private func statusPriority(_ status: AutomationStatus) -> Int {
-        switch status {
-        case .configured: return 0
-        case .pending: return 1
-        case .none: return 2
-        }
-    }
-
-    private func tariffHeader(for tariff: Tariff) -> String {
-        let count = activatedApps.filter { currentTariff(for: $0) == tariff }.count
-        let maxText = "4"
-        let base: String
-        switch tariff {
-        case .free: base = loc(appLanguage, "Free", "Free")
-        case .easy: base = loc(appLanguage, "Lite", "Lite")
-        case .medium: base = loc(appLanguage, "Medium", "Medium")
-        case .hard: base = loc(appLanguage, "Hard", "Hard")
-        }
-        return "\(base) (\(count)/\(maxText))"
-    }
-    
     @ViewBuilder
     private func statusIcon(for status: AutomationStatus) -> some View {
         switch status {
@@ -294,20 +488,7 @@ struct AppsPage: View {
     
     private func automationButton(_ app: AutomationApp, status: AutomationStatus, width: CGFloat, tariff: Tariff? = nil) -> some View {
         Button {
-            guard guideApp == nil else { return }
-            UserDefaults.stepsTrader().set(app.scheme, forKey: "selectedAppScheme")
-            let item = GuideItem(
-                name: app.name,
-                icon: app.icon,
-                imageName: app.imageName,
-                scheme: app.scheme,
-                link: app.link,
-                status: status,
-                bundleId: app.bundleId
-            )
-            DispatchQueue.main.async {
-                guideApp = item
-            }
+            openGuide(for: app, status: status)
         } label: {
             VStack(spacing: 8) {
                 ZStack(alignment: .topTrailing) {
@@ -319,18 +500,18 @@ struct AppsPage: View {
                                 appIconView(app)
                                     .frame(width: width * 0.6, height: width * 0.6)
                                 if let remaining = model.remainingAccessSeconds(for: app.bundleId), remaining > 0 {
-                                    let mins = max(0, remaining / 60)
-                                    let secs = max(0, remaining % 60)
-                                    let formatted = String(format: "%02d:%02d", mins, secs)
-                                    Text(formatted)
-                                        .font(.caption.bold())
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color.black.opacity(0.45))
-                                        .clipShape(Capsule())
-                                        .padding(.bottom, 6)
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "timer")
+                                        Text(formatRemaining(remaining))
+                                    }
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.black.opacity(0.7))
+                                    .clipShape(Capsule())
+                                    .padding(6)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                                 }
                             }
                             .id(clockTick)
@@ -435,42 +616,20 @@ struct AppsPage: View {
     
     private func activate(_ app: AutomationApp, tariff: Tariff? = nil) {
         markPending(bundleId: app.bundleId)
-        if let tariff {
-            model.updateUnlockSettings(
-                for: app.bundleId,
-                entryCost: tariff.entryCostSteps,
-                dayPassCost: dayPassCost(for: tariff)
-            )
-        }
+        let selectedTariff = tariff ?? .hard
+        model.updateUnlockSettings(for: app.bundleId, tariff: selectedTariff)
         statusVersion = UUID()
     }
     
-    // Sheet with full list per category
+    // Sheet with full list
     private func pickerView(apps: [AutomationApp], title: String) -> some View {
         NavigationView {
             List {
                 ForEach(apps) { app in
                     Button {
-                        if let tariff = pendingTariffForPicker {
-                            activate(app, tariff: tariff)
-                            pendingTariffForPicker = nil
-                            showPopularPicker = false
-                            showOtherPicker = false
-                        } else {
-                            // Open guide without auto-activating
-                            let item = GuideItem(
-                                name: app.name,
-                                icon: app.icon,
-                                imageName: app.imageName,
-                                scheme: app.scheme,
-                                link: app.link,
-                                status: statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet),
-                                bundleId: app.bundleId
-                            )
-                            guideApp = item
-                            showPopularPicker = false
-                            showOtherPicker = false
-                        }
+                        let status = statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet)
+                        openGuide(for: app, status: status)
+                        showDeactivatedPicker = false
                     } label: {
                         HStack {
                             appIconView(app)
@@ -486,62 +645,9 @@ struct AppsPage: View {
             }
             .navigationTitle(title)
             .navigationBarItems(trailing: Button(loc(appLanguage, "Close", "Закрыть")) {
-                showPopularPicker = false
-                showOtherPicker = false
+                showDeactivatedPicker = false
             })
         }
-    }
-    
-    // MARK: - Tariff sliders
-    private func entryTariffSliderBinding(for app: AutomationApp) -> Binding<Double> {
-        Binding<Double>(
-            get: { Double(indexForEntryTariff(app)) },
-            set: { newValue in
-                let idx = min(max(Int(newValue.rounded()), 0), tariffs.count - 1)
-                let tariff = tariffs[idx]
-                guard canAssign(tariff: tariff, to: app) else {
-                    model.message = loc(appLanguage, "Limit reached for \(tariff.displayName)", "Достигнут лимит для \(tariff.displayName)")
-                    statusVersion = UUID()
-                    return
-                }
-                model.updateUnlockSettings(
-                    for: app.bundleId,
-                    entryCost: tariff.entryCostSteps,
-                    dayPassCost: dayPassCost(for: tariff)
-                )
-            }
-        )
-    }
-    
-    private func dayPassTariffSliderBinding(for app: AutomationApp) -> Binding<Double> {
-        Binding<Double>(
-            get: { Double(indexForDayPassTariff(app)) },
-            set: { newValue in
-                let idx = min(max(Int(newValue.rounded()), 0), tariffs.count - 1)
-                let tariff = tariffs[idx]
-                guard canAssign(tariff: tariff, to: app) else {
-                    model.message = loc(appLanguage, "Limit reached for \(tariff.displayName)", "Достигнут лимит для \(tariff.displayName)")
-                    statusVersion = UUID()
-                    return
-                }
-                let cost = dayPassCost(for: tariff)
-                model.updateUnlockSettings(
-                    for: app.bundleId,
-                    entryCost: tariff.entryCostSteps,
-                    dayPassCost: cost
-                )
-            }
-        )
-    }
-    
-    private func indexForEntryTariff(_ app: AutomationApp) -> Int {
-        let tariff = currentTariff(for: app)
-        return tariffs.firstIndex(of: tariff) ?? 0
-    }
-    
-    private func indexForDayPassTariff(_ app: AutomationApp) -> Int {
-        let tariff = currentTariff(for: app)
-        return tariffs.firstIndex(of: tariff) ?? 0
     }
     
     private func dayPassCost(for tariff: Tariff) -> Int {
@@ -553,51 +659,6 @@ struct AppsPage: View {
         }
     }
     
-    private var remainingStepsToday: Int {
-        max(0, Int(model.stepsToday) - model.spentStepsToday)
-    }
-    
-    // MARK: - Layout for activated groups
-    private func activatedGrid(for apps: [AutomationApp], size: CGFloat, spacing: CGFloat, tariff: Tariff) -> some View {
-        let columns = Array(repeating: GridItem(.fixed(size), spacing: spacing), count: 2)
-        return LazyVGrid(columns: columns, alignment: .leading, spacing: spacing) {
-            ForEach(0..<4, id: \.self) { idx in
-                if idx < apps.count {
-                    let app = apps[idx]
-                    automationButton(
-                        app,
-                        status: statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet),
-                        width: size,
-                        tariff: tariff
-                    )
-                } else {
-                    addCard(size: size, tariff: tariff)
-                }
-            }
-        }
-    }
-
-    private func addCard(size: CGFloat, tariff: Tariff) -> some View {
-        Button {
-            pendingTariffForPicker = tariff
-            showPopularPicker = true
-        } label: {
-            RoundedRectangle(cornerRadius: 18)
-                .fill(tileColor(for: tariff, status: .none))
-                .overlay(
-                    Image(systemName: "plus")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(tileAccent(for: tariff))
-                )
-                .frame(width: size, height: size)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-    
-    private func nextDeactivatedPopular() -> AutomationApp? {
-        deactivatedPopular.first
-    }
-    
     private func currentTariff(for app: AutomationApp) -> Tariff {
         let settings = model.unlockSettings(for: app.bundleId)
         if let tariff = Tariff.allCases.first(where: {
@@ -605,31 +666,9 @@ struct AppsPage: View {
         }) {
             return tariff
         }
-        return .easy
+        return .hard
     }
 
-    private func maxAllowed(for tariff: Tariff) -> Int? {
-        switch tariff {
-        case .free: return 4
-        case .easy: return 4
-        case .medium: return 4
-        case .hard: return 4
-        }
-    }
-
-    private func canAssign(tariff: Tariff, to app: AutomationApp) -> Bool {
-        let current = currentTariff(for: app)
-        if current == tariff { return true }
-        guard let limit = maxAllowed(for: tariff) else { return true }
-
-        let activeCount = activatedApps.filter {
-            statusFor($0, configured: automationConfiguredSet, pending: automationPendingSet) != .none
-                && currentTariff(for: $0) == tariff
-                && $0.bundleId != app.bundleId
-        }.count
-
-        return activeCount < limit
-    }
 }
 
 struct AutomationGuideView: View {
@@ -639,14 +678,14 @@ struct AutomationGuideView: View {
     @ObservedObject var model: AppModel
     let markPending: (String) -> Void
     let deleteModule: (String) -> Void
-    let entryTariffBinding: (AutomationApp) -> Binding<Double>
-    let dayPassTariffBinding: (AutomationApp) -> Binding<Double>
-    let tariffs: [Tariff]
     @State private var showDeactivateAlert = false
+    @State private var clockTick = 0
+    private let tickTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 16) {
+                Spacer().frame(height: 8)
                 header
 
                 unlockSettings
@@ -724,14 +763,27 @@ struct AutomationGuideView: View {
             } message: {
                 Text("To fully deactivate this module, remove the automation from the Shortcuts app.")
             }
+            .onReceive(tickTimer) { _ in
+                clockTick &+= 1
+            }
         }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                guideIconView()
-                    .frame(width: 48, height: 48)
+        let remaining = model.remainingAccessSeconds(for: app.bundleId)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack(alignment: .topTrailing) {
+                    guideIconView()
+                        .frame(width: 56, height: 56)
+                    if let remaining, remaining > 0 {
+                        timerChip(remaining)
+                            .padding(2)
+                            .offset(x: 6, y: -6)
+                    }
+                }
+                .id(clockTick)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(app.name)
                         .font(.title2)
@@ -742,7 +794,7 @@ struct AutomationGuideView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     case .pending:
-                        Text("The module is provided but not connected to \(app.name)")
+                        Text("Module is not connected")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     case .none:
@@ -751,14 +803,15 @@ struct AutomationGuideView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-            }
-            if app.status == .configured || app.status == .pending {
-                Image(systemName: "checkmark.seal.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 80)
-                    .foregroundColor(app.status == .configured ? .green : .yellow)
-                    .padding(.top, 8)
+                Spacer()
+                if app.status == .configured || app.status == .pending {
+                    Image(systemName: "checkmark.seal.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 36, height: 36)
+                        .foregroundColor(app.status == .configured ? .green : .yellow)
+                        .padding(.top, 2)
+                }
             }
         }
     }
@@ -776,28 +829,32 @@ struct AutomationGuideView: View {
                 .font(.system(size: 36))
         }
     }
-    
-    private func entryLabel(for app: AutomationApp) -> String {
-        let idx = min(max(Int(entryTariffBinding(app).wrappedValue.rounded()), 0), tariffs.count - 1)
-        let tariff = tariffs[idx]
-        return "\(tariff.displayName) • \(tariff.entryCostSteps) steps"
+
+    private func timerChip(_ remaining: Int) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "timer")
+            Text(formatRemaining(remaining))
+        }
+        .font(.caption2.weight(.semibold))
+        .foregroundColor(.white)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.black.opacity(0.75))
+        .clipShape(Capsule())
     }
     
-    private func dayPassLabel(for app: AutomationApp) -> String {
-        let idx = min(max(Int(dayPassTariffBinding(app).wrappedValue.rounded()), 0), tariffs.count - 1)
-        let tariff = tariffs[idx]
-        return "\(tariff.displayName) • \(dayPassCost(for: tariff)) steps"
-    }
-    
-    private func dayPassCost(for tariff: Tariff) -> Int {
-        switch tariff {
-        case .free: return 0
-        case .easy: return 1000
-        case .medium: return 5000
-        case .hard: return 10000
+    private func formatRemaining(_ seconds: Int) -> String {
+        let clamped = max(0, seconds)
+        let hours = clamped / 3600
+        let minutes = (clamped % 3600) / 60
+        let secs = clamped % 60
+        if hours > 0 {
+            return String(format: "%02d:%02d:%02d", hours, minutes, secs)
+        } else {
+            return String(format: "%02d:%02d", minutes, secs)
         }
     }
-
+    
     @ViewBuilder
     private var content: some View {
         switch app.status {
@@ -837,70 +894,130 @@ struct AutomationGuideView: View {
     }
     
     private var unlockSettings: some View {
-        let automationApp = AutomationApp(
-            name: app.name,
-            scheme: app.scheme,
-            icon: app.icon,
-            imageName: app.imageName,
-            link: app.link,
-            bundleId: app.bundleId
-        )
-        let settings = model.unlockSettings(for: app.bundleId)
+        let currentTariff = model.currentLevelTariff(for: app.bundleId)
+        let costs = costBreakdown(for: currentTariff)
+        let accent = tileAccent(for: currentTariff)
         
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Unlock settings")
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Access level")
                 .font(.headline)
             
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Single entry")
-                    .font(.caption)
+            HStack(spacing: 10) {
+                Text("Level")
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
-                Slider(
-                    value: entryTariffBinding(automationApp),
-                    in: 0...Double(tariffs.count - 1),
-                    step: 1
-                )
-                Text(entryLabel(for: automationApp))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                Text(currentTariff.displayName)
+                    .font(.title3.weight(.bold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule().fill(accent.opacity(0.2))
+                    )
             }
             
             VStack(alignment: .leading, spacing: 8) {
-                Text("Day pass")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Slider(
-                    value: dayPassTariffBinding(automationApp),
-                    in: 0...Double(tariffs.count - 1),
-                    step: 1
-                )
-                Text(dayPassLabel(for: automationApp))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                Text("Costs")
+                    .font(.subheadline.weight(.semibold))
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    costPill(title: "Entry", value: costs.entry, color: accent)
+                    costPill(title: "Day", value: costs.day, color: accent.opacity(0.9))
+                    costPill(title: "5 min", value: costs.fiveMinutes, color: accent.opacity(0.85))
+                    costPill(title: "1 hour", value: costs.hour, color: accent.opacity(0.7))
+                }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Per entry")
-                    Spacer()
-                    Text("\(settings.entryCostSteps) steps")
-                        .foregroundColor(.secondary)
-                }
-                HStack {
-                    Text("Day pass")
-                    Spacer()
-                    if model.hasDayPass(for: app.bundleId) {
-                        Text("Active today")
-                            .foregroundColor(.green)
-                    } else {
-                        Text("\(settings.dayPassCostSteps) steps")
-                            .foregroundColor(.secondary)
-                    }
-                }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Allowed windows")
+                    .font(.subheadline.weight(.semibold))
+                accessWindowToggleRow(title: "Day pass", window: .day1, bundleId: app.bundleId, tint: accent)
+                accessWindowToggleRow(title: "1 hour", window: .hour1, bundleId: app.bundleId, tint: accent)
+                accessWindowToggleRow(title: "5 minutes", window: .minutes5, bundleId: app.bundleId, tint: accent)
+                accessWindowToggleRow(title: "Single entry", window: .single, bundleId: app.bundleId, tint: accent)
             }
+            
+            Text("Levels change automatically based on steps spent in this module.")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.1)))
+    }
+    
+    private func costPill(title: String, value: Int, color: Color) -> some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text("\(value)")
+                .font(.headline.weight(.semibold))
+                .foregroundColor(.primary)
+            Text("steps")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(color.opacity(0.16))
+        )
+    }
+
+    private func accessWindowToggleRow(title: String, window: AccessWindow, bundleId: String, tint: Color) -> some View {
+        Toggle(isOn: Binding(get: {
+            model.allowedAccessWindows(for: bundleId).contains(window)
+        }, set: { newValue in
+            model.updateAccessWindow(window, enabled: newValue, for: bundleId)
+        })) {
+            Text(title)
+        }
+        .toggleStyle(SwitchToggleStyle(tint: tint))
+    }
+    
+    private func costBreakdown(for tariff: Tariff) -> (entry: Int, fiveMinutes: Int, hour: Int, day: Int) {
+        let entry = tariff.entryCostSteps
+        let five = windowCost(for: tariff, window: .minutes5)
+        let hour = windowCost(for: tariff, window: .hour1)
+        let day = windowCost(for: tariff, window: .day1)
+        return (entry, five, hour, day)
+    }
+    
+    private func windowCost(for tariff: Tariff, window: AccessWindow) -> Int {
+        switch tariff {
+        case .free:
+            return 0
+        case .easy:
+            switch window {
+            case .single: return 10
+            case .minutes5: return 50
+            case .hour1: return 500
+            case .day1: return 5000
+            }
+        case .medium:
+            switch window {
+            case .single: return 50
+            case .minutes5: return 250
+            case .hour1: return 2500
+            case .day1: return 10000
+            }
+        case .hard:
+            switch window {
+            case .single: return 100
+            case .minutes5: return 500
+            case .hour1: return 5000
+            case .day1: return 20000
+            }
+        }
+    }
+    
+    private func tileAccent(for tariff: Tariff) -> Color {
+        switch tariff {
+        case .free: return Color.cyan.opacity(0.7)
+        case .easy: return Color.green.opacity(0.7)
+        case .medium: return Color.orange.opacity(0.8)
+        case .hard: return Color.red.opacity(0.8)
+        }
     }
 }
 
@@ -908,66 +1025,255 @@ struct ManualsPage: View {
     @ObservedObject var model: AppModel
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @State private var isExpanded: Bool = false
+    @State private var isLevelsExpanded: Bool = false
+    @State private var isEntryExpanded: Bool = false
+    @State private var showGallery: Bool = false
+    @State private var galleryImages: [String] = []
+    @State private var galleryIndex: Int = 0
+    private let cardBackground = Color.gray.opacity(0.08)
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Button {
-                        withAnimation(.easeInOut) {
-                            isExpanded.toggle()
-                        }
-                    } label: {
-                        HStack {
-                            Text(appLanguage == "ru" ? "Как подключить модуль" : "How to set a module")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            Spacer()
-                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    
-                    if isExpanded {
+            ZStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 12) {
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(Color.gray.opacity(0.1))
-                                .frame(height: 180)
-                                .overlay(
-                                    Text(appLanguage == "ru" ? "Место для картинки" : "Image placeholder")
+                            Button {
+                                withAnimation(.easeInOut) {
+                                    isExpanded.toggle()
+                                }
+                            } label: {
+                                HStack {
+                                    Text(appLanguage == "ru" ? "Как подключить модуль" : "How to set up a module")
+                                        .font(.title3.weight(.semibold))
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                        .font(.headline)
                                         .foregroundColor(.secondary)
-                                )
-                            
-                            Text(appLanguage == "ru" ? "Шаги" : "Steps")
-                                .font(.headline)
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(appLanguage == "ru" ? "1. Откройте ссылку на модуль и добавьте его в Команды." : "1. Open the module link and add it to Shortcuts.")
-                                Text(appLanguage == "ru" ? "2. В Команды → Автоматизация → + → Приложение выберите нужное приложение и включите «Открыто» и «Выполнять сразу»." : "2. In Shortcuts → Automation → + → App, pick the target app and enable “Is Opened” and “Run Immediately”.")
-                                Text(appLanguage == "ru" ? "3. Укажите модуль Steps Trader и сохраните." : "3. Select the Steps Trader module and save.")
-                                Text(appLanguage == "ru" ? "4. Откройте приложение один раз, чтобы активировать автоматизацию." : "4. Open the app once to activate automation.")
+                                }
                             }
-                            .font(.body)
-                            .foregroundColor(.primary)
                             
-                            Text(appLanguage == "ru" ? "Подсказка" : "Tip")
-                                .font(.headline)
-                            Text(appLanguage == "ru" ? "Если модуль не срабатывает, убедитесь, что включены уведомления и доступ к Командам." : "If the module doesn’t fire, ensure notifications and Shortcuts access are enabled.")
-                                .font(.body)
-                                .foregroundColor(.secondary)
+                            if isExpanded {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    let manualImages = (1...11).map { "manual_1_\($0)" }
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 12) {
+                                            ForEach(Array(manualImages.enumerated()), id: \.offset) { index, name in
+                                                Image(name)
+                                                    .resizable()
+                                                    .scaledToFit()
+                                                    .frame(height: 220)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                                    .shadow(radius: 4)
+                                                    .onTapGesture {
+                                                        openGallery(images: manualImages, startAt: index)
+                                                    }
+                                            }
+                                        }
+                                        .padding(.vertical, 4)
+                                    }
+                                    
+                                    Text(appLanguage == "ru" ? "Шаги" : "Steps")
+                                        .font(.headline)
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text(appLanguage == "ru" ? "1. Откройте ссылку на модуль и добавьте его в Команды." : "1. Open the module link and add it to Shortcuts.")
+                                        Text(appLanguage == "ru" ? "2. В Команды → Автоматизация → + → Приложение выберите нужное приложение и включите «Открыто» и «Выполнять сразу»." : "2. In Shortcuts → Automation → + → App, pick the target app and enable “Is Opened” and “Run Immediately”.")
+                                        Text(appLanguage == "ru" ? "3. Укажите модуль [Space] CTRL и сохраните." : "3. Select the [Space] CTRL module and save.")
+                                        Text(appLanguage == "ru" ? "4. Откройте приложение один раз, чтобы активировать автоматизацию." : "4. Open the app once to activate automation.")
+                                    }
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                    
+                                    Text(appLanguage == "ru" ? "Подсказка" : "Tip")
+                                        .font(.headline)
+                                    Text(appLanguage == "ru" ? "Если модуль не срабатывает, убедитесь, что включены уведомления и доступ к Командам." : "If the module doesn’t fire, ensure notifications and Shortcuts access are enabled.")
+                                        .font(.body)
+                                        .foregroundColor(.secondary)
+                                }
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
                         }
                         .padding()
-                        .background(RoundedRectangle(cornerRadius: 16).fill(Color.gray.opacity(0.08)))
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .background(RoundedRectangle(cornerRadius: 16).fill(cardBackground))
                     }
+                    .padding()
+
+                    expandableCard(
+                        title: appLanguage == "ru" ? "Как прокачивать уровни" : "How levels grow",
+                        expanded: $isLevelsExpanded,
+                        content: levelsContent
+                    )
+
+                    expandableCard(
+                        title: appLanguage == "ru" ? "Как настраивать варианты входа" : "How to configure entry options",
+                        expanded: $isEntryExpanded,
+                        content: entryOptionsContent
+                    )
                 }
-                .padding()
+                
+                if showGallery {
+                    ZStack {
+                        Color.black.opacity(0.75)
+                            .ignoresSafeArea()
+                            .transition(.opacity)
+                            .onTapGesture { closeGallery() }
+                        
+                        TabView(selection: $galleryIndex) {
+                            ForEach(Array(galleryImages.enumerated()), id: \.offset) { index, name in
+                                if let uiImage = UIImage(named: name) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                                        .tag(index)
+                                        .padding()
+                                } else {
+                                    Color.clear.tag(index)
+                                }
+                            }
+                        }
+                        .tabViewStyle(.page(indexDisplayMode: .always))
+                        .background(Color.clear)
+                        .ignoresSafeArea()
+                        .gesture(
+                            DragGesture(minimumDistance: 20)
+                                .onEnded { value in
+                                    if abs(value.translation.height) > 60 {
+                                        closeGallery()
+                                    }
+                                }
+                        )
+                    }
+                    .zIndex(2)
+                }
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(true)
         }
         .background(Color.clear)
+        .onDisappear {
+            showGallery = false
+            galleryImages = []
+            isExpanded = false
+            isLevelsExpanded = false
+            isEntryExpanded = false
+        }
+    }
+
+    @ViewBuilder
+    private func levelsContent() -> some View {
+        let ru = [
+            "• Чем больше путешествуете, тем сильнее прокачивается модуль — топливо тратится, опыт копится.",
+            "• Уровни: II после 10 000 шагов, III после 30 000, IV после 100 000 в этом модуле.",
+            "• С ростом уровня входить легче: I=100 шагов, II=50, III=10, IV=0 — просто фиксируете свои вылеты.",
+            "• За прогрессом смотрите в карточке модуля: там видно, сколько топлива уже сожжено."
+        ]
+        let en = [
+            "• The more you travel, the stronger the module gets — fuel spent turns into experience.",
+            "• Levels: II at 10,000 steps, III at 30,000, IV at 100,000 in that module.",
+            "• Higher level = cheaper launch: I=100 steps, II=50, III=10, IV=0 — just log your departures.",
+            "• Track your progress on the module page to see how much fuel you've burned."
+        ]
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(appLanguage == "ru" ? ru : en, id: \.self) { line in
+                Text(line).font(.body).foregroundColor(.primary)
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(cardBackground))
+    }
+
+    @ViewBuilder
+    private func entryOptionsContent() -> some View {
+        let manualImages = ["manual_2_1", "manual_2_2", "manual_2_3"]
+        let ruText = [
+            "Во время путешествий по соцсетям нужен разный запас времени.",
+            "Где-то хватает одного входа, где-то надо «жить» часами.",
+            "Выбирайте формат: разовый, 5 мин, 1 час или день.",
+            "Стоимость зависит от уровня (от 10 до 100 шагов за вход, 5–500 за 5 мин, 500–5000 за час, день по тарифу).",
+            "Лишние варианты можно выключить в настройках модуля — их не будет на PayGate."
+        ]
+        let enText = [
+            "Different worlds need different fuel.",
+            "Sometimes one entry is enough, sometimes you camp there for an hour.",
+            "Pick your mode: single, 5 min, 1 hour, or a day pass.",
+            "Costs scale with your level (about 10–100 steps for single, 5–500 for 5 min, 500–5000 for an hour, day by tariff).",
+            "Toggle off the modes you don’t need in the module settings — they disappear from PayGate."
+        ]
+
+        VStack(alignment: .leading, spacing: 12) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(Array(manualImages.enumerated()), id: \.offset) { index, name in
+                        Image(name)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 220)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .shadow(radius: 3)
+                            .onTapGesture {
+                                openGallery(images: manualImages, startAt: index)
+                            }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(appLanguage == "ru" ? ruText : enText, id: \.self) { line in
+                    Text(line)
+                        .font(.body)
+                        .foregroundColor(.primary)
+                }
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(cardBackground))
+    }
+
+    private func openGallery(images: [String], startAt index: Int) {
+        galleryImages = images
+        galleryIndex = index
+        withAnimation(.easeInOut) {
+            showGallery = true
+        }
+    }
+    
+    private func closeGallery() {
+        withAnimation(.easeInOut) {
+            showGallery = false
+        }
+    }
+
+    private func expandableCard(title: String, expanded: Binding<Bool>, content: @escaping () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeInOut) {
+                    expanded.wrappedValue.toggle()
+                }
+            } label: {
+                HStack {
+                    Text(title)
+                        .font(.title3.weight(.semibold))
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: expanded.wrappedValue ? "chevron.up" : "chevron.down")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+                .background(RoundedRectangle(cornerRadius: 14).fill(cardBackground))
+            }
+
+            if expanded.wrappedValue {
+                content()
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(cardBackground))
     }
 }
