@@ -4,7 +4,7 @@ import ManagedSettingsUI
 import UIKit
 
 // MARK: - Shield UI Configuration
-// Shows a button to open Steps Trader for paying an entry
+// Shows a button to open Space CTRL for paying an entry
 final class ShieldConfigurationProvider: NSObject {
     
     private struct AppUnlockSettings: Codable {
@@ -72,7 +72,7 @@ final class ShieldConfigurationProvider: NSObject {
 
     // MARK: - Shield Configuration Methods
     func configuration(shielding application: Application) -> ShieldConfiguration {
-        return makeConfiguration(title: "Steps Trader",
+        return makeConfiguration(title: "Space CTRL",
                                  subtitle: nil,
                                  bundleId: application.bundleIdentifier)
     }

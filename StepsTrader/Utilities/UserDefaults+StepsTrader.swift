@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - UserDefaults Extension for Steps Trader
+// MARK: - UserDefaults Extension for Space CTRL
 extension UserDefaults {
     private static var hasLoggedFallback = false
     private static var hasLoggedGroupInfo = false

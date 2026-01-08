@@ -2,9 +2,40 @@ import AppIntents
 import Foundation
 import UserNotifications
 
+private struct IntentAppOpenLog: Codable {
+    let id: UUID
+    let bundleId: String
+    let date: Date
+}
+
+private func recordJump(for bundleId: String) {
+    let defaults = UserDefaults.stepsTrader()
+    var logs: [IntentAppOpenLog] = []
+    if let data = defaults.data(forKey: "appOpenLogs_v1"),
+       let decoded = try? JSONDecoder().decode([IntentAppOpenLog].self, from: data) {
+        logs = decoded
+    }
+    logs.append(.init(id: UUID(), bundleId: bundleId, date: Date()))
+    // Trim to avoid unbounded growth
+    if logs.count > 500 {
+        logs = Array(logs.suffix(500))
+    }
+    if let data = try? JSONEncoder().encode(logs) {
+        defaults.set(data, forKey: "appOpenLogs_v1")
+    }
+    let name = CFNotificationName("com.steps.trader.logs" as CFString)
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        name,
+        nil,
+        nil,
+        true
+    )
+}
+
 @available(iOS 17.0, *)
 struct TestOneShortcutIntent: AppIntent {
-    static var title: LocalizedStringResource = "SPCE CTRL: Launcher"
+    static var title: LocalizedStringResource = "Space CTRL: Launcher"
     static var description = IntentDescription(
         "Opens PayGate for a selected app when no access window is active.")
     static var openAppWhenRun: Bool = true
@@ -80,7 +111,7 @@ struct TestOneShortcutIntent: AppIntent {
 
 @available(iOS 17.0, *)
 struct CheckAccessWindowIntent: AppIntent {
-    static var title: LocalizedStringResource = "SPCE CTRL: Engine check"
+    static var title: LocalizedStringResource = "Space CTRL: Engine check"
     static var description = IntentDescription(
         "Returns whether PayGate is allowed right now for the selected app (false when paid window is active).")
     static var openAppWhenRun: Bool = false
@@ -95,10 +126,12 @@ struct CheckAccessWindowIntent: AppIntent {
         if isBlocked {
             let remaining = remainingBlockSeconds(now: now, userDefaults: userDefaults, bundleId: target.bundleId) ?? -1
             print("🚫 CheckAccessWindowIntent: blocked for \(target.bundleId) (\(remaining)s left)")
+            recordJump(for: target.bundleId)
             return .result(value: false)
         } else {
             userDefaults.set(target.rawValue, forKey: "lastCheckedPaygateTarget")
             print("✅ CheckAccessWindowIntent: allowed for \(target.bundleId)")
+            recordJump(for: target.bundleId)
             return .result(value: true)
         }
     }
@@ -145,7 +178,7 @@ enum TargetApp: String, AppEnum, CaseDisplayRepresentable {
 
 @available(iOS 17.0, *)
 struct StarLauncherIntent: AppIntent {
-    static var title: LocalizedStringResource = "*SPCE CTRL: Launcher"
+    static var title: LocalizedStringResource = "*Space CTRL: Launcher"
     static var description = IntentDescription(
         "Opens PayGate for a selected app (other apps pool) when no access window is active.")
     static var openAppWhenRun: Bool = true

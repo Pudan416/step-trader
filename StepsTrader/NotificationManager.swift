@@ -16,7 +16,7 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendTimeExpiredNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "⏰ Steps Trader"
+        content.title = "⏰ Space CTRL"
         content.body = "Fuel empty. Earn more steps to unlock."
         content.sound = .default
         content.badge = nil
@@ -38,7 +38,7 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendTimeExpiredNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
-        content.title = "⏰ Steps Trader"
+        content.title = "⏰ Space CTRL"
         if remainingMinutes > 0 {
             content.body = "Fuel empty. You had \(remainingMinutes) min. Earn steps to unlock."
         } else {
@@ -64,7 +64,7 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendUnblockNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
-        content.title = "🎉 Steps Trader"
+        content.title = "🎉 Space CTRL"
         content.body = "Fuel restored: \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
@@ -86,7 +86,7 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendRemainingTimeNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
-        content.title = "⏱️ Steps Trader"
+        content.title = "⏱️ Space CTRL"
         content.body = "Fuel left: \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
@@ -108,7 +108,7 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendTestNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "🧪 Steps Trader Test"
+        content.title = "🧪 Space CTRL Test"
         content.body = "Test notification to confirm the system works."
         content.sound = .default
         content.badge = nil

@@ -244,9 +244,25 @@ struct AppsPage: View {
         } label: {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .center, spacing: 12) {
-                    appIconView(app)
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    ZStack(alignment: .topTrailing) {
+                        appIconView(app)
+                            .frame(width: 44, height: 44)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        if let remaining = model.remainingAccessSeconds(for: app.bundleId), remaining > 0 {
+                            HStack(spacing: 4) {
+                                Image(systemName: "timer")
+                                Text(formatRemaining(remaining))
+                            }
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.black.opacity(0.75))
+                            .clipShape(Capsule())
+                            .padding(2)
+                        }
+                    }
+                    .id(clockTick)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(app.name)
                             .font(.headline)
@@ -260,7 +276,7 @@ struct AppsPage: View {
                 
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(moduleLevels) { stage in
-                        moduleLevelRow(for: stage, spent: spent)
+                        moduleLevelRow(for: stage, spent: spent, current: current)
                     }
                 }
                 
@@ -294,10 +310,35 @@ struct AppsPage: View {
         }
     }
     
-    private func moduleLevelRow(for stage: ModuleLevelStage, spent: Int) -> some View {
-        let active = spent >= stage.threshold
-        let progress = levelProgress(for: stage, spent: spent)
-        let remaining = stage.nextThreshold.map { max(0, $0 - spent) }
+    private func moduleLevelRow(for stage: ModuleLevelStage, spent: Int, current: ModuleLevelStage) -> some View {
+        let stageLength = stage.nextThreshold.map { $0 - stage.threshold }
+        let isCurrent = stage.id == current.id
+        let isPast = stage.threshold < current.threshold
+        let active = isPast || isCurrent
+
+        let progress: Double = {
+            if isPast { return 1 }
+            if isCurrent, let len = stageLength {
+                let localSpent = max(0, spent - stage.threshold)
+                return min(max(Double(localSpent) / Double(max(1, len)), 0), 1)
+            }
+            return 0
+        }()
+
+        let remaining: Int? = {
+            if isPast { return 0 }
+            if isCurrent {
+                if let next = stage.nextThreshold {
+                    return max(0, next - spent)
+                } else {
+                    return nil
+                }
+            }
+            if let len = stageLength {
+                return len
+            }
+            return nil
+        }()
         
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -334,20 +375,7 @@ struct AppsPage: View {
     }
     
     private func moduleCardSubtitle(for level: ModuleLevelStage, stepsLeft: Int?) -> String {
-        if let stepsLeft, stepsLeft > 0 {
-            return loc(appLanguage, "Level \(level.label) • \(formatSteps(stepsLeft)) steps to next", "Уровень \(level.label) • \(formatSteps(stepsLeft)) шагов до следующего")
-        } else {
-            return loc(appLanguage, "Level \(level.label) • max level", "Уровень \(level.label) • максимальный уровень")
-        }
-    }
-    
-    private func levelProgress(for stage: ModuleLevelStage, spent: Int) -> Double {
-        if let next = stage.nextThreshold {
-            let denominator = max(1, next - stage.threshold)
-            let value = Double(spent - stage.threshold) / Double(denominator)
-            return min(max(value, 0), 1)
-        }
-        return spent >= stage.threshold ? 1 : 0
+        return loc(appLanguage, "Level \(level.label)", "Уровень \(level.label)")
     }
     
     private func currentLevel(forSpent spent: Int) -> ModuleLevelStage {
@@ -679,8 +707,6 @@ struct AutomationGuideView: View {
     let markPending: (String) -> Void
     let deleteModule: (String) -> Void
     @State private var showDeactivateAlert = false
-    @State private var clockTick = 0
-    private let tickTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         NavigationView {
@@ -688,7 +714,9 @@ struct AutomationGuideView: View {
                 Spacer().frame(height: 8)
                 header
 
-                unlockSettings
+                if app.status == .configured {
+                    unlockSettings
+                }
 
                 content
 
@@ -763,27 +791,14 @@ struct AutomationGuideView: View {
             } message: {
                 Text("To fully deactivate this module, remove the automation from the Shortcuts app.")
             }
-            .onReceive(tickTimer) { _ in
-                clockTick &+= 1
-            }
         }
     }
 
     private var header: some View {
-        let remaining = model.remainingAccessSeconds(for: app.bundleId)
-
-        return VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                ZStack(alignment: .topTrailing) {
-                    guideIconView()
-                        .frame(width: 56, height: 56)
-                    if let remaining, remaining > 0 {
-                        timerChip(remaining)
-                            .padding(2)
-                            .offset(x: 6, y: -6)
-                    }
-                }
-                .id(clockTick)
+                guideIconView()
+                    .frame(width: 56, height: 56)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(app.name)
                         .font(.title2)
@@ -829,31 +844,6 @@ struct AutomationGuideView: View {
                 .font(.system(size: 36))
         }
     }
-
-    private func timerChip(_ remaining: Int) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: "timer")
-            Text(formatRemaining(remaining))
-        }
-        .font(.caption2.weight(.semibold))
-        .foregroundColor(.white)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color.black.opacity(0.75))
-        .clipShape(Capsule())
-    }
-    
-    private func formatRemaining(_ seconds: Int) -> String {
-        let clamped = max(0, seconds)
-        let hours = clamped / 3600
-        let minutes = (clamped % 3600) / 60
-        let secs = clamped % 60
-        if hours > 0 {
-            return String(format: "%02d:%02d:%02d", hours, minutes, secs)
-        } else {
-            return String(format: "%02d:%02d", minutes, secs)
-        }
-    }
     
     @ViewBuilder
     private var content: some View {
@@ -885,7 +875,7 @@ struct AutomationGuideView: View {
                 } else {
                     Text("1) Open Shortcuts → Automation → + → \"App\".")
                     Text("2) Choose \(app.name), set \"Is Opened\" + \"Run Immediately\".")
-                    Text("3) Pick the universal Steps Trader shortcut or your own action.")
+                    Text("3) Pick the universal Space CTRL shortcut or your own action.")
                     Text("4) Launch \(app.name) once to activate the automation.")
                 }
             }
@@ -895,7 +885,6 @@ struct AutomationGuideView: View {
     
     private var unlockSettings: some View {
         let currentTariff = model.currentLevelTariff(for: app.bundleId)
-        let costs = costBreakdown(for: currentTariff)
         let accent = tileAccent(for: currentTariff)
         
         return VStack(alignment: .leading, spacing: 12) {
@@ -916,23 +905,12 @@ struct AutomationGuideView: View {
             }
             
             VStack(alignment: .leading, spacing: 8) {
-                Text("Costs")
+                Text("Access options")
                     .font(.subheadline.weight(.semibold))
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    costPill(title: "Entry", value: costs.entry, color: accent)
-                    costPill(title: "Day", value: costs.day, color: accent.opacity(0.9))
-                    costPill(title: "5 min", value: costs.fiveMinutes, color: accent.opacity(0.85))
-                    costPill(title: "1 hour", value: costs.hour, color: accent.opacity(0.7))
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Allowed windows")
-                    .font(.subheadline.weight(.semibold))
-                accessWindowToggleRow(title: "Day pass", window: .day1, bundleId: app.bundleId, tint: accent)
-                accessWindowToggleRow(title: "1 hour", window: .hour1, bundleId: app.bundleId, tint: accent)
-                accessWindowToggleRow(title: "5 minutes", window: .minutes5, bundleId: app.bundleId, tint: accent)
-                accessWindowToggleRow(title: "Single entry", window: .single, bundleId: app.bundleId, tint: accent)
+                accessOptionRow(title: "Day pass", window: .day1, tariff: currentTariff, tint: accent)
+                accessOptionRow(title: "1 hour", window: .hour1, tariff: currentTariff, tint: accent)
+                accessOptionRow(title: "5 minutes", window: .minutes5, tariff: currentTariff, tint: accent)
+                accessOptionRow(title: "Single entry", window: .single, tariff: currentTariff, tint: accent)
             }
             
             Text("Levels change automatically based on steps spent in this module.")
@@ -943,44 +921,32 @@ struct AutomationGuideView: View {
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.1)))
     }
     
-    private func costPill(title: String, value: Int, color: Color) -> some View {
-        VStack(spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text("\(value)")
-                .font(.headline.weight(.semibold))
-                .foregroundColor(.primary)
-            Text("steps")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+    private func accessOptionRow(title: String, window: AccessWindow, tariff: Tariff, tint: Color) -> some View {
+        let cost = windowCost(for: tariff, window: window)
+        return HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text("\(cost) steps")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Toggle(isOn: Binding(get: {
+                model.allowedAccessWindows(for: app.bundleId).contains(window)
+            }, set: { newValue in
+                model.updateAccessWindow(window, enabled: newValue, for: app.bundleId)
+            })) {
+                EmptyView()
+            }
+            .labelsHidden()
+            .toggleStyle(SwitchToggleStyle(tint: tint))
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
-        .frame(maxWidth: .infinity)
+        .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(color.opacity(0.16))
+            RoundedRectangle(cornerRadius: 10)
+                .fill(tint.opacity(0.08))
         )
-    }
-
-    private func accessWindowToggleRow(title: String, window: AccessWindow, bundleId: String, tint: Color) -> some View {
-        Toggle(isOn: Binding(get: {
-            model.allowedAccessWindows(for: bundleId).contains(window)
-        }, set: { newValue in
-            model.updateAccessWindow(window, enabled: newValue, for: bundleId)
-        })) {
-            Text(title)
-        }
-        .toggleStyle(SwitchToggleStyle(tint: tint))
-    }
-    
-    private func costBreakdown(for tariff: Tariff) -> (entry: Int, fiveMinutes: Int, hour: Int, day: Int) {
-        let entry = tariff.entryCostSteps
-        let five = windowCost(for: tariff, window: .minutes5)
-        let hour = windowCost(for: tariff, window: .hour1)
-        let day = windowCost(for: tariff, window: .day1)
-        return (entry, five, hour, day)
     }
     
     private func windowCost(for tariff: Tariff, window: AccessWindow) -> Int {

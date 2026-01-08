@@ -8,7 +8,6 @@ struct SettingsView: View {
     @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
     @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
-    @AppStorage("notifyRemainingTime") private var notifyRemainingTime: Bool = true
     private var tariffs: [Tariff] { Tariff.allCases }
     
     // Popular apps list reused across the app
@@ -118,26 +117,6 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
-                    
-                    NavigationLink {
-                        DayEndSettingsView(
-                            appLanguage: appLanguage,
-                            dayEndDateBinding: dayEndDateBinding
-                        )
-                        .navigationTitle(loc(appLanguage, "Day reset time", "Время окончания дня"))
-                        .navigationBarTitleDisplayMode(.inline)
-                    } label: {
-                        HStack {
-                            Text(loc(appLanguage, "Day reset time", "Время окончания дня"))
-                            Spacer()
-                            Text(formattedDayEnd())
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-
-                Toggle(isOn: $notifyRemainingTime) {
-                    Text(loc(appLanguage, "Remaining time notifications", "Уведомления о оставшемся времени"))
                 }
 
             }

@@ -25,7 +25,7 @@ final class HealthKitService: HealthKitServiceProtocol {
         isRequestingAuthorization = true
         defer { isRequestingAuthorization = false }
 
-        print("🏥 HealthKit requestAuthorization started (main=\(Thread.isMainThread))")
+        print("🏥 HealthKit requestAuthorization started on main actor")
         logHealthKitEntitlement()
         logEmbeddedProfileHealthKit()
         print("🏥 isHealthDataAvailable: \(HKHealthStore.isHealthDataAvailable())")

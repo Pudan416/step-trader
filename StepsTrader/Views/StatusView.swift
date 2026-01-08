@@ -84,7 +84,7 @@ struct StatusView: View {
             Text(loc(appLanguage, "No modules connected yet", "Модули еще не подключены"))
                 .font(.headline)
                 .multilineTextAlignment(.center)
-            Text(loc(appLanguage, "Connect your first module to start tracking time and steps.", "Подключите первый модуль, чтобы начать отслеживание времени и шагов."))
+            Text(loc(appLanguage, "Connect your first module to start tracking jumps to social media.", "Подключите первый модуль, чтобы начать отслеживание погруженияв соцсети."))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -95,7 +95,16 @@ struct StatusView: View {
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.blue)
+                    .background(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.88, green: 0.38, blue: 0.72),
+                                Color.black
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .foregroundColor(.white)
                     .cornerRadius(12)
             }

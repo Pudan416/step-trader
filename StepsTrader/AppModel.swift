@@ -3,6 +3,7 @@ import AudioToolbox
 import Combine
 import Foundation
 import HealthKit
+import UIKit
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -165,6 +166,15 @@ final class AppModel: ObservableObject {
         loadAppStepsSpentToday()
         loadDailyTariffSelections()
         loadDailyStories()
+        loadCachedStepsToday()
+        if stepsToday > 0 {
+            // Use cached steps to keep UI/budget non-zero on cold launch
+            let mins = budgetEngine.minutes(from: stepsToday)
+            budgetEngine.setBudget(minutes: mins)
+            syncBudgetProperties()
+            stepsBalance = max(0, Int(stepsToday) - spentStepsToday)
+            UserDefaults.stepsTrader().set(stepsBalance, forKey: "stepsBalance")
+        }
 
         // Инициализируем значения по умолчанию если их нет
         if entryCostSteps == 0 {
@@ -172,13 +182,22 @@ final class AppModel: ObservableObject {
             persistEntryCost(tariff: .easy)
         }
 
-        // Обновляем баланс шагов и запрашиваем HealthKit
-        Task {
-            await ensureHealthAuthorizationAndRefresh()
+        // Обновляем баланс шагов и запрашиваем HealthKit, если онбординг уже пройден
+        let hasSeenIntro = UserDefaults.standard.bool(forKey: "hasSeenIntro_v1")
+        if hasSeenIntro {
+            Task {
+                await ensureHealthAuthorizationAndRefresh()
+            }
+        } else {
+            print("⏳ Skipping HealthKit prompt until intro is finished")
         }
         
-        // Start automatic step updates
-        startStepObservation()
+        // Start automatic step updates if onboarding finished
+        if hasSeenIntro {
+            startStepObservation()
+        } else {
+            print("⏳ Skipping step observation until intro is finished")
+        }
 
         print("🎯 AppModel initialized with dependencies")
 
@@ -242,6 +261,10 @@ final class AppModel: ObservableObject {
                             print("📱 PayGate notification - target: \(target), bundleId: \(bundleId)")
                             `self`.startPayGateSession(for: bundleId)
                         }
+                    }
+                } else if name.rawValue as String == "com.steps.trader.logs" {
+                    Task { @MainActor in
+                        `self`.loadAppOpenLogs()
                     }
                 }
             },
@@ -607,6 +630,11 @@ final class AppModel: ObservableObject {
         // Автогенерация дневника за вчера (если ещё не сгенерирован)
         ensureYesterdayStoryGenerated()
 
+        // Всегда обновляем шаги из HealthKit при возвращении в приложение
+        Task { @MainActor in
+            await refreshStepsBalance()
+        }
+
     }
 
     // Convenience computed properties for backward compatibility
@@ -704,7 +732,7 @@ final class AppModel: ObservableObject {
                 switch hkError.code {
                 case .errorAuthorizationDenied:
                     message =
-                        "❌ HealthKit access denied. Open the Health app → Sources → Steps Trader and enable step reading."
+                        "❌ HealthKit access denied. Open the Health app → Sources → Space CTRL and enable step reading."
                 case .errorAuthorizationNotDetermined:
                     message = "⚠️ Step access not granted yet. Requesting permission..."
                     do {
@@ -726,7 +754,7 @@ final class AppModel: ObservableObject {
             #if targetEnvironment(simulator)
                 stepsToday = 2500
             #else
-                stepsToday = 0
+                stepsToday = fallbackCachedSteps()
             #endif
         }
         let g = UserDefaults.stepsTrader()
@@ -762,13 +790,13 @@ final class AppModel: ObservableObject {
     }
 
     func ensureHealthAuthorizationAndRefresh() async {
-        let status = await healthKitService.authorizationStatus()
+        let status = healthKitService.authorizationStatus()
         print("🏥 HealthKit status before ensure: \(status.rawValue)")
         switch status {
         case .sharingAuthorized:
             print("🏥 HealthKit already authorized, refreshing steps")
         case .sharingDenied:
-            print("❌ HealthKit access denied. Open the Health app → Sources → Steps Trader and enable step reading.")
+            print("❌ HealthKit access denied. Open the Health app → Sources → Space CTRL and enable step reading.")
             return
         case .notDetermined:
             print("🏥 HealthKit not determined. Requesting authorization...")
@@ -789,6 +817,7 @@ final class AppModel: ObservableObject {
             }
         }
         await refreshStepsBalance()
+        startStepObservation()
     }
     
     private func isSameCustomDay(_ a: Date, _ b: Date) -> Bool {
@@ -1298,6 +1327,7 @@ final class AppModel: ObservableObject {
         print("🚫 Redirecting away due to active access window for \(bundleId)")
         g.removeObject(forKey: "blockedPaygateBundleId")
         g.removeObject(forKey: "blockedPaygateTimestamp")
+        recordAutomationOpen(bundleId: bundleId)
         if let scheme = TargetResolver.urlScheme(forBundleId: bundleId),
            let url = URL(string: scheme) {
             Task { @MainActor in
@@ -1626,7 +1656,7 @@ final class AppModel: ObservableObject {
 
     private func scheduleReturnNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "🚶‍♂️ Steps Trader"
+        content.title = "🚶‍♂️ Space CTRL"
         content.body = "Walk more steps to earn extra entertainment time!"
         content.sound = .default
         content.badge = nil
@@ -1634,7 +1664,7 @@ final class AppModel: ObservableObject {
         // Добавляем action для быстрого возврата в приложение
         let returnAction = UNNotificationAction(
             identifier: "RETURN_TO_APP",
-            title: "Open Steps Trader",
+            title: "Open Space CTRL",
             options: [.foreground]
         )
 
@@ -1678,7 +1708,7 @@ final class AppModel: ObservableObject {
         guard isBlocked else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "⏰ Steps Trader"
+        content.title = "⏰ Space CTRL"
         content.body = "Reminder: walk more steps to unlock!"
         content.sound = .default
 
@@ -1696,21 +1726,25 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func bootstrap() async {
-        print("🚀 Steps Trader: Starting bootstrap...")
+    func bootstrap(requestPermissions: Bool = true) async {
+        print("🚀 Space CTRL: Starting bootstrap...")
 
         // Обновляем время из shared storage (на случай если DeviceActivity обновил его)
         loadSpentTime()
 
         do {
-            let authStatus = await healthKitService.authorizationStatus()
+            let authStatus = healthKitService.authorizationStatus()
             print("🏥 HealthKit status at bootstrap: \(authStatus.rawValue)")
-            if authStatus == .sharingAuthorized {
-                print("📊 HealthKit already authorized (bootstrap)")
+            if requestPermissions {
+                if authStatus == .sharingAuthorized {
+                    print("📊 HealthKit already authorized (bootstrap)")
+                } else {
+                    print("📊 Requesting HealthKit authorization...")
+                    try await healthKitService.requestAuthorization()
+                    print("✅ HealthKit authorization completed")
+                }
             } else {
-                print("📊 Requesting HealthKit authorization...")
-                try await healthKitService.requestAuthorization()
-                print("✅ HealthKit authorization completed")
+                print("⏳ Skipping HealthKit prompt (intro not finished)")
             }
 
             print("🔐 Requesting Family Controls authorization...")
@@ -1722,24 +1756,37 @@ final class AppModel: ObservableObject {
                 // Не блокируем весь bootstrap из-за Family Controls
             }
 
-            print("🔔 Requesting notification permissions...")
-            try await notificationService.requestPermission()
-            print("✅ Notification permissions completed")
+            if requestPermissions {
+                print("🔔 Requesting notification permissions...")
+                try await notificationService.requestPermission()
+                print("✅ Notification permissions completed")
+            } else {
+                print("⏳ Skipping notifications prompt (intro not finished)")
+            }
 
             print("📈 Fetching today's steps...")
-            do {
-                stepsToday = try await fetchStepsForCurrentDay()
-                print("✅ Today's steps: \(Int(stepsToday))")
-            } catch {
-                print("⚠️ Could not fetch step data: \(error)")
-                // На симуляторе или если нет данных, используем демо-значение
-                #if targetEnvironment(simulator)
-                    stepsToday = 2500  // Демо-значение для симулятора
-                    print("🎮 Using demo steps for Simulator: \(Int(stepsToday))")
-                #else
-                    stepsToday = 0
-                    print("📱 No step data available on device, using 0")
-                #endif
+            let finalStatus = healthKitService.authorizationStatus()
+            if finalStatus == .sharingAuthorized {
+                do {
+                    stepsToday = try await fetchStepsForCurrentDay()
+                    print("✅ Today's steps: \(Int(stepsToday))")
+                    cacheStepsToday()
+                } catch {
+                    print("⚠️ Could not fetch step data: \(error)")
+                    // На симуляторе или если нет данных, используем демо-значение
+                    #if targetEnvironment(simulator)
+                        stepsToday = 2500  // Демо-значение для симулятора
+                        print("🎮 Using demo steps for Simulator: \(Int(stepsToday))")
+                    #else
+                        stepsToday = 0
+                        print("📱 No step data available on device, using 0")
+                    #endif
+                }
+            } else {
+                print("ℹ️ HealthKit not authorized, skipping steps fetch for now")
+                if stepsToday == 0 {
+                    print("ℹ️ Using cached steps if available: \(Int(stepsToday))")
+                }
             }
 
             print("💰 Calculating budget...")
@@ -1748,11 +1795,12 @@ final class AppModel: ObservableObject {
             budgetEngine.setBudget(minutes: budgetMinutes)
             syncBudgetProperties()  // Sync budget properties for UI updates
 
-            if stepsToday == 0 {
-                print("⚠️ No steps available - budget is 0 minutes")
-            } else {
-                print("✅ Budget calculated: \(budgetMinutes) minutes from \(Int(stepsToday)) steps")
-            }
+        if stepsToday == 0 {
+            print("⚠️ No steps available - budget is 0 minutes")
+        } else {
+            print("✅ Budget calculated: \(budgetMinutes) minutes from \(Int(stepsToday)) steps")
+        }
+        cacheStepsToday()
 
             print("🎉 Bootstrap completed successfully!")
 
@@ -1777,9 +1825,10 @@ final class AppModel: ObservableObject {
             #if targetEnvironment(simulator)
                 stepsToday = 2500  // Демо-значение для симулятора
             #else
-                stepsToday = 0
+                stepsToday = fallbackCachedSteps()
             #endif
         }
+        cacheStepsToday()
 
         let mins = budgetEngine.minutes(from: stepsToday)
         budgetEngine.setBudget(minutes: mins)
@@ -1804,9 +1853,10 @@ final class AppModel: ObservableObject {
             #if targetEnvironment(simulator)
                 stepsToday = 2500  // Демо-значение для симулятора
             #else
-                stepsToday = 0
+                stepsToday = fallbackCachedSteps()
             #endif
         }
+        cacheStepsToday()
 
         let mins = budgetEngine.minutes(from: stepsToday)
         budgetEngine.setBudget(minutes: mins)
@@ -1883,7 +1933,7 @@ final class AppModel: ObservableObject {
 
                 guard budgetEngine.remainingMinutes > 0 else {
                     print("❌ No remaining time - aborting")
-                    message = "Steps Trader: No time left! Walk more steps."
+                    message = "Space CTRL: No time left! Walk more steps."
                     return
                 }
 
@@ -2239,6 +2289,13 @@ final class AppModel: ObservableObject {
         }
 
         print("🔗 Checking shortcut app matching for bundle: \(bundleId)")
+        recordAutomationOpen(bundleId: bundleId)
+        if isAccessBlocked(for: bundleId) {
+            print("🚫 Access window active for \(bundleId); skipping PayGate and recording open")
+            reopenTargetIfPossible(bundleId: bundleId)
+            userDefaults.removeObject(forKey: "shortcutTargetBundleId")
+            return
+        }
 
         if appSelection.applicationTokens.isEmpty {
             // Автоматически устанавливаем приложение из шортката
@@ -2263,6 +2320,15 @@ final class AppModel: ObservableObject {
 
     private func getBundleIdDisplayName(_ bundleId: String) -> String {
         TargetResolver.displayName(for: bundleId)
+    }
+
+    private func reopenTargetIfPossible(bundleId: String) {
+        guard let scheme = TargetResolver.urlScheme(forBundleId: bundleId),
+              let url = URL(string: scheme)
+        else { return }
+        DispatchQueue.main.async {
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        }
     }
 
     // MARK: - App Selection Methods
@@ -2387,5 +2453,46 @@ final class AppModel: ObservableObject {
 private func requestNotificationPermissionIfNeeded() async {
     do { try await DIContainer.shared.makeNotificationService().requestPermission() } catch {
         print("❌ Notification permission failed: \(error)")
+    }
+}
+
+// MARK: - Permissions helpers
+extension AppModel {
+    func requestNotificationPermission() async {
+        do { try await notificationService.requestPermission() }
+        catch { print("❌ Notification permission failed: \(error)") }
+    }
+
+    func refreshStepsIfAuthorized() async {
+        let status = healthKitService.authorizationStatus()
+        guard status == .sharingAuthorized else {
+            print("ℹ️ HealthKit not authorized yet, skipping refresh")
+            return
+        }
+        await refreshStepsBalance()
+    }
+
+    func cacheStepsToday() {
+        let g = UserDefaults.stepsTrader()
+        g.set(Int(stepsToday), forKey: "cachedStepsToday")
+    }
+    
+    func loadCachedStepsToday() {
+        let g = UserDefaults.stepsTrader()
+        let cached = g.integer(forKey: "cachedStepsToday")
+        if cached > 0 {
+            stepsToday = Double(cached)
+            print("💾 Loaded cached stepsToday: \(cached)")
+        }
+    }
+
+    private func fallbackCachedSteps() -> Double {
+        let g = UserDefaults.stepsTrader()
+        let cached = g.integer(forKey: "cachedStepsToday")
+        if cached > 0 {
+            print("💾 Falling back to cached steps: \(cached)")
+            return Double(cached)
+        }
+        return 0
     }
 }

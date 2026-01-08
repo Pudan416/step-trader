@@ -7,6 +7,8 @@ struct StepsTraderApp: App {
     @StateObject private var model: AppModel
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
+    @AppStorage("hasSeenIntro_v1") private var hasSeenIntro: Bool = false
+    @State private var showIntro: Bool = false
 
     init() {
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
@@ -45,10 +47,37 @@ struct StepsTraderApp: App {
                         }
                     }
                 }
+
+                if showIntro {
+                    OnboardingStoriesView(
+                        isPresented: $showIntro,
+                        slides: introSlides(appLanguage: appLanguage),
+                        accent: Color(red: 224/255, green: 130/255, blue: 217/255),
+                        skipText: loc(appLanguage, "Skip", "Пропустить"),
+                        nextText: loc(appLanguage, "Next", "Далее"),
+                        startText: loc(appLanguage, "Start", "Начать"),
+                        allowText: loc(appLanguage, "Allow", "Разрешить"),
+                        onHealthSlide: {
+                            Task { await model.ensureHealthAuthorizationAndRefresh() }
+                        },
+                        onNotificationSlide: {
+                            Task { await model.requestNotificationPermission() }
+                        }
+                    ) {
+                        hasSeenIntro = true
+                        Task { await model.refreshStepsIfAuthorized() }
+                    }
+                    .transition(.opacity)
+                    .zIndex(3)
+                }
             }
             .onAppear {
-                // Ensure bootstrap runs once on first launch to request permissions
-                Task { await model.bootstrap() }
+                // Ensure bootstrap runs once; defer permission prompts to intro if needed
+                if hasSeenIntro {
+                    Task { await model.bootstrap(requestPermissions: true) }
+                } else {
+                    Task { await model.bootstrap(requestPermissions: false) }
+                }
                 print(
                     "🎭 StepsTraderApp appeared - showPayGate: \(model.showPayGate), showQuickStatusPage: \(model.showQuickStatusPage)"
                 )
@@ -65,6 +94,7 @@ struct StepsTraderApp: App {
                 }
                 checkForHandoffToken()
                 checkForPayGateFlags()
+                if !hasSeenIntro { showIntro = true }
             }
             .onOpenURL { url in
                 print("🔗 App received URL: \(url)")
@@ -80,7 +110,9 @@ struct StepsTraderApp: App {
                 model.handleAppDidEnterBackground()
             }
             .task {
-                await model.ensureHealthAuthorizationAndRefresh()
+                if hasSeenIntro {
+                    await model.ensureHealthAuthorizationAndRefresh()
+                }
             }
             .onReceive(
                 NotificationCenter.default.publisher(
@@ -93,6 +125,9 @@ struct StepsTraderApp: App {
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.refresh")))
             { _ in
                 model.handleAppWillEnterForeground()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.showIntro")) ) { _ in
+                showIntro = true
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.paygate")))
             { notification in
@@ -282,6 +317,31 @@ struct StepsTraderApp: App {
 private extension StepsTraderApp {
     var currentTheme: AppTheme {
         AppTheme(rawValue: appThemeRaw) ?? .system
+    }
+
+    func introSlides(appLanguage: String) -> [OnboardingSlide] {
+        [
+            OnboardingSlide(
+                title: loc(appLanguage, "Space CTRL uses your steps as fuel", "Space CTRL использует ваши шаги как топливо"),
+                subtitle: loc(appLanguage, "Connect modules to tame social dives with real-world actions.", "Подключайте модули, чтобы приручить соцсети действиями в реальной жизни."),
+                emoji: "🚀"
+            ),
+            OnboardingSlide(
+                title: loc(appLanguage, "Modules level up as you travel", "Модули прокачиваются пока вы путешествуете"),
+                subtitle: loc(appLanguage, "Burn fuel, grow levels, make each jump cheaper and easier.", "Сжигаете топливо — растут уровни, входы становятся дешевле и проще."),
+                emoji: "📈"
+            ),
+            OnboardingSlide(
+                title: loc(appLanguage, "Share your steps", "Разрешите использовать шаги"),
+                subtitle: loc(appLanguage, "Give access to Health steps so we can turn them into fuel.", "Дайте доступ к шагам в Health, чтобы превращать их в топливо."),
+                emoji: "👟"
+            ),
+            OnboardingSlide(
+                title: loc(appLanguage, "Allow notifications", "Включите уведомления"),
+                subtitle: loc(appLanguage, "We ping you when paygate appears or fuel is low.", "Сообщим, когда поднимается PayGate или заканчивается топливо."),
+                emoji: "🔔"
+            )
+        ]
     }
 }
 
@@ -713,7 +773,6 @@ struct PayGateView: View {
                                     .font(.title3)
                                     .fontWeight(.semibold)
                                     .multilineTextAlignment(.center)
-                                let settings = model.unlockSettings(for: bundleId)
                                 Text(loc("At least you saved some fuel.", "Зато сохранили немного топлива."))
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
@@ -1076,5 +1135,142 @@ extension PayGateView {
         DispatchQueue.main.async {
             UIApplication.shared.perform(#selector(NSXPCConnection.suspend))
         }
+    }
+}
+
+// MARK: - Onboarding Stories
+struct OnboardingSlide: Identifiable {
+    let id = UUID()
+    let title: String
+    let subtitle: String
+    let emoji: String
+}
+
+struct OnboardingStoriesView: View {
+    @Binding var isPresented: Bool
+    let slides: [OnboardingSlide]
+    let accent: Color
+    let skipText: String
+    let nextText: String
+    let startText: String
+    let allowText: String
+    let onHealthSlide: (() -> Void)?
+    let onNotificationSlide: (() -> Void)?
+    let onFinish: () -> Void
+    @State private var index: Int = 0
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.88, green: 0.38, blue: 0.72),
+                    Color(red: 0.1, green: 0.05, blue: 0.1)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+                .ignoresSafeArea()
+
+            VStack(spacing: 24) {
+                progressBar
+                    .padding(.top, 32)
+
+                TabView(selection: $index) {
+                    ForEach(Array(slides.enumerated()), id: \.offset) { idx, slide in
+                        VStack(spacing: 20) {
+                            Text(slide.emoji)
+                                .font(.system(size: 72))
+
+                            VStack(spacing: 12) {
+                                Text(slide.title)
+                                    .font(.title.bold())
+                                    .multilineTextAlignment(.center)
+                                    .foregroundColor(.white)
+                                Text(slide.subtitle)
+                                    .font(.body)
+                                    .multilineTextAlignment(.center)
+                                    .foregroundColor(.white.opacity(0.95))
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 18)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18)
+                                    .fill(Color.black.opacity(0.45))
+                            )
+                            .padding(.horizontal, 12)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.bottom, 12)
+                        .tag(idx)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .animation(.easeInOut, value: index)
+
+                HStack(spacing: 16) {
+                    Button(action: finish) {
+                        Text(skipText)
+                            .font(.headline)
+                            .foregroundColor(.white.opacity(0.85))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+
+                    Button(action: next) {
+                        let label: String = {
+                            if index == slides.count - 1 {
+                                return startText
+                            } else if index == 2 || index == 3 {
+                                return allowText
+                            } else {
+                                return nextText
+                            }
+                        }()
+                        Text(label)
+                            .font(.headline.bold())
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(accent)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                }
+                .padding(.bottom, 32)
+                .padding(.horizontal, 16)
+            }
+            .padding(.horizontal, 10)
+        }
+    }
+
+    private var progressBar: some View {
+        HStack(spacing: 8) {
+            ForEach(slides.indices, id: \.self) { i in
+                Capsule()
+                    .fill(i <= index ? accent : Color.white.opacity(0.4))
+                    .frame(height: 4)
+                    .animation(.easeInOut(duration: 0.25), value: index)
+            }
+        }
+        .padding(.horizontal, 24)
+    }
+
+    private func next() {
+        if index < slides.count - 1 {
+            if index == 2 {
+                onHealthSlide?()
+            }
+            withAnimation(.easeInOut) { index += 1 }
+        } else {
+            // Last slide
+            onNotificationSlide?()
+            finish()
+        }
+    }
+
+    private func finish() {
+        withAnimation(.easeInOut) {
+            isPresented = false
+        }
+        onFinish()
     }
 }
