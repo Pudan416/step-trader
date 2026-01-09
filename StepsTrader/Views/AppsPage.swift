@@ -144,7 +144,7 @@ struct AppsPage: View {
             )
         }
         .sheet(isPresented: $showDeactivatedPicker) {
-            pickerView(apps: deactivatedOverflow, title: loc(appLanguage, "Other modules", "Остальные модули"))
+            pickerView(apps: deactivatedOverflow, title: loc(appLanguage, "Other shields", "Остальные щиты"))
         }
         .alert(item: $costInfoStage) { stage in
             Alert(
@@ -166,11 +166,11 @@ struct AppsPage: View {
         let tileSize = max(48, (availableWidth - CGFloat(columns - 1) * spacing) / CGFloat(columns))
         
         VStack(alignment: .leading, spacing: 12) {
-            Text(loc(appLanguage, "Deactivated modules", "Неактивные модули"))
+            Text(loc(appLanguage, "Deactivated shields", "Неактивные щиты"))
                 .font(.headline)
             
             if deactivatedAll.isEmpty {
-                Text(loc(appLanguage, "All modules are connected", "Все модули подключены"))
+                Text(loc(appLanguage, "All shields are connected", "Все щиты подключены"))
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
@@ -197,11 +197,11 @@ struct AppsPage: View {
     @ViewBuilder
     private var activatedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(loc(appLanguage, "Activated modules", "Подключенные модули"))
+            Text(loc(appLanguage, "Activated shields", "Подключенные щиты"))
                 .font(.headline)
             
             if activatedApps.isEmpty {
-                Text(loc(appLanguage, "No modules here yet.", "Пока пусто."))
+                Text(loc(appLanguage, "No shields here yet.", "Здесь пока нет щитов."))
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
@@ -280,7 +280,7 @@ struct AppsPage: View {
                     }
                 }
                 
-                Text("\(formatSteps(spent)) " + loc(appLanguage, "steps spent in this module", "шагов потрачено в модуле"))
+                Text("\(formatSteps(spent)) " + loc(appLanguage, "steps spent on this shield", "шагов потрачено на этот щит"))
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -298,7 +298,7 @@ struct AppsPage: View {
                 Button(role: .destructive) {
                     deactivate(app)
                 } label: {
-                    Label(loc(appLanguage, "Deactivate module", "Отключить модуль"), systemImage: "trash")
+                    Label(loc(appLanguage, "Deactivate shield", "Отключить щит"), systemImage: "trash")
                 }
             case .none:
                 Button {
@@ -558,7 +558,7 @@ struct AppsPage: View {
                 Button(role: .destructive) {
                     deactivate(app)
                 } label: {
-                    Label(loc(appLanguage, "Deactivate module", "Отключить модуль"), systemImage: "trash")
+                    Label(loc(appLanguage, "Deactivate shield", "Отключить щит"), systemImage: "trash")
                 }
             case .none:
                 Button {
@@ -727,7 +727,7 @@ struct AutomationGuideView: View {
                     } label: {
                         HStack {
                             Image(systemName: "link")
-                            Text(app.status == .configured ? "Update the module" : "Get the module")
+                            Text(app.status == .configured ? "Update the shield" : "Get the shield")
                                 .fontWeight(.semibold)
                             Spacer()
                             Image(systemName: "arrow.up.right")
@@ -758,7 +758,7 @@ struct AutomationGuideView: View {
                             dismiss()
                         }
                     } label: {
-                        Text("Deactivate module")
+                        Text("Deactivate shield")
                             .font(.headline)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
@@ -779,7 +779,7 @@ struct AutomationGuideView: View {
                     }
                 }
             }
-            .alert("Deactivate module", isPresented: $showDeactivateAlert) {
+            .alert("Deactivate shield", isPresented: $showDeactivateAlert) {
                 Button("Open Shortcuts") {
                     if let url = URL(string: "shortcuts://automation") ?? URL(string: "shortcuts://") {
                         openURL(url)
@@ -789,7 +789,7 @@ struct AutomationGuideView: View {
                 }
                 Button("Cancel", role: .cancel) { showDeactivateAlert = false }
             } message: {
-                Text("To fully deactivate this module, remove the automation from the Shortcuts app.")
+                Text("To fully deactivate this shield, remove the automation from the Shortcuts app.")
             }
         }
     }
@@ -805,15 +805,15 @@ struct AutomationGuideView: View {
                         .fontWeight(.bold)
                     switch app.status {
                     case .configured:
-                        Text("Module for \(app.name) is working")
+                        Text("Shield for \(app.name) is working")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     case .pending:
-                        Text("Module is not connected")
+                        Text("Shield is not connected")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     case .none:
-                        Text("The module for \(app.name) is not taken")
+                        Text("The shield for \(app.name) is not taken")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -875,7 +875,7 @@ struct AutomationGuideView: View {
                 } else {
                     Text("1) Open Shortcuts → Automation → + → \"App\".")
                     Text("2) Choose \(app.name), set \"Is Opened\" + \"Run Immediately\".")
-                    Text("3) Pick the universal Space CTRL shortcut or your own action.")
+                    Text("3) Pick the universal DOOM CTRL shortcut or your own action.")
                     Text("4) Launch \(app.name) once to activate the automation.")
                 }
             }
@@ -905,17 +905,17 @@ struct AutomationGuideView: View {
             }
             
             VStack(alignment: .leading, spacing: 8) {
-                Text("Access options")
-                    .font(.subheadline.weight(.semibold))
-                accessOptionRow(title: "Day pass", window: .day1, tariff: currentTariff, tint: accent)
-                accessOptionRow(title: "1 hour", window: .hour1, tariff: currentTariff, tint: accent)
-                accessOptionRow(title: "5 minutes", window: .minutes5, tariff: currentTariff, tint: accent)
-                accessOptionRow(title: "Single entry", window: .single, tariff: currentTariff, tint: accent)
-            }
-            
-            Text("Levels change automatically based on steps spent in this module.")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            Text("Access options")
+                .font(.subheadline.weight(.semibold))
+            accessOptionRow(title: "Day pass", window: .day1, tariff: currentTariff, tint: accent)
+            accessOptionRow(title: "1 hour", window: .hour1, tariff: currentTariff, tint: accent)
+            accessOptionRow(title: "5 minutes", window: .minutes5, tariff: currentTariff, tint: accent)
+            accessOptionRow(title: "Single entry", window: .single, tariff: currentTariff, tint: accent)
+        }
+        
+        Text("Levels change automatically based on steps spent on this shield.")
+            .font(.caption)
+            .foregroundColor(.secondary)
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.1)))
@@ -1010,7 +1010,7 @@ struct ManualsPage: View {
                                 }
                             } label: {
                                 HStack {
-                                    Text(appLanguage == "ru" ? "Как подключить модуль" : "How to set up a module")
+                                    Text(appLanguage == "ru" ? "Как подключить щит" : "How to set up a shield")
                                         .font(.title3.weight(.semibold))
                                         .foregroundColor(.primary)
                                     Spacer()
@@ -1043,9 +1043,9 @@ struct ManualsPage: View {
                                     Text(appLanguage == "ru" ? "Шаги" : "Steps")
                                         .font(.headline)
                                     VStack(alignment: .leading, spacing: 8) {
-                                        Text(appLanguage == "ru" ? "1. Откройте ссылку на модуль и добавьте его в Команды." : "1. Open the module link and add it to Shortcuts.")
+                                        Text(appLanguage == "ru" ? "1. Откройте ссылку на щит и добавьте его в Команды." : "1. Open the shield link and add it to Shortcuts.")
                                         Text(appLanguage == "ru" ? "2. В Команды → Автоматизация → + → Приложение выберите нужное приложение и включите «Открыто» и «Выполнять сразу»." : "2. In Shortcuts → Automation → + → App, pick the target app and enable “Is Opened” and “Run Immediately”.")
-                                        Text(appLanguage == "ru" ? "3. Укажите модуль [Space] CTRL и сохраните." : "3. Select the [Space] CTRL module and save.")
+                                        Text(appLanguage == "ru" ? "3. Укажите щит [Space] CTRL и сохраните." : "3. Select the [Space] CTRL shield and save.")
                                         Text(appLanguage == "ru" ? "4. Откройте приложение один раз, чтобы активировать автоматизацию." : "4. Open the app once to activate automation.")
                                     }
                                     .font(.body)
@@ -1053,7 +1053,7 @@ struct ManualsPage: View {
                                     
                                     Text(appLanguage == "ru" ? "Подсказка" : "Tip")
                                         .font(.headline)
-                                    Text(appLanguage == "ru" ? "Если модуль не срабатывает, убедитесь, что включены уведомления и доступ к Командам." : "If the module doesn’t fire, ensure notifications and Shortcuts access are enabled.")
+                                    Text(appLanguage == "ru" ? "Если щит не срабатывает, убедитесь, что включены уведомления и доступ к Командам." : "If the shield doesn’t fire, ensure notifications and Shortcuts access are enabled.")
                                         .font(.body)
                                         .foregroundColor(.secondary)
                                 }
@@ -1131,16 +1131,16 @@ struct ManualsPage: View {
     @ViewBuilder
     private func levelsContent() -> some View {
         let ru = [
-            "• Чем больше путешествуете, тем сильнее прокачивается модуль — топливо тратится, опыт копится.",
-            "• Уровни: II после 10 000 шагов, III после 30 000, IV после 100 000 в этом модуле.",
+            "• Чем больше путешествуете, тем сильнее прокачивается щит — топливо тратится, опыт копится.",
+            "• Уровни: II после 10 000 шагов, III после 30 000, IV после 100 000 в этом щите.",
             "• С ростом уровня входить легче: I=100 шагов, II=50, III=10, IV=0 — просто фиксируете свои вылеты.",
-            "• За прогрессом смотрите в карточке модуля: там видно, сколько топлива уже сожжено."
+            "• За прогрессом смотрите в карточке щита: там видно, сколько топлива уже сожжено."
         ]
         let en = [
-            "• The more you travel, the stronger the module gets — fuel spent turns into experience.",
-            "• Levels: II at 10,000 steps, III at 30,000, IV at 100,000 in that module.",
+            "• The more you travel, the stronger the shield gets — fuel spent turns into experience.",
+            "• Levels: II at 10,000 steps, III at 30,000, IV at 100,000 in that shield.",
             "• Higher level = cheaper launch: I=100 steps, II=50, III=10, IV=0 — just log your departures.",
-            "• Track your progress on the module page to see how much fuel you've burned."
+            "• Track your progress on the shield page to see how much fuel you've burned."
         ]
         VStack(alignment: .leading, spacing: 8) {
             ForEach(appLanguage == "ru" ? ru : en, id: \.self) { line in
@@ -1159,14 +1159,14 @@ struct ManualsPage: View {
             "Где-то хватает одного входа, где-то надо «жить» часами.",
             "Выбирайте формат: разовый, 5 мин, 1 час или день.",
             "Стоимость зависит от уровня (от 10 до 100 шагов за вход, 5–500 за 5 мин, 500–5000 за час, день по тарифу).",
-            "Лишние варианты можно выключить в настройках модуля — их не будет на PayGate."
+            "Лишние варианты можно выключить в настройках щита — их не будет на PayGate."
         ]
         let enText = [
             "Different worlds need different fuel.",
             "Sometimes one entry is enough, sometimes you camp there for an hour.",
             "Pick your mode: single, 5 min, 1 hour, or a day pass.",
             "Costs scale with your level (about 10–100 steps for single, 5–500 for 5 min, 500–5000 for an hour, day by tariff).",
-            "Toggle off the modes you don’t need in the module settings — they disappear from PayGate."
+            "Toggle off the modes you don’t need in the shield settings — they disappear from PayGate."
         ]
 
         VStack(alignment: .leading, spacing: 12) {

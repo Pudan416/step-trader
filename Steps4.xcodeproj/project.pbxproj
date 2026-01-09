@@ -71,11 +71,11 @@
 /* Begin PBXFileReference section */
 		200AC47A2F0C795D0018004E /* TargetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetResolver.swift; sourceTree = "<group>"; };
 		200AC47C2F0C825C0018004E /* AccessWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessWindow.swift; sourceTree = "<group>"; };
-		2089F0B42E71A18E00ABF5FA /* Space CTRL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Space CTRL.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0B42E71A18E00ABF5FA /* DOOM CTRL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "DOOM CTRL.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		2089F0C42E71A18F00ABF5FA /* Steps Trader.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = "Steps Trader.xctest"; path = "Space CTRL.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		2089F0CE2E71A18F00ABF5FA /* Steps Trader.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = "Steps Trader.xctest"; path = "Space CTRL.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0C42E71A18F00ABF5FA /* Steps Trader.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = "Steps Trader.xctest"; path = "DOOM CTRL.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0CE2E71A18F00ABF5FA /* Steps Trader.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = "Steps Trader.xctest"; path = "DOOM CTRL.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BudgetEngine.swift; sourceTree = "<group>"; };
 		2089F0E22E71AE3400ABF5FA /* Types.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Types.swift; sourceTree = "<group>"; };
 		2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FamilyControlsService.swift; sourceTree = "<group>"; };
@@ -144,7 +144,7 @@
 		2089F0B52E71A18E00ABF5FA /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				2089F0B42E71A18E00ABF5FA /* Space CTRL.app */,
+				2089F0B42E71A18E00ABF5FA /* DOOM CTRL.app */,
 				2089F0C42E71A18F00ABF5FA /* Steps Trader.xctest */,
 				2089F0CE2E71A18F00ABF5FA /* Steps Trader.xctest */,
 			);
@@ -293,7 +293,7 @@
 			);
 			name = Steps4;
 			productName = Steps4;
-			productReference = 2089F0B42E71A18E00ABF5FA /* Space CTRL.app */;
+			productReference = 2089F0B42E71A18E00ABF5FA /* DOOM CTRL.app */;
 			productType = "com.apple.product-type.application";
 		};
 		2089F0C32E71A18F00ABF5FA /* Steps4Tests */ = {
@@ -602,9 +602,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "CTRL ME";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Space CTRL needs access to your step count.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Space CTRL uses your step count to let you enter other apps.";
+				INFOPLIST_KEY_CFBundleDisplayName = "DOOM CTRL";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "DOOM CTRL needs access to your step count.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DOOM CTRL uses your step count to let you enter other apps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -615,7 +615,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
-				PRODUCT_NAME = "Space CTRL";
+				PRODUCT_NAME = "DOOM CTRL";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "StepsTrader Dev";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -640,9 +640,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "CTRL ME";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Space CTRL needs access to your step count.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Space CTRL uses your step count to let you enter other apps.";
+				INFOPLIST_KEY_CFBundleDisplayName = "DOOM CTRL";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "DOOM CTRL needs access to your step count.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DOOM CTRL uses your step count to let you enter other apps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -653,7 +653,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
-				PRODUCT_NAME = "Space CTRL";
+				PRODUCT_NAME = "DOOM CTRL";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "StepsTrader Dev";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -672,7 +672,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
-				PRODUCT_NAME = "Space CTRL";
+				PRODUCT_NAME = "DOOM CTRL";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -690,7 +690,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
-				PRODUCT_NAME = "Space CTRL";
+				PRODUCT_NAME = "DOOM CTRL";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -706,7 +706,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
-				PRODUCT_NAME = "Space CTRL";
+				PRODUCT_NAME = "DOOM CTRL";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

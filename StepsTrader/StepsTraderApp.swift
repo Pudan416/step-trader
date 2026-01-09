@@ -7,7 +7,7 @@ struct StepsTraderApp: App {
     @StateObject private var model: AppModel
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
-    @AppStorage("hasSeenIntro_v1") private var hasSeenIntro: Bool = false
+    @AppStorage("hasSeenIntro_v3") private var hasSeenIntro: Bool = false
     @State private var showIntro: Bool = false
 
     init() {
@@ -53,10 +53,10 @@ struct StepsTraderApp: App {
                         isPresented: $showIntro,
                         slides: introSlides(appLanguage: appLanguage),
                         accent: Color(red: 224/255, green: 130/255, blue: 217/255),
-                        skipText: loc(appLanguage, "Skip", "Пропустить"),
-                        nextText: loc(appLanguage, "Next", "Далее"),
-                        startText: loc(appLanguage, "Start", "Начать"),
-                        allowText: loc(appLanguage, "Allow", "Разрешить"),
+                        skipText: "Skip",
+                        nextText: "Next",
+                        startText: "Start",
+                        allowText: "Allow",
                         onHealthSlide: {
                             Task { await model.ensureHealthAuthorizationAndRefresh() }
                         },
@@ -273,7 +273,6 @@ struct StepsTraderApp: App {
             print("🎯 Final bundle ID: \(finalBundleId ?? "nil")")
             if let bundleId = finalBundleId {
                 Task { @MainActor in
-                    model.recordAutomationOpen(bundleId: bundleId)
                     if model.isAccessBlocked(for: bundleId) {
                         print("🚫 PayGate flags ignored: access window active for \(bundleId)")
                         reopenTargetIfPossible(bundleId: bundleId)
@@ -308,7 +307,11 @@ struct StepsTraderApp: App {
               let url = URL(string: scheme)
         else { return }
         Task { @MainActor in
-            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            UIApplication.shared.open(url, options: [:]) { success in
+                if success {
+                    model.recordAutomationOpen(bundleId: bundleId)
+                }
+            }
         }
     }
     
@@ -322,23 +325,23 @@ private extension StepsTraderApp {
     func introSlides(appLanguage: String) -> [OnboardingSlide] {
         [
             OnboardingSlide(
-                title: loc(appLanguage, "Space CTRL uses your steps as fuel", "Space CTRL использует ваши шаги как топливо"),
-                subtitle: loc(appLanguage, "Connect modules to tame social dives with real-world actions.", "Подключайте модули, чтобы приручить соцсети действиями в реальной жизни."),
-                emoji: "🚀"
+                title: "DOOM CTRL is here to stop your doomscroll",
+                subtitle: "Raise shields to make crawls less doomed",
+                emoji: "🛡"
             ),
             OnboardingSlide(
-                title: loc(appLanguage, "Modules level up as you travel", "Модули прокачиваются пока вы путешествуете"),
-                subtitle: loc(appLanguage, "Burn fuel, grow levels, make each jump cheaper and easier.", "Сжигаете топливо — растут уровни, входы становятся дешевле и проще."),
+                title: "Your steps charge the batteries",
+                subtitle: "Batteries power and level up your shields.",
                 emoji: "📈"
             ),
             OnboardingSlide(
-                title: loc(appLanguage, "Share your steps", "Разрешите использовать шаги"),
-                subtitle: loc(appLanguage, "Give access to Health steps so we can turn them into fuel.", "Дайте доступ к шагам в Health, чтобы превращать их в топливо."),
+                title: "Share your steps",
+                subtitle: "Give access to Health steps so we can turn them into charges for your battery.",
                 emoji: "👟"
             ),
             OnboardingSlide(
-                title: loc(appLanguage, "Allow notifications", "Включите уведомления"),
-                subtitle: loc(appLanguage, "We ping you when paygate appears or fuel is low.", "Сообщим, когда поднимается PayGate или заканчивается топливо."),
+                title: "Allow notifications",
+                subtitle: "We ping you when shields are running out.",
                 emoji: "🔔"
             )
         ]
@@ -374,7 +377,7 @@ struct HandoffProtectionView: View {
                 }
 
                 VStack(spacing: 20) {
-                    let totalSteps = Int(model.stepsToday)
+                    let totalSteps = Int(model.effectiveStepsToday)
                     let spent = model.spentStepsToday
                     let cost = model.entryCostSteps
                     let available = max(0, totalSteps - spent)
@@ -434,8 +437,8 @@ struct MainTabView: View {
         ZStack {
             VStack(spacing: 0) {
                 StepBalanceCard(
-                    remainingSteps: remainingStepsToday,
-                    totalSteps: Int(model.stepsToday),
+                    remainingSteps: model.totalStepsBalance,
+                    totalSteps: Int(model.effectiveStepsToday),
                     spentSteps: model.spentStepsToday,
                     showDetails: selection == 0
                 )
@@ -454,7 +457,7 @@ struct MainTabView: View {
                     AppsPage(model: model, automationApps: SettingsView.automationAppsStatic)
                         .tabItem {
                             Image(systemName: "square.grid.2x2")
-                            Text(loc(appLanguage, "Modules", "Модули"))
+                            Text(loc(appLanguage, "Shields", "Щиты"))
                         }
                         .tag(1)
                     
@@ -489,7 +492,7 @@ struct MainTabView: View {
     }
     
     private var remainingStepsToday: Int {
-        max(0, Int(model.stepsToday) - model.spentStepsToday)
+        max(0, Int(model.effectiveStepsToday) - model.spentStepsToday)
     }
     
 }
@@ -527,7 +530,7 @@ struct QuickStatusView: View {
                         Text("Steps today:")
                             .font(.title2)
                         Spacer()
-                        Text("\(Int(model.stepsToday))")
+                        Text("\(Int(model.effectiveStepsToday))")
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(.green)
@@ -566,11 +569,11 @@ struct QuickStatusView: View {
                         Text("Entry balance:")
                             .font(.title2)
                         Spacer()
-                        Text("\(model.stepsBalance) steps")
+                        Text("\(model.totalStepsBalance) steps")
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(
-                                model.stepsBalance >= model.entryCostSteps ? .green : .red)
+                                model.totalStepsBalance >= model.entryCostSteps ? .green : .red)
                     }
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
@@ -941,10 +944,12 @@ extension PayGateView {
     }
     
     private var stepsProgressBar: some View {
-        let total = max(1, Int(model.stepsToday))
-        let remaining = max(0, model.stepsBalance)
-        let used = max(0, total - remaining)
-        let remainingProgress = min(1, Double(remaining) / Double(total))
+        let total = max(1, Int(model.effectiveStepsToday))
+        let remaining = max(0, model.totalStepsBalance)
+        let used = max(0, total - min(total, remaining))
+        let denominator = Double(total)
+        let displayRemaining = min(remaining, total)
+        let remainingProgress = min(1, Double(displayRemaining) / denominator)
         let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
 
         return VStack(alignment: .leading, spacing: 6) {
@@ -1055,7 +1060,7 @@ extension PayGateView {
             return
         }
         model.selectTariffForToday(tariff, bundleId: bundleId)
-        await model.handlePayGatePayment(for: bundleId)
+        await model.handlePayGatePayment(for: bundleId, window: .single)
     }
 
     private func windowCost(for tariff: Tariff, window: AccessWindow) -> Int {
@@ -1091,7 +1096,7 @@ extension PayGateView {
         let baseCost = windowCost(for: tariff, window: window)
         let hasPass = model.hasDayPass(for: bundleId)
         let effectiveCost = hasPass ? 0 : baseCost
-        let canPay = effectiveCost == 0 || model.stepsBalance >= effectiveCost
+        let canPay = effectiveCost == 0 || model.totalStepsBalance >= effectiveCost
         let name = accessWindowName(window)
         let fuelTitle = loc("fuel", "шагов")
         let title = "\(name) • \(effectiveCost) \(fuelTitle)"
@@ -1101,10 +1106,9 @@ extension PayGateView {
         return Button(title) {
             guard !isTimedOut, !isForfeited else { return }
             setForfeit(bundleId)
-            model.applyAccessWindow(window, for: bundleId)
             Task {
                 performTransition {
-                    Task { await model.handlePayGatePayment(for: bundleId, costOverride: effectiveCost) }
+                    Task { await model.handlePayGatePayment(for: bundleId, window: window, costOverride: effectiveCost) }
                 }
             }
         }
@@ -1158,45 +1162,43 @@ struct OnboardingStoriesView: View {
     let onNotificationSlide: (() -> Void)?
     let onFinish: () -> Void
     @State private var index: Int = 0
+    @State private var didTriggerHealthRequest = false
+    @State private var didTriggerNotificationRequest = false
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.88, green: 0.38, blue: 0.72),
-                    Color(red: 0.1, green: 0.05, blue: 0.1)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-                .ignoresSafeArea()
+            Color.black.ignoresSafeArea()
 
             VStack(spacing: 24) {
+                appLogo
+                    .padding(.top, 28)
+
                 progressBar
-                    .padding(.top, 32)
+                    .padding(.top, 8)
 
                 TabView(selection: $index) {
                     ForEach(Array(slides.enumerated()), id: \.offset) { idx, slide in
                         VStack(spacing: 20) {
                             Text(slide.emoji)
-                                .font(.system(size: 72))
+                                .font(.system(size: 68))
 
                             VStack(spacing: 12) {
                                 Text(slide.title)
-                                    .font(.title.bold())
+                                    .font(.system(size: 26, weight: .heavy, design: .rounded))
                                     .multilineTextAlignment(.center)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.black)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 18)
+                                            .fill(Color.white)
+                                    )
                                 Text(slide.subtitle)
-                                    .font(.body)
+                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                                     .multilineTextAlignment(.center)
-                                    .foregroundColor(.white.opacity(0.95))
+                                    .foregroundColor(accentPink)
+                                    .padding(.horizontal, 16)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 18)
-                            .background(
-                                RoundedRectangle(cornerRadius: 18)
-                                    .fill(Color.black.opacity(0.45))
-                            )
                             .padding(.horizontal, 12)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1219,9 +1221,11 @@ struct OnboardingStoriesView: View {
 
                     Button(action: next) {
                         let label: String = {
-                            if index == slides.count - 1 {
+                            let lastIndex = slides.count - 1
+                            let healthIndex = slides.count - 2
+                            if index == lastIndex {
                                 return startText
-                            } else if index == 2 || index == 3 {
+                            } else if index == healthIndex || index == lastIndex {
                                 return allowText
                             } else {
                                 return nextText
@@ -1254,15 +1258,56 @@ struct OnboardingStoriesView: View {
         .padding(.horizontal, 24)
     }
 
+    private var accentPink: Color {
+        Color(red: 0.878, green: 0.51, blue: 0.851)
+    }
+
+    private var appLogo: some View {
+        Group {
+            if let uiImage = appIconImage() {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 78, height: 78)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .shadow(color: .white.opacity(0.2), radius: 8, x: 0, y: 4)
+            } else {
+                Text("DOOM\nCTRL")
+                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.black)
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(Color.white))
+            }
+        }
+    }
+
+    private func appIconImage() -> UIImage? {
+        guard
+            let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+            let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+            let files = primary["CFBundleIconFiles"] as? [String],
+            let last = files.last
+        else { return nil }
+        return UIImage(named: last)
+    }
+
     private func next() {
-        if index < slides.count - 1 {
-            if index == 2 {
+        let lastIndex = slides.count - 1
+        let healthIndex = slides.count - 2
+
+        if index < lastIndex {
+            if index == healthIndex && !didTriggerHealthRequest {
+                didTriggerHealthRequest = true
                 onHealthSlide?()
             }
             withAnimation(.easeInOut) { index += 1 }
         } else {
             // Last slide
-            onNotificationSlide?()
+            if !didTriggerNotificationRequest {
+                didTriggerNotificationRequest = true
+                onNotificationSlide?()
+            }
             finish()
         }
     }

@@ -81,17 +81,17 @@ struct StatusView: View {
 
     private var connectFirstModuleCTA: some View {
         VStack(spacing: 12) {
-            Text(loc(appLanguage, "No modules connected yet", "Модули еще не подключены"))
+            Text(loc(appLanguage, "No shields connected yet", "Щиты еще не подключены"))
                 .font(.headline)
                 .multilineTextAlignment(.center)
-            Text(loc(appLanguage, "Connect your first module to start tracking jumps to social media.", "Подключите первый модуль, чтобы начать отслеживание погруженияв соцсети."))
+            Text(loc(appLanguage, "Connect your first shield to start making crawls and control doomscrolling.", "Подключите первый щит, чтобы начать делать вылазки без думскроллинга."))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
             Button {
                 NotificationCenter.default.post(name: openModulesNotification, object: nil)
             } label: {
-                Text(loc(appLanguage, "Connect your first module", "Подключить первый модуль"))
+                Text(loc(appLanguage, "Connect your first shield", "Подключить первый щит"))
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding()
@@ -237,7 +237,7 @@ struct StatusView: View {
     private var openFrequencyChart: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(loc(appLanguage, "Stats for...", "Статистика за...") + " ")
+                Text(loc(appLanguage, "Log", "Лог") + " ")
                 .font(.headline)
                 Spacer()
                 Picker("", selection: $chartRange) {
@@ -260,7 +260,7 @@ struct StatusView: View {
                     Chart(todayData) { item in
                         BarMark(
                             x: .value("App", item.name),
-                            y: .value("Jumps", item.opens)
+                            y: .value("Crawls", item.opens)
                         )
                         .foregroundStyle(colorForBundle(item.bundleId))
                     }
@@ -281,7 +281,7 @@ struct StatusView: View {
                         
                         LineMark(
                             x: .value("Day", item.day, unit: .day),
-                            y: .value("Jumps", item.count),
+                            y: .value("Crawls", item.count),
                             series: .value("App", item.appName)
                         )
                         .foregroundStyle(lineColor)
@@ -289,7 +289,7 @@ struct StatusView: View {
                         .symbol(Circle())
                         PointMark(
                             x: .value("Day", item.day, unit: .day),
-                            y: .value("Jumps", item.count)
+                            y: .value("Crawls", item.count)
                         )
                         .foregroundStyle(lineColor)
                     }
@@ -398,7 +398,7 @@ struct StatusView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.name)
                                 .font(.subheadline)
-                            Text(loc(appLanguage, "Jumps", "Прыжки") + ": \(item.opens) • " + loc(appLanguage, "Fuel spent", "Потрачено топлива") + ": \(item.steps)")
+                            Text(loc(appLanguage, "Crawls", "Вылазки") + ": \(item.opens) • " + loc(appLanguage, "Fuel spent", "Потрачено топлива") + ": \(item.steps)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -503,7 +503,7 @@ struct StatusView: View {
                     Text(dateLabelFormatter.string(from: entry.0))
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(loc(appLanguage, "Jumps", "Прыжки") + ": \(entry.1)")
+                        Text(loc(appLanguage, "Crawls", "Вылазки") + ": \(entry.1)")
                         Text(loc(appLanguage, "Fuel spent", "Потрачено топлива") + ": \(entry.2)")
                             .foregroundColor(.secondary)
                     }
@@ -516,21 +516,7 @@ struct StatusView: View {
 
     // MARK: - Day boundary helpers
     private var currentDayStart: Date {
-        dayStart(for: Date())
-    }
-    
-    private func dayStart(for date: Date) -> Date {
-        let cal = Calendar.current
-        guard let cutoffToday = cal.date(bySettingHour: dayEndHour, minute: dayEndMinute, second: 0, of: date) else {
-            return cal.startOfDay(for: date)
-        }
-        if date >= cutoffToday {
-            return cutoffToday
-        } else if let prev = cal.date(byAdding: .day, value: -1, to: cutoffToday) {
-            return prev
-        } else {
-            return cal.startOfDay(for: date)
-        }
+        Calendar.current.startOfDay(for: Date())
     }
     
     private func dateByAddingDays(to date: Date, value: Int) -> Date {

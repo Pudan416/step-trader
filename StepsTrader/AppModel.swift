@@ -31,7 +31,11 @@ final class AppModel: ObservableObject {
     // Оплата входа шагами
     @Published var entryCostSteps: Int = Tariff.easy.entryCostSteps
     @Published var stepsBalance: Int = 0
+    @Published private(set) var bonusSteps: Int = 0
+    var totalStepsBalance: Int { max(0, stepsBalance + bonusSteps) }
+    var effectiveStepsToday: Double { stepsToday + Double(bonusSteps) }
     @Published var spentStepsToday: Int = 0
+    @Published var healthAuthorizationStatus: HKAuthorizationStatus = .notDetermined
     
     struct AppUnlockSettings: Codable {
         var entryCostSteps: Int
@@ -155,6 +159,8 @@ final class AppModel: ObservableObject {
             self.appSelection = service.selection
         }
 
+        // Загрузка бонусного баланса от секретного действия
+        loadDebugStepsBonus()
         // Загрузка баланса шагов
         loadSpentStepsBalance()
         // Загрузка стоимости входа
@@ -183,7 +189,7 @@ final class AppModel: ObservableObject {
         }
 
         // Обновляем баланс шагов и запрашиваем HealthKit, если онбординг уже пройден
-        let hasSeenIntro = UserDefaults.standard.bool(forKey: "hasSeenIntro_v1")
+        let hasSeenIntro = UserDefaults.standard.bool(forKey: "hasSeenIntro_v3")
         if hasSeenIntro {
             Task {
                 await ensureHealthAuthorizationAndRefresh()
@@ -309,11 +315,12 @@ final class AppModel: ObservableObject {
                     message = "✅ Day pass already active for today."
                 } else if canPayForEntry(for: bundleIdForPay) {
                     _ = payForEntry(for: bundleIdForPay)
-                    message = "✅ \(settings.entryCostSteps) steps deducted. Access granted."
-                } else {
-                    message =
-                        "❌ Not enough steps. Need another \(max(0, settings.entryCostSteps - stepsBalance))."
-                }
+                message = "✅ \(settings.entryCostSteps) steps deducted. Access granted."
+            } else {
+                let shortage = max(0, settings.entryCostSteps - totalStepsBalance)
+                message =
+                    "❌ Not enough steps. Need another \(shortage) steps."
+            }
             }
             return
         }
@@ -353,27 +360,33 @@ final class AppModel: ObservableObject {
     }
 
     // MARK: - PayGate payment pipeline
-    func handlePayGatePayment(for bundleId: String, costOverride: Int? = nil) async {
+    func handlePayGatePayment(
+        for bundleId: String,
+        window: AccessWindow = .single,
+        costOverride: Int? = nil
+    ) async {
         let userDefaults = UserDefaults.stepsTrader()
         await refreshStepsBalance()
         let settings = unlockSettings(for: bundleId)
         let effectiveCost = costOverride ?? settings.entryCostSteps
         print("🎯 PayGate: Evaluating payment for \(bundleId)")
         print("   - stepsToday: \(Int(stepsToday))")
-        print("   - stepsBalance: \(stepsBalance)")
+        print("   - stepsBalance: base \(stepsBalance), bonus \(bonusSteps), total \(totalStepsBalance)")
         print("   - entryCostSteps: \(effectiveCost)")
         print("   - dayPassCostSteps: \(settings.dayPassCostSteps)")
         print("   - selected apps: \(appSelection.applicationTokens.count)")
         print("   - selected categories: \(appSelection.categoryTokens.count)")
 
-        if hasDayPass(for: bundleId) {
+        let dayPassActive = hasDayPass(for: bundleId)
+        if dayPassActive {
             message = "✅ Day pass active for today."
             print("✅ PayGate: Day pass already active for \(bundleId)")
         } else {
             guard canPayForEntry(for: bundleId, costOverride: costOverride) else {
+                let shortage = max(0, effectiveCost - totalStepsBalance)
                 message =
-                    "❌ Not enough steps. Need another \(max(0, effectiveCost - stepsBalance)) steps."
-                print("❌ PayGate: Not enough steps (balance \(stepsBalance) < cost \(effectiveCost))")
+                    "❌ Not enough steps. Need another \(shortage) steps."
+                print("❌ PayGate: Not enough steps (total balance \(totalStepsBalance) < cost \(effectiveCost))")
                 return
             }
 
@@ -381,12 +394,15 @@ final class AppModel: ObservableObject {
                 print("❌ PayGate: payForEntry() returned false")
                 return
             }
-            print("✅ PayGate: payForEntry() succeeded; new balance \(stepsBalance)")
+            print("✅ PayGate: payForEntry() succeeded; new balance \(totalStepsBalance)")
 
             message = "✅ \(effectiveCost) steps deducted. Access granted."
         }
 
         print("✅ PayGate: Steps deducted or day pass active, proceeding to open target app")
+
+        let appliedWindow: AccessWindow = (dayPassActive || window == .day1) ? .day1 : window
+        applyAccessWindow(appliedWindow, for: bundleId)
 
         // Update guard flags before attempting to open the target app
         let now = Date()
@@ -400,8 +416,14 @@ final class AppModel: ObservableObject {
         userDefaults.removeObject(forKey: "shortcutTarget")
         userDefaults.removeObject(forKey: "shortcutTriggerTime")
 
-        openTargetAppFromPayGate(bundleId)
-        endPayGateSession(bundleId)
+        openTargetAppFromPayGate(bundleId) { [weak self] opened in
+            guard let self = self else { return }
+            if opened {
+            } else {
+                self.message = "⚠️ Could not open the target app. Try again."
+            }
+            self.endPayGateSession(bundleId)
+        }
     }
 
     private func persistSessionAllowanceMetadata() {
@@ -417,10 +439,11 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func openTargetAppFromPayGate(_ bundleId: String) {
+    private func openTargetAppFromPayGate(_ bundleId: String, completion: @escaping (Bool) -> Void) {
         let schemes = primaryAndFallbackSchemes(for: bundleId)
         guard !schemes.isEmpty else {
             print("❌ PayGate: No URL schemes available for bundle \(bundleId)")
+            completion(false)
             return
         }
 
@@ -429,19 +452,20 @@ final class AppModel: ObservableObject {
         payGateTargetBundleId = nil
         payGateSessions.removeAll()
         currentPayGateSessionId = nil
-        attemptOpen(schemes: schemes, index: 0, bundleId: target)
+        attemptOpen(schemes: schemes, index: 0, bundleId: target, completion: completion)
     }
 
-    private func attemptOpen(schemes: [String], index: Int, bundleId: String) {
+    private func attemptOpen(schemes: [String], index: Int, bundleId: String, completion: @escaping (Bool) -> Void) {
         guard index < schemes.count else {
             print("❌ PayGate: Failed to open \(bundleId) after trying all schemes")
+            completion(false)
             return
         }
 
         let scheme = schemes[index]
         guard let url = URL(string: scheme) else {
             print("⚠️ PayGate: Invalid URL scheme \(scheme), trying next")
-            attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId)
+            attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId, completion: completion)
             return
         }
 
@@ -456,10 +480,11 @@ final class AppModel: ObservableObject {
                     try? await Task.sleep(nanoseconds: 500_000_000)
                     self.showPayGate = false
                     self.payGateTargetBundleId = nil
+                    completion(true)
                 }
             } else {
                 print("❌ PayGate: Scheme \(scheme) failed for \(bundleId), trying next")
-                self.attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId)
+                self.attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId, completion: completion)
             }
         }
     }
@@ -732,7 +757,7 @@ final class AppModel: ObservableObject {
                 switch hkError.code {
                 case .errorAuthorizationDenied:
                     message =
-                        "❌ HealthKit access denied. Open the Health app → Sources → Space CTRL and enable step reading."
+                        "❌ HealthKit access denied. Open the Health app → Sources → DOOM CTRL and enable step reading."
                 case .errorAuthorizationNotDetermined:
                     message = "⚠️ Step access not granted yet. Requesting permission..."
                     do {
@@ -792,21 +817,23 @@ final class AppModel: ObservableObject {
     func ensureHealthAuthorizationAndRefresh() async {
         let status = healthKitService.authorizationStatus()
         print("🏥 HealthKit status before ensure: \(status.rawValue)")
+        healthAuthorizationStatus = status
         switch status {
         case .sharingAuthorized:
             print("🏥 HealthKit already authorized, refreshing steps")
         case .sharingDenied:
-            print("❌ HealthKit access denied. Open the Health app → Sources → Space CTRL and enable step reading.")
+            print("❌ HealthKit access denied. Open the Health app → Sources → DOOM CTRL and enable step reading.")
             return
         case .notDetermined:
             print("🏥 HealthKit not determined. Requesting authorization...")
             do {
                 try await healthKitService.requestAuthorization()
-                print("✅ HealthKit authorization completed (ensureHealthAuthorizationAndRefresh)")
-            } catch {
-                print("❌ HealthKit authorization failed: \(error.localizedDescription)")
-                return
-            }
+            print("✅ HealthKit authorization completed (ensureHealthAuthorizationAndRefresh)")
+            healthAuthorizationStatus = healthKitService.authorizationStatus()
+        } catch {
+            print("❌ HealthKit authorization failed: \(error.localizedDescription)")
+            return
+        }
         @unknown default:
             print("❓ HealthKit status unknown: \(status.rawValue). Attempting authorization.")
             do {
@@ -993,14 +1020,14 @@ final class AppModel: ObservableObject {
     func canPayForEntry(for bundleId: String? = nil, costOverride: Int? = nil) -> Bool {
         if hasDayPass(for: bundleId) { return true }
         let cost = costOverride ?? unlockSettings(for: bundleId).entryCostSteps
-        return stepsBalance >= cost
+        return totalStepsBalance >= cost
     }
 
     func canPayForDayPass(for bundleId: String?) -> Bool {
         guard let bundleId else { return false }
         if hasDayPass(for: bundleId) { return true }
         let cost = unlockSettings(for: bundleId).dayPassCostSteps
-        return stepsBalance >= cost
+        return totalStepsBalance >= cost
     }
 
     @discardableResult
@@ -1025,12 +1052,21 @@ final class AppModel: ObservableObject {
     }
     
     private func pay(cost: Int) -> Bool {
-        guard stepsBalance >= cost else { return false }
+        guard totalStepsBalance >= cost else { return false }
         // Не позволяем тратить больше, чем пройдено сегодня
         let todaysSteps = Int(stepsToday)
-        let newSpent = min(spentStepsToday + cost, max(0, todaysSteps))
+        let baseAvailable = stepsBalance
+        let consumeFromBase = min(baseAvailable, cost)
+        let newSpent = min(spentStepsToday + consumeFromBase, max(0, todaysSteps))
         spentStepsToday = newSpent
         stepsBalance = max(0, todaysSteps - spentStepsToday)
+
+        let remainingCost = max(0, cost - consumeFromBase)
+        if remainingCost > 0 {
+            bonusSteps = max(0, bonusSteps - remainingCost)
+            persistDebugStepsBonus()
+        }
+
         let g = UserDefaults.stepsTrader()
         g.set(spentStepsToday, forKey: "spentStepsToday")
         g.set(stepsBalance, forKey: "stepsBalance")
@@ -1054,6 +1090,16 @@ final class AppModel: ObservableObject {
         if stepsBalance == 0, todaysSteps > 0 {
             stepsBalance = max(0, todaysSteps - spentStepsToday)
         }
+    }
+
+    private func loadDebugStepsBonus() {
+        let g = UserDefaults.stepsTrader()
+        bonusSteps = g.integer(forKey: "debugStepsBonus_v1")
+    }
+
+    private func persistDebugStepsBonus() {
+        let g = UserDefaults.stepsTrader()
+        g.set(bonusSteps, forKey: "debugStepsBonus_v1")
     }
 
     func loadEntryCost() {
@@ -1327,13 +1373,8 @@ final class AppModel: ObservableObject {
         print("🚫 Redirecting away due to active access window for \(bundleId)")
         g.removeObject(forKey: "blockedPaygateBundleId")
         g.removeObject(forKey: "blockedPaygateTimestamp")
-        recordAutomationOpen(bundleId: bundleId)
-        if let scheme = TargetResolver.urlScheme(forBundleId: bundleId),
-           let url = URL(string: scheme) {
-            Task { @MainActor in
-                UIApplication.shared.open(url, options: [:], completionHandler: nil)
-            }
-        }
+        let schemes = primaryAndFallbackSchemes(for: bundleId)
+        attemptOpen(schemes: schemes, index: 0, bundleId: bundleId) { _ in }
     }
 
     private func accessWindowExpiration(_ window: AccessWindow, now: Date) -> Date? {
@@ -1656,7 +1697,7 @@ final class AppModel: ObservableObject {
 
     private func scheduleReturnNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "🚶‍♂️ Space CTRL"
+        content.title = "🚶‍♂️ DOOM CTRL"
         content.body = "Walk more steps to earn extra entertainment time!"
         content.sound = .default
         content.badge = nil
@@ -1664,7 +1705,7 @@ final class AppModel: ObservableObject {
         // Добавляем action для быстрого возврата в приложение
         let returnAction = UNNotificationAction(
             identifier: "RETURN_TO_APP",
-            title: "Open Space CTRL",
+            title: "Open DOOM CTRL",
             options: [.foreground]
         )
 
@@ -1708,7 +1749,7 @@ final class AppModel: ObservableObject {
         guard isBlocked else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "⏰ Space CTRL"
+        content.title = "⏰ DOOM CTRL"
         content.body = "Reminder: walk more steps to unlock!"
         content.sound = .default
 
@@ -1727,7 +1768,7 @@ final class AppModel: ObservableObject {
     }
 
     func bootstrap(requestPermissions: Bool = true) async {
-        print("🚀 Space CTRL: Starting bootstrap...")
+        print("🚀 DOOM CTRL: Starting bootstrap...")
 
         // Обновляем время из shared storage (на случай если DeviceActivity обновил его)
         loadSpentTime()
@@ -1933,7 +1974,7 @@ final class AppModel: ObservableObject {
 
                 guard budgetEngine.remainingMinutes > 0 else {
                     print("❌ No remaining time - aborting")
-                    message = "Space CTRL: No time left! Walk more steps."
+                    message = "DOOM CTRL: No time left! Walk more steps."
                     return
                 }
 
@@ -2289,10 +2330,10 @@ final class AppModel: ObservableObject {
         }
 
         print("🔗 Checking shortcut app matching for bundle: \(bundleId)")
-        recordAutomationOpen(bundleId: bundleId)
         if isAccessBlocked(for: bundleId) {
-            print("🚫 Access window active for \(bundleId); skipping PayGate and recording open")
-            reopenTargetIfPossible(bundleId: bundleId)
+            print("🚫 Access window active for \(bundleId); opening target directly")
+            let schemes = primaryAndFallbackSchemes(for: bundleId)
+            attemptOpen(schemes: schemes, index: 0, bundleId: bundleId) { _ in }
             userDefaults.removeObject(forKey: "shortcutTargetBundleId")
             return
         }
@@ -2494,5 +2535,12 @@ extension AppModel {
             return Double(cached)
         }
         return 0
+    }
+
+    func addDebugSteps(_ count: Int) {
+        bonusSteps += count
+        cacheStepsToday()
+        persistDebugStepsBonus()
+        print("🧪 Debug: added \(count) steps. Bonus now \(bonusSteps), total \(totalStepsBalance)")
     }
 }

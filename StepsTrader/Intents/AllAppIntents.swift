@@ -2,20 +2,14 @@ import AppIntents
 import Foundation
 import UserNotifications
 
-private struct IntentAppOpenLog: Codable {
-    let id: UUID
-    let bundleId: String
-    let date: Date
-}
-
 private func recordJump(for bundleId: String) {
     let defaults = UserDefaults.stepsTrader()
-    var logs: [IntentAppOpenLog] = []
+    var logs: [AppModel.AppOpenLog] = []
     if let data = defaults.data(forKey: "appOpenLogs_v1"),
-       let decoded = try? JSONDecoder().decode([IntentAppOpenLog].self, from: data) {
+       let decoded = try? JSONDecoder().decode([AppModel.AppOpenLog].self, from: data) {
         logs = decoded
     }
-    logs.append(.init(id: UUID(), bundleId: bundleId, date: Date()))
+    logs.append(.init(bundleId: bundleId, date: Date()))
     // Trim to avoid unbounded growth
     if logs.count > 500 {
         logs = Array(logs.suffix(500))
@@ -35,7 +29,7 @@ private func recordJump(for bundleId: String) {
 
 @available(iOS 17.0, *)
 struct TestOneShortcutIntent: AppIntent {
-    static var title: LocalizedStringResource = "Space CTRL: Launcher"
+    static var title: LocalizedStringResource = "DOOM CTRL: Launcher"
     static var description = IntentDescription(
         "Opens PayGate for a selected app when no access window is active.")
     static var openAppWhenRun: Bool = true
@@ -60,7 +54,8 @@ struct TestOneShortcutIntent: AppIntent {
             let remaining = remainingBlockSeconds(now: now, userDefaults: userDefaults, bundleId: selectedTarget.bundleId) ?? -1
             print("🚫 TestOneShortcutIntent: blocked until window expires for \(selectedTarget.bundleId) (\(remaining)s left)")
             clearPayGateFlags(userDefaults)
-            return .result(value: false)
+            logCrawl(bundleId: selectedTarget.bundleId, userDefaults: userDefaults)
+            return .result(value: true)
         }
 
         // Анти-спам: не чаще, чем раз в 5 секунд
@@ -111,7 +106,7 @@ struct TestOneShortcutIntent: AppIntent {
 
 @available(iOS 17.0, *)
 struct CheckAccessWindowIntent: AppIntent {
-    static var title: LocalizedStringResource = "Space CTRL: Engine check"
+    static var title: LocalizedStringResource = "DOOM CTRL: Engine check"
     static var description = IntentDescription(
         "Returns whether PayGate is allowed right now for the selected app (false when paid window is active).")
     static var openAppWhenRun: Bool = false
@@ -126,12 +121,11 @@ struct CheckAccessWindowIntent: AppIntent {
         if isBlocked {
             let remaining = remainingBlockSeconds(now: now, userDefaults: userDefaults, bundleId: target.bundleId) ?? -1
             print("🚫 CheckAccessWindowIntent: blocked for \(target.bundleId) (\(remaining)s left)")
-            recordJump(for: target.bundleId)
+            logCrawl(bundleId: target.bundleId, userDefaults: userDefaults)
             return .result(value: false)
         } else {
             userDefaults.set(target.rawValue, forKey: "lastCheckedPaygateTarget")
             print("✅ CheckAccessWindowIntent: allowed for \(target.bundleId)")
-            recordJump(for: target.bundleId)
             return .result(value: true)
         }
     }
@@ -178,7 +172,7 @@ enum TargetApp: String, AppEnum, CaseDisplayRepresentable {
 
 @available(iOS 17.0, *)
 struct StarLauncherIntent: AppIntent {
-    static var title: LocalizedStringResource = "*Space CTRL: Launcher"
+    static var title: LocalizedStringResource = "*DOOM CTRL: Launcher"
     static var description = IntentDescription(
         "Opens PayGate for a selected app (other apps pool) when no access window is active.")
     static var openAppWhenRun: Bool = true
@@ -202,7 +196,8 @@ struct StarLauncherIntent: AppIntent {
             let remaining = remainingBlockSeconds(now: now, userDefaults: userDefaults, bundleId: selectedTarget.bundleId) ?? -1
             print("🚫 StarLauncherIntent: blocked until window expires for \(selectedTarget.bundleId) (\(remaining)s left)")
             clearPayGateFlags(userDefaults)
-            return .result(value: false)
+            logCrawl(bundleId: selectedTarget.bundleId, userDefaults: userDefaults)
+            return .result(value: true)
         }
 
         if let lastRun = userDefaults.object(forKey: "lastStarLauncherRun") as? Date {
@@ -265,7 +260,8 @@ struct StarEngineCheckIntent: AppIntent {
         if isBlocked {
             let remaining = remainingBlockSeconds(now: now, userDefaults: userDefaults, bundleId: target.bundleId) ?? -1
             print("🚫 StarEngineCheckIntent: blocked for \(target.bundleId) (\(remaining)s left)")
-            return .result(value: false)
+            logCrawl(bundleId: target.bundleId, userDefaults: userDefaults)
+            return .result(value: true)
         } else {
             userDefaults.set(target.rawValue, forKey: "lastCheckedPaygateTarget_other")
             print("✅ StarEngineCheckIntent: allowed for \(target.bundleId)")
@@ -561,6 +557,50 @@ private func remainingBlockSeconds(now: Date, userDefaults: UserDefaults, bundle
     let remaining = Int(until.timeIntervalSince(now))
     return remaining > 0 ? remaining : nil
 }
+
+@available(iOS 17.0, *)
+private func logCrawl(bundleId: String, userDefaults: UserDefaults) {
+    let now = Date()
+    // Update last opened
+    if let data = userDefaults.data(forKey: "automationLastOpened_v1"),
+       var dict = try? JSONDecoder().decode([String: Date].self, from: data) {
+        dict[bundleId] = now
+        if let encoded = try? JSONEncoder().encode(dict) {
+            userDefaults.set(encoded, forKey: "automationLastOpened_v1")
+        }
+    } else if let encoded = try? JSONEncoder().encode([bundleId: now]) {
+        userDefaults.set(encoded, forKey: "automationLastOpened_v1")
+    }
+
+    // Mark configured / clear pending
+    var configured = userDefaults.array(forKey: "automationConfiguredBundles") as? [String] ?? []
+    if !configured.contains(bundleId) {
+        configured.append(bundleId)
+        userDefaults.set(configured, forKey: "automationConfiguredBundles")
+    }
+    var pending = userDefaults.array(forKey: "automationPendingBundles") as? [String] ?? []
+    pending.removeAll { $0 == bundleId }
+    userDefaults.set(pending, forKey: "automationPendingBundles")
+    if let data = userDefaults.data(forKey: "automationPendingTimestamps_v1"),
+       var ts = try? JSONDecoder().decode([String: Date].self, from: data) {
+        ts.removeValue(forKey: bundleId)
+        if let encoded = try? JSONEncoder().encode(ts) {
+            userDefaults.set(encoded, forKey: "automationPendingTimestamps_v1")
+        }
+    }
+
+    // Append app open log
+    var logs: [AppModel.AppOpenLog] = []
+    if let data = userDefaults.data(forKey: "appOpenLogs_v1"),
+       let decoded = try? JSONDecoder().decode([AppModel.AppOpenLog].self, from: data) {
+        logs = decoded
+    }
+    logs.append(AppModel.AppOpenLog(bundleId: bundleId, date: now))
+    if let encoded = try? JSONEncoder().encode(logs) {
+        userDefaults.set(encoded, forKey: "appOpenLogs_v1")
+    }
+}
+
 
 @available(iOS 17.0, *)
 private func blockUntilDate(from now: Date, window: AccessWindow, userDefaults: UserDefaults, bundleId: String) -> Date? {

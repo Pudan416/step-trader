@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "2089F0B32E71A18E00ABF5FA"
-               BuildableName = "Space CTRL.app"
+               BuildableName = "DOOM CTRL.app"
                BlueprintName = "Steps4"
                ReferencedContainer = "container:Steps4.xcodeproj">
             </BuildableReference>
@@ -36,7 +36,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "2089F0C32E71A18F00ABF5FA"
-               BuildableName = "Space CTRL.xctest"
+               BuildableName = "DOOM CTRL.xctest"
                BlueprintName = "Steps4Tests"
                ReferencedContainer = "container:Steps4.xcodeproj">
             </BuildableReference>
@@ -69,7 +69,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "2089F0B32E71A18E00ABF5FA"
-            BuildableName = "Space CTRL.app"
+            BuildableName = "DOOM CTRL.app"
             BlueprintName = "Steps4"
             ReferencedContainer = "container:Steps4.xcodeproj">
          </BuildableReference>
@@ -103,7 +103,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "2089F0B32E71A18E00ABF5FA"
-            BuildableName = "Space CTRL.app"
+            BuildableName = "DOOM CTRL.app"
             BlueprintName = "Steps4"
             ReferencedContainer = "container:Steps4.xcodeproj">
          </BuildableReference>

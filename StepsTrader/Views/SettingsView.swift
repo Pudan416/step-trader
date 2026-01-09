@@ -251,6 +251,8 @@ struct JournalView: View {
     @State private var generatedRussian: String?
     @State private var storyError: String?
     @State private var showDetails: Bool = false
+    @State private var secretTapCount = 0
+    @State private var showDebugAlert = false
     
     private var storedStory: AppModel.DailyStory? {
         model.story(for: selectedDate)
@@ -307,6 +309,21 @@ struct JournalView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("DOOM CTRL")
+                        .font(.caption2)
+                        .foregroundColor(.clear)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            secretTapCount += 1
+                            if secretTapCount >= 7 {
+                                secretTapCount = 0
+                                model.addDebugSteps(1000)
+                                showDebugAlert = true
+                            }
+                        }
+                    Spacer()
+                }
                 calendarGrid
                 Divider()
                 storyBlock
@@ -327,6 +344,11 @@ struct JournalView: View {
                 }
             }
             .padding()
+        }
+        .alert("Bonus fuel", isPresented: $showDebugAlert) {
+            Button("Thanks", role: .cancel) {}
+        } message: {
+            Text("Added 1,000 debug steps to the balance.")
         }
         .background(Color.clear)
         .navigationTitle(loc(appLanguage, "Journal", "Журнал"))
@@ -407,7 +429,7 @@ struct JournalView: View {
     @ViewBuilder
     private var storyBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(loc(appLanguage, "Cosmic log", "Космический лог"))
+            Text(loc(appLanguage, "Journal of craws", "Журнал вылазок"))
                 .font(.headline)
             if isTodaySelected && storyToShow == nil {
                 Text(
@@ -502,9 +524,9 @@ struct JournalView: View {
     }
     
     private var daySummaryView: some View {
-        let stepsMade = isTodaySelected ? Int(model.stepsToday) : nil
+        let stepsMade = isTodaySelected ? Int(model.effectiveStepsToday) : nil
         let stepsSpent = isTodaySelected ? model.appStepsSpentToday.values.reduce(0, +) : nil
-        let remaining = isTodaySelected ? max(0, Int(model.stepsToday) - model.spentStepsToday) : nil
+        let remaining = isTodaySelected ? max(0, Int(model.effectiveStepsToday) - model.spentStepsToday) : nil
         let opensCount = entries(for: selectedDate).count
         let dayPassActiveCount = automationApps.filter { model.hasDayPass(for: $0.bundleId) }.count
         
@@ -515,7 +537,7 @@ struct JournalView: View {
                 Text(stepsMade != nil ? "\(stepsMade!)" : "—")
             }.font(.caption)
             HStack {
-                Text(loc(appLanguage, "Modules used", "Модулей использовано"))
+                Text(loc(appLanguage, "Shields used", "Щитов использовано"))
                 Spacer()
                 Text("\(opensCount)")
             }.font(.caption)
@@ -532,7 +554,7 @@ struct JournalView: View {
             .foregroundColor(.secondary)
             
             if isTodaySelected, dayPassActiveCount > 0 {
-                Text(loc(appLanguage, "Day pass active for \(dayPassActiveCount) modules", "Дневной проход активен для \(dayPassActiveCount) модулей"))
+                Text(loc(appLanguage, "Day pass active for \(dayPassActiveCount) shields", "Дневной проход активен для \(dayPassActiveCount) щитов"))
                     .font(.caption)
                     .foregroundColor(.green)
             }
@@ -564,9 +586,9 @@ struct JournalView: View {
     
     // MARK: - LLM prompt and call
     private func buildPromptEnglish(dayEntries: [AppModel.AppOpenLog]) -> String {
-        let stepsMade = isTodaySelected ? Int(model.stepsToday) : nil
+        let stepsMade = isTodaySelected ? Int(model.effectiveStepsToday) : nil
         let stepsSpent = isTodaySelected ? model.appStepsSpentToday.values.reduce(0, +) : nil
-        let remaining = isTodaySelected ? max(0, Int(model.stepsToday) - model.spentStepsToday) : nil
+        let remaining = isTodaySelected ? max(0, Int(model.effectiveStepsToday) - model.spentStepsToday) : nil
         let dayPassActive = isTodaySelected ? automationApps.filter { model.hasDayPass(for: $0.bundleId) }.map { $0.name } : []
         
         var lines: [String] = []

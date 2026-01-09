@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - UserDefaults Extension for Space CTRL
+// MARK: - UserDefaults Extension for DOOM CTRL
 extension UserDefaults {
     private static var hasLoggedFallback = false
     private static var hasLoggedGroupInfo = false

@@ -52,7 +52,7 @@ struct BlockScreen: View {
                     HStack {
                         Text("Steps today:")
                         Spacer()
-                        Text("\(Int(model.stepsToday))")
+                        Text("\(Int(model.effectiveStepsToday))")
                             .fontWeight(.semibold)
                             .foregroundColor(.green)
                     }

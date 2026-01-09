@@ -4,6 +4,39 @@ import Foundation
 final class LLMService {
     static let shared = LLMService()
     private init() {}
+
+    // DOOM CTRL journal prompts (RU/EN) for control logs
+    static let controlLogPromptRU = """
+Ты — оператор журнала DOOM CTRL. Пиши коротко и по делу, 4–5 предложений.
+Контекст:
+- Шаги = заряд батареи.
+- Щиты защищают вылазки (crawls) в приложения; уровни I–IV удешевляют вход.
+- Crawls = открытия приложений.
+- PayGate появляется, когда окно доступа закрыто.
+
+Структура записи (русский):
+1) Дата DD.MM.YYYY и “День N миссии”.
+2) Батарея: сколько шагов получено, сколько потрачено, сколько осталось.
+3) Щиты: список приложений с уровнем щита и числом вылазок.
+4) События: показывался ли PayGate, были ли блокировки/неудачные вылазки.
+Тон: техно-отчёт, без воды, без эмодзи.
+"""
+
+    static let controlLogPromptEN = """
+You are the DOOM CTRL control log writer. Be concise, 4–5 sentences.
+Context:
+- Steps are battery charge.
+- Shields protect crawls into apps; levels I–IV make entries cheaper.
+- Crawls = app opens.
+- PayGate appears when the access window is closed.
+
+Log structure (English):
+1) Date in DD.MM.YYYY and “Day N of the mission”.
+2) Battery: steps gained, steps spent, charge left.
+3) Shields: list apps with shield level and number of crawls.
+4) Events: whether PayGate appeared, any blocked or failed crawls.
+Tone: techno/ops report, no fluff, no emojis.
+"""
     
     private enum LLMError: Error {
         case missingAPIKey
@@ -29,7 +62,7 @@ final class LLMService {
         let choices: [Choice]
     }
     
-    /// Generates a cosmic pilot journal entry based on day data.
+    /// Generates a DOOM CTRL control journal entry based on day data.
     func generateCosmicJournal(prompt: String) async throws -> String {
         guard let apiKey = Self.loadAPIKey(), !apiKey.isEmpty else { throw LLMError.missingAPIKey }
         
@@ -50,7 +83,7 @@ final class LLMService {
         let body = ChatRequest(
             model: "deepseek-chat",
             messages: [
-                .init(role: "system", content: "You are a witty space ship pilot writing a daily journal of your travels across universes. The steps are fuel, the app opens are jumping into black holes and wormholes. To get out of these holes, you use special modules attached to each app. Start with the current date in the format DD.MM.YYYY. Next write the number of the day you spend in this flight. In the text, mention which modules were used that day and how much fuel was spent on them. Mention just names of apps, not URD schemes. If unlimited access was used, mention that too. Be curious, calm, and modest like a scientist. Write a brief diary-style text in Russian that is warm and imaginative. It should be 4-5 sentences long."),
+                .init(role: "system", content: "You are the DOOM CTRL control log writer. Follow the structure provided in the user message. Respond in the same language as the user request. Keep it concise, 4–5 sentences, ops/tech tone, no emojis."),
                 .init(role: "user", content: prompt)
             ]
         )

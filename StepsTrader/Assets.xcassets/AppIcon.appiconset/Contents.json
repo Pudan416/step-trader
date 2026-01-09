@@ -54,7 +54,7 @@
       "size" : "20x20"
     },
     {
-      "filename" : "space ctrl icon-iOS-Default-20x20@2x 2.png",
+      "filename" : "space ctrl icon-iOS-Default-20x20@2x 1.png",
       "idiom" : "ipad",
       "scale" : "2x",
       "size" : "20x20"
@@ -71,7 +71,7 @@
       "size" : "29x29"
     },
     {
-      "filename" : "space ctrl icon-iOS-Default-20x20@2x 1.png",
+      "filename" : "space ctrl icon-iOS-Default-20x20@2x 2.png",
       "idiom" : "ipad",
       "scale" : "1x",
       "size" : "40x40"
@@ -95,7 +95,6 @@
       "size" : "76x76"
     },
     {
-      "filename" : "space ctrl icon-iOS-Default-83.5x83.5@2x.png",
       "idiom" : "ipad",
       "scale" : "2x",
       "size" : "83.5x83.5"
