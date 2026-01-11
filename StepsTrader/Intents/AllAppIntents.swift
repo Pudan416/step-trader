@@ -599,6 +599,16 @@ private func logCrawl(bundleId: String, userDefaults: UserDefaults) {
     if let encoded = try? JSONEncoder().encode(logs) {
         userDefaults.set(encoded, forKey: "appOpenLogs_v1")
     }
+
+    // Notify app to refresh logs in realtime
+    let name = CFNotificationName("com.steps.trader.logs" as CFString)
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        name,
+        nil,
+        nil,
+        true
+    )
 }
 
 

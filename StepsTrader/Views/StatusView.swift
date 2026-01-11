@@ -398,7 +398,7 @@ struct StatusView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.name)
                                 .font(.subheadline)
-                            Text(loc(appLanguage, "Crawls", "Вылазки") + ": \(item.opens) • " + loc(appLanguage, "Fuel spent", "Потрачено топлива") + ": \(item.steps)")
+                            Text(loc(appLanguage, "Crawls", "Вылазки") + ": \(item.opens) • " + loc(appLanguage, "Enegry spent", "Потрачено энергии") + ": \(item.steps)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
