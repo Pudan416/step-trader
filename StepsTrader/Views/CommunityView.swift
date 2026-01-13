@@ -139,6 +139,6 @@ struct CommunityView: View {
 }
 
 #Preview {
-    CommunityView(model: AppModel())
+    CommunityView(model: DIContainer.shared.makeAppModel())
 }
 
