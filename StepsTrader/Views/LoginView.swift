@@ -168,12 +168,6 @@ struct LoginView: View {
     }
 }
 
-// MARK: - Localization helper (if not already available)
-
-private func loc(_ lang: String, _ en: String, _ ru: String) -> String {
-    lang == "ru" ? ru : en
-}
-
 #Preview {
     LoginView(authService: AuthenticationService.shared)
 }
