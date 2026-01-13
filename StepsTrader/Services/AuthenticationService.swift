@@ -7,8 +7,9 @@ import SwiftUI
 struct AppUser: Codable {
     let id: String
     let email: String?
-    let firstName: String?
-    let lastName: String?
+    var firstName: String?
+    var lastName: String?
+    var location: String?
     let createdAt: Date
     
     var displayName: String {
@@ -64,6 +65,7 @@ class AuthenticationService: NSObject, ObservableObject {
             email: credential.email ?? loadStoredEmail(for: credential.user),
             firstName: credential.fullName?.givenName ?? loadStoredFirstName(for: credential.user),
             lastName: credential.fullName?.familyName ?? loadStoredLastName(for: credential.user),
+            location: loadStoredLocation(for: credential.user),
             createdAt: Date()
         )
         
@@ -99,6 +101,7 @@ class AuthenticationService: NSObject, ObservableObject {
             email: credential.email ?? loadStoredEmail(for: credential.user),
             firstName: credential.fullName?.givenName ?? loadStoredFirstName(for: credential.user),
             lastName: credential.fullName?.familyName ?? loadStoredLastName(for: credential.user),
+            location: loadStoredLocation(for: credential.user),
             createdAt: Date()
         )
         
@@ -132,6 +135,38 @@ class AuthenticationService: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - Profile Update Methods
+    
+    func updateName(firstName: String?, lastName: String?) {
+        guard var user = currentUser else { return }
+        user.firstName = firstName
+        user.lastName = lastName
+        currentUser = user
+        saveUser(user)
+        storeUserDetails(user)
+        print("✅ Name updated: \(user.displayName)")
+    }
+    
+    func updateLocation(_ location: String?) {
+        guard var user = currentUser else { return }
+        user.location = location
+        currentUser = user
+        saveUser(user)
+        storeUserDetails(user)
+        print("✅ Location updated: \(location ?? "cleared")")
+    }
+    
+    func updateProfile(firstName: String?, lastName: String?, location: String?) {
+        guard var user = currentUser else { return }
+        user.firstName = firstName
+        user.lastName = lastName
+        user.location = location
+        currentUser = user
+        saveUser(user)
+        storeUserDetails(user)
+        print("✅ Profile updated: \(user.displayName), \(location ?? "no location")")
+    }
+    
     // MARK: - Private Methods
     
     private func performSignIn(request: ASAuthorizationAppleIDRequest) async throws -> ASAuthorization {
@@ -160,10 +195,15 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     private func clearStoredUser() {
+        guard let userId = currentUser?.id else {
+            UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+            return
+        }
         UserDefaults.standard.removeObject(forKey: userDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: "appleUserEmail")
-        UserDefaults.standard.removeObject(forKey: "appleUserFirstName")
-        UserDefaults.standard.removeObject(forKey: "appleUserLastName")
+        UserDefaults.standard.removeObject(forKey: "appleUserEmail_\(userId)")
+        UserDefaults.standard.removeObject(forKey: "appleUserFirstName_\(userId)")
+        UserDefaults.standard.removeObject(forKey: "appleUserLastName_\(userId)")
+        UserDefaults.standard.removeObject(forKey: "appleUserLocation_\(userId)")
     }
     
     // Store user details separately (Apple only provides them on first sign-in)
@@ -173,9 +213,18 @@ class AuthenticationService: NSObject, ObservableObject {
         }
         if let firstName = user.firstName {
             UserDefaults.standard.set(firstName, forKey: "appleUserFirstName_\(user.id)")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "appleUserFirstName_\(user.id)")
         }
         if let lastName = user.lastName {
             UserDefaults.standard.set(lastName, forKey: "appleUserLastName_\(user.id)")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "appleUserLastName_\(user.id)")
+        }
+        if let location = user.location {
+            UserDefaults.standard.set(location, forKey: "appleUserLocation_\(user.id)")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "appleUserLocation_\(user.id)")
         }
     }
     
@@ -189,6 +238,10 @@ class AuthenticationService: NSObject, ObservableObject {
     
     private func loadStoredLastName(for userId: String) -> String? {
         UserDefaults.standard.string(forKey: "appleUserLastName_\(userId)")
+    }
+    
+    private func loadStoredLocation(for userId: String) -> String? {
+        UserDefaults.standard.string(forKey: "appleUserLocation_\(userId)")
     }
 }
 

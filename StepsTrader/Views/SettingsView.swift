@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @State private var showLoginSheet: Bool = false
     @State private var showRestoreAlert: Bool = false
+    @State private var showProfileEditor: Bool = false
     @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
     @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
@@ -127,24 +128,43 @@ struct SettingsView: View {
                 Section {
                     if authService.isAuthenticated, let user = authService.currentUser {
                         // User is signed in - show profile
-                        HStack {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.purple.opacity(0.2))
-                                    .frame(width: 40, height: 40)
-                                Text(String(user.displayName.prefix(1)).uppercased())
-                                    .font(.headline)
-                                    .foregroundColor(.purple)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(user.displayName)
-                                    .font(.subheadline.weight(.medium))
-                                if let email = user.email {
-                                    Text(email)
+                        Button {
+                            showProfileEditor = true
+                        } label: {
+                            HStack {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.purple.opacity(0.2))
+                                        .frame(width: 48, height: 48)
+                                    Text(String(user.displayName.prefix(1)).uppercased())
+                                        .font(.headline)
+                                        .foregroundColor(.purple)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(user.displayName)
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundColor(.primary)
+                                    if let location = user.location, !location.isEmpty {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "mappin")
+                                                .font(.caption2)
+                                            Text(location)
+                                        }
                                         .font(.caption)
                                         .foregroundColor(.secondary)
+                                    } else if let email = user.email {
+                                        Text(email)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                         }
                         
@@ -249,6 +269,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showLoginSheet) {
                 LoginView(authService: authService)
+            }
+            .sheet(isPresented: $showProfileEditor) {
+                ProfileEditorView(authService: authService)
             }
             .alert(loc(appLanguage, "Restore from iCloud", "Восстановить из iCloud"), isPresented: $showRestoreAlert) {
                 Button(loc(appLanguage, "Cancel", "Отмена"), role: .cancel) { }
@@ -867,5 +890,150 @@ struct JournalView: View {
         df.locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
         df.dateFormat = "HH:mm"
         return df.string(from: date)
+    }
+}
+
+// MARK: - Profile Editor View
+
+struct ProfileEditorView: View {
+    @ObservedObject var authService: AuthenticationService
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("appLanguage") private var appLanguage: String = "en"
+    
+    @State private var firstName: String = ""
+    @State private var lastName: String = ""
+    @State private var location: String = ""
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                // Avatar section
+                Section {
+                    HStack {
+                        Spacer()
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.purple.opacity(0.6), Color.blue.opacity(0.6)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 80, height: 80)
+                            
+                            Text(avatarInitials)
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                        }
+                        Spacer()
+                    }
+                    .listRowBackground(Color.clear)
+                }
+                
+                // Name section
+                Section {
+                    HStack {
+                        Image(systemName: "person")
+                            .foregroundColor(.secondary)
+                            .frame(width: 24)
+                        TextField(loc(appLanguage, "First name", "Имя"), text: $firstName)
+                    }
+                    
+                    HStack {
+                        Image(systemName: "person")
+                            .foregroundColor(.secondary)
+                            .frame(width: 24)
+                        TextField(loc(appLanguage, "Last name", "Фамилия"), text: $lastName)
+                    }
+                } header: {
+                    Text(loc(appLanguage, "Name", "Имя"))
+                }
+                
+                // Location section
+                Section {
+                    HStack {
+                        Image(systemName: "mappin.and.ellipse")
+                            .foregroundColor(.secondary)
+                            .frame(width: 24)
+                        TextField(loc(appLanguage, "City, Country", "Город, Страна"), text: $location)
+                    }
+                } header: {
+                    Text(loc(appLanguage, "Location", "Локация"))
+                } footer: {
+                    Text(loc(appLanguage, "Your location helps personalize your experience", "Локация помогает персонализировать ваш опыт"))
+                }
+                
+                // Email (read-only)
+                if let email = authService.currentUser?.email {
+                    Section {
+                        HStack {
+                            Image(systemName: "envelope")
+                                .foregroundColor(.secondary)
+                                .frame(width: 24)
+                            Text(email)
+                                .foregroundColor(.secondary)
+                        }
+                    } header: {
+                        Text("Email")
+                    } footer: {
+                        Text(loc(appLanguage, "Email is managed by Apple ID", "Email управляется через Apple ID"))
+                    }
+                }
+            }
+            .navigationTitle(loc(appLanguage, "Edit Profile", "Редактировать профиль"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(loc(appLanguage, "Cancel", "Отмена")) {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(loc(appLanguage, "Save", "Сохранить")) {
+                        saveProfile()
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .onAppear {
+                loadCurrentProfile()
+            }
+        }
+    }
+    
+    private var avatarInitials: String {
+        let first = firstName.first.map { String($0).uppercased() } ?? ""
+        let last = lastName.first.map { String($0).uppercased() } ?? ""
+        if !first.isEmpty && !last.isEmpty {
+            return "\(first)\(last)"
+        } else if !first.isEmpty {
+            return first
+        } else if let email = authService.currentUser?.email {
+            return String(email.prefix(1)).uppercased()
+        }
+        return "?"
+    }
+    
+    private func loadCurrentProfile() {
+        if let user = authService.currentUser {
+            firstName = user.firstName ?? ""
+            lastName = user.lastName ?? ""
+            location = user.location ?? ""
+        }
+    }
+    
+    private func saveProfile() {
+        let trimmedFirst = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLast = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        authService.updateProfile(
+            firstName: trimmedFirst.isEmpty ? nil : trimmedFirst,
+            lastName: trimmedLast.isEmpty ? nil : trimmedLast,
+            location: trimmedLocation.isEmpty ? nil : trimmedLocation
+        )
     }
 }
