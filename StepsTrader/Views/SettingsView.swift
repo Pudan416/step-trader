@@ -132,20 +132,36 @@ struct SettingsView: View {
                             showProfileEditor = true
                         } label: {
                             HStack {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.purple.opacity(0.2))
+                                // Avatar
+                                if let avatarData = user.avatarData,
+                                   let uiImage = UIImage(data: avatarData) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
                                         .frame(width: 48, height: 48)
-                                    Text(String(user.displayName.prefix(1)).uppercased())
-                                        .font(.headline)
-                                        .foregroundColor(.purple)
+                                        .clipShape(Circle())
+                                } else {
+                                    ZStack {
+                                        Circle()
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [Color.purple.opacity(0.6), Color.blue.opacity(0.6)],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .frame(width: 48, height: 48)
+                                        Text(String(user.displayName.prefix(2)).uppercased())
+                                            .font(.subheadline.weight(.bold))
+                                            .foregroundColor(.white)
+                                    }
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(user.displayName)
                                         .font(.subheadline.weight(.medium))
                                         .foregroundColor(.primary)
-                                    if let location = user.location, !location.isEmpty {
+                                    if let location = user.locationString {
                                         HStack(spacing: 4) {
                                             Image(systemName: "mappin")
                                                 .font(.caption2)
@@ -900,9 +916,15 @@ struct ProfileEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     
+    @State private var nickname: String = ""
     @State private var firstName: String = ""
     @State private var lastName: String = ""
-    @State private var location: String = ""
+    @State private var country: String = ""
+    @State private var city: String = ""
+    @State private var avatarImage: UIImage?
+    @State private var showImagePicker: Bool = false
+    @State private var showImageSourcePicker: Bool = false
+    @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
     
     var body: some View {
         NavigationView {
@@ -911,28 +933,80 @@ struct ProfileEditorView: View {
                 Section {
                     HStack {
                         Spacer()
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color.purple.opacity(0.6), Color.blue.opacity(0.6)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
+                        Button {
+                            showImageSourcePicker = true
+                        } label: {
+                            ZStack {
+                                if let image = avatarImage {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 100, height: 100)
+                                        .clipShape(Circle())
+                                } else {
+                                    Circle()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Color.purple.opacity(0.6), Color.blue.opacity(0.6)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .frame(width: 100, height: 100)
+                                    
+                                    Text(avatarInitials)
+                                        .font(.largeTitle)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                }
+                                
+                                // Camera badge
+                                Circle()
+                                    .fill(Color.blue)
+                                    .frame(width: 32, height: 32)
+                                    .overlay(
+                                        Image(systemName: "camera.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.white)
                                     )
-                                )
-                                .frame(width: 80, height: 80)
-                            
-                            Text(avatarInitials)
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
+                                    .offset(x: 35, y: 35)
+                            }
                         }
+                        .buttonStyle(.plain)
                         Spacer()
                     }
                     .listRowBackground(Color.clear)
+                    
+                    if avatarImage != nil {
+                        Button(role: .destructive) {
+                            avatarImage = nil
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Text(loc(appLanguage, "Remove Photo", "Удалить фото"))
+                                Spacer()
+                            }
+                        }
+                    }
                 }
                 
-                // Name section
+                // Nickname section
+                Section {
+                    HStack {
+                        Image(systemName: "at")
+                            .foregroundColor(.secondary)
+                            .frame(width: 24)
+                        TextField(loc(appLanguage, "Nickname", "Никнейм"), text: $nickname)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                    }
+                } header: {
+                    Text(loc(appLanguage, "Nickname", "Никнейм"))
+                } footer: {
+                    Text(loc(appLanguage, "This name will be displayed instead of your real name", "Это имя будет отображаться вместо настоящего"))
+                }
+                
+                // Real name section (from Apple ID)
                 Section {
                     HStack {
                         Image(systemName: "person")
@@ -948,21 +1022,28 @@ struct ProfileEditorView: View {
                         TextField(loc(appLanguage, "Last name", "Фамилия"), text: $lastName)
                     }
                 } header: {
-                    Text(loc(appLanguage, "Name", "Имя"))
+                    Text(loc(appLanguage, "Real Name", "Настоящее имя"))
+                } footer: {
+                    Text(loc(appLanguage, "From your Apple ID (only visible to you)", "Из вашего Apple ID (видно только вам)"))
                 }
                 
                 // Location section
                 Section {
                     HStack {
-                        Image(systemName: "mappin.and.ellipse")
+                        Image(systemName: "building.2")
                             .foregroundColor(.secondary)
                             .frame(width: 24)
-                        TextField(loc(appLanguage, "City, Country", "Город, Страна"), text: $location)
+                        TextField(loc(appLanguage, "City", "Город"), text: $city)
+                    }
+                    
+                    HStack {
+                        Image(systemName: "globe")
+                            .foregroundColor(.secondary)
+                            .frame(width: 24)
+                        TextField(loc(appLanguage, "Country", "Страна"), text: $country)
                     }
                 } header: {
                     Text(loc(appLanguage, "Location", "Локация"))
-                } footer: {
-                    Text(loc(appLanguage, "Your location helps personalize your experience", "Локация помогает персонализировать ваш опыт"))
                 }
                 
                 // Email (read-only)
@@ -1001,10 +1082,31 @@ struct ProfileEditorView: View {
             .onAppear {
                 loadCurrentProfile()
             }
+            .confirmationDialog(
+                loc(appLanguage, "Choose Photo", "Выбрать фото"),
+                isPresented: $showImageSourcePicker,
+                titleVisibility: .visible
+            ) {
+                Button(loc(appLanguage, "Camera", "Камера")) {
+                    imageSourceType = .camera
+                    showImagePicker = true
+                }
+                Button(loc(appLanguage, "Photo Library", "Галерея")) {
+                    imageSourceType = .photoLibrary
+                    showImagePicker = true
+                }
+                Button(loc(appLanguage, "Cancel", "Отмена"), role: .cancel) { }
+            }
+            .sheet(isPresented: $showImagePicker) {
+                ImagePicker(image: $avatarImage, sourceType: imageSourceType)
+            }
         }
     }
     
     private var avatarInitials: String {
+        if !nickname.isEmpty {
+            return String(nickname.prefix(2)).uppercased()
+        }
         let first = firstName.first.map { String($0).uppercased() } ?? ""
         let last = lastName.first.map { String($0).uppercased() } ?? ""
         if !first.isEmpty && !last.isEmpty {
@@ -1019,21 +1121,77 @@ struct ProfileEditorView: View {
     
     private func loadCurrentProfile() {
         if let user = authService.currentUser {
+            nickname = user.nickname ?? ""
             firstName = user.firstName ?? ""
             lastName = user.lastName ?? ""
-            location = user.location ?? ""
+            country = user.country ?? ""
+            city = user.city ?? ""
+            if let data = user.avatarData, let image = UIImage(data: data) {
+                avatarImage = image
+            }
         }
     }
     
     private func saveProfile() {
+        let trimmedNickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedFirst = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedLast = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCountry = country.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Compress avatar image
+        let avatarData = avatarImage?.jpegData(compressionQuality: 0.7)
         
         authService.updateProfile(
+            nickname: trimmedNickname.isEmpty ? nil : trimmedNickname,
             firstName: trimmedFirst.isEmpty ? nil : trimmedFirst,
             lastName: trimmedLast.isEmpty ? nil : trimmedLast,
-            location: trimmedLocation.isEmpty ? nil : trimmedLocation
+            country: trimmedCountry.isEmpty ? nil : trimmedCountry,
+            city: trimmedCity.isEmpty ? nil : trimmedCity,
+            avatarData: avatarData
         )
+    }
+}
+
+// MARK: - Image Picker
+
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    let sourceType: UIImagePickerController.SourceType
+    @Environment(\.dismiss) private var dismiss
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = sourceType
+        picker.delegate = context.coordinator
+        picker.allowsEditing = true
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: ImagePicker
+        
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let edited = info[.editedImage] as? UIImage {
+                parent.image = edited
+            } else if let original = info[.originalImage] as? UIImage {
+                parent.image = original
+            }
+            parent.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
+        }
     }
 }
