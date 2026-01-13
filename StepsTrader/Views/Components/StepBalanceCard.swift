@@ -9,7 +9,7 @@ struct StepBalanceCard: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Text("Energy reserve / \(dateString)")
+                Text("Energy bar")
                     .font(.headline)
                 Spacer()
                 Text("\(totalSteps)")

@@ -1,5 +1,13 @@
 import SwiftUI
+#if canImport(FamilyControls)
+import FamilyControls
+#endif
 import UIKit
+
+fileprivate func tileAccent(for level: ShieldLevel) -> Color {
+    let progress = Double(level.id - 1) / 9.0
+    return Color(red: 0.88, green: 0.51, blue: 0.85).opacity(0.5 + progress * 0.5)
+}
 
 struct AppsPage: View {
     @ObservedObject var model: AppModel
@@ -13,12 +21,15 @@ struct AppsPage: View {
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     
     private struct ModuleLevelStage: Identifiable {
-        let label: String
-        let tariff: Tariff
-        let threshold: Int
-        let nextThreshold: Int?
-        
-        var id: String { label }
+        let level: ShieldLevel
+        var id: Int { level.id }
+        var label: String { level.label }
+        var threshold: Int { level.threshold }
+        var nextThreshold: Int? { level.nextThreshold }
+        var entryCost: Int { level.entryCost }
+        var fiveMinutesCost: Int { level.fiveMinutesCost }
+        var hourCost: Int { level.hourCost }
+        var dayCost: Int { level.dayCost }
     }
     
     private var automationConfiguredSet: Set<String> {
@@ -110,12 +121,7 @@ struct AppsPage: View {
     }
     
     private var moduleLevels: [ModuleLevelStage] {
-        [
-            .init(label: "I", tariff: .hard, threshold: 0, nextThreshold: 10_000),
-            .init(label: "II", tariff: .medium, threshold: 10_000, nextThreshold: 30_000),
-            .init(label: "III", tariff: .easy, threshold: 30_000, nextThreshold: 100_000),
-            .init(label: "IV", tariff: .free, threshold: 100_000, nextThreshold: nil)
-        ]
+        ShieldLevel.all.map { ModuleLevelStage(level: $0) }
     }
     
     var body: some View {
@@ -205,13 +211,10 @@ struct AppsPage: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: 12) {
-                        ForEach(activatedApps) { app in
-                            moduleLevelCard(for: app)
-                        }
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(activatedApps) { app in
+                        moduleLevelCard(for: app)
                     }
-                    .padding(.vertical, 4)
                 }
             }
         }
@@ -237,7 +240,10 @@ struct AppsPage: View {
         let status = statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet)
         let spent = spentSteps(for: app)
         let current = currentLevel(forSpent: spent)
-        let nextSteps = stepsToNextLevel(forSpent: spent)
+        let progress = levelProgress(spent: spent, level: current)
+        let stepsToNext = stepsToNextLevel(forSpent: spent)
+        let accent = tileAccent(for: current.level)
+        let isMinuteMode = model.isFamilyControlsModeEnabled(for: app.bundleId)
         
         return Button {
             openGuide(for: app, status: status)
@@ -264,9 +270,21 @@ struct AppsPage: View {
                     }
                     .id(clockTick)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(app.name)
-                            .font(.headline)
-                        Text(moduleCardSubtitle(for: current, stepsLeft: nextSteps))
+                        HStack(spacing: 6) {
+                            Text(app.name)
+                                .font(.headline)
+                            HStack(spacing: 3) {
+                                Image(systemName: isMinuteMode ? "clock" : "door.left.hand.open")
+                                    .font(.caption2)
+                                Text(loc(appLanguage, isMinuteMode ? "min" : "open", isMinuteMode ? "мин" : "откр"))
+                                    .font(.caption2.weight(.medium))
+                            }
+                            .foregroundColor(isMinuteMode ? .blue : .orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(isMinuteMode ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15)))
+                        }
+                        Text(moduleCardSubtitle(for: current))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -274,18 +292,42 @@ struct AppsPage: View {
                     statusIcon(for: status)
                 }
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(moduleLevels) { stage in
-                        moduleLevelRow(for: stage, spent: spent, current: current)
+                // Level progress bar
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(loc(appLanguage, "Level \(current.label)", "Уровень \(current.label)"))
+                            .font(.caption.weight(.semibold))
+                        Spacer()
+                        if let toNext = stepsToNext {
+                            Text("\(formatSteps(toNext)) " + loc(appLanguage, "to next", "до след."))
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text(loc(appLanguage, "MAX", "МАКС"))
+                                .font(.caption2.weight(.bold))
+                                .foregroundColor(accent)
+                        }
                     }
+                    
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(height: 6)
+                            Capsule()
+                                .fill(accent)
+                                .frame(width: geo.size.width * CGFloat(progress), height: 6)
+                        }
+                    }
+                    .frame(height: 6)
+                    
+                    Text("\(formatSteps(spent)) " + loc(appLanguage, "steps invested", "шагов вложено"))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                 }
-                
-                Text("\(formatSteps(spent)) " + loc(appLanguage, "steps spent on this shield", "шагов потрачено на этот щит"))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
             }
             .padding()
-            .frame(width: 280, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 16)
                     .fill(Color.gray.opacity(0.1))
@@ -308,6 +350,15 @@ struct AppsPage: View {
                 }
             }
         }
+    }
+    
+    private func levelProgress(spent: Int, level: ModuleLevelStage) -> Double {
+        guard let nextThreshold = level.nextThreshold else { return 1.0 }
+        let levelStart = level.threshold
+        let levelSpan = nextThreshold - levelStart
+        guard levelSpan > 0 else { return 1.0 }
+        let localSpent = spent - levelStart
+        return min(max(Double(localSpent) / Double(levelSpan), 0), 1)
     }
     
     private func moduleLevelRow(for stage: ModuleLevelStage, spent: Int, current: ModuleLevelStage) -> some View {
@@ -363,18 +414,18 @@ struct AppsPage: View {
                 }
             }
             ProgressView(value: progress)
-                .tint(tileAccent(for: stage.tariff))
+                .tint(tileAccent(for: stage.level))
                 .progressViewStyle(.linear)
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(tileAccent(for: stage.tariff).opacity(active ? 0.16 : 0.08))
+                .fill(tileAccent(for: stage.level).opacity(active ? 0.16 : 0.08))
         )
     }
     
-    private func moduleCardSubtitle(for level: ModuleLevelStage, stepsLeft: Int?) -> String {
+    private func moduleCardSubtitle(for level: ModuleLevelStage) -> String {
         return loc(appLanguage, "Level \(level.label)", "Уровень \(level.label)")
     }
     
@@ -398,7 +449,7 @@ struct AppsPage: View {
     }
     
     private func spentSteps(for app: AutomationApp) -> Int {
-        model.appStepsSpentToday[app.bundleId, default: 0]
+        model.totalStepsSpent(for: app.bundleId)
     }
     
     private func formatSteps(_ value: Int) -> String {
@@ -433,47 +484,19 @@ struct AppsPage: View {
     }
     
     private func costInfoMessage(for stage: ModuleLevelStage) -> String {
-        let costs = levelCosts(for: stage.tariff)
-        let entryLine = loc(appLanguage, "Entry: \(formatSteps(costs.entry)) steps", "Вход: \(formatSteps(costs.entry)) шагов")
-        let fiveLine = loc(appLanguage, "5 minutes: \(formatSteps(costs.fiveMinutes)) steps", "5 минут: \(formatSteps(costs.fiveMinutes)) шагов")
-        let hourLine = loc(appLanguage, "1 hour: \(formatSteps(costs.hour)) steps", "1 час: \(formatSteps(costs.hour)) шагов")
-        let dayLine = loc(appLanguage, "Day: \(formatSteps(costs.day)) steps", "День: \(formatSteps(costs.day)) шагов")
+        let entryLine = loc(appLanguage, "Entry: \(formatSteps(stage.entryCost)) steps", "Вход: \(formatSteps(stage.entryCost)) шагов")
+        let fiveLine = loc(appLanguage, "5 minutes: \(formatSteps(stage.fiveMinutesCost)) steps", "5 минут: \(formatSteps(stage.fiveMinutesCost)) шагов")
+        let hourLine = loc(appLanguage, "1 hour: \(formatSteps(stage.hourCost)) steps", "1 час: \(formatSteps(stage.hourCost)) шагов")
+        let dayLine = loc(appLanguage, "Day: \(formatSteps(stage.dayCost)) steps", "День: \(formatSteps(stage.dayCost)) шагов")
         return [entryLine, fiveLine, hourLine, dayLine].joined(separator: "\n")
     }
-    
-    private func levelCosts(for tariff: Tariff) -> (entry: Int, fiveMinutes: Int, hour: Int, day: Int) {
-        let entry = tariff.entryCostSteps
-        let five = windowCost(for: tariff, window: .minutes5)
-        let hour = windowCost(for: tariff, window: .hour1)
-        let day = windowCost(for: tariff, window: .day1)
-        return (entry, five, hour, day)
-    }
-    
-    private func windowCost(for tariff: Tariff, window: AccessWindow) -> Int {
-        switch tariff {
-        case .free:
-            return 0
-        case .easy:
-            switch window {
-            case .single: return 10
-            case .minutes5: return 50
-            case .hour1: return 500
-            case .day1: return 5000
-            }
-        case .medium:
-            switch window {
-            case .single: return 50
-            case .minutes5: return 250
-            case .hour1: return 2500
-            case .day1: return 10000
-            }
-        case .hard:
-            switch window {
-            case .single: return 100
-            case .minutes5: return 500
-            case .hour1: return 5000
-            case .day1: return 20000
-            }
+
+    private func windowCost(for level: ShieldLevel, window: AccessWindow) -> Int {
+        switch window {
+        case .single: return level.entryCost
+        case .minutes5: return level.fiveMinutesCost
+        case .hour1: return level.hourCost
+        case .day1: return level.dayCost
         }
     }
     
@@ -583,14 +606,43 @@ struct AppsPage: View {
         return base
     }
     
-    private func tileAccent(for tariff: Tariff) -> Color {
-        switch tariff {
-        case .free: return Color.cyan.opacity(0.7)
-        case .easy: return Color.green.opacity(0.7)
-        case .medium: return Color.orange.opacity(0.8)
-        case .hard: return Color.red.opacity(0.8)
+private func tileAccent(for level: ShieldLevel) -> Color {
+    let progress = Double(level.id - 1) / 9.0
+    return Color(red: 0.88, green: 0.51, blue: 0.85).opacity(0.5 + progress * 0.5)
+}
+
+fileprivate struct TimeAccessPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var selection: FamilyActivitySelection
+    let appName: String
+    let appLanguage: String
+
+    var body: some View {
+        NavigationView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(loc(appLanguage, "Choose app for \(appName)", "Выберите приложение: \(appName)"))
+                    .font(.headline)
+                    .padding(.horizontal)
+
+                #if canImport(FamilyControls)
+                FamilyActivityPicker(selection: $selection)
+                    .ignoresSafeArea(edges: .bottom)
+                #else
+                Text("Family Controls not available on this build.")
+                    .padding()
+                #endif
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(loc(appLanguage, "Done", "Готово")) {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
+}
     
     private func markPending(bundleId: String) {
         var pending = UserDefaults.stepsTrader().array(forKey: "automationPendingBundles") as? [String] ?? []
@@ -642,10 +694,10 @@ struct AppsPage: View {
         statusVersion = UUID()
     }
     
-    private func activate(_ app: AutomationApp, tariff: Tariff? = nil) {
+    private func activate(_ app: AutomationApp) {
         markPending(bundleId: app.bundleId)
-        let selectedTariff = tariff ?? .hard
-        model.updateUnlockSettings(for: app.bundleId, tariff: selectedTariff)
+        let level = ShieldLevel.all.first!
+        model.updateUnlockSettings(for: app.bundleId, entryCost: level.entryCost, dayPassCost: level.dayCost)
         statusVersion = UUID()
     }
     
@@ -678,25 +730,6 @@ struct AppsPage: View {
         }
     }
     
-    private func dayPassCost(for tariff: Tariff) -> Int {
-        switch tariff {
-        case .free: return 0
-        case .easy: return 1000
-        case .medium: return 5000
-        case .hard: return 10000
-        }
-    }
-    
-    private func currentTariff(for app: AutomationApp) -> Tariff {
-        let settings = model.unlockSettings(for: app.bundleId)
-        if let tariff = Tariff.allCases.first(where: {
-            $0.entryCostSteps == settings.entryCostSteps && dayPassCost(for: $0) == settings.dayPassCostSteps
-        }) {
-            return tariff
-        }
-        return .hard
-    }
-
 }
 
 struct AutomationGuideView: View {
@@ -707,48 +740,56 @@ struct AutomationGuideView: View {
     let markPending: (String) -> Void
     let deleteModule: (String) -> Void
     @State private var showDeactivateAlert = false
+    @State private var showTimeAccessPicker = false
+    @State private var timeAccessSelection = FamilyActivitySelection()
+    @State private var showLevelsTable = false
+    @AppStorage("appLanguage") private var appLanguage: String = "en"
 
     var body: some View {
         NavigationView {
-            VStack(alignment: .leading, spacing: 16) {
-                Spacer().frame(height: 8)
-                header
+            VStack(spacing: 0) {
+                // Scrollable content area
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        header
 
-                if app.status == .configured {
-                    unlockSettings
-                }
-
-                content
-
-                if let link = app.link, let url = URL(string: link) {
-                    Button {
-                        markPending(app.bundleId)
-                        openURL(url)
-                    } label: {
-                        HStack {
-                            Image(systemName: "link")
-                            Text(app.status == .configured ? "Update the shield" : "Get the shield")
-                                .fontWeight(.semibold)
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
+                        if app.status == .configured {
+                            unlockSettings
                         }
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.1)))
-                    }
-                } else {
-                    HStack(spacing: 8) {
-                        Image(systemName: "clock")
-                        Text("Shortcut link will be added soon.")
-                            .fontWeight(.semibold)
+
+                        content
+
+                        if let link = app.link, let url = URL(string: link) {
+                            Button {
+                                markPending(app.bundleId)
+                                openURL(url)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "link")
+                                    Text(app.status == .configured ? "Update the shield" : "Get the shield")
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                    Image(systemName: "arrow.up.right")
+                                }
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.1)))
+                            }
+                        } else {
+                            HStack(spacing: 8) {
+                                Image(systemName: "clock")
+                                Text("Shortcut link will be added soon.")
+                                    .fontWeight(.semibold)
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.1)))
+                        }
                     }
                     .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.1)))
                 }
-
-                Spacer()
                 
+                // Fixed bottom button
                 if app.status != .none {
                     Button {
                         if app.status == .configured {
@@ -768,9 +809,10 @@ struct AutomationGuideView: View {
                                     .fill(Color.red.opacity(0.85))
                             )
                     }
+                    .padding(.horizontal)
+                    .padding(.bottom, 16)
                 }
             }
-            .padding()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -778,6 +820,23 @@ struct AutomationGuideView: View {
                         dismiss()
                     }
                 }
+            }
+            .onAppear {
+                timeAccessSelection = model.timeAccessSelection(for: app.bundleId)
+            }
+            .sheet(isPresented: $showTimeAccessPicker, onDismiss: {
+                model.saveTimeAccessSelection(timeAccessSelection, for: app.bundleId)
+                if model.isFamilyControlsModeEnabled(for: app.bundleId) {
+                    model.applyFamilyControlsSelection(for: app.bundleId)
+                } else {
+                    model.rebuildFamilyControlsShield()
+                }
+            }) {
+                AppsPage.TimeAccessPickerSheet(
+                    selection: $timeAccessSelection,
+                    appName: app.name,
+                    appLanguage: appLanguage
+                )
             }
             .alert("Deactivate shield", isPresented: $showDeactivateAlert) {
                 Button("Open Shortcuts") {
@@ -884,45 +943,317 @@ struct AutomationGuideView: View {
     }
     
     private var unlockSettings: some View {
-        let currentTariff = model.currentLevelTariff(for: app.bundleId)
-        let accent = tileAccent(for: currentTariff)
+        let currentLevel = model.currentShieldLevel(for: app.bundleId)
+        let spent = model.totalStepsSpent(for: app.bundleId)
+        let stepsToNext = model.stepsToNextShieldLevel(for: app.bundleId)
+        let accent = tileAccent(for: currentLevel)
+        let timeAccessEnabled = model.isTimeAccessEnabled(for: app.bundleId)
+        let minuteModeEnabled = model.isFamilyControlsModeEnabled(for: app.bundleId)
         
         return VStack(alignment: .leading, spacing: 12) {
             Text("Access level")
                 .font(.headline)
             
-            HStack(spacing: 10) {
-                Text("Level")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                Text(currentTariff.displayName)
-                    .font(.title3.weight(.bold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule().fill(accent.opacity(0.2))
-                    )
+            levelHeaderButton(currentLevel: currentLevel, accent: accent)
+
+            if showLevelsTable {
+                levelsTableView(currentLevel: currentLevel, spent: spent, stepsToNext: stepsToNext, isMinuteMode: minuteModeEnabled)
             }
             
-            VStack(alignment: .leading, spacing: 8) {
-            Text("Access options")
-                .font(.subheadline.weight(.semibold))
-            accessOptionRow(title: "Day pass", window: .day1, tariff: currentTariff, tint: accent)
-            accessOptionRow(title: "1 hour", window: .hour1, tariff: currentTariff, tint: accent)
-            accessOptionRow(title: "5 minutes", window: .minutes5, tariff: currentTariff, tint: accent)
-            accessOptionRow(title: "Single entry", window: .single, tariff: currentTariff, tint: accent)
-        }
+            accessModeSection(minuteModeEnabled: minuteModeEnabled, timeAccessEnabled: timeAccessEnabled)
+
+            if minuteModeEnabled {
+                minuteModeSection(timeAccessEnabled: timeAccessEnabled, selection: timeAccessSelection)
+            } else {
+                openModeSection(currentLevel: currentLevel, accent: accent)
+            }
         
-        Text("Levels change automatically based on steps spent on this shield.")
-            .font(.caption)
-            .foregroundColor(.secondary)
+            Text("Levels change automatically based on steps spent on this shield.")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.1)))
     }
     
-    private func accessOptionRow(title: String, window: AccessWindow, tariff: Tariff, tint: Color) -> some View {
-        let cost = windowCost(for: tariff, window: window)
+    @ViewBuilder
+    private func levelHeaderButton(currentLevel: ShieldLevel, accent: Color) -> some View {
+        Button {
+            withAnimation(.easeInOut) {
+                showLevelsTable.toggle()
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Text("Level")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Text(currentLevel.label)
+                    .font(.title3.weight(.bold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(accent.opacity(0.2)))
+                Spacer()
+                Image(systemName: showLevelsTable ? "chevron.up" : "chevron.down")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+    
+    @ViewBuilder
+    private func levelsTableView(currentLevel: ShieldLevel, spent: Int, stepsToNext: Int?, isMinuteMode: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(ShieldLevel.all) { level in
+                levelRow(level: level, currentLevel: currentLevel, spent: spent, stepsToNext: stepsToNext, isMinuteMode: isMinuteMode)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func levelRow(level: ShieldLevel, currentLevel: ShieldLevel, spent: Int, stepsToNext: Int?, isMinuteMode: Bool) -> some View {
+        let isCurrent = level.id == currentLevel.id
+        let isAchieved = level.threshold < currentLevel.threshold
+        let levelAccent = tileAccent(for: level)
+        
+        VStack(alignment: .leading, spacing: 8) {
+            levelRowHeader(level: level, isCurrent: isCurrent, isAchieved: isAchieved, levelAccent: levelAccent, isMinuteMode: isMinuteMode)
+            
+            if isCurrent {
+                levelProgressSection(level: level, spent: spent, stepsToNext: stepsToNext, levelAccent: levelAccent)
+            }
+            
+            levelPricesRow(level: level, isCurrent: isCurrent, levelAccent: levelAccent, isMinuteMode: isMinuteMode)
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(isCurrent ? levelAccent.opacity(0.12) : (isAchieved ? Color.green.opacity(0.06) : Color.gray.opacity(0.04)))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isCurrent ? levelAccent.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
+    }
+    
+    @ViewBuilder
+    private func levelRowHeader(level: ShieldLevel, isCurrent: Bool, isAchieved: Bool, levelAccent: Color, isMinuteMode: Bool) -> some View {
+        HStack(spacing: 8) {
+            if isAchieved {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.body)
+            } else if isCurrent {
+                Image(systemName: "bolt.circle.fill")
+                    .foregroundColor(levelAccent)
+                    .font(.body)
+            } else {
+                Image(systemName: "circle")
+                    .foregroundColor(.gray.opacity(0.4))
+                    .font(.body)
+            }
+            
+            Text("Level \(level.label)")
+                .font(.subheadline.weight(isCurrent ? .bold : .regular))
+            
+            Spacer()
+            
+            let costLabel = isMinuteMode
+                ? "\(level.entryCost) " + loc(appLanguage, "per min", "за мин")
+                : "\(level.entryCost) " + loc(appLanguage, "per entry", "за вход")
+            Text(costLabel)
+                .font(.caption2.weight(.medium))
+                .foregroundColor(isCurrent ? levelAccent : .secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(isCurrent ? levelAccent.opacity(0.15) : Color.gray.opacity(0.1)))
+        }
+    }
+    
+    @ViewBuilder
+    private func levelProgressSection(level: ShieldLevel, spent: Int, stepsToNext: Int?, levelAccent: Color) -> some View {
+        let progress = levelProgressForGuide(spent: spent, level: level)
+        VStack(alignment: .leading, spacing: 4) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 6)
+                    Capsule()
+                        .fill(levelAccent)
+                        .frame(width: geo.size.width * CGFloat(progress), height: 6)
+                }
+            }
+            .frame(height: 6)
+            
+            HStack {
+                Text("\(formatSteps(spent)) " + loc(appLanguage, "invested", "вложено"))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Spacer()
+                if let toNext = stepsToNext {
+                    Text("\(formatSteps(toNext)) " + loc(appLanguage, "to next", "до след."))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(loc(appLanguage, "MAX", "МАКС"))
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(levelAccent)
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func levelPricesRow(level: ShieldLevel, isCurrent: Bool, levelAccent: Color, isMinuteMode: Bool) -> some View {
+        if isMinuteMode {
+            // Minute mode: just show cost per minute
+            Text("\(level.entryCost) " + loc(appLanguage, "per min", "за мин"))
+                .font(.caption2.weight(.medium))
+                .foregroundColor(isCurrent ? levelAccent : .secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(isCurrent ? levelAccent.opacity(0.15) : Color.gray.opacity(0.1)))
+        } else {
+            // Open mode: show entry-based costs
+            HStack(spacing: 12) {
+                priceTag(loc(appLanguage, "5m", "5м"), cost: level.fiveMinutesCost, isCurrent: isCurrent, accent: levelAccent)
+                priceTag(loc(appLanguage, "1h", "1ч"), cost: level.hourCost, isCurrent: isCurrent, accent: levelAccent)
+                priceTag(loc(appLanguage, "Day", "День"), cost: level.dayCost, isCurrent: isCurrent, accent: levelAccent)
+            }
+            .font(.caption2)
+        }
+    }
+    
+    @ViewBuilder
+    private func accessModeSection(minuteModeEnabled: Bool, timeAccessEnabled: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(loc(appLanguage, "Access mode", "Режим доступа"))
+                .font(.subheadline.weight(.semibold))
+            Picker("", selection: Binding(get: {
+                minuteModeEnabled ? 1 : 0
+            }, set: { newValue in
+                let enableMinuteMode = newValue == 1
+                model.setFamilyControlsModeEnabled(enableMinuteMode, for: app.bundleId)
+                model.setMinuteTariffEnabled(enableMinuteMode, for: app.bundleId)
+                if enableMinuteMode && timeAccessEnabled {
+                    model.applyFamilyControlsSelection(for: app.bundleId)
+                } else {
+                    model.rebuildFamilyControlsShield()
+                }
+            })) {
+                Text(loc(appLanguage, "Open mode", "Открытый режим")).tag(0)
+                Text(loc(appLanguage, "Minute mode", "Минутный режим")).tag(1)
+            }
+            .pickerStyle(.segmented)
+
+            if minuteModeEnabled {
+                Text(loc(appLanguage, "Pay per minute of actual use. Requires Screen Time access.", "Платите за каждую минуту использования. Нужен доступ к Screen Time."))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                Text(loc(appLanguage, "Pay once to unlock for a set time. Great for quick visits.", "Разовая оплата за доступ на время. Удобно для коротких визитов."))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func minuteModeSection(timeAccessEnabled: Bool, selection: FamilyActivitySelection) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Time access (Screen Time)")
+                .font(.subheadline.weight(.semibold))
+            
+            if timeAccessEnabled {
+                HStack(spacing: 12) {
+                    // Show selected app icons
+                    #if canImport(FamilyControls)
+                    ForEach(Array(selection.applicationTokens.prefix(5)), id: \.self) { token in
+                        Label(token)
+                            .labelStyle(.iconOnly)
+                            .frame(width: 32, height: 32)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    if selection.applicationTokens.count > 5 {
+                        Text("+\(selection.applicationTokens.count - 5)")
+                            .font(.caption.weight(.medium))
+                            .foregroundColor(.secondary)
+                    }
+                    #endif
+                    
+                    Spacer()
+                    
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.title3)
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.green.opacity(0.1)))
+            } else {
+                Text(loc(appLanguage, "Select the app to enable time control.", "Выберите приложение для контроля времени."))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Button(timeAccessEnabled ? loc(appLanguage, "Change selection", "Изменить выбор") : loc(appLanguage, "Connect app", "Подключить")) {
+                Task {
+                    try? await model.family.requestAuthorization()
+                    showTimeAccessPicker = true
+                }
+            }
+            .font(.subheadline.weight(.semibold))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.08)))
+        }
+    }
+    
+    @ViewBuilder
+    private func openModeSection(currentLevel: ShieldLevel, accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Access options")
+                .font(.subheadline.weight(.semibold))
+            accessOptionRow(title: "Day pass", window: .day1, level: currentLevel, tint: accent, isDisabled: false)
+            accessOptionRow(title: "1 hour", window: .hour1, level: currentLevel, tint: accent, isDisabled: false)
+            accessOptionRow(title: "5 minutes", window: .minutes5, level: currentLevel, tint: accent, isDisabled: false)
+            accessOptionRow(title: "Single entry", window: .single, level: currentLevel, tint: accent, isDisabled: false)
+        }
+    }
+
+    private func formatSteps(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+    
+    private func levelProgressForGuide(spent: Int, level: ShieldLevel) -> Double {
+        guard let nextThreshold = level.nextThreshold else { return 1.0 }
+        let levelStart = level.threshold
+        let levelSpan = nextThreshold - levelStart
+        guard levelSpan > 0 else { return 1.0 }
+        let localSpent = spent - levelStart
+        return min(max(Double(localSpent) / Double(levelSpan), 0), 1)
+    }
+    
+    @ViewBuilder
+    private func priceTag(_ label: String, cost: Int, isCurrent: Bool, accent: Color) -> some View {
+        HStack(spacing: 2) {
+            Text(label)
+                .foregroundColor(.secondary)
+            Text("\(cost)")
+                .foregroundColor(isCurrent ? accent : .primary)
+                .fontWeight(isCurrent ? .semibold : .regular)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.gray.opacity(0.08))
+        )
+    }
+    
+    private func accessOptionRow(title: String, window: AccessWindow, level: ShieldLevel, tint: Color, isDisabled: Bool) -> some View {
+        let cost = windowCost(for: level, window: window)
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -947,44 +1278,19 @@ struct AutomationGuideView: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(tint.opacity(0.08))
         )
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.45 : 1.0)
     }
     
-    private func windowCost(for tariff: Tariff, window: AccessWindow) -> Int {
-        switch tariff {
-        case .free:
-            return 0
-        case .easy:
-            switch window {
-            case .single: return 10
-            case .minutes5: return 50
-            case .hour1: return 500
-            case .day1: return 5000
-            }
-        case .medium:
-            switch window {
-            case .single: return 50
-            case .minutes5: return 250
-            case .hour1: return 2500
-            case .day1: return 10000
-            }
-        case .hard:
-            switch window {
-            case .single: return 100
-            case .minutes5: return 500
-            case .hour1: return 5000
-            case .day1: return 20000
-            }
+    private func windowCost(for level: ShieldLevel, window: AccessWindow) -> Int {
+        switch window {
+        case .single: return level.entryCost
+        case .minutes5: return level.fiveMinutesCost
+        case .hour1: return level.hourCost
+        case .day1: return level.dayCost
         }
     }
     
-    private func tileAccent(for tariff: Tariff) -> Color {
-        switch tariff {
-        case .free: return Color.cyan.opacity(0.7)
-        case .easy: return Color.green.opacity(0.7)
-        case .medium: return Color.orange.opacity(0.8)
-        case .hard: return Color.red.opacity(0.8)
-        }
-    }
 }
 
 struct ManualsPage: View {
@@ -1132,14 +1438,14 @@ struct ManualsPage: View {
     private func levelsContent() -> some View {
         let ru = [
             "• Чем больше путешествуете, тем сильнее прокачивается щит — топливо тратится, опыт копится.",
-            "• Уровни: II после 10 000 шагов, III после 30 000, IV после 100 000 в этом щите.",
-            "• С ростом уровня входить легче: I=100 шагов, II=50, III=10, IV=0 — просто фиксируете свои вылеты.",
+            "• Уровней 10: второй открывается после 10 000 шагов, дальше пороги растут до 500 000.",
+            "• С ростом уровня входить легче: I=100 шагов, ... , X=10 шагов.",
             "• За прогрессом смотрите в карточке щита: там видно, сколько топлива уже сожжено."
         ]
         let en = [
             "• The more you travel, the stronger the shield gets — fuel spent turns into experience.",
-            "• Levels: II at 10,000 steps, III at 30,000, IV at 100,000 in that shield.",
-            "• Higher level = cheaper launch: I=100 steps, II=50, III=10, IV=0 — just log your departures.",
+            "• There are 10 levels: level II at 10,000 steps, then thresholds grow up to 500,000.",
+            "• Higher level = cheaper launch: I=100 steps ... X=10 steps.",
             "• Track your progress on the shield page to see how much fuel you've burned."
         ]
         VStack(alignment: .leading, spacing: 8) {
@@ -1158,14 +1464,14 @@ struct ManualsPage: View {
             "Во время путешествий по соцсетям нужен разный запас времени.",
             "Где-то хватает одного входа, где-то надо «жить» часами.",
             "Выбирайте формат: разовый, 5 мин, 1 час или день.",
-            "Стоимость зависит от уровня (от 10 до 100 шагов за вход, 5–500 за 5 мин, 500–5000 за час, день по тарифу).",
+            "Стоимость зависит от уровня (10–100 шагов за вход, 50–500 за 5 мин, 120–1200 за час, 1000–10000 за день).",
             "Лишние варианты можно выключить в настройках щита — их не будет на PayGate."
         ]
         let enText = [
             "Different worlds need different fuel.",
             "Sometimes one entry is enough, sometimes you camp there for an hour.",
             "Pick your mode: single, 5 min, 1 hour, or a day pass.",
-            "Costs scale with your level (about 10–100 steps for single, 5–500 for 5 min, 500–5000 for an hour, day by tariff).",
+            "Costs scale with your level (10–100 steps for single, 50–500 for 5 min, 120–1200 for an hour, 1000–10000 for a day).",
             "Toggle off the modes you don’t need in the shield settings — they disappear from PayGate."
         ]
 

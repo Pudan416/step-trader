@@ -149,7 +149,7 @@ struct StatusView: View {
         Int(progressValue * 100)
     }
 
-    // MARK: - Opens frequency chart
+    // MARK: - Spent steps chart
     private struct DailyOpen: Identifiable {
         let id = UUID()
         let day: Date
@@ -166,14 +166,12 @@ struct StatusView: View {
     
     private var bundleIdsForChart: [String] {
         var totals: [String: Int] = [:]
-        for log in recentOpenLogs {
-            let canonical = normalizeBundleId(log.bundleId)
-            totals[canonical, default: 0] += 1
-        }
-        // include any app that has spent steps today (even if no opens in range)
-        for (bid, _) in model.appStepsSpentToday {
-            let canonical = normalizeBundleId(bid)
-            totals[canonical, default: 0] += 0
+        for day in daysInRange {
+            let key = AppModel.dayKey(for: day)
+            for (bid, steps) in model.appStepsSpentByDay[key] ?? [:] {
+                let canonical = normalizeBundleId(bid)
+                totals[canonical, default: 0] += steps
+            }
         }
         if let selected = selectedBundleForChart {
             totals[selected, default: 0] += 0
@@ -190,12 +188,6 @@ struct StatusView: View {
     
     private var dailyOpenData: [DailyOpen] {
         let cal = Calendar.current
-        var grouped: [String: [Date: Int]] = [:]
-        for log in recentOpenLogs {
-            let day = cal.startOfDay(for: log.date)
-            let canonical = normalizeBundleId(log.bundleId)
-            grouped[canonical, default: [:]][day, default: 0] += 1
-        }
         let days = (0..<chartRange.days).compactMap { offset -> Date? in
             guard let d = cal.date(byAdding: .day, value: -offset, to: cal.startOfDay(for: Date())) else { return nil }
             return d
@@ -204,8 +196,9 @@ struct StatusView: View {
         var result: [DailyOpen] = []
         for bundle in bundleIdsForChart {
             for day in days {
-                let count = grouped[bundle]?[day] ?? 0
-                result.append(DailyOpen(day: day, bundleId: bundle, count: count, appName: appDisplayName(bundle)))
+                let key = AppModel.dayKey(for: day)
+                let stepsSpent = model.appStepsSpentByDay[key]?[bundle] ?? 0
+                result.append(DailyOpen(day: day, bundleId: bundle, count: stepsSpent, appName: appDisplayName(bundle)))
             }
         }
         return result
@@ -251,16 +244,16 @@ struct StatusView: View {
             
             let chartData = dailyOpenData
             if chartData.isEmpty {
-                Text(loc(appLanguage, "No opens yet.", "Нет открытий"))
+                Text(loc(appLanguage, "No data yet.", "Нет данных"))
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
                 if chartRange == .today {
-                    let todayData = trackedAppsToday
+                    let todayData = trackedAppsToday.sorted { $0.steps > $1.steps }
                     Chart(todayData) { item in
                         BarMark(
                             x: .value("App", item.name),
-                            y: .value("Crawls", item.opens)
+                            y: .value("Energy spent", item.steps)
                         )
                         .foregroundStyle(colorForBundle(item.bundleId))
                     }
@@ -281,7 +274,7 @@ struct StatusView: View {
                         
                         LineMark(
                             x: .value("Day", item.day, unit: .day),
-                            y: .value("Crawls", item.count),
+                            y: .value("Energy spent", item.count),
                             series: .value("App", item.appName)
                         )
                         .foregroundStyle(lineColor)
@@ -289,7 +282,7 @@ struct StatusView: View {
                         .symbol(Circle())
                         PointMark(
                             x: .value("Day", item.day, unit: .day),
-                            y: .value("Crawls", item.count)
+                            y: .value("Energy spent", item.count)
                         )
                         .foregroundStyle(lineColor)
                     }
@@ -344,6 +337,19 @@ struct StatusView: View {
         let steps: Int
     }
     
+    private var daysInRange: [Date] {
+        (0..<chartRange.days).compactMap { offset -> Date? in
+            dateByAddingDays(to: currentDayStart, value: -offset)
+        }
+    }
+
+    private func stepsSpentFor(bundleId: String) -> Int {
+        let keys = daysInRange.map { AppModel.dayKey(for: $0) }
+        return keys.reduce(0) { acc, key in
+            acc + (model.appStepsSpentByDay[key]?[bundleId] ?? 0)
+        }
+    }
+
     private var trackedAppsToday: [AppUsageToday] {
         let cutoff = dateByAddingDays(to: currentDayStart, value: -(chartRange.days - 1))
         var opensDict: [String: Int] = [:]
@@ -355,8 +361,10 @@ struct StatusView: View {
         // Для Today включаем все приложения с подключенными модулями
         let baseIds: [String]
         if chartRange == .today {
+            let todayKey = AppModel.dayKey(for: currentDayStart)
+            let spentTodayKeys = model.appStepsSpentByDay[todayKey]?.keys.map { normalizeBundleId($0) } ?? []
             baseIds = Set(model.appOpenLogs.map { normalizeBundleId($0.bundleId) })
-                .union(model.appStepsSpentToday.keys.map { normalizeBundleId($0) })
+                .union(spentTodayKeys)
                 .union(bundleIdsForChart)
                 .sorted()
         } else {
@@ -369,7 +377,7 @@ struct StatusView: View {
                 name: appDisplayName(bundle),
                 imageName: appImageName(bundle),
                 opens: opensDict[bundle, default: 0],
-                steps: model.appStepsSpentToday[bundle, default: 0]
+                steps: stepsSpentFor(bundleId: bundle)
             )
         }
         .sorted {
@@ -398,7 +406,7 @@ struct StatusView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.name)
                                 .font(.subheadline)
-                            Text(loc(appLanguage, "Crawls", "Вылазки") + ": \(item.opens) • " + loc(appLanguage, "Enegry spent", "Потрачено энергии") + ": \(item.steps)")
+                            Text(loc(appLanguage, "Energy spent", "Потрачено энергии") + ": \(item.steps)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -488,25 +496,18 @@ struct StatusView: View {
     
     @ViewBuilder
     private func detailEntriesView(bundleId: String) -> some View {
-        let cal = Calendar.current
-        let days = (0..<chartRange.days).compactMap { offset -> Date? in
-            dateByAddingDays(to: currentDayStart, value: -offset)
-        }.reversed()
-        let entries = days.map { day -> (Date, Int, Int) in
-            let count = model.appOpenLogs.filter { normalizeBundleId($0.bundleId) == bundleId && cal.isDate($0.date, inSameDayAs: day) }.count
-            let stepsSpent = cal.isDateInToday(day) ? model.appStepsSpentToday[bundleId, default: 0] : 0
-            return (day, count, stepsSpent)
+        let days = daysInRange.reversed()
+        let entries = days.map { day -> (Date, Int) in
+            let stepsSpent = model.appStepsSpentByDay[AppModel.dayKey(for: day)]?[bundleId] ?? 0
+            return (day, stepsSpent)
         }
         VStack(alignment: .leading, spacing: 6) {
             ForEach(entries, id: \.0) { entry in
                 HStack {
                     Text(dateLabelFormatter.string(from: entry.0))
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(loc(appLanguage, "Crawls", "Вылазки") + ": \(entry.1)")
-                        Text(loc(appLanguage, "Fuel spent", "Потрачено топлива") + ": \(entry.2)")
-                            .foregroundColor(.secondary)
-                    }
+                    Text(loc(appLanguage, "Energy spent", "Потрачено энергии") + ": \(entry.1)")
+                        .foregroundColor(.secondary)
                 }
                 .font(.caption)
                 Divider()

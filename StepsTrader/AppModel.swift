@@ -18,6 +18,101 @@ final class AppModel: ObservableObject {
     private let budgetEngine: any BudgetEngineProtocol
     private let shortcutInstallURLString = "https://www.icloud.com/shortcuts/"
 
+    static func dayKey(for date: Date) -> String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "yyyy-MM-dd"
+        return df.string(from: date)
+    }
+
+    private let minuteTariffBundleKey = "minuteTariffBundleId_v1"
+    private let minuteTariffLastTickKey = "minuteTariffLastTick_v1"
+    private let minuteTariffRateKey = "minuteTariffRate_v1"
+
+    private func timeAccessSelectionKey(for bundleId: String) -> String {
+        "timeAccessSelection_v1_\(bundleId)"
+    }
+
+    func timeAccessSelection(for bundleId: String) -> FamilyActivitySelection {
+        let g = UserDefaults.stepsTrader()
+        #if canImport(FamilyControls)
+        if let data = g.data(forKey: timeAccessSelectionKey(for: bundleId)),
+           let decoded = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data) {
+            return decoded
+        }
+        #endif
+        return FamilyActivitySelection()
+    }
+
+    func saveTimeAccessSelection(_ selection: FamilyActivitySelection, for bundleId: String) {
+        let g = UserDefaults.stepsTrader()
+        #if canImport(FamilyControls)
+        if let data = try? JSONEncoder().encode(selection) {
+            g.set(data, forKey: timeAccessSelectionKey(for: bundleId))
+        }
+        #endif
+    }
+
+    func applyFamilyControlsSelection(for bundleId: String) {
+        _ = bundleId
+        rebuildFamilyControlsShield()
+    }
+
+    func disableFamilyControlsShield() {
+        rebuildFamilyControlsShield()
+    }
+
+    func rebuildFamilyControlsShield() {
+        var combined = FamilyActivitySelection()
+        for (bundleId, settings) in appUnlockSettings where settings.familyControlsModeEnabled {
+            let selection = timeAccessSelection(for: bundleId)
+            combined.applicationTokens.formUnion(selection.applicationTokens)
+            combined.categoryTokens.formUnion(selection.categoryTokens)
+        }
+        if let service = familyControlsService as? FamilyControlsService {
+            service.updateSelection(combined)
+            if combined.applicationTokens.isEmpty && combined.categoryTokens.isEmpty {
+                service.disableShield()
+            } else {
+                service.enableShield()
+            }
+            service.updateMinuteModeMonitoring()
+        }
+    }
+
+    func isTimeAccessEnabled(for bundleId: String) -> Bool {
+        let selection = timeAccessSelection(for: bundleId)
+        return !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
+    }
+
+    func isMinuteTariffEnabled(for bundleId: String) -> Bool {
+        unlockSettings(for: bundleId).minuteTariffEnabled
+    }
+
+    func setMinuteTariffEnabled(_ enabled: Bool, for bundleId: String) {
+        var settings = unlockSettings(for: bundleId)
+        settings.minuteTariffEnabled = enabled
+        appUnlockSettings[bundleId] = settings
+        persistAppUnlockSettings()
+    }
+
+    func isFamilyControlsModeEnabled(for bundleId: String) -> Bool {
+        unlockSettings(for: bundleId).familyControlsModeEnabled
+    }
+
+    func setFamilyControlsModeEnabled(_ enabled: Bool, for bundleId: String) {
+        var settings = unlockSettings(for: bundleId)
+        settings.familyControlsModeEnabled = enabled
+        appUnlockSettings[bundleId] = settings
+        persistAppUnlockSettings()
+    }
+
+    func minutesAvailable(for bundleId: String) -> Int {
+        let costPerMinute = unlockSettings(for: bundleId).entryCostSteps
+        guard costPerMinute > 0 else { return Int.max }
+        return max(0, totalStepsBalance / costPerMinute)
+    }
+
     // Published properties
     @Published var stepsToday: Double = 0
     @Published var spentSteps: Int = 0
@@ -29,7 +124,7 @@ final class AppModel: ObservableObject {
     @Published var currentSessionElapsed: Int?
 
     // Оплата входа шагами
-    @Published var entryCostSteps: Int = Tariff.easy.entryCostSteps
+    @Published var entryCostSteps: Int = 100
     @Published var stepsBalance: Int = 0
     @Published private(set) var bonusSteps: Int = 0
     var totalStepsBalance: Int { max(0, stepsBalance + bonusSteps) }
@@ -41,16 +136,31 @@ final class AppModel: ObservableObject {
         var entryCostSteps: Int
         var dayPassCostSteps: Int
         var allowedWindows: Set<AccessWindow> = [.single, .minutes5, .hour1] // day pass off by default
+        var minuteTariffEnabled: Bool = false
+        var familyControlsModeEnabled: Bool = false
     }
     
     struct AppOpenLog: Codable, Identifiable {
         var id: UUID = UUID()
         let bundleId: String
         let date: Date
+        let spentSteps: Int?
+    }
+    
+    struct MinuteChargeLog: Codable, Identifiable {
+        var id: UUID { UUID() }
+        let bundleId: String
+        let timestamp: Date
+        let cost: Int
+        let balanceAfter: Int
     }
     
     @Published var appOpenLogs: [AppOpenLog] = []
+    @Published var minuteChargeLogs: [MinuteChargeLog] = []
+    @Published var minuteTimeByDay: [String: [String: Int]] = [:] // [dayKey: [bundleId: minutes]]
     @Published var appStepsSpentToday: [String: Int] = [:]
+    @Published var appStepsSpentByDay: [String: [String: Int]] = [:]
+    @Published var appStepsSpentLifetime: [String: Int] = [:]
     
     struct DailyStory: Codable {
         let dateKey: String
@@ -167,8 +277,11 @@ final class AppModel: ObservableObject {
         loadEntryCost()
         // Загрузка индивидуальных настроек
         loadAppUnlockSettings()
+        rebuildFamilyControlsShield()
         loadDayPassGrants()
         loadAppOpenLogs()
+        loadMinuteChargeLogs()
+        loadAppStepsSpentLifetime()
         loadAppStepsSpentToday()
         loadDailyTariffSelections()
         loadDailyStories()
@@ -307,6 +420,21 @@ final class AppModel: ObservableObject {
 
         if host == "pay" {
             let bundleIdForPay = TargetResolver.bundleId(from: target)
+            if let bundleIdForPay, isFamilyControlsModeEnabled(for: bundleIdForPay) {
+                print("🛡️ Shield pay deeplink for minute mode: \(bundleIdForPay)")
+                Task { @MainActor in
+                    if let familyService = familyControlsService as? FamilyControlsService {
+                        familyService.allowOneSession()
+                    }
+                    let now = Date()
+                    userDefaults.set(now, forKey: "lastPayGateAction")
+                    userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
+                    userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader_\(bundleIdForPay)")
+                    await handleMinuteTariffEntry(for: bundleIdForPay)
+                }
+                return
+            }
+
             Task { @MainActor in
                 await refreshStepsBalance()
                 startPayGateSession(for: bundleIdForPay ?? "unknown")
@@ -315,12 +443,12 @@ final class AppModel: ObservableObject {
                     message = "✅ Day pass already active for today."
                 } else if canPayForEntry(for: bundleIdForPay) {
                     _ = payForEntry(for: bundleIdForPay)
-                message = "✅ \(settings.entryCostSteps) steps deducted. Access granted."
-            } else {
-                let shortage = max(0, settings.entryCostSteps - totalStepsBalance)
-                message =
-                    "❌ Not enough steps. Need another \(shortage) steps."
-            }
+                    message = "✅ \(settings.entryCostSteps) steps deducted. Access granted."
+                } else {
+                    let shortage = max(0, settings.entryCostSteps - totalStepsBalance)
+                    message =
+                        "❌ Not enough steps. Need another \(shortage) steps."
+                }
             }
             return
         }
@@ -365,6 +493,15 @@ final class AppModel: ObservableObject {
         window: AccessWindow = .single,
         costOverride: Int? = nil
     ) async {
+        if isFamilyControlsModeEnabled(for: bundleId) || isMinuteTariffEnabled(for: bundleId) {
+            if let familyService = familyControlsService as? FamilyControlsService {
+                familyService.disableShield()
+                familyService.updateMinuteModeMonitoring()
+            }
+            await handleMinuteTariffEntry(for: bundleId)
+            return
+        }
+
         let userDefaults = UserDefaults.stepsTrader()
         await refreshStepsBalance()
         let settings = unlockSettings(for: bundleId)
@@ -404,7 +541,58 @@ final class AppModel: ObservableObject {
         let appliedWindow: AccessWindow = (dayPassActive || window == .day1) ? .day1 : window
         applyAccessWindow(appliedWindow, for: bundleId)
 
-        // Update guard flags before attempting to open the target app
+        let logCost: Int = (appliedWindow == .single && !dayPassActive) ? effectiveCost : 0
+
+        markPayGateOpen(for: bundleId)
+
+        openTargetAppFromPayGate(bundleId, logCost: logCost) { [weak self] opened in
+            guard let self = self else { return }
+            if opened {
+            } else {
+                self.message = "⚠️ Could not open the target app. Try again."
+            }
+            self.endPayGateSession(bundleId)
+        }
+    }
+
+    func handleMinuteTariffEntry(for bundleId: String) async {
+        await refreshStepsBalance()
+        let settings = unlockSettings(for: bundleId)
+        let rate = settings.entryCostSteps
+        guard rate > 0 else {
+            message = "✅ Access granted."
+            openTargetAppFromPayGate(bundleId, logCost: 0) { [weak self] opened in
+                guard let self = self else { return }
+                if !opened {
+                    self.message = "⚠️ Could not open the target app. Try again."
+                }
+                self.endPayGateSession(bundleId)
+            }
+            return
+        }
+
+        let minutesLeft = minutesAvailable(for: bundleId)
+        guard minutesLeft > 0 else {
+            message = "❌ Not enough steps for minute access."
+            return
+        }
+
+        startMinuteTariffSession(for: bundleId, rate: rate)
+        let userDefaults = UserDefaults.stepsTrader()
+        userDefaults.set(Date().addingTimeInterval(8), forKey: "suppressShortcutUntil")
+        markPayGateOpen(for: bundleId)
+
+        openTargetAppFromPayGate(bundleId, logCost: 0) { [weak self] opened in
+            guard let self = self else { return }
+            if !opened {
+                self.message = "⚠️ Could not open the target app. Try again."
+            }
+            self.endPayGateSession(bundleId)
+        }
+    }
+
+    private func markPayGateOpen(for bundleId: String) {
+        let userDefaults = UserDefaults.stepsTrader()
         let now = Date()
         userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
         userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader_\(bundleId)")
@@ -415,15 +603,6 @@ final class AppModel: ObservableObject {
         userDefaults.removeObject(forKey: "shortcutTriggered")
         userDefaults.removeObject(forKey: "shortcutTarget")
         userDefaults.removeObject(forKey: "shortcutTriggerTime")
-
-        openTargetAppFromPayGate(bundleId) { [weak self] opened in
-            guard let self = self else { return }
-            if opened {
-            } else {
-                self.message = "⚠️ Could not open the target app. Try again."
-            }
-            self.endPayGateSession(bundleId)
-        }
     }
 
     private func persistSessionAllowanceMetadata() {
@@ -439,7 +618,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func openTargetAppFromPayGate(_ bundleId: String, completion: @escaping (Bool) -> Void) {
+    private func openTargetAppFromPayGate(_ bundleId: String, logCost: Int, completion: @escaping (Bool) -> Void) {
         let schemes = primaryAndFallbackSchemes(for: bundleId)
         guard !schemes.isEmpty else {
             print("❌ PayGate: No URL schemes available for bundle \(bundleId)")
@@ -452,10 +631,16 @@ final class AppModel: ObservableObject {
         payGateTargetBundleId = nil
         payGateSessions.removeAll()
         currentPayGateSessionId = nil
-        attemptOpen(schemes: schemes, index: 0, bundleId: target, completion: completion)
+        attemptOpen(schemes: schemes, index: 0, bundleId: target, logCost: logCost, completion: completion)
     }
 
-    private func attemptOpen(schemes: [String], index: Int, bundleId: String, completion: @escaping (Bool) -> Void) {
+    private func attemptOpen(
+        schemes: [String],
+        index: Int,
+        bundleId: String,
+        logCost: Int,
+        completion: @escaping (Bool) -> Void
+    ) {
         guard index < schemes.count else {
             print("❌ PayGate: Failed to open \(bundleId) after trying all schemes")
             completion(false)
@@ -465,7 +650,7 @@ final class AppModel: ObservableObject {
         let scheme = schemes[index]
         guard let url = URL(string: scheme) else {
             print("⚠️ PayGate: Invalid URL scheme \(scheme), trying next")
-            attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId, completion: completion)
+            attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId, logCost: logCost, completion: completion)
             return
         }
 
@@ -475,7 +660,7 @@ final class AppModel: ObservableObject {
 
             if success {
                 print("✅ PayGate: Successfully opened \(bundleId)")
-                self.recordAutomationOpen(bundleId: bundleId)
+                self.recordAutomationOpen(bundleId: bundleId, spentSteps: logCost)
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 500_000_000)
                     self.showPayGate = false
@@ -484,7 +669,7 @@ final class AppModel: ObservableObject {
                 }
             } else {
                 print("❌ PayGate: Scheme \(scheme) failed for \(bundleId), trying next")
-                self.attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId, completion: completion)
+                self.attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId, logCost: logCost, completion: completion)
             }
         }
     }
@@ -537,8 +722,8 @@ final class AppModel: ObservableObject {
             // Продолжаем показывать PayGate, чтобы пользователь видел статус и мог управлять доступом
         }
         
-        // Align PayGate cost with the current level available for this module
-        applyCurrentLevelTariff(for: bundleId)
+        // Align PayGate cost with the current level available for this shield
+        applyCurrentLevelCosts(for: bundleId)
 
         let session = PayGateSession(id: bundleId, bundleId: bundleId, startedAt: Date())
         payGateSessions[bundleId] = session
@@ -606,6 +791,12 @@ final class AppModel: ObservableObject {
         print("📱 App entering foreground - checking elapsed time")
         purgeExpiredAccessWindows()
         handleBlockedRedirect()
+        applyMinuteTariffCatchup()
+        
+        // Reload minute mode and steps data from storage (may have been updated by extensions)
+        loadAppStepsSpentToday()
+        loadMinuteChargeLogs()
+        loadAppStepsSpentLifetime()
 
         // Принудительно восстанавливаем выбор приложений при возврате в приложение
         forceRestoreAppSelection()
@@ -871,6 +1062,39 @@ final class AppModel: ObservableObject {
         if let data = try? JSONEncoder().encode(appOpenLogs) {
             g.set(data, forKey: "appOpenLogs_v1")
         }
+    }
+    
+    func loadMinuteChargeLogs() {
+        let g = UserDefaults.stepsTrader()
+        if let data = g.data(forKey: "minuteChargeLogs_v1"),
+           let decoded = try? JSONDecoder().decode([MinuteChargeLog].self, from: data) {
+            minuteChargeLogs = decoded
+        }
+        if let data = g.data(forKey: "minuteTimeByDay_v1"),
+           let decoded = try? JSONDecoder().decode([String: [String: Int]].self, from: data) {
+            minuteTimeByDay = decoded
+        }
+    }
+    
+    func refreshMinuteChargeLogs() {
+        loadMinuteChargeLogs()
+    }
+    
+    func clearMinuteChargeLogs() {
+        let g = UserDefaults.stepsTrader()
+        g.removeObject(forKey: "minuteChargeLogs_v1")
+        minuteChargeLogs = []
+    }
+    
+    func minuteTimeToday(for bundleId: String) -> Int {
+        let dayKey = Self.dayKey(for: Date())
+        return minuteTimeByDay[dayKey]?[bundleId] ?? 0
+    }
+    
+    func totalMinutesToday() -> Int {
+        let dayKey = Self.dayKey(for: Date())
+        guard let dayMap = minuteTimeByDay[dayKey] else { return 0 }
+        return dayMap.values.reduce(0, +)
     }
     
     private func trimOpenLogs() {
@@ -1179,22 +1403,27 @@ final class AppModel: ObservableObject {
         persistAppUnlockSettings()
     }
     
-    // MARK: - Module level → tariff mapping
-    func currentLevelTariff(for bundleId: String) -> Tariff {
-        let spent = appStepsSpentToday[bundleId, default: 0]
-        switch spent {
-        case 100_000...: return .free   // Level IV
-        case 30_000...: return .easy    // Level III
-        case 10_000...: return .medium  // Level II
-        default: return .hard           // Level I
+    // MARK: - Shield levels
+    func totalStepsSpent(for bundleId: String) -> Int {
+        if let total = appStepsSpentLifetime[bundleId] {
+            return total
+        }
+        return appStepsSpentByDay.values.reduce(0) { acc, perDay in
+            acc + (perDay[bundleId] ?? 0)
         }
     }
-    
-    func applyCurrentLevelTariff(for bundleId: String) {
-        let tariff = currentLevelTariff(for: bundleId)
-        dailyTariffSelections[bundleId] = tariff
-        persistDailyTariffSelections()
-        updateUnlockSettings(for: bundleId, tariff: tariff)
+
+    func currentShieldLevel(for bundleId: String) -> ShieldLevel {
+        ShieldLevel.current(forSpent: totalStepsSpent(for: bundleId))
+    }
+
+    func stepsToNextShieldLevel(for bundleId: String) -> Int? {
+        ShieldLevel.stepsToNext(forSpent: totalStepsSpent(for: bundleId))
+    }
+
+    func applyCurrentLevelCosts(for bundleId: String) {
+        let level = currentShieldLevel(for: bundleId)
+        updateUnlockSettings(for: bundleId, entryCost: level.entryCost, dayPassCost: level.dayCost)
     }
     
     func hasDayPass(for bundleId: String?) -> Bool {
@@ -1210,7 +1439,7 @@ final class AppModel: ObservableObject {
         let settings = unlockSettings(for: bundleId)
         return Tariff.allCases.first(where: { $0.entryCostSteps == settings.entryCostSteps && dayPassCost(for: $0) == settings.dayPassCostSteps })
     }
-    
+
     @MainActor
     func selectTariffForToday(_ tariff: Tariff, bundleId: String) {
         dailyTariffSelections[bundleId] = tariff
@@ -1265,11 +1494,28 @@ final class AppModel: ObservableObject {
     
     private func loadAppStepsSpentToday() {
         let g = UserDefaults.stepsTrader()
-        if let data = g.data(forKey: "appStepsSpentToday_v1"),
-           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
-            appStepsSpentToday = decoded
+        if let data = g.data(forKey: "appStepsSpentByDay_v1"),
+           let decoded = try? JSONDecoder().decode([String: [String: Int]].self, from: data) {
+            appStepsSpentByDay = decoded
         } else {
-            appStepsSpentToday = [:]
+            appStepsSpentByDay = [:]
+        }
+
+        if appStepsSpentByDay.isEmpty,
+           let legacyData = g.data(forKey: "appStepsSpentToday_v1"),
+           let decodedLegacy = try? JSONDecoder().decode([String: Int].self, from: legacyData) {
+            appStepsSpentByDay[Self.dayKey(for: Date())] = decodedLegacy
+        }
+
+        appStepsSpentToday = appStepsSpentByDay[Self.dayKey(for: Date())] ?? [:]
+
+        if appStepsSpentLifetime.isEmpty {
+            appStepsSpentLifetime = appStepsSpentByDay.values.reduce(into: [:]) { result, dayMap in
+                for (bundleId, steps) in dayMap {
+                    result[bundleId, default: 0] += steps
+                }
+            }
+            persistAppStepsSpentLifetime()
         }
     }
     
@@ -1277,6 +1523,30 @@ final class AppModel: ObservableObject {
         let g = UserDefaults.stepsTrader()
         if let data = try? JSONEncoder().encode(appStepsSpentToday) {
             g.set(data, forKey: "appStepsSpentToday_v1")
+        }
+    }
+
+    private func persistAppStepsSpentByDay() {
+        let g = UserDefaults.stepsTrader()
+        if let data = try? JSONEncoder().encode(appStepsSpentByDay) {
+            g.set(data, forKey: "appStepsSpentByDay_v1")
+        }
+    }
+
+    private func loadAppStepsSpentLifetime() {
+        let g = UserDefaults.stepsTrader()
+        if let data = g.data(forKey: "appStepsSpentLifetime_v1"),
+           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+            appStepsSpentLifetime = decoded
+        } else {
+            appStepsSpentLifetime = [:]
+        }
+    }
+
+    private func persistAppStepsSpentLifetime() {
+        let g = UserDefaults.stepsTrader()
+        if let data = try? JSONEncoder().encode(appStepsSpentLifetime) {
+            g.set(data, forKey: "appStepsSpentLifetime_v1")
         }
     }
     
@@ -1290,17 +1560,20 @@ final class AppModel: ObservableObject {
     }
     
     private func defaultDayPassCost(forEntryCost entryCost: Int) -> Int {
-        switch entryCost {
-        case 100: return 1000
-        case 500: return 5000
-        case 1000: return 10000
-        default: return max(entryCost * 10, entryCost)
-        }
+        if entryCost <= 0 { return 0 }
+        return entryCost * 100
     }
     
     private func addSpentSteps(_ cost: Int, for bundleId: String) {
         appStepsSpentToday[bundleId, default: 0] += cost
+        appStepsSpentLifetime[bundleId, default: 0] += cost
+        let key = Self.dayKey(for: Date())
+        var perDay = appStepsSpentByDay[key] ?? [:]
+        perDay[bundleId, default: 0] += cost
+        appStepsSpentByDay[key] = perDay
         persistAppStepsSpentToday()
+        persistAppStepsSpentByDay()
+        persistAppStepsSpentLifetime()
     }
 
     // MARK: - Access window helpers
@@ -1374,7 +1647,7 @@ final class AppModel: ObservableObject {
         g.removeObject(forKey: "blockedPaygateBundleId")
         g.removeObject(forKey: "blockedPaygateTimestamp")
         let schemes = primaryAndFallbackSchemes(for: bundleId)
-        attemptOpen(schemes: schemes, index: 0, bundleId: bundleId) { _ in }
+        attemptOpen(schemes: schemes, index: 0, bundleId: bundleId, logCost: 0) { _ in }
     }
 
     private func accessWindowExpiration(_ window: AccessWindow, now: Date) -> Date? {
@@ -1409,7 +1682,7 @@ final class AppModel: ObservableObject {
         g.removeObject(forKey: "payGateTargetBundleId")
     }
     
-    func recordAutomationOpen(bundleId: String) {
+    func recordAutomationOpen(bundleId: String, spentSteps: Int? = nil) {
         let defaults = UserDefaults.stepsTrader()
         var dict: [String: Date] = [:]
         if let data = defaults.data(forKey: "automationLastOpened_v1"),
@@ -1440,15 +1713,16 @@ final class AppModel: ObservableObject {
             }
         }
         // Log open for chart analytics
-        appOpenLogs.append(AppOpenLog(bundleId: bundleId, date: Date()))
+        appOpenLogs.append(AppOpenLog(bundleId: bundleId, date: Date(), spentSteps: spentSteps))
         trimOpenLogs()
         persistAppOpenLogs()
     }
     
     // Sync entry cost with current tariff
     private func syncEntryCostWithTariff() {
-        entryCostSteps = budgetEngine.tariff.entryCostSteps
-        print("💰 Synced entry cost: \(entryCostSteps) steps for \(budgetEngine.tariff.displayName)")
+        if entryCostSteps <= 0 {
+            entryCostSteps = 100
+        }
     }
 
     func updateSpentTime(minutes: Int) {
@@ -2079,6 +2353,56 @@ final class AppModel: ObservableObject {
         print("🛑 Tracking stopped - DeviceActivity monitoring disabled")
     }
 
+    private func startMinuteTariffSession(for bundleId: String, rate: Int) {
+        let g = UserDefaults.stepsTrader()
+        g.set(bundleId, forKey: minuteTariffBundleKey)
+        g.set(rate, forKey: minuteTariffRateKey)
+        g.set(Date(), forKey: minuteTariffLastTickKey)
+        g.removeObject(forKey: accessBlockKey(for: bundleId))
+    }
+
+    private func setCustomAccessWindow(until: Date, for bundleId: String) {
+        let g = UserDefaults.stepsTrader()
+        g.set(until, forKey: accessBlockKey(for: bundleId))
+        let remaining = Int(until.timeIntervalSince(Date()))
+        print("⏱️ Custom access window set for \(bundleId) until \(until) (\(remaining) seconds)")
+    }
+
+    private func applyMinuteTariffCatchup() {
+        let g = UserDefaults.stepsTrader()
+        guard let bundleId = g.string(forKey: minuteTariffBundleKey),
+              let lastTick = g.object(forKey: minuteTariffLastTickKey) as? Date
+        else { return }
+
+        let rate = g.integer(forKey: minuteTariffRateKey)
+        guard rate > 0 else { return }
+
+        let elapsedMinutes = Int(Date().timeIntervalSince(lastTick) / 60)
+        guard elapsedMinutes > 0 else { return }
+
+        let minutesToCharge = min(elapsedMinutes, minutesAvailable(for: bundleId))
+        guard minutesToCharge > 0 else {
+            g.removeObject(forKey: minuteTariffBundleKey)
+            g.removeObject(forKey: minuteTariffLastTickKey)
+            g.removeObject(forKey: minuteTariffRateKey)
+            return
+        }
+
+        let totalCost = minutesToCharge * rate
+        if pay(cost: totalCost) {
+            addSpentSteps(totalCost, for: bundleId)
+            let remainingMinutes = minutesAvailable(for: bundleId)
+            if remainingMinutes <= 0 {
+                g.removeObject(forKey: accessBlockKey(for: bundleId))
+                g.removeObject(forKey: minuteTariffBundleKey)
+                g.removeObject(forKey: minuteTariffLastTickKey)
+                g.removeObject(forKey: minuteTariffRateKey)
+            }
+        }
+
+        g.set(Date(), forKey: minuteTariffLastTickKey)
+    }
+
     // Timer-based tracking (fallback without DeviceActivity entitlement)
 
     private func simulateAppUsage() {
@@ -2333,7 +2657,7 @@ final class AppModel: ObservableObject {
         if isAccessBlocked(for: bundleId) {
             print("🚫 Access window active for \(bundleId); opening target directly")
             let schemes = primaryAndFallbackSchemes(for: bundleId)
-            attemptOpen(schemes: schemes, index: 0, bundleId: bundleId) { _ in }
+            attemptOpen(schemes: schemes, index: 0, bundleId: bundleId, logCost: 0) { _ in }
             userDefaults.removeObject(forKey: "shortcutTargetBundleId")
             return
         }

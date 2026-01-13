@@ -246,6 +246,13 @@ struct StepsTraderApp: App {
     
     private func checkForPayGateFlags() {
         let userDefaults = UserDefaults.stepsTrader()
+
+        if let until = userDefaults.object(forKey: "suppressShortcutUntil") as? Date,
+           Date() < until {
+            print("🚫 PayGate suppressed (minute mode), skipping PayGate")
+            clearPayGateFlags(userDefaults)
+            return
+        }
         
         // Check if shortcut set flags to show PayGate
         let shouldShowPayGate = userDefaults.bool(forKey: "shouldShowPayGate")
@@ -272,6 +279,11 @@ struct StepsTraderApp: App {
             
             print("🎯 Final bundle ID: \(finalBundleId ?? "nil")")
             if let bundleId = finalBundleId {
+                if isRecentPayGateOpen(bundleId: bundleId, userDefaults: userDefaults) {
+                    print("🚫 PayGate flags ignored: recent PayGate open for \(bundleId)")
+                    clearPayGateFlags(userDefaults)
+                    return
+                }
                 Task { @MainActor in
                     if model.isAccessBlocked(for: bundleId) {
                         print("🚫 PayGate flags ignored: access window active for \(bundleId)")
@@ -301,6 +313,18 @@ struct StepsTraderApp: App {
         userDefaults.removeObject(forKey: "shortcutTarget")
         userDefaults.removeObject(forKey: "shortcutTriggerTime")
     }
+
+    private func isRecentPayGateOpen(bundleId: String, userDefaults: UserDefaults) -> Bool {
+        if let last = userDefaults.object(forKey: "lastPayGateAction") as? Date,
+           Date().timeIntervalSince(last) < 5 {
+            return true
+        }
+        if let last = userDefaults.object(forKey: "lastAppOpenedFromStepsTrader_\(bundleId)") as? Date,
+           Date().timeIntervalSince(last) < 5 {
+            return true
+        }
+        return false
+    }
     
     private func reopenTargetIfPossible(bundleId: String) {
         guard let scheme = TargetResolver.urlScheme(forBundleId: bundleId),
@@ -314,7 +338,7 @@ struct StepsTraderApp: App {
             }
         }
     }
-    
+
 }
 
 private extension StepsTraderApp {
@@ -326,7 +350,7 @@ private extension StepsTraderApp {
         [
             OnboardingSlide(
                 title: "DOOM CTRL is here to stop your doomscroll",
-                subtitle: "Raise shields to make crawls less doomed",
+                subtitle: "Raise shields to make crawls to other apps less doomed",
                 emoji: "🛡"
             ),
             OnboardingSlide(
@@ -650,7 +674,14 @@ struct PayGateView: View {
     }
     
     private var activeBundleId: String? { activeSession?.bundleId }
-    private var activeTariff: Tariff { tariff(for: activeBundleId) }
+    private var activeLevel: ShieldLevel {
+        guard let bundleId = activeBundleId else { return ShieldLevel.all.first! }
+        return model.currentShieldLevel(for: bundleId)
+    }
+    private var isMinuteModeActive: Bool {
+        guard let bundleId = activeBundleId else { return false }
+        return model.isMinuteTariffEnabled(for: bundleId) || model.isFamilyControlsModeEnabled(for: bundleId)
+    }
     private var isCountdownActive: Bool {
         guard let session = activeSession, let bundleId = activeBundleId else { return false }
         return !timedOutSessions.contains(bundleId) && remainingSeconds(for: session) > 0
@@ -661,16 +692,6 @@ struct PayGateView: View {
         return max(0, totalCountdown - Int(elapsed))
     }
 
-    private func tariff(for bundleId: String?) -> Tariff {
-        guard let bundleId else { return .hard }
-        if let preset = model.presetTariff(for: bundleId) { return preset }
-        let settings = model.unlockSettings(for: bundleId)
-        if settings.entryCostSteps == 0 { return .free }
-        if settings.entryCostSteps == Tariff.easy.entryCostSteps { return .easy }
-        if settings.entryCostSteps == Tariff.medium.entryCostSteps { return .medium }
-        if settings.entryCostSteps == Tariff.hard.entryCostSteps { return .hard }
-        return .hard
-    }
     
     @ViewBuilder
     private var centeredAppIconOverlay: some View {
@@ -690,6 +711,7 @@ struct PayGateView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .allowsHitTesting(false)
     }
     
     private var countdownBadge: some View {
@@ -733,24 +755,68 @@ struct PayGateView: View {
             ZStack {
                 centeredAppIconOverlay
                 
-                VStack(spacing: 24) {
-                    Spacer(minLength: 12)
+                VStack(spacing: 18) {
+                    Spacer(minLength: 6)
                     
                     VStack(spacing: 20) {
                     if let bundleId = activeBundleId, let session = activeSession {
                         let isTimedOut = timedOutSessions.contains(bundleId) || remainingSeconds(for: session) <= 0
                         
                         if !isTimedOut {
-                            VStack(spacing: 12) {
-                                Text(loc("Choose access", "Выберите доступ"))
+                            if isMinuteModeActive {
+                                let minutesLeft = model.minutesAvailable(for: bundleId)
+                                let minutesText = minutesLeft == Int.max ? "∞" : "\(minutesLeft)"
+                                let rate = model.unlockSettings(for: bundleId).entryCostSteps
+                                VStack(spacing: 12) {
+                                    Text(loc("Minute mode · \(minutesText) min left", "Минутный режим · осталось \(minutesText) мин"))
+                                        .font(.headline)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    Text(loc("Each minute costs \(rate) steps", "Каждая минута стоит \(rate) шагов"))
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    Button {
+                                        Task { await model.handleMinuteTariffEntry(for: bundleId) }
+                                    } label: {
+                                        Text(loc("Enter", "Войти"))
+                                            .frame(maxWidth: .infinity, minHeight: 50)
+                                    }
+                                    .background(Color(red: 224/255, green: 130/255, blue: 217/255))
+                                    .foregroundColor(.white)
+                                    .font(.subheadline.weight(.semibold))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .contentShape(Rectangle())
+                                    .disabled(minutesLeft <= 0)
+                                    
+                                    Button {
+                                        setForfeit(bundleId)
+                                        performTransition(duration: 0.8) {
+                                            model.dismissPayGate()
+                                            sendAppToBackground()
+                                        }
+                                    } label: {
+                                        Text(loc("Close", "Закрыть"))
+                                            .frame(maxWidth: .infinity, minHeight: 54)
+                                    }
+                                    .background(Color.gray.opacity(0.3))
+                                    .foregroundColor(.primary)
                                     .font(.headline)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .contentShape(Rectangle())
+                                    .padding(.bottom, 20)
+                                }
+                            } else {
+                                VStack(spacing: 12) {
+                                    Text(loc("Choose access", "Выберите доступ"))
+                                        .font(.headline)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                                let allowed = model.allowedAccessWindows(for: bundleId)
-                                let windows = [AccessWindow.day1, .hour1, .minutes5, .single].filter { allowed.contains($0) }
-                                VStack(spacing: 10) {
-                                    ForEach(windows, id: \.self) { window in
-                                        accessWindowButton(window: window, bundleId: bundleId, isTimedOut: isTimedOut, isForfeited: isForfeited(bundleId))
+                                    let allowed = model.allowedAccessWindows(for: bundleId)
+                                    let windows = [AccessWindow.day1, .hour1, .minutes5, .single].filter { allowed.contains($0) }
+                                    VStack(spacing: 10) {
+                                        ForEach(windows, id: \.self) { window in
+                                            accessWindowButton(window: window, bundleId: bundleId, isTimedOut: isTimedOut, isForfeited: isForfeited(bundleId))
+                                        }
                                     }
                                 }
                             }
@@ -792,23 +858,27 @@ struct PayGateView: View {
                     }
                 }
                 .padding(.horizontal, 20)
+                .padding(.bottom, 24)
                 
-                Button(loc("Close", "Закрыть")) {
-                    if let id = activeBundleId {
-                        setForfeit(id)
+                if let bundleId = activeBundleId, !isMinuteModeActive {
+                    Button {
+                        setForfeit(bundleId)
+                        performTransition(duration: 0.8) {
+                            model.dismissPayGate()
+                            sendAppToBackground()
+                        }
+                    } label: {
+                        Text(loc("Close", "Закрыть"))
+                            .frame(maxWidth: .infinity, minHeight: 54)
                     }
-                    performTransition(duration: 0.8) {
-                        model.dismissPayGate()
-                        sendAppToBackground()
-                    }
+                    .background(Color.gray.opacity(0.3))
+                    .foregroundColor(.primary)
+                    .font(.headline)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .contentShape(Rectangle())
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 50)
                 }
-                .frame(maxWidth: .infinity, minHeight: 40)
-                .background(Color.gray.opacity(0.3))
-                .foregroundColor(.primary)
-                .font(.headline)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .padding(.horizontal, 20)
-                .padding(.bottom, 72)
             }
         }
         .overlay(transitionOverlay)
@@ -1063,37 +1133,17 @@ extension PayGateView {
         await model.handlePayGatePayment(for: bundleId, window: .single)
     }
 
-    private func windowCost(for tariff: Tariff, window: AccessWindow) -> Int {
-        switch tariff {
-        case .free:
-            return 0
-        case .easy:
-            switch window {
-            case .single: return 10
-            case .minutes5: return 50
-            case .hour1: return 500
-            case .day1: return 5000
-            }
-        case .medium:
-            switch window {
-            case .single: return 50
-            case .minutes5: return 250
-            case .hour1: return 2500
-            case .day1: return 10000
-            }
-        case .hard:
-            switch window {
-            case .single: return 100
-            case .minutes5: return 500
-            case .hour1: return 5000
-            case .day1: return 20000
-            }
+    private func windowCost(for level: ShieldLevel, window: AccessWindow) -> Int {
+        switch window {
+        case .single: return level.entryCost
+        case .minutes5: return level.fiveMinutesCost
+        case .hour1: return level.hourCost
+        case .day1: return level.dayCost
         }
     }
 
     private func accessWindowButton(window: AccessWindow, bundleId: String, isTimedOut: Bool, isForfeited: Bool) -> some View {
-        let tariff = activeTariff
-        let baseCost = windowCost(for: tariff, window: window)
+        let baseCost = windowCost(for: activeLevel, window: window)
         let hasPass = model.hasDayPass(for: bundleId)
         let effectiveCost = hasPass ? 0 : baseCost
         let canPay = effectiveCost == 0 || model.totalStepsBalance >= effectiveCost
@@ -1103,7 +1153,7 @@ extension PayGateView {
         let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
         let buttonColor = canPay && !isTimedOut && !isForfeited ? pink : Color.gray.opacity(0.6)
 
-        return Button(title) {
+        return Button {
             guard !isTimedOut, !isForfeited else { return }
             setForfeit(bundleId)
             Task {
@@ -1111,12 +1161,15 @@ extension PayGateView {
                     Task { await model.handlePayGatePayment(for: bundleId, window: window, costOverride: effectiveCost) }
                 }
             }
+        } label: {
+            Text(title)
+                .frame(maxWidth: .infinity, minHeight: 50)
         }
-        .frame(maxWidth: .infinity, minHeight: 44)
         .background(buttonColor)
         .foregroundColor(.white)
         .font(.subheadline.weight(.semibold))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(Rectangle())
         .shadow(color: buttonColor.opacity(0.35), radius: 6, x: 0, y: 3)
         .disabled(!canPay || isTimedOut || isForfeited)
     }

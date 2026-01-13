@@ -9,7 +9,7 @@ private func recordJump(for bundleId: String) {
        let decoded = try? JSONDecoder().decode([AppModel.AppOpenLog].self, from: data) {
         logs = decoded
     }
-    logs.append(.init(bundleId: bundleId, date: Date()))
+    logs.append(.init(bundleId: bundleId, date: Date(), spentSteps: 0))
     // Trim to avoid unbounded growth
     if logs.count > 500 {
         logs = Array(logs.suffix(500))
@@ -25,6 +25,42 @@ private func recordJump(for bundleId: String) {
         nil,
         true
     )
+}
+
+private func isFamilyControlsModeEnabled(bundleId: String, userDefaults: UserDefaults) -> Bool {
+    guard let data = userDefaults.data(forKey: "appUnlockSettings_v1"),
+          let decoded = try? JSONDecoder().decode([String: AppModel.AppUnlockSettings].self, from: data),
+          let settings = decoded[bundleId]
+    else { return false }
+    return settings.familyControlsModeEnabled
+}
+
+private func isMinuteModeEnabled(bundleId: String, userDefaults: UserDefaults) -> Bool {
+    guard let data = userDefaults.data(forKey: "appUnlockSettings_v1"),
+          let decoded = try? JSONDecoder().decode([String: AppModel.AppUnlockSettings].self, from: data),
+          let settings = decoded[bundleId]
+    else { return false }
+    return settings.familyControlsModeEnabled || settings.minuteTariffEnabled
+}
+
+private func isRecentPayGateOpen(bundleId: String, userDefaults: UserDefaults, now: Date) -> Bool {
+    if let last = userDefaults.object(forKey: "lastPayGateAction") as? Date,
+       now.timeIntervalSince(last) < 5 {
+        return true
+    }
+    if let last = userDefaults.object(forKey: "lastAppOpenedFromStepsTrader_\(bundleId)") as? Date,
+       now.timeIntervalSince(last) < 5 {
+        return true
+    }
+    return false
+}
+
+private func shouldSuppressShortcut(userDefaults: UserDefaults, now: Date) -> Bool {
+    if let until = userDefaults.object(forKey: "suppressShortcutUntil") as? Date,
+       now < until {
+        return true
+    }
+    return false
 }
 
 @available(iOS 17.0, *)
@@ -49,6 +85,12 @@ struct TestOneShortcutIntent: AppIntent {
             return target
         }()
 
+        if shouldSuppressShortcut(userDefaults: userDefaults, now: now) {
+            print("🚫 TestOneShortcutIntent: suppressed by recent minute-mode launch")
+            clearPayGateFlags(userDefaults)
+            return .result(value: true)
+        }
+
         // Анти-луп: если окно уже активно — выходим без флагов
         if isWithinBlockWindow(now: now, userDefaults: userDefaults, bundleId: selectedTarget.bundleId) {
             let remaining = remainingBlockSeconds(now: now, userDefaults: userDefaults, bundleId: selectedTarget.bundleId) ?? -1
@@ -67,6 +109,12 @@ struct TestOneShortcutIntent: AppIntent {
             }
         }
         userDefaults.set(now, forKey: "lastTestOneShortcutRun")
+
+        if isRecentPayGateOpen(bundleId: selectedTarget.bundleId, userDefaults: userDefaults, now: now) {
+            print("🚫 TestOneShortcutIntent: recent PayGate open for \(selectedTarget.bundleId), skipping flags")
+            clearPayGateFlags(userDefaults)
+            return .result(value: true)
+        }
 
         print("🔍 TestOneShortcutIntent triggered for \(selectedTarget.bundleId) at \(Date())")
         userDefaults.set(selectedTarget.urlScheme, forKey: "selectedAppScheme")
@@ -117,6 +165,15 @@ struct CheckAccessWindowIntent: AppIntent {
     func perform() async throws -> some ReturnsValue<Bool> & IntentResult {
         let userDefaults = UserDefaults.stepsTrader()
         let now = Date()
+        if shouldSuppressShortcut(userDefaults: userDefaults, now: now) {
+            print("🚫 CheckAccessWindowIntent: suppressed by recent minute-mode launch")
+            return .result(value: false)
+        }
+        if isMinuteModeEnabled(bundleId: target.bundleId, userDefaults: userDefaults) {
+            userDefaults.set(target.rawValue, forKey: "lastCheckedPaygateTarget")
+            print("✅ CheckAccessWindowIntent: minute mode enabled for \(target.bundleId), allowing PayGate")
+            return .result(value: true)
+        }
         let isBlocked = isWithinBlockWindow(now: now, userDefaults: userDefaults, bundleId: target.bundleId)
         if isBlocked {
             let remaining = remainingBlockSeconds(now: now, userDefaults: userDefaults, bundleId: target.bundleId) ?? -1
@@ -192,6 +249,12 @@ struct StarLauncherIntent: AppIntent {
             return target
         }()
 
+        if shouldSuppressShortcut(userDefaults: userDefaults, now: now) {
+            print("🚫 StarLauncherIntent: suppressed by recent minute-mode launch")
+            clearPayGateFlags(userDefaults)
+            return .result(value: true)
+        }
+
         if isWithinBlockWindow(now: now, userDefaults: userDefaults, bundleId: selectedTarget.bundleId) {
             let remaining = remainingBlockSeconds(now: now, userDefaults: userDefaults, bundleId: selectedTarget.bundleId) ?? -1
             print("🚫 StarLauncherIntent: blocked until window expires for \(selectedTarget.bundleId) (\(remaining)s left)")
@@ -208,6 +271,12 @@ struct StarLauncherIntent: AppIntent {
             }
         }
         userDefaults.set(now, forKey: "lastStarLauncherRun")
+
+        if isRecentPayGateOpen(bundleId: selectedTarget.bundleId, userDefaults: userDefaults, now: now) {
+            print("🚫 StarLauncherIntent: recent PayGate open for \(selectedTarget.bundleId), skipping flags")
+            clearPayGateFlags(userDefaults)
+            return .result(value: true)
+        }
 
         print("🔍 StarLauncherIntent triggered for \(selectedTarget.bundleId) at \(Date())")
         userDefaults.set(selectedTarget.urlScheme, forKey: "selectedAppScheme")
@@ -595,7 +664,7 @@ private func logCrawl(bundleId: String, userDefaults: UserDefaults) {
        let decoded = try? JSONDecoder().decode([AppModel.AppOpenLog].self, from: data) {
         logs = decoded
     }
-    logs.append(AppModel.AppOpenLog(bundleId: bundleId, date: now))
+    logs.append(AppModel.AppOpenLog(bundleId: bundleId, date: now, spentSteps: 0))
     if let encoded = try? JSONEncoder().encode(logs) {
         userDefaults.set(encoded, forKey: "appOpenLogs_v1")
     }
