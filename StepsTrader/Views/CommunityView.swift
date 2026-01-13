@@ -72,10 +72,10 @@ struct CommunityView: View {
                         
                         HStack(spacing: 20) {
                             statCard(
-                                value: formatNumber(Int(model.effectiveStepsToday)),
-                                label: loc(appLanguage, "Steps Today", "Шагов сегодня"),
-                                icon: "figure.walk",
-                                color: .green
+                                value: formatNumber(totalEnergySpent),
+                                label: loc(appLanguage, "Total Energy Spent", "Всего потрачено"),
+                                icon: "bolt.fill",
+                                color: .orange
                             )
                             
                             statCard(
@@ -128,6 +128,11 @@ struct CommunityView: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.tertiarySystemBackground))
         )
+    }
+    
+    private var totalEnergySpent: Int {
+        // Sum all lifetime spent across all apps
+        model.appStepsSpentLifetime.values.reduce(0, +)
     }
     
     private func formatNumber(_ num: Int) -> String {
