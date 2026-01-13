@@ -502,7 +502,7 @@ final class AppModel: ObservableObject {
             return
         }
 
-        let userDefaults = UserDefaults.stepsTrader()
+        _ = UserDefaults.stepsTrader()
         await refreshStepsBalance()
         let settings = unlockSettings(for: bundleId)
         let effectiveCost = costOverride ?? settings.entryCostSteps

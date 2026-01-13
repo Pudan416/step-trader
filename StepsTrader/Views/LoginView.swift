@@ -3,6 +3,7 @@ import AuthenticationServices
 
 struct LoginView: View {
     @ObservedObject var authService: AuthenticationService
+    @Environment(\.dismiss) private var dismiss
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     
     @State private var showError: Bool = false
@@ -37,6 +38,19 @@ struct LoginView: View {
             }
             
             VStack(spacing: 0) {
+                // Close button
+                HStack {
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                    .padding()
+                }
+                
                 Spacer()
                 
                 // Logo & Title
@@ -133,6 +147,11 @@ struct LoginView: View {
             Button("OK") { showError = false }
         } message: {
             Text(authService.error ?? loc(appLanguage, "Something went wrong", "Что-то пошло не так"))
+        }
+        .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+            if isAuthenticated {
+                dismiss()
+            }
         }
     }
     

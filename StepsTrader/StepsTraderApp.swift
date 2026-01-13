@@ -18,11 +18,7 @@ struct StepsTraderApp: App {
     var body: some Scene {
         WindowGroup { 
             ZStack {
-                // Show login if not authenticated
-                if !authService.isAuthenticated {
-                    LoginView(authService: authService)
-                        .transition(.opacity)
-                } else if model.showPayGate {
+                if model.showPayGate {
                     PayGateView(model: model)
                         .onAppear {
                             print("🎯 PayGateView appeared - target: \(model.payGateTargetBundleId ?? "nil")")
@@ -77,11 +73,7 @@ struct StepsTraderApp: App {
                 }
             }
             .onAppear {
-                // Check authentication state
-                Task { await authService.checkAuthenticationState() }
-                
                 // Ensure bootstrap runs once; defer permission prompts to intro if needed
-                guard authService.isAuthenticated else { return }
                 if hasSeenIntro {
                     Task { await model.bootstrap(requestPermissions: true) }
                 } else {
@@ -103,17 +95,7 @@ struct StepsTraderApp: App {
                 }
                 checkForHandoffToken()
                 checkForPayGateFlags()
-                if authService.isAuthenticated && !hasSeenIntro { showIntro = true }
-            }
-            .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
-                if isAuthenticated {
-                    // User just logged in - show intro if not seen
-                    if !hasSeenIntro {
-                        showIntro = true
-                    } else {
-                        Task { await model.bootstrap(requestPermissions: true) }
-                    }
-                }
+                if !hasSeenIntro { showIntro = true }
             }
             .onOpenURL { url in
                 print("🔗 App received URL: \(url)")

@@ -6,6 +6,7 @@ struct SettingsView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var authService = AuthenticationService.shared
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @State private var showLoginSheet: Bool = false
     @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
     @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
@@ -122,7 +123,8 @@ struct SettingsView: View {
                 
                 // Account Section
                 Section {
-                    if let user = authService.currentUser {
+                    if authService.isAuthenticated, let user = authService.currentUser {
+                        // User is signed in - show profile
                         HStack {
                             ZStack {
                                 Circle()
@@ -143,20 +145,43 @@ struct SettingsView: View {
                                 }
                             }
                         }
-                    }
-                    
-                    Button(role: .destructive) {
-                        authService.signOut()
-                    } label: {
-                        HStack {
-                            Image(systemName: "rectangle.portrait.and.arrow.right")
-                            Text(loc(appLanguage, "Sign Out", "Выйти"))
+                        
+                        Button(role: .destructive) {
+                            authService.signOut()
+                        } label: {
+                            HStack {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                Text(loc(appLanguage, "Sign Out", "Выйти"))
+                            }
                         }
+                    } else {
+                        // Not signed in - show sign in button
+                        Button {
+                            showLoginSheet = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "person.crop.circle.badge.plus")
+                                    .foregroundColor(.blue)
+                                Text(loc(appLanguage, "Sign In with Apple", "Войти через Apple"))
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .foregroundColor(.primary)
                     }
                 } header: {
                     Text(loc(appLanguage, "Account", "Аккаунт"))
+                } footer: {
+                    if !authService.isAuthenticated {
+                        Text(loc(appLanguage, "Sign in to sync your data across devices", "Войдите для синхронизации данных между устройствами"))
+                    }
                 }
 
+            }
+            .sheet(isPresented: $showLoginSheet) {
+                LoginView(authService: authService)
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
