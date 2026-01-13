@@ -116,18 +116,21 @@ struct LoginView: View {
                     SignInWithAppleButton(.signIn) { request in
                         request.requestedScopes = [.fullName, .email]
                     } onCompletion: { result in
-                        Task {
-                            do {
-                                try await authService.signInWithApple()
-                            } catch {
-                                showError = true
-                            }
+                        switch result {
+                        case .success(let authorization):
+                            print("🔐 SignInWithAppleButton completed successfully")
+                            authService.handleAuthorization(authorization)
+                        case .failure(let error):
+                            print("❌ SignInWithAppleButton failed: \(error)")
+                            authService.error = error.localizedDescription
+                            showError = true
                         }
                     }
                     .signInWithAppleButtonStyle(.white)
                     .frame(height: 54)
                     .cornerRadius(12)
                     .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                    .disabled(authService.isLoading || authService.isAuthenticated)
                     
                     Text(loc(appLanguage, "Your data stays on your device", "Твои данные остаются на устройстве"))
                         .font(.caption)

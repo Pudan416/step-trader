@@ -11,6 +11,7 @@
 		200AC47D2F0C825C0018004E /* AccessWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47C2F0C825C0018004E /* AccessWindow.swift */; };
 		200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A52F16DA3F0018004E /* AuthenticationService.swift */; };
 		200AC5A82F16DA570018004E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A72F16DA570018004E /* LoginView.swift */; };
+		200AC5AA2F16E8370018004E /* CloudKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A92F16E8370018004E /* CloudKitService.swift */; };
 		2035D7582E7D9CF90011B21D /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
 		2089F0BC2E71A18F00ABF5FA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */; };
 		2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */; };
@@ -89,6 +90,7 @@
 		200AC4992F141D160018004E /* ShieldConfigurationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldConfigurationProvider.swift; sourceTree = "<group>"; };
 		200AC5A52F16DA3F0018004E /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
 		200AC5A72F16DA570018004E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		200AC5A92F16E8370018004E /* CloudKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitService.swift; sourceTree = "<group>"; };
 		2089F0B42E71A18E00ABF5FA /* DOOM CTRL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "DOOM CTRL.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -228,6 +230,7 @@
 			children = (
 				200AC5A52F16DA3F0018004E /* AuthenticationService.swift */,
 				2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */,
+				200AC5A92F16E8370018004E /* CloudKitService.swift */,
 				2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */,
 				20F5A0602FFF040000000006 /* LLMService.swift */,
 			);
@@ -498,6 +501,7 @@
 				20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */,
 				2089F0EE2E71AE3400ABF5FA /* HealthKitService.swift in Sources */,
 				2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */,
+				200AC5AA2F16E8370018004E /* CloudKitService.swift in Sources */,
 				2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */,
 				2089F0EF2E71AE3400ABF5FA /* Date+Today.swift in Sources */,
 				209424C12E8593DA00904A0A /* TariffOptionView.swift in Sources */,

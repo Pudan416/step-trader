@@ -81,6 +81,34 @@ class AuthenticationService: NSObject, ObservableObject {
         clearStoredUser()
     }
     
+    /// Handle authorization result from SignInWithAppleButton
+    func handleAuthorization(_ authorization: ASAuthorization) {
+        // Prevent double processing
+        guard !isAuthenticated else {
+            print("⚠️ Already authenticated, skipping duplicate authorization")
+            return
+        }
+        
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+            error = AuthError.invalidCredential.localizedDescription
+            return
+        }
+        
+        let user = AppUser(
+            id: credential.user,
+            email: credential.email ?? loadStoredEmail(for: credential.user),
+            firstName: credential.fullName?.givenName ?? loadStoredFirstName(for: credential.user),
+            lastName: credential.fullName?.familyName ?? loadStoredLastName(for: credential.user),
+            createdAt: Date()
+        )
+        
+        storeUserDetails(user)
+        currentUser = user
+        isAuthenticated = true
+        saveUser(user)
+        print("✅ User authenticated: \(user.displayName)")
+    }
+    
     func checkAuthenticationState() async {
         guard let user = currentUser else { return }
         
