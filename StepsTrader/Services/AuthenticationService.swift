@@ -29,8 +29,32 @@ struct AppUser: Codable {
     }
     
     var locationString: String? {
-        let parts = [city, country].compactMap { $0?.isEmpty == false ? $0 : nil }
+        var parts: [String] = []
+        if let c = city, !c.isEmpty {
+            parts.append(c)
+        }
+        if let countryCode = country, !countryCode.isEmpty {
+            // Convert country code to localized name
+            let locale = Locale.current
+            if let name = locale.localizedString(forRegionCode: countryCode) {
+                parts.append(name)
+            } else {
+                parts.append(countryCode)
+            }
+        }
         return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+    
+    var countryFlag: String? {
+        guard let countryCode = country, !countryCode.isEmpty else { return nil }
+        let base: UInt32 = 127397
+        var flag = ""
+        for scalar in countryCode.uppercased().unicodeScalars {
+            if let unicode = UnicodeScalar(base + scalar.value) {
+                flag.append(String(unicode))
+            }
+        }
+        return flag.isEmpty ? nil : flag
     }
 }
 

@@ -163,8 +163,12 @@ struct SettingsView: View {
                                         .foregroundColor(.primary)
                                     if let location = user.locationString {
                                         HStack(spacing: 4) {
-                                            Image(systemName: "mappin")
-                                                .font(.caption2)
+                                            if let flag = user.countryFlag {
+                                                Text(flag)
+                                            } else {
+                                                Image(systemName: "mappin")
+                                                    .font(.caption2)
+                                            }
                                             Text(location)
                                         }
                                         .font(.caption)
@@ -913,18 +917,36 @@ struct JournalView: View {
 
 struct ProfileEditorView: View {
     @ObservedObject var authService: AuthenticationService
+    @StateObject private var locationManager = ProfileLocationManager()
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     
     @State private var nickname: String = ""
     @State private var firstName: String = ""
     @State private var lastName: String = ""
-    @State private var country: String = ""
+    @State private var selectedCountryCode: String = ""
     @State private var city: String = ""
     @State private var avatarImage: UIImage?
     @State private var showImagePicker: Bool = false
     @State private var showImageSourcePicker: Bool = false
+    @State private var showCountryPicker: Bool = false
     @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
+    
+    // All countries sorted by localized name
+    private var countries: [(code: String, name: String)] {
+        let codes = Locale.Region.isoRegions.map { $0.identifier }
+        let locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
+        return codes.compactMap { code -> (String, String)? in
+            guard let name = locale.localizedString(forRegionCode: code), !name.isEmpty else { return nil }
+            return (code, name)
+        }.sorted { $0.name < $1.name }
+    }
+    
+    private var selectedCountryName: String {
+        if selectedCountryCode.isEmpty { return "" }
+        let locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
+        return locale.localizedString(forRegionCode: selectedCountryCode) ?? selectedCountryCode
+    }
     
     var body: some View {
         NavigationView {
@@ -1029,6 +1051,27 @@ struct ProfileEditorView: View {
                 
                 // Location section
                 Section {
+                    // Use my location button
+                    Button {
+                        locationManager.requestLocation { detectedCity, detectedCountryCode in
+                            if let c = detectedCity { city = c }
+                            if let cc = detectedCountryCode { selectedCountryCode = cc }
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "location.fill")
+                                .foregroundColor(.blue)
+                            Text(loc(appLanguage, "Use My Location", "Определить автоматически"))
+                                .foregroundColor(.blue)
+                            Spacer()
+                            if locationManager.isLoading {
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(locationManager.isLoading)
+                    
+                    // City
                     HStack {
                         Image(systemName: "building.2")
                             .foregroundColor(.secondary)
@@ -1036,14 +1079,36 @@ struct ProfileEditorView: View {
                         TextField(loc(appLanguage, "City", "Город"), text: $city)
                     }
                     
-                    HStack {
-                        Image(systemName: "globe")
-                            .foregroundColor(.secondary)
-                            .frame(width: 24)
-                        TextField(loc(appLanguage, "Country", "Страна"), text: $country)
+                    // Country picker
+                    Button {
+                        showCountryPicker = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "globe")
+                                .foregroundColor(.secondary)
+                                .frame(width: 24)
+                            Text(loc(appLanguage, "Country", "Страна"))
+                                .foregroundColor(.primary)
+                            Spacer()
+                            if !selectedCountryCode.isEmpty {
+                                Text(countryFlag(selectedCountryCode) + " " + selectedCountryName)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text(loc(appLanguage, "Select", "Выбрать"))
+                                    .foregroundColor(.secondary)
+                            }
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 } header: {
                     Text(loc(appLanguage, "Location", "Локация"))
+                } footer: {
+                    if let error = locationManager.errorMessage {
+                        Text(error)
+                            .foregroundColor(.red)
+                    }
                 }
                 
                 // Email (read-only)
@@ -1100,6 +1165,13 @@ struct ProfileEditorView: View {
             .sheet(isPresented: $showImagePicker) {
                 ImagePicker(image: $avatarImage, sourceType: imageSourceType)
             }
+            .sheet(isPresented: $showCountryPicker) {
+                CountryPickerView(
+                    selectedCountryCode: $selectedCountryCode,
+                    countries: countries,
+                    appLanguage: appLanguage
+                )
+            }
         }
     }
     
@@ -1119,12 +1191,34 @@ struct ProfileEditorView: View {
         return "?"
     }
     
+    private func countryFlag(_ countryCode: String) -> String {
+        let base: UInt32 = 127397
+        var flag = ""
+        for scalar in countryCode.uppercased().unicodeScalars {
+            if let unicode = UnicodeScalar(base + scalar.value) {
+                flag.append(String(unicode))
+            }
+        }
+        return flag
+    }
+    
     private func loadCurrentProfile() {
         if let user = authService.currentUser {
             nickname = user.nickname ?? ""
             firstName = user.firstName ?? ""
             lastName = user.lastName ?? ""
-            country = user.country ?? ""
+            // Try to find country code from stored country name
+            if let storedCountry = user.country {
+                // First try to find by code directly
+                if countries.contains(where: { $0.code == storedCountry }) {
+                    selectedCountryCode = storedCountry
+                } else {
+                    // Try to find by name
+                    if let found = countries.first(where: { $0.name == storedCountry }) {
+                        selectedCountryCode = found.code
+                    }
+                }
+            }
             city = user.city ?? ""
             if let data = user.avatarData, let image = UIImage(data: data) {
                 avatarImage = image
@@ -1136,7 +1230,6 @@ struct ProfileEditorView: View {
         let trimmedNickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedFirst = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedLast = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedCountry = country.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
         
         // Compress avatar image
@@ -1146,10 +1239,163 @@ struct ProfileEditorView: View {
             nickname: trimmedNickname.isEmpty ? nil : trimmedNickname,
             firstName: trimmedFirst.isEmpty ? nil : trimmedFirst,
             lastName: trimmedLast.isEmpty ? nil : trimmedLast,
-            country: trimmedCountry.isEmpty ? nil : trimmedCountry,
+            country: selectedCountryCode.isEmpty ? nil : selectedCountryCode,
             city: trimmedCity.isEmpty ? nil : trimmedCity,
             avatarData: avatarData
         )
+    }
+}
+
+// MARK: - Country Picker View
+
+struct CountryPickerView: View {
+    @Binding var selectedCountryCode: String
+    let countries: [(code: String, name: String)]
+    let appLanguage: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText: String = ""
+    
+    private var filteredCountries: [(code: String, name: String)] {
+        if searchText.isEmpty {
+            return countries
+        }
+        return countries.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+    }
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(filteredCountries, id: \.code) { country in
+                    Button {
+                        selectedCountryCode = country.code
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text(countryFlag(country.code))
+                                .font(.title2)
+                            Text(country.name)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            if selectedCountryCode == country.code {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                }
+            }
+            .searchable(text: $searchText, prompt: loc(appLanguage, "Search country", "Поиск страны"))
+            .navigationTitle(loc(appLanguage, "Select Country", "Выбор страны"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(loc(appLanguage, "Cancel", "Отмена")) {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func countryFlag(_ countryCode: String) -> String {
+        let base: UInt32 = 127397
+        var flag = ""
+        for scalar in countryCode.uppercased().unicodeScalars {
+            if let unicode = UnicodeScalar(base + scalar.value) {
+                flag.append(String(unicode))
+            }
+        }
+        return flag
+    }
+}
+
+// MARK: - Profile Location Manager
+
+import CoreLocation
+
+class ProfileLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private let geocoder = CLGeocoder()
+    
+    @Published var isLoading: Bool = false
+    @Published var errorMessage: String?
+    
+    private var completion: ((String?, String?) -> Void)?
+    
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyKilometer
+    }
+    
+    func requestLocation(completion: @escaping (String?, String?) -> Void) {
+        self.completion = completion
+        self.errorMessage = nil
+        self.isLoading = true
+        
+        let status = manager.authorizationStatus
+        
+        switch status {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedWhenInUse, .authorizedAlways:
+            manager.requestLocation()
+        case .denied, .restricted:
+            isLoading = false
+            errorMessage = "Location access denied. Enable in Settings."
+            completion(nil, nil)
+        @unknown default:
+            isLoading = false
+            completion(nil, nil)
+        }
+    }
+    
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
+            manager.requestLocation()
+        } else if manager.authorizationStatus == .denied {
+            isLoading = false
+            errorMessage = "Location access denied"
+            completion?(nil, nil)
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.first else {
+            isLoading = false
+            completion?(nil, nil)
+            return
+        }
+        
+        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
+            DispatchQueue.main.async {
+                self?.isLoading = false
+                
+                if let error = error {
+                    self?.errorMessage = error.localizedDescription
+                    self?.completion?(nil, nil)
+                    return
+                }
+                
+                guard let placemark = placemarks?.first else {
+                    self?.completion?(nil, nil)
+                    return
+                }
+                
+                let city = placemark.locality
+                let countryCode = placemark.isoCountryCode
+                
+                self?.completion?(city, countryCode)
+            }
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        DispatchQueue.main.async {
+            self.isLoading = false
+            self.errorMessage = error.localizedDescription
+            self.completion?(nil, nil)
+        }
     }
 }
 
