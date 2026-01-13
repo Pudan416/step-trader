@@ -486,10 +486,10 @@ struct MainTabView: View {
                         }
                         .tag(1)
                     
-                    JournalView(model: model, automationApps: SettingsView.automationAppsStatic, appLanguage: appLanguage)
+                    CommunityView(model: model)
                         .tabItem {
-                            Image(systemName: "book")
-                            Text(loc(appLanguage, "Journal", "Журнал"))
+                            Image(systemName: "person.3.fill")
+                            Text(loc(appLanguage, "Community", "Сообщество"))
                         }
                         .tag(2)
                     

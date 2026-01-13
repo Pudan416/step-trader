@@ -24,5 +24,7 @@
 	<string>DOOM CTRL uses your step count to calculate available time.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>DOOM CTRL uses your location to set your city and country.</string>
 </dict>
 </plist>
