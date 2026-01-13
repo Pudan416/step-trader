@@ -5,8 +5,10 @@ import UIKit
 struct SettingsView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var authService = AuthenticationService.shared
+    @ObservedObject var cloudService = CloudKitService.shared
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @State private var showLoginSheet: Bool = false
+    @State private var showRestoreAlert: Bool = false
     @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
     @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
@@ -178,10 +180,83 @@ struct SettingsView: View {
                         Text(loc(appLanguage, "Sign in to sync your data across devices", "Войдите для синхронизации данных между устройствами"))
                     }
                 }
+                
+                // iCloud Sync Section
+                if authService.isAuthenticated {
+                    Section {
+                        // Sync status
+                        HStack {
+                            Image(systemName: cloudService.isCloudKitAvailable ? "checkmark.icloud.fill" : "xmark.icloud.fill")
+                                .foregroundColor(cloudService.isCloudKitAvailable ? .green : .red)
+                            Text(loc(appLanguage, "iCloud", "iCloud"))
+                            Spacer()
+                            if cloudService.isCloudKitAvailable {
+                                Text(loc(appLanguage, "Connected", "Подключено"))
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text(cloudService.syncError ?? loc(appLanguage, "Not available", "Недоступно"))
+                                    .foregroundColor(.red)
+                                    .font(.caption)
+                            }
+                        }
+                        
+                        if cloudService.isCloudKitAvailable {
+                            // Sync now button
+                            Button {
+                                Task { await cloudService.syncAll(model: model) }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                    Text(loc(appLanguage, "Sync Now", "Синхронизировать"))
+                                    Spacer()
+                                    if cloudService.isSyncing {
+                                        ProgressView()
+                                    }
+                                }
+                            }
+                            .disabled(cloudService.isSyncing)
+                            
+                            // Restore from cloud button
+                            Button {
+                                showRestoreAlert = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "icloud.and.arrow.down")
+                                    Text(loc(appLanguage, "Restore from iCloud", "Восстановить из iCloud"))
+                                }
+                            }
+                            .disabled(cloudService.isSyncing)
+                            
+                            // Last sync date
+                            if let lastSync = cloudService.lastSyncDate {
+                                HStack {
+                                    Text(loc(appLanguage, "Last sync", "Последняя синхронизация"))
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                    Text(lastSync, style: .relative)
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                }
+                            }
+                        }
+                    } header: {
+                        Text(loc(appLanguage, "Cloud Sync", "Синхронизация"))
+                    } footer: {
+                        Text(loc(appLanguage, "Your shields and progress will be saved to iCloud", "Ваши щиты и прогресс будут сохранены в iCloud"))
+                    }
+                }
 
             }
             .sheet(isPresented: $showLoginSheet) {
                 LoginView(authService: authService)
+            }
+            .alert(loc(appLanguage, "Restore from iCloud", "Восстановить из iCloud"), isPresented: $showRestoreAlert) {
+                Button(loc(appLanguage, "Cancel", "Отмена"), role: .cancel) { }
+                Button(loc(appLanguage, "Restore", "Восстановить"), role: .destructive) {
+                    Task { await cloudService.restoreFromCloud(model: model) }
+                }
+            } message: {
+                Text(loc(appLanguage, "This will replace your current shields and progress with data from iCloud.", "Это заменит ваши текущие щиты и прогресс данными из iCloud."))
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
