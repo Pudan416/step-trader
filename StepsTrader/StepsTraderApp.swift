@@ -5,6 +5,7 @@ import UIKit
 @main
 struct StepsTraderApp: App {
     @StateObject private var model: AppModel
+    @StateObject private var authService = AuthenticationService.shared
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     @AppStorage("hasSeenIntro_v3") private var hasSeenIntro: Bool = false
@@ -17,7 +18,11 @@ struct StepsTraderApp: App {
     var body: some Scene {
         WindowGroup { 
             ZStack {
-                if model.showPayGate {
+                // Show login if not authenticated
+                if !authService.isAuthenticated {
+                    LoginView(authService: authService)
+                        .transition(.opacity)
+                } else if model.showPayGate {
                     PayGateView(model: model)
                         .onAppear {
                             print("🎯 PayGateView appeared - target: \(model.payGateTargetBundleId ?? "nil")")
@@ -72,7 +77,11 @@ struct StepsTraderApp: App {
                 }
             }
             .onAppear {
+                // Check authentication state
+                Task { await authService.checkAuthenticationState() }
+                
                 // Ensure bootstrap runs once; defer permission prompts to intro if needed
+                guard authService.isAuthenticated else { return }
                 if hasSeenIntro {
                     Task { await model.bootstrap(requestPermissions: true) }
                 } else {
@@ -94,7 +103,17 @@ struct StepsTraderApp: App {
                 }
                 checkForHandoffToken()
                 checkForPayGateFlags()
-                if !hasSeenIntro { showIntro = true }
+                if authService.isAuthenticated && !hasSeenIntro { showIntro = true }
+            }
+            .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+                if isAuthenticated {
+                    // User just logged in - show intro if not seen
+                    if !hasSeenIntro {
+                        showIntro = true
+                    } else {
+                        Task { await model.bootstrap(requestPermissions: true) }
+                    }
+                }
             }
             .onOpenURL { url in
                 print("🔗 App received URL: \(url)")

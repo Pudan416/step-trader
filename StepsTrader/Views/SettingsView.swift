@@ -4,6 +4,7 @@ import UIKit
 // MARK: - SettingsView
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var authService = AuthenticationService.shared
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
     @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
@@ -117,6 +118,43 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
+                }
+                
+                // Account Section
+                Section {
+                    if let user = authService.currentUser {
+                        HStack {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.purple.opacity(0.2))
+                                    .frame(width: 40, height: 40)
+                                Text(String(user.displayName.prefix(1)).uppercased())
+                                    .font(.headline)
+                                    .foregroundColor(.purple)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(user.displayName)
+                                    .font(.subheadline.weight(.medium))
+                                if let email = user.email {
+                                    Text(email)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    
+                    Button(role: .destructive) {
+                        authService.signOut()
+                    } label: {
+                        HStack {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                            Text(loc(appLanguage, "Sign Out", "Выйти"))
+                        }
+                    }
+                } header: {
+                    Text(loc(appLanguage, "Account", "Аккаунт"))
                 }
 
             }
