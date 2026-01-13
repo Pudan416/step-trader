@@ -79,7 +79,7 @@ struct CommunityView: View {
                             )
                             
                             statCard(
-                                value: "\(model.configuredAppsCount)",
+                                value: "\(model.appUnlockSettings.count)",
                                 label: loc(appLanguage, "Active Shields", "Активных щитов"),
                                 icon: "shield.fill",
                                 color: .blue
