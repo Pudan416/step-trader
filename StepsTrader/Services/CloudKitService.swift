@@ -70,7 +70,7 @@ final class CloudKitService: ObservableObject {
         let existingRecords = try await privateDatabase.records(matching: query)
         
         for (recordID, _) in existingRecords.matchResults {
-            try? await privateDatabase.deleteRecord(withID: recordID)
+            _ = try? await privateDatabase.deleteRecord(withID: recordID)
         }
         
         // Save new records
@@ -131,7 +131,7 @@ final class CloudKitService: ObservableObject {
         let existingRecords = try await privateDatabase.records(matching: query)
         
         for (recordID, _) in existingRecords.matchResults {
-            try? await privateDatabase.deleteRecord(withID: recordID)
+            _ = try? await privateDatabase.deleteRecord(withID: recordID)
         }
         
         // Save new records - one per day
@@ -188,7 +188,7 @@ final class CloudKitService: ObservableObject {
         let existingRecords = try await privateDatabase.records(matching: query)
         
         for (recordID, _) in existingRecords.matchResults {
-            try? await privateDatabase.deleteRecord(withID: recordID)
+            _ = try? await privateDatabase.deleteRecord(withID: recordID)
         }
         
         // Save new records
