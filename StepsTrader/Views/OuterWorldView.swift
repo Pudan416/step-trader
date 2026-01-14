@@ -279,6 +279,62 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         )
     }
 
+    func magnetPull(drop: EnergyDrop) {
+        guard let coordinate = userLocation else { return }
+        refreshMagnetDayIfNeeded()
+        guard magnetUsesToday < maxMagnetUsesPerDay else {
+            magnetLimitReachedAt = Date()
+            return
+        }
+        
+        let now = Date()
+        if let lastUse = lastMagnetUse, now.timeIntervalSince(lastUse) < 1.0 {
+            return
+        }
+        lastMagnetUse = now
+        
+        let currentLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        let dropLocation = CLLocation(latitude: drop.coordinate.latitude, longitude: drop.coordinate.longitude)
+        let magnetRadius: CLLocationDistance = 500
+        guard currentLocation.distance(from: dropLocation) <= magnetRadius else {
+            magnetNoDropsAt = Date()
+            return
+        }
+        
+        guard consumeDailyCapIfPossible(amount: drop.energy) else {
+            dailyCapReachedAt = Date()
+            return
+        }
+        
+        // If drop already gone, do nothing
+        guard energyDrops.contains(where: { $0.id == drop.id }) else { return }
+        
+        energyDrops.removeAll { $0.id == drop.id }
+        totalCollected += drop.energy
+        collectedToday += drop.energy
+        saveTotalCollected()
+        saveCollectedToday()
+        saveDrops()
+        
+        magnetUsesToday += 1
+        saveMagnetUsesToday()
+        
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        
+        collectedDrop = EnergyDrop(
+            coordinate: coordinate,
+            energy: drop.energy,
+            expiresAt: Date()
+        )
+        
+        NotificationCenter.default.post(
+            name: NSNotification.Name("com.steps.trader.energy.collected"),
+            object: nil,
+            userInfo: ["energy": drop.energy]
+        )
+    }
+
     private func spawnDropInVisibleRegion(center: CLLocationCoordinate2D, span: MKCoordinateSpan) {
         let minLat = center.latitude - span.latitudeDelta / 2
         let maxLat = center.latitude + span.latitudeDelta / 2
@@ -463,7 +519,6 @@ struct OuterWorldView: View {
             VStack {
                 headerOverlay
                 Spacer()
-                bottomOverlay
             }
             
             // Collected energy popup
@@ -550,11 +605,11 @@ struct OuterWorldView: View {
             ForEach(locationManager.energyDrops) { drop in
                 Annotation("", coordinate: drop.coordinate) {
                     Button {
+                        // Tap = magnet this specific drop (within 500m circle + daily cap + magnet uses)
+                        locationManager.magnetPull(drop: drop)
                         selectedDrop = drop
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                            if selectedDrop?.id == drop.id {
-                                selectedDrop = nil
-                            }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                            if selectedDrop?.id == drop.id { selectedDrop = nil }
                         }
                     } label: {
                         EnergyDropMarker(drop: drop, userLocation: locationManager.userLocation)
@@ -632,7 +687,7 @@ struct OuterWorldView: View {
             .padding(.horizontal)
             .padding(.top, 8)
             .padding(.bottom, 12)
-            .background(
+                .background(
                 LinearGradient(
                     colors: [Color(.systemBackground), Color(.systemBackground).opacity(0)],
                     startPoint: .top,
@@ -640,102 +695,6 @@ struct OuterWorldView: View {
                 )
             )
         }
-    }
-    
-    // MARK: - Bottom Overlay
-    
-    private var bottomOverlay: some View {
-        VStack(spacing: 12) {
-            // Active drops indicator
-            if !locationManager.energyDrops.isEmpty {
-                HStack(spacing: 8) {
-                    Image(systemName: "sparkles")
-                        .foregroundColor(.yellow)
-                    Text(loc(appLanguage, "\(locationManager.energyDrops.count) energy drops on map", "\(locationManager.energyDrops.count) капель энергии на карте"))
-                        .font(.subheadline)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .fill(.ultraThinMaterial)
-                        .shadow(color: .black.opacity(0.1), radius: 10)
-                )
-            }
-            
-            // Info card
-            infoCard
-        }
-        .padding(.horizontal)
-        .padding(.bottom, 100)
-    }
-    
-    private var infoCard: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                Image(systemName: "map.fill")
-                    .font(.title2)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 40)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(loc(appLanguage, "Explore & Collect", "Исследуй и собирай"))
-                        .font(.subheadline.bold())
-                    Text(loc(appLanguage, "Scroll the map to discover energy drops. Walk within 50m to collect!", "Двигай карту чтобы находить капли энергии. Подойди ближе 50м чтобы забрать!"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-            }
-                
-                    Button {
-                locationManager.magnetPullNearbyDrops()
-                    } label: {
-                let remaining = max(0, 3 - locationManager.magnetUsesToday)
-                HStack(spacing: 8) {
-                    Image(systemName: "paperclip")
-                    Text(loc(appLanguage, "Magnet (\(remaining)/3)", "Магнит (\(remaining)/3)"))
-                }
-                .font(.caption.weight(.semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule()
-                        .fill(Color.blue)
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .disabled(locationManager.userLocation == nil || locationManager.magnetUsesToday >= 3)
-
-            // Debug buttons
-            #if DEBUG
-            HStack(spacing: 8) {
-                Button {
-                    locationManager.spawnTestDrop()
-                } label: {
-                    Text("🧪 Test Drop")
-                        .font(.caption)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color.orange.opacity(0.2)))
-                }
-            }
-            #endif
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.1), radius: 15)
-        )
     }
     
     // MARK: - Collected Popup
