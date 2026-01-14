@@ -251,7 +251,9 @@ struct AppsPage: View {
     
     @ViewBuilder
     private var activatedSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let cardPadding: CGFloat = 16
+        
+        return VStack(alignment: .leading, spacing: 16) {
             // Section header
             HStack(spacing: 10) {
                 Image(systemName: "shield.checkered")
@@ -317,7 +319,7 @@ struct AppsPage: View {
                 }
             }
         }
-        .padding()
+        .padding(cardPadding)
         .background(
             RoundedRectangle(cornerRadius: 20)
                 .fill(Color(.secondarySystemBackground))
