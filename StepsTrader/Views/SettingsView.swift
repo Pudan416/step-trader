@@ -95,198 +95,31 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationView {
-            Form {
-                Section {
-                    NavigationLink {
-                        LanguageSettingsView(appLanguage: $appLanguage)
-                            .navigationTitle(loc(appLanguage, "Language", "Язык"))
-                            .navigationBarTitleDisplayMode(.inline)
-                    } label: {
-                        HStack {
-                            Text(loc(appLanguage, "Language", "Язык"))
-                            Spacer()
-                            Text(appLanguage == "ru" ? "Русский" : "English")
-                                .foregroundColor(.secondary)
-                        }
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Header
+                    settingsHeader
+                    
+                    // Account Section
+                    accountSection
+                    
+                    // iCloud Sync Section
+                    if authService.isAuthenticated {
+                        cloudSyncSection
                     }
-
-                    NavigationLink {
-                        ThemeSettingsView(appLanguage: appLanguage, selectedTheme: $appThemeRaw)
-                            .navigationTitle(loc(appLanguage, "Theme", "Тема"))
-                            .navigationBarTitleDisplayMode(.inline)
-                    } label: {
-                        HStack {
-                            Text(loc(appLanguage, "Theme", "Тема"))
-                            Spacer()
-                            Text(themeDisplayName(AppTheme(rawValue: appThemeRaw) ?? .system))
-                                .foregroundColor(.secondary)
-                        }
-                    }
+                    
+                    // App Settings Section
+                    appSettingsSection
+                    
+                    // App Info
+                    appInfoSection
                 }
-                
-                // Account Section
-                Section {
-                    if authService.isAuthenticated, let user = authService.currentUser {
-                        // User is signed in - show profile
-                        Button {
-                            showProfileEditor = true
-                        } label: {
-                            HStack {
-                                // Avatar
-                                if let avatarData = user.avatarData,
-                                   let uiImage = UIImage(data: avatarData) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 48, height: 48)
-                                        .clipShape(Circle())
-                                } else {
-                                    ZStack {
-                                        Circle()
-                                            .fill(
-                                                LinearGradient(
-                                                    colors: [Color.purple.opacity(0.6), Color.blue.opacity(0.6)],
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                )
-                                            )
-                                            .frame(width: 48, height: 48)
-                                        Text(String(user.displayName.prefix(2)).uppercased())
-                                            .font(.subheadline.weight(.bold))
-                                            .foregroundColor(.white)
-                                    }
-                                }
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(user.displayName)
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundColor(.primary)
-                                    if let location = user.locationString {
-                                        HStack(spacing: 4) {
-                                            if let flag = user.countryFlag {
-                                                Text(flag)
-                                            } else {
-                                                Image(systemName: "mappin")
-                                                    .font(.caption2)
-                                            }
-                                            Text(location)
-                                        }
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    } else if let email = user.email {
-                                        Text(email)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                
-                                Spacer()
-                                
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        Button(role: .destructive) {
-                            authService.signOut()
-                        } label: {
-                            HStack {
-                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                                Text(loc(appLanguage, "Sign Out", "Выйти"))
-                            }
-                        }
-                    } else {
-                        // Not signed in - show sign in button
-                        Button {
-                            showLoginSheet = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "person.crop.circle.badge.plus")
-                                    .foregroundColor(.blue)
-                                Text(loc(appLanguage, "Sign In with Apple", "Войти через Apple"))
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .foregroundColor(.primary)
-                    }
-                } header: {
-                    Text(loc(appLanguage, "Account", "Аккаунт"))
-                } footer: {
-                    if !authService.isAuthenticated {
-                        Text(loc(appLanguage, "Sign in to sync your data across devices", "Войдите для синхронизации данных между устройствами"))
-                    }
-                }
-                
-                // iCloud Sync Section
-                if authService.isAuthenticated {
-                    Section {
-                        // Sync status
-                        HStack {
-                            Image(systemName: cloudService.isCloudKitAvailable ? "checkmark.icloud.fill" : "xmark.icloud.fill")
-                                .foregroundColor(cloudService.isCloudKitAvailable ? .green : .red)
-                            Text(loc(appLanguage, "iCloud", "iCloud"))
-                            Spacer()
-                            if cloudService.isCloudKitAvailable {
-                                Text(loc(appLanguage, "Connected", "Подключено"))
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text(cloudService.syncError ?? loc(appLanguage, "Not available", "Недоступно"))
-                                    .foregroundColor(.red)
-                                    .font(.caption)
-                            }
-                        }
-                        
-                        if cloudService.isCloudKitAvailable {
-                            // Sync now button
-                            Button {
-                                Task { await cloudService.syncAll(model: model) }
-                            } label: {
-                                HStack {
-                                    Image(systemName: "arrow.triangle.2.circlepath")
-                                    Text(loc(appLanguage, "Sync Now", "Синхронизировать"))
-                                    Spacer()
-                                    if cloudService.isSyncing {
-                                        ProgressView()
-                                    }
-                                }
-                            }
-                            .disabled(cloudService.isSyncing)
-                            
-                            // Restore from cloud button
-                            Button {
-                                showRestoreAlert = true
-                            } label: {
-                                HStack {
-                                    Image(systemName: "icloud.and.arrow.down")
-                                    Text(loc(appLanguage, "Restore from iCloud", "Восстановить из iCloud"))
-                                }
-                            }
-                            .disabled(cloudService.isSyncing)
-                            
-                            // Last sync date
-                            if let lastSync = cloudService.lastSyncDate {
-                                HStack {
-                                    Text(loc(appLanguage, "Last sync", "Последняя синхронизация"))
-                                        .foregroundColor(.secondary)
-                                    Spacer()
-                                    Text(lastSync, style: .relative)
-                                        .foregroundColor(.secondary)
-                                        .font(.caption)
-                                }
-                            }
-                        }
-                    } header: {
-                        Text(loc(appLanguage, "Cloud Sync", "Синхронизация"))
-                    } footer: {
-                        Text(loc(appLanguage, "Your shields and progress will be saved to iCloud", "Ваши щиты и прогресс будут сохранены в iCloud"))
-                    }
-                }
-
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 100)
             }
+            .background(Color(.systemGroupedBackground))
+            .scrollIndicators(.hidden)
             .sheet(isPresented: $showLoginSheet) {
                 LoginView(authService: authService)
             }
@@ -303,9 +136,358 @@ struct SettingsView: View {
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .scrollContentBackground(.hidden)
-            .background(Color.clear)
+            .navigationBarHidden(true)
         }
+    }
+    
+    // MARK: - Header
+    private var settingsHeader: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "gearshape.fill")
+                .font(.title2)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.gray, .gray.opacity(0.6)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(loc(appLanguage, "Settings", "Настройки"))
+                    .font(.title2.bold())
+                Text(loc(appLanguage, "Customize your experience", "Настройте приложение под себя"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 8)
+    }
+    
+    // MARK: - Account Section
+    private var accountSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Section header
+            sectionHeader(icon: "person.circle.fill", title: loc(appLanguage, "Account", "Аккаунт"), color: .blue)
+            
+            Divider().padding(.horizontal, 16)
+            
+            if authService.isAuthenticated, let user = authService.currentUser {
+                // User profile
+                Button {
+                    showProfileEditor = true
+                } label: {
+                    HStack(spacing: 14) {
+                        // Avatar
+                        if let avatarData = user.avatarData,
+                           let uiImage = UIImage(data: avatarData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 56, height: 56)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.blue.opacity(0.3), lineWidth: 2))
+                        } else {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.purple, Color.blue],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 56, height: 56)
+                                Text(String(user.displayName.prefix(2)).uppercased())
+                                    .font(.headline.weight(.bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(user.displayName)
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            
+                            if let location = user.locationString {
+                                HStack(spacing: 4) {
+                                    if let flag = user.countryFlag {
+                                        Text(flag)
+                                    }
+                                    Text(location)
+                                }
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            } else if let email = user.email {
+                                Text(email)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.secondary.opacity(0.5))
+                    }
+                    .padding(16)
+                }
+                
+                Divider().padding(.horizontal, 16)
+                
+                // Sign out button
+                Button(role: .destructive) {
+                    authService.signOut()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.body)
+                            .foregroundColor(.red)
+                            .frame(width: 28)
+                        Text(loc(appLanguage, "Sign Out", "Выйти"))
+                            .foregroundColor(.red)
+                        Spacer()
+                    }
+                    .padding(16)
+                }
+            } else {
+                // Sign in button
+                Button {
+                    showLoginSheet = true
+                } label: {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "apple.logo")
+                                .font(.title3)
+                                .foregroundColor(.blue)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(loc(appLanguage, "Sign In with Apple", "Войти через Apple"))
+                                .font(.subheadline.weight(.medium))
+                                .foregroundColor(.primary)
+                            Text(loc(appLanguage, "Sync data across devices", "Синхронизация между устройствами"))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.secondary.opacity(0.5))
+                    }
+                    .padding(16)
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+    
+    // MARK: - Cloud Sync Section
+    private var cloudSyncSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionHeader(icon: "icloud.fill", title: loc(appLanguage, "Cloud Sync", "Синхронизация"), color: .cyan)
+            
+            Divider().padding(.horizontal, 16)
+            
+            // Status row
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(cloudService.isCloudKitAvailable ? Color.green.opacity(0.15) : Color.red.opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: cloudService.isCloudKitAvailable ? "checkmark.icloud.fill" : "xmark.icloud.fill")
+                        .font(.subheadline)
+                        .foregroundColor(cloudService.isCloudKitAvailable ? .green : .red)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("iCloud")
+                        .font(.subheadline.weight(.medium))
+                    Text(cloudService.isCloudKitAvailable ? loc(appLanguage, "Connected", "Подключено") : loc(appLanguage, "Not available", "Недоступно"))
+                        .font(.caption)
+                        .foregroundColor(cloudService.isCloudKitAvailable ? .green : .red)
+                }
+                
+                Spacer()
+                
+                if let lastSync = cloudService.lastSyncDate {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(loc(appLanguage, "Last sync", "Последняя"))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(lastSync, style: .relative)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .padding(16)
+            
+            if cloudService.isCloudKitAvailable {
+                Divider().padding(.horizontal, 16)
+                
+                // Sync button
+                Button {
+                    Task { await cloudService.syncAll(model: model) }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.body)
+                            .foregroundColor(.blue)
+                            .frame(width: 28)
+                        Text(loc(appLanguage, "Sync Now", "Синхронизировать"))
+                            .foregroundColor(.primary)
+                        Spacer()
+                        if cloudService.isSyncing {
+                            ProgressView()
+                        }
+                    }
+                    .padding(16)
+                }
+                .disabled(cloudService.isSyncing)
+                
+                Divider().padding(.horizontal, 16)
+                
+                // Restore button
+                Button {
+                    showRestoreAlert = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "icloud.and.arrow.down")
+                            .font(.body)
+                            .foregroundColor(.orange)
+                            .frame(width: 28)
+                        Text(loc(appLanguage, "Restore from iCloud", "Восстановить из iCloud"))
+                            .foregroundColor(.primary)
+                        Spacer()
+                    }
+                    .padding(16)
+                }
+                .disabled(cloudService.isSyncing)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+    
+    // MARK: - App Settings Section
+    private var appSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionHeader(icon: "slider.horizontal.3", title: loc(appLanguage, "Preferences", "Настройки"), color: .purple)
+            
+            Divider().padding(.horizontal, 16)
+            
+            // Language
+            NavigationLink {
+                LanguageSettingsView(appLanguage: $appLanguage)
+                    .navigationTitle(loc(appLanguage, "Language", "Язык"))
+                    .navigationBarTitleDisplayMode(.inline)
+            } label: {
+                settingsRow(
+                    icon: "globe",
+                    iconColor: .blue,
+                    title: loc(appLanguage, "Language", "Язык"),
+                    value: appLanguage == "ru" ? "Русский" : "English"
+                )
+            }
+            
+            Divider().padding(.horizontal, 16)
+            
+            // Theme
+            NavigationLink {
+                ThemeSettingsView(appLanguage: appLanguage, selectedTheme: $appThemeRaw)
+                    .navigationTitle(loc(appLanguage, "Theme", "Тема"))
+                    .navigationBarTitleDisplayMode(.inline)
+            } label: {
+                settingsRow(
+                    icon: "paintbrush.fill",
+                    iconColor: .purple,
+                    title: loc(appLanguage, "Theme", "Тема"),
+                    value: themeDisplayName(AppTheme(rawValue: appThemeRaw) ?? .system)
+                )
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+    
+    // MARK: - App Info Section
+    private var appInfoSection: some View {
+        VStack(spacing: 12) {
+            Text("DOOM CTRL")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            
+            Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
+                .font(.caption)
+                .foregroundColor(.secondary.opacity(0.7))
+            
+            Text(loc(appLanguage, "Made with ❤️ for your focus", "Создано с ❤️ для вашей концентрации"))
+                .font(.caption)
+                .foregroundColor(.secondary.opacity(0.5))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+    }
+    
+    // MARK: - Helper Views
+    @ViewBuilder
+    private func sectionHeader(icon: String, title: String, color: Color) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.15))
+                    .frame(width: 36, height: 36)
+                Image(systemName: icon)
+                    .font(.subheadline)
+                    .foregroundColor(color)
+            }
+            
+            Text(title)
+                .font(.headline)
+            
+            Spacer()
+        }
+        .padding(16)
+    }
+    
+    @ViewBuilder
+    private func settingsRow(icon: String, iconColor: Color, title: String, value: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.body)
+                .foregroundColor(iconColor)
+                .frame(width: 28)
+            
+            Text(title)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.secondary.opacity(0.5))
+        }
+        .padding(16)
     }
     
     private var dayEndDateBinding: Binding<Date> {
