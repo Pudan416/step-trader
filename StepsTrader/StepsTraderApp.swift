@@ -465,6 +465,9 @@ struct MainTabView: View {
                     remainingSteps: model.totalStepsBalance,
                     totalSteps: Int(model.effectiveStepsToday),
                     spentSteps: model.spentStepsToday,
+                    healthKitSteps: Int(model.stepsToday),
+                    outerWorldSteps: model.outerWorldBonusSteps,
+                    otherBonusSteps: model.debugBonusSteps,
                     showDetails: selection == 0
                 )
                 .padding(.horizontal)
@@ -761,12 +764,12 @@ struct PayGateView: View {
                     .padding(.top, 60)
                 
                 Spacer()
-                
+            
                 // Center content - app icon and countdown
                 if let bundleId = activeBundleId {
                     VStack(spacing: 24) {
                         // App icon with glow
-                        ZStack {
+            ZStack {
                             Circle()
                                 .fill(Color.white.opacity(0.1))
                                 .frame(width: 120, height: 120)
@@ -825,11 +828,11 @@ struct PayGateView: View {
     @ViewBuilder
     private var bottomActionPanel: some View {
         VStack(spacing: 12) {
-            if let bundleId = activeBundleId, let session = activeSession {
-                let isTimedOut = timedOutSessions.contains(bundleId) || remainingSeconds(for: session) <= 0
-                
-                if !isTimedOut {
-                    if isMinuteModeActive {
+                    if let bundleId = activeBundleId, let session = activeSession {
+                        let isTimedOut = timedOutSessions.contains(bundleId) || remainingSeconds(for: session) <= 0
+                        
+                        if !isTimedOut {
+                            if isMinuteModeActive {
                         minuteModePanel(bundleId: bundleId)
                     } else {
                         openModePanel(bundleId: bundleId, isTimedOut: isTimedOut)
@@ -857,9 +860,9 @@ struct PayGateView: View {
     
     @ViewBuilder
     private func minuteModePanel(bundleId: String) -> some View {
-        let minutesLeft = model.minutesAvailable(for: bundleId)
-        let minutesText = minutesLeft == Int.max ? "∞" : "\(minutesLeft)"
-        let rate = model.unlockSettings(for: bundleId).entryCostSteps
+                                let minutesLeft = model.minutesAvailable(for: bundleId)
+                                let minutesText = minutesLeft == Int.max ? "∞" : "\(minutesLeft)"
+                                let rate = model.unlockSettings(for: bundleId).entryCostSteps
         let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
         
         VStack(spacing: 16) {
@@ -871,11 +874,11 @@ struct PayGateView: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(loc("Minute Mode", "Минутный режим"))
-                        .font(.headline)
+                                        .font(.headline)
                         .foregroundColor(.primary)
                     Text(loc("\(rate) fuel per minute", "\(rate) топлива за минуту"))
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()
@@ -907,7 +910,7 @@ struct PayGateView: View {
                     Image(systemName: "play.fill")
                     Text(loc("Start Session", "Начать сессию"))
                 }
-                .font(.headline)
+                                        .font(.headline)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity, minHeight: 56)
                 .background(
@@ -927,8 +930,8 @@ struct PayGateView: View {
     
     @ViewBuilder
     private func openModePanel(bundleId: String, isTimedOut: Bool) -> some View {
-        let allowed = model.allowedAccessWindows(for: bundleId)
-        let windows = [AccessWindow.day1, .hour1, .minutes5, .single].filter { allowed.contains($0) }
+                                    let allowed = model.allowedAccessWindows(for: bundleId)
+                                    let windows = [AccessWindow.day1, .hour1, .minutes5, .single].filter { allowed.contains($0) }
         
         VStack(spacing: 16) {
             // Header
@@ -950,7 +953,7 @@ struct PayGateView: View {
             
             // Access options grid
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ForEach(windows, id: \.self) { window in
+                                        ForEach(windows, id: \.self) { window in
                     accessWindowCard(window: window, bundleId: bundleId, isTimedOut: isTimedOut, isForfeited: isForfeited(bundleId))
                 }
             }
@@ -1032,7 +1035,7 @@ struct PayGateView: View {
     
     @ViewBuilder
     private func timedOutPanel(bundleId: String) -> some View {
-        VStack(spacing: 12) {
+                            VStack(spacing: 12) {
             Image(systemName: "clock.badge.xmark")
                 .font(.system(size: 40))
                 .foregroundColor(.orange)
@@ -1042,45 +1045,45 @@ struct PayGateView: View {
                 .foregroundColor(.primary)
             
             Text(loc("You saved \(windowCost(for: activeLevel, window: .single)) fuel", "Вы сохранили \(windowCost(for: activeLevel, window: .single)) топлива"))
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
-    }
+                        }
     
     @ViewBuilder
     private var missedSessionPanel: some View {
-        VStack(spacing: 12) {
+                        VStack(spacing: 12) {
             Image(systemName: "hand.raised.fill")
                 .font(.system(size: 40))
                 .foregroundColor(.blue)
             
-            if let bundleId = model.payGateTargetBundleId {
+                            if let bundleId = model.payGateTargetBundleId {
                 Text(loc("Stopped yourself!", "Остановились!"))
                     .font(.title3.weight(.bold))
                     .foregroundColor(.primary)
                 
                 Text(loc("You didn't open \(getAppDisplayName(bundleId))", "Вы не открыли \(getAppDisplayName(bundleId))"))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            } else {
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            } else {
                 Text(loc("Session ended", "Сессия завершена"))
                     .font(.title3.weight(.bold))
-            }
-        }
-        .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
-    }
-    
+                    }
+                
     @ViewBuilder
     private func closeButton(bundleId: String) -> some View {
         Button {
-            setForfeit(bundleId)
+                        setForfeit(bundleId)
             performTransition(duration: 0.6) {
-                model.dismissPayGate()
-                sendAppToBackground()
-            }
+                            model.dismissPayGate()
+                            sendAppToBackground()
+                        }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "xmark")

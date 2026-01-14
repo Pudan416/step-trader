@@ -4,6 +4,9 @@ struct StepBalanceCard: View {
     let remainingSteps: Int
     let totalSteps: Int
     let spentSteps: Int
+    let healthKitSteps: Int
+    let outerWorldSteps: Int
+    let otherBonusSteps: Int
     let showDetails: Bool
     
     @AppStorage("appLanguage") private var appLanguage: String = "en"
@@ -109,19 +112,59 @@ struct StepBalanceCard: View {
             
             // Details section
             if showDetails {
+                VStack(spacing: 12) {
                 HStack(spacing: 12) {
-                    statBox(
-                        icon: "bolt.fill",
-                        title: loc(appLanguage, "Available", "Доступно"),
-                        value: formatNumber(remainingSteps),
-                        color: progressColor
-                    )
+                        statBox(
+                            icon: "bolt.fill",
+                            title: loc(appLanguage, "Available", "Доступно"),
+                            value: formatNumber(remainingSteps),
+                            color: progressColor
+                        )
+                        
+                        statBox(
+                            icon: "flame.fill",
+                            title: loc(appLanguage, "Spent", "Потрачено"),
+                            value: formatNumber(spentSteps),
+                            color: .orange
+                        )
+                    }
                     
-                    statBox(
-                        icon: "flame.fill",
-                        title: loc(appLanguage, "Spent", "Потрачено"),
-                        value: formatNumber(spentSteps),
-                        color: .orange
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(loc(appLanguage, "Sources", "Источники"))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        HStack(spacing: 10) {
+                            sourceChip(
+                                icon: "heart.fill",
+                                title: loc(appLanguage, "HealthKit", "HealthKit"),
+                                value: formatNumber(healthKitSteps),
+                                color: .pink
+                            )
+                            
+                            sourceChip(
+                                icon: "map.fill",
+                                title: loc(appLanguage, "Outer World", "Внешний мир"),
+                                value: formatNumber(outerWorldSteps),
+                                color: .blue
+                            )
+                            
+                            if otherBonusSteps > 0 {
+                                sourceChip(
+                                    icon: "sparkles",
+                                    title: loc(appLanguage, "Bonus", "Бонус"),
+                                    value: formatNumber(otherBonusSteps),
+                                    color: .purple
+                                )
+                            }
+                            
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(Color(.tertiarySystemBackground))
                     )
                 }
                 .transition(.asymmetric(
@@ -155,10 +198,10 @@ struct StepBalanceCard: View {
             
             // Text
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text(value)
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(value)
                     .font(.subheadline.bold())
                     .foregroundColor(.primary)
             }
@@ -169,6 +212,29 @@ struct StepBalanceCard: View {
         .background(
             RoundedRectangle(cornerRadius: 14)
                 .fill(Color(.tertiarySystemBackground))
+        )
+    }
+    
+    @ViewBuilder
+    private func sourceChip(icon: String, title: String, value: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundColor(color)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Text(value)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.primary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(Color(.secondarySystemBackground))
         )
     }
     
@@ -186,6 +252,9 @@ struct StepBalanceCard: View {
             remainingSteps: 4520,
             totalSteps: 6000,
             spentSteps: 1480,
+            healthKitSteps: 5000,
+            outerWorldSteps: 800,
+            otherBonusSteps: 200,
             showDetails: true
         )
         
@@ -193,6 +262,9 @@ struct StepBalanceCard: View {
             remainingSteps: 150,
             totalSteps: 6000,
             spentSteps: 5850,
+            healthKitSteps: 6000,
+            outerWorldSteps: 0,
+            otherBonusSteps: 0,
             showDetails: false
         )
     }

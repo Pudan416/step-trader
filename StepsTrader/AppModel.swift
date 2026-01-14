@@ -126,7 +126,13 @@ final class AppModel: ObservableObject {
     // Оплата входа шагами
     @Published var entryCostSteps: Int = 100
     @Published var stepsBalance: Int = 0
+    /// Total non-HealthKit energy (sum of debug + Outer World).
+    /// Kept as a single published value because many parts of the app rely on it.
     @Published private(set) var bonusSteps: Int = 0
+    /// Energy collected from the Outer World (map drops).
+    @Published private(set) var outerWorldBonusSteps: Int = 0
+    /// Debug/other bonus energy (e.g. secret taps / legacy values).
+    @Published private(set) var debugBonusSteps: Int = 0
     var totalStepsBalance: Int { max(0, stepsBalance + bonusSteps) }
     var effectiveStepsToday: Double { stepsToday + Double(bonusSteps) }
     @Published var spentStepsToday: Int = 0
@@ -409,20 +415,16 @@ final class AppModel: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            // Add energy to bonus balance
-            self.bonusSteps += energy
-            self.persistDebugStepsBonus()
+            // Add energy to Outer World bonus (separated from HealthKit energy)
+            self.outerWorldBonusSteps += energy
+            self.syncAndPersistBonusBreakdown()
             
             // Update total collected stats
             let collectedKey = "outerworld_totalcollected_global"
             let current = UserDefaults.standard.integer(forKey: collectedKey)
             UserDefaults.standard.set(current + energy, forKey: collectedKey)
             
-            // Recalculate balance
-            self.stepsBalance = max(0, Int(self.stepsToday) + self.bonusSteps - self.spentStepsToday)
-            UserDefaults.stepsTrader().set(self.stepsBalance, forKey: "stepsBalance")
-            
-            print("⚡ Outer World: Collected \(energy) energy. New balance: \(self.stepsBalance)")
+            print("⚡ Outer World: Collected \(energy) energy. Bonus now: \(self.bonusSteps)")
         }
     }
 
@@ -1320,8 +1322,7 @@ final class AppModel: ObservableObject {
 
         let remainingCost = max(0, cost - consumeFromBase)
         if remainingCost > 0 {
-            bonusSteps = max(0, bonusSteps - remainingCost)
-            persistDebugStepsBonus()
+            consumeBonusSteps(remainingCost)
         }
 
         let g = UserDefaults.stepsTrader()
@@ -1351,12 +1352,54 @@ final class AppModel: ObservableObject {
 
     private func loadDebugStepsBonus() {
         let g = UserDefaults.stepsTrader()
-        bonusSteps = g.integer(forKey: "debugStepsBonus_v1")
+        
+        // New keys (split source)
+        let debugKey = "debugStepsBonus_debug_v1"
+        let outerWorldKey = "debugStepsBonus_outerworld_v1"
+        
+        // Legacy key (single bucket)
+        let legacyTotal = g.integer(forKey: "debugStepsBonus_v1")
+        
+        let hasNewDebug = g.object(forKey: debugKey) != nil
+        let hasNewOuter = g.object(forKey: outerWorldKey) != nil
+        
+        if !hasNewDebug && !hasNewOuter {
+            // Migration: treat legacy as "debug/other" (so we don't accidentally attribute it to Outer World)
+            debugBonusSteps = legacyTotal
+            outerWorldBonusSteps = 0
+        } else {
+            debugBonusSteps = g.integer(forKey: debugKey)
+            outerWorldBonusSteps = g.integer(forKey: outerWorldKey)
+        }
+        
+        syncAndPersistBonusBreakdown()
     }
 
     private func persistDebugStepsBonus() {
+        syncAndPersistBonusBreakdown()
+    }
+
+    private func syncAndPersistBonusBreakdown() {
+        bonusSteps = max(0, debugBonusSteps + outerWorldBonusSteps)
+        
         let g = UserDefaults.stepsTrader()
-        g.set(bonusSteps, forKey: "debugStepsBonus_v1")
+        g.set(bonusSteps, forKey: "debugStepsBonus_v1") // keep compatibility (extensions / older code)
+        g.set(debugBonusSteps, forKey: "debugStepsBonus_debug_v1")
+        g.set(outerWorldBonusSteps, forKey: "debugStepsBonus_outerworld_v1")
+    }
+
+    private func consumeBonusSteps(_ cost: Int) {
+        guard cost > 0 else { return }
+        
+        let consumeFromOuterWorld = min(outerWorldBonusSteps, cost)
+        outerWorldBonusSteps = max(0, outerWorldBonusSteps - consumeFromOuterWorld)
+        
+        let remaining = max(0, cost - consumeFromOuterWorld)
+        if remaining > 0 {
+            debugBonusSteps = max(0, debugBonusSteps - remaining)
+        }
+        
+        syncAndPersistBonusBreakdown()
     }
 
     func loadEntryCost() {
@@ -2955,9 +2998,9 @@ extension AppModel {
     }
 
     func addDebugSteps(_ count: Int) {
-        bonusSteps += count
+        debugBonusSteps += count
         cacheStepsToday()
-        persistDebugStepsBonus()
+        syncAndPersistBonusBreakdown()
         print("🧪 Debug: added \(count) steps. Bonus now \(bonusSteps), total \(totalStepsBalance)")
     }
 }
