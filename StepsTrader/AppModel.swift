@@ -28,6 +28,10 @@ final class AppModel: ObservableObject {
     private let minuteTariffBundleKey = "minuteTariffBundleId_v1"
     private let minuteTariffLastTickKey = "minuteTariffLastTick_v1"
     private let minuteTariffRateKey = "minuteTariffRate_v1"
+    
+    // MARK: - Outer World economy
+    private let outerWorldDailyCapKey = "outerworld_dailyCap_v1"
+    private let outerWorldLifetimeCollectedKey = "outerworld_totalcollected" // maintained by OuterWorldLocationManager
 
     private func timeAccessSelectionKey(for bundleId: String) -> String {
         "timeAccessSelection_v1_\(bundleId)"
@@ -277,6 +281,8 @@ final class AppModel: ObservableObject {
 
         // Загрузка бонусного баланса от секретного действия
         loadDebugStepsBonus()
+        // Make sure Outer World daily cap exists even before HealthKit finishes (uses cached/sim steps).
+        persistOuterWorldDailyCap()
         // Загрузка баланса шагов
         loadSpentStepsBalance()
         // Загрузка стоимости входа
@@ -418,14 +424,50 @@ final class AppModel: ObservableObject {
             // Add energy to Outer World bonus (separated from HealthKit energy)
             self.outerWorldBonusSteps += energy
             self.syncAndPersistBonusBreakdown()
-            
-            // Update total collected stats
-            let collectedKey = "outerworld_totalcollected_global"
-            let current = UserDefaults.standard.integer(forKey: collectedKey)
-            UserDefaults.standard.set(current + energy, forKey: collectedKey)
-            
+
             print("⚡ Outer World: Collected \(energy) energy. Bonus now: \(self.bonusSteps)")
         }
+    }
+
+    var outerWorldLifetimeCollected: Int {
+        UserDefaults.standard.integer(forKey: outerWorldLifetimeCollectedKey)
+    }
+    
+    var outerWorldLevel: Int {
+        // Simple progression: lifetime collected gates stronger daily caps.
+        let x = outerWorldLifetimeCollected
+        switch x {
+        case 0..<25_000: return 1
+        case 25_000..<75_000: return 2
+        case 75_000..<150_000: return 3
+        case 150_000..<300_000: return 4
+        case 300_000..<600_000: return 5
+        case 600_000..<1_000_000: return 6
+        default: return 7
+        }
+    }
+    
+    var outerWorldBaseDailyCap: Int {
+        switch outerWorldLevel {
+        case 1: return 6_000
+        case 2: return 8_000
+        case 3: return 10_000
+        case 4: return 13_000
+        case 5: return 16_000
+        case 6: return 20_000
+        default: return 25_000
+        }
+    }
+    
+    var outerWorldDailyCap: Int {
+        // Motivation lever: walk more -> cap grows (but still bounded).
+        // +20% of HealthKit steps today, capped at +6k.
+        let stepBoost = min(6_000, Int(max(0, stepsToday) * 0.2))
+        return outerWorldBaseDailyCap + stepBoost
+    }
+    
+    private func persistOuterWorldDailyCap() {
+        UserDefaults.standard.set(outerWorldDailyCap, forKey: outerWorldDailyCapKey)
     }
 
     // MARK: - PayGate handlers + Pay per entry
@@ -1018,6 +1060,9 @@ final class AppModel: ObservableObject {
         g.set(spentStepsToday, forKey: "spentStepsToday")
         g.set(stepsBalance, forKey: "stepsBalance")
         clearExpiredDayPasses()
+        
+        // Outer World daily cap depends on HealthKit steps; keep it updated in UserDefaults for the map layer.
+        persistOuterWorldDailyCap()
     }
     
     // MARK: - Custom day boundary

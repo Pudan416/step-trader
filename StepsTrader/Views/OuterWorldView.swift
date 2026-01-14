@@ -61,6 +61,9 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     @Published var energyDrops: [EnergyDrop] = []
     @Published var collectedDrop: EnergyDrop?
     @Published var totalCollected: Int = 0
+    @Published var collectedToday: Int = 0
+    @Published var dailyCapReachedAt: Date?
+    @Published var dailyCap: Int = 0
     @Published var magnetUsesToday: Int = 0
     @Published var magnetLimitReachedAt: Date?
     @Published var magnetNoDropsAt: Date?
@@ -73,6 +76,9 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     
     private let magnetDayKeyStorageKey = "outerworld_magnetDayKey_v1"
     private let magnetCountStorageKey = "outerworld_magnetCount_v1"
+    private let capStorageKey = "outerworld_dailyCap_v1"
+    private let collectedTodayDayKeyStorageKey = "outerworld_collectedDayKey_v1"
+    private let collectedTodayStorageKey = "outerworld_collectedToday_v1"
     
     private var cleanupTimer: Timer?
     private var lastMagnetUse: Date?
@@ -86,7 +92,14 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         loadDrops()
         loadTotalCollected()
         loadMagnetUsesToday()
+        loadDailyCap()
+        loadCollectedToday()
         startCleanupTimer()
+    }
+    
+    func refreshEconomySnapshot() {
+        loadDailyCap()
+        loadCollectedToday()
     }
     
     func requestPermission() {
@@ -176,10 +189,16 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     }
     
     private func collectDrop(_ drop: EnergyDrop) {
+        guard consumeDailyCapIfPossible(amount: drop.energy) else {
+            dailyCapReachedAt = Date()
+            return
+        }
         energyDrops.removeAll { $0.id == drop.id }
         collectedDrop = drop
         totalCollected += drop.energy
+        collectedToday += drop.energy
         saveTotalCollected()
+        saveCollectedToday()
         saveDrops()
         
         // Haptic feedback
@@ -230,9 +249,15 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         }
 
         let totalEnergy = closest.energy
+        guard consumeDailyCapIfPossible(amount: totalEnergy) else {
+            dailyCapReachedAt = Date()
+            return
+        }
         energyDrops.removeAll { $0.id == closest.id }
         totalCollected += totalEnergy
+        collectedToday += totalEnergy
         saveTotalCollected()
+        saveCollectedToday()
         saveDrops()
         
         magnetUsesToday += 1
@@ -319,6 +344,43 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     private func loadTotalCollected() {
         totalCollected = UserDefaults.standard.integer(forKey: "outerworld_totalcollected")
     }
+
+    private func refreshCollectedTodayDayIfNeeded() {
+        let today = dayKey(for: Date())
+        let storedDay = UserDefaults.standard.string(forKey: collectedTodayDayKeyStorageKey)
+        if storedDay != today {
+            UserDefaults.standard.set(today, forKey: collectedTodayDayKeyStorageKey)
+            collectedToday = 0
+            saveCollectedToday()
+        }
+    }
+    
+    private func loadCollectedToday() {
+        refreshCollectedTodayDayIfNeeded()
+        collectedToday = UserDefaults.standard.integer(forKey: collectedTodayStorageKey)
+    }
+
+    private func saveCollectedToday() {
+        UserDefaults.standard.set(collectedToday, forKey: collectedTodayStorageKey)
+    }
+
+    private func loadDailyCap() {
+        dailyCap = UserDefaults.standard.integer(forKey: capStorageKey)
+        if dailyCap <= 0 {
+            dailyCap = 8000 // sensible default if AppModel hasn't computed it yet
+        }
+    }
+
+    private func remainingDailyCap() -> Int {
+        refreshEconomySnapshot()
+        return max(0, dailyCap - collectedToday)
+    }
+
+    private func consumeDailyCapIfPossible(amount: Int) -> Bool {
+        let remaining = remainingDailyCap()
+        guard remaining >= amount else { return false }
+        return true
+    }
     
     private func refreshMagnetDayIfNeeded() {
         let today = dayKey(for: Date())
@@ -389,6 +451,7 @@ struct OuterWorldView: View {
     @State private var mapRegion = MKCoordinateRegion()
     @State private var showMagnetLimitToast = false
     @State private var showMagnetNoDropsToast = false
+    @State private var showDailyCapToast = false
     @State private var selectedDrop: EnergyDrop?
     
     var body: some View {
@@ -412,6 +475,8 @@ struct OuterWorldView: View {
                 toast(text: loc(appLanguage, "Magnet limit reached (3/day)", "Лимит магнита (3/день)"))
             } else if showMagnetNoDropsToast {
                 toast(text: loc(appLanguage, "No drops within 500m", "Нет капель в радиусе 500м"))
+            } else if showDailyCapToast {
+                toast(text: loc(appLanguage, "Outer World cap reached for today", "Лимит Outer World на сегодня исчерпан"))
             }
             
             if let drop = selectedDrop {
@@ -420,6 +485,11 @@ struct OuterWorldView: View {
         }
         .onAppear {
             checkLocationPermission()
+            locationManager.refreshEconomySnapshot()
+        }
+        .onChange(of: model.stepsToday) { _, _ in
+            // Daily cap depends on HealthKit steps; AppModel persists it into defaults.
+            locationManager.refreshEconomySnapshot()
         }
         .onReceive(locationManager.$collectedDrop) { drop in
             if drop != nil {
@@ -441,6 +511,13 @@ struct OuterWorldView: View {
             showMagnetNoDropsToast = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
                 showMagnetNoDropsToast = false
+            }
+        }
+        .onReceive(locationManager.$dailyCapReachedAt) { date in
+            guard date != nil else { return }
+            showDailyCapToast = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                showDailyCapToast = false
             }
         }
         .alert(loc(appLanguage, "Location Required", "Требуется геолокация"), isPresented: $showPermissionAlert) {
@@ -520,16 +597,35 @@ struct OuterWorldView: View {
                 Spacer()
                 
                 // Stats badge
-                HStack(spacing: 6) {
-                    Image(systemName: "bolt.fill")
-                        .foregroundColor(.yellow)
-                    Text(formatNumber(locationManager.totalCollected))
-                        .font(.subheadline.bold())
+                let cap = max(1, locationManager.dailyCap)
+                let used = min(cap, max(0, locationManager.collectedToday))
+                VStack(alignment: .trailing, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "crown.fill")
+                            .font(.caption2)
+                            .foregroundColor(.purple)
+                        Text("Lv \(model.outerWorldLevel)")
+                            .font(.caption.bold())
+                            .foregroundColor(.primary)
+                    }
+                    
+                    VStack(alignment: .trailing, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "bolt.fill")
+                                .foregroundColor(.yellow)
+                            Text(formatNumber(locationManager.totalCollected))
+                                .font(.subheadline.bold())
+                        }
+                        
+                        Text("\(formatNumber(used)) / \(formatNumber(cap))")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(
-                    Capsule()
+                    RoundedRectangle(cornerRadius: 999)
                         .fill(.ultraThinMaterial)
                 )
             }
