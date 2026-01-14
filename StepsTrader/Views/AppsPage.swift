@@ -1479,129 +1479,52 @@ struct ManualsPage: View {
     @State private var showGallery: Bool = false
     @State private var galleryImages: [String] = []
     @State private var galleryIndex: Int = 0
-    private let cardBackground = Color.gray.opacity(0.08)
     
     var body: some View {
         NavigationView {
             ZStack {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Button {
-                                withAnimation(.easeInOut) {
-                                    isExpanded.toggle()
-                                }
-                            } label: {
-                                HStack {
-                                    Text(appLanguage == "ru" ? "Как подключить щит" : "How to set up a shield")
-                                        .font(.title3.weight(.semibold))
-                                        .foregroundColor(.primary)
-                                    Spacer()
-                                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                        .font(.headline)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            
-                            if isExpanded {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    let manualImages = (1...11).map { "manual_1_\($0)" }
-                                    ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 12) {
-                                            ForEach(Array(manualImages.enumerated()), id: \.offset) { index, name in
-                                                Image(name)
-                                                    .resizable()
-                                                    .scaledToFit()
-                                                    .frame(height: 220)
-                                                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                                                    .shadow(radius: 4)
-                                                    .onTapGesture {
-                                                        openGallery(images: manualImages, startAt: index)
-                                                    }
-                                            }
-                                        }
-                                        .padding(.vertical, 4)
-                                    }
-                                    
-                                    Text(appLanguage == "ru" ? "Шаги" : "Steps")
-                                        .font(.headline)
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text(appLanguage == "ru" ? "1. Откройте ссылку на щит и добавьте его в Команды." : "1. Open the shield link and add it to Shortcuts.")
-                                        Text(appLanguage == "ru" ? "2. В Команды → Автоматизация → + → Приложение выберите нужное приложение и включите «Открыто» и «Выполнять сразу»." : "2. In Shortcuts → Automation → + → App, pick the target app and enable “Is Opened” and “Run Immediately”.")
-                                        Text(appLanguage == "ru" ? "3. Укажите щит [Space] CTRL и сохраните." : "3. Select the [Space] CTRL shield and save.")
-                                        Text(appLanguage == "ru" ? "4. Откройте приложение один раз, чтобы активировать автоматизацию." : "4. Open the app once to activate automation.")
-                                    }
-                                    .font(.body)
-                                    .foregroundColor(.primary)
-                                    
-                                    Text(appLanguage == "ru" ? "Подсказка" : "Tip")
-                                        .font(.headline)
-                                    Text(appLanguage == "ru" ? "Если щит не срабатывает, убедитесь, что включены уведомления и доступ к Командам." : "If the shield doesn’t fire, ensure notifications and Shortcuts access are enabled.")
-                                        .font(.body)
-                                        .foregroundColor(.secondary)
-                                }
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                            }
-                        }
-                        .padding()
-                        .background(RoundedRectangle(cornerRadius: 16).fill(cardBackground))
-                    }
-                    .padding()
-
-                    expandableCard(
-                        title: appLanguage == "ru" ? "Как прокачивать уровни" : "How levels grow",
-                        expanded: $isLevelsExpanded,
-                        content: levelsContent
-                    )
-
-                    expandableCard(
-                        title: appLanguage == "ru" ? "Как настраивать варианты входа" : "How to configure entry options",
-                        expanded: $isEntryExpanded,
-                        content: entryOptionsContent
-                    )
-                }
-                
-                if showGallery {
-                    ZStack {
-                        Color.black.opacity(0.75)
-                            .ignoresSafeArea()
-                            .transition(.opacity)
-                            .onTapGesture { closeGallery() }
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Header section
+                        headerSection
                         
-                        TabView(selection: $galleryIndex) {
-                            ForEach(Array(galleryImages.enumerated()), id: \.offset) { index, name in
-                                if let uiImage = UIImage(named: name) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .clipShape(RoundedRectangle(cornerRadius: 18))
-                                        .tag(index)
-                                        .padding()
-                                } else {
-                                    Color.clear.tag(index)
-                                }
-                            }
-                        }
-                        .tabViewStyle(.page(indexDisplayMode: .always))
-                        .background(Color.clear)
-                        .ignoresSafeArea()
-                        .gesture(
-                            DragGesture(minimumDistance: 20)
-                                .onEnded { value in
-                                    if abs(value.translation.height) > 60 {
-                                        closeGallery()
-                                    }
-                                }
+                        // Setup guide card
+                        setupGuideCard
+                        
+                        // Levels explanation card
+                        expandableCard(
+                            title: appLanguage == "ru" ? "Как прокачивать уровни" : "How levels work",
+                            icon: "chart.line.uptrend.xyaxis",
+                            iconColor: .green,
+                            expanded: $isLevelsExpanded,
+                            content: levelsContent
+                        )
+                        
+                        // Entry options card
+                        expandableCard(
+                            title: appLanguage == "ru" ? "Варианты входа" : "Entry options",
+                            icon: "door.left.hand.open",
+                            iconColor: .orange,
+                            expanded: $isEntryExpanded,
+                            content: entryOptionsContent
                         )
                     }
-                    .zIndex(2)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 100)
+                }
+                .scrollIndicators(.hidden)
+                .background(Color(.systemGroupedBackground))
+                
+                // Gallery overlay
+                if showGallery {
+                    galleryOverlay
                 }
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(true)
         }
-        .background(Color.clear)
         .onDisappear {
             showGallery = false
             galleryImages = []
@@ -1610,58 +1533,265 @@ struct ManualsPage: View {
             isEntryExpanded = false
         }
     }
+    
+    // MARK: - Header
+    private var headerSection: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "book.fill")
+                .font(.title2)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.blue, .purple],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(loc(appLanguage, "Manuals", "Мануалы"))
+                    .font(.title2.bold())
+                Text(loc(appLanguage, "Learn how to use shields effectively", "Узнайте, как эффективно использовать щиты"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 8)
+    }
+    
+    // MARK: - Setup Guide Card
+    private var setupGuideCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Card header
+            Button {
+                withAnimation(.spring(response: 0.3)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    // Icon
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.15))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "gearshape.2.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.blue)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(appLanguage == "ru" ? "Как подключить щит" : "How to set up a shield")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        Text(appLanguage == "ru" ? "Пошаговая инструкция" : "Step-by-step guide")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(.blue.opacity(0.6))
+                }
+                .padding(16)
+            }
+            
+            if isExpanded {
+                Divider()
+                    .padding(.horizontal, 16)
+                
+                VStack(alignment: .leading, spacing: 16) {
+                    // Image carousel
+                    let manualImages = (1...11).map { "manual_1_\($0)" }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(Array(manualImages.enumerated()), id: \.offset) { index, name in
+                                Image(name)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(height: 200)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                    .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                    .onTapGesture {
+                                        openGallery(images: manualImages, startAt: index)
+                                    }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                    }
+                    
+                    // Steps
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "list.number")
+                                .foregroundColor(.blue)
+                            Text(appLanguage == "ru" ? "Шаги" : "Steps")
+                                .font(.subheadline.bold())
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 10) {
+                            stepRow(number: 1, text: appLanguage == "ru" ? "Откройте ссылку на щит и добавьте его в Команды." : "Open the shield link and add it to Shortcuts.")
+                            stepRow(number: 2, text: appLanguage == "ru" ? "В Команды → Автоматизация → + → Приложение выберите нужное приложение и включите «Открыто» и «Выполнять сразу»." : "In Shortcuts → Automation → + → App, pick the target app and enable "Is Opened" and "Run Immediately".")
+                            stepRow(number: 3, text: appLanguage == "ru" ? "Укажите щит [Space] CTRL и сохраните." : "Select the [Space] CTRL shield and save.")
+                            stepRow(number: 4, text: appLanguage == "ru" ? "Откройте приложение один раз, чтобы активировать автоматизацию." : "Open the app once to activate automation.")
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    
+                    // Tip
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "lightbulb.fill")
+                            .foregroundColor(.yellow)
+                            .font(.title3)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(appLanguage == "ru" ? "Подсказка" : "Tip")
+                                .font(.subheadline.bold())
+                            Text(appLanguage == "ru" ? "Если щит не срабатывает, убедитесь, что включены уведомления и доступ к Командам." : "If the shield doesn't fire, ensure notifications and Shortcuts access are enabled.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.yellow.opacity(0.1))
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+    
+    @ViewBuilder
+    private func stepRow(number: Int, text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(number)")
+                .font(.caption.bold())
+                .foregroundColor(.white)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Color.blue))
+            
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+    
+    // MARK: - Gallery Overlay
+    private var galleryOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.9)
+                .ignoresSafeArea()
+                .onTapGesture { closeGallery() }
+            
+            VStack {
+                // Close button
+                HStack {
+                    Spacer()
+                    Button {
+                        closeGallery()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                    .padding()
+                }
+                
+                // Image viewer
+                TabView(selection: $galleryIndex) {
+                    ForEach(Array(galleryImages.enumerated()), id: \.offset) { index, name in
+                        if let uiImage = UIImage(named: name) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFit()
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .tag(index)
+                                .padding(.horizontal, 20)
+                        } else {
+                            Color.clear.tag(index)
+                        }
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+                
+                // Image counter
+                Text("\(galleryIndex + 1) / \(galleryImages.count)")
+                    .font(.caption.bold())
+                    .foregroundColor(.white.opacity(0.7))
+                    .padding(.bottom, 20)
+            }
+        }
+        .zIndex(2)
+        .transition(.opacity)
+        .gesture(
+            DragGesture(minimumDistance: 50)
+                .onEnded { value in
+                    if abs(value.translation.height) > 80 {
+                        closeGallery()
+                    }
+                }
+        )
+    }
 
     @ViewBuilder
     private func levelsContent() -> some View {
-        let ru = [
-            "• Чем больше путешествуете, тем сильнее прокачивается щит — топливо тратится, опыт копится.",
-            "• Уровней 10: второй открывается после 10 000 шагов, дальше пороги растут до 500 000.",
-            "• С ростом уровня входить легче: I=100 шагов, ... , X=10 шагов.",
-            "• За прогрессом смотрите в карточке щита: там видно, сколько топлива уже сожжено."
+        let items: [(icon: String, color: Color, ru: String, en: String)] = [
+            ("flame.fill", .orange, "Чем больше путешествуете, тем сильнее прокачивается щит — топливо тратится, опыт копится.", "The more you travel, the stronger the shield gets — fuel spent turns into experience."),
+            ("star.fill", .yellow, "Уровней 10: второй открывается после 10 000 шагов, дальше пороги растут до 500 000.", "There are 10 levels: level II at 10,000 steps, then thresholds grow up to 500,000."),
+            ("bolt.fill", .green, "С ростом уровня входить легче: I=100 шагов, ... , X=10 шагов.", "Higher level = cheaper launch: I=100 steps ... X=10 steps."),
+            ("chart.bar.fill", .blue, "За прогрессом смотрите в карточке щита: там видно, сколько топлива уже сожжено.", "Track your progress on the shield page to see how much fuel you've burned.")
         ]
-        let en = [
-            "• The more you travel, the stronger the shield gets — fuel spent turns into experience.",
-            "• There are 10 levels: level II at 10,000 steps, then thresholds grow up to 500,000.",
-            "• Higher level = cheaper launch: I=100 steps ... X=10 steps.",
-            "• Track your progress on the shield page to see how much fuel you've burned."
-        ]
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(appLanguage == "ru" ? ru : en, id: \.self) { line in
-                Text(line).font(.body).foregroundColor(.primary)
+        
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(items, id: \.ru) { item in
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: item.icon)
+                        .foregroundColor(item.color)
+                        .frame(width: 24)
+                    Text(appLanguage == "ru" ? item.ru : item.en)
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(cardBackground))
+        .padding(16)
     }
 
     @ViewBuilder
     private func entryOptionsContent() -> some View {
         let manualImages = ["manual_2_1", "manual_2_2", "manual_2_3"]
-        let ruText = [
-            "Во время путешествий по соцсетям нужен разный запас времени.",
-            "Где-то хватает одного входа, где-то надо «жить» часами.",
-            "Выбирайте формат: разовый, 5 мин, 1 час или день.",
-            "Стоимость зависит от уровня (10–100 шагов за вход, 50–500 за 5 мин, 120–1200 за час, 1000–10000 за день).",
-            "Лишние варианты можно выключить в настройках щита — их не будет на PayGate."
-        ]
-        let enText = [
-            "Different worlds need different fuel.",
-            "Sometimes one entry is enough, sometimes you camp there for an hour.",
-            "Pick your mode: single, 5 min, 1 hour, or a day pass.",
-            "Costs scale with your level (10–100 steps for single, 50–500 for 5 min, 120–1200 for an hour, 1000–10000 for a day).",
-            "Toggle off the modes you don’t need in the shield settings — they disappear from PayGate."
+        let items: [(icon: String, color: Color, ru: String, en: String)] = [
+            ("clock.fill", .purple, "Во время путешествий по соцсетям нужен разный запас времени.", "Different worlds need different fuel."),
+            ("door.left.hand.open", .orange, "Где-то хватает одного входа, где-то надо «жить» часами.", "Sometimes one entry is enough, sometimes you camp there for hours."),
+            ("square.grid.2x2.fill", .blue, "Выбирайте формат: разовый, 5 мин, 1 час или день.", "Pick your mode: single, 5 min, 1 hour, or a day pass."),
+            ("bolt.fill", .green, "Стоимость зависит от уровня (10–100 шагов за вход, 50–500 за 5 мин и т.д.).", "Costs scale with your level (10–100 for single, 50–500 for 5 min, etc.)."),
+            ("slider.horizontal.3", .gray, "Лишние варианты можно выключить в настройках щита.", "Toggle off the modes you don't need in the shield settings.")
         ]
 
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
+            // Image carousel
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(Array(manualImages.enumerated()), id: \.offset) { index, name in
                         Image(name)
                             .resizable()
                             .scaledToFit()
-                            .frame(height: 220)
+                            .frame(height: 180)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
-                            .shadow(radius: 3)
+                            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
                             .onTapGesture {
                                 openGallery(images: manualImages, startAt: index)
                             }
@@ -1670,59 +1800,80 @@ struct ManualsPage: View {
                 .padding(.vertical, 4)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(appLanguage == "ru" ? ruText : enText, id: \.self) { line in
-                    Text(line)
-                        .font(.body)
-                        .foregroundColor(.primary)
+            // Text items
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(items, id: \.ru) { item in
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: item.icon)
+                            .foregroundColor(item.color)
+                            .frame(width: 24)
+                        Text(appLanguage == "ru" ? item.ru : item.en)
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(cardBackground))
+        .padding(16)
     }
 
     private func openGallery(images: [String], startAt index: Int) {
         galleryImages = images
         galleryIndex = index
-        withAnimation(.easeInOut) {
+        withAnimation(.spring(response: 0.3)) {
             showGallery = true
         }
     }
     
     private func closeGallery() {
-        withAnimation(.easeInOut) {
+        withAnimation(.spring(response: 0.3)) {
             showGallery = false
         }
     }
 
-    private func expandableCard(title: String, expanded: Binding<Bool>, content: @escaping () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private func expandableCard(title: String, icon: String, iconColor: Color, expanded: Binding<Bool>, content: @escaping () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(.easeInOut) {
+                withAnimation(.spring(response: 0.3)) {
                     expanded.wrappedValue.toggle()
                 }
             } label: {
-                HStack {
+                HStack(spacing: 12) {
+                    // Icon
+                    ZStack {
+                        Circle()
+                            .fill(iconColor.opacity(0.15))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: icon)
+                            .font(.system(size: 16))
+                            .foregroundColor(iconColor)
+                    }
+                    
                     Text(title)
-                        .font(.title3.weight(.semibold))
-                        .foregroundColor(.primary)
-                    Spacer()
-                    Image(systemName: expanded.wrappedValue ? "chevron.up" : "chevron.down")
                         .font(.headline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    Image(systemName: expanded.wrappedValue ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(iconColor.opacity(0.6))
                 }
-                .padding(.vertical, 10)
-                .padding(.horizontal, 12)
-                .background(RoundedRectangle(cornerRadius: 14).fill(cardBackground))
+                .padding(16)
             }
 
             if expanded.wrappedValue {
+                Divider()
+                    .padding(.horizontal, 16)
+                
                 content()
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(cardBackground))
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(.secondarySystemBackground))
+        )
     }
 }
