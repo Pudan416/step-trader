@@ -54,10 +54,10 @@ struct StepsTraderApp: App {
                         isPresented: $showIntro,
                         slides: introSlides(appLanguage: appLanguage),
                         accent: Color(red: 224/255, green: 130/255, blue: 217/255),
-                        skipText: "Skip",
-                        nextText: "Next",
-                        startText: "Start",
-                        allowText: "Allow",
+                        skipText: loc(appLanguage, "Skip", "Пропустить"),
+                        nextText: loc(appLanguage, "Next", "Дальше"),
+                        startText: loc(appLanguage, "Start", "Начать"),
+                        allowText: loc(appLanguage, "Allow", "Разрешить"),
                         onHealthSlide: {
                             Task { await model.ensureHealthAuthorizationAndRefresh() }
                         },
@@ -350,24 +350,70 @@ private extension StepsTraderApp {
     func introSlides(appLanguage: String) -> [OnboardingSlide] {
         [
             OnboardingSlide(
-                title: "DOOM CTRL is here to stop your doomscroll",
-                subtitle: "Raise shields to make crawls to other apps less doomed",
-                emoji: "🛡"
+                title: loc(appLanguage, "Welcome to DOOM CTRL", "Добро пожаловать в DOOM CTRL"),
+                subtitle: loc(appLanguage, "Turn mindless app opens into a conscious choice.", "Преврати автопереходы в осознанный выбор."),
+                symbol: "shield.fill",
+                gradient: [.purple, .pink],
+                bullets: [
+                    loc(appLanguage, "Create Shields for distracting apps", "Создавай щиты для отвлекающих приложений"),
+                    loc(appLanguage, "Unlocking costs Energy", "Открытие стоит энергии")
+                ],
+                action: .none
             ),
             OnboardingSlide(
-                title: "Your steps charge the batteries",
-                subtitle: "Batteries power and level up your shields.",
-                emoji: "📈"
+                title: loc(appLanguage, "Energy = Steps + Outer World", "Энергия = Шаги + Внешний мир"),
+                subtitle: loc(appLanguage, "Daily steps refill your Energy. Drops add extra fuel.", "Шаги каждый день пополняют энергию. Капли добавляют топливо."),
+                symbol: "bolt.fill",
+                gradient: [.yellow, .orange],
+                bullets: [
+                    loc(appLanguage, "Steps come from Health", "Шаги берём из Health"),
+                    loc(appLanguage, "Outer World drops give +500 Energy", "Капли во Внешнем мире дают +500 энергии")
+                ],
+                action: .none
             ),
             OnboardingSlide(
-                title: "Share your steps",
-                subtitle: "Give access to Health steps so we can turn them into charges for your battery.",
-                emoji: "👟"
+                title: loc(appLanguage, "Shields level up", "Щиты прокачиваются"),
+                subtitle: loc(appLanguage, "Invest Energy into a Shield to lower future prices.", "Инвестируй энергию в щит — будущие цены станут ниже."),
+                symbol: "star.fill",
+                gradient: [.blue, .purple],
+                bullets: [
+                    loc(appLanguage, "Each level has progress", "У каждого уровня есть прогресс"),
+                    loc(appLanguage, "More invested = cheaper access", "Больше инвестиций = дешевле доступ")
+                ],
+                action: .none
             ),
             OnboardingSlide(
-                title: "Allow notifications",
-                subtitle: "We ping you when shields are running out.",
-                emoji: "🔔"
+                title: loc(appLanguage, "Two access modes", "Два режима доступа"),
+                subtitle: loc(appLanguage, "Pick what fits your behavior.", "Выбирай то, что подходит тебе."),
+                symbol: "timer",
+                gradient: [.cyan, .blue],
+                bullets: [
+                    loc(appLanguage, "Open mode: pay once for a time window", "Open mode: платишь один раз за окно времени"),
+                    loc(appLanguage, "Minute mode: pay per minute of real use (needs Screen Time)", "Minute mode: платишь за минуту реального использования (нужен Screen Time)")
+                ],
+                action: .none
+            ),
+            OnboardingSlide(
+                title: loc(appLanguage, "Connect your Steps", "Подключи шаги"),
+                subtitle: loc(appLanguage, "We need access to count Steps and refill your Energy.", "Нужен доступ, чтобы считать шаги и пополнять энергию."),
+                symbol: "figure.walk",
+                gradient: [.pink, .purple],
+                bullets: [
+                    loc(appLanguage, "Used only to calculate Energy", "Используется только для расчёта энергии"),
+                    loc(appLanguage, "You control everything in Settings", "Всё контролируется в Настройках")
+                ],
+                action: .requestHealth
+            ),
+            OnboardingSlide(
+                title: loc(appLanguage, "Enable notifications", "Включи уведомления"),
+                subtitle: loc(appLanguage, "We’ll remind you when access is about to end.", "Напомним, когда доступ скоро закончится."),
+                symbol: "bell.badge.fill",
+                gradient: [.orange, .pink],
+                bullets: [
+                    loc(appLanguage, "Timers and access reminders", "Таймеры и напоминания доступа"),
+                    loc(appLanguage, "No spam — only useful signals", "Без спама — только полезные сигналы")
+                ],
+                action: .requestNotifications
             )
         ]
     }
@@ -1409,11 +1455,20 @@ extension PayGateView {
 }
 
 // MARK: - Onboarding Stories
+enum OnboardingSlideAction: Equatable {
+    case none
+    case requestHealth
+    case requestNotifications
+}
+
 struct OnboardingSlide: Identifiable {
     let id = UUID()
     let title: String
     let subtitle: String
-    let emoji: String
+    let symbol: String
+    let gradient: [Color]
+    let bullets: [String]
+    let action: OnboardingSlideAction
 }
 
 struct OnboardingStoriesView: View {
@@ -1433,40 +1488,18 @@ struct OnboardingStoriesView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            onboardingBackground.ignoresSafeArea()
 
             VStack(spacing: 24) {
-                appLogo
-                    .padding(.top, 28)
+                header
+                    .padding(.top, 18)
 
                 progressBar
-                    .padding(.top, 8)
+                    .padding(.top, 6)
 
                 TabView(selection: $index) {
                     ForEach(Array(slides.enumerated()), id: \.offset) { idx, slide in
-                        VStack(spacing: 20) {
-                            Text(slide.emoji)
-                                .font(.system(size: 68))
-
-                            VStack(spacing: 12) {
-                                Text(slide.title)
-                                    .font(.system(size: 26, weight: .heavy, design: .rounded))
-                                    .multilineTextAlignment(.center)
-                                    .foregroundColor(.black)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 10)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 18)
-                                            .fill(Color.white)
-                                    )
-                                Text(slide.subtitle)
-                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                    .multilineTextAlignment(.center)
-                                    .foregroundColor(accentPink)
-                                    .padding(.horizontal, 16)
-                            }
-                            .padding(.horizontal, 12)
-                        }
+                        slideCard(slide: slide)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(.bottom, 12)
                         .tag(idx)
@@ -1479,25 +1512,14 @@ struct OnboardingStoriesView: View {
                     Button(action: finish) {
                         Text(skipText)
                             .font(.headline)
-                            .foregroundColor(.white.opacity(0.85))
+                            .foregroundColor(.white.opacity(0.90))
                             .frame(maxWidth: .infinity, minHeight: 48)
-                            .background(Color.white.opacity(0.12))
+                            .background(Color.white.opacity(0.10))
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
 
                     Button(action: next) {
-                        let label: String = {
-                            let lastIndex = slides.count - 1
-                            let healthIndex = slides.count - 2
-                            if index == lastIndex {
-                                return startText
-                            } else if index == healthIndex || index == lastIndex {
-                                return allowText
-                            } else {
-                                return nextText
-                            }
-                        }()
-                        Text(label)
+                        Text(primaryButtonTitle)
                             .font(.headline.bold())
                             .foregroundColor(.black)
                             .frame(maxWidth: .infinity, minHeight: 48)
@@ -1512,11 +1534,33 @@ struct OnboardingStoriesView: View {
         }
     }
 
+    private var onboardingBackground: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color.black, Color.black.opacity(0.85)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            RadialGradient(
+                colors: [accent.opacity(0.35), Color.clear],
+                center: .topTrailing,
+                startRadius: 40,
+                endRadius: 420
+            )
+            RadialGradient(
+                colors: [Color.purple.opacity(0.22), Color.clear],
+                center: .bottomLeading,
+                startRadius: 60,
+                endRadius: 520
+            )
+        }
+    }
+
     private var progressBar: some View {
         HStack(spacing: 8) {
             ForEach(slides.indices, id: \.self) { i in
                 Capsule()
-                    .fill(i <= index ? accent : Color.white.opacity(0.4))
+                    .fill(i <= index ? accent : Color.white.opacity(0.35))
                     .frame(height: 4)
                     .animation(.easeInOut(duration: 0.25), value: index)
             }
@@ -1524,8 +1568,30 @@ struct OnboardingStoriesView: View {
         .padding(.horizontal, 24)
     }
 
-    private var accentPink: Color {
-        Color(red: 0.878, green: 0.51, blue: 0.851)
+    private var header: some View {
+        HStack(spacing: 12) {
+            appLogo
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("DOOM CTRL")
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                Text("Fuel → Shields → Control")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .overlay(alignment: .topTrailing) {
+            Button(action: finish) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(.white.opacity(0.6))
+            }
+            .padding(.trailing, 16)
+        }
     }
 
     private var appLogo: some View {
@@ -1534,18 +1600,100 @@ struct OnboardingStoriesView: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 78, height: 78)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .shadow(color: .white.opacity(0.2), radius: 8, x: 0, y: 4)
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: .black.opacity(0.25), radius: 10, x: 0, y: 6)
             } else {
-                Text("DOOM\nCTRL")
-                    .font(.system(size: 22, weight: .heavy, design: .rounded))
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(.black)
-                    .padding(14)
-                    .background(RoundedRectangle(cornerRadius: 18).fill(Color.white))
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.ultraThinMaterial)
+                        .frame(width: 44, height: 44)
+                    Text("DC")
+                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .foregroundColor(.white)
+                }
             }
         }
+    }
+
+    @ViewBuilder
+    private func slideCard(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: slide.gradient.map { $0.opacity(0.90) },
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 84, height: 84)
+                    .shadow(color: slide.gradient.first?.opacity(0.35) ?? .clear, radius: 20, x: 0, y: 12)
+
+                Image(systemName: slide.symbol)
+                    .font(.system(size: 34, weight: .heavy))
+                    .foregroundColor(.white)
+            }
+            .padding(.top, 10)
+
+            VStack(spacing: 10) {
+                Text(slide.title)
+                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 18)
+
+                Text(slide.subtitle)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.78))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 18)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(slide.bullets, id: \.self) { text in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: slide.gradient,
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                        Text(text)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.white.opacity(0.90))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                    )
+            )
+            .padding(.horizontal, 14)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 8)
+    }
+
+    private var primaryButtonTitle: String {
+        guard slides.indices.contains(index) else { return nextText }
+        let lastIndex = slides.count - 1
+        if index == lastIndex { return startText }
+        if slides[index].action != .none { return allowText }
+        return nextText
     }
 
     private func appIconImage() -> UIImage? {
@@ -1559,21 +1707,28 @@ struct OnboardingStoriesView: View {
     }
 
     private func next() {
-        let lastIndex = slides.count - 1
-        let healthIndex = slides.count - 2
-
-        if index < lastIndex {
-            if index == healthIndex && !didTriggerHealthRequest {
+        if slides.indices.contains(index) {
+            let action = slides[index].action
+            switch action {
+            case .requestHealth:
+                if !didTriggerHealthRequest {
                 didTriggerHealthRequest = true
                 onHealthSlide?()
             }
-            withAnimation(.easeInOut) { index += 1 }
-        } else {
-            // Last slide
+            case .requestNotifications:
             if !didTriggerNotificationRequest {
                 didTriggerNotificationRequest = true
                 onNotificationSlide?()
             }
+            case .none:
+                break
+            }
+        }
+
+        let lastIndex = slides.count - 1
+        if index < lastIndex {
+            withAnimation(.easeInOut) { index += 1 }
+        } else {
             finish()
         }
     }
