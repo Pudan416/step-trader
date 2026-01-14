@@ -864,6 +864,7 @@ struct PayGateView: View {
                                 let minutesText = minutesLeft == Int.max ? "∞" : "\(minutesLeft)"
                                 let rate = model.unlockSettings(for: bundleId).entryCostSteps
         let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
+        let canStart = model.isDeviceActivityMinuteModeAvailable(for: bundleId)
         
         VStack(spacing: 16) {
             // Header with icon
@@ -904,18 +905,18 @@ struct PayGateView: View {
             
             // Enter button
             Button {
-                Task { await model.handleMinuteTariffEntry(for: bundleId) }
+                                        Task { await model.handleMinuteTariffEntry(for: bundleId) }
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "play.fill")
                     Text(loc("Start Session", "Начать сессию"))
-                }
+                                    }
                                         .font(.headline)
-                .foregroundColor(.white)
+                                    .foregroundColor(.white)
                 .frame(maxWidth: .infinity, minHeight: 56)
                 .background(
                     LinearGradient(
-                        colors: minutesLeft > 0 ? [pink, pink.opacity(0.8)] : [.gray, .gray.opacity(0.8)],
+                        colors: (minutesLeft > 0 && canStart) ? [pink, pink.opacity(0.8)] : [.gray, .gray.opacity(0.8)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -924,7 +925,13 @@ struct PayGateView: View {
                 .shadow(color: pink.opacity(0.4), radius: 10, x: 0, y: 5)
             }
             .contentShape(Rectangle())
-            .disabled(minutesLeft <= 0)
+            .disabled(minutesLeft <= 0 || !canStart)
+            
+            if !canStart {
+                Text(loc("Connect Screen Time for Minute Mode", "Подключи Screen Time для минутного режима"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
     }
     

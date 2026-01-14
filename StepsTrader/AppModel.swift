@@ -630,17 +630,17 @@ final class AppModel: ObservableObject {
             return
         }
 
-        // Prefer DeviceActivity-based charging (true "pay per minute of actual app use").
-        // Only fall back to wall-clock if FamilyControls isn't available/authorized or selection isn't set.
-        if shouldUseDeviceActivityMinuteMode(for: bundleId) {
-            if let familyService = familyControlsService as? FamilyControlsService {
-                familyService.updateMinuteModeMonitoring()
-                familyService.allowOneSession()
-            }
-            clearMinuteTariffSessionState()
-        } else {
-            startMinuteTariffSession(for: bundleId, rate: rate)
+        // Minute mode MUST be usage-based (DeviceActivity). We do not support wall-clock charging anymore,
+        // because it keeps charging while the user is not actually using the target app.
+        guard isDeviceActivityMinuteModeAvailable(for: bundleId) else {
+            message = "⚠️ Minute mode requires Screen Time selection."
+            return
         }
+        if let familyService = familyControlsService as? FamilyControlsService {
+            familyService.updateMinuteModeMonitoring()
+            familyService.allowOneSession()
+        }
+        clearMinuteTariffSessionState()
         
         // Track session start snapshot for summary notification.
         startMinuteModeSessionSnapshot(bundleId: bundleId)
@@ -668,6 +668,10 @@ final class AppModel: ObservableObject {
         _ = bundleId
         return false
         #endif
+    }
+
+    func isDeviceActivityMinuteModeAvailable(for bundleId: String) -> Bool {
+        shouldUseDeviceActivityMinuteMode(for: bundleId)
     }
 
     private func clearMinuteTariffSessionState() {
@@ -884,7 +888,8 @@ final class AppModel: ObservableObject {
         print("📱 App entering foreground - checking elapsed time")
         purgeExpiredAccessWindows()
         handleBlockedRedirect()
-        applyMinuteTariffCatchup()
+        // Kill legacy wall-clock minute tariff state (we only support DeviceActivity usage-based minute mode).
+        clearMinuteTariffSessionState()
         
         // Reload minute mode and steps data from storage (may have been updated by extensions)
         loadAppStepsSpentToday()
