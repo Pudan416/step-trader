@@ -29,6 +29,12 @@ final class AppModel: ObservableObject {
     private let minuteTariffLastTickKey = "minuteTariffLastTick_v1"
     private let minuteTariffRateKey = "minuteTariffRate_v1"
     
+    // Minute mode session summary (local notifications)
+    private let minuteModeSessionBundleKey = "minuteModeSessionBundleId_v1"
+    private let minuteModeSessionStartMinuteCountKey = "minuteModeSessionStartMinuteCount_v1"
+    private let minuteModeSessionStartSpentStepsKey = "minuteModeSessionStartSpentSteps_v1"
+    private let minuteModeSessionStartDayKeyKey = "minuteModeSessionStartDayKey_v1"
+    
     // MARK: - Outer World economy
     private let outerWorldDailyCapKey = "outerworld_dailyCap_v1"
     private let outerWorldLifetimeCollectedKey = "outerworld_totalcollected" // maintained by OuterWorldLocationManager
@@ -635,6 +641,9 @@ final class AppModel: ObservableObject {
         } else {
             startMinuteTariffSession(for: bundleId, rate: rate)
         }
+        
+        // Track session start snapshot for summary notification.
+        startMinuteModeSessionSnapshot(bundleId: bundleId)
         let userDefaults = UserDefaults.stepsTrader()
         userDefaults.set(Date().addingTimeInterval(8), forKey: "suppressShortcutUntil")
         markPayGateOpen(for: bundleId)
@@ -881,6 +890,9 @@ final class AppModel: ObservableObject {
         loadAppStepsSpentToday()
         loadMinuteChargeLogs()
         loadAppStepsSpentLifetime()
+        
+        // If user returns after using a minute-mode app, send a local notification summary.
+        sendMinuteModeSummaryIfNeeded()
 
         // Принудительно восстанавливаем выбор приложений при возврате в приложение
         forceRestoreAppSelection()
@@ -935,6 +947,71 @@ final class AppModel: ObservableObject {
             await refreshStepsBalance()
         }
 
+    }
+
+    private func startMinuteModeSessionSnapshot(bundleId: String) {
+        let g = UserDefaults.stepsTrader()
+        let dayKey = Self.dayKey(for: Date())
+        
+        let minuteCountKey = "minuteCount_\(dayKey)_\(bundleId)"
+        let currentMinutes = g.integer(forKey: minuteCountKey)
+        
+        var perAppToday: [String: Int] = [:]
+        if let data = g.data(forKey: "appStepsSpentToday_v1"),
+           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+            perAppToday = decoded
+        }
+        let currentSpent = perAppToday[bundleId] ?? 0
+        
+        g.set(bundleId, forKey: minuteModeSessionBundleKey)
+        g.set(dayKey, forKey: minuteModeSessionStartDayKeyKey)
+        g.set(currentMinutes, forKey: minuteModeSessionStartMinuteCountKey)
+        g.set(currentSpent, forKey: minuteModeSessionStartSpentStepsKey)
+    }
+
+    private func sendMinuteModeSummaryIfNeeded() {
+        let g = UserDefaults.stepsTrader()
+        guard let bundleId = g.string(forKey: minuteModeSessionBundleKey),
+              let sessionDayKey = g.string(forKey: minuteModeSessionStartDayKeyKey)
+        else { return }
+        
+        let todayKey = Self.dayKey(for: Date())
+        // If day changed, reset snapshot (avoid negative deltas).
+        guard sessionDayKey == todayKey else {
+            g.removeObject(forKey: minuteModeSessionBundleKey)
+            g.removeObject(forKey: minuteModeSessionStartDayKeyKey)
+            g.removeObject(forKey: minuteModeSessionStartMinuteCountKey)
+            g.removeObject(forKey: minuteModeSessionStartSpentStepsKey)
+            return
+        }
+        
+        let startMinutes = g.integer(forKey: minuteModeSessionStartMinuteCountKey)
+        let startSpent = g.integer(forKey: minuteModeSessionStartSpentStepsKey)
+        
+        let minuteCountKey = "minuteCount_\(todayKey)_\(bundleId)"
+        let nowMinutes = g.integer(forKey: minuteCountKey)
+        
+        var perAppToday: [String: Int] = [:]
+        if let data = g.data(forKey: "appStepsSpentToday_v1"),
+           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+            perAppToday = decoded
+        }
+        let nowSpent = perAppToday[bundleId] ?? 0
+        
+        let deltaMinutes = max(0, nowMinutes - startMinutes)
+        let deltaSpent = max(0, nowSpent - startSpent)
+        
+        if deltaMinutes > 0 || deltaSpent > 0 {
+            notificationService.sendMinuteModeSummary(
+                bundleId: bundleId,
+                minutesUsed: deltaMinutes,
+                stepsCharged: deltaSpent
+            )
+            
+            // Update snapshot so repeated returns show incremental usage.
+            g.set(nowMinutes, forKey: minuteModeSessionStartMinuteCountKey)
+            g.set(nowSpent, forKey: minuteModeSessionStartSpentStepsKey)
+        }
     }
 
     // Convenience computed properties for backward compatibility

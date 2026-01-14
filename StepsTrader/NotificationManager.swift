@@ -105,6 +105,39 @@ final class NotificationManager: NotificationServiceProtocol {
             }
         }
     }
+
+    func sendMinuteModeSummary(bundleId: String, minutesUsed: Int, stepsCharged: Int) {
+        guard minutesUsed > 0 || stepsCharged > 0 else { return }
+        
+        let content = UNMutableNotificationContent()
+        let displayName = TargetResolver.displayName(for: bundleId)
+        content.title = "⏱️ \(displayName)"
+        
+        if minutesUsed > 0 && stepsCharged > 0 {
+            content.body = "Used: \(minutesUsed) min • Charged: \(stepsCharged) fuel."
+        } else if minutesUsed > 0 {
+            content.body = "Used: \(minutesUsed) min."
+        } else {
+            content.body = "Charged: \(stepsCharged) fuel."
+        }
+        
+        content.sound = .default
+        content.badge = nil
+        
+        let request = UNNotificationRequest(
+            identifier: "minuteModeSummary-\(bundleId)-\(UUID().uuidString)",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to send minute mode summary notification: \(error)")
+            } else {
+                print("📤 Sent minute mode summary for \(bundleId): \(minutesUsed)m, \(stepsCharged) fuel")
+            }
+        }
+    }
     
     func sendTestNotification() {
         let content = UNMutableNotificationContent()
