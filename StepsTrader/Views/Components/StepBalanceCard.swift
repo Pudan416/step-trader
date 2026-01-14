@@ -93,69 +93,63 @@ struct StepBalanceCard: View {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color(.systemGray5))
                     
-                    // Progress
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(
-                            LinearGradient(
-                                colors: [progressColor, progressColor.opacity(0.7)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: max(12, proxy.size.width * progress))
-                        .shadow(color: progressColor.opacity(0.4), radius: 4, x: 0, y: 2)
+                    // Remaining energy split by source (HealthKit vs Outer World)
+                    if remainingSteps > 0 && totalSteps > 0 {
+                        let remainingWidth = proxy.size.width * progress
+                        let hkRemaining = max(0, healthKitSteps)
+                        let owRemaining = max(0, outerWorldSteps)
+                        let denom = max(1, hkRemaining + owRemaining)
+                        let hkWidth = remainingWidth * (Double(hkRemaining) / Double(denom))
+                        let owWidth = max(0, remainingWidth - hkWidth)
+                        
+                        HStack(spacing: 0) {
+                            Rectangle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.pink, .pink.opacity(0.7)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: hkWidth)
+                            
+                            Rectangle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.blue, .purple.opacity(0.8)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: owWidth)
+                        }
+                        .frame(width: remainingWidth, alignment: .leading)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+                    }
                 }
             }
             .frame(height: 12)
             .animation(.spring(response: 0.4), value: progress)
             
-            // Details section
+            // Details section (sources only)
             if showDetails {
-                VStack(spacing: 12) {
-                HStack(spacing: 12) {
-                        statBox(
-                            icon: "bolt.fill",
-                            title: loc(appLanguage, "Available", "Доступно"),
-                            value: formatNumber(remainingSteps),
-                            color: progressColor
-                        )
-                        
-                        statBox(
-                            icon: "flame.fill",
-                            title: loc(appLanguage, "Spent", "Потрачено"),
-                            value: formatNumber(spentSteps),
-                            color: .orange
-                        )
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(loc(appLanguage, "Sources", "Источники"))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        HStack(spacing: 10) {
-                            sourceChip(
-                                icon: "heart.fill",
-                                title: loc(appLanguage, "HealthKit", "HealthKit"),
-                                value: formatNumber(healthKitSteps),
-                                color: .pink
-                            )
-                            
-                            sourceChip(
-                                icon: "map.fill",
-                                title: loc(appLanguage, "Outer World", "Внешний мир"),
-                                value: formatNumber(outerWorldSteps),
-                                color: .blue
-                            )
-                            
-                            Spacer(minLength: 0)
-                        }
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(Color(.tertiarySystemBackground))
+                HStack(spacing: 10) {
+                    sourceChip(
+                        icon: "heart.fill",
+                        title: loc(appLanguage, "HealthKit", "HealthKit"),
+                        value: formatNumber(healthKitSteps),
+                        color: .pink
                     )
+                    
+                    sourceChip(
+                        icon: "map.fill",
+                        title: loc(appLanguage, "Outer World", "Внешний мир"),
+                        value: formatNumber(outerWorldSteps),
+                        color: .blue
+                    )
+                    
+                    Spacer(minLength: 0)
                 }
                 .transition(.asymmetric(
                     insertion: .move(edge: .top).combined(with: .opacity),
@@ -170,39 +164,6 @@ struct StepBalanceCard: View {
                 .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
         )
         .animation(.spring(response: 0.3), value: showDetails)
-    }
-    
-    @ViewBuilder
-    private func statBox(icon: String, title: String, value: String, color: Color) -> some View {
-        HStack(spacing: 12) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(color.opacity(0.15))
-                    .frame(width: 36, height: 36)
-                
-                Image(systemName: icon)
-                    .font(.subheadline)
-                    .foregroundColor(color)
-            }
-            
-            // Text
-            VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text(value)
-                    .font(.subheadline.bold())
-                    .foregroundColor(.primary)
-            }
-            
-            Spacer()
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(.tertiarySystemBackground))
-        )
     }
     
     @ViewBuilder

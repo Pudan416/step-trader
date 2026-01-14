@@ -465,7 +465,8 @@ struct MainTabView: View {
                     remainingSteps: model.totalStepsBalance,
                     totalSteps: Int(model.effectiveStepsToday),
                     spentSteps: model.spentStepsToday,
-                    healthKitSteps: Int(model.stepsToday),
+                    // Show remaining energy split by source in the bar
+                    healthKitSteps: model.stepsBalance,
                     outerWorldSteps: model.outerWorldBonusSteps,
                     showDetails: selection == 0
                 )
