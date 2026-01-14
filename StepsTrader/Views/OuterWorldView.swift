@@ -527,6 +527,7 @@ struct OuterWorldView: View {
     @State private var showDailyCapToast = false
     @State private var selectedDrop: EnergyDrop?
     @State private var selectedDropForAction: EnergyDrop?
+    @State private var showMechanicInfo: Bool = false
     
     var body: some View {
         ZStack {
@@ -555,6 +556,9 @@ struct OuterWorldView: View {
             if let drop = selectedDrop {
                 dropInfoToast(drop: drop)
             }
+        }
+        .sheet(isPresented: $showMechanicInfo) {
+            mechanicInfoSheet
         }
         .onAppear {
             checkLocationPermission()
@@ -701,6 +705,29 @@ struct OuterWorldView: View {
                 
                 Spacer()
                 
+                HStack(spacing: 10) {
+                    Button {
+                        recenterToUser()
+                    } label: {
+                        Image(systemName: "location.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(.ultraThinMaterial))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(locationManager.userLocation == nil)
+                    
+                    Button {
+                        showMechanicInfo = true
+                    } label: {
+                        Image(systemName: "info.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(.ultraThinMaterial))
+                    }
+                    .buttonStyle(.plain)
+                }
+                
                 // Stats badge
                 let cap = max(1, locationManager.dailyCap)
                 let used = min(cap, max(0, locationManager.collectedToday))
@@ -736,6 +763,51 @@ struct OuterWorldView: View {
                 )
             )
         }
+    }
+    
+    private var mechanicInfoSheet: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(loc(appLanguage, "How it works", "Как это работает"))
+                        .font(.title2.bold())
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(loc(appLanguage, "• One drop at a time within 500m of you.", "• На карте всегда 1 капля в радиусе 500м от тебя."))
+                        Text(loc(appLanguage, "• Each drop gives +500 energy.", "• Каждая капля даёт +500 энергии."))
+                        Text(loc(appLanguage, "• Daily limit: 10,000 energy.", "• Дневной лимит: 10 000 энергии."))
+                        Text(loc(appLanguage, "• You can collect by walking within 50m.", "• Можно собрать, если подойти ближе 50м."))
+                        Text(loc(appLanguage, "• Or use magnet (3 times per day) if the drop is inside 500m.", "• Или притянуть магнитом (3 раза в день), если капля в 500м."))
+                    }
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    
+                    Text(loc(appLanguage, "Tip: tap a drop to build a walking route or use a magnet.", "Подсказка: нажми на каплю — можно построить маршрут или использовать магнит."))
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
+                }
+                .padding()
+            }
+            .navigationTitle(loc(appLanguage, "Outer World", "Внешний мир"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(loc(appLanguage, "Close", "Закрыть")) {
+                        showMechanicInfo = false
+                    }
+                }
+            }
+        }
+    }
+    
+    private func recenterToUser() {
+        guard let userLoc = locationManager.userLocation else { return }
+        let region = MKCoordinateRegion(
+            center: userLoc,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+        cameraPosition = .region(region)
     }
     
     // MARK: - Collected Popup
