@@ -18,13 +18,7 @@
 	</array>
 	<key>DEEPSEEK_API_KEY</key>
 	<string>sk-deb0bea2daa34ca8a9dc766db1468753</string>
-	<key>NSHealthShareUsageDescription</key>
-	<string>DOOM CTRL needs access to your step count to manage app time.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>DOOM CTRL uses your step count to calculate available time.</string>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>DOOM CTRL uses your location to set your city and country.</string>
+	<key>MKDirectionsApplicationSupportedModes</key>
+	<array/>
 </dict>
 </plist>

@@ -358,6 +358,14 @@ final class AppModel: ObservableObject {
 
         // Подписываемся на уведомления о жизненном цикле приложения
         setupAppLifecycleObservers()
+        
+        // Подписка на уведомление о сборе энергии из Outer World
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleEnergyCollected(_:)),
+            name: NSNotification.Name("com.steps.trader.energy.collected"),
+            object: nil
+        )
 
         // Подписка на дарвиновское уведомление от сниппета/интента (безопасная привязка observer)
         CFNotificationCenterAddObserver(
@@ -391,6 +399,31 @@ final class AppModel: ObservableObject {
             nil,
             .deliverImmediately
         )
+    }
+    
+    // MARK: - Outer World Energy Collection
+    
+    @objc private func handleEnergyCollected(_ notification: Notification) {
+        guard let energy = notification.userInfo?["energy"] as? Int else { return }
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Add energy to bonus balance
+            self.debugStepsBonus += energy
+            self.persistDebugStepsBonus()
+            
+            // Update total collected stats
+            let collectedKey = "outerworld_totalcollected_global"
+            let current = UserDefaults.standard.integer(forKey: collectedKey)
+            UserDefaults.standard.set(current + energy, forKey: collectedKey)
+            
+            // Recalculate balance
+            self.stepsBalance = max(0, Int(self.stepsToday) + self.debugStepsBonus - self.spentStepsToday)
+            UserDefaults.stepsTrader().set(self.stepsBalance, forKey: "stepsBalance")
+            
+            print("⚡ Outer World: Collected \(energy) energy. New balance: \(self.stepsBalance)")
+        }
     }
 
     // MARK: - PayGate handlers + Pay per entry

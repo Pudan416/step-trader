@@ -737,8 +737,10 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "DOOM CTRL";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "DOOM CTRL needs access to your step count.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DOOM CTRL uses your step count to let you enter other apps.";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "DOOM CTRL needs access to your step count to manage app time.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DOOM CTRL uses your step count to calculate available time.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "DOOM CTRL uses your location to find energy drops in the Outer World and set your profile.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -774,8 +776,10 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "DOOM CTRL";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "DOOM CTRL needs access to your step count.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DOOM CTRL uses your step count to let you enter other apps.";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "DOOM CTRL needs access to your step count to manage app time.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DOOM CTRL uses your step count to calculate available time.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "DOOM CTRL uses your location to find energy drops in the Outer World and set your profile.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

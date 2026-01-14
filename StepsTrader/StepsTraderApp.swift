@@ -486,10 +486,10 @@ struct MainTabView: View {
                         }
                         .tag(1)
                     
-                    CommunityView(model: model)
+                    OuterWorldView(model: model)
                         .tabItem {
-                            Image(systemName: "person.3.fill")
-                            Text(loc(appLanguage, "Community", "Сообщество"))
+                            Image(systemName: "map.fill")
+                            Text(loc(appLanguage, "Outer World", "Внешний мир"))
                         }
                         .tag(2)
                     
