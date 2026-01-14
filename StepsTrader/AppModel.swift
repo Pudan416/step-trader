@@ -431,37 +431,9 @@ final class AppModel: ObservableObject {
         UserDefaults.standard.integer(forKey: outerWorldLifetimeCollectedKey)
     }
     
-    var outerWorldLevel: Int {
-        // Simple progression: lifetime collected gates stronger daily caps.
-        let x = outerWorldLifetimeCollected
-        switch x {
-        case 0..<25_000: return 1
-        case 25_000..<75_000: return 2
-        case 75_000..<150_000: return 3
-        case 150_000..<300_000: return 4
-        case 300_000..<600_000: return 5
-        case 600_000..<1_000_000: return 6
-        default: return 7
-        }
-    }
-    
-    var outerWorldBaseDailyCap: Int {
-        switch outerWorldLevel {
-        case 1: return 6_000
-        case 2: return 8_000
-        case 3: return 10_000
-        case 4: return 13_000
-        case 5: return 16_000
-        case 6: return 20_000
-        default: return 25_000
-        }
-    }
-    
     var outerWorldDailyCap: Int {
-        // Motivation lever: walk more -> cap grows (but still bounded).
-        // +20% of HealthKit steps today, capped at +6k.
-        let stepBoost = min(6_000, Int(max(0, stepsToday) * 0.2))
-        return outerWorldBaseDailyCap + stepBoost
+        // Spec: each drop gives +1000, max 10k per day.
+        10_000
     }
     
     private func persistOuterWorldDailyCap() {

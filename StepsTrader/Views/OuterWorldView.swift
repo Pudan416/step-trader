@@ -69,9 +69,10 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     @Published var magnetNoDropsAt: Date?
     
     private let pickupRadius: CLLocationDistance = 50 // meters
-    private let maxDropsOnScreen = 8
-    private let minDropSeparation: CLLocationDistance = 120 // meters
-    private let dropLifetime: TimeInterval = 3600 // 1 hour
+    private let maxDropsOnScreen = 1
+    private let dropLifetime: TimeInterval = 24 * 3600 // 24 hours
+    private let dropEnergy: Int = 1000
+    private let spawnRadius: CLLocationDistance = 500 // meters
     private let maxMagnetUsesPerDay: Int = 3
     
     private let magnetDayKeyStorageKey = "outerworld_magnetDayKey_v1"
@@ -129,49 +130,9 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         
         // Check for nearby drops to collect
         checkForPickups(at: location)
-    }
-    
-    // MARK: - Map Region Changed
-    
-    func handleMapRegionChange(center: CLLocationCoordinate2D, span: MKCoordinateSpan) {
-        let now = Date()
-        if let last = lastRegionProcess, now.timeIntervalSince(last) < 0.5 {
-            return
-        }
-        guard center.latitude.isFinite,
-              center.longitude.isFinite,
-              span.latitudeDelta.isFinite,
-              span.longitudeDelta.isFinite else {
-            return
-        }
-        guard abs(center.latitude) <= 90, abs(center.longitude) <= 180 else {
-            return
-        }
-        guard span.latitudeDelta > 0, span.longitudeDelta > 0 else {
-            return
-        }
-        lastRegionProcess = now
-
-        // Keep region reasonable: if user zooms too far out, don't spawn.
-        let maxSpanDelta = 0.6
-        if span.latitudeDelta > maxSpanDelta || span.longitudeDelta > maxSpanDelta {
-            cleanupExpiredDrops()
-            return
-        }
-
-        cleanupExpiredDrops()
-
-        let remainingSlots = max(0, maxDropsOnScreen - energyDrops.count)
-        guard remainingSlots > 0 else { return }
-
-        // Option 2: drops are random inside the *visible* map area
-        // 60% chance per region change (onEnd)
-        guard Int.random(in: 1...10) <= 6 else { return }
-
-        let spawnCount = min(Int.random(in: 1...2), remainingSlots)
-        for _ in 0..<spawnCount {
-            spawnDropInVisibleRegion(center: center, span: span)
-        }
+        
+        // Ensure there's always exactly 1 drop (until daily cap is reached)
+        ensureSingleDropNearUser(currentLocation: location)
     }
     
     // MARK: - Drop Management
@@ -211,6 +172,13 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
             object: nil,
             userInfo: ["energy": drop.energy]
         )
+        
+        // Spawn next drop after collecting the previous one (if possible)
+        if let userLoc = userLocation {
+            ensureSingleDropNearUser(
+                currentLocation: CLLocation(latitude: userLoc.latitude, longitude: userLoc.longitude)
+            )
+        }
     }
 
     func magnetPullNearbyDrops() {
@@ -333,34 +301,46 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
             object: nil,
             userInfo: ["energy": drop.energy]
         )
+        
+        // Spawn next drop after collecting the previous one (if possible)
+        if let userLoc = userLocation {
+            ensureSingleDropNearUser(
+                currentLocation: CLLocation(latitude: userLoc.latitude, longitude: userLoc.longitude)
+            )
+        }
     }
 
-    private func spawnDropInVisibleRegion(center: CLLocationCoordinate2D, span: MKCoordinateSpan) {
-        let minLat = center.latitude - span.latitudeDelta / 2
-        let maxLat = center.latitude + span.latitudeDelta / 2
-        let minLon = center.longitude - span.longitudeDelta / 2
-        let maxLon = center.longitude + span.longitudeDelta / 2
-
-        for _ in 0..<6 {
-            let lat = Double.random(in: minLat...maxLat)
-            let lon = Double.random(in: minLon...maxLon)
-            let candidate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
-
-            // Ensure it's not too close to existing drops
-            let candidateLoc = CLLocation(latitude: candidate.latitude, longitude: candidate.longitude)
-            let isTooClose = energyDrops.contains { existing in
-                let existingLoc = CLLocation(latitude: existing.coordinate.latitude, longitude: existing.coordinate.longitude)
-                return existingLoc.distance(from: candidateLoc) < minDropSeparation
-            }
-            if isTooClose { continue }
-
-            let energy = Int.random(in: 1...5) * 1000 // 1000-5000
-            let expiresAt = Date().addingTimeInterval(dropLifetime)
-            let drop = EnergyDrop(coordinate: candidate, energy: energy, expiresAt: expiresAt)
-            energyDrops.append(drop)
-            saveDrops()
-            return
-        }
+    private func ensureSingleDropNearUser(currentLocation: CLLocation) {
+        refreshEconomySnapshot()
+        cleanupExpiredDrops()
+        
+        // If daily cap reached, don't spawn.
+        guard collectedToday + dropEnergy <= dailyCap else { return }
+        
+        // Only spawn if no drop exists.
+        guard energyDrops.isEmpty else { return }
+        
+        // Spawn one drop within 500m of user's current location.
+        let center = currentLocation.coordinate
+        let angle = Double.random(in: 0..<(2 * .pi))
+        let distance = Double.random(in: max(80, pickupRadius + 10)...spawnRadius)
+        
+        let latOffset = (distance / 111_111) * cos(angle)
+        let lonOffset = (distance / (111_111 * cos(center.latitude * .pi / 180))) * sin(angle)
+        
+        let coordinate = CLLocationCoordinate2D(
+            latitude: center.latitude + latOffset,
+            longitude: center.longitude + lonOffset
+        )
+        
+        let drop = EnergyDrop(
+            coordinate: coordinate,
+            energy: dropEnergy,
+            expiresAt: Date().addingTimeInterval(dropLifetime)
+        )
+        
+        energyDrops = [drop]
+        saveDrops()
     }
     
     private func cleanupExpiredDrops() {
@@ -617,11 +597,6 @@ struct OuterWorldView: View {
                     .buttonStyle(.plain)
                 }
             }
-        }
-        .onMapCameraChange(frequency: .onEnd) { context in
-            let center = context.region.center
-            let span = context.region.span
-            locationManager.handleMapRegionChange(center: center, span: span)
         }
         .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .excludingAll))
         .mapControls {
