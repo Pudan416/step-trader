@@ -630,15 +630,6 @@ struct OuterWorldView: View {
                 let cap = max(1, locationManager.dailyCap)
                 let used = min(cap, max(0, locationManager.collectedToday))
                 VStack(alignment: .trailing, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "crown.fill")
-                            .font(.caption2)
-                            .foregroundColor(.purple)
-                        Text("Lv \(model.outerWorldLevel)")
-                            .font(.caption.bold())
-                            .foregroundColor(.primary)
-                    }
-                    
                     VStack(alignment: .trailing, spacing: 2) {
                         HStack(spacing: 6) {
                             Image(systemName: "bolt.fill")
