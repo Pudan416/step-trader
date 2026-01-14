@@ -526,6 +526,7 @@ struct OuterWorldView: View {
     @State private var showMagnetNoDropsToast = false
     @State private var showDailyCapToast = false
     @State private var selectedDrop: EnergyDrop?
+    @State private var selectedDropForAction: EnergyDrop?
     
     var body: some View {
         ZStack {
@@ -592,6 +593,38 @@ struct OuterWorldView: View {
                 showDailyCapToast = false
             }
         }
+        .confirmationDialog(
+            loc(appLanguage, "Energy Drop", "Капля энергии"),
+            isPresented: .init(
+                get: { selectedDropForAction != nil },
+                set: { if !$0 { selectedDropForAction = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(loc(appLanguage, "Build walking route", "Построить маршрут пешком")) {
+                if let drop = selectedDropForAction {
+                    openWalkingRoute(to: drop.coordinate)
+                }
+                selectedDropForAction = nil
+            }
+            
+            let magnetsLeft = max(0, 3 - locationManager.magnetUsesToday)
+            Button(loc(appLanguage, "Use magnet (\(magnetsLeft) left)", "Притянуть магнитом (осталось \(magnetsLeft))")) {
+                if let drop = selectedDropForAction {
+                    locationManager.magnetPull(drop: drop)
+                }
+                selectedDropForAction = nil
+            }
+            .disabled(locationManager.userLocation == nil || locationManager.magnetUsesToday >= 3)
+            
+            Button(loc(appLanguage, "Cancel", "Отмена"), role: .cancel) {
+                selectedDropForAction = nil
+            }
+        } message: {
+            if let drop = selectedDropForAction {
+                Text(loc(appLanguage, "This drop contains \(formatNumber(drop.energy)) energy.", "В этой капле \(formatNumber(drop.energy)) энергии."))
+            }
+        }
         .alert(loc(appLanguage, "Location Required", "Требуется геолокация"), isPresented: $showPermissionAlert) {
             Button(loc(appLanguage, "Settings", "Настройки")) {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -622,8 +655,8 @@ struct OuterWorldView: View {
             ForEach(locationManager.energyDrops) { drop in
                 Annotation("", coordinate: drop.coordinate) {
                     Button {
-                        // Tap = magnet this specific drop (within 500m circle + daily cap + magnet uses)
-                        locationManager.magnetPull(drop: drop)
+                        // Tap = show actions (route / magnet)
+                        selectedDropForAction = drop
                         selectedDrop = drop
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
                             if selectedDrop?.id == drop.id { selectedDrop = nil }
@@ -680,7 +713,7 @@ struct OuterWorldView: View {
                                 .font(.subheadline.bold())
                         }
                         
-                        Text("\(formatNumber(used)) / \(formatNumber(cap))")
+                        Text(loc(appLanguage, "Today \(formatNumber(used)) / \(formatNumber(cap))", "Сегодня \(formatNumber(used)) / \(formatNumber(cap))"))
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -772,6 +805,16 @@ struct OuterWorldView: View {
         formatter.numberStyle = .decimal
         formatter.groupingSeparator = " "
         return formatter.string(from: NSNumber(value: number)) ?? "\(number)"
+    }
+    
+    private func openWalkingRoute(to coordinate: CLLocationCoordinate2D) {
+        let placemark = MKPlacemark(coordinate: coordinate)
+        let item = MKMapItem(placemark: placemark)
+        item.name = loc(appLanguage, "Energy Drop", "Капля энергии")
+        item.openInMaps(launchOptions: [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking,
+            MKLaunchOptionsShowsTrafficKey: false
+        ])
     }
     
     @ViewBuilder
