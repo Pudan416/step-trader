@@ -343,7 +343,8 @@ extension AuthenticationService: ASAuthorizationControllerDelegate {
 
 extension AuthenticationService: ASAuthorizationControllerPresentationContextProviding {
     
-    nonisolated func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+    @MainActor
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first else {
             return UIWindow()
