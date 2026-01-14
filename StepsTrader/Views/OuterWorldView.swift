@@ -219,19 +219,18 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
             return
         }
 
-        // Collect up to 3 closest drops to keep it punchy (and avoid huge jumps)
-        let closest = nearbyDrops
-            .sorted {
-                let a = CLLocation(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude)
-                let b = CLLocation(latitude: $1.coordinate.latitude, longitude: $1.coordinate.longitude)
-                return currentLocation.distance(from: a) < currentLocation.distance(from: b)
-            }
-            .prefix(3)
-
-        let totalEnergy = closest.reduce(0) { $0 + $1.energy }
-        energyDrops.removeAll { drop in
-            closest.contains(where: { $0.id == drop.id })
+        // Pull ONLY 1 closest drop
+        guard let closest = nearbyDrops.min(by: { a, b in
+            let la = CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude)
+            let lb = CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude)
+            return currentLocation.distance(from: la) < currentLocation.distance(from: lb)
+        }) else {
+            magnetNoDropsAt = Date()
+            return
         }
+
+        let totalEnergy = closest.energy
+        energyDrops.removeAll { $0.id == closest.id }
         totalCollected += totalEnergy
         saveTotalCollected()
         saveDrops()
@@ -382,6 +381,7 @@ struct OuterWorldView: View {
     @State private var mapRegion = MKCoordinateRegion()
     @State private var showMagnetLimitToast = false
     @State private var showMagnetNoDropsToast = false
+    @State private var selectedDrop: EnergyDrop?
     
     var body: some View {
         ZStack {
@@ -404,6 +404,10 @@ struct OuterWorldView: View {
                 toast(text: loc(appLanguage, "Magnet limit reached (3/day)", "Лимит магнита (3/день)"))
             } else if showMagnetNoDropsToast {
                 toast(text: loc(appLanguage, "No drops within 500m", "Нет капель в радиусе 500м"))
+            }
+            
+            if let drop = selectedDrop {
+                dropInfoToast(drop: drop)
             }
         }
         .onAppear {
@@ -449,11 +453,28 @@ struct OuterWorldView: View {
         Map(position: $cameraPosition) {
             // User location
             UserAnnotation()
+
+            // Magnet working radius (500m)
+            if let userLoc = locationManager.userLocation {
+                MapCircle(center: userLoc, radius: 500)
+                    .foregroundStyle(Color.blue.opacity(0.10))
+                    .stroke(Color.blue.opacity(0.35), lineWidth: 2)
+            }
             
             // Energy drops
             ForEach(locationManager.energyDrops) { drop in
                 Annotation("", coordinate: drop.coordinate) {
-                    EnergyDropMarker(drop: drop, userLocation: locationManager.userLocation)
+                    Button {
+                        selectedDrop = drop
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            if selectedDrop?.id == drop.id {
+                                selectedDrop = nil
+                            }
+                        }
+                    } label: {
+                        EnergyDropMarker(drop: drop, userLocation: locationManager.userLocation)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -570,9 +591,9 @@ struct OuterWorldView: View {
                 Spacer()
             }
                 
-            Button {
+                    Button {
                 locationManager.magnetPullNearbyDrops()
-            } label: {
+                    } label: {
                 let remaining = max(0, 3 - locationManager.magnetUsesToday)
                 HStack(spacing: 8) {
                     Image(systemName: "paperclip")
@@ -696,6 +717,28 @@ struct OuterWorldView: View {
                         .fill(Color.black.opacity(0.7))
                 )
                 .padding(.bottom, 120)
+        }
+        .transition(.opacity)
+    }
+    
+    @ViewBuilder
+    private func dropInfoToast(drop: EnergyDrop) -> some View {
+        VStack {
+            Spacer()
+            HStack(spacing: 10) {
+                Image(systemName: "bolt.fill")
+                    .foregroundColor(.yellow)
+                Text("+\(formatNumber(drop.energy))")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(Color.black.opacity(0.75))
+            )
+            .padding(.bottom, 165)
         }
         .transition(.opacity)
     }
