@@ -624,7 +624,17 @@ final class AppModel: ObservableObject {
             return
         }
 
-        startMinuteTariffSession(for: bundleId, rate: rate)
+        // Prefer DeviceActivity-based charging (true "pay per minute of actual app use").
+        // Only fall back to wall-clock if FamilyControls isn't available/authorized or selection isn't set.
+        if shouldUseDeviceActivityMinuteMode(for: bundleId) {
+            if let familyService = familyControlsService as? FamilyControlsService {
+                familyService.updateMinuteModeMonitoring()
+                familyService.allowOneSession()
+            }
+            clearMinuteTariffSessionState()
+        } else {
+            startMinuteTariffSession(for: bundleId, rate: rate)
+        }
         let userDefaults = UserDefaults.stepsTrader()
         userDefaults.set(Date().addingTimeInterval(8), forKey: "suppressShortcutUntil")
         markPayGateOpen(for: bundleId)
@@ -636,6 +646,26 @@ final class AppModel: ObservableObject {
             }
             self.endPayGateSession(bundleId)
         }
+    }
+
+    private func shouldUseDeviceActivityMinuteMode(for bundleId: String) -> Bool {
+        #if canImport(FamilyControls)
+        guard let service = familyControlsService as? FamilyControlsService else { return false }
+        guard service.isAuthorized else { return false }
+        // Must have a concrete selection, otherwise DeviceActivity cannot track this bundle.
+        guard isTimeAccessEnabled(for: bundleId) else { return false }
+        return true
+        #else
+        _ = bundleId
+        return false
+        #endif
+    }
+
+    private func clearMinuteTariffSessionState() {
+        let g = UserDefaults.stepsTrader()
+        g.removeObject(forKey: minuteTariffBundleKey)
+        g.removeObject(forKey: minuteTariffLastTickKey)
+        g.removeObject(forKey: minuteTariffRateKey)
     }
 
     private func markPayGateOpen(for bundleId: String) {
@@ -826,6 +856,13 @@ final class AppModel: ObservableObject {
         print("📱 App entered background - timer will be suspended")
         // Закрываем PayGate, если пользователь свернул приложение
         dismissPayGate()
+
+        // Pause wall-clock minute tariff session so we don't charge while the app is backgrounded.
+        // (DeviceActivity-based minute mode charges only for actual app usage and doesn't need this.)
+        let g = UserDefaults.stepsTrader()
+        if g.string(forKey: minuteTariffBundleKey) != nil {
+            g.set(Date(), forKey: minuteTariffLastTickKey)
+        }
 
         if isTrackingTime {
             // Сохраняем время ухода в фон
