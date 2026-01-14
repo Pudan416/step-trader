@@ -321,13 +321,21 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     }
     
     private func refreshMagnetDayIfNeeded() {
-        let today = AppModel.dayKey(for: Date())
+        let today = dayKey(for: Date())
         let storedDay = UserDefaults.standard.string(forKey: magnetDayKeyStorageKey)
         if storedDay != today {
             UserDefaults.standard.set(today, forKey: magnetDayKeyStorageKey)
             magnetUsesToday = 0
             saveMagnetUsesToday()
         }
+    }
+
+    private func dayKey(for date: Date) -> String {
+        // Local day key to avoid @MainActor isolation of AppModel.dayKey(for:)
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "yyyy-MM-dd"
+        return df.string(from: date)
     }
     
     private func loadMagnetUsesToday() {
