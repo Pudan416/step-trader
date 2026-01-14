@@ -410,7 +410,7 @@ final class AppModel: ObservableObject {
             guard let self = self else { return }
             
             // Add energy to bonus balance
-            self.debugStepsBonus += energy
+            self.bonusSteps += energy
             self.persistDebugStepsBonus()
             
             // Update total collected stats
@@ -419,7 +419,7 @@ final class AppModel: ObservableObject {
             UserDefaults.standard.set(current + energy, forKey: collectedKey)
             
             // Recalculate balance
-            self.stepsBalance = max(0, Int(self.stepsToday) + self.debugStepsBonus - self.spentStepsToday)
+            self.stepsBalance = max(0, Int(self.stepsToday) + self.bonusSteps - self.spentStepsToday)
             UserDefaults.stepsTrader().set(self.stepsBalance, forKey: "stepsBalance")
             
             print("⚡ Outer World: Collected \(energy) energy. New balance: \(self.stepsBalance)")
