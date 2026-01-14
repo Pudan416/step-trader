@@ -191,7 +191,7 @@ struct AppsPage: View {
                     )
                 VStack(alignment: .leading, spacing: 2) {
                     Text(loc(appLanguage, "Available Shields", "Доступные щиты"))
-                        .font(.headline)
+                .font(.headline)
                     Text(loc(appLanguage, "Tap to activate", "Нажмите для активации"))
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -213,9 +213,9 @@ struct AppsPage: View {
                 HStack {
                     Image(systemName: "checkmark.shield.fill")
                         .foregroundColor(.green)
-                    Text(loc(appLanguage, "All shields are connected", "Все щиты подключены"))
+                Text(loc(appLanguage, "All shields are connected", "Все щиты подключены"))
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -253,7 +253,7 @@ struct AppsPage: View {
     private var activatedSection: some View {
         let cardPadding: CGFloat = 16
         
-        return VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
             // Section header
             HStack(spacing: 10) {
                 Image(systemName: "shield.checkered")
@@ -267,7 +267,7 @@ struct AppsPage: View {
                     )
                 VStack(alignment: .leading, spacing: 2) {
                     Text(loc(appLanguage, "Active Shields", "Активные щиты"))
-                        .font(.headline)
+                .font(.headline)
                     Text(loc(appLanguage, "Your protected apps", "Ваши защищённые приложения"))
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -300,8 +300,8 @@ struct AppsPage: View {
                     Text(loc(appLanguage, "No shields yet", "Пока нет щитов"))
                         .font(.subheadline.weight(.medium))
                     Text(loc(appLanguage, "Activate a shield above to start protecting yourself from distractions", "Активируйте щит выше, чтобы защититься от отвлечений"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)
@@ -331,7 +331,7 @@ struct AppsPage: View {
             showDeactivatedPicker = true
         } label: {
             ZStack {
-                RoundedRectangle(cornerRadius: 18)
+            RoundedRectangle(cornerRadius: 18)
                     .fill(
                         LinearGradient(
                             colors: [Color.gray.opacity(0.1), Color.gray.opacity(0.05)],
@@ -389,8 +389,8 @@ struct AppsPage: View {
                     VStack(alignment: .leading, spacing: 6) {
                         // App name and mode badge
                         HStack(spacing: 8) {
-                            Text(app.name)
-                                .font(.headline)
+                        Text(app.name)
+                            .font(.headline)
                                 .foregroundColor(.primary)
                             
                             // Mode badge
@@ -425,9 +425,9 @@ struct AppsPage: View {
                                     .font(.caption)
                                     .foregroundColor(.orange)
                                 Text("\(formatSteps(spent)) " + loc(appLanguage, "invested", "вложено"))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                         }
                     }
                     
@@ -461,8 +461,8 @@ struct AppsPage: View {
                         // Progress info
                         if let toNext = stepsToNext {
                             Text("\(formatSteps(toNext)) " + loc(appLanguage, "to next", "до след."))
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
                         } else {
                             HStack(spacing: 4) {
                                 Image(systemName: "crown.fill")
@@ -712,7 +712,7 @@ struct AppsPage: View {
         Button {
             openGuide(for: app, status: status)
         } label: {
-            ZStack {
+                            ZStack {
                 // Background
                 RoundedRectangle(cornerRadius: 16)
                     .fill(Color(.tertiarySystemBackground))
@@ -720,25 +720,25 @@ struct AppsPage: View {
                     .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                 
                 // App icon
-                appIconView(app)
+                                appIconView(app)
                     .frame(width: width * 0.58, height: width * 0.58)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 
                 // Timer badge (if active)
-                if let remaining = model.remainingAccessSeconds(for: app.bundleId), remaining > 0 {
+                                if let remaining = model.remainingAccessSeconds(for: app.bundleId), remaining > 0 {
                     VStack {
                         HStack {
                             Spacer()
                             HStack(spacing: 2) {
-                                Image(systemName: "timer")
-                                Text(formatRemaining(remaining))
-                            }
+                                        Image(systemName: "timer")
+                                        Text(formatRemaining(remaining))
+                                    }
                             .font(.system(size: 8, weight: .semibold))
-                            .foregroundColor(.white)
+                                    .foregroundColor(.white)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 2)
                             .background(Color.green)
-                            .clipShape(Capsule())
+                                    .clipShape(Capsule())
                             .padding(3)
                         }
                         Spacer()
@@ -750,13 +750,13 @@ struct AppsPage: View {
                     VStack {
                         HStack {
                             Spacer()
-                            statusIcon(for: status)
+                    statusIcon(for: status)
                                 .font(.caption2)
                                 .padding(4)
-                        }
-                        Spacer()
-                    }
                 }
+                        Spacer()
+            }
+        }
             }
             .frame(width: width, height: width)
             .id(clockTick)
@@ -938,45 +938,45 @@ struct AutomationGuideView: View {
             VStack(spacing: 0) {
                 // Scrollable content area
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        header
+            VStack(alignment: .leading, spacing: 16) {
+                header
 
-                        if app.status == .configured {
-                            unlockSettings
+                if app.status == .configured {
+                    unlockSettings
+                }
+
+                content
+
+                if let link = app.link, let url = URL(string: link) {
+                    Button {
+                        markPending(app.bundleId)
+                        openURL(url)
+                    } label: {
+                        HStack {
+                            Image(systemName: "link")
+                            Text(app.status == .configured ? "Update the shield" : "Get the shield")
+                                .fontWeight(.semibold)
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
                         }
-
-                        content
-
-                        if let link = app.link, let url = URL(string: link) {
-                            Button {
-                                markPending(app.bundleId)
-                                openURL(url)
-                            } label: {
-                                HStack {
-                                    Image(systemName: "link")
-                                    Text(app.status == .configured ? "Update the shield" : "Get the shield")
-                                        .fontWeight(.semibold)
-                                    Spacer()
-                                    Image(systemName: "arrow.up.right")
-                                }
-                                .padding()
-                                .frame(maxWidth: .infinity)
-                                .background(RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.1)))
-                            }
-                        } else {
-                            HStack(spacing: 8) {
-                                Image(systemName: "clock")
-                                Text("Shortcut link will be added soon.")
-                                    .fontWeight(.semibold)
-                            }
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.1)))
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.1)))
+                    }
+                } else {
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock")
+                        Text("Shortcut link will be added soon.")
+                            .fontWeight(.semibold)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.1)))
                         }
                     }
                     .padding()
                 }
-                
+
                 // Fixed bottom button
                 if app.status != .none {
                     Button {
@@ -1166,32 +1166,32 @@ struct AutomationGuideView: View {
     
     @ViewBuilder
     private func levelHeaderButton(currentLevel: ShieldLevel, accent: Color) -> some View {
-        Button {
-            withAnimation(.easeInOut) {
-                showLevelsTable.toggle()
-            }
-        } label: {
-            HStack(spacing: 10) {
-                Text("Level")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                Text(currentLevel.label)
-                    .font(.title3.weight(.bold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+            Button {
+                withAnimation(.easeInOut) {
+                    showLevelsTable.toggle()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Text("Level")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Text(currentLevel.label)
+                        .font(.title3.weight(.bold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
                     .background(Capsule().fill(accent.opacity(0.2)))
-                Spacer()
-                Image(systemName: showLevelsTable ? "chevron.up" : "chevron.down")
-                    .foregroundColor(.secondary)
+                    Spacer()
+                    Image(systemName: showLevelsTable ? "chevron.up" : "chevron.down")
+                        .foregroundColor(.secondary)
+                }
             }
-        }
-        .buttonStyle(.plain)
+            .buttonStyle(.plain)
     }
-    
+
     @ViewBuilder
     private func levelsTableView(currentLevel: ShieldLevel, spent: Int, stepsToNext: Int?, isMinuteMode: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(ShieldLevel.all) { level in
+                    ForEach(ShieldLevel.all) { level in
                 levelRow(level: level, currentLevel: currentLevel, spent: spent, stepsToNext: stepsToNext, isMinuteMode: isMinuteMode)
             }
         }
@@ -1199,7 +1199,7 @@ struct AutomationGuideView: View {
     
     @ViewBuilder
     private func levelRow(level: ShieldLevel, currentLevel: ShieldLevel, spent: Int, stepsToNext: Int?, isMinuteMode: Bool) -> some View {
-        let isCurrent = level.id == currentLevel.id
+                        let isCurrent = level.id == currentLevel.id
         let isAchieved = level.threshold < currentLevel.threshold
         let levelAccent = tileAccent(for: level)
         
@@ -1240,10 +1240,10 @@ struct AutomationGuideView: View {
                     .font(.body)
             }
             
-            Text("Level \(level.label)")
-                .font(.subheadline.weight(isCurrent ? .bold : .regular))
+                            Text("Level \(level.label)")
+                                .font(.subheadline.weight(isCurrent ? .bold : .regular))
             
-            Spacer()
+                            Spacer()
             
             let costLabel = isMinuteMode
                 ? "\(level.entryCost) " + loc(appLanguage, "per min", "за мин")
@@ -1276,12 +1276,12 @@ struct AutomationGuideView: View {
             HStack {
                 Text("\(formatSteps(spent)) " + loc(appLanguage, "invested", "вложено"))
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                                        .foregroundColor(.secondary)
                 Spacer()
                 if let toNext = stepsToNext {
                     Text("\(formatSteps(toNext)) " + loc(appLanguage, "to next", "до след."))
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                                        .foregroundColor(.secondary)
                 } else {
                     Text(loc(appLanguage, "MAX", "МАКС"))
                         .font(.caption2.weight(.bold))
@@ -1308,49 +1308,49 @@ struct AutomationGuideView: View {
                 priceTag(loc(appLanguage, "1h", "1ч"), cost: level.hourCost, isCurrent: isCurrent, accent: levelAccent)
                 priceTag(loc(appLanguage, "Day", "День"), cost: level.dayCost, isCurrent: isCurrent, accent: levelAccent)
             }
-            .font(.caption2)
-        }
-    }
-    
+                        .font(.caption2)
+                }
+            }
+            
     @ViewBuilder
     private func accessModeSection(minuteModeEnabled: Bool, timeAccessEnabled: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(loc(appLanguage, "Access mode", "Режим доступа"))
-                .font(.subheadline.weight(.semibold))
-            Picker("", selection: Binding(get: {
-                minuteModeEnabled ? 1 : 0
-            }, set: { newValue in
-                let enableMinuteMode = newValue == 1
-                model.setFamilyControlsModeEnabled(enableMinuteMode, for: app.bundleId)
-                model.setMinuteTariffEnabled(enableMinuteMode, for: app.bundleId)
-                if enableMinuteMode && timeAccessEnabled {
-                    model.applyFamilyControlsSelection(for: app.bundleId)
-                } else {
-                    model.rebuildFamilyControlsShield()
+            VStack(alignment: .leading, spacing: 8) {
+                Text(loc(appLanguage, "Access mode", "Режим доступа"))
+                    .font(.subheadline.weight(.semibold))
+                Picker("", selection: Binding(get: {
+                    minuteModeEnabled ? 1 : 0
+                }, set: { newValue in
+                    let enableMinuteMode = newValue == 1
+                    model.setFamilyControlsModeEnabled(enableMinuteMode, for: app.bundleId)
+                    model.setMinuteTariffEnabled(enableMinuteMode, for: app.bundleId)
+                    if enableMinuteMode && timeAccessEnabled {
+                        model.applyFamilyControlsSelection(for: app.bundleId)
+                    } else {
+                        model.rebuildFamilyControlsShield()
+                    }
+                })) {
+                    Text(loc(appLanguage, "Open mode", "Открытый режим")).tag(0)
+                    Text(loc(appLanguage, "Minute mode", "Минутный режим")).tag(1)
                 }
-            })) {
-                Text(loc(appLanguage, "Open mode", "Открытый режим")).tag(0)
-                Text(loc(appLanguage, "Minute mode", "Минутный режим")).tag(1)
-            }
-            .pickerStyle(.segmented)
+                .pickerStyle(.segmented)
 
-            if minuteModeEnabled {
+                if minuteModeEnabled {
                 Text(loc(appLanguage, "Pay per minute of actual use. Requires Screen Time access.", "Платите за каждую минуту использования. Нужен доступ к Screen Time."))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } else {
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
                 Text(loc(appLanguage, "Pay once to unlock for a set time. Great for quick visits.", "Разовая оплата за доступ на время. Удобно для коротких визитов."))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
             }
-        }
-    }
-    
+                }
+            }
+
     @ViewBuilder
     private func minuteModeSection(timeAccessEnabled: Bool, selection: FamilyActivitySelection) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Time access (Screen Time)")
-                .font(.subheadline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Time access (Screen Time)")
+                        .font(.subheadline.weight(.semibold))
             
             if timeAccessEnabled {
                 HStack(spacing: 12) {
@@ -1384,28 +1384,28 @@ struct AutomationGuideView: View {
             }
             
             Button(timeAccessEnabled ? loc(appLanguage, "Change selection", "Изменить выбор") : loc(appLanguage, "Connect app", "Подключить")) {
-                Task {
-                    try? await model.family.requestAuthorization()
-                    showTimeAccessPicker = true
+                        Task {
+                            try? await model.family.requestAuthorization()
+                            showTimeAccessPicker = true
+                        }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.08)))
                 }
-            }
-            .font(.subheadline.weight(.semibold))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.08)))
-        }
     }
     
     @ViewBuilder
     private func openModeSection(currentLevel: ShieldLevel, accent: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Access options")
-                .font(.subheadline.weight(.semibold))
-            accessOptionRow(title: "Day pass", window: .day1, level: currentLevel, tint: accent, isDisabled: false)
-            accessOptionRow(title: "1 hour", window: .hour1, level: currentLevel, tint: accent, isDisabled: false)
-            accessOptionRow(title: "5 minutes", window: .minutes5, level: currentLevel, tint: accent, isDisabled: false)
-            accessOptionRow(title: "Single entry", window: .single, level: currentLevel, tint: accent, isDisabled: false)
-        }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Access options")
+                        .font(.subheadline.weight(.semibold))
+                    accessOptionRow(title: "Day pass", window: .day1, level: currentLevel, tint: accent, isDisabled: false)
+                    accessOptionRow(title: "1 hour", window: .hour1, level: currentLevel, tint: accent, isDisabled: false)
+                    accessOptionRow(title: "5 minutes", window: .minutes5, level: currentLevel, tint: accent, isDisabled: false)
+                    accessOptionRow(title: "Single entry", window: .single, level: currentLevel, tint: accent, isDisabled: false)
+                }
     }
 
     private func formatSteps(_ value: Int) -> String {
@@ -1575,11 +1575,11 @@ struct ManualsPage: View {
     private var setupGuideCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Card header
-            Button {
+                            Button {
                 withAnimation(.spring(response: 0.3)) {
-                    isExpanded.toggle()
-                }
-            } label: {
+                                    isExpanded.toggle()
+                                }
+                            } label: {
                 HStack(spacing: 12) {
                     // Icon
                     ZStack {
@@ -1592,13 +1592,13 @@ struct ManualsPage: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(appLanguage == "ru" ? "Как подключить щит" : "How to set up a shield")
-                            .font(.headline)
+                                    Text(appLanguage == "ru" ? "Как подключить щит" : "How to set up a shield")
+                                        .font(.headline)
                             .foregroundColor(.primary)
                         Text(appLanguage == "ru" ? "Пошаговая инструкция" : "Step-by-step guide")
                             .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                                        .foregroundColor(.secondary)
+                                }
                     
                     Spacer()
                     
@@ -1607,39 +1607,39 @@ struct ManualsPage: View {
                         .foregroundColor(.blue.opacity(0.6))
                 }
                 .padding(16)
-            }
-            
-            if isExpanded {
+                            }
+                            
+                            if isExpanded {
                 Divider()
                     .padding(.horizontal, 16)
                 
                 VStack(alignment: .leading, spacing: 16) {
                     // Image carousel
-                    let manualImages = (1...11).map { "manual_1_\($0)" }
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(Array(manualImages.enumerated()), id: \.offset) { index, name in
-                                Image(name)
-                                    .resizable()
-                                    .scaledToFit()
+                                    let manualImages = (1...11).map { "manual_1_\($0)" }
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 12) {
+                                            ForEach(Array(manualImages.enumerated()), id: \.offset) { index, name in
+                                                Image(name)
+                                                    .resizable()
+                                                    .scaledToFit()
                                     .frame(height: 200)
                                     .clipShape(RoundedRectangle(cornerRadius: 14))
                                     .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-                                    .onTapGesture {
-                                        openGallery(images: manualImages, startAt: index)
-                                    }
-                            }
-                        }
+                                                    .onTapGesture {
+                                                        openGallery(images: manualImages, startAt: index)
+                                                    }
+                                            }
+                                        }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                    }
-                    
+                                    }
+                                    
                     // Steps
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 8) {
                             Image(systemName: "list.number")
                                 .foregroundColor(.blue)
-                            Text(appLanguage == "ru" ? "Шаги" : "Steps")
+                                    Text(appLanguage == "ru" ? "Шаги" : "Steps")
                                 .font(.subheadline.bold())
                         }
                         
@@ -1659,11 +1659,11 @@ struct ManualsPage: View {
                             .font(.title3)
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(appLanguage == "ru" ? "Подсказка" : "Tip")
+                                    Text(appLanguage == "ru" ? "Подсказка" : "Tip")
                                 .font(.subheadline.bold())
                             Text(appLanguage == "ru" ? "Если щит не срабатывает, убедитесь, что включены уведомления и доступ к Командам." : "If the shield doesn't fire, ensure notifications and Shortcuts access are enabled.")
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                        .foregroundColor(.secondary)
                         }
                     }
                     .padding(12)
@@ -1673,10 +1673,10 @@ struct ManualsPage: View {
                     )
                     .padding(.horizontal, 16)
                     .padding(.bottom, 16)
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
+                                }
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
+                        }
         .background(
             RoundedRectangle(cornerRadius: 20)
                 .fill(Color(.secondarySystemBackground))
@@ -1701,11 +1701,11 @@ struct ManualsPage: View {
     
     // MARK: - Gallery Overlay
     private var galleryOverlay: some View {
-        ZStack {
+                    ZStack {
             Color.black.opacity(0.9)
-                .ignoresSafeArea()
-                .onTapGesture { closeGallery() }
-            
+                            .ignoresSafeArea()
+                            .onTapGesture { closeGallery() }
+                        
             VStack {
                 // Close button
                 HStack {
@@ -1721,21 +1721,21 @@ struct ManualsPage: View {
                 }
                 
                 // Image viewer
-                TabView(selection: $galleryIndex) {
-                    ForEach(Array(galleryImages.enumerated()), id: \.offset) { index, name in
-                        if let uiImage = UIImage(named: name) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFit()
+                        TabView(selection: $galleryIndex) {
+                            ForEach(Array(galleryImages.enumerated()), id: \.offset) { index, name in
+                                if let uiImage = UIImage(named: name) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFit()
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
-                                .tag(index)
+                                        .tag(index)
                                 .padding(.horizontal, 20)
-                        } else {
-                            Color.clear.tag(index)
+                                } else {
+                                    Color.clear.tag(index)
+                                }
+                            }
                         }
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .always))
+                        .tabViewStyle(.page(indexDisplayMode: .always))
                 
                 // Image counter
                 Text("\(galleryIndex + 1) / \(galleryImages.count)")
@@ -1746,14 +1746,14 @@ struct ManualsPage: View {
         }
         .zIndex(2)
         .transition(.opacity)
-        .gesture(
+                        .gesture(
             DragGesture(minimumDistance: 50)
-                .onEnded { value in
+                                .onEnded { value in
                     if abs(value.translation.height) > 80 {
-                        closeGallery()
-                    }
-                }
-        )
+                                        closeGallery()
+                                    }
+                                }
+                        )
     }
 
     @ViewBuilder
@@ -1820,11 +1820,11 @@ struct ManualsPage: View {
                             .frame(width: 24)
                         Text(appLanguage == "ru" ? item.ru : item.en)
                             .font(.subheadline)
-                            .foregroundColor(.primary)
+                        .foregroundColor(.primary)
                             .fixedSize(horizontal: false, vertical: true)
-                    }
                 }
             }
+        }
         }
         .padding(16)
     }
