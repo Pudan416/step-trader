@@ -98,6 +98,16 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         startCleanupTimer()
     }
     
+    var maxDropsPerDay: Int {
+        max(0, dailyCap / dropEnergy)
+    }
+    
+    var nextDropNumber: Int {
+        // 1-based. If cap is reached, this number won't be used (no drop).
+        let n = (collectedToday / dropEnergy) + 1
+        return min(maxDropsPerDay, max(1, n))
+    }
+    
     func refreshEconomySnapshot() {
         loadDailyCap()
         loadCollectedToday()
@@ -131,8 +141,8 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         // Check for nearby drops to collect
         checkForPickups(at: location)
         
-        // Ensure there's always exactly 1 drop (until daily cap is reached)
-        ensureSingleDropNearUser(currentLocation: location)
+        // Normalize persisted drops and ensure exactly 1 drop within 500m (until daily cap is reached)
+        normalizeDropsNearUser(currentLocation: location)
     }
     
     // MARK: - Drop Management
@@ -175,7 +185,7 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         
         // Spawn next drop after collecting the previous one (if possible)
         if let userLoc = userLocation {
-            ensureSingleDropNearUser(
+            normalizeDropsNearUser(
                 currentLocation: CLLocation(latitude: userLoc.latitude, longitude: userLoc.longitude)
             )
         }
@@ -304,21 +314,48 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         
         // Spawn next drop after collecting the previous one (if possible)
         if let userLoc = userLocation {
-            ensureSingleDropNearUser(
+            normalizeDropsNearUser(
                 currentLocation: CLLocation(latitude: userLoc.latitude, longitude: userLoc.longitude)
             )
         }
     }
 
-    private func ensureSingleDropNearUser(currentLocation: CLLocation) {
+    private func normalizeDropsNearUser(currentLocation: CLLocation) {
         refreshEconomySnapshot()
         cleanupExpiredDrops()
         
         // If daily cap reached, don't spawn.
         guard collectedToday + dropEnergy <= dailyCap else { return }
         
-        // Only spawn if no drop exists.
-        guard energyDrops.isEmpty else { return }
+        // Keep only one drop, and it must be within 500m of the user.
+        if !energyDrops.isEmpty {
+            let userLoc = currentLocation
+            
+            // Pick the closest drop to user (if multiple were persisted)
+            let closest = energyDrops.min { a, b in
+                let la = CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude)
+                let lb = CLLocation(latitude: b.coordinate.latitude, longitude: b.coordinate.longitude)
+                return userLoc.distance(from: la) < userLoc.distance(from: lb)
+            }
+            
+            if let closest {
+                let closestLoc = CLLocation(latitude: closest.coordinate.latitude, longitude: closest.coordinate.longitude)
+                let dist = userLoc.distance(from: closestLoc)
+                
+                // If it's within radius, keep exactly that one
+                if dist <= spawnRadius {
+                    if energyDrops.count != 1 || energyDrops.first?.id != closest.id {
+                        energyDrops = [closest]
+                        saveDrops()
+                    }
+                    return
+                }
+            }
+            
+            // Otherwise discard all old drops (they're not valid for current location)
+            energyDrops.removeAll()
+            saveDrops()
+        }
         
         // Spawn one drop within 500m of user's current location.
         let center = currentLocation.coordinate
@@ -403,7 +440,7 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     private func loadDailyCap() {
         dailyCap = UserDefaults.standard.integer(forKey: capStorageKey)
         if dailyCap <= 0 {
-            dailyCap = 8000 // sensible default if AppModel hasn't computed it yet
+            dailyCap = 10_000 // spec default
         }
     }
 
@@ -592,7 +629,12 @@ struct OuterWorldView: View {
                             if selectedDrop?.id == drop.id { selectedDrop = nil }
                         }
                     } label: {
-                        EnergyDropMarker(drop: drop, userLocation: locationManager.userLocation)
+                        EnergyDropMarker(
+                            drop: drop,
+                            userLocation: locationManager.userLocation,
+                            dropNumber: locationManager.nextDropNumber,
+                            maxDropsPerDay: locationManager.maxDropsPerDay
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -778,6 +820,8 @@ struct OuterWorldView: View {
 struct EnergyDropMarker: View {
     let drop: EnergyDrop
     let userLocation: CLLocationCoordinate2D?
+    let dropNumber: Int
+    let maxDropsPerDay: Int
     @State private var isAnimating = false
     
     private var distanceToUser: CLLocationDistance? {
@@ -832,6 +876,13 @@ struct EnergyDropMarker: View {
                     Image(systemName: "bolt.fill")
                     .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.white)
+                
+                // Drop ordinal number
+                Text("\(dropNumber)")
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
+                    .offset(y: -24)
             }
             
             // Energy amount + distance badge
