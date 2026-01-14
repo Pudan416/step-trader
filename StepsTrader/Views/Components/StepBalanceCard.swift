@@ -93,7 +93,7 @@ struct StepBalanceCard: View {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color(.systemGray5))
                     
-                    // Remaining energy split by source (HealthKit vs Outer World)
+                    // Remaining energy split by source (Steps vs Outer World)
                     if remainingSteps > 0 && totalSteps > 0 {
                         let remainingWidth = proxy.size.width * progress
                         let hkRemaining = max(0, healthKitSteps)
@@ -136,8 +136,8 @@ struct StepBalanceCard: View {
             if showDetails {
                 HStack(spacing: 10) {
                     sourceChip(
-                        icon: "heart.fill",
-                        title: loc(appLanguage, "HealthKit", "HealthKit"),
+                        icon: "figure.walk",
+                        title: loc(appLanguage, "Steps", "Шаги"),
                         value: formatNumber(healthKitSteps),
                         color: .pink
                     )
@@ -148,9 +148,8 @@ struct StepBalanceCard: View {
                         value: formatNumber(outerWorldSteps),
                         color: .blue
                     )
-                    
-                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, alignment: .center)
                 .transition(.asymmetric(
                     insertion: .move(edge: .top).combined(with: .opacity),
                     removal: .opacity
