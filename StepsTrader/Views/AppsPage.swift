@@ -128,15 +128,17 @@ struct AppsPage: View {
         NavigationView {
             let horizontalPadding: CGFloat = 16
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    deactivatedSection(horizontalPadding: horizontalPadding)
+                VStack(alignment: .leading, spacing: 20) {
+                    deactivatedSection(horizontalPadding: 0)
                     activatedSection
                 }
                 .padding(.horizontal, horizontalPadding)
-                .padding(.top, 12)
+                .padding(.top, 8)
+                .padding(.bottom, 100)
                 .id(statusVersion)
             }
             .scrollIndicators(.hidden)
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(true)
@@ -171,14 +173,52 @@ struct AppsPage: View {
         let availableWidth = UIScreen.main.bounds.width - horizontalPadding * 2
         let tileSize = max(48, (availableWidth - CGFloat(columns - 1) * spacing) / CGFloat(columns))
         
-        VStack(alignment: .leading, spacing: 12) {
-            Text(loc(appLanguage, "Deactivated shields", "Неактивные щиты"))
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 16) {
+            // Section header
+            HStack(spacing: 10) {
+                Image(systemName: "shield.slash")
+                    .font(.title3)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.gray, .gray.opacity(0.6)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(loc(appLanguage, "Available Shields", "Доступные щиты"))
+                        .font(.headline)
+                    Text(loc(appLanguage, "Tap to activate", "Нажмите для активации"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                
+                // Count badge
+                if !deactivatedAll.isEmpty {
+                    Text("\(deactivatedAll.count)")
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.gray.opacity(0.15)))
+                }
+            }
             
             if deactivatedAll.isEmpty {
-                Text(loc(appLanguage, "All shields are connected", "Все щиты подключены"))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack {
+                    Image(systemName: "checkmark.shield.fill")
+                        .foregroundColor(.green)
+                    Text(loc(appLanguage, "All shields are connected", "Все щиты подключены"))
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.green.opacity(0.1))
+                )
             } else {
                 LazyVGrid(
                     columns: Array(repeating: GridItem(.fixed(tileSize), spacing: spacing), count: columns),
@@ -198,20 +238,75 @@ struct AppsPage: View {
                 }
             }
         }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(.secondarySystemBackground))
+        )
     }
     
     @ViewBuilder
     private var activatedSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(loc(appLanguage, "Activated shields", "Подключенные щиты"))
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 16) {
+            // Section header
+            HStack(spacing: 10) {
+                Image(systemName: "shield.checkered")
+                    .font(.title3)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.blue, .purple],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(loc(appLanguage, "Active Shields", "Активные щиты"))
+                        .font(.headline)
+                    Text(loc(appLanguage, "Your protected apps", "Ваши защищённые приложения"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                
+                // Count badge
+                if !activatedApps.isEmpty {
+                    Text("\(activatedApps.count)")
+                        .font(.caption.bold())
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.blue.opacity(0.15)))
+                }
+            }
             
             if activatedApps.isEmpty {
-                Text(loc(appLanguage, "No shields here yet.", "Здесь пока нет щитов."))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                // Empty state card
+                VStack(spacing: 12) {
+                    Image(systemName: "shield.fill")
+                        .font(.system(size: 40))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.gray.opacity(0.4), .gray.opacity(0.2)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    Text(loc(appLanguage, "No shields yet", "Пока нет щитов"))
+                        .font(.subheadline.weight(.medium))
+                    Text(loc(appLanguage, "Activate a shield above to start protecting yourself from distractions", "Активируйте щит выше, чтобы защититься от отвлечений"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(24)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(.tertiarySystemBackground))
+                        .stroke(Color.gray.opacity(0.1), style: StrokeStyle(lineWidth: 1, dash: [5]))
+                )
             } else {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(spacing: 12) {
                     ForEach(activatedApps) { app in
                         moduleLevelCard(for: app)
                     }
@@ -224,14 +319,23 @@ struct AppsPage: View {
         Button {
             showDeactivatedPicker = true
         } label: {
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color.gray.opacity(0.08))
-                .frame(width: size, height: size)
-                .overlay(
-                    Text("...")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(Color.gray.opacity(0.7))
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.gray.opacity(0.1), Color.gray.opacity(0.05)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: size, height: size)
+                
+                VStack(spacing: 2) {
+                    Text("+\(deactivatedOverflow.count)")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
+            }
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -244,93 +348,149 @@ struct AppsPage: View {
         let stepsToNext = stepsToNextLevel(forSpent: spent)
         let accent = tileAccent(for: current.level)
         let isMinuteMode = model.isFamilyControlsModeEnabled(for: app.bundleId)
+        let hasActiveAccess = model.remainingAccessSeconds(for: app.bundleId).map { $0 > 0 } ?? false
         
         return Button {
             openGuide(for: app, status: status)
         } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .center, spacing: 12) {
-                    ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 14) {
+                // Header row
+                HStack(alignment: .center, spacing: 14) {
+                    // App icon with status indicator
+                    ZStack(alignment: .bottomTrailing) {
                         appIconView(app)
-                            .frame(width: 44, height: 44)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        if let remaining = model.remainingAccessSeconds(for: app.bundleId), remaining > 0 {
-                            HStack(spacing: 4) {
-                                Image(systemName: "timer")
-                                Text(formatRemaining(remaining))
-                            }
-                            .font(.caption2.weight(.semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(Color.black.opacity(0.75))
-                            .clipShape(Capsule())
-                            .padding(2)
-                        }
+                            .frame(width: 52, height: 52)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .shadow(color: accent.opacity(0.3), radius: 6, x: 0, y: 3)
+                        
+                        // Status dot
+                        Circle()
+                            .fill(hasActiveAccess ? Color.green : accent)
+                            .frame(width: 14, height: 14)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color(.systemBackground), lineWidth: 2)
+                            )
+                            .offset(x: 4, y: 4)
                     }
                     .id(clockTick)
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        // App name and mode badge
+                        HStack(spacing: 8) {
                             Text(app.name)
                                 .font(.headline)
-                            HStack(spacing: 3) {
-                                Image(systemName: isMinuteMode ? "clock" : "door.left.hand.open")
-                                    .font(.caption2)
-                                Text(loc(appLanguage, isMinuteMode ? "min" : "open", isMinuteMode ? "мин" : "откр"))
+                                .foregroundColor(.primary)
+                            
+                            // Mode badge
+                            HStack(spacing: 4) {
+                                Image(systemName: isMinuteMode ? "clock.fill" : "door.left.hand.open")
+                                    .font(.system(size: 10))
+                                Text(loc(appLanguage, isMinuteMode ? "Minute" : "Open", isMinuteMode ? "Минуты" : "Открытый"))
                                     .font(.caption2.weight(.medium))
                             }
                             .foregroundColor(isMinuteMode ? .blue : .orange)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(isMinuteMode ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15)))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(isMinuteMode ? Color.blue.opacity(0.12) : Color.orange.opacity(0.12))
+                            )
                         }
-                        Text(moduleCardSubtitle(for: current))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        
+                        // Timer or level info
+                        if let remaining = model.remainingAccessSeconds(for: app.bundleId), remaining > 0 {
+                            HStack(spacing: 6) {
+                                Image(systemName: "timer")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                                Text(loc(appLanguage, "Access: ", "Доступ: ") + formatRemaining(remaining))
+                                    .font(.caption.weight(.medium))
+                                    .foregroundColor(.green)
+                            }
+                        } else {
+                            HStack(spacing: 6) {
+                                Image(systemName: "bolt.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                                Text("\(formatSteps(spent)) " + loc(appLanguage, "invested", "вложено"))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
+                    
                     Spacer()
-                    statusIcon(for: status)
+                    
+                    // Chevron
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary.opacity(0.5))
                 }
                 
-                // Level progress bar
-                VStack(alignment: .leading, spacing: 6) {
+                // Level progress section
+                VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text(loc(appLanguage, "Level \(current.label)", "Уровень \(current.label)"))
-                            .font(.caption.weight(.semibold))
+                        // Level badge
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill")
+                                .font(.caption2)
+                            Text(loc(appLanguage, "Level \(current.label)", "Уровень \(current.label)"))
+                                .font(.caption.weight(.bold))
+                        }
+                        .foregroundColor(accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule().fill(accent.opacity(0.15))
+                        )
+                        
                         Spacer()
+                        
+                        // Progress info
                         if let toNext = stepsToNext {
                             Text("\(formatSteps(toNext)) " + loc(appLanguage, "to next", "до след."))
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         } else {
-                            Text(loc(appLanguage, "MAX", "МАКС"))
-                                .font(.caption2.weight(.bold))
-                                .foregroundColor(accent)
+                            HStack(spacing: 4) {
+                                Image(systemName: "crown.fill")
+                                    .font(.caption2)
+                                Text(loc(appLanguage, "MAX", "МАКС"))
+                                    .font(.caption2.weight(.bold))
+                            }
+                            .foregroundColor(accent)
                         }
                     }
                     
+                    // Progress bar
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            Capsule()
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(height: 6)
-                            Capsule()
-                                .fill(accent)
-                                .frame(width: geo.size.width * CGFloat(progress), height: 6)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(.systemGray5))
+                                .frame(height: 8)
+                            
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [accent, accent.opacity(0.7)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: max(8, geo.size.width * CGFloat(progress)), height: 8)
+                                .shadow(color: accent.opacity(0.4), radius: 3, x: 0, y: 1)
                         }
                     }
-                    .frame(height: 6)
-                    
-                    Text("\(formatSteps(spent)) " + loc(appLanguage, "steps invested", "шагов вложено"))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                    .frame(height: 8)
                 }
             }
-            .padding()
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.gray.opacity(0.1))
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(.secondarySystemBackground))
+                    .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
             )
         }
         .buttonStyle(PlainButtonStyle())
@@ -541,38 +701,55 @@ struct AppsPage: View {
         Button {
             openGuide(for: app, status: status)
         } label: {
-            VStack(spacing: 8) {
-                ZStack(alignment: .topTrailing) {
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(tileColor(for: tariff, status: status))
-                        .frame(width: width, height: width)
-                        .overlay(
-                            ZStack {
-                                appIconView(app)
-                                    .frame(width: width * 0.6, height: width * 0.6)
-                                if let remaining = model.remainingAccessSeconds(for: app.bundleId), remaining > 0 {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "timer")
-                                        Text(formatRemaining(remaining))
-                                    }
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.black.opacity(0.7))
-                                    .clipShape(Capsule())
-                                    .padding(6)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                                }
+            ZStack {
+                // Background
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.tertiarySystemBackground))
+                    .frame(width: width, height: width)
+                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                
+                // App icon
+                appIconView(app)
+                    .frame(width: width * 0.58, height: width * 0.58)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                
+                // Timer badge (if active)
+                if let remaining = model.remainingAccessSeconds(for: app.bundleId), remaining > 0 {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            HStack(spacing: 2) {
+                                Image(systemName: "timer")
+                                Text(formatRemaining(remaining))
                             }
-                            .id(clockTick)
-                        )
-                    statusIcon(for: status)
-                        .padding(6)
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(Color.green)
+                            .clipShape(Capsule())
+                            .padding(3)
+                        }
+                        Spacer()
+                    }
+                }
+                
+                // Status indicator
+                if status != .none {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            statusIcon(for: status)
+                                .font(.caption2)
+                                .padding(4)
+                        }
+                        Spacer()
+                    }
                 }
             }
+            .frame(width: width, height: width)
+            .id(clockTick)
         }
-        .frame(width: width)
         .contentShape(Rectangle())
         .buttonStyle(PlainButtonStyle())
         .contextMenu {
@@ -591,7 +768,7 @@ struct AppsPage: View {
                 }
             }
         }
-        .opacity(status == .none ? 0.55 : 1.0)
+        .opacity(status == .none ? 0.7 : 1.0)
     }
     
     private func tileColor(for tariff: Tariff?, status: AutomationStatus) -> Color {
