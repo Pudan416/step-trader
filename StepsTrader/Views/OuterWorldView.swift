@@ -496,7 +496,7 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
             longitude: center.longitude + lonOffset
         )
         
-        let energy = Int.random(in: 1...5) * 1000
+        let energy = dropEnergy
         let expiresAt = Date().addingTimeInterval(dropLifetime)
         
         let drop = EnergyDrop(
@@ -505,7 +505,7 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
             expiresAt: expiresAt
         )
         
-        energyDrops.append(drop)
+        energyDrops = [drop]
         saveDrops()
     }
     
@@ -538,6 +538,40 @@ struct OuterWorldView: View {
             VStack {
                 headerOverlay
                 Spacer()
+            }
+            
+            // Floating controls (bottom-right)
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    VStack(spacing: 10) {
+                        Button {
+                            recenterToUser()
+                        } label: {
+                            Image(systemName: "location.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(width: 46, height: 46)
+                                .background(Circle().fill(.ultraThinMaterial))
+                                .shadow(color: .black.opacity(0.16), radius: 10, x: 0, y: 6)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(locationManager.userLocation == nil)
+                        
+                        Button {
+                            showMechanicInfo = true
+                        } label: {
+                            Image(systemName: "info.circle.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(width: 46, height: 46)
+                                .background(Circle().fill(.ultraThinMaterial))
+                                .shadow(color: .black.opacity(0.16), radius: 10, x: 0, y: 6)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 110)
+                }
             }
             
             // Collected energy popup
@@ -684,7 +718,6 @@ struct OuterWorldView: View {
         }
         .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .excludingAll))
         .mapControls {
-            MapUserLocationButton()
             MapCompass()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -709,29 +742,6 @@ struct OuterWorldView: View {
                 }
                 
                 Spacer()
-                
-                HStack(spacing: 10) {
-                    Button {
-                        recenterToUser()
-                    } label: {
-                        Image(systemName: "location.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(width: 36, height: 36)
-                            .background(Circle().fill(.ultraThinMaterial))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(locationManager.userLocation == nil)
-                    
-                    Button {
-                        showMechanicInfo = true
-                    } label: {
-                        Image(systemName: "info.circle.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(width: 36, height: 36)
-                            .background(Circle().fill(.ultraThinMaterial))
-                    }
-                    .buttonStyle(.plain)
-                }
                 
                 // Stats badge
                 let cap = max(1, locationManager.dailyCap)
@@ -773,24 +783,96 @@ struct OuterWorldView: View {
     private var mechanicInfoSheet: some View {
         NavigationView {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(loc(appLanguage, "How it works", "Как это работает"))
-                        .font(.title2.bold())
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(loc(appLanguage, "• One drop at a time within 500m of you.", "• На карте всегда 1 капля в радиусе 500м от тебя."))
-                        Text(loc(appLanguage, "• Each drop gives +500 energy.", "• Каждая капля даёт +500 энергии."))
-                        Text(loc(appLanguage, "• Daily limit: 10,000 energy.", "• Дневной лимит: 10 000 энергии."))
-                        Text(loc(appLanguage, "• You can collect by walking within 50m.", "• Можно собрать, если подойти ближе 50м."))
-                        Text(loc(appLanguage, "• Or use magnet (3 times per day) if the drop is inside 500m.", "• Или притянуть магнитом (3 раза в день), если капля в 500м."))
+                let cap = max(1, locationManager.dailyCap)
+                let used = min(cap, max(0, locationManager.collectedToday))
+                let magnetsLeft = max(0, 3 - locationManager.magnetUsesToday)
+                
+                VStack(alignment: .leading, spacing: 16) {
+                    // Hero
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.blue.opacity(0.35), .purple.opacity(0.25)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 52, height: 52)
+                            
+                            Image(systemName: "bolt.fill")
+                                .font(.title3.bold())
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.yellow, .orange],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(loc(appLanguage, "How it works", "Как это работает"))
+                                .font(.title2.bold())
+                            Text(loc(appLanguage, "Collect fuel by walking in the real world.", "Собирай топливо, гуляя в реальном мире."))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
-                    .font(.body)
-                    .foregroundColor(.primary)
                     
-                    Text(loc(appLanguage, "Tip: tap a drop to build a walking route or use a magnet.", "Подсказка: нажми на каплю — можно построить маршрут или использовать магнит."))
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 4)
+                    // Today card
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text(loc(appLanguage, "Today", "Сегодня"))
+                                .font(.headline)
+                            Spacer()
+                            Text("\(formatNumber(used)) / \(formatNumber(cap))")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        ProgressView(value: Double(used), total: Double(cap))
+                            .tint(.blue)
+                        
+                        HStack(spacing: 10) {
+                            Label(loc(appLanguage, "Drop: +500 energy", "Капля: +500 энергии"), systemImage: "bolt.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption.weight(.semibold))
+                            Spacer()
+                            Label(loc(appLanguage, "Magnets: \(magnetsLeft)/3", "Магниты: \(magnetsLeft)/3"), systemImage: "paperclip")
+                                .foregroundColor(.blue)
+                                .font(.caption.weight(.semibold))
+                        }
+                    }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+                    
+                    // Rules card
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(loc(appLanguage, "Rules", "Правила"))
+                            .font(.headline)
+                        
+                        ruleRow(
+                            icon: "mappin.and.ellipse",
+                            color: .blue,
+                            text: loc(appLanguage, "One drop at a time within 500m of you.", "Одна капля за раз в радиусе 500м от тебя.")
+                        )
+                        
+                        ruleRow(
+                            icon: "figure.walk",
+                            color: .green,
+                            text: loc(appLanguage, "Walk within 50m to collect.", "Подойди ближе 50м чтобы собрать.")
+                        )
+                        
+                        ruleRow(
+                            icon: "paperclip",
+                            color: .blue,
+                            text: loc(appLanguage, "Tap a drop: build a walking route or use a magnet.", "Нажми на каплю: маршрут пешком или магнит.")
+                        )
+                    }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
                 }
                 .padding()
             }
@@ -813,6 +895,23 @@ struct OuterWorldView: View {
             span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
         )
         cameraPosition = .region(region)
+    }
+    
+    @ViewBuilder
+    private func ruleRow(icon: String, color: Color, text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.subheadline)
+                .foregroundColor(color)
+                .frame(width: 20)
+            
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            Spacer(minLength: 0)
+        }
     }
     
     // MARK: - Collected Popup
@@ -1033,9 +1132,8 @@ struct EnergyDropMarker: View {
     
     private var energyColor: Color {
         switch drop.energy {
-        case 1000...2000: return .green
-        case 2001...3000: return .cyan
-        case 3001...4000: return .orange
+        case ...500: return .green
+        case 501...1000: return .cyan
         default: return .yellow
         }
     }
