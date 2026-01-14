@@ -61,11 +61,18 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     @Published var energyDrops: [EnergyDrop] = []
     @Published var collectedDrop: EnergyDrop?
     @Published var totalCollected: Int = 0
+    @Published var magnetUsesToday: Int = 0
+    @Published var magnetLimitReachedAt: Date?
+    @Published var magnetNoDropsAt: Date?
     
     private let pickupRadius: CLLocationDistance = 50 // meters
     private let maxDropsOnScreen = 8
     private let minDropSeparation: CLLocationDistance = 120 // meters
     private let dropLifetime: TimeInterval = 3600 // 1 hour
+    private let maxMagnetUsesPerDay: Int = 3
+    
+    private let magnetDayKeyStorageKey = "outerworld_magnetDayKey_v1"
+    private let magnetCountStorageKey = "outerworld_magnetCount_v1"
     
     private var cleanupTimer: Timer?
     private var lastMagnetUse: Date?
@@ -78,6 +85,7 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         locationManager.distanceFilter = 10
         loadDrops()
         loadTotalCollected()
+        loadMagnetUsesToday()
         startCleanupTimer()
     }
     
@@ -188,6 +196,12 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
 
     func magnetPullNearbyDrops() {
         guard let coordinate = userLocation else { return }
+        refreshMagnetDayIfNeeded()
+        guard magnetUsesToday < maxMagnetUsesPerDay else {
+            magnetLimitReachedAt = Date()
+            return
+        }
+        
         let now = Date()
         if let lastUse = lastMagnetUse, now.timeIntervalSince(lastUse) < 10 {
             return
@@ -200,7 +214,10 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
             let dropLocation = CLLocation(latitude: drop.coordinate.latitude, longitude: drop.coordinate.longitude)
             return currentLocation.distance(from: dropLocation) <= magnetRadius
         }
-        guard !nearbyDrops.isEmpty else { return }
+        guard !nearbyDrops.isEmpty else {
+            magnetNoDropsAt = Date()
+            return
+        }
 
         // Collect up to 3 closest drops to keep it punchy (and avoid huge jumps)
         let closest = nearbyDrops
@@ -218,6 +235,9 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         totalCollected += totalEnergy
         saveTotalCollected()
         saveDrops()
+        
+        magnetUsesToday += 1
+        saveMagnetUsesToday()
 
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
@@ -301,6 +321,25 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         totalCollected = UserDefaults.standard.integer(forKey: "outerworld_totalcollected")
     }
     
+    private func refreshMagnetDayIfNeeded() {
+        let today = AppModel.dayKey(for: Date())
+        let storedDay = UserDefaults.standard.string(forKey: magnetDayKeyStorageKey)
+        if storedDay != today {
+            UserDefaults.standard.set(today, forKey: magnetDayKeyStorageKey)
+            magnetUsesToday = 0
+            saveMagnetUsesToday()
+        }
+    }
+    
+    private func loadMagnetUsesToday() {
+        refreshMagnetDayIfNeeded()
+        magnetUsesToday = UserDefaults.standard.integer(forKey: magnetCountStorageKey)
+    }
+    
+    private func saveMagnetUsesToday() {
+        UserDefaults.standard.set(magnetUsesToday, forKey: magnetCountStorageKey)
+    }
+    
     // MARK: - Debug
     
     func spawnTestDrop() {
@@ -341,6 +380,8 @@ struct OuterWorldView: View {
     @State private var showCollectedAlert = false
     @State private var showPermissionAlert = false
     @State private var mapRegion = MKCoordinateRegion()
+    @State private var showMagnetLimitToast = false
+    @State private var showMagnetNoDropsToast = false
     
     var body: some View {
         ZStack {
@@ -358,6 +399,12 @@ struct OuterWorldView: View {
             if let drop = locationManager.collectedDrop {
                 collectedPopup(drop: drop)
             }
+            
+            if showMagnetLimitToast {
+                toast(text: loc(appLanguage, "Magnet limit reached (3/day)", "Лимит магнита (3/день)"))
+            } else if showMagnetNoDropsToast {
+                toast(text: loc(appLanguage, "No drops within 500m", "Нет капель в радиусе 500м"))
+            }
         }
         .onAppear {
             checkLocationPermission()
@@ -368,6 +415,20 @@ struct OuterWorldView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
                     locationManager.collectedDrop = nil
                 }
+            }
+        }
+        .onReceive(locationManager.$magnetLimitReachedAt) { date in
+            guard date != nil else { return }
+            showMagnetLimitToast = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                showMagnetLimitToast = false
+            }
+        }
+        .onReceive(locationManager.$magnetNoDropsAt) { date in
+            guard date != nil else { return }
+            showMagnetNoDropsToast = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+                showMagnetNoDropsToast = false
             }
         }
         .alert(loc(appLanguage, "Location Required", "Требуется геолокация"), isPresented: $showPermissionAlert) {
@@ -509,12 +570,13 @@ struct OuterWorldView: View {
                 Spacer()
             }
                 
-                    Button {
+            Button {
                 locationManager.magnetPullNearbyDrops()
-                    } label: {
+            } label: {
+                let remaining = max(0, 3 - locationManager.magnetUsesToday)
                 HStack(spacing: 8) {
                     Image(systemName: "paperclip")
-                    Text(loc(appLanguage, "Magnet nearby drops (500m)", "Притянуть капли рядом (500м)"))
+                    Text(loc(appLanguage, "Magnet (\(remaining)/3)", "Магнит (\(remaining)/3)"))
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundColor(.white)
@@ -526,7 +588,7 @@ struct OuterWorldView: View {
                 )
             }
             .buttonStyle(PlainButtonStyle())
-            .disabled(locationManager.userLocation == nil)
+            .disabled(locationManager.userLocation == nil || locationManager.magnetUsesToday >= 3)
 
             // Debug buttons
             #if DEBUG
@@ -618,6 +680,24 @@ struct OuterWorldView: View {
         formatter.numberStyle = .decimal
         formatter.groupingSeparator = " "
         return formatter.string(from: NSNumber(value: number)) ?? "\(number)"
+    }
+    
+    @ViewBuilder
+    private func toast(text: String) -> some View {
+        VStack {
+            Spacer()
+            Text(text)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(Color.black.opacity(0.7))
+                )
+                .padding(.bottom, 120)
+        }
+        .transition(.opacity)
     }
 }
 
