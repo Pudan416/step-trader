@@ -71,7 +71,7 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     private let pickupRadius: CLLocationDistance = 50 // meters
     private let maxDropsOnScreen = 1
     private let dropLifetime: TimeInterval = 24 * 3600 // 24 hours
-    private let dropEnergy: Int = 1000
+    private let dropEnergy: Int = 500
     private let spawnRadius: CLLocationDistance = 500 // meters
     private let maxMagnetUsesPerDay: Int = 3
     
