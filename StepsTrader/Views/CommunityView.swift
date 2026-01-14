@@ -65,29 +65,6 @@ struct CommunityView: View {
                     )
                     .padding(.horizontal)
                     
-                    // Stats preview
-                    VStack(spacing: 16) {
-                        Text(loc(appLanguage, "Your Stats", "Ваша статистика"))
-                            .font(.headline)
-                        
-                        HStack(spacing: 20) {
-                            statCard(
-                                value: formatNumber(totalEnergySpent),
-                                label: loc(appLanguage, "Total Energy Spent", "Всего потрачено"),
-                                icon: "bolt.fill",
-                                color: .orange
-                            )
-                            
-                            statCard(
-                                value: "\(model.appUnlockSettings.count)",
-                                label: loc(appLanguage, "Active Shields", "Активных щитов"),
-                                icon: "shield.fill",
-                                color: .blue
-                            )
-                        }
-                    }
-                    .padding(.horizontal)
-                    
                     Spacer(minLength: 100)
                 }
             }
@@ -105,41 +82,6 @@ struct CommunityView: View {
                 .font(.subheadline)
             Spacer()
         }
-    }
-    
-    @ViewBuilder
-    private func statCard(value: String, label: String, icon: String, color: Color) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
-            
-            Text(value)
-                .font(.title2.bold())
-            
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.tertiarySystemBackground))
-        )
-    }
-    
-    private var totalEnergySpent: Int {
-        // Sum all lifetime spent across all apps
-        model.appStepsSpentLifetime.values.reduce(0, +)
-    }
-    
-    private func formatNumber(_ num: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = " "
-        return formatter.string(from: NSNumber(value: num)) ?? "\(num)"
     }
 }
 
