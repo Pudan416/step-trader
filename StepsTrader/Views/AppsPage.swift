@@ -129,7 +129,7 @@ struct AppsPage: View {
             let horizontalPadding: CGFloat = 16
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    deactivatedSection(horizontalPadding: 0)
+                    deactivatedSection(horizontalPadding: horizontalPadding)
                     activatedSection
                 }
                 .padding(.horizontal, horizontalPadding)
@@ -169,9 +169,13 @@ struct AppsPage: View {
     @ViewBuilder
     private func deactivatedSection(horizontalPadding: CGFloat) -> some View {
         let spacing: CGFloat = 10
-        let columns = 6
-        let availableWidth = UIScreen.main.bounds.width - horizontalPadding * 2
-        let tileSize = max(48, (availableWidth - CGFloat(columns - 1) * spacing) / CGFloat(columns))
+        let minTile: CGFloat = 48
+        let maxColumns = 6
+        let cardPadding: CGFloat = 16
+        let availableWidth = UIScreen.main.bounds.width - horizontalPadding * 2 - cardPadding * 2
+        let computedColumns = Int((availableWidth + spacing) / (minTile + spacing))
+        let columns = max(3, min(maxColumns, computedColumns))
+        let tileSize = max(minTile, (availableWidth - CGFloat(columns - 1) * spacing) / CGFloat(columns))
         
         VStack(alignment: .leading, spacing: 16) {
             // Section header
@@ -238,7 +242,7 @@ struct AppsPage: View {
                 }
             }
         }
-        .padding()
+        .padding(cardPadding)
         .background(
             RoundedRectangle(cornerRadius: 20)
                 .fill(Color(.secondarySystemBackground))
@@ -313,6 +317,11 @@ struct AppsPage: View {
                 }
             }
         }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(.secondarySystemBackground))
+        )
     }
     
     private func overflowTile(size: CGFloat) -> some View {
@@ -1634,8 +1643,8 @@ struct ManualsPage: View {
                         
                         VStack(alignment: .leading, spacing: 10) {
                             stepRow(number: 1, text: appLanguage == "ru" ? "Откройте ссылку на щит и добавьте его в Команды." : "Open the shield link and add it to Shortcuts.")
-                            stepRow(number: 2, text: appLanguage == "ru" ? "В Команды → Автоматизация → + → Приложение выберите нужное приложение и включите «Открыто» и «Выполнять сразу»." : "In Shortcuts → Automation → + → App, pick the target app and enable "Is Opened" and "Run Immediately".")
-                            stepRow(number: 3, text: appLanguage == "ru" ? "Укажите щит [Space] CTRL и сохраните." : "Select the [Space] CTRL shield and save.")
+                            stepRow(number: 2, text: appLanguage == "ru" ? "В Команды → Автоматизация → + → Приложение выберите нужное приложение и включите «Открыто» и «Выполнять сразу»." : "In Shortcuts → Automation → + → App, pick the target app and enable 'Is Opened' and 'Run Immediately'.")
+                            stepRow(number: 3, text: appLanguage == "ru" ? "Укажите щит [app] CTRL и сохраните." : "Select the [app] CTRL shield and save.")
                             stepRow(number: 4, text: appLanguage == "ru" ? "Откройте приложение один раз, чтобы активировать автоматизацию." : "Open the app once to activate automation.")
                         }
                     }
