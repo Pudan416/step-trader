@@ -1,11 +1,13 @@
 import SwiftUI
 import Combine
 import UIKit
+import CoreLocation
 
 @main
 struct StepsTraderApp: App {
     @StateObject private var model: AppModel
     @StateObject private var authService = AuthenticationService.shared
+    @StateObject private var locationPermissionRequester = LocationPermissionRequester()
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     @AppStorage("hasSeenIntro_v3") private var hasSeenIntro: Bool = false
@@ -58,6 +60,11 @@ struct StepsTraderApp: App {
                         nextText: loc(appLanguage, "Next", "Дальше"),
                         startText: loc(appLanguage, "Start", "Начать"),
                         allowText: loc(appLanguage, "Allow", "Разрешить"),
+                        onLocationSlide: {
+                            Task { @MainActor in
+                                locationPermissionRequester.requestWhenInUse()
+                            }
+                        },
                         onHealthSlide: {
                             Task { await model.ensureHealthAuthorizationAndRefresh() }
                         },
@@ -392,6 +399,18 @@ private extension StepsTraderApp {
                     loc(appLanguage, "Minute mode: pay per minute of real use (needs Screen Time)", "Minute mode: платишь за минуту реального использования (нужен Screen Time)")
                 ],
                 action: .none
+            ),
+            OnboardingSlide(
+                title: loc(appLanguage, "Outer World drops", "Капли во Внешнем мире"),
+                subtitle: loc(appLanguage, "Walk to collect extra Energy on the map.", "Гуляй и собирай дополнительную энергию на карте."),
+                symbol: "map.fill",
+                gradient: [.blue, .purple],
+                bullets: [
+                    loc(appLanguage, "One drop at a time within 500m of you", "Одна капля за раз в радиусе 500м от тебя"),
+                    loc(appLanguage, "Each drop gives +500 Energy (daily cap applies)", "Каждая капля даёт +500 энергии (действует дневной лимит)"),
+                    loc(appLanguage, "Magnet: 3 uses/day to pull the drop", "Магнит: 3 раза в день притягивает каплю")
+                ],
+                action: .requestLocation
             ),
             OnboardingSlide(
                 title: loc(appLanguage, "Connect your Steps", "Подключи шаги"),
@@ -1457,6 +1476,7 @@ extension PayGateView {
 // MARK: - Onboarding Stories
 enum OnboardingSlideAction: Equatable {
     case none
+    case requestLocation
     case requestHealth
     case requestNotifications
 }
@@ -1479,10 +1499,12 @@ struct OnboardingStoriesView: View {
     let nextText: String
     let startText: String
     let allowText: String
+    let onLocationSlide: (() -> Void)?
     let onHealthSlide: (() -> Void)?
     let onNotificationSlide: (() -> Void)?
     let onFinish: () -> Void
     @State private var index: Int = 0
+    @State private var didTriggerLocationRequest = false
     @State private var didTriggerHealthRequest = false
     @State private var didTriggerNotificationRequest = false
 
@@ -1710,6 +1732,11 @@ struct OnboardingStoriesView: View {
         if slides.indices.contains(index) {
             let action = slides[index].action
             switch action {
+            case .requestLocation:
+                if !didTriggerLocationRequest {
+                    didTriggerLocationRequest = true
+                    onLocationSlide?()
+                }
             case .requestHealth:
                 if !didTriggerHealthRequest {
                 didTriggerHealthRequest = true
@@ -1738,5 +1765,20 @@ struct OnboardingStoriesView: View {
             isPresented = false
         }
         onFinish()
+    }
+}
+
+// MARK: - Location Permission (Onboarding)
+final class LocationPermissionRequester: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+
+    override init() {
+        super.init()
+        manager.delegate = self
+    }
+
+    @MainActor
+    func requestWhenInUse() {
+        manager.requestWhenInUseAuthorization()
     }
 }
