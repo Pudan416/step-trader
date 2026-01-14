@@ -37,9 +37,9 @@ struct StatusView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Daily Summary Card
+                    // Greeting header
                     if !showConnectCTA {
-                        dailySummaryCard
+                        greetingHeader
                     }
                     
                     // Quick Stats Row
@@ -77,128 +77,19 @@ struct StatusView: View {
         }
     }
     
-    // MARK: - Daily Summary Card
-    private var dailySummaryCard: some View {
-        VStack(spacing: 16) {
-            // Greeting
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(greetingText)
-                        .font(.title2.bold())
-                    Text(motivationalText)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                
-                // Daily streak badge
-                if model.appUnlockSettings.count > 0 {
-                    VStack(spacing: 2) {
-                        Image(systemName: "flame.fill")
-                            .font(.title2)
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.orange, .red],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                        Text("\(model.appUnlockSettings.count)")
-                            .font(.caption.bold())
-                            .foregroundColor(.orange)
-                    }
-                    .padding(12)
-                    .background(
-                        Circle()
-                            .fill(Color.orange.opacity(0.15))
-                    )
-                }
+    // MARK: - Greeting Header
+    private var greetingHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(greetingText)
+                    .font(.title2.bold())
+                Text(motivationalText)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
             }
-            
-            // Progress Ring
-            HStack(spacing: 24) {
-                // Energy efficiency
-                VStack(spacing: 8) {
-                    ZStack {
-                        Circle()
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 8)
-                        Circle()
-                            .trim(from: 0, to: energyEfficiency)
-                            .stroke(
-                                LinearGradient(
-                                    colors: [.green, .blue],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                            )
-                            .rotationEffect(.degrees(-90))
-                        
-                        VStack(spacing: 0) {
-                            Text("\(Int(energyEfficiency * 100))%")
-                                .font(.title3.bold())
-                            Text(loc(appLanguage, "saved", "сохранено"))
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .frame(width: 80, height: 80)
-                    
-                    Text(loc(appLanguage, "Energy", "Энергия"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                // Divider
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 1, height: 60)
-                
-                // Steps today
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(formatNumber(Int(model.effectiveStepsToday)))
-                            .font(.title.bold())
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.green, .mint],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                        Text(loc(appLanguage, "steps", "шагов"))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack(spacing: 4) {
-                        Image(systemName: "bolt.fill")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                        Text("\(model.spentStepsToday) \(loc(appLanguage, "spent", "потрачено"))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack(spacing: 4) {
-                        Image(systemName: "battery.100")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                        Text("\(model.totalStepsBalance) \(loc(appLanguage, "available", "доступно"))")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                    }
-                }
-                
-                Spacer()
-            }
+            Spacer()
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
-        )
+        .padding(.top, 8)
     }
     
     private var greetingText: String {
@@ -225,13 +116,6 @@ struct StatusView: View {
         }
     }
     
-    private var energyEfficiency: Double {
-        let total = model.effectiveStepsToday
-        let spent = Double(model.spentStepsToday)
-        guard total > 0 else { return 1.0 }
-        return max(0, min(1, (total - spent) / total))
-    }
-    
     // MARK: - Quick Stats Row
     private var quickStatsRow: some View {
         HStack(spacing: 12) {
@@ -243,9 +127,9 @@ struct StatusView: View {
             )
             
             quickStatCard(
-                icon: "bolt.fill",
-                value: formatNumber(model.spentStepsToday),
-                label: loc(appLanguage, "Spent", "Потрачено"),
+                icon: "flame.fill",
+                value: formatNumber(totalLifetimeSpent),
+                label: loc(appLanguage, "All time", "За всё время"),
                 color: .orange
             )
             
@@ -256,6 +140,10 @@ struct StatusView: View {
                 color: .purple
             )
         }
+    }
+    
+    private var totalLifetimeSpent: Int {
+        model.appStepsSpentLifetime.values.reduce(0, +)
     }
     
     @ViewBuilder
