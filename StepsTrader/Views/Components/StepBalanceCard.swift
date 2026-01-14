@@ -6,7 +6,6 @@ struct StepBalanceCard: View {
     let spentSteps: Int
     let healthKitSteps: Int
     let outerWorldSteps: Int
-    let otherBonusSteps: Int
     let showDetails: Bool
     
     @AppStorage("appLanguage") private var appLanguage: String = "en"
@@ -149,15 +148,6 @@ struct StepBalanceCard: View {
                                 color: .blue
                             )
                             
-                            if otherBonusSteps > 0 {
-                                sourceChip(
-                                    icon: "sparkles",
-                                    title: loc(appLanguage, "Bonus", "Бонус"),
-                                    value: formatNumber(otherBonusSteps),
-                                    color: .purple
-                                )
-                            }
-                            
                             Spacer(minLength: 0)
                         }
                     }
@@ -254,7 +244,6 @@ struct StepBalanceCard: View {
             spentSteps: 1480,
             healthKitSteps: 5000,
             outerWorldSteps: 800,
-            otherBonusSteps: 200,
             showDetails: true
         )
         
@@ -264,7 +253,6 @@ struct StepBalanceCard: View {
             spentSteps: 5850,
             healthKitSteps: 6000,
             outerWorldSteps: 0,
-            otherBonusSteps: 0,
             showDetails: false
         )
     }

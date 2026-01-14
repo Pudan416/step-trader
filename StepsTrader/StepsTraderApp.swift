@@ -467,7 +467,6 @@ struct MainTabView: View {
                     spentSteps: model.spentStepsToday,
                     healthKitSteps: Int(model.stepsToday),
                     outerWorldSteps: model.outerWorldBonusSteps,
-                    otherBonusSteps: model.debugBonusSteps,
                     showDetails: selection == 0
                 )
                 .padding(.horizontal)

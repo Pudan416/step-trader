@@ -614,8 +614,7 @@ struct JournalView: View {
     @State private var generatedRussian: String?
     @State private var storyError: String?
     @State private var showDetails: Bool = false
-    @State private var secretTapCount = 0
-    @State private var showDebugAlert = false
+    // Debug bonus removed (no minting energy outside HealthKit / Outer World)
     
     private var storedStory: AppModel.DailyStory? {
         model.story(for: selectedDate)
@@ -676,15 +675,6 @@ struct JournalView: View {
                     Text("DOOM CTRL")
                         .font(.caption2)
                         .foregroundColor(.clear)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            secretTapCount += 1
-                            if secretTapCount >= 7 {
-                                secretTapCount = 0
-                                model.addDebugSteps(1000)
-                                showDebugAlert = true
-                            }
-                        }
                     Spacer()
                 }
                 calendarGrid
@@ -707,11 +697,6 @@ struct JournalView: View {
                 }
             }
             .padding()
-        }
-        .alert("Bonus fuel", isPresented: $showDebugAlert) {
-            Button("Thanks", role: .cancel) {}
-        } message: {
-            Text("Added 1,000 debug steps to the balance.")
         }
         .background(Color.clear)
         .navigationTitle(loc(appLanguage, "Journal", "Журнал"))

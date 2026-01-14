@@ -130,13 +130,11 @@ final class AppModel: ObservableObject {
     // Оплата входа шагами
     @Published var entryCostSteps: Int = 100
     @Published var stepsBalance: Int = 0
-    /// Total non-HealthKit energy (sum of debug + Outer World).
-    /// Kept as a single published value because many parts of the app rely on it.
+    /// Total non-HealthKit energy.
+    /// We keep this as a single published value because many parts of the app rely on it.
     @Published private(set) var bonusSteps: Int = 0
     /// Energy collected from the Outer World (map drops).
     @Published private(set) var outerWorldBonusSteps: Int = 0
-    /// Debug/other bonus energy (e.g. secret taps / legacy values).
-    @Published private(set) var debugBonusSteps: Int = 0
     var totalStepsBalance: Int { max(0, stepsBalance + bonusSteps) }
     var effectiveStepsToday: Double { stepsToday + Double(bonusSteps) }
     @Published var spentStepsToday: Int = 0
@@ -1398,25 +1396,11 @@ final class AppModel: ObservableObject {
     private func loadDebugStepsBonus() {
         let g = UserDefaults.stepsTrader()
         
-        // New keys (split source)
-        let debugKey = "debugStepsBonus_debug_v1"
         let outerWorldKey = "debugStepsBonus_outerworld_v1"
-        
-        // Legacy key (single bucket)
-        let legacyTotal = g.integer(forKey: "debugStepsBonus_v1")
-        
-        let hasNewDebug = g.object(forKey: debugKey) != nil
-        let hasNewOuter = g.object(forKey: outerWorldKey) != nil
-        
-        if !hasNewDebug && !hasNewOuter {
-            // Migration: treat legacy as "debug/other" (so we don't accidentally attribute it to Outer World)
-            debugBonusSteps = legacyTotal
-            outerWorldBonusSteps = 0
-        } else {
-            debugBonusSteps = g.integer(forKey: debugKey)
-            outerWorldBonusSteps = g.integer(forKey: outerWorldKey)
-        }
-        
+
+        // We no longer support "debug/legacy" bonus energy.
+        // Only Outer World energy is allowed as extra energy.
+        outerWorldBonusSteps = max(0, g.integer(forKey: outerWorldKey))
         syncAndPersistBonusBreakdown()
     }
 
@@ -1425,24 +1409,20 @@ final class AppModel: ObservableObject {
     }
 
     private func syncAndPersistBonusBreakdown() {
-        bonusSteps = max(0, debugBonusSteps + outerWorldBonusSteps)
+        bonusSteps = max(0, outerWorldBonusSteps)
         
         let g = UserDefaults.stepsTrader()
-        g.set(bonusSteps, forKey: "debugStepsBonus_v1") // keep compatibility (extensions / older code)
-        g.set(debugBonusSteps, forKey: "debugStepsBonus_debug_v1")
+        // Keep compatibility (extensions / older code) by writing Outer World bonus into legacy key.
+        g.set(bonusSteps, forKey: "debugStepsBonus_v1")
         g.set(outerWorldBonusSteps, forKey: "debugStepsBonus_outerworld_v1")
+        // Explicitly clear removed debug bucket if it exists.
+        g.removeObject(forKey: "debugStepsBonus_debug_v1")
     }
 
     private func consumeBonusSteps(_ cost: Int) {
         guard cost > 0 else { return }
         
-        let consumeFromOuterWorld = min(outerWorldBonusSteps, cost)
-        outerWorldBonusSteps = max(0, outerWorldBonusSteps - consumeFromOuterWorld)
-        
-        let remaining = max(0, cost - consumeFromOuterWorld)
-        if remaining > 0 {
-            debugBonusSteps = max(0, debugBonusSteps - remaining)
-        }
+        outerWorldBonusSteps = max(0, outerWorldBonusSteps - min(outerWorldBonusSteps, cost))
         
         syncAndPersistBonusBreakdown()
     }
@@ -3042,10 +3022,5 @@ extension AppModel {
         return 0
     }
 
-    func addDebugSteps(_ count: Int) {
-        debugBonusSteps += count
-        cacheStepsToday()
-        syncAndPersistBonusBreakdown()
-        print("🧪 Debug: added \(count) steps. Bonus now \(bonusSteps), total \(totalStepsBalance)")
-    }
+    // Debug bonus removed: we intentionally do not support minting energy outside HealthKit/Outer World.
 }

@@ -49,8 +49,9 @@ class ShieldConfigurationProvider: ShieldConfigurationDataSource {
     private func getStepsInfo(for bundleId: String?) -> (balance: Int, entryCost: Int, dayPassCost: Int, dayPassActive: Bool, minuteModeEnabled: Bool, stepsToday: Int, totalSpent: Int) {
         let userDefaults = stepsTraderDefaults()
         let balance = userDefaults.integer(forKey: "stepsBalance")
-        let bonusSteps = userDefaults.integer(forKey: "debugStepsBonus_v1")
-        let stepsToday = userDefaults.integer(forKey: "cachedStepsToday") + bonusSteps
+        // `debugStepsBonus_v1` is used as a compatibility key for "Outer World bonus energy only".
+        let outerWorldBonus = userDefaults.integer(forKey: "debugStepsBonus_v1")
+        let stepsToday = userDefaults.integer(forKey: "cachedStepsToday") + outerWorldBonus
         let fallbackCost = 100
         var entryCost = fallbackCost
         var dayPassCost = fallbackCost * 100
