@@ -1095,7 +1095,7 @@ struct PayGateView: View {
         .contentShape(Rectangle())
     }
 }
-}
+
 extension PayGateView {
     private func refreshCountdown() {
         guard let session = activeSession else {
