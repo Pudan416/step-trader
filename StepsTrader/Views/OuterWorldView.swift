@@ -615,11 +615,16 @@ struct OuterWorldView: View {
             let magnetsLeft = max(0, 3 - locationManager.magnetUsesToday)
             Button(loc(appLanguage, "Use magnet (\(magnetsLeft) left)", "Притянуть магнитом (осталось \(magnetsLeft))")) {
                 if let drop = selectedDropForAction {
-                    locationManager.magnetPull(drop: drop)
+                    if locationManager.userLocation == nil {
+                        showPermissionAlert = true
+                    } else if locationManager.magnetUsesToday >= 3 {
+                        locationManager.magnetLimitReachedAt = Date()
+                    } else {
+                        locationManager.magnetPull(drop: drop)
+                    }
                 }
                 selectedDropForAction = nil
             }
-            .disabled(locationManager.userLocation == nil || locationManager.magnetUsesToday >= 3)
             
             Button(loc(appLanguage, "Cancel", "Отмена"), role: .cancel) {
                 selectedDropForAction = nil
