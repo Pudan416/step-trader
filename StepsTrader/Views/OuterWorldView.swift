@@ -749,15 +749,19 @@ struct OuterWorldView: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     VStack(alignment: .trailing, spacing: 2) {
                         HStack(spacing: 6) {
-                            Image(systemName: "bolt.fill")
-                                .foregroundColor(.yellow)
-                            Text(formatNumber(locationManager.totalCollected))
+                            Image(systemName: "calendar")
+                                .foregroundColor(.blue)
+                            Text(loc(appLanguage, "Today", "Сегодня") + " \(formatNumber(used)) / \(formatNumber(cap))")
                                 .font(.subheadline.bold())
                         }
-                        
-                        Text(loc(appLanguage, "Today \(formatNumber(used)) / \(formatNumber(cap))", "Сегодня \(formatNumber(used)) / \(formatNumber(cap))"))
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+
+                        HStack(spacing: 6) {
+                            Image(systemName: "bolt.fill")
+                                .foregroundColor(.yellow)
+                            Text(loc(appLanguage, "Total", "Всего") + ": \(formatNumber(locationManager.totalCollected))")
+                                .font(.caption2.weight(.medium))
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 .padding(.horizontal, 12)
