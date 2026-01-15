@@ -184,30 +184,20 @@ struct SettingsView: View {
                     showProfileEditor = true
                     } label: {
                     HStack(spacing: 14) {
-                        // Avatar
-                        if let avatarData = user.avatarData,
-                           let uiImage = UIImage(data: avatarData) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 56, height: 56)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.blue.opacity(0.3), lineWidth: 2))
-                        } else {
-                            ZStack {
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color.purple, Color.blue],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
+                        // Avatar (simplified: initials)
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.purple, Color.blue],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
                                     )
-                                    .frame(width: 56, height: 56)
-                                Text(String(user.displayName.prefix(2)).uppercased())
-                                    .font(.headline.weight(.bold))
-                                    .foregroundColor(.white)
-                            }
+                                )
+                                .frame(width: 56, height: 56)
+                            Text(String(user.displayName.prefix(2)).uppercased())
+                                .font(.headline.weight(.bold))
+                                .foregroundColor(.white)
                         }
                         
                         VStack(alignment: .leading, spacing: 4) {
