@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import UIKit
 
 // MARK: - Energy Drop Model
 struct EnergyDrop: Identifiable, Codable, Equatable {
@@ -602,6 +603,14 @@ struct OuterWorldView: View {
         }
         .onAppear {
             checkLocationPermission()
+            locationManager.refreshEconomySnapshot()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // Ensure daily counters (10k/day cap + magnets/day) reset after midnight even if the app was backgrounded.
+            locationManager.refreshEconomySnapshot()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+            // Fires around midnight / time changes. Re-check daily boundary.
             locationManager.refreshEconomySnapshot()
         }
         .onChange(of: model.stepsToday) { _, _ in
