@@ -80,6 +80,9 @@ struct StepsTraderApp: App {
                 }
             }
             .onAppear {
+                // Language selection was removed; keep the UI in English if an old value was persisted.
+                if appLanguage == "ru" { appLanguage = "en" }
+
                 // Ensure bootstrap runs once; defer permission prompts to intro if needed
                 if hasSeenIntro {
                     Task { await model.bootstrap(requestPermissions: true) }
@@ -390,18 +393,18 @@ private extension StepsTraderApp {
                 action: .none
             ),
             OnboardingSlide(
-                title: loc(appLanguage, "Two access modes", "Два режима доступа"),
+                title: loc(appLanguage, "Two shield modes", "Два режима "),
                 subtitle: loc(appLanguage, "Pick what fits your behavior.", "Выбирай то, что подходит тебе."),
                 symbol: "timer",
                 gradient: [.cyan, .blue],
                 bullets: [
-                    loc(appLanguage, "Open mode: pay once for a time window", "Open mode: платишь один раз за окно времени"),
+                    loc(appLanguage, "Entry mode: pay once for a time window", "Entry mode: платишь один раз за окно времени"),
                     loc(appLanguage, "Minute mode: pay per minute of real use (needs Screen Time)", "Minute mode: платишь за минуту реального использования (нужен Screen Time)")
                 ],
                 action: .none
             ),
             OnboardingSlide(
-                title: loc(appLanguage, "Outer World drops", "Капли во Внешнем мире"),
+                title: loc(appLanguage, "Outer World drops", "Посылки во Внешнем мире"),
                 subtitle: loc(appLanguage, "Walk to collect extra Energy on the map.", "Гуляй и собирай дополнительную энергию на карте."),
                 symbol: "map.fill",
                 gradient: [.blue, .purple],

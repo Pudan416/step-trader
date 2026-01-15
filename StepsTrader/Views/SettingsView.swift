@@ -120,6 +120,10 @@ struct SettingsView: View {
             }
             .background(Color(.systemGroupedBackground))
             .scrollIndicators(.hidden)
+            .onAppear {
+                // Language selection was removed; keep the UI in English if an old value was persisted.
+                if appLanguage == "ru" { appLanguage = "en" }
+            }
             .sheet(isPresented: $showLoginSheet) {
                 LoginView(authService: authService)
             }
@@ -135,7 +139,7 @@ struct SettingsView: View {
                 Text(loc(appLanguage, "This will replace your current shields and progress with data from iCloud.", "Это заменит ваши текущие щиты и прогресс данными из iCloud."))
             }
             .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
+                            .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(true)
         }
     }
@@ -178,7 +182,7 @@ struct SettingsView: View {
                 // User profile
                 Button {
                     showProfileEditor = true
-                } label: {
+                    } label: {
                     HStack(spacing: 14) {
                         // Avatar
                         if let avatarData = user.avatarData,
@@ -227,7 +231,7 @@ struct SettingsView: View {
                             }
                         }
                         
-                        Spacer()
+                            Spacer()
                         
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
@@ -390,28 +394,12 @@ struct SettingsView: View {
             
             Divider().padding(.horizontal, 16)
             
-            // Language
-            NavigationLink {
-                LanguageSettingsView(appLanguage: $appLanguage)
-                    .navigationTitle(loc(appLanguage, "Language", "Язык"))
-                    .navigationBarTitleDisplayMode(.inline)
-            } label: {
-                settingsRow(
-                    icon: "globe",
-                    iconColor: .blue,
-                    title: loc(appLanguage, "Language", "Язык"),
-                    value: appLanguage == "ru" ? "Русский" : "English"
-                )
-            }
-            
-            Divider().padding(.horizontal, 16)
-            
             // Theme
-            NavigationLink {
-                ThemeSettingsView(appLanguage: appLanguage, selectedTheme: $appThemeRaw)
-                    .navigationTitle(loc(appLanguage, "Theme", "Тема"))
-                    .navigationBarTitleDisplayMode(.inline)
-            } label: {
+                    NavigationLink {
+                        ThemeSettingsView(appLanguage: appLanguage, selectedTheme: $appThemeRaw)
+                            .navigationTitle(loc(appLanguage, "Theme", "Тема"))
+                            .navigationBarTitleDisplayMode(.inline)
+                    } label: {
                 settingsRow(
                     icon: "paintbrush.fill",
                     iconColor: .purple,
@@ -431,7 +419,7 @@ struct SettingsView: View {
         VStack(spacing: 12) {
             Text("DOOM CTRL")
                 .font(.headline)
-                .foregroundColor(.secondary)
+                                .foregroundColor(.secondary)
             
             Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
                 .font(.caption)
@@ -528,20 +516,6 @@ struct SettingsView: View {
     }
 
     // MARK: - Nested detail views
-    private struct LanguageSettingsView: View {
-        @Binding var appLanguage: String
-        
-        var body: some View {
-            Form {
-                Picker(loc(appLanguage, "Language", "Язык"), selection: $appLanguage) {
-                    Text(loc(appLanguage, "English", "Английский")).tag("en")
-                    Text(loc(appLanguage, "Русский", "Русский")).tag("ru")
-                }
-                .pickerStyle(.inline)
-            }
-        }
-    }
-    
     private struct ThemeSettingsView: View {
         let appLanguage: String
         @Binding var selectedTheme: String

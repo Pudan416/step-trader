@@ -1139,7 +1139,7 @@ struct AutomationGuideView: View {
         let minuteModeEnabled = model.isFamilyControlsModeEnabled(for: app.bundleId)
         
         return VStack(alignment: .leading, spacing: 12) {
-            Text("Access level")
+            Text("Shield level")
                 .font(.headline)
             
             levelHeaderButton(currentLevel: currentLevel, accent: accent)
@@ -1156,7 +1156,7 @@ struct AutomationGuideView: View {
                 openModeSection(currentLevel: currentLevel, accent: accent)
             }
         
-            Text("Levels change automatically based on steps spent on this shield.")
+            Text("Levels change automatically based on energy spent on this shield.")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -1315,7 +1315,7 @@ struct AutomationGuideView: View {
     @ViewBuilder
     private func accessModeSection(minuteModeEnabled: Bool, timeAccessEnabled: Bool) -> some View {
             VStack(alignment: .leading, spacing: 8) {
-                Text(loc(appLanguage, "Access mode", "Режим доступа"))
+                Text(loc(appLanguage, "Shield mode", "Режим"))
                     .font(.subheadline.weight(.semibold))
                 Picker("", selection: Binding(get: {
                     minuteModeEnabled ? 1 : 0
@@ -1329,7 +1329,7 @@ struct AutomationGuideView: View {
                         model.rebuildFamilyControlsShield()
                     }
                 })) {
-                    Text(loc(appLanguage, "Open mode", "Открытый режим")).tag(0)
+                    Text(loc(appLanguage, "Entry mode", "Открытый режим")).tag(0)
                     Text(loc(appLanguage, "Minute mode", "Минутный режим")).tag(1)
                 }
                 .pickerStyle(.segmented)
@@ -1399,7 +1399,7 @@ struct AutomationGuideView: View {
     @ViewBuilder
     private func openModeSection(currentLevel: ShieldLevel, accent: Color) -> some View {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Access options")
+                    Text("Shield options")
                         .font(.subheadline.weight(.semibold))
                     accessOptionRow(title: "Day pass", window: .day1, level: currentLevel, tint: accent, isDisabled: false)
                     accessOptionRow(title: "1 hour", window: .hour1, level: currentLevel, tint: accent, isDisabled: false)
