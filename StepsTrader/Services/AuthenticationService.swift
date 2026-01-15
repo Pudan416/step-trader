@@ -7,42 +7,21 @@ import SwiftUI
 struct AppUser: Codable {
     let id: String
     let email: String?
-    var firstName: String?
-    var lastName: String?
     var nickname: String?
     var country: String?
-    var city: String?
-    var avatarData: Data?
     let createdAt: Date
     
     var displayName: String {
         if let nickname = nickname, !nickname.isEmpty {
             return nickname
         }
-        if let firstName = firstName, !firstName.isEmpty {
-            if let lastName = lastName, !lastName.isEmpty {
-                return "\(firstName) \(lastName)"
-            }
-            return firstName
-        }
         return email ?? "User"
     }
     
     var locationString: String? {
-        var parts: [String] = []
-        if let c = city, !c.isEmpty {
-            parts.append(c)
-        }
-        if let countryCode = country, !countryCode.isEmpty {
-            // Convert country code to localized name
-            let locale = Locale.current
-            if let name = locale.localizedString(forRegionCode: countryCode) {
-                parts.append(name)
-            } else {
-                parts.append(countryCode)
-            }
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+        guard let countryCode = country, !countryCode.isEmpty else { return nil }
+        let locale = Locale.current
+        return locale.localizedString(forRegionCode: countryCode) ?? countryCode
     }
     
     var countryFlag: String? {
@@ -87,7 +66,7 @@ class AuthenticationService: NSObject, ObservableObject {
         defer { isLoading = false }
         
         let request = ASAuthorizationAppleIDProvider().createRequest()
-        request.requestedScopes = [.fullName, .email]
+        request.requestedScopes = [.email]
         
         let authorization = try await performSignIn(request: request)
         
@@ -98,12 +77,8 @@ class AuthenticationService: NSObject, ObservableObject {
         let user = AppUser(
             id: credential.user,
             email: credential.email ?? loadStoredEmail(for: credential.user),
-            firstName: credential.fullName?.givenName ?? loadStoredFirstName(for: credential.user),
-            lastName: credential.fullName?.familyName ?? loadStoredLastName(for: credential.user),
             nickname: loadStoredNickname(for: credential.user),
             country: loadStoredCountry(for: credential.user),
-            city: loadStoredCity(for: credential.user),
-            avatarData: loadStoredAvatar(for: credential.user),
             createdAt: Date()
         )
         
@@ -137,12 +112,8 @@ class AuthenticationService: NSObject, ObservableObject {
         let user = AppUser(
             id: credential.user,
             email: credential.email ?? loadStoredEmail(for: credential.user),
-            firstName: credential.fullName?.givenName ?? loadStoredFirstName(for: credential.user),
-            lastName: credential.fullName?.familyName ?? loadStoredLastName(for: credential.user),
             nickname: loadStoredNickname(for: credential.user),
             country: loadStoredCountry(for: credential.user),
-            city: loadStoredCity(for: credential.user),
-            avatarData: loadStoredAvatar(for: credential.user),
             createdAt: Date()
         )
         
@@ -178,34 +149,14 @@ class AuthenticationService: NSObject, ObservableObject {
     
     // MARK: - Profile Update Methods
     
-    func updateProfile(
-        nickname: String?,
-        firstName: String?,
-        lastName: String?,
-        country: String?,
-        city: String?,
-        avatarData: Data?
-    ) {
+    func updateProfile(nickname: String?, country: String?) {
         guard var user = currentUser else { return }
         user.nickname = nickname
-        user.firstName = firstName
-        user.lastName = lastName
         user.country = country
-        user.city = city
-        user.avatarData = avatarData
         currentUser = user
         saveUser(user)
         storeUserDetails(user)
         print("✅ Profile updated: \(user.displayName)")
-    }
-    
-    func updateAvatar(_ data: Data?) {
-        guard var user = currentUser else { return }
-        user.avatarData = data
-        currentUser = user
-        saveUser(user)
-        storeUserDetails(user)
-        print("✅ Avatar updated")
     }
     
     // MARK: - Private Methods
@@ -242,12 +193,8 @@ class AuthenticationService: NSObject, ObservableObject {
         }
         UserDefaults.standard.removeObject(forKey: userDefaultsKey)
         UserDefaults.standard.removeObject(forKey: "appleUserEmail_\(userId)")
-        UserDefaults.standard.removeObject(forKey: "appleUserFirstName_\(userId)")
-        UserDefaults.standard.removeObject(forKey: "appleUserLastName_\(userId)")
         UserDefaults.standard.removeObject(forKey: "appleUserNickname_\(userId)")
         UserDefaults.standard.removeObject(forKey: "appleUserCountry_\(userId)")
-        UserDefaults.standard.removeObject(forKey: "appleUserCity_\(userId)")
-        UserDefaults.standard.removeObject(forKey: "appleUserAvatar_\(userId)")
     }
     
     // Store user details separately (Apple only provides them on first sign-in)
@@ -257,16 +204,6 @@ class AuthenticationService: NSObject, ObservableObject {
         
         if let email = user.email {
             ud.set(email, forKey: "appleUserEmail_\(id)")
-        }
-        if let firstName = user.firstName, !firstName.isEmpty {
-            ud.set(firstName, forKey: "appleUserFirstName_\(id)")
-        } else {
-            ud.removeObject(forKey: "appleUserFirstName_\(id)")
-        }
-        if let lastName = user.lastName, !lastName.isEmpty {
-            ud.set(lastName, forKey: "appleUserLastName_\(id)")
-        } else {
-            ud.removeObject(forKey: "appleUserLastName_\(id)")
         }
         if let nickname = user.nickname, !nickname.isEmpty {
             ud.set(nickname, forKey: "appleUserNickname_\(id)")
@@ -278,28 +215,10 @@ class AuthenticationService: NSObject, ObservableObject {
         } else {
             ud.removeObject(forKey: "appleUserCountry_\(id)")
         }
-        if let city = user.city, !city.isEmpty {
-            ud.set(city, forKey: "appleUserCity_\(id)")
-        } else {
-            ud.removeObject(forKey: "appleUserCity_\(id)")
-        }
-        if let avatarData = user.avatarData {
-            ud.set(avatarData, forKey: "appleUserAvatar_\(id)")
-        } else {
-            ud.removeObject(forKey: "appleUserAvatar_\(id)")
-        }
     }
     
     private func loadStoredEmail(for userId: String) -> String? {
         UserDefaults.standard.string(forKey: "appleUserEmail_\(userId)")
-    }
-    
-    private func loadStoredFirstName(for userId: String) -> String? {
-        UserDefaults.standard.string(forKey: "appleUserFirstName_\(userId)")
-    }
-    
-    private func loadStoredLastName(for userId: String) -> String? {
-        UserDefaults.standard.string(forKey: "appleUserLastName_\(userId)")
     }
     
     private func loadStoredNickname(for userId: String) -> String? {
@@ -308,14 +227,6 @@ class AuthenticationService: NSObject, ObservableObject {
     
     private func loadStoredCountry(for userId: String) -> String? {
         UserDefaults.standard.string(forKey: "appleUserCountry_\(userId)")
-    }
-    
-    private func loadStoredCity(for userId: String) -> String? {
-        UserDefaults.standard.string(forKey: "appleUserCity_\(userId)")
-    }
-    
-    private func loadStoredAvatar(for userId: String) -> Data? {
-        UserDefaults.standard.data(forKey: "appleUserAvatar_\(userId)")
     }
 }
 
