@@ -391,7 +391,13 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     private func startCleanupTimer() {
         cleanupTimer?.invalidate()
         cleanupTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            self?.cleanupExpiredDrops()
+            guard let self else { return }
+            self.cleanupExpiredDrops()
+            
+            // Keep daily counters correct even if the app stays open across midnight.
+            // This enforces that "collectedToday" (Outer World daily cap usage) resets at local day boundary.
+            self.refreshCollectedTodayDayIfNeeded()
+            self.refreshMagnetDayIfNeeded()
         }
     }
     

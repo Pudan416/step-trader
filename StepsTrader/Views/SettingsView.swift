@@ -184,20 +184,29 @@ struct SettingsView: View {
                     showProfileEditor = true
                     } label: {
                     HStack(spacing: 14) {
-                        // Avatar (simplified: initials)
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color.purple, Color.blue],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
+                        // Avatar (photo if available, otherwise initials)
+                        if let data = user.avatarData, let uiImage = UIImage(data: data) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
                                 .frame(width: 56, height: 56)
-                            Text(String(user.displayName.prefix(2)).uppercased())
-                                .font(.headline.weight(.bold))
-                                .foregroundColor(.white)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.blue.opacity(0.25), lineWidth: 2))
+                        } else {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.purple, Color.blue],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 56, height: 56)
+                                Text(String(user.displayName.prefix(2)).uppercased())
+                                    .font(.headline.weight(.bold))
+                                    .foregroundColor(.white)
+                            }
                         }
                         
                         VStack(alignment: .leading, spacing: 4) {
@@ -1055,6 +1064,10 @@ struct ProfileEditorView: View {
     @State private var nickname: String = ""
     @State private var selectedCountryCode: String = ""
     @State private var showCountryPicker: Bool = false
+    @State private var avatarImage: UIImage?
+    @State private var showImagePicker: Bool = false
+    @State private var showImageSourcePicker: Bool = false
+    @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
     
     // All countries sorted by localized name
     private var countries: [(code: String, name: String)] {
@@ -1075,6 +1088,65 @@ struct ProfileEditorView: View {
     var body: some View {
         NavigationView {
             Form {
+                // Photo section
+                Section {
+                    HStack {
+                        Spacer()
+                        Button {
+                            showImageSourcePicker = true
+                        } label: {
+                            ZStack {
+                                if let image = avatarImage {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 96, height: 96)
+                                        .clipShape(Circle())
+                                } else {
+                                    Circle()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Color.purple.opacity(0.6), Color.blue.opacity(0.6)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .frame(width: 96, height: 96)
+                                    
+                                    Text(String((authService.currentUser?.displayName ?? "U").prefix(2)).uppercased())
+                                        .font(.title2.weight(.bold))
+                                        .foregroundColor(.white)
+                                }
+                                
+                                Circle()
+                                    .fill(Color.blue)
+                                    .frame(width: 30, height: 30)
+                                    .overlay(
+                                        Image(systemName: "camera.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.white)
+                                    )
+                                    .offset(x: 34, y: 34)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                    }
+                    .listRowBackground(Color.clear)
+                    
+                    if avatarImage != nil {
+                        Button(role: .destructive) {
+                            avatarImage = nil
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Text(loc(appLanguage, "Remove Photo", "Удалить фото"))
+                                Spacer()
+                            }
+                        }
+                    }
+                }
+                
                 // Nickname section
                 Section {
                     HStack {
@@ -1180,6 +1252,24 @@ struct ProfileEditorView: View {
             .onAppear {
                 loadCurrentProfile()
             }
+            .confirmationDialog(
+                loc(appLanguage, "Choose Photo", "Выбрать фото"),
+                isPresented: $showImageSourcePicker,
+                titleVisibility: .visible
+            ) {
+                Button(loc(appLanguage, "Camera", "Камера")) {
+                    imageSourceType = .camera
+                    showImagePicker = true
+                }
+                Button(loc(appLanguage, "Photo Library", "Галерея")) {
+                    imageSourceType = .photoLibrary
+                    showImagePicker = true
+                }
+                Button(loc(appLanguage, "Cancel", "Отмена"), role: .cancel) { }
+            }
+            .sheet(isPresented: $showImagePicker) {
+                ImagePicker(image: $avatarImage, sourceType: imageSourceType)
+            }
             .sheet(isPresented: $showCountryPicker) {
                 CountryPickerView(
                     selectedCountryCode: $selectedCountryCode,
@@ -1209,15 +1299,22 @@ struct ProfileEditorView: View {
             } else {
                 selectedCountryCode = user.country ?? ""
             }
+            if let data = user.avatarData, let image = UIImage(data: data) {
+                avatarImage = image
+            } else {
+                avatarImage = nil
+            }
         }
     }
     
     private func saveProfile() {
         let trimmedNickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        let avatarData = avatarImage?.jpegData(compressionQuality: 0.75)
         
         authService.updateProfile(
             nickname: trimmedNickname.isEmpty ? nil : trimmedNickname,
-            country: selectedCountryCode.isEmpty ? nil : selectedCountryCode
+            country: selectedCountryCode.isEmpty ? nil : selectedCountryCode,
+            avatarData: avatarData
         )
     }
 }
@@ -1370,6 +1467,48 @@ class ProfileLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
             self.isLoading = false
             self.errorMessage = error.localizedDescription
             self.completion?(nil)
+        }
+    }
+}
+
+// MARK: - Image Picker
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    let sourceType: UIImagePickerController.SourceType
+    @Environment(\.dismiss) private var dismiss
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = sourceType
+        picker.delegate = context.coordinator
+        picker.allowsEditing = true
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: ImagePicker
+        
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let edited = info[.editedImage] as? UIImage {
+                parent.image = edited
+            } else if let original = info[.originalImage] as? UIImage {
+                parent.image = original
+            }
+            parent.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
         }
     }
 }

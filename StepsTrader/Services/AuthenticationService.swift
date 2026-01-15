@@ -9,6 +9,7 @@ struct AppUser: Codable {
     let email: String?
     var nickname: String?
     var country: String?
+    var avatarData: Data?
     let createdAt: Date
     
     var displayName: String {
@@ -79,6 +80,7 @@ class AuthenticationService: NSObject, ObservableObject {
             email: credential.email ?? loadStoredEmail(for: credential.user),
             nickname: loadStoredNickname(for: credential.user),
             country: loadStoredCountry(for: credential.user),
+            avatarData: loadStoredAvatarData(for: credential.user),
             createdAt: Date()
         )
         
@@ -114,6 +116,7 @@ class AuthenticationService: NSObject, ObservableObject {
             email: credential.email ?? loadStoredEmail(for: credential.user),
             nickname: loadStoredNickname(for: credential.user),
             country: loadStoredCountry(for: credential.user),
+            avatarData: loadStoredAvatarData(for: credential.user),
             createdAt: Date()
         )
         
@@ -149,14 +152,19 @@ class AuthenticationService: NSObject, ObservableObject {
     
     // MARK: - Profile Update Methods
     
-    func updateProfile(nickname: String?, country: String?) {
+    func updateProfile(nickname: String?, country: String?, avatarData: Data?) {
         guard var user = currentUser else { return }
         user.nickname = nickname
         user.country = country
+        user.avatarData = avatarData
         currentUser = user
         saveUser(user)
         storeUserDetails(user)
         print("✅ Profile updated: \(user.displayName)")
+    }
+
+    func updateProfile(nickname: String?, country: String?) {
+        updateProfile(nickname: nickname, country: country, avatarData: currentUser?.avatarData)
     }
     
     // MARK: - Private Methods
@@ -195,6 +203,7 @@ class AuthenticationService: NSObject, ObservableObject {
         UserDefaults.standard.removeObject(forKey: "appleUserEmail_\(userId)")
         UserDefaults.standard.removeObject(forKey: "appleUserNickname_\(userId)")
         UserDefaults.standard.removeObject(forKey: "appleUserCountry_\(userId)")
+        UserDefaults.standard.removeObject(forKey: "appleUserAvatarData_\(userId)")
     }
     
     // Store user details separately (Apple only provides them on first sign-in)
@@ -215,6 +224,12 @@ class AuthenticationService: NSObject, ObservableObject {
         } else {
             ud.removeObject(forKey: "appleUserCountry_\(id)")
         }
+
+        if let avatarData = user.avatarData, !avatarData.isEmpty {
+            ud.set(avatarData, forKey: "appleUserAvatarData_\(id)")
+        } else {
+            ud.removeObject(forKey: "appleUserAvatarData_\(id)")
+        }
     }
     
     private func loadStoredEmail(for userId: String) -> String? {
@@ -227,6 +242,10 @@ class AuthenticationService: NSObject, ObservableObject {
     
     private func loadStoredCountry(for userId: String) -> String? {
         UserDefaults.standard.string(forKey: "appleUserCountry_\(userId)")
+    }
+
+    private func loadStoredAvatarData(for userId: String) -> Data? {
+        UserDefaults.standard.data(forKey: "appleUserAvatarData_\(userId)")
     }
 }
 
