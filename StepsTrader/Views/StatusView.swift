@@ -753,10 +753,32 @@ struct StatusView: View {
     }
     
     private func formatNumber(_ num: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = " "
-        return formatter.string(from: NSNumber(value: num)) ?? "\(num)"
+        let absValue = abs(num)
+        let sign = num < 0 ? "-" : ""
+        
+        func trimTrailingZero(_ s: String) -> String {
+            s.hasSuffix(".0") ? String(s.dropLast(2)) : s
+        }
+        
+        if absValue < 1000 { return "\(num)" }
+        
+        if absValue < 10_000 {
+            let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
+            return sign + trimTrailingZero(String(format: "%.1f", v)) + "K"
+        }
+        
+        if absValue < 1_000_000 {
+            let v = Int((Double(absValue) / 1000.0).rounded())
+            return sign + "\(v)K"
+        }
+        
+        if absValue < 10_000_000 {
+            let v = (Double(absValue) / 1_000_000.0 * 10).rounded() / 10
+            return sign + trimTrailingZero(String(format: "%.1f", v)) + "M"
+        }
+        
+        let v = Int((Double(absValue) / 1_000_000.0).rounded())
+        return sign + "\(v)M"
     }
 
     // MARK: - Day boundary helpers

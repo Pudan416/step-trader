@@ -40,9 +40,37 @@ class ShieldConfigurationProvider: ShieldConfigurationDataSource {
     }
 
     private func formatSteps(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        let absValue = abs(value)
+        let sign = value < 0 ? "-" : ""
+        
+        func trimTrailingZero(_ s: String) -> String {
+            s.hasSuffix(".0") ? String(s.dropLast(2)) : s
+        }
+        
+        if absValue < 1000 { return "\(value)" }
+        
+        if absValue < 10_000 {
+            let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
+            return sign + trimTrailingZero(String(format: "%.1f", v)) + "K"
+        }
+        
+        if absValue < 1_000_000 {
+            let v = Int((Double(absValue) / 1000.0).rounded())
+            return sign + "\(v)K"
+        }
+        
+        if absValue < 10_000_000 {
+            let v = (Double(absValue) / 1_000_000.0 * 10).rounded() / 10
+            return sign + trimTrailingZero(String(format: "%.1f", v)) + "M"
+        }
+        
+        if absValue < 1_000_000_000 {
+            let v = Int((Double(absValue) / 1_000_000.0).rounded())
+            return sign + "\(v)M"
+        }
+        
+        let v = (Double(absValue) / 1_000_000_000.0 * 10).rounded() / 10
+        return sign + trimTrailingZero(String(format: "%.1f", v)) + "B"
     }
     
     // Get current balance and entry cost from App Group

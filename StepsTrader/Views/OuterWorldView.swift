@@ -539,7 +539,7 @@ struct OuterWorldView: View {
                 headerOverlay
                 Spacer()
             }
-            
+                
             // Floating controls (bottom-right)
             VStack {
                 Spacer()
@@ -820,8 +820,8 @@ struct OuterWorldView: View {
                             Text(loc(appLanguage, "How it works", "Как это работает"))
                                 .font(.title2.bold())
                             Text(loc(appLanguage, "Collect fuel by walking in the real world.", "Собирай топливо, гуляя в реальном мире."))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                         }
                     }
                     
@@ -981,10 +981,37 @@ struct OuterWorldView: View {
     }
     
     private func formatNumber(_ number: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = " "
-        return formatter.string(from: NSNumber(value: number)) ?? "\(number)"
+        let absValue = abs(number)
+        let sign = number < 0 ? "-" : ""
+        
+        func trimTrailingZero(_ s: String) -> String {
+            s.hasSuffix(".0") ? String(s.dropLast(2)) : s
+        }
+        
+        if absValue < 1000 { return "\(number)" }
+        
+        if absValue < 10_000 {
+            let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
+            return sign + trimTrailingZero(String(format: "%.1f", v)) + "K"
+        }
+        
+        if absValue < 1_000_000 {
+            let v = Int((Double(absValue) / 1000.0).rounded())
+            return sign + "\(v)K"
+        }
+        
+        if absValue < 10_000_000 {
+            let v = (Double(absValue) / 1_000_000.0 * 10).rounded() / 10
+            return sign + trimTrailingZero(String(format: "%.1f", v)) + "M"
+        }
+        
+        if absValue < 1_000_000_000 {
+            let v = Int((Double(absValue) / 1_000_000.0).rounded())
+            return sign + "\(v)M"
+        }
+        
+        let v = (Double(absValue) / 1_000_000_000.0 * 10).rounded() / 10
+        return sign + trimTrailingZero(String(format: "%.1f", v)) + "B"
     }
     
     private func openWalkingRoute(to coordinate: CLLocationCoordinate2D) {
@@ -1063,7 +1090,7 @@ struct EnergyDropMarker: View {
         VStack(spacing: 4) {
             ZStack {
                 // Glow
-                Circle()
+                    Circle()
                     .fill(
                         RadialGradient(
                             colors: [energyColor.opacity(0.6), .clear],
@@ -1072,7 +1099,7 @@ struct EnergyDropMarker: View {
                             endRadius: 30
                         )
                     )
-                    .frame(width: 60, height: 60)
+                        .frame(width: 60, height: 60)
                     .scaleEffect(isAnimating ? 1.2 : 0.8)
                 
                 // Range indicator ring
@@ -1143,10 +1170,19 @@ struct EnergyDropMarker: View {
     }
     
     private var shortEnergy: String {
-        if drop.energy >= 1000 {
-            return "\(drop.energy / 1000)K"
+        let value = max(0, drop.energy)
+        if value < 1000 { return "\(value)" }
+        if value < 10_000 {
+            let v = (Double(value) / 1000.0 * 10).rounded() / 10
+            let s = String(format: "%.1f", v)
+            return (s.hasSuffix(".0") ? String(s.dropLast(2)) : s) + "K"
         }
-        return "\(drop.energy)"
+        if value < 1_000_000 {
+            return "\(Int((Double(value) / 1000.0).rounded()))K"
+        }
+        let v = (Double(value) / 1_000_000.0 * 10).rounded() / 10
+        let s = String(format: "%.1f", v)
+        return (s.hasSuffix(".0") ? String(s.dropLast(2)) : s) + "M"
     }
     
     private func formatDistance(_ meters: CLLocationDistance) -> String {

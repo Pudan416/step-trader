@@ -624,9 +624,32 @@ struct AppsPage: View {
     }
     
     private func formatSteps(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        let absValue = abs(value)
+        let sign = value < 0 ? "-" : ""
+        
+        func trimTrailingZero(_ s: String) -> String {
+            s.hasSuffix(".0") ? String(s.dropLast(2)) : s
+        }
+        
+        if absValue < 1000 { return "\(value)" }
+        
+        if absValue < 10_000 {
+            let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
+            return sign + trimTrailingZero(String(format: "%.1f", v)) + "K"
+        }
+        
+        if absValue < 1_000_000 {
+            let v = Int((Double(absValue) / 1000.0).rounded())
+            return sign + "\(v)K"
+        }
+        
+        if absValue < 10_000_000 {
+            let v = (Double(absValue) / 1_000_000.0 * 10).rounded() / 10
+            return sign + trimTrailingZero(String(format: "%.1f", v)) + "M"
+        }
+        
+        let v = Int((Double(absValue) / 1_000_000.0).rounded())
+        return sign + "\(v)M"
     }
     
     private func openGuide(for app: AutomationApp, status: AutomationStatus) {
@@ -1406,12 +1429,35 @@ struct AutomationGuideView: View {
                     accessOptionRow(title: "5 minutes", window: .minutes5, level: currentLevel, tint: accent, isDisabled: false)
                     accessOptionRow(title: "Single entry", window: .single, level: currentLevel, tint: accent, isDisabled: false)
                 }
-    }
-
+            }
+        
     private func formatSteps(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        let absValue = abs(value)
+        let sign = value < 0 ? "-" : ""
+        
+        func trimTrailingZero(_ s: String) -> String {
+            s.hasSuffix(".0") ? String(s.dropLast(2)) : s
+        }
+        
+        if absValue < 1000 { return "\(value)" }
+        
+        if absValue < 10_000 {
+            let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
+            return sign + trimTrailingZero(String(format: "%.1f", v)) + "K"
+        }
+        
+        if absValue < 1_000_000 {
+            let v = Int((Double(absValue) / 1000.0).rounded())
+            return sign + "\(v)K"
+        }
+        
+        if absValue < 10_000_000 {
+            let v = (Double(absValue) / 1_000_000.0 * 10).rounded() / 10
+            return sign + trimTrailingZero(String(format: "%.1f", v)) + "M"
+        }
+        
+        let v = Int((Double(absValue) / 1_000_000.0).rounded())
+        return sign + "\(v)M"
     }
     
     private func levelProgressForGuide(spent: Int, level: ShieldLevel) -> Double {
