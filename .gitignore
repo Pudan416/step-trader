@@ -110,3 +110,7 @@ TestResults/
 # Documentation build
 docs/
 documentation/
+# Node
+node_modules/
+.env
+.env.local
