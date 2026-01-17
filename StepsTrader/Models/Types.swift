@@ -42,11 +42,8 @@ protocol FamilyControlsServiceProtocol {
     var selection: FamilyActivitySelection { get set }
     func requestAuthorization() async throws
     func updateSelection(_ newSelection: FamilyActivitySelection)
-    // Shield controls
-    func enableShield()
-    func disableShield()
-    func allowOneSession() // uses current selection
-    func reenableShield()  // uses current selection
+    /// Updates DeviceActivity monitoring for minute-mode charging (if supported/authorized).
+    func updateMinuteModeMonitoring()
 }
 
 // MARK: - Notification Service Protocol

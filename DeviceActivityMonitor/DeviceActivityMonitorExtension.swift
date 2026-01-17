@@ -1,6 +1,5 @@
 import DeviceActivity
 import Foundation
-import ManagedSettings
 #if canImport(FamilyControls)
 import FamilyControls
 #endif
@@ -24,8 +23,6 @@ private struct MinuteChargeLog: Codable {
 }
 
 final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
-    private let store = ManagedSettingsStore()
-
     override func eventDidReachThreshold(
         _ event: DeviceActivityEvent.Name,
         activity: DeviceActivityName
@@ -40,11 +37,36 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let bundleId = String(raw.dropFirst(prefix.count))
 
         let g = stepsTraderDefaults()
+        let settings = unlockSettings(for: bundleId, defaults: g)
+        let shouldCharge = (settings?.familyControlsModeEnabled ?? false)
+            || (settings?.minuteTariffEnabled ?? false)
+        // If the app charged upfront on entry, skip the first 1-minute threshold to avoid double-charging.
+        // We still restart monitoring so the next minute can be tracked.
+        let skipKey = "minuteModeSkipNextCharge_v1_\(bundleId)"
+        if g.bool(forKey: skipKey) {
+            g.removeObject(forKey: skipKey)
+            _ = incrementMinuteCount(for: bundleId, defaults: g)
+            updateMinuteTimeLog(bundleId: bundleId, defaults: g)
+            restartMinuteModeMonitoring(defaults: g)
+            return
+        }
+
         let cost = entryCost(for: bundleId, defaults: g)
-        guard cost > 0 else { return }
 
         // Track cumulative minutes for this bundleId today
-        let minuteCount = incrementMinuteCount(for: bundleId, defaults: g)
+        _ = incrementMinuteCount(for: bundleId, defaults: g)
+
+        if !shouldCharge {
+            updateMinuteTimeLog(bundleId: bundleId, defaults: g)
+            restartMinuteModeMonitoring(defaults: g)
+            return
+        }
+
+        guard cost > 0 else {
+            updateMinuteTimeLog(bundleId: bundleId, defaults: g)
+            restartMinuteModeMonitoring(defaults: g)
+            return
+        }
 
         applyMinuteCharge(cost: cost, for: bundleId, defaults: g)
         updateSpentSteps(cost: cost, for: bundleId, defaults: g)
@@ -55,10 +77,14 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
         let remaining = remainingMinutes(cost: cost, defaults: g)
         if remaining <= 0 {
-            reenableShield(defaults: g)
+            // No shielding: mark that minute-mode is depleted so the app can react (e.g. show pay gate).
+            g.set(true, forKey: "minuteModeDepleted_v1")
+            g.set(bundleId, forKey: "minuteModeDepletedBundleId_v1")
+            // Stop monitoring to avoid further charges while depleted.
+            DeviceActivityCenter().stopMonitoring([DeviceActivityName("minuteMode")])
         } else {
-            // Reschedule with new threshold for next minute
-            rescheduleMinuteEvent(for: bundleId, nextMinute: minuteCount + 1, defaults: g)
+            // Restart monitoring so the next 1-minute threshold can fire again.
+            restartMinuteModeMonitoring(defaults: g)
         }
     }
     
@@ -71,43 +97,27 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         return next
     }
     
-    private func rescheduleMinuteEvent(for bundleId: String, nextMinute: Int, defaults: UserDefaults) {
+    private func restartMinuteModeMonitoring(defaults: UserDefaults) {
         #if canImport(FamilyControls) && canImport(DeviceActivity)
-        let key = "timeAccessSelection_v1_\(bundleId)"
-        guard let selectionData = defaults.data(forKey: key),
-              let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData),
-              !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
-        else { return }
-        
         let center = DeviceActivityCenter()
         let activityName = DeviceActivityName("minuteMode")
-        
-        // Build event with next minute threshold
-        let eventName = DeviceActivityEvent.Name("minute_\(bundleId)")
-        let event = DeviceActivityEvent(
-            applications: selection.applicationTokens,
-            categories: selection.categoryTokens,
-            webDomains: selection.webDomainTokens,
-            threshold: DateComponents(minute: nextMinute)
-        )
-        
+        let events = buildAllMinuteEvents(defaults: defaults)
+        if events.isEmpty {
+            center.stopMonitoring([activityName])
+            return
+        }
+
         let schedule = DeviceActivitySchedule(
             intervalStart: DateComponents(hour: 0, minute: 0),
             intervalEnd: DateComponents(hour: 23, minute: 59),
             repeats: true
         )
-        
-        // Stop and restart with updated event
+
         center.stopMonitoring([activityName])
-        
-        // Rebuild all events with updated thresholds
-        var events = buildAllMinuteEvents(defaults: defaults)
-        events[eventName] = event
-        
         do {
             try center.startMonitoring(activityName, during: schedule, events: events)
         } catch {
-            // Silently fail - will be retried on next app foreground
+            // Best-effort: will be retried on next app foreground / next toggle.
         }
         #endif
     }
@@ -118,14 +128,10 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
               let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
         else { return [:] }
         
-        let dayKey = dayKey(for: Date())
+        let today = dayKey(for: Date())
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
         
-        for (bundleId, settings) in decoded {
-            let enabled = (settings.familyControlsModeEnabled ?? false)
-                || (settings.minuteTariffEnabled ?? false)
-            guard enabled else { continue }
-            
+        for (bundleId, _) in decoded {
             let key = "timeAccessSelection_v1_\(bundleId)"
             guard let selectionData = defaults.data(forKey: key),
                   let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
@@ -135,8 +141,9 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                 continue
             }
             
-            // Get current minute count for this app today
-            let countKey = "minuteCount_\(dayKey)_\(bundleId)"
+            // DeviceActivity tracks CUMULATIVE usage since schedule start.
+            // After threshold fires for minute N, next threshold must be N+1.
+            let countKey = "minuteCount_\(today)_\(bundleId)"
             let currentMinutes = defaults.integer(forKey: countKey)
             let nextThreshold = currentMinutes + 1
             
@@ -206,11 +213,15 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     }
 
     private func entryCost(for bundleId: String, defaults: UserDefaults) -> Int {
-        guard let data = defaults.data(forKey: "appUnlockSettings_v1"),
-              let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data),
-              let settings = decoded[bundleId]
-        else { return 0 }
+        guard let settings = unlockSettings(for: bundleId, defaults: defaults) else { return 0 }
         return settings.entryCostSteps ?? 0
+    }
+
+    private func unlockSettings(for bundleId: String, defaults: UserDefaults) -> StoredUnlockSettings? {
+        guard let data = defaults.data(forKey: "appUnlockSettings_v1"),
+              let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
+        else { return nil }
+        return decoded[bundleId]
     }
 
     private func applyMinuteCharge(cost: Int, for bundleId: String, defaults: UserDefaults) {
@@ -282,34 +293,4 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         return df.string(from: date)
     }
 
-    private func reenableShield(defaults: UserDefaults) {
-        #if canImport(FamilyControls)
-        guard let data = defaults.data(forKey: "appUnlockSettings_v1"),
-              let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
-        else { return }
-
-        var combined = FamilyActivitySelection()
-        for (bundleId, settings) in decoded {
-            let enabled = (settings.familyControlsModeEnabled ?? false)
-                || (settings.minuteTariffEnabled ?? false)
-            guard enabled else { continue }
-            let key = "timeAccessSelection_v1_\(bundleId)"
-            if let selectionData = defaults.data(forKey: key),
-               let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData) {
-                combined.applicationTokens.formUnion(selection.applicationTokens)
-                combined.categoryTokens.formUnion(selection.categoryTokens)
-            }
-        }
-
-        if combined.applicationTokens.isEmpty && combined.categoryTokens.isEmpty {
-            store.clearAllSettings()
-            return
-        }
-
-        store.shield.applications = combined.applicationTokens
-        store.shield.applicationCategories = combined.categoryTokens.isEmpty
-            ? nil
-            : .specific(combined.categoryTokens)
-        #endif
-    }
 }

@@ -17,6 +17,7 @@ final class AppModel: ObservableObject {
     let notificationService: any NotificationServiceProtocol
     private let budgetEngine: any BudgetEngineProtocol
     private let shortcutInstallURLString = "https://www.icloud.com/shortcuts/"
+    private let authService = AuthenticationService.shared
 
     static func dayKey(for date: Date) -> String {
         let df = DateFormatter()
@@ -38,6 +39,8 @@ final class AppModel: ObservableObject {
     // MARK: - Outer World economy
     private let outerWorldDailyCapKey = "outerworld_dailyCap_v1"
     private let outerWorldLifetimeCollectedKey = "outerworld_totalcollected" // maintained by OuterWorldLocationManager
+    private let serverGrantedStepsKey = "serverGrantedSteps_v1"
+    private var lastSupabaseSyncAt: Date = .distantPast
 
     private func timeAccessSelectionKey(for bundleId: String) -> String {
         "timeAccessSelection_v1_\(bundleId)"
@@ -79,15 +82,8 @@ final class AppModel: ObservableObject {
             combined.applicationTokens.formUnion(selection.applicationTokens)
             combined.categoryTokens.formUnion(selection.categoryTokens)
         }
-        if let service = familyControlsService as? FamilyControlsService {
-            service.updateSelection(combined)
-            if combined.applicationTokens.isEmpty && combined.categoryTokens.isEmpty {
-                service.disableShield()
-            } else {
-                service.enableShield()
-            }
-            service.updateMinuteModeMonitoring()
-        }
+        familyControlsService.updateSelection(combined)
+        familyControlsService.updateMinuteModeMonitoring()
     }
 
     func isTimeAccessEnabled(for bundleId: String) -> Bool {
@@ -104,6 +100,7 @@ final class AppModel: ObservableObject {
         settings.minuteTariffEnabled = enabled
         appUnlockSettings[bundleId] = settings
         persistAppUnlockSettings()
+        scheduleSupabaseShieldUpsert(bundleId: bundleId)
     }
 
     func isFamilyControlsModeEnabled(for bundleId: String) -> Bool {
@@ -115,6 +112,7 @@ final class AppModel: ObservableObject {
         settings.familyControlsModeEnabled = enabled
         appUnlockSettings[bundleId] = settings
         persistAppUnlockSettings()
+        scheduleSupabaseShieldUpsert(bundleId: bundleId)
     }
 
     func minutesAvailable(for bundleId: String) -> Int {
@@ -141,12 +139,14 @@ final class AppModel: ObservableObject {
     @Published private(set) var bonusSteps: Int = 0
     /// Energy collected from the Outer World (map drops).
     @Published private(set) var outerWorldBonusSteps: Int = 0
+    /// Energy granted from Supabase (admin grants / server-side economy).
+    @Published private(set) var serverGrantedSteps: Int = 0
     var totalStepsBalance: Int { max(0, stepsBalance + bonusSteps) }
     var effectiveStepsToday: Double { stepsToday + Double(bonusSteps) }
     @Published var spentStepsToday: Int = 0
     @Published var healthAuthorizationStatus: HKAuthorizationStatus = .notDetermined
     
-    struct AppUnlockSettings: Codable {
+    struct AppUnlockSettings: Codable, Equatable {
         var entryCostSteps: Int
         var dayPassCostSteps: Int
         var allowedWindows: Set<AccessWindow> = [.single, .minutes5, .hour1] // day pass off by default
@@ -197,6 +197,14 @@ final class AppModel: ObservableObject {
     // PayGate state
     @Published var showPayGate: Bool = false
     @Published var payGateTargetBundleId: String? = nil  // Mirrors current session for legacy uses
+    
+    private let payGateDismissedUntilKey = "payGateDismissedUntil_v1"
+    
+    enum PayGateDismissReason {
+        case userDismiss
+        case background
+        case programmatic
+    }
     
     struct PayGateSession: Identifiable {
         let id: String  // bundleId
@@ -285,6 +293,7 @@ final class AppModel: ObservableObject {
 
         // Загрузка бонусного баланса от секретного действия
         loadDebugStepsBonus()
+        loadServerGrantedSteps()
         // Make sure Outer World daily cap exists even before HealthKit finishes (uses cached/sim steps).
         persistOuterWorldDailyCap()
         // Загрузка баланса шагов
@@ -382,6 +391,14 @@ final class AppModel: ObservableObject {
             name: NSNotification.Name("com.steps.trader.energy.collected"),
             object: nil
         )
+        
+        // Подписка на уведомление о восстановлении данных с сервера
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleStatsRestored),
+            name: NSNotification.Name("StatsRestoredFromServer"),
+            object: nil
+        )
 
         // Подписка на дарвиновское уведомление от сниппета/интента (безопасная привязка observer)
         CFNotificationCenterAddObserver(
@@ -432,6 +449,14 @@ final class AppModel: ObservableObject {
             print("⚡ Outer World: Collected \(energy) energy. Bonus now: \(self.bonusSteps)")
         }
     }
+    
+    @objc private func handleStatsRestored() {
+        print("📊 Stats restored from server, reloading local data...")
+        DispatchQueue.main.async { [weak self] in
+            self?.loadAppStepsSpentLifetime()
+            self?.loadAppStepsSpentToday()
+        }
+    }
 
     var outerWorldLifetimeCollected: Int {
         UserDefaults.standard.integer(forKey: outerWorldLifetimeCollectedKey)
@@ -476,9 +501,6 @@ final class AppModel: ObservableObject {
             if let bundleIdForPay, isFamilyControlsModeEnabled(for: bundleIdForPay) {
                 print("🛡️ Shield pay deeplink for minute mode: \(bundleIdForPay)")
                 Task { @MainActor in
-                    if let familyService = familyControlsService as? FamilyControlsService {
-                        familyService.allowOneSession()
-                    }
                     let now = Date()
                     userDefaults.set(now, forKey: "lastPayGateAction")
                     userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
@@ -514,24 +536,6 @@ final class AppModel: ObservableObject {
         if let bid = bundleId { startPayGateSession(for: bid) }
         print("🎯 Deeplink: host=\(url.host ?? "nil") target=\(bundleId ?? "nil")")
 
-        // Если guard-режим: сразу включаем shielding и открываем целевое приложение → iOS покажет системную шторку
-        if isGuard, let familyService = familyControlsService as? FamilyControlsService {
-            // Включаем щит для текущего selection (ожидается, что пользователь заранее выбрал приложение)
-            familyService.enableShield()
-            // Пытаемся открыть target для вызова системной шторки
-            if let bid = bundleId {
-                let scheme: String
-                switch bid {
-                case "com.burbn.instagram": scheme = "instagram://"
-                case "com.zhiliaoapp.musically": scheme = "tiktok://"
-                case "com.google.ios.youtube": scheme = "youtube://"
-                default: scheme = ""
-                }
-                if let url = URL(string: scheme), !scheme.isEmpty { UIApplication.shared.open(url) }
-            }
-            return
-        }
-
         // Otherwise show our pay gate overlay with a pay button
         if let bundleId {
             startPayGateSession(for: bundleId)
@@ -547,10 +551,7 @@ final class AppModel: ObservableObject {
         costOverride: Int? = nil
     ) async {
         if isFamilyControlsModeEnabled(for: bundleId) || isMinuteTariffEnabled(for: bundleId) {
-            if let familyService = familyControlsService as? FamilyControlsService {
-                familyService.disableShield()
-                familyService.updateMinuteModeMonitoring()
-            }
+            familyControlsService.updateMinuteModeMonitoring()
             await handleMinuteTariffEntry(for: bundleId)
             return
         }
@@ -636,10 +637,7 @@ final class AppModel: ObservableObject {
             message = "⚠️ Minute mode requires Screen Time selection."
             return
         }
-        if let familyService = familyControlsService as? FamilyControlsService {
-            familyService.updateMinuteModeMonitoring()
-            familyService.allowOneSession()
-        }
+        familyControlsService.updateMinuteModeMonitoring()
         clearMinuteTariffSessionState()
         
         // Track session start snapshot for summary notification.
@@ -650,11 +648,66 @@ final class AppModel: ObservableObject {
 
         openTargetAppFromPayGate(bundleId, logCost: 0) { [weak self] opened in
             guard let self = self else { return }
-            if !opened {
+            if opened {
+                // Charge immediately on entry so < 1 minute opens are not free.
+                // Then skip the first 1-minute threshold event to avoid double-charging.
+                if self.pay(cost: rate) {
+                    self.addSpentSteps(rate, for: bundleId)
+                    self.logMinuteModeEntryCharge(bundleId: bundleId, cost: rate)
+                } else {
+                    self.message = "⚠️ Could not charge minute mode entry."
+                }
+            } else {
                 self.message = "⚠️ Could not open the target app. Try again."
             }
             self.endPayGateSession(bundleId)
         }
+    }
+
+    private func logMinuteModeEntryCharge(bundleId: String, cost: Int) {
+        let g = UserDefaults.stepsTrader()
+        let now = Date()
+        let dayKey = Self.dayKey(for: now)
+
+        // 1) Mark to skip the next DeviceActivity 1-minute threshold event (avoids double-charge for minute 1).
+        g.set(true, forKey: "minuteModeSkipNextCharge_v1_\(bundleId)")
+
+        // 2) Increment "minutes used" counters for UI/summary.
+        let countKey = "minuteCount_\(dayKey)_\(bundleId)"
+        let currentMinutes = g.integer(forKey: countKey)
+        g.set(currentMinutes + 1, forKey: countKey)
+
+        // 3) Persist minuteTimeByDay_v1 (same shape as extension).
+        var perDay: [String: [String: Int]] = [:]
+        if let data = g.data(forKey: "minuteTimeByDay_v1"),
+           let decoded = try? JSONDecoder().decode([String: [String: Int]].self, from: data) {
+            perDay = decoded
+        }
+        var dayMap = perDay[dayKey] ?? [:]
+        dayMap[bundleId, default: 0] += 1
+        perDay[dayKey] = dayMap
+        // Keep last 7 days to avoid bloat (mirrors extension behavior).
+        let sortedKeys = perDay.keys.sorted().suffix(7)
+        perDay = perDay.filter { sortedKeys.contains($0.key) }
+        if let data = try? JSONEncoder().encode(perDay) {
+            g.set(data, forKey: "minuteTimeByDay_v1")
+        }
+
+        // 4) Append to minuteChargeLogs_v1 for UI.
+        var logs: [MinuteChargeLog] = []
+        if let data = g.data(forKey: "minuteChargeLogs_v1"),
+           let decoded = try? JSONDecoder().decode([MinuteChargeLog].self, from: data) {
+            logs = decoded
+        }
+        let balanceAfter = g.integer(forKey: "stepsBalance") + g.integer(forKey: "debugStepsBonus_v1")
+        logs.append(MinuteChargeLog(bundleId: bundleId, timestamp: now, cost: cost, balanceAfter: balanceAfter))
+        if logs.count > 100 { logs = Array(logs.suffix(100)) }
+        if let data = try? JSONEncoder().encode(logs) {
+            g.set(data, forKey: "minuteChargeLogs_v1")
+        }
+
+        // Refresh in-memory mirrors (so UI updates without relaunch).
+        loadMinuteChargeLogs()
     }
 
     private func shouldUseDeviceActivityMinuteMode(for bundleId: String) -> Bool {
@@ -804,6 +857,15 @@ final class AppModel: ObservableObject {
     // MARK: - PayGate sessions
     @MainActor
     func startPayGateSession(for bundleId: String) {
+        let g = UserDefaults.stepsTrader()
+        if !showPayGate,
+           let until = g.object(forKey: payGateDismissedUntilKey) as? Date,
+           Date() < until
+        {
+            print("🚫 PayGate suppressed after dismiss (\(String(format: "%.1f", until.timeIntervalSinceNow))s left), ignoring start for \(bundleId)")
+            return
+        }
+
         if isAccessBlocked(for: bundleId) {
             print("🚫 PayGate blocked until window expires for \(bundleId)")
             if let remaining = remainingAccessSeconds(for: bundleId) {
@@ -816,14 +878,11 @@ final class AppModel: ObservableObject {
         applyCurrentLevelCosts(for: bundleId)
 
         let session = PayGateSession(id: bundleId, bundleId: bundleId, startedAt: Date())
-        payGateSessions[bundleId] = session
+        // Keep PayGate single-target: replace any previous session so a new trigger switches the target.
+        payGateSessions = [bundleId: session]
         currentPayGateSessionId = bundleId
         payGateTargetBundleId = bundleId
         showPayGate = true
-        
-        let g = UserDefaults.stepsTrader()
-        g.set(true, forKey: "shouldShowPayGate")
-        g.set(bundleId, forKey: "payGateTargetBundleId")
     }
     
     @MainActor
@@ -868,7 +927,7 @@ final class AppModel: ObservableObject {
     func handleAppDidEnterBackground() {
         print("📱 App entered background - timer will be suspended")
         // Закрываем PayGate, если пользователь свернул приложение
-        dismissPayGate()
+        dismissPayGate(reason: .background)
 
         // Pause wall-clock minute tariff session so we don't charge while the app is backgrounded.
         // (DeviceActivity-based minute mode charges only for actual app usage and doesn't need this.)
@@ -920,10 +979,6 @@ final class AppModel: ObservableObject {
                             isBlocked = true
                             message = "⏰ Time expired while you were away!"
 
-                            if let familyService = familyControlsService as? FamilyControlsService {
-                                familyService.enableShield()
-                            }
-
                             notificationService.sendTimeExpiredNotification()
                             sendReturnToAppNotification()
                             AudioServicesPlaySystemSound(1005)
@@ -950,8 +1005,253 @@ final class AppModel: ObservableObject {
         // Всегда обновляем шаги из HealthKit при возвращении в приложение
         Task { @MainActor in
             await refreshStepsBalance()
+            await syncSupabaseStateIfAvailable()
         }
 
+    }
+
+    // MARK: - Supabase Sync (energy grants)
+    func syncSupabaseStateIfAvailable(force: Bool = false) async {
+        guard authService.isAuthenticated, let userId = authService.currentUser?.id else { return }
+        guard let accessToken = authService.currentSupabaseAccessToken, !accessToken.isEmpty else { return }
+        
+        // Throttle: no more than once per 30s unless forced.
+        if !force, Date().timeIntervalSince(lastSupabaseSyncAt) < 30 { return }
+        lastSupabaseSyncAt = Date()
+        
+        do {
+            let granted = try await fetchSupabaseGrantedEnergy(userId: userId, accessToken: accessToken)
+            let clamped = max(0, granted)
+            if clamped != serverGrantedSteps {
+                serverGrantedSteps = clamped
+                persistServerGrantedSteps()
+            }
+        } catch {
+            // Keep UI quiet; just log.
+            print("❌ Supabase sync failed: \(error.localizedDescription)")
+        }
+        
+        // NOTE: We don't pull shields from Supabase anymore.
+        // Shields are device-local (require Family Controls setup).
+        // We only PUSH shield data to Supabase for admin visibility.
+        // Pulling would show N shields but user has 0 configured after reinstall.
+    }
+    
+    private struct SupabaseConfig {
+        let baseURL: URL
+        let anonKey: String
+        
+        static func load() throws -> SupabaseConfig {
+            guard let urlString = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String,
+                  let anonKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String,
+                  let url = URL(string: urlString),
+                  !anonKey.isEmpty
+            else {
+                throw NSError(domain: "Supabase", code: 1, userInfo: [NSLocalizedDescriptionKey: "Supabase not configured"])
+            }
+            return SupabaseConfig(baseURL: url, anonKey: anonKey)
+        }
+    }
+    
+    private func fetchSupabaseGrantedEnergy(userId: String, accessToken: String) async throws -> Int {
+        let cfg = try SupabaseConfig.load()
+        
+        // No aggregates (PostgREST forbids them). Paginate and sum delta.
+        let pageSize = 1000
+        var offset = 0
+        var total = 0
+        
+        while true {
+            let url = cfg.baseURL.appendingPathComponent("rest/v1/energy_ledger")
+            var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+            comps.queryItems = [
+                URLQueryItem(name: "select", value: "delta"),
+                URLQueryItem(name: "user_id", value: "eq.\(userId)"),
+                URLQueryItem(name: "order", value: "created_at.desc"),
+                URLQueryItem(name: "limit", value: "\(pageSize)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+            
+            var req = URLRequest(url: comps.url!)
+            req.httpMethod = "GET"
+            req.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "authorization")
+            req.setValue("application/json", forHTTPHeaderField: "accept")
+            
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+            guard http.statusCode < 400 else {
+                let msg = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
+                throw NSError(domain: "Supabase", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: msg])
+            }
+            
+            struct Row: Decodable { let delta: Int }
+            let rows = (try? JSONDecoder().decode([Row].self, from: data)) ?? []
+            if rows.isEmpty { break }
+            total += rows.reduce(0) { $0 + $1.delta }
+            
+            if rows.count < pageSize { break }
+            offset += pageSize
+            if offset > 200_000 { break } // safety
+        }
+        
+        return total
+    }
+
+    private struct SupabaseShieldRow: Decodable {
+        let id: String
+        let userId: String
+        let bundleId: String
+        let mode: String
+        let level: Int
+        let settings: AppUnlockSettings
+        let updatedAt: Date?
+        
+        enum CodingKeys: String, CodingKey {
+            case id
+            case userId = "user_id"
+            case bundleId = "bundle_id"
+            case mode
+            case level
+            case settings = "settings_json"
+            case updatedAt = "updated_at"
+        }
+    }
+    
+    private func fetchSupabaseShields(userId: String, accessToken: String) async throws -> [SupabaseShieldRow] {
+        let cfg = try SupabaseConfig.load()
+        
+        let url = cfg.baseURL.appendingPathComponent("rest/v1/shields")
+        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        comps.queryItems = [
+            URLQueryItem(name: "select", value: "id,user_id,bundle_id,mode,level,settings_json,updated_at"),
+            URLQueryItem(name: "user_id", value: "eq.\(userId)")
+        ]
+        
+        var req = URLRequest(url: comps.url!)
+        req.httpMethod = "GET"
+        req.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "authorization")
+        req.setValue("application/json", forHTTPHeaderField: "accept")
+        
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        guard http.statusCode < 400 else {
+            let msg = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
+            throw NSError(domain: "Supabase", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: msg])
+        }
+        
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return (try? d.decode([SupabaseShieldRow].self, from: data)) ?? []
+    }
+
+    // MARK: - Supabase Push (shields)
+    private var pendingSupabaseShieldUpserts: Set<String> = []
+    private var lastSupabaseShieldPushAt: [String: Date] = [:]
+    
+    private func scheduleSupabaseShieldUpsert(bundleId: String) {
+        guard authService.isAuthenticated else { return }
+        // Coalesce repeated edits.
+        pendingSupabaseShieldUpserts.insert(bundleId)
+        
+        Task { @MainActor in
+            // Small debounce window for slider/stepper UI changes
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard self.pendingSupabaseShieldUpserts.contains(bundleId) else { return }
+            self.pendingSupabaseShieldUpserts.remove(bundleId)
+            await self.upsertSupabaseShield(bundleId: bundleId)
+        }
+    }
+    
+    private func upsertSupabaseShield(bundleId: String) async {
+        guard authService.isAuthenticated, let userId = authService.currentUser?.id else { return }
+        guard let accessToken = authService.currentSupabaseAccessToken, !accessToken.isEmpty else { return }
+        
+        // Per-shield throttle: no more than once per 2s
+        if let last = lastSupabaseShieldPushAt[bundleId], Date().timeIntervalSince(last) < 2 { return }
+        lastSupabaseShieldPushAt[bundleId] = Date()
+        
+        let cfg: SupabaseConfig
+        do { cfg = try SupabaseConfig.load() } catch { return }
+        
+        let settings = unlockSettings(for: bundleId)
+        // Supabase DB constraint `shields_mode_check` expects "minute" / "entry" (not "open").
+        let mode = settings.minuteTariffEnabled ? "minute" : "entry"
+        let level = currentShieldLevel(for: bundleId).id
+        
+        let updatedAt = ISO8601DateFormatter().string(from: Date())
+        let payload: [String: Any] = [
+            "id": UUID().uuidString,
+            "user_id": userId,
+            "bundle_id": bundleId,
+            "mode": mode,
+            "level": level,
+            "settings_json": [
+                "entryCostSteps": settings.entryCostSteps,
+                "dayPassCostSteps": settings.dayPassCostSteps,
+                "allowedWindows": settings.allowedWindows.map(\.rawValue),
+                "minuteTariffEnabled": settings.minuteTariffEnabled,
+                "familyControlsModeEnabled": settings.familyControlsModeEnabled
+            ],
+            "updated_at": updatedAt
+        ]
+        
+        func makeReq(url: URL, method: String, body: Data?) -> URLRequest {
+            var req = URLRequest(url: url)
+            req.httpMethod = method
+            req.httpBody = body
+            req.setValue("application/json", forHTTPHeaderField: "content-type")
+            req.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "authorization")
+            req.setValue("return=representation", forHTTPHeaderField: "prefer")
+            req.setValue("application/json", forHTTPHeaderField: "accept")
+            return req
+        }
+        
+        do {
+            let url = cfg.baseURL.appendingPathComponent("rest/v1/shields")
+            var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+            comps.queryItems = [
+                URLQueryItem(name: "on_conflict", value: "user_id,bundle_id")
+            ]
+            
+            var req = makeReq(url: comps.url!, method: "POST", body: try JSONSerialization.data(withJSONObject: payload, options: []))
+            req.setValue("resolution=merge-duplicates", forHTTPHeaderField: "prefer")
+            
+            let (_, resp) = try await URLSession.shared.data(for: req)
+            if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
+                throw NSError(domain: "Supabase", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode)"])
+            }
+        } catch {
+            print("❌ Supabase shield upsert failed: \(error.localizedDescription)")
+        }
+    }
+    
+    func deleteSupabaseShield(bundleId: String) async {
+        guard authService.isAuthenticated, let userId = authService.currentUser?.id else { return }
+        guard let accessToken = authService.currentSupabaseAccessToken, !accessToken.isEmpty else { return }
+        
+        let cfg: SupabaseConfig
+        do { cfg = try SupabaseConfig.load() } catch { return }
+        
+        let url = cfg.baseURL.appendingPathComponent("rest/v1/shields")
+        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        comps.queryItems = [
+            URLQueryItem(name: "user_id", value: "eq.\(userId)"),
+            URLQueryItem(name: "bundle_id", value: "eq.\(bundleId)")
+        ]
+        
+        var req = URLRequest(url: comps.url!)
+        req.httpMethod = "DELETE"
+        req.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "authorization")
+        
+        do {
+            let (_, _) = try await URLSession.shared.data(for: req)
+        } catch {
+            print("❌ Supabase shield delete failed: \(error.localizedDescription)")
+        }
     }
 
     private func startMinuteModeSessionSnapshot(bundleId: String) {
@@ -1152,6 +1452,23 @@ final class AppModel: ObservableObject {
         
         // Outer World daily cap depends on HealthKit steps; keep it updated in UserDefaults for the map layer.
         persistOuterWorldDailyCap()
+        
+        // Log energy state to Supabase for admin visibility
+        await logEnergyStateToSupabase()
+    }
+    
+    private func logEnergyStateToSupabase() async {
+        let stepsInt = Int(stepsToday)
+        let balance = totalStepsBalance
+        let spent = appStepsSpentLifetime.values.reduce(0, +)
+        let batteries = UserDefaults.standard.integer(forKey: "outerworld_totalcollected") / 500
+        
+        await authService.logEnergyState(
+            stepsToday: stepsInt,
+            energyBalance: balance,
+            energySpent: spent,
+            batteriesCollected: batteries
+        )
     }
     
     // MARK: - Custom day boundary
@@ -1495,12 +1812,24 @@ final class AppModel: ObservableObject {
         syncAndPersistBonusBreakdown()
     }
 
+    private func loadServerGrantedSteps() {
+        let g = UserDefaults.stepsTrader()
+        serverGrantedSteps = max(0, g.integer(forKey: serverGrantedStepsKey))
+        syncAndPersistBonusBreakdown()
+    }
+    
+    private func persistServerGrantedSteps() {
+        let g = UserDefaults.stepsTrader()
+        g.set(serverGrantedSteps, forKey: serverGrantedStepsKey)
+        syncAndPersistBonusBreakdown()
+    }
+
     private func persistDebugStepsBonus() {
         syncAndPersistBonusBreakdown()
     }
 
     private func syncAndPersistBonusBreakdown() {
-        bonusSteps = max(0, outerWorldBonusSteps)
+        bonusSteps = max(0, outerWorldBonusSteps + serverGrantedSteps)
         
         let g = UserDefaults.stepsTrader()
         // Keep compatibility (extensions / older code) by writing Outer World bonus into legacy key.
@@ -1575,6 +1904,7 @@ final class AppModel: ObservableObject {
         if let dayPassCost { settings.dayPassCostSteps = max(0, dayPassCost) }
         appUnlockSettings[bundleId] = settings
         persistAppUnlockSettings()
+        scheduleSupabaseShieldUpsert(bundleId: bundleId)
     }
 
     func allowedAccessWindows(for bundleId: String?) -> Set<AccessWindow> {
@@ -1593,6 +1923,17 @@ final class AppModel: ObservableObject {
         }
         appUnlockSettings[bundleId] = settings
         persistAppUnlockSettings()
+        scheduleSupabaseShieldUpsert(bundleId: bundleId)
+    }
+
+    func deactivateShield(bundleId: String) {
+        appUnlockSettings.removeValue(forKey: bundleId)
+        persistAppUnlockSettings()
+        rebuildFamilyControlsShield()
+        
+        Task { @MainActor in
+            await deleteSupabaseShield(bundleId: bundleId)
+        }
     }
     
     // MARK: - Shield levels
@@ -1739,6 +2080,8 @@ final class AppModel: ObservableObject {
         let g = UserDefaults.stepsTrader()
         if let data = try? JSONEncoder().encode(appStepsSpentLifetime) {
             g.set(data, forKey: "appStepsSpentLifetime_v1")
+            // Sync stats to server
+            authService.syncStats()
         }
     }
     
@@ -1864,14 +2207,23 @@ final class AppModel: ObservableObject {
     }
     
     // MARK: - PayGate helpers
-    func dismissPayGate() {
+    func dismissPayGate(reason: PayGateDismissReason = .userDismiss) {
         showPayGate = false
         payGateTargetBundleId = nil
         payGateSessions.removeAll()
         currentPayGateSessionId = nil
         let g = UserDefaults.stepsTrader()
+        let now = Date()
+        if reason == .userDismiss {
+            // Cooldown to prevent instant re-open loops when the user dismisses PayGate.
+            g.set(now.addingTimeInterval(10), forKey: payGateDismissedUntilKey)
+            g.set(now, forKey: "lastPayGateAction")
+        }
         g.removeObject(forKey: "shouldShowPayGate")
         g.removeObject(forKey: "payGateTargetBundleId")
+        g.removeObject(forKey: "shortcutTriggered")
+        g.removeObject(forKey: "shortcutTarget")
+        g.removeObject(forKey: "shortcutTriggerTime")
     }
     
     func recordAutomationOpen(bundleId: String, spentSteps: Int? = nil) {
@@ -2117,11 +2469,9 @@ final class AppModel: ObservableObject {
         print("💰 Budget reset")
 
         // 6. Снимаем все блокировки
-        if let familyService = familyControlsService as? FamilyControlsService {
-            familyService.stopMonitoring()
-            familyService.disableShield()
-            print("🛡️ Disabled shields")
-        }
+        // No ManagedSettings shielding anymore. Just stop DeviceActivity monitoring by clearing selection/settings.
+        familyControlsService.updateSelection(FamilyActivitySelection())
+        familyControlsService.updateMinuteModeMonitoring()
 
         // 7. Очищаем выбор приложений (как выбор, так и сохраненные данные)
         appSelection = FamilyActivitySelection()
@@ -2250,24 +2600,21 @@ final class AppModel: ObservableObject {
                     try await healthKitService.requestAuthorization()
                     print("✅ HealthKit authorization completed")
                 }
-            } else {
-                print("⏳ Skipping HealthKit prompt (intro not finished)")
-            }
-
-            print("🔐 Requesting Family Controls authorization...")
-            do {
-                try await familyControlsService.requestAuthorization()
-                print("✅ Family Controls authorization completed")
-            } catch {
-                print("⚠️ Family Controls authorization failed: \(error)")
-                // Не блокируем весь bootstrap из-за Family Controls
-            }
-
-            if requestPermissions {
+                
+                print("🔐 Requesting Family Controls authorization...")
+                do {
+                    try await familyControlsService.requestAuthorization()
+                    print("✅ Family Controls authorization completed")
+                } catch {
+                    print("⚠️ Family Controls authorization failed: \(error)")
+                }
+                
                 print("🔔 Requesting notification permissions...")
                 try await notificationService.requestPermission()
                 print("✅ Notification permissions completed")
             } else {
+                print("⏳ Skipping HealthKit prompt (intro not finished)")
+                print("⏳ Skipping Family Controls prompt (intro not finished)")
                 print("⏳ Skipping notifications prompt (intro not finished)")
             }
 
@@ -2614,12 +2961,6 @@ final class AppModel: ObservableObject {
             isBlocked = true
             message = "⏰ DEMO: Time is up!"
 
-            // Применяем реальную блокировку приложений через ManagedSettings
-            if let familyService = familyControlsService as? FamilyControlsService {
-                familyService.enableShield()
-                print("🛡️ Applied real app blocking via ManagedSettings")
-            }
-
             notificationService.sendTimeExpiredNotification()
             sendReturnToAppNotification()
             AudioServicesPlaySystemSound(1005)
@@ -2689,6 +3030,15 @@ final class AppModel: ObservableObject {
         }
 
         if shouldShowPayGate {
+            if let until = userDefaults.object(forKey: payGateDismissedUntilKey) as? Date,
+               now < until
+            {
+                let remaining = until.timeIntervalSince(now)
+                print("🚫 PayGate flag suppressed after dismiss (\(String(format: "%.1f", remaining))s left)")
+                userDefaults.removeObject(forKey: "shouldShowPayGate")
+                userDefaults.removeObject(forKey: "payGateTargetBundleId")
+                return
+            }
             if let bundleId = userDefaults.string(forKey: "payGateTargetBundleId") {
                 if let lastOpen = userDefaults.object(forKey: "lastAppOpenedFromStepsTrader_\(bundleId)") as? Date {
                     let elapsed = now.timeIntervalSince(lastOpen)
@@ -2782,11 +3132,6 @@ final class AppModel: ObservableObject {
             // Принудительно обновляем appSelection (это вызовет didSet и обновит UI)
             self.appSelection = newSelection
             print("✅ App selection restored and UI updated")
-            // Включаем always-on shield
-            if let svc = familyControlsService as? FamilyControlsService {
-                svc.enableShield()
-                print("🛡️ Always-on shield enabled after restore")
-            }
         } else {
             print("ℹ️ No saved selection found")
         }

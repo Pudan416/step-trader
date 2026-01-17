@@ -114,7 +114,7 @@ struct LoginView: View {
                 // Sign in button
                 VStack(spacing: 16) {
                     SignInWithAppleButton(.signIn) { request in
-                        request.requestedScopes = [.fullName, .email]
+                        authService.configureAppleRequest(request)
                     } onCompletion: { result in
                         switch result {
                         case .success(let authorization):
@@ -132,7 +132,7 @@ struct LoginView: View {
                     .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
                     .disabled(authService.isLoading || authService.isAuthenticated)
                     
-                    Text(loc(appLanguage, "Your data stays on your device", "Твои данные остаются на устройстве"))
+                    Text(loc(appLanguage, "Account syncs across devices", "Аккаунт синхронизируется между устройствами"))
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.4))
                 }

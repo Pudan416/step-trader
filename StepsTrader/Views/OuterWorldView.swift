@@ -112,6 +112,8 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     func refreshEconomySnapshot() {
         loadDailyCap()
         loadCollectedToday()
+        loadMagnetUsesToday()
+        print("🔄 Outer World: Refreshed economy - cap=\(dailyCap), collectedToday=\(collectedToday), magnetsUsed=\(magnetUsesToday)")
     }
     
     func requestPermission() {
@@ -183,6 +185,11 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
             object: nil,
             userInfo: ["energy": drop.energy]
         )
+        
+        // Sync stats to server
+        Task { @MainActor in
+            AuthenticationService.shared.syncStats()
+        }
         
         // Spawn next drop after collecting the previous one (if possible)
         if let userLoc = userLocation {
@@ -256,6 +263,11 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
             object: nil,
             userInfo: ["energy": totalEnergy]
         )
+        
+        // Sync stats to server
+        Task { @MainActor in
+            AuthenticationService.shared.syncStats()
+        }
     }
 
     func magnetPull(drop: EnergyDrop) {
@@ -312,6 +324,11 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
             object: nil,
             userInfo: ["energy": drop.energy]
         )
+        
+        // Sync stats to server
+        Task { @MainActor in
+            AuthenticationService.shared.syncStats()
+        }
         
         // Spawn next drop after collecting the previous one (if possible)
         if let userLoc = userLocation {
@@ -429,15 +446,19 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
         let today = dayKey(for: Date())
         let storedDay = UserDefaults.standard.string(forKey: collectedTodayDayKeyStorageKey)
         if storedDay != today {
+            // New day - reset counter
             UserDefaults.standard.set(today, forKey: collectedTodayDayKeyStorageKey)
+            UserDefaults.standard.set(0, forKey: collectedTodayStorageKey)
+            UserDefaults.standard.synchronize()
             collectedToday = 0
-            saveCollectedToday()
+            print("🔄 Outer World: New day detected, reset collectedToday to 0")
         }
     }
     
     private func loadCollectedToday() {
         refreshCollectedTodayDayIfNeeded()
         collectedToday = UserDefaults.standard.integer(forKey: collectedTodayStorageKey)
+        print("📊 Outer World: Loaded collectedToday = \(collectedToday)")
     }
 
     private func saveCollectedToday() {
@@ -520,6 +541,36 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
 
 // MARK: - Outer World View
 
+// MARK: - Supabase Config (for leaderboard)
+private struct SupabaseConfig {
+    let baseURL: URL
+    let apiKey: String
+    
+    static func load() throws -> SupabaseConfig {
+        guard let urlString = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String,
+              let anonKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String,
+              let url = URL(string: urlString),
+              !anonKey.isEmpty
+        else {
+            throw NSError(domain: "Supabase", code: 1, userInfo: [NSLocalizedDescriptionKey: "Supabase not configured"])
+        }
+        return SupabaseConfig(baseURL: url, apiKey: anonKey)
+    }
+}
+
+// MARK: - Leaderboard Entry
+struct LeaderboardEntry: Identifiable, Codable {
+    let id: String
+    let nickname: String?
+    let energySpentLifetime: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case nickname
+        case energySpentLifetime = "energy_spent_lifetime"
+    }
+}
+
 struct OuterWorldView: View {
     @ObservedObject var model: AppModel
     @StateObject private var locationManager = OuterWorldLocationManager()
@@ -535,6 +586,9 @@ struct OuterWorldView: View {
     @State private var selectedDrop: EnergyDrop?
     @State private var selectedDropForAction: EnergyDrop?
     @State private var showMechanicInfo: Bool = false
+    @State private var showLeaderboard: Bool = false
+    @State private var leaderboardEntries: [LeaderboardEntry] = []
+    @State private var isLoadingLeaderboard: Bool = false
     
     var body: some View {
         ZStack {
@@ -575,6 +629,20 @@ struct OuterWorldView: View {
                                 .shadow(color: .black.opacity(0.16), radius: 10, x: 0, y: 6)
                         }
                         .buttonStyle(.plain)
+                        
+                        // Leaderboard button
+                        Button {
+                            showLeaderboard = true
+                            loadLeaderboard()
+                        } label: {
+                            Image(systemName: "trophy.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(.yellow)
+                                .frame(width: 46, height: 46)
+                                .background(Circle().fill(.ultraThinMaterial))
+                                .shadow(color: .black.opacity(0.16), radius: 10, x: 0, y: 6)
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(.trailing, 16)
                     .padding(.bottom, 110)
@@ -601,13 +669,21 @@ struct OuterWorldView: View {
         .sheet(isPresented: $showMechanicInfo) {
             mechanicInfoSheet
         }
+        .sheet(isPresented: $showLeaderboard) {
+            leaderboardSheet
+        }
         .onAppear {
             checkLocationPermission()
-            locationManager.refreshEconomySnapshot()
+            // Force refresh to catch midnight reset
+            DispatchQueue.main.async {
+                locationManager.refreshEconomySnapshot()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             // Ensure daily counters (10k/day cap + magnets/day) reset after midnight even if the app was backgrounded.
-            locationManager.refreshEconomySnapshot()
+            DispatchQueue.main.async {
+                locationManager.refreshEconomySnapshot()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
             // Fires around midnight / time changes. Re-check daily boundary.
@@ -741,57 +817,160 @@ struct OuterWorldView: View {
     
     // MARK: - Header Overlay
     
+    // MARK: - Motivational Text
+    private var motivationalText: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
+        
+        // Night phrases (22:00-06:00) - night walks + magnets
+        let nightPhrasesEN = [
+            "🌙 Night walks hit different. Try it",
+            "🧲 3 magnets on the map. Grab batteries without moving",
+            "😴 Can't sleep? Night stroll = night scroll",
+            "🌃 City's quiet. Perfect time to hunt",
+            "⏰ Midnight brings new magnets. Use wisely"
+        ]
+        let nightPhrasesRU = [
+            "🌙 Ночные прогулки — это другой вайб",
+            "🧲 3 магнита на карте. Хватай не вставая",
+            "😴 Не спится? Прогулка = халявный скролл",
+            "🌃 Город спит. Идеальное время для охоты",
+            "⏰ В полночь новые магниты. Используй с умом"
+        ]
+        
+        // Morning phrases (06:00-12:00) - motivation to walk
+        let morningPhrasesEN = [
+            "🌿 Touch grass before you touch apps",
+            "🚶 Your legs work. Use them",
+            "📱 No steps = no scroll. Simple math",
+            "☀️ Get yourself outside first",
+            "👑 Earn your screen time, legend"
+        ]
+        let morningPhrasesRU = [
+            "🌿 Сначала ноги, потом пальцы",
+            "🚶 Шаги сами себя не нашагают",
+            "📱 Без шагов нет скролла. Такие правила",
+            "☀️ Выйди на улицу, чемпион",
+            "👑 Заработай экранку, легенда"
+        ]
+        
+        // Afternoon phrases (12:00-17:00) - balance walk + scroll
+        let afternoonPhrasesEN = [
+            "⚖️ Walk a bit, scroll a bit. Balance",
+            "🎯 Doomscroll earned, not given",
+            "🌿 Touched grass? Good. Now chill",
+            "⚡ Energy's stacking. Keep it up",
+            "🕐 Half day done. Spend wisely"
+        ]
+        let afternoonPhrasesRU = [
+            "⚖️ Погулял — поскроллил. Баланс",
+            "🎯 Думскролл надо заслужить",
+            "🌿 Трава потрогана? Теперь чиллим",
+            "⚡ Энергия копится. Продолжай",
+            "🕐 Полдня позади. Трать с умом"
+        ]
+        
+        // Evening phrases (17:00-22:00) - wind down, spend energy
+        let eveningPhrasesEN = [
+            "🔥 Energy expires at midnight. Use it",
+            "😌 Wind down time. Burn that energy",
+            "🛋️ Evening mode: scroll guilt-free",
+            "✨ You walked. You earned. Now scroll",
+            "⏳ Clock's ticking. Spend before reset"
+        ]
+        let eveningPhrasesRU = [
+            "🔥 В полночь энергия сгорит. Трать",
+            "😌 Время расслабиться и сжечь энергию",
+            "🛋️ Вечерний режим: скролль спокойно",
+            "✨ Ты ходил. Ты заработал. Отдыхай",
+            "⏳ Часики тикают. Потрать до сброса"
+        ]
+        
+        let phrasesEN: [String]
+        let phrasesRU: [String]
+        
+        if hour < 6 || hour >= 22 {
+            phrasesEN = nightPhrasesEN
+            phrasesRU = nightPhrasesRU
+        } else if hour < 12 {
+            phrasesEN = morningPhrasesEN
+            phrasesRU = morningPhrasesRU
+        } else if hour < 17 {
+            phrasesEN = afternoonPhrasesEN
+            phrasesRU = afternoonPhrasesRU
+        } else {
+            phrasesEN = eveningPhrasesEN
+            phrasesRU = eveningPhrasesRU
+        }
+        
+        let index = dayOfYear % phrasesEN.count
+        return loc(appLanguage, phrasesEN[index], phrasesRU[index])
+    }
+    
     private var headerOverlay: some View {
-        VStack(spacing: 0) {
-            // Status bar background
+        let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
+        let cap = max(1, locationManager.dailyCap)
+        let used = min(cap, max(0, locationManager.collectedToday))
+        let magnetsLeft = max(0, 3 - locationManager.magnetUsesToday)
+        
+        return VStack(spacing: 0) {
             Color.clear.frame(height: 0)
             
-            HStack(spacing: 16) {
-                // Title
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(loc(appLanguage, "Outer World", "Внешний мир"))
-                        .font(.title2.bold())
-                    Text(loc(appLanguage, "Explore the map to find energy", "Исследуй карту, находи энергию"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    // Title
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(loc(appLanguage, "Outer World", "Внешний мир"))
+                            .font(.headline)
+                        Text(loc(appLanguage, "Touch grass, get fuel ⚡️", "На прогулку за топливом ⚡️"))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 
                 Spacer()
                 
-                // Stats badge
-                let cap = max(1, locationManager.dailyCap)
-                let used = min(cap, max(0, locationManager.collectedToday))
-                VStack(alignment: .trailing, spacing: 4) {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "calendar")
-                                .foregroundColor(.blue)
-                            Text(loc(appLanguage, "Today", "Сегодня") + " \(formatNumber(used)) / \(formatNumber(cap))")
-                                .font(.subheadline.bold())
-                        }
-
-                        HStack(spacing: 6) {
-                            Image(systemName: "bolt.fill")
-                                .foregroundColor(.yellow)
-                            Text(loc(appLanguage, "Total", "Всего") + ": \(formatNumber(locationManager.totalCollected))")
-                                .font(.caption2.weight(.medium))
-                                .foregroundColor(.secondary)
-                        }
+                // Stats pills
+                HStack(spacing: 6) {
+                    // Progress pill
+                    HStack(spacing: 4) {
+                        Image(systemName: "bolt.fill")
+                            .font(.caption2)
+                            .foregroundColor(pink)
+                        Text("\(formatNumber(used))/\(formatNumber(cap))")
+                            .font(.caption2.weight(.semibold))
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(.ultraThinMaterial))
+                    
+                    // Magnets pill
+                    HStack(spacing: 4) {
+                        Image(systemName: "dot.radiowaves.up.forward")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                        Text("\(magnetsLeft)")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(.ultraThinMaterial))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 999)
-                        .fill(.ultraThinMaterial)
-                )
             }
-            .padding(.horizontal)
+            
+            // Motivational text
+            Text(motivationalText)
+                .font(.caption)
+                .foregroundColor(.secondary.opacity(0.85))
+                .italic()
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 16)
             .padding(.top, 8)
-            .padding(.bottom, 12)
-                .background(
+            .padding(.bottom, 10)
+            .background(
                 LinearGradient(
-                    colors: [Color(.systemBackground), Color(.systemBackground).opacity(0)],
+                    colors: [Color(.systemBackground).opacity(0.95), Color(.systemBackground).opacity(0)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -800,28 +979,29 @@ struct OuterWorldView: View {
     }
     
     private var mechanicInfoSheet: some View {
-        NavigationView {
+        let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
+        let cap = max(1, locationManager.dailyCap)
+        let used = min(cap, max(0, locationManager.collectedToday))
+        let magnetsLeft = max(0, 3 - locationManager.magnetUsesToday)
+        
+        return NavigationView {
             ScrollView {
-                let cap = max(1, locationManager.dailyCap)
-                let used = min(cap, max(0, locationManager.collectedToday))
-                let magnetsLeft = max(0, 3 - locationManager.magnetUsesToday)
-                
-                VStack(alignment: .leading, spacing: 16) {
-                    // Hero
-                    HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 14) {
+                    // Hero - edgy
+                    HStack(spacing: 10) {
                         ZStack {
                             Circle()
                                 .fill(
                                     LinearGradient(
-                                        colors: [.blue.opacity(0.35), .purple.opacity(0.25)],
+                                        colors: [pink.opacity(0.3), Color.purple.opacity(0.2)],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
                                 )
-                                .frame(width: 52, height: 52)
+                                .frame(width: 44, height: 44)
                             
-                            Image(systemName: "bolt.fill")
-                                .font(.title3.bold())
+                            Image(systemName: "battery.100.bolt")
+                                .font(.subheadline.bold())
                                 .foregroundStyle(
                                     LinearGradient(
                                         colors: [.yellow, .orange],
@@ -832,69 +1012,103 @@ struct OuterWorldView: View {
                         }
                         
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(loc(appLanguage, "How it works", "Как это работает"))
-                                .font(.title2.bold())
-                            Text(loc(appLanguage, "Collect fuel by walking in the real world.", "Собирай топливо, гуляя в реальном мире."))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    // Today card
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Text(loc(appLanguage, "Today", "Сегодня"))
+                            Text(loc(appLanguage, "Fuel Hunt", "Охота за топливом"))
                                 .font(.headline)
-                            Spacer()
-                            Text("\(formatNumber(used)) / \(formatNumber(cap))")
-                                .font(.subheadline.weight(.semibold))
+                            Text(loc(appLanguage, "Walk → Collect → Dominate 🏆", "Гуляй → Собирай → Властвуй 🏆"))
+                                .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
-                        
-                        ProgressView(value: Double(used), total: Double(cap))
-                            .tint(.blue)
-                        
-                        HStack(spacing: 10) {
-                            Label(loc(appLanguage, "Drop: +500 energy", "Капля: +500 энергии"), systemImage: "bolt.fill")
-                                .foregroundColor(.orange)
+                    }
+                    
+                    // Today card - glass
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(loc(appLanguage, "Today's haul", "Сегодняшний улов"))
                                 .font(.caption.weight(.semibold))
                             Spacer()
-                            Label(loc(appLanguage, "Magnets: \(magnetsLeft)/3", "Магниты: \(magnetsLeft)/3"), systemImage: "paperclip")
-                                .foregroundColor(.blue)
-                                .font(.caption.weight(.semibold))
+                            Text("\(formatNumber(used)) / \(formatNumber(cap))")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(pink)
+                        }
+                        
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.gray.opacity(0.15))
+                                    .frame(height: 6)
+                                Capsule()
+                                    .fill(
+                                        LinearGradient(colors: [pink, .purple], startPoint: .leading, endPoint: .trailing)
+                                    )
+                                    .frame(width: geo.size.width * CGFloat(Double(used) / Double(cap)), height: 6)
+                            }
+                        }
+                        .frame(height: 6)
+                        
+                        HStack(spacing: 12) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "battery.100.bolt")
+                                    .font(.caption2)
+                                    .foregroundColor(.orange)
+                                Text("+500")
+                                    .font(.caption2.weight(.semibold))
+                            }
+                            
+                            Spacer()
+                            
+                            HStack(spacing: 4) {
+                                Image(systemName: "dot.radiowaves.up.forward")
+                                    .font(.caption2)
+                                    .foregroundColor(.blue)
+                                Text("\(magnetsLeft)/3")
+                                    .font(.caption2.weight(.semibold))
+                            }
                         }
                     }
-                    .padding(14)
-                    .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(.ultraThinMaterial)
+                    )
                     
-                    // Rules card
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(loc(appLanguage, "Rules", "Правила"))
-                            .font(.headline)
+                    // Rules - edgy
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(loc(appLanguage, "The Rules", "Правила игры"))
+                            .font(.caption.weight(.bold))
                         
-                        ruleRow(
-                            icon: "mappin.and.ellipse",
+                        ruleRowEdgy(
+                            icon: "scope",
                             color: .blue,
-                            text: loc(appLanguage, "One drop at a time within 500m of you.", "Одна капля за раз в радиусе 500м от тебя.")
+                            text: loc(appLanguage, "One battery spawns within 500m", "Одна батарейка в радиусе 500м")
                         )
                         
-                        ruleRow(
+                        ruleRowEdgy(
                             icon: "figure.walk",
                             color: .green,
-                            text: loc(appLanguage, "Walk within 50m to collect.", "Подойди ближе 50м чтобы собрать.")
+                            text: loc(appLanguage, "Walk 50m to grab it", "Подойди на 50м чтобы забрать")
                         )
                         
-                        ruleRow(
-                            icon: "paperclip",
-                            color: .blue,
-                            text: loc(appLanguage, "Tap a drop: build a walking route or use a magnet.", "Нажми на каплю: маршрут пешком или магнит.")
+                        ruleRowEdgy(
+                            icon: "dot.radiowaves.up.forward",
+                            color: .purple,
+                            text: loc(appLanguage, "Lazy? Use a magnet (3/day)", "Лень? Притяни магнитом (3/день)")
+                        )
+                        
+                        ruleRowEdgy(
+                            icon: "moon.fill",
+                            color: .indigo,
+                            text: loc(appLanguage, "Night walks = extra chill vibes", "Ночные прогулки = особые вайбы")
                         )
                     }
-                    .padding(14)
-                    .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(.ultraThinMaterial)
+                    )
                 }
                 .padding()
             }
+            .background(Color(.systemGroupedBackground))
             .navigationTitle(loc(appLanguage, "Outer World", "Внешний мир"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -902,6 +1116,181 @@ struct OuterWorldView: View {
                     Button(loc(appLanguage, "Close", "Закрыть")) {
                         showMechanicInfo = false
                     }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Leaderboard Sheet
+    private var leaderboardSheet: some View {
+        NavigationView {
+            Group {
+                if isLoadingLeaderboard {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text(loc(appLanguage, "Loading legends...", "Загружаем легенды..."))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if leaderboardEntries.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "trophy")
+                            .font(.largeTitle)
+                            .foregroundColor(.secondary)
+                        Text(loc(appLanguage, "No one here yet", "Пока никого"))
+                            .font(.headline)
+                        Text(loc(appLanguage, "Be the first to dominate!", "Будь первым, кто захватит мир!"))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 10) {
+                            ForEach(Array(leaderboardEntries.enumerated()), id: \.element.id) { index, entry in
+                                leaderboardRow(rank: index + 1, entry: entry)
+                            }
+                        }
+                        .padding()
+                    }
+                }
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle(loc(appLanguage, "🏆 Leaderboard", "🏆 Рейтинг"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(loc(appLanguage, "Close", "Закрыть")) {
+                        showLeaderboard = false
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        loadLeaderboard()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+            }
+        }
+    }
+    
+    private func leaderboardRow(rank: Int, entry: LeaderboardEntry) -> some View {
+        let isCurrentUser = entry.id == AuthenticationService.shared.currentUser?.id
+        let rankColor: Color = {
+            switch rank {
+            case 1: return .yellow
+            case 2: return .gray
+            case 3: return Color(red: 205/255, green: 127/255, blue: 50/255) // bronze
+            default: return .secondary
+            }
+        }()
+        
+        return HStack(spacing: 12) {
+            // Rank
+            ZStack {
+                if rank <= 3 {
+                    Circle()
+                        .fill(rankColor.opacity(0.2))
+                        .frame(width: 32, height: 32)
+                    Text("\(rank)")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(rankColor)
+                } else {
+                    Text("\(rank)")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.secondary)
+                        .frame(width: 32)
+                }
+            }
+            
+            // Name
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.nickname ?? loc(appLanguage, "Anonymous", "Аноним"))
+                    .font(.subheadline.weight(isCurrentUser ? .bold : .medium))
+                    .foregroundColor(isCurrentUser ? .accentColor : .primary)
+                if isCurrentUser {
+                    Text(loc(appLanguage, "You", "Ты"))
+                        .font(.caption2)
+                        .foregroundColor(.accentColor)
+                }
+            }
+            
+            Spacer()
+            
+            // Energy spent
+            HStack(spacing: 4) {
+                Image(systemName: "flame.fill")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                Text(formatNumber(entry.energySpentLifetime))
+                    .font(.subheadline.weight(.semibold))
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background {
+            if isCurrentUser {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.accentColor.opacity(0.12))
+            } else {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(.ultraThinMaterial)
+            }
+        }
+    }
+    
+    private func loadLeaderboard() {
+        isLoadingLeaderboard = true
+        
+        Task {
+            do {
+                let cfg = try SupabaseConfig.load()
+                let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
+                var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false)!
+                comps.queryItems = [
+                    URLQueryItem(name: "select", value: "id,nickname,energy_spent_lifetime"),
+                    URLQueryItem(name: "order", value: "energy_spent_lifetime.desc"),
+                    URLQueryItem(name: "limit", value: "50")
+                ]
+                
+                var request = URLRequest(url: comps.url!)
+                request.setValue(cfg.apiKey, forHTTPHeaderField: "apikey")
+                request.setValue("application/json", forHTTPHeaderField: "Accept")
+                
+                // Add auth token if user is logged in (required for RLS)
+                if let token = AuthenticationService.shared.accessToken {
+                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                }
+                
+                print("🏆 Leaderboard request: \(comps.url?.absoluteString ?? "nil")")
+                
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                if let bodyStr = String(data: data, encoding: .utf8) {
+                    print("🏆 Leaderboard response: \(bodyStr.prefix(500))")
+                }
+                
+                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                    print("❌ Leaderboard fetch failed: HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+                    await MainActor.run {
+                        isLoadingLeaderboard = false
+                    }
+                    return
+                }
+                
+                let entries = try JSONDecoder().decode([LeaderboardEntry].self, from: data)
+                print("🏆 Leaderboard loaded: \(entries.count) users")
+                await MainActor.run {
+                    leaderboardEntries = entries
+                    isLoadingLeaderboard = false
+                }
+            } catch {
+                print("❌ Leaderboard error: \(error)")
+                await MainActor.run {
+                    isLoadingLeaderboard = false
                 }
             }
         }
@@ -926,6 +1315,23 @@ struct OuterWorldView: View {
             
             Text(text)
                 .font(.subheadline)
+                .foregroundColor(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            Spacer(minLength: 0)
+        }
+    }
+    
+    @ViewBuilder
+    private func ruleRowEdgy(icon: String, color: Color, text: String) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(color)
+                .frame(width: 18)
+            
+            Text(text)
+                .font(.caption)
                 .foregroundColor(.primary)
                 .fixedSize(horizontal: false, vertical: true)
             
@@ -1105,59 +1511,74 @@ struct EnergyDropMarker: View {
         VStack(spacing: 4) {
             ZStack {
                 // Glow
-                    Circle()
+                RoundedRectangle(cornerRadius: 8)
                     .fill(
                         RadialGradient(
-                            colors: [energyColor.opacity(0.6), .clear],
+                            colors: [Color.green.opacity(0.5), .clear],
                             center: .center,
                             startRadius: 5,
-                            endRadius: 30
+                            endRadius: 35
                         )
                     )
-                        .frame(width: 60, height: 60)
-                    .scaleEffect(isAnimating ? 1.2 : 0.8)
+                    .frame(width: 60, height: 70)
+                    .scaleEffect(isAnimating ? 1.15 : 0.85)
                 
-                // Range indicator ring
+                // Range indicator
                 if isWithinRange {
-                    Circle()
+                    RoundedRectangle(cornerRadius: 10)
                         .stroke(Color.green, lineWidth: 3)
-                        .frame(width: 44, height: 44)
-                        .scaleEffect(isAnimating ? 1.1 : 0.9)
+                        .frame(width: 44, height: 52)
+                        .scaleEffect(isAnimating ? 1.08 : 0.92)
                 }
                 
-                // Main circle
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                            colors: [energyColor, energyColor.opacity(0.7)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                    .frame(width: 36, height: 36)
-                    .shadow(color: energyColor.opacity(0.5), radius: 8)
+                // Battery body
+                VStack(spacing: 0) {
+                    // Battery cap
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.white.opacity(0.9))
+                        .frame(width: 14, height: 5)
                     
-                // Icon
-                    Image(systemName: "bolt.fill")
-                    .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
+                    // Battery main body
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.green, Color.green.opacity(0.7)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(width: 32, height: 40)
+                        
+                        // Bolt icon
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .shadow(color: Color.green.opacity(0.5), radius: 8)
                 
                 // Drop ordinal number
                 Text("\(dropNumber)")
-                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .foregroundColor(.white)
-                    .shadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
-                    .offset(y: -24)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.6))
+                    )
+                    .offset(y: -32)
             }
             
             // Energy amount + distance badge
             VStack(spacing: 2) {
                 Text(shortEnergy)
                     .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.white)
+                    .foregroundColor(.white)
                 
                 if let distance = distanceToUser {
-                Text(formatDistance(distance))
+                    Text(formatDistance(distance))
                         .font(.system(size: 8, weight: .medium))
                         .foregroundColor(isWithinRange ? .green : .white.opacity(0.8))
                 }
@@ -1173,14 +1594,6 @@ struct EnergyDropMarker: View {
             withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
                 isAnimating = true
             }
-        }
-    }
-    
-    private var energyColor: Color {
-        switch drop.energy {
-        case ...500: return .green
-        case 501...1000: return .cyan
-        default: return .yellow
         }
     }
     
@@ -1202,7 +1615,7 @@ struct EnergyDropMarker: View {
     
     private func formatDistance(_ meters: CLLocationDistance) -> String {
         if meters < 1000 {
-        return "\(Int(meters))m"
+            return "\(Int(meters))m"
         } else {
             return String(format: "%.1fkm", meters / 1000)
         }

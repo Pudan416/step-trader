@@ -70,6 +70,9 @@ struct StepsTraderApp: App {
                         },
                         onNotificationSlide: {
                             Task { await model.requestNotificationPermission() }
+                        },
+                        onFamilyControlsSlide: {
+                            Task { try? await model.family.requestAuthorization() }
                         }
                     ) {
                         hasSeenIntro = true
@@ -100,7 +103,7 @@ struct StepsTraderApp: App {
                 )
                 if let bundleId = model.payGateTargetBundleId, model.isAccessBlocked(for: bundleId) {
                     print("🚫 PayGate dismissed on appear: access window active for \(bundleId)")
-                    model.dismissPayGate()
+                    model.dismissPayGate(reason: .programmatic)
                     clearPayGateFlags(UserDefaults.stepsTrader())
                 }
                 checkForHandoffToken()
@@ -146,13 +149,16 @@ struct StepsTraderApp: App {
                 if let userInfo = notification.userInfo,
                    let target = userInfo["target"] as? String,
                    let bundleId = userInfo["bundleId"] as? String {
-                    if model.showPayGate {
-                        print("ℹ️ PayGate already visible, ignoring notification")
+                    let g = UserDefaults.stepsTrader()
+                    if let until = g.object(forKey: "payGateDismissedUntil_v1") as? Date,
+                       Date() < until
+                    {
+                        print("🚫 PayGate notification suppressed after dismiss")
                         return
                     }
                     if model.isAccessBlocked(for: bundleId) {
                         print("🚫 PayGate notification ignored: access window active for \(bundleId)")
-                        model.dismissPayGate()
+                        model.dismissPayGate(reason: .programmatic)
                         clearPayGateFlags(UserDefaults.stepsTrader())
                         reopenTargetIfPossible(bundleId: bundleId)
                         return
@@ -172,14 +178,16 @@ struct StepsTraderApp: App {
                    let target = userInfo["target"] as? String,
                    let bundleId = userInfo["bundleId"] as? String {
                     let g = UserDefaults.stepsTrader()
-                    let lastOpen = g.object(forKey: "lastAppOpenedFromStepsTrader_\(bundleId)") as? Date
-                    if model.showPayGate {
-                        print("ℹ️ PayGate already visible, ignoring local notification")
+                    if let until = g.object(forKey: "payGateDismissedUntil_v1") as? Date,
+                       Date() < until
+                    {
+                        print("🚫 PayGate local notification suppressed after dismiss")
                         return
                     }
+                    let lastOpen = g.object(forKey: "lastAppOpenedFromStepsTrader_\(bundleId)") as? Date
                     if model.isAccessBlocked(for: bundleId) {
                         print("🚫 PayGate local ignored: access window active for \(bundleId)")
-                        model.dismissPayGate()
+                        model.dismissPayGate(reason: .programmatic)
                         clearPayGateFlags(UserDefaults.stepsTrader())
                         reopenTargetIfPossible(bundleId: bundleId)
                         return
@@ -264,6 +272,14 @@ struct StepsTraderApp: App {
             clearPayGateFlags(userDefaults)
             return
         }
+
+        if let until = userDefaults.object(forKey: "payGateDismissedUntil_v1") as? Date,
+           Date() < until
+        {
+            print("🚫 PayGate suppressed after dismiss, skipping PayGate")
+            clearPayGateFlags(userDefaults)
+            return
+        }
         
         // Check if shortcut set flags to show PayGate
         let shouldShowPayGate = userDefaults.bool(forKey: "shouldShowPayGate")
@@ -290,7 +306,7 @@ struct StepsTraderApp: App {
             
             print("🎯 Final bundle ID: \(finalBundleId ?? "nil")")
             if let bundleId = finalBundleId {
-                if isRecentPayGateOpen(bundleId: bundleId, userDefaults: userDefaults) {
+                if !model.showPayGate, isRecentPayGateOpen(bundleId: bundleId, userDefaults: userDefaults) {
                     print("🚫 PayGate flags ignored: recent PayGate open for \(bundleId)")
                     clearPayGateFlags(userDefaults)
                     return
@@ -302,6 +318,7 @@ struct StepsTraderApp: App {
                         clearPayGateFlags(userDefaults)
                         return
                     }
+                    // If PayGate is already visible, switch the target instead of ignoring.
                     model.startPayGateSession(for: bundleId)
                 }
             }
@@ -359,81 +376,87 @@ private extension StepsTraderApp {
 
     func introSlides(appLanguage: String) -> [OnboardingSlide] {
         [
+            // 1. Welcome - bold intro
             OnboardingSlide(
-                title: loc(appLanguage, "Welcome to DOOM CTRL", "Добро пожаловать в DOOM CTRL"),
-                subtitle: loc(appLanguage, "Turn mindless app opens into a conscious choice.", "Преврати автопереходы в осознанный выбор."),
-                symbol: "shield.fill",
+                title: loc(appLanguage, "DOOM CTRL 🔥", "DOOM CTRL 🔥"),
+                subtitle: loc(appLanguage, "Take back control from your apps", "Верни себе контроль над приложениями"),
+                symbol: "shield.checkered",
                 gradient: [.purple, .pink],
                 bullets: [
-                    loc(appLanguage, "Create Shields for distracting apps", "Создавай щиты для отвлекающих приложений"),
-                    loc(appLanguage, "Unlocking costs Energy", "Открытие стоит энергии")
+                    loc(appLanguage, "🛡️ Shield apps that steal your time", "🛡️ Ставь щиты на пожирателей времени"),
+                    loc(appLanguage, "⚡ Pay with Energy to get access", "⚡ Плати энергией за доступ")
                 ],
                 action: .none
             ),
+            // 2. Energy source
             OnboardingSlide(
-                title: loc(appLanguage, "Energy = Steps + Outer World", "Энергия = Шаги + Внешний мир"),
-                subtitle: loc(appLanguage, "Daily steps refill your Energy. Drops add extra fuel.", "Шаги каждый день пополняют энергию. Капли добавляют топливо."),
+                title: loc(appLanguage, "Walk = Fuel ⚡", "Ходишь = Топливо ⚡"),
+                subtitle: loc(appLanguage, "Steps become your currency", "Шаги становятся валютой"),
                 symbol: "bolt.fill",
                 gradient: [.yellow, .orange],
                 bullets: [
-                    loc(appLanguage, "Steps come from Health", "Шаги берём из Health"),
-                    loc(appLanguage, "Outer World drops give +500 Energy", "Капли во Внешнем мире дают +500 энергии")
+                    loc(appLanguage, "🚶 More steps → more Energy", "🚶 Больше шагов → больше энергии"),
+                    loc(appLanguage, "🔋 Collect batteries on the map for bonus", "🔋 Собирай батарейки на карте для бонуса")
                 ],
                 action: .none
             ),
+            // 3. Level up
             OnboardingSlide(
-                title: loc(appLanguage, "Shields level up", "Щиты прокачиваются"),
-                subtitle: loc(appLanguage, "Invest Energy into a Shield to lower future prices.", "Инвестируй энергию в щит — будущие цены станут ниже."),
+                title: loc(appLanguage, "Level Up 📈", "Прокачивайся 📈"),
+                subtitle: loc(appLanguage, "Invest Energy → cheaper prices", "Вкладывай энергию → дешевле цены"),
                 symbol: "star.fill",
                 gradient: [.blue, .purple],
                 bullets: [
-                    loc(appLanguage, "Each level has progress", "У каждого уровня есть прогресс"),
-                    loc(appLanguage, "More invested = cheaper access", "Больше инвестиций = дешевле доступ")
+                    loc(appLanguage, "⭐ 10 levels per shield", "⭐ 10 уровней на каждый щит"),
+                    loc(appLanguage, "💰 Max level = 90% discount", "💰 Макс уровень = скидка 90%")
                 ],
                 action: .none
             ),
+            // 4. Screen Time - Family Controls
             OnboardingSlide(
-                title: loc(appLanguage, "Two shield modes", "Два режима "),
-                subtitle: loc(appLanguage, "Pick what fits your behavior.", "Выбирай то, что подходит тебе."),
-                symbol: "timer",
-                gradient: [.cyan, .blue],
+                title: loc(appLanguage, "Screen Time 📱", "Screen Time 📱"),
+                subtitle: loc(appLanguage, "Track real app usage for minute mode", "Отслеживай реальное время для минутного режима"),
+                symbol: "hourglass",
+                gradient: [.indigo, .purple],
                 bullets: [
-                    loc(appLanguage, "Entry mode: pay once for a time window", "Entry mode: платишь один раз за окно времени"),
-                    loc(appLanguage, "Minute mode: pay per minute of real use (needs Screen Time)", "Minute mode: платишь за минуту реального использования (нужен Screen Time)")
+                    loc(appLanguage, "⏱️ Pay per actual minute used", "⏱️ Плати за реальные минуты"),
+                    loc(appLanguage, "🔒 We only see usage, not content", "🔒 Видим только время, не контент")
                 ],
-                action: .none
+                action: .requestFamilyControls
             ),
+            // 5. Map - location permission
             OnboardingSlide(
-                title: loc(appLanguage, "Outer World drops", "Посылки во Внешнем мире"),
-                subtitle: loc(appLanguage, "Walk to collect extra Energy on the map.", "Гуляй и собирай дополнительную энергию на карте."),
+                title: loc(appLanguage, "Hunt Batteries 🗺️", "Охота за батареями 🗺️"),
+                subtitle: loc(appLanguage, "Walk around → collect bonus Energy", "Гуляй → собирай бонусную энергию"),
                 symbol: "map.fill",
-                gradient: [.blue, .purple],
+                gradient: [.green, .teal],
                 bullets: [
-                    loc(appLanguage, "One drop at a time within 500m of you", "Одна капля за раз в радиусе 500м от тебя"),
-                    loc(appLanguage, "Each drop gives +500 Energy (daily cap applies)", "Каждая капля даёт +500 энергии (действует дневной лимит)"),
-                    loc(appLanguage, "Magnet: 3 uses/day to pull the drop", "Магнит: 3 раза в день притягивает каплю")
+                    loc(appLanguage, "🔋 +500 Energy per battery", "🔋 +500 энергии за батарейку"),
+                    loc(appLanguage, "🧲 3 magnets/day to grab from afar", "🧲 3 магнита/день чтобы притянуть издалека")
                 ],
                 action: .requestLocation
             ),
+            // 6. Health - steps permission
             OnboardingSlide(
-                title: loc(appLanguage, "Connect your Steps", "Подключи шаги"),
-                subtitle: loc(appLanguage, "We need access to count Steps and refill your Energy.", "Нужен доступ, чтобы считать шаги и пополнять энергию."),
+                title: loc(appLanguage, "Connect Steps 🚶", "Подключи шаги 🚶"),
+                subtitle: loc(appLanguage, "Your walks = your power", "Твои прогулки = твоя сила"),
                 symbol: "figure.walk",
                 gradient: [.pink, .purple],
                 bullets: [
-                    loc(appLanguage, "Used only to calculate Energy", "Используется только для расчёта энергии"),
-                    loc(appLanguage, "You control everything in Settings", "Всё контролируется в Настройках")
+                    loc(appLanguage, "📊 We only read step count", "📊 Читаем только количество шагов"),
+                    loc(appLanguage, "🔒 Your data stays on device", "🔒 Данные остаются на устройстве")
                 ],
                 action: .requestHealth
             ),
+            // 7. Notifications
             OnboardingSlide(
-                title: loc(appLanguage, "Enable notifications", "Включи уведомления"),
-                subtitle: loc(appLanguage, "We’ll remind you when access is about to end.", "Напомним, когда доступ скоро закончится."),
+                title: loc(appLanguage, "Stay Sharp 🔔", "Будь начеку 🔔"),
+                subtitle: loc(appLanguage, "Know when access ends", "Узнавай когда доступ заканчивается"),
                 symbol: "bell.badge.fill",
                 gradient: [.orange, .pink],
                 bullets: [
-                    loc(appLanguage, "Timers and access reminders", "Таймеры и напоминания доступа"),
-                    loc(appLanguage, "No spam — only useful signals", "Без спама — только полезные сигналы")
+                    loc(appLanguage, "⏰ Timers & reminders", "⏰ Таймеры и напоминалки"),
+                    loc(appLanguage, "🚫 Zero spam, only useful stuff", "🚫 Ноль спама, только по делу")
                 ],
                 action: .requestNotifications
             )
@@ -536,6 +559,7 @@ struct MainTabView: View {
                     // Show remaining energy split by source in the bar
                     healthKitSteps: model.stepsBalance,
                     outerWorldSteps: model.outerWorldBonusSteps,
+                    grantedSteps: model.serverGrantedSteps,
                     showDetails: selection == 0
                 )
                 .padding(.horizontal)
@@ -584,6 +608,23 @@ struct MainTabView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in
             selection = 1
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .init("OpenShieldSettings"))) { notification in
+            print("🔧 Received OpenShieldSettings notification")
+            // Navigate to modules tab and open shield settings for the app
+            selection = 1
+            if let bundleId = notification.userInfo?["bundleId"] as? String {
+                print("🔧 Will open shield for bundleId: \(bundleId)")
+                // Post delayed notification to open specific shield
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    print("🔧 Posting OpenShieldForBundle notification")
+                    NotificationCenter.default.post(
+                        name: .init("OpenShieldForBundle"),
+                        object: nil,
+                        userInfo: ["bundleId": bundleId]
+                    )
+                }
+            }
         }
     }
     
@@ -722,9 +763,102 @@ struct ShortcutMessageView: View {
     }
 }
 
+// MARK: - PayGate Background Style
+enum PayGateBackgroundStyle: String, CaseIterable, Identifiable {
+    case midnight = "midnight"
+    case aurora = "aurora"
+    case sunset = "sunset"
+    case ocean = "ocean"
+    case neon = "neon"
+    case minimal = "minimal"
+    
+    var id: String { rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .midnight: return "Midnight"
+        case .aurora: return "Aurora"
+        case .sunset: return "Sunset"
+        case .ocean: return "Ocean"
+        case .neon: return "Neon"
+        case .minimal: return "Minimal"
+        }
+    }
+    
+    var displayNameRU: String {
+        switch self {
+        case .midnight: return "Полночь"
+        case .aurora: return "Аврора"
+        case .sunset: return "Закат"
+        case .ocean: return "Океан"
+        case .neon: return "Неон"
+        case .minimal: return "Минимализм"
+        }
+    }
+    
+    var colors: [Color] {
+        switch self {
+        case .midnight:
+            return [
+                Color(red: 0.05, green: 0.05, blue: 0.15),
+                Color(red: 0.1, green: 0.05, blue: 0.2),
+                Color(red: 0.15, green: 0.1, blue: 0.3),
+                Color(red: 0.05, green: 0.02, blue: 0.1)
+            ]
+        case .aurora:
+            return [
+                Color(red: 0.05, green: 0.1, blue: 0.15),
+                Color(red: 0.1, green: 0.3, blue: 0.4),
+                Color(red: 0.2, green: 0.5, blue: 0.4),
+                Color(red: 0.1, green: 0.2, blue: 0.3)
+            ]
+        case .sunset:
+            return [
+                Color(red: 0.15, green: 0.05, blue: 0.1),
+                Color(red: 0.4, green: 0.15, blue: 0.2),
+                Color(red: 0.6, green: 0.3, blue: 0.2),
+                Color(red: 0.2, green: 0.05, blue: 0.1)
+            ]
+        case .ocean:
+            return [
+                Color(red: 0.02, green: 0.1, blue: 0.2),
+                Color(red: 0.05, green: 0.2, blue: 0.35),
+                Color(red: 0.1, green: 0.3, blue: 0.5),
+                Color(red: 0.02, green: 0.08, blue: 0.15)
+            ]
+        case .neon:
+            return [
+                Color(red: 0.05, green: 0.02, blue: 0.1),
+                Color(red: 0.2, green: 0.05, blue: 0.3),
+                Color(red: 0.4, green: 0.1, blue: 0.5),
+                Color(red: 0.1, green: 0.02, blue: 0.15)
+            ]
+        case .minimal:
+            return [
+                Color(red: 0.08, green: 0.08, blue: 0.08),
+                Color(red: 0.12, green: 0.12, blue: 0.12),
+                Color(red: 0.1, green: 0.1, blue: 0.1),
+                Color(red: 0.05, green: 0.05, blue: 0.05)
+            ]
+        }
+    }
+    
+    var accentColor: Color {
+        switch self {
+        case .midnight: return .purple
+        case .aurora: return .cyan
+        case .sunset: return .orange
+        case .ocean: return .blue
+        case .neon: return .pink
+        case .minimal: return .white.opacity(0.3)
+        }
+    }
+}
+
 // MARK: - PayGateView
 struct PayGateView: View {
     @ObservedObject var model: AppModel
+    @AppStorage("payGateBackgroundStyle") private var backgroundStyle: String = PayGateBackgroundStyle.midnight.rawValue
     @State private var countdown: Int = 10
     @State private var didForfeitSessions: Set<String> = []
     @State private var timedOutSessions: Set<String> = []
@@ -820,6 +954,42 @@ struct PayGateView: View {
         )
     }
     
+    // Compact countdown for smaller screens
+    private var countdownBadgeCompact: some View {
+        let progress = CGFloat(max(0, countdown)) / CGFloat(totalCountdown)
+        let countdownColor: Color = countdown > 5 ? .green : (countdown > 2 ? .orange : .red)
+        
+        return HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.2), lineWidth: 4)
+                    .frame(width: 44, height: 44)
+                
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(countdownColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 44, height: 44)
+                    .animation(.easeInOut(duration: 0.3), value: countdown)
+                
+                Text("\(max(0, countdown))")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .monospacedDigit()
+            }
+            
+            Text(loc("seconds left", "секунд"))
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.7))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial.opacity(0.5))
+        )
+    }
+    
     var body: some View {
         ZStack {
             payGateBackground()
@@ -828,47 +998,67 @@ struct PayGateView: View {
             VStack(spacing: 0) {
                 // Top section with balance
                 stepsProgressBar
-                    .padding(.horizontal, 24)
-                    .padding(.top, 60)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 50)
                 
-                Spacer()
+                Spacer(minLength: 10)
             
-                // Center content - app icon and countdown
+                // Center content - app icons and countdown
                 if let bundleId = activeBundleId {
-                    VStack(spacing: 24) {
-                        // App icon with glow
-            ZStack {
+                    VStack(spacing: 16) {
+                        // Dual app icons - target app + DOOM CTRL
+                        ZStack {
+                            // Glow
                             Circle()
-                                .fill(Color.white.opacity(0.1))
+                                .fill(selectedBackgroundStyle.accentColor.opacity(0.2))
                                 .frame(width: 120, height: 120)
-                                .blur(radius: 20)
+                                .blur(radius: 30)
                             
+                            // Target app icon (larger, background)
                             appIconView(bundleId)
-                                .frame(width: 90, height: 90)
-                                .clipShape(RoundedRectangle(cornerRadius: 20))
-                                .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
+                                .frame(width: 72, height: 72)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
+                                .rotationEffect(.degrees(-8))
+                                .offset(x: -16, y: 8)
+                            
+                            // DOOM CTRL icon (smaller, foreground, overlapping)
+                            doomCtrlIconView
+                                .frame(width: 48, height: 48)
+                                .clipShape(RoundedRectangle(cornerRadius: 11))
+                                .shadow(color: .black.opacity(0.5), radius: 8, x: 2, y: 4)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 11)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                                )
+                                .rotationEffect(.degrees(12))
+                                .offset(x: 28, y: -20)
                         }
+                        .frame(height: 100)
                         
                         // App name
                         Text(getAppDisplayName(bundleId))
-                            .font(.title2.weight(.bold))
+                            .font(.headline)
                             .foregroundColor(.white)
                         
                         // Countdown (if active)
                         if isCountdownActive {
-                            countdownBadge
+                            countdownBadgeCompact
                                 .transition(.scale.combined(with: .opacity))
                         }
                     }
                     .animation(.spring(response: 0.4), value: isCountdownActive)
                 }
                 
-                Spacer()
+                Spacer(minLength: 10)
                 
-                // Bottom action panel
-                bottomActionPanel
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
+                // Bottom action panel - scrollable for small screens
+                ScrollView(showsIndicators: false) {
+                    bottomActionPanel
+                }
+                .frame(maxHeight: UIScreen.main.bounds.height * 0.45)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
         }
         .overlay(transitionOverlay)
@@ -889,7 +1079,7 @@ struct PayGateView: View {
             if let id = activeBundleId {
                 didForfeitSessions.insert(id)
             }
-            model.dismissPayGate()
+            model.dismissPayGate(reason: .programmatic)
         }
     }
     
@@ -928,9 +1118,9 @@ struct PayGateView: View {
     
     @ViewBuilder
     private func minuteModePanel(bundleId: String) -> some View {
-                                let minutesLeft = model.minutesAvailable(for: bundleId)
-                                let minutesText = minutesLeft == Int.max ? "∞" : "\(minutesLeft)"
-                                let rate = model.unlockSettings(for: bundleId).entryCostSteps
+        let minutesLeft = model.minutesAvailable(for: bundleId)
+        let minutesText = minutesLeft == Int.max ? "∞" : "\(minutesLeft)"
+        let rate = model.unlockSettings(for: bundleId).entryCostSteps
         let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
         let canStart = model.isDeviceActivityMinuteModeAvailable(for: bundleId)
         
@@ -943,11 +1133,11 @@ struct PayGateView: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(loc("Minute Mode", "Минутный режим"))
-                                        .font(.headline)
+                        .font(.headline)
                         .foregroundColor(.primary)
                     Text(loc("\(rate) fuel per minute", "\(rate) топлива за минуту"))
                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()
@@ -971,29 +1161,79 @@ struct PayGateView: View {
                 )
             }
             
-            // Enter button
-            Button {
-                                        Task { await model.handleMinuteTariffEntry(for: bundleId) }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "play.fill")
-                    Text(loc("Start Session", "Начать сессию"))
-                                    }
-                                        .font(.headline)
-                                    .foregroundColor(.white)
-                .frame(maxWidth: .infinity, minHeight: 56)
-                .background(
-                    LinearGradient(
-                        colors: (minutesLeft > 0 && canStart) ? [pink, pink.opacity(0.8)] : [.gray, .gray.opacity(0.8)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+            // If Family Controls not configured - show setup button instead of blocking
+            if !canStart {
+                VStack(spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text(loc("Screen Time not configured", "Screen Time не настроен"))
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(.primary)
+                    }
+                    
+                    Text(loc("Tap below to finish shield setup, then you can use this app", "Нажмите ниже чтобы завершить настройку щита"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    
+                    Button {
+                        print("🔧 Configure Shield tapped for \(bundleId)")
+                        // Close PayGate first
+                        model.dismissPayGate(reason: .programmatic)
+                        // Post notification after delay to let PayGate close
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            print("🔧 Posting OpenShieldSettings notification")
+                            NotificationCenter.default.post(
+                                name: NSNotification.Name("OpenShieldSettings"),
+                                object: nil,
+                                userInfo: ["bundleId": bundleId]
+                            )
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "gearshape.fill")
+                            Text(loc("Configure Shield", "Настроить щит"))
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .background(
+                            LinearGradient(
+                                colors: [.orange, .orange.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .shadow(color: .orange.opacity(0.4), radius: 10, x: 0, y: 5)
+                    }
+                }
+            } else {
+                // Normal enter button
+                Button {
+                    Task { await model.handleMinuteTariffEntry(for: bundleId) }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.fill")
+                        Text(loc("Start Session", "Начать сессию"))
+                    }
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .background(
+                        LinearGradient(
+                            colors: minutesLeft > 0 ? [pink, pink.opacity(0.8)] : [.gray, .gray.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .shadow(color: pink.opacity(0.4), radius: 10, x: 0, y: 5)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: pink.opacity(0.4), radius: 10, x: 0, y: 5)
+                }
+                .contentShape(Rectangle())
+                .disabled(minutesLeft <= 0)
             }
-            .contentShape(Rectangle())
-            .disabled(minutesLeft <= 0 || !canStart)
             
             if !canStart {
                 Text(loc("Connect Screen Time for Minute Mode", "Подключи Screen Time для минутного режима"))
@@ -1156,7 +1396,7 @@ struct PayGateView: View {
         Button {
                         setForfeit(bundleId)
             performTransition(duration: 0.6) {
-                            model.dismissPayGate()
+                            model.dismissPayGate(reason: .userDismiss)
                             sendAppToBackground()
                         }
         } label: {
@@ -1253,30 +1493,80 @@ extension PayGateView {
         }
     }
     
+    private var selectedBackgroundStyle: PayGateBackgroundStyle {
+        PayGateBackgroundStyle(rawValue: backgroundStyle) ?? .midnight
+    }
+    
     private func payGateBackground() -> some View {
-        ZStack {
-            // Base image
-            Image("paygate")
-                .resizable()
-                .scaledToFill()
+        let style = selectedBackgroundStyle
+        
+        return ZStack {
+            // Base gradient
+            LinearGradient(
+                gradient: Gradient(colors: style.colors),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
             
-            // Gradient overlays for depth
+            // Soft gradient orbs (no blur - GPU safe)
+            GeometryReader { geo in
+                ZStack {
+                    // Large soft circle (using radial gradient instead of blur)
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [style.accentColor.opacity(0.2), Color.clear],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: geo.size.width * 0.5
+                            )
+                        )
+                        .frame(width: geo.size.width * 1.2)
+                        .offset(x: -geo.size.width * 0.3, y: -geo.size.height * 0.15)
+                    
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [style.colors[1].opacity(0.25), Color.clear],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: geo.size.width * 0.4
+                            )
+                        )
+                        .frame(width: geo.size.width * 0.9)
+                        .offset(x: geo.size.width * 0.25, y: geo.size.height * 0.35)
+                    
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [style.accentColor.opacity(0.15), Color.clear],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: geo.size.width * 0.35
+                            )
+                        )
+                        .frame(width: geo.size.width * 0.7)
+                        .offset(x: 0, y: geo.size.height * 0.45)
+                }
+            }
+            
+            // Top and bottom vignette
             LinearGradient(
                 gradient: Gradient(stops: [
-                    .init(color: Color.black.opacity(0.8), location: 0),
-                    .init(color: Color.black.opacity(0.4), location: 0.4),
-                    .init(color: Color.black.opacity(0.6), location: 0.7),
-                    .init(color: Color.black.opacity(0.9), location: 1)
+                    .init(color: Color.black.opacity(0.6), location: 0),
+                    .init(color: Color.clear, location: 0.3),
+                    .init(color: Color.clear, location: 0.7),
+                    .init(color: Color.black.opacity(0.7), location: 1)
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
             )
             
-            // Subtle purple tint at the bottom for action area
+            // Subtle accent glow at bottom
             LinearGradient(
                 gradient: Gradient(colors: [
                     Color.clear,
-                    Color.purple.opacity(0.15)
+                    style.accentColor.opacity(0.1)
                 ]),
                 startPoint: .center,
                 endPoint: .bottom
@@ -1411,6 +1701,33 @@ extension PayGateView {
     }
     
     @ViewBuilder
+    private var doomCtrlIconView: some View {
+        // Try to load the actual app icon
+        if let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+           let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+           let files = primary["CFBundleIconFiles"] as? [String],
+           let last = files.last,
+           let uiImage = UIImage(named: last) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFit()
+        } else {
+            // Fallback to styled icon
+            ZStack {
+                LinearGradient(
+                    colors: [Color.purple, Color.pink],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                
+                Image(systemName: "bolt.shield.fill")
+                    .font(.title2)
+                    .foregroundColor(.white)
+            }
+        }
+    }
+    
+    @ViewBuilder
     private func tariffPicker(bundleId: String, selected: Tariff) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(loc("en", "Choose tariff for today", "Выберите тариф на сегодня"))
@@ -1482,6 +1799,7 @@ enum OnboardingSlideAction: Equatable {
     case requestLocation
     case requestHealth
     case requestNotifications
+    case requestFamilyControls
 }
 
 struct OnboardingSlide: Identifiable {
@@ -1505,11 +1823,13 @@ struct OnboardingStoriesView: View {
     let onLocationSlide: (() -> Void)?
     let onHealthSlide: (() -> Void)?
     let onNotificationSlide: (() -> Void)?
+    let onFamilyControlsSlide: (() -> Void)?
     let onFinish: () -> Void
     @State private var index: Int = 0
     @State private var didTriggerLocationRequest = false
     @State private var didTriggerHealthRequest = false
     @State private var didTriggerNotificationRequest = false
+    @State private var didTriggerFamilyControlsRequest = false
 
     var body: some View {
         ZStack {
@@ -1742,14 +2062,19 @@ struct OnboardingStoriesView: View {
                 }
             case .requestHealth:
                 if !didTriggerHealthRequest {
-                didTriggerHealthRequest = true
-                onHealthSlide?()
-            }
+                    didTriggerHealthRequest = true
+                    onHealthSlide?()
+                }
             case .requestNotifications:
-            if !didTriggerNotificationRequest {
-                didTriggerNotificationRequest = true
-                onNotificationSlide?()
-            }
+                if !didTriggerNotificationRequest {
+                    didTriggerNotificationRequest = true
+                    onNotificationSlide?()
+                }
+            case .requestFamilyControls:
+                if !didTriggerFamilyControlsRequest {
+                    didTriggerFamilyControlsRequest = true
+                    onFamilyControlsSlide?()
+                }
             case .none:
                 break
             }

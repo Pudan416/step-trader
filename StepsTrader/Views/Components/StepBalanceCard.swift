@@ -6,6 +6,7 @@ struct StepBalanceCard: View {
     let spentSteps: Int
     let healthKitSteps: Int
     let outerWorldSteps: Int
+    let grantedSteps: Int
     let showDetails: Bool
     
     @AppStorage("appLanguage") private var appLanguage: String = "en"
@@ -19,6 +20,25 @@ struct StepBalanceCard: View {
         if remainingSteps > 500 { return .green }
         if remainingSteps > 100 { return .orange }
         return .red
+    }
+    
+    private var timeUntilReset: String {
+        let now = Date()
+        let calendar = Calendar.current
+        var components = calendar.dateComponents([.year, .month, .day], from: now)
+        components.hour = 0
+        components.minute = 0
+        
+        guard let todayMidnight = calendar.date(from: components),
+              let tomorrowMidnight = calendar.date(byAdding: .day, value: 1, to: todayMidnight) else {
+            return "--:--"
+        }
+        
+        let diff = tomorrowMidnight.timeIntervalSince(now)
+        let hours = Int(diff) / 3600
+        let minutes = (Int(diff) % 3600) / 60
+        
+        return String(format: "%dh %02dm", hours, minutes)
     }
     
     var body: some View {
@@ -67,23 +87,31 @@ struct StepBalanceCard: View {
                 
                 Spacer()
                 
-                // Efficiency badge
-                if totalSteps > 0 {
-                    VStack(spacing: 2) {
-                        Text("\(Int(progress * 100))%")
-                            .font(.headline.bold())
-                            .foregroundColor(progressColor)
-                        Text(loc(appLanguage, "left", "осталось"))
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(progressColor.opacity(0.1))
-                    )
-                }
+// Reset timer badge with glass
+VStack(spacing: 2) {
+    HStack(spacing: 4) {
+        Image(systemName: "clock.arrow.circlepath")
+            .font(.caption2)
+            .foregroundColor(.orange)
+        Text(timeUntilReset)
+            .font(.caption.weight(.bold))
+            .monospacedDigit()
+    }
+    .foregroundColor(.primary)
+    Text(loc(appLanguage, "reset", "сброс"))
+        .font(.caption2)
+        .foregroundColor(.secondary)
+}
+.padding(.horizontal, 12)
+.padding(.vertical, 8)
+.background(
+    RoundedRectangle(cornerRadius: 12)
+        .fill(.thinMaterial)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+        )
+)
             }
             
             // Progress bar
@@ -98,9 +126,11 @@ struct StepBalanceCard: View {
                         let remainingWidth = proxy.size.width * progress
                         let hkRemaining = max(0, healthKitSteps)
                         let owRemaining = max(0, outerWorldSteps)
-                        let denom = max(1, hkRemaining + owRemaining)
+                        let grRemaining = max(0, grantedSteps)
+                        let denom = max(1, hkRemaining + owRemaining + grRemaining)
                         let hkWidth = remainingWidth * (Double(hkRemaining) / Double(denom))
-                        let owWidth = max(0, remainingWidth - hkWidth)
+                        let owWidth = remainingWidth * (Double(owRemaining) / Double(denom))
+                        let grWidth = max(0, remainingWidth - hkWidth - owWidth)
                         
                         HStack(spacing: 0) {
                             Rectangle()
@@ -122,6 +152,18 @@ struct StepBalanceCard: View {
                                     )
                                 )
                                 .frame(width: owWidth)
+                            
+                            if grRemaining > 0 {
+                                Rectangle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color(red: 0.85, green: 0.65, blue: 0.13), Color.orange.opacity(0.8)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(width: grWidth)
+                            }
                         }
                         .frame(width: remainingWidth, alignment: .leading)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -148,6 +190,15 @@ struct StepBalanceCard: View {
                         value: formatNumber(outerWorldSteps),
                         color: .blue
                     )
+                    
+                    if grantedSteps > 0 {
+                        sourceChip(
+                            icon: "wand.and.stars",
+                            title: loc(appLanguage, "Doom's Will", "Воля Doom"),
+                            value: formatNumber(grantedSteps),
+                            color: Color(red: 0.85, green: 0.65, blue: 0.13) // Gold
+                        )
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .transition(.asymmetric(
@@ -155,38 +206,51 @@ struct StepBalanceCard: View {
                     removal: .opacity
                 ))
             }
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.secondarySystemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
-        )
-        .animation(.spring(response: 0.3), value: showDetails)
     }
+    .padding(16)
+    .background(
+        RoundedRectangle(cornerRadius: 20)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
+    )
+    .animation(.spring(response: 0.3), value: showDetails)
+}
     
-    @ViewBuilder
-    private func sourceChip(icon: String, title: String, value: String, color: Color) -> some View {
-        HStack(spacing: 6) {
+@ViewBuilder
+private func sourceChip(icon: String, title: String, value: String, color: Color) -> some View {
+    HStack(spacing: 6) {
+        ZStack {
+            Circle()
+                .fill(color.opacity(0.15))
+                .frame(width: 24, height: 24)
             Image(systemName: icon)
                 .font(.caption2)
                 .foregroundColor(color)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                Text(value)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.primary)
-            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            Capsule()
-                .fill(Color(.secondarySystemBackground))
-        )
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.caption.weight(.bold))
+                .foregroundColor(.primary)
+        }
     }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 6)
+    .background(
+        Capsule()
+            .fill(.thinMaterial)
+            .overlay(
+                Capsule()
+                    .stroke(color.opacity(0.2), lineWidth: 1)
+            )
+    )
+}
     
     private func formatNumber(_ num: Int) -> String {
         let absValue = abs(num)
@@ -226,6 +290,7 @@ struct StepBalanceCard: View {
             spentSteps: 1480,
             healthKitSteps: 5000,
             outerWorldSteps: 800,
+            grantedSteps: 200,
             showDetails: true
         )
         
@@ -235,6 +300,7 @@ struct StepBalanceCard: View {
             spentSteps: 5850,
             healthKitSteps: 6000,
             outerWorldSteps: 0,
+            grantedSteps: 0,
             showDetails: false
         )
     }

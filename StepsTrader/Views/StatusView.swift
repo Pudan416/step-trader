@@ -13,8 +13,15 @@ struct StatusView: View {
     @State private var chartRange: ChartRange = .today
     @State private var detailBundle: String? = nil
     @State private var showMotivation: Bool = false
+    @State private var showStatExplanation: StatType? = nil
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     private let openModulesNotification = Notification.Name("com.steps.trader.open.modules")
+    
+    private enum StatType: String {
+        case shields
+        case energy
+        case batteries
+    }
     
     private var dayEndHour: Int { model.dayEndHour }
     private var dayEndMinute: Int { model.dayEndMinute }
@@ -33,24 +40,28 @@ struct StatusView: View {
         }
     }
 
+    // Accent gradient for the app
+    private let accentGradient = LinearGradient(
+        colors: [Color(red: 0.4, green: 0.6, blue: 1.0), Color(red: 0.6, green: 0.4, blue: 0.95)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Greeting header
-                    if !showConnectCTA {
-                        greetingHeader
-                    }
-                    
-                    // Quick Stats Row
-                    if !showConnectCTA {
-                        quickStatsRow
-                    }
-                    
-                    // Connect CTA or Activity Section
+            ZStack {
+                // Liquid Glass background
+                backgroundGradient
+                
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Connect CTA or main content
                     if showConnectCTA {
                         connectFirstModuleCTA
                     } else {
+                            // Hero card with greeting + quick stats
+                            heroCard
+                            
                         // Activity Chart
                         activityChartSection
                         
@@ -58,14 +69,14 @@ struct StatusView: View {
                         appUsageSection
                     }
                 }
-                .padding(.horizontal)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
                 .padding(.bottom, 100)
+                }
             }
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(true)
         }
-        .background(Color.clear)
-        .scrollContentBackground(.hidden)
         .onAppear { onAppear() }
         .onDisappear { onDisappear() }
         .onChange(of: model.isTrackingTime) { _, isTracking in
@@ -77,68 +88,180 @@ struct StatusView: View {
         }
     }
     
-    // MARK: - Greeting Header
-    private var greetingHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(greetingText)
-                    .font(.title2.bold())
-                Text(motivationalText)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
+    // MARK: - Background
+    private var backgroundGradient: some View {
+        ZStack {
+            Color(.systemBackground)
+            
+            // Subtle gradient orbs for depth
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color.blue.opacity(0.08), Color.clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 200
+                    )
+                )
+                .frame(width: 400, height: 400)
+                .offset(x: -100, y: -200)
+            
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color.purple.opacity(0.06), Color.clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 180
+                    )
+                )
+                .frame(width: 360, height: 360)
+                .offset(x: 150, y: 100)
         }
-        .padding(.top, 8)
+        .ignoresSafeArea()
+    }
+    
+    // MARK: - Hero Card (Greeting + Stats)
+    private var heroCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Section header
+            HStack(spacing: 6) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text(loc(appLanguage, "Your Results", "Твой прогресс"))
+                    .font(.caption.weight(.medium))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text(loc(appLanguage, "tap icon for info", "нажми для инфо"))
+                    .font(.caption2)
+                    .foregroundColor(.secondary.opacity(0.6))
+            }
+            
+            // Stats row
+            HStack(spacing: 10) {
+                statPill(
+                    type: .shields,
+                    icon: "shield.checkered",
+                    value: "\(model.appUnlockSettings.count)",
+                    color: .blue
+                )
+                
+                statPill(
+                    type: .energy,
+                    icon: "bolt.fill",
+                    value: formatNumber(totalLifetimeSpent),
+                    color: .orange
+                )
+                
+                statPill(
+                    type: .batteries,
+                    icon: "battery.100.bolt",
+                    value: "\(batteriesCollectedTotal)",
+                    color: .green
+                )
+            }
+            
+            // Explanation text
+            if let stat = showStatExplanation {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(explanationText(for: stat))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.top, 2)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(16)
+        .background(glassCard)
+        .animation(.easeInOut(duration: 0.2), value: showStatExplanation)
+    }
+    
+    private var batteriesCollectedTotal: Int {
+        UserDefaults.standard.integer(forKey: "outerworld_totalcollected") / 500
+    }
+    
+    private func explanationText(for stat: StatType) -> String {
+        switch stat {
+        case .shields:
+            return loc(appLanguage, "Apps protected by shields. Add more in Modules tab", "Приложения под щитами. Добавьте ещё во вкладке Модули")
+        case .energy:
+            return loc(appLanguage, "Total energy spent on entries and shield upgrades", "Всего энергии потрачено на входы и прокачку щитов")
+        case .batteries:
+            return loc(appLanguage, "Batteries collected in Outer World map", "Батареек собрано на карте Outer World")
+        }
+    }
+    
+    @ViewBuilder
+    private func statPill(type: StatType, icon: String, value: String, color: Color) -> some View {
+        Button {
+            withAnimation {
+                if showStatExplanation == type {
+                    showStatExplanation = nil
+                } else {
+                    showStatExplanation = type
+                }
+            }
+        } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.12))
+                        .frame(width: 36, height: 36)
+            Image(systemName: icon)
+                        .font(.subheadline.bold())
+                .foregroundColor(color)
+                }
+            
+            Text(value)
+                    .font(.subheadline.bold())
+                    .foregroundColor(.primary)
+        }
+        .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+        .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(showStatExplanation == type ? color.opacity(0.08) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    // MARK: - Glass Card Style
+    private var glassCard: some View {
+        RoundedRectangle(cornerRadius: 20)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.5
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
     }
     
     private var greetingText: String {
         let hour = Calendar.current.component(.hour, from: Date())
-        if hour < 12 {
-            return loc(appLanguage, "Good morning! 🌅", "Доброе утро! 🌅")
+        if hour < 6 {
+            return loc(appLanguage, "Night", "Ночь")
+        } else if hour < 12 {
+            return loc(appLanguage, "Morning", "Утро")
         } else if hour < 17 {
-            return loc(appLanguage, "Good afternoon! ☀️", "Добрый день! ☀️")
+            return loc(appLanguage, "Afternoon", "День")
+        } else if hour < 22 {
+            return loc(appLanguage, "Evening", "Вечер")
         } else {
-            return loc(appLanguage, "Good evening! 🌙", "Добрый вечер! 🌙")
-        }
-    }
-    
-    private var motivationalText: String {
-        let steps = Int(model.effectiveStepsToday)
-        if steps < 1000 {
-            return loc(appLanguage, "Let's get moving!", "Пора двигаться!")
-        } else if steps < 5000 {
-            return loc(appLanguage, "Good start, keep it up!", "Хорошее начало!")
-        } else if steps < 10000 {
-            return loc(appLanguage, "You're doing great!", "Отличная работа!")
-        } else {
-            return loc(appLanguage, "Amazing progress! 🏆", "Потрясающий результат! 🏆")
-        }
-    }
-    
-    // MARK: - Quick Stats Row
-    private var quickStatsRow: some View {
-        HStack(spacing: 12) {
-            quickStatCard(
-                icon: "shield.checkered",
-                value: "\(model.appUnlockSettings.count)",
-                label: loc(appLanguage, "Shields", "Щитов"),
-                color: .blue
-            )
-            
-            quickStatCard(
-                icon: "flame.fill",
-                value: formatNumber(totalLifetimeSpent),
-                label: loc(appLanguage, "All time", "За всё время"),
-                color: .orange
-            )
-            
-            quickStatCard(
-                icon: "clock.fill",
-                value: timeUntilReset,
-                label: loc(appLanguage, "Reset in", "Сброс через"),
-                color: .purple
-            )
+            return loc(appLanguage, "Night", "Ночь")
         }
     }
     
@@ -146,78 +269,42 @@ struct StatusView: View {
         model.appStepsSpentLifetime.values.reduce(0, +)
     }
     
-    @ViewBuilder
-    private func quickStatCard(icon: String, value: String, label: String, color: Color) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(color)
-            
-            Text(value)
-                .font(.headline.bold())
-            
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(color.opacity(0.1))
-        )
-    }
-    
-    private var timeUntilReset: String {
-        let now = Date()
-        let calendar = Calendar.current
-        var components = calendar.dateComponents([.year, .month, .day], from: now)
-        components.hour = 0
-        components.minute = 0
-        
-        guard let todayMidnight = calendar.date(from: components),
-              let tomorrowMidnight = calendar.date(byAdding: .day, value: 1, to: todayMidnight) else {
-            return "--:--"
-        }
-        
-        let diff = tomorrowMidnight.timeIntervalSince(now)
-        let hours = Int(diff) / 3600
-        let minutes = (Int(diff) % 3600) / 60
-        
-        return String(format: "%dh %dm", hours, minutes)
-    }
-    
     // MARK: - Activity Chart Section
     private var activityChartSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text(loc(appLanguage, "Activity Log", "Активность"))
-                    .font(.headline)
+                Text(loc(appLanguage, "Activity", "Активность"))
+                    .font(.subheadline.weight(.semibold))
                 Spacer()
                 
-                // Range picker
-                HStack(spacing: 0) {
+                // Range picker - glass style
+                HStack(spacing: 2) {
                     ForEach([ChartRange.today, .week, .month], id: \.self) { range in
                         Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 chartRange = range
                             }
                         } label: {
                             Text(rangeLabel(range))
-                                .font(.caption.weight(.medium))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
+                                .font(.caption2.weight(.medium))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
                                 .background(
                                     Capsule()
-                                        .fill(chartRange == range ? Color.blue : Color.clear)
+                                        .fill(chartRange == range ? Color.blue.opacity(0.9) : Color.clear)
                                 )
                                 .foregroundColor(chartRange == range ? .white : .secondary)
                         }
                     }
                 }
+                .padding(3)
                 .background(
                     Capsule()
-                        .fill(Color.gray.opacity(0.15))
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                        )
                 )
             }
             
@@ -229,11 +316,8 @@ struct StatusView: View {
                 chartView(data: chartData)
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-        )
+        .padding(16)
+        .background(glassCard)
     }
     
     private func rangeLabel(_ range: ChartRange) -> String {
@@ -245,58 +329,56 @@ struct StatusView: View {
     }
     
     private var emptyChartPlaceholder: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "chart.bar.xaxis")
-                .font(.largeTitle)
-                .foregroundColor(.secondary.opacity(0.5))
+        VStack(spacing: 10) {
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .font(.title)
+                .foregroundColor(.secondary.opacity(0.35))
             Text(loc(appLanguage, "No activity yet", "Пока нет активности"))
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            Text(loc(appLanguage, "Use your shields to see stats here", "Используйте щиты, чтобы увидеть статистику"))
                 .font(.caption)
-                .foregroundColor(.secondary.opacity(0.7))
-                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
         }
-        .frame(height: 180)
+        .frame(height: 140)
         .frame(maxWidth: .infinity)
     }
     
     @ViewBuilder
     private func chartView(data: [DailyOpen]) -> some View {
         if chartRange == .today {
-            let todayData = trackedAppsToday.sorted { $0.steps > $1.steps }
+            let todayData = trackedAppsToday.sorted { $0.steps > $1.steps }.prefix(5)
             if todayData.isEmpty {
                 emptyChartPlaceholder
             } else {
-                Chart(todayData) { item in
+                Chart(Array(todayData)) { item in
                     BarMark(
                         x: .value("App", item.name),
                         y: .value("Energy", item.steps)
                     )
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [colorForBundle(item.bundleId), colorForBundle(item.bundleId).opacity(0.6)],
+                            colors: [colorForBundle(item.bundleId), colorForBundle(item.bundleId).opacity(0.5)],
                             startPoint: .top,
                             endPoint: .bottom
                         )
                     )
-                    .cornerRadius(6)
+                    .cornerRadius(4)
                 }
                 .chartXAxis {
                     AxisMarks(values: todayData.map { $0.name }) { _ in
                         AxisValueLabel()
+                            .font(.caption2)
                     }
                 }
                 .chartYAxis {
-                    AxisMarks { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
+                    AxisMarks { _ in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3, dash: [3]))
+                            .foregroundStyle(Color.gray.opacity(0.3))
                         AxisValueLabel()
+                            .font(.caption2)
                     }
                 }
-                .frame(height: 200)
+                .frame(height: 160)
             }
         } else {
-            let dateValues = Array(Set(data.map { Calendar.current.startOfDay(for: $0.day) })).sorted()
             Chart(data) { item in
                 let isHighlighted = (selectedBundleForChart == nil) || (selectedBundleForChart == item.bundleId)
                 let baseColor = colorForBundle(item.bundleId)
@@ -306,15 +388,17 @@ struct StatusView: View {
                     y: .value("Energy", item.count),
                     series: .value("App", item.appName)
                 )
-                .foregroundStyle(baseColor.opacity(isHighlighted ? 0.15 : 0.05))
+                .foregroundStyle(baseColor.opacity(isHighlighted ? 0.12 : 0.03))
+                .interpolationMethod(.catmullRom)
                 
                 LineMark(
                     x: .value("Day", item.day, unit: .day),
                     y: .value("Energy", item.count),
                     series: .value("App", item.appName)
                 )
-                .foregroundStyle(baseColor.opacity(isHighlighted ? 1.0 : 0.25))
-                .lineStyle(StrokeStyle(lineWidth: isHighlighted ? 2.5 : 1))
+                .foregroundStyle(baseColor.opacity(isHighlighted ? 0.9 : 0.2))
+                .lineStyle(StrokeStyle(lineWidth: isHighlighted ? 2 : 1))
+                .interpolationMethod(.catmullRom)
                 
                 if isHighlighted {
                     PointMark(
@@ -322,27 +406,30 @@ struct StatusView: View {
                         y: .value("Energy", item.count)
                     )
                     .foregroundStyle(baseColor)
-                    .symbolSize(30)
+                    .symbolSize(20)
                 }
             }
             .chartXAxis {
                 AxisMarks(values: .stride(by: chartRange == .month ? .weekOfYear : .day)) { value in
                     if let date = value.as(Date.self) {
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3, dash: [3]))
+                            .foregroundStyle(Color.gray.opacity(0.3))
                         AxisValueLabel {
                             Text(dateLabelFormatter.string(from: date))
-                                .font(.caption2)
+                                .font(.system(size: 9))
                         }
                     }
                 }
             }
             .chartYAxis {
-                AxisMarks { value in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
+                AxisMarks { _ in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3, dash: [3]))
+                        .foregroundStyle(Color.gray.opacity(0.3))
                     AxisValueLabel()
+                        .font(.caption2)
                 }
             }
-            .frame(height: 200)
+            .frame(height: 160)
         }
     }
     
@@ -350,114 +437,133 @@ struct StatusView: View {
     private var appUsageSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(loc(appLanguage, "App Usage", "Использование"))
-                    .font(.headline)
+                Text(loc(appLanguage, "Apps", "Приложения"))
+                    .font(.subheadline.weight(.semibold))
                 Spacer()
                 if !trackedAppsToday.isEmpty {
-                    Text("\(trackedAppsToday.count) \(loc(appLanguage, "apps", "приложений"))")
-                        .font(.caption)
+                    Text("\(trackedAppsToday.count)")
+                        .font(.caption.weight(.medium))
                         .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(Color.gray.opacity(0.12))
+                        )
                 }
             }
             
             if trackedAppsToday.isEmpty {
-                HStack {
-                    Spacer()
-                    VStack(spacing: 8) {
+                VStack(spacing: 10) {
                         Image(systemName: "apps.iphone")
-                            .font(.title)
-                            .foregroundColor(.secondary.opacity(0.5))
-                        Text(loc(appLanguage, "No usage recorded", "Нет записей"))
+                        .font(.title2)
+                        .foregroundColor(.secondary.opacity(0.4))
+                    Text(loc(appLanguage, "No usage yet", "Нет использования"))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.vertical, 24)
-                    Spacer()
-                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 28)
             } else {
-                ForEach(trackedAppsToday) { item in
+                VStack(spacing: 0) {
+                    ForEach(Array(trackedAppsToday.enumerated()), id: \.element.id) { index, item in
                     appUsageRow(item: item)
+                        
+                        if index < trackedAppsToday.count - 1 {
+                            Divider()
+                                .padding(.leading, 56)
+                        }
+                    }
                 }
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-        )
+        .padding(16)
+        .background(glassCard)
     }
     
     @ViewBuilder
     private func appUsageRow(item: AppUsageToday) -> some View {
         let isSelected = selectedBundleForChart == item.bundleId
+        let timeAccessEnabled = model.isTimeAccessEnabled(for: item.bundleId)
+        let minutesText = timeAccessEnabled ? formatMinutes(model.minuteTimeToday(for: item.bundleId)) : "—"
+        let appColor = colorForBundle(item.bundleId)
         
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                // App icon
+                // App icon with glow
                 ZStack {
-                    appIconImage(item.imageName)
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                    
-                    // Color indicator
+                    // Subtle glow
                     Circle()
-                        .fill(colorForBundle(item.bundleId))
-                        .frame(width: 12, height: 12)
+                        .fill(appColor.opacity(0.2))
+                        .frame(width: 48, height: 48)
+                        .blur(radius: 8)
+                    
+                    appIconImage(item.imageName)
+                        .frame(width: 40, height: 40)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                         .overlay(
-                            Circle()
-                                .stroke(Color(.systemBackground), lineWidth: 2)
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
                         )
-                        .offset(x: 16, y: 16)
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
                     Text(item.name)
                         .font(.subheadline.weight(.medium))
+                        Spacer()
+                        Text("\(formatNumber(item.steps))")
+                            .font(.subheadline.bold())
+                            .foregroundColor(appColor)
+                    }
                     
-                    // Energy bar
+                    // Energy bar - glass style
                     GeometryReader { geo in
                         let maxSteps = trackedAppsToday.map { $0.steps }.max() ?? 1
-                        let width = geo.size.width * (Double(item.steps) / Double(max(1, maxSteps)))
+                        let ratio = Double(item.steps) / Double(max(1, maxSteps))
+                        let width = geo.size.width * ratio
                         
                         ZStack(alignment: .leading) {
                             Capsule()
-                                .fill(Color.gray.opacity(0.15))
-                                .frame(height: 6)
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(height: 4)
                             
                             Capsule()
                                 .fill(
                                     LinearGradient(
-                                        colors: [colorForBundle(item.bundleId), colorForBundle(item.bundleId).opacity(0.6)],
+                                        colors: [appColor, appColor.opacity(0.5)],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
                                 )
-                                .frame(width: max(6, width), height: 6)
+                                .frame(width: max(4, width), height: 4)
                         }
                     }
-                    .frame(height: 6)
-                }
+                    .frame(height: 4)
+                    
+                    HStack {
+                        Text(minutesText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                 
                 Spacer()
                 
-                // Energy spent
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(item.steps)")
-                        .font(.subheadline.bold())
-                        .foregroundColor(colorForBundle(item.bundleId))
-                    Text(loc(appLanguage, "energy", "энергии"))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                
+                        // Only show chevron in week/month mode
+                        if chartRange != .today {
                 Image(systemName: isSelected ? "chevron.up" : "chevron.down")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary.opacity(0.6))
             }
-            .padding(.vertical, 12)
+                    }
+                }
+            }
+            .padding(.vertical, 10)
             .contentShape(Rectangle())
             .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                // Only allow expand in week/month mode
+                guard chartRange != .today else { return }
+                
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     if isSelected {
                         selectedBundleForChart = nil
                         detailBundle = nil
@@ -468,16 +574,24 @@ struct StatusView: View {
                 }
             }
             
-            // Expanded detail
-            if detailBundle == item.bundleId {
+            // Expanded detail (only in week/month mode)
+            if chartRange != .today && detailBundle == item.bundleId {
                 detailEntriesView(bundleId: item.bundleId)
-                    .padding(.leading, 56)
-                    .padding(.bottom, 12)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .padding(.leading, 52)
+                    .padding(.bottom, 10)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
             }
-            
-            Divider()
         }
+    }
+
+    private func formatMinutes(_ minutes: Int) -> String {
+        let clamped = max(0, minutes)
+        let hours = clamped / 60
+        let mins = clamped % 60
+        if hours > 0 {
+            return loc(appLanguage, "\(hours)h \(mins)m", "\(hours)ч \(mins)м")
+        }
+        return loc(appLanguage, "\(mins) min", "\(mins) мин")
     }
 
     private var showConnectCTA: Bool {
@@ -489,52 +603,72 @@ struct StatusView: View {
     }
 
     private var connectFirstModuleCTA: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "shield.lefthalf.filled.badge.checkmark")
-                .font(.system(size: 60))
-                .foregroundStyle(
+        VStack(spacing: 24) {
+            // Icon with glow effect
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.blue.opacity(0.3), Color.purple.opacity(0.1), Color.clear],
+                            center: .center,
+                            startRadius: 20,
+                            endRadius: 80
+                        )
+                    )
+                    .frame(width: 160, height: 160)
+                
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .frame(width: 80, height: 80)
+                    .overlay(
+                        Circle()
+                            .stroke(
                     LinearGradient(
-                        colors: [.purple, .blue],
+                                    colors: [Color.white.opacity(0.4), Color.white.opacity(0.1)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
                     )
-                )
+                    .shadow(color: Color.blue.opacity(0.2), radius: 20, x: 0, y: 10)
+                
+                Image(systemName: "shield.lefthalf.filled.badge.checkmark")
+                    .font(.system(size: 32, weight: .medium))
+                    .foregroundStyle(accentGradient)
+            }
             
-            Text(loc(appLanguage, "No shields connected", "Нет подключенных щитов"))
+            VStack(spacing: 8) {
+                Text(loc(appLanguage, "No shields yet", "Нет щитов"))
                 .font(.title3.bold())
             
-            Text(loc(appLanguage, "Connect your first shield to start tracking your app usage and control screen time.", "Подключите первый щит, чтобы отслеживать использование приложений и контролировать экранное время."))
+                Text(loc(appLanguage, "Connect your first shield to track app usage", "Подключите щит для отслеживания приложений"))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
+            }
             
             Button {
                 NotificationCenter.default.post(name: openModulesNotification, object: nil)
             } label: {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
+                HStack(spacing: 8) {
+                    Image(systemName: "plus")
+                        .font(.subheadline.bold())
                     Text(loc(appLanguage, "Connect Shield", "Подключить щит"))
+                        .font(.subheadline.weight(.semibold))
                 }
-                .font(.headline)
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(
-                    LinearGradient(
-                        colors: [.purple, .blue],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
+                .padding(.vertical, 14)
+                .background(accentGradient)
                 .foregroundColor(.white)
-                .cornerRadius(14)
+                .clipShape(Capsule())
+                .shadow(color: Color.blue.opacity(0.3), radius: 12, x: 0, y: 6)
             }
+            .buttonStyle(.plain)
         }
-        .padding(24)
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
-        )
-        .padding(.top, 40)
+        .padding(28)
+        .background(glassCard)
+        .padding(.top, 60)
     }
 
     // MARK: - Chart Data
@@ -820,10 +954,6 @@ struct StatusView: View {
             model.isBlocked = true
             model.message = "⏰ Time is up!"
 
-            if let familyService = model.familyControlsService as? FamilyControlsService {
-                familyService.enableShield()
-            }
-
             model.notificationService.sendTimeExpiredNotification(remainingMinutes: minutesBeforeBlocking)
             model.sendReturnToAppNotification()
             AudioServicesPlaySystemSound(1005)
@@ -837,10 +967,6 @@ struct StatusView: View {
     private func unblockApp() {
         model.isBlocked = false
         model.message = "✅ Time restored! Available: \(calculatedRemainingMinutes) min"
-
-        if let familyService = model.familyControlsService as? FamilyControlsService {
-            familyService.disableShield()
-        }
 
         model.notificationService.sendUnblockNotification(remainingMinutes: calculatedRemainingMinutes)
         AudioServicesPlaySystemSound(1003)

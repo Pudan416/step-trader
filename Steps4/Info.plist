@@ -16,8 +16,10 @@
 			</array>
 		</dict>
 	</array>
-	<key>DEEPSEEK_API_KEY</key>
-	<string>sk-deb0bea2daa34ca8a9dc766db1468753</string>
+	<key>SUPABASE_URL</key>
+	<string>https://molcdgbopchbwcfgiema.supabase.co</string>
+	<key>SUPABASE_ANON_KEY</key>
+	<string>sb_publishable_Cqv-EaDJIOcNRzsxLwtg8g_1k_oKMC7</string>
 	<key>MKDirectionsApplicationSupportedModes</key>
 	<array/>
 </dict>

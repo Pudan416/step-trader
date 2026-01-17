@@ -1,0 +1,211 @@
+# Apple Human Interface Guidelines (HIG) - iOS/SwiftUI
+
+## Core Design Principles
+
+### Visual Hierarchy & Clarity
+- Use visual weight, size, and placement to show element importance
+- Leading content is most important; trailing content secondary
+- Group related elements; separate unrelated ones
+- Use whitespace generously for breathing room
+
+### Materials & Depth (iOS 18+)
+- Use `.ultraThinMaterial`, `.thinMaterial`, `.regularMaterial`, `.thickMaterial` for layering
+- Standard materials: Help with visual differentiation in content layer
+- Materials create sense of depth between foreground and background
+
+### Liquid Glass (iOS 26+ / WWDC 2025)
+Source: https://developer.apple.com/documentation/TechnologyOverviews/adopting-liquid-glass
+
+Liquid Glass is Apple's new unified design language across all platforms:
+
+**Core Principles:**
+- Dynamic translucency that adapts to background content
+- Unified control appearance across navigation, toolbars, tabs
+- Automatic adoption for system controls (TabView, NavigationStack, sheets)
+- Preserves content visibility while providing clear UI hierarchy
+
+**SwiftUI Modifiers (iOS 26+):**
+```swift
+// Apply glass effect to custom views
+.glassEffect()                          // Default glass appearance
+.glassEffect(.regular)                  // Standard glass intensity
+.glassEffect(.prominent)                // More visible glass
+.glassEffect(.regular.interactive())    // Interactive glass (buttons)
+
+// Glass effect container for grouping
+GlassEffectContainer {
+    // Child views share glass background
+}
+
+// Control glass behavior
+.glassEffectUnion(id: "myGroup")        // Group multiple glass elements
+.glassEffectDisabled()                  // Opt out of automatic glass
+```
+
+**Automatic Adoption:**
+- TabView → glass tab bar automatically
+- NavigationStack → glass navigation bar
+- .sheet() / .fullScreenCover() → glass modal chrome
+- ToolbarItem → glass toolbar buttons
+
+**Backwards Compatibility:**
+- On iOS 18 and earlier: falls back to `.ultraThinMaterial` + blur
+- Use `if #available(iOS 26, *)` for conditional glass features
+- Standard materials (`.thinMaterial`, etc.) still work everywhere
+
+**Best Practices:**
+- Let system controls adopt glass automatically
+- Use `.glassEffect()` for custom floating UI elements
+- Avoid mixing glass with opaque backgrounds
+- Test on both light and dark backgrounds for readability
+- Glass works best on dynamic/photo content backgrounds
+
+### Dark Mode
+- Use semantic system colors: `.systemBackground`, `.secondarySystemBackground`
+- iOS uses base (dimmer) and elevated (brighter) backgrounds for depth perception
+- System automatically shifts colors based on context (popover, modal, multitasking)
+- Never use pure black/white; prefer system colors
+
+### Typography
+- Use Dynamic Type sizes: `.largeTitle`, `.title`, `.headline`, `.body`, `.caption`
+- SF Pro is the system font; avoid custom fonts unless brand-specific
+- Bold for emphasis, regular for body text
+- Minimum touch target: 44x44 points
+
+### Spacing & Layout
+- Use standard spacing: 4, 8, 12, 16, 20, 24, 32 points
+- Safe Area: Always respect `safeAreaInsets`
+- Padding: 16pt horizontal padding for content
+- Card spacing: 12-16pt between cards
+
+### Color
+- Use semantic colors: `.primary`, `.secondary`, `.accent`
+- Accent color should be consistent throughout app
+- High contrast for important elements
+- Vibrant colors for labels on materials: `.label`, `.secondaryLabel`, `.tertiaryLabel`
+
+### Iconography
+- Use SF Symbols (2000+ icons)
+- Match icon weight to text weight
+- Use `.fill` variants for selected states
+- Standard sizes: 12, 14, 16, 20, 24, 28 points
+
+### Animation & Motion
+- Use `.spring(response:, dampingFraction:)` for natural feel
+- `.easeInOut` for state changes
+- Duration: 0.2-0.4s for most transitions
+- Match system animation curves
+
+### Touch & Interaction
+- Minimum touch target: 44x44 points
+- Provide haptic feedback for important actions
+- Use `buttonStyle(.plain)` for custom buttons
+- Avoid gestures that conflict with system gestures
+
+### Accessibility
+- Support Dynamic Type
+- Ensure 4.5:1 contrast ratio for text
+- Add accessibility labels to all interactive elements
+- Support VoiceOver
+- Test with reduced motion enabled
+
+## SwiftUI Best Practices
+
+### Materials Example
+```swift
+.background(.ultraThinMaterial)
+.background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+```
+
+### Dark Mode Colors
+```swift
+Color(.systemBackground)           // Primary background
+Color(.secondarySystemBackground)  // Cards, grouped content
+Color(.tertiarySystemBackground)   // Nested elements
+```
+
+### Typography Scale
+```swift
+.font(.largeTitle)    // 34pt - Screen titles
+.font(.title)         // 28pt - Section headers  
+.font(.title2)        // 22pt - Subsection headers
+.font(.headline)      // 17pt bold - Cell headers
+.font(.body)          // 17pt - Primary content
+.font(.callout)       // 16pt - Secondary content
+.font(.subheadline)   // 15pt - Tertiary content
+.font(.footnote)      // 13pt - Captions
+.font(.caption)       // 12pt - Labels
+.font(.caption2)      // 11pt - Small labels
+```
+
+### Haptic Feedback
+```swift
+UIImpactFeedbackGenerator(style: .light).impactOccurred()
+UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+UINotificationFeedbackGenerator().notificationOccurred(.success)
+```
+
+### SF Symbols Usage
+```swift
+Image(systemName: "shield.checkered")
+    .font(.title2.weight(.semibold))
+    .foregroundStyle(.primary)
+    .symbolRenderingMode(.hierarchical)
+```
+
+### Liquid Glass Examples (iOS 26+)
+```swift
+// Custom floating action button with glass
+Button(action: {}) {
+    Image(systemName: "plus")
+        .font(.title2)
+}
+.frame(width: 56, height: 56)
+.glassEffect(.regular.interactive())
+
+// Floating card with glass background
+VStack {
+    Text("Status Card")
+    Text("Active")
+}
+.padding()
+.glassEffect()
+.clipShape(RoundedRectangle(cornerRadius: 20))
+
+// Grouped glass elements (share same background)
+GlassEffectContainer {
+    HStack {
+        Button("Left") {}
+        Button("Right") {}
+    }
+}
+
+// Fallback for iOS 18 and earlier
+@ViewBuilder
+func adaptiveGlass<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    if #available(iOS 26, *) {
+        content().glassEffect()
+    } else {
+        content()
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+```
+
+## Don'ts
+- Don't use pure #000000 or #FFFFFF
+- Don't ignore safe areas
+- Don't make touch targets smaller than 44pt
+- Don't use low-contrast text
+- Don't fight system gestures
+- Don't disable animations for all users
+- Don't hardcode colors; use semantic colors
+
+### Liquid Glass Don'ts (iOS 26+)
+- Don't put glass on solid color backgrounds (defeats the purpose)
+- Don't nest multiple glass layers (visual noise)
+- Don't use `.glassEffect()` on every element (overwhelming)
+- Don't mix glass with heavy shadows (conflicts visually)
+- Don't forget to test glass on various background images/colors
+- Don't use glass for content that needs guaranteed legibility (use solid backgrounds)

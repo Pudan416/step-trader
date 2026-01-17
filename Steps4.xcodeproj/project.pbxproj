@@ -32,7 +32,6 @@
 		209424C82E85952D00904A0A /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424C52E85952D00904A0A /* NotificationManager.swift */; };
 		209424C92E85952D00904A0A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424C62E85952D00904A0A /* AppModel.swift */; };
 		209424CA2E85952D00904A0A /* DIContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424C72E85952D00904A0A /* DIContainer.swift */; };
-		20B0A3522E8C658800D5EBE4 /* ShieldConfigurationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3502E8C658800D5EBE4 /* ShieldConfigurationProvider.swift */; };
 		20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */; };
 		20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */; };
 		20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0012FFF000100000001 /* AutomationUIModels.swift */; };
@@ -88,7 +87,6 @@
 		200AC47C2F0C825C0018004E /* AccessWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessWindow.swift; sourceTree = "<group>"; };
 		200AC4892F1402CF0018004E /* ManagedSettings.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettings.framework; path = System/Library/Frameworks/ManagedSettings.framework; sourceTree = SDKROOT; };
 		200AC48B2F1402CF0018004E /* ManagedSettingsUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettingsUI.framework; path = System/Library/Frameworks/ManagedSettingsUI.framework; sourceTree = SDKROOT; };
-		200AC4992F141D160018004E /* ShieldConfigurationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldConfigurationProvider.swift; sourceTree = "<group>"; };
 		200AC5A52F16DA3F0018004E /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
 		200AC5A72F16DA570018004E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		200AC5A92F16E8370018004E /* CloudKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitService.swift; sourceTree = "<group>"; };
@@ -116,7 +114,6 @@
 		209424C52E85952D00904A0A /* NotificationManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		209424C62E85952D00904A0A /* AppModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		209424C72E85952D00904A0A /* DIContainer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DIContainer.swift; sourceTree = "<group>"; };
-		20B0A3502E8C658800D5EBE4 /* ShieldConfigurationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldConfigurationProvider.swift; sourceTree = "<group>"; };
 		20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StepsTrader.swift"; sourceTree = "<group>"; };
 		20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffManager.swift; sourceTree = "<group>"; };
 		20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
@@ -274,7 +271,6 @@
 		209424AC2E80C51300904A0A /* Shield */ = {
 			isa = PBXGroup;
 			children = (
-				200AC4992F141D160018004E /* ShieldConfigurationProvider.swift */,
 			);
 			path = Shield;
 			sourceTree = "<group>";
@@ -315,7 +311,6 @@
 		20B0A3512E8C658800D5EBE4 /* Shield */ = {
 			isa = PBXGroup;
 			children = (
-				20B0A3502E8C658800D5EBE4 /* ShieldConfigurationProvider.swift */,
 			);
 			path = Shield;
 			sourceTree = "<group>";
@@ -514,7 +509,6 @@
 				200AC5B82F17A16B0018004E /* OuterWorldView.swift in Sources */,
 				20F5A0112FFF030000000002 /* Localization.swift in Sources */,
 				20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */,
-				20B0A3522E8C658800D5EBE4 /* ShieldConfigurationProvider.swift in Sources */,
 				209424C32E8593DA00904A0A /* SettingsView.swift in Sources */,
 				20F5A0042FFF000100000004 /* AppsPage.swift in Sources */,
 				209424CA2E85952D00904A0A /* DIContainer.swift in Sources */,

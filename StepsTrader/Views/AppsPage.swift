@@ -18,6 +18,7 @@ struct AppsPage: View {
     @State private var showDeactivatedPicker: Bool = false
     @State private var costInfoStage: ModuleLevelStage?
     @State private var statusVersion = UUID()
+    @State private var openShieldBundleId: String? = nil
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     
     private struct ModuleLevelStage: Identifiable {
@@ -164,6 +165,46 @@ struct AppsPage: View {
         .onReceive(tickTimer) { _ in
             clockTick &+= 1
         }
+        .onReceive(NotificationCenter.default.publisher(for: .init("OpenShieldForBundle"))) { notification in
+            print("🔧 Received OpenShieldForBundle notification")
+            if let bundleId = notification.userInfo?["bundleId"] as? String {
+                print("🔧 Looking for app with bundleId: \(bundleId)")
+                // Find the app and open its guide
+                if let app = automationApps.first(where: { $0.bundleId == bundleId }) {
+                    print("🔧 Found app: \(app.name), opening guide")
+                    let status = statusFor(app, configured: automationConfiguredSet, pending: automationPendingSet)
+                    guideApp = GuideItem(
+                        name: app.name,
+                        icon: app.icon,
+                        imageName: app.imageName,
+                        scheme: app.scheme,
+                        link: app.link,
+                        status: status,
+                        bundleId: app.bundleId
+                    )
+                } else {
+                    print("🔧 App not found in automationApps list")
+                }
+            }
+        }
+    }
+    
+    // Glass card style
+    private var glassCard: some View {
+        RoundedRectangle(cornerRadius: 20)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.5
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
     }
     
     @ViewBuilder
@@ -177,52 +218,47 @@ struct AppsPage: View {
         let columns = max(3, min(maxColumns, computedColumns))
         let tileSize = max(minTile, (availableWidth - CGFloat(columns - 1) * spacing) / CGFloat(columns))
         
-        VStack(alignment: .leading, spacing: 16) {
-            // Section header
+        VStack(alignment: .leading, spacing: 14) {
+            // Section header - edgy
             HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.gray.opacity(0.15))
+                        .frame(width: 36, height: 36)
                 Image(systemName: "shield.slash")
-                    .font(.title3)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.gray, .gray.opacity(0.6)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                        .font(.subheadline.bold())
+                        .foregroundColor(.secondary)
+                }
+                
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(loc(appLanguage, "Available Shields", "Доступные щиты"))
-                .font(.headline)
-                    Text(loc(appLanguage, "Tap to activate", "Нажмите для активации"))
-                        .font(.caption)
+                    Text(loc(appLanguage, "Unprotected", "Без защиты"))
+                        .font(.subheadline.weight(.semibold))
+                    Text(loc(appLanguage, "These apps roam free. Fix that.", "Эти приложения гуляют свободно. Исправь."))
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
                 
-                // Count badge
                 if !deactivatedAll.isEmpty {
                     Text("\(deactivatedAll.count)")
-                        .font(.caption.bold())
+                        .font(.caption2.bold())
                         .foregroundColor(.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.gray.opacity(0.12)))
                 }
             }
             
             if deactivatedAll.isEmpty {
-                HStack {
-                    Image(systemName: "checkmark.shield.fill")
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.seal.fill")
                         .foregroundColor(.green)
-                Text(loc(appLanguage, "All shields are connected", "Все щиты подключены"))
-                        .font(.subheadline)
+                    Text(loc(appLanguage, "All locked down 🔒", "Всё под контролем 🔒"))
+                        .font(.caption)
                     .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.green.opacity(0.1))
-                )
+                .padding(.vertical, 16)
             } else {
                 LazyVGrid(
                     columns: Array(repeating: GridItem(.fixed(tileSize), spacing: spacing), count: columns),
@@ -243,53 +279,67 @@ struct AppsPage: View {
             }
         }
         .padding(cardPadding)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.secondarySystemBackground))
-        )
+        .background(glassCard)
     }
     
     @ViewBuilder
     private var activatedSection: some View {
         let cardPadding: CGFloat = 16
+        let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
         
-        VStack(alignment: .leading, spacing: 16) {
-            // Section header
+        VStack(alignment: .leading, spacing: 14) {
+            // Section header - edgy
             HStack(spacing: 10) {
-                Image(systemName: "shield.checkered")
-                    .font(.title3)
-                    .foregroundStyle(
+                ZStack {
+                    Circle()
+                        .fill(
                         LinearGradient(
-                            colors: [.blue, .purple],
+                                colors: [pink.opacity(0.3), Color.purple.opacity(0.2)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "shield.checkered")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [pink, .purple],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                }
+                
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(loc(appLanguage, "Active Shields", "Активные щиты"))
-                .font(.headline)
-                    Text(loc(appLanguage, "Your protected apps", "Ваши защищённые приложения"))
-                        .font(.caption)
+                    Text(loc(appLanguage, "Your Arsenal", "Твой арсенал"))
+                        .font(.subheadline.weight(.semibold))
+                    Text(loc(appLanguage, "Shields keeping you focused", "Щиты на страже твоего фокуса"))
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
                 
-                // Count badge
                 if !activatedApps.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
                     Text("\(activatedApps.count)")
-                        .font(.caption.bold())
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.blue.opacity(0.15)))
+                            .font(.caption2.bold())
+                    }
+                    .foregroundColor(pink)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(pink.opacity(0.12)))
                 }
             }
             
             if activatedApps.isEmpty {
-                // Empty state card
-                VStack(spacing: 12) {
-                    Image(systemName: "shield.fill")
-                        .font(.system(size: 40))
+                // Empty state - edgy
+                VStack(spacing: 10) {
+                    Image(systemName: "shield.slash.fill")
+                        .font(.system(size: 32))
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [.gray.opacity(0.4), .gray.opacity(0.2)],
@@ -297,22 +347,22 @@ struct AppsPage: View {
                                 endPoint: .bottom
                             )
                         )
-                    Text(loc(appLanguage, "No shields yet", "Пока нет щитов"))
-                        .font(.subheadline.weight(.medium))
-                    Text(loc(appLanguage, "Activate a shield above to start protecting yourself from distractions", "Активируйте щит выше, чтобы защититься от отвлечений"))
-                    .font(.caption)
+                    Text(loc(appLanguage, "No shields active", "Щитов нет"))
+                        .font(.caption.weight(.semibold))
+                    Text(loc(appLanguage, "Pick an app above and take control 💪", "Выбери приложение выше и возьми контроль 💪"))
+                        .font(.caption2)
                     .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(24)
+                .padding(.vertical, 20)
                 .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(.tertiarySystemBackground))
-                        .stroke(Color.gray.opacity(0.1), style: StrokeStyle(lineWidth: 1, dash: [5]))
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                        .foregroundColor(.gray.opacity(0.25))
                 )
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     ForEach(activatedApps) { app in
                         moduleLevelCard(for: app)
                     }
@@ -320,10 +370,7 @@ struct AppsPage: View {
             }
         }
         .padding(cardPadding)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.secondarySystemBackground))
-        )
+        .background(glassCard)
     }
     
     private func overflowTile(size: CGFloat) -> some View {
@@ -903,6 +950,9 @@ fileprivate struct TimeAccessPickerSheet: View {
         lastOpened.removeValue(forKey: bundleId)
         saveDateDict(lastOpened, forKey: "automationLastOpened_v1")
         statusVersion = UUID()
+
+        // Remove local shield config + delete server-side shield row
+        model.deactivateShield(bundleId: bundleId)
     }
     
     private func activate(_ app: AutomationApp) {
@@ -953,82 +1003,71 @@ struct AutomationGuideView: View {
     @State private var showDeactivateAlert = false
     @State private var showTimeAccessPicker = false
     @State private var timeAccessSelection = FamilyActivitySelection()
-    @State private var showLevelsTable = false
+    @State private var showLevels = false
+    @State private var showEntrySettings = false
+    @State private var showConnectionRequired = false
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    
+    private var currentLevel: ShieldLevel { model.currentShieldLevel(for: app.bundleId) }
+    private var spent: Int { model.totalStepsSpent(for: app.bundleId) }
+    private var stepsToNext: Int? { model.stepsToNextShieldLevel(for: app.bundleId) }
+    private var accent: Color { tileAccent(for: currentLevel) }
+    private var timeAccessEnabled: Bool { model.isTimeAccessEnabled(for: app.bundleId) }
+    private var minuteModeEnabled: Bool { model.isFamilyControlsModeEnabled(for: app.bundleId) }
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Scrollable content area
                 ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
+                VStack(spacing: 16) {
+                    // Compact header
+                    compactHeader
 
-                if app.status == .configured {
-                    unlockSettings
-                }
-
-                content
-
-                if let link = app.link, let url = URL(string: link) {
-                    Button {
-                        markPending(app.bundleId)
-                        openURL(url)
-                    } label: {
-                        HStack {
-                            Image(systemName: "link")
-                            Text(app.status == .configured ? "Update the shield" : "Get the shield")
-                                .fontWeight(.semibold)
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
+                if app.status == .configured || app.status == .pending {
+                        // Connection status (moved to top)
+                        connectionCard
+                        
+                        // Level card with expandable levels
+                        levelCard
+                        
+                        // Mode selector
+                        modeCard
+                        
+                        // Entry settings (expandable, only for entry mode)
+                        if !minuteModeEnabled {
+                            entrySettingsCard
                         }
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.1)))
-                    }
+                        
+                        // Setup instructions for pending
+                        if app.status == .pending {
+                            setupCard
+                        }
                 } else {
-                    HStack(spacing: 8) {
-                        Image(systemName: "clock")
-                        Text("Shortcut link will be added soon.")
-                            .fontWeight(.semibold)
+                        // Setup instructions for new shields
+                        setupCard
                     }
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.1)))
-                        }
-                    }
-                    .padding()
+                    
+                    // Shortcut button
+                    shortcutButton
                 }
-
-                // Fixed bottom button
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 100)
+            }
+            .background(Color(.systemGroupedBackground))
+            .overlay(alignment: .bottom) {
                 if app.status != .none {
-                    Button {
-                        if app.status == .configured {
-                            showDeactivateAlert = true
-                        } else {
-                            deleteModule(app.bundleId)
-                            dismiss()
-                        }
-                    } label: {
-                        Text("Deactivate shield")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.red.opacity(0.85))
-                            )
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 16)
+                    deactivateButton
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -1049,55 +1088,70 @@ struct AutomationGuideView: View {
                     appLanguage: appLanguage
                 )
             }
-            .alert("Deactivate shield", isPresented: $showDeactivateAlert) {
-                Button("Open Shortcuts") {
+            .alert(loc(appLanguage, "Deactivate shield", "Отключить щит"), isPresented: $showDeactivateAlert) {
+                Button(loc(appLanguage, "Open Shortcuts", "Открыть Команды")) {
                     if let url = URL(string: "shortcuts://automation") ?? URL(string: "shortcuts://") {
                         openURL(url)
                     }
                     deleteModule(app.bundleId)
                     dismiss()
                 }
-                Button("Cancel", role: .cancel) { showDeactivateAlert = false }
+                Button(loc(appLanguage, "Cancel", "Отмена"), role: .cancel) { showDeactivateAlert = false }
             } message: {
-                Text("To fully deactivate this shield, remove the automation from the Shortcuts app.")
+                Text(loc(appLanguage, "Remove the automation from Shortcuts app to fully deactivate.", "Удалите автоматизацию из приложения Команды."))
+            }
+            .alert(loc(appLanguage, "Connection required", "Требуется подключение"), isPresented: $showConnectionRequired) {
+                Button(loc(appLanguage, "Connect", "Подключить")) {
+                    Task {
+                        try? await model.family.requestAuthorization()
+                        showTimeAccessPicker = true
+                    }
+                }
+                Button(loc(appLanguage, "Cancel", "Отмена"), role: .cancel) { }
+            } message: {
+                Text(loc(appLanguage, "To use minute mode, connect the app via Family Controls. This allows tracking real usage time.", "Для режима минут подключите приложение через Family Controls. Это позволит отслеживать реальное время использования."))
             }
         }
     }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
+    
+    // MARK: - Compact Header
+    private var compactHeader: some View {
+        HStack(spacing: 14) {
+            // App icon
                 guideIconView()
-                    .frame(width: 56, height: 56)
+                .frame(width: 52, height: 52)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .shadow(color: .black.opacity(0.1), radius: 6, y: 3)
+            
                 VStack(alignment: .leading, spacing: 4) {
                     Text(app.name)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    switch app.status {
-                    case .configured:
-                        Text("Shield for \(app.name) is working")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    case .pending:
-                        Text("Shield is not connected")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    case .none:
-                        Text("The shield for \(app.name) is not taken")
-                            .font(.subheadline)
+                    .font(.headline)
+                
+                // Status badge
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(app.status == .configured ? Color.green : (app.status == .pending ? Color.orange : Color.gray))
+                        .frame(width: 6, height: 6)
+                    Text(statusText)
+                        .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
+            
                 Spacer()
-                if app.status == .configured || app.status == .pending {
-                    Image(systemName: "checkmark.seal.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 36, height: 36)
-                        .foregroundColor(app.status == .configured ? .green : .yellow)
-                        .padding(.top, 2)
-                }
-            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+    
+    private var statusText: String {
+        switch app.status {
+        case .configured: return loc(appLanguage, "Active", "Активен")
+        case .pending: return loc(appLanguage, "Pending", "Ожидает")
+        case .none: return loc(appLanguage, "Not connected", "Не подключен")
         }
     }
     
@@ -1108,423 +1162,490 @@ struct AutomationGuideView: View {
             Image(uiImage: uiImage)
                 .resizable()
                 .scaledToFit()
-                .clipShape(RoundedRectangle(cornerRadius: 10))
         } else {
             Text(app.icon)
-                .font(.system(size: 36))
+                .font(.system(size: 28))
         }
     }
     
-    @ViewBuilder
-    private var content: some View {
-        switch app.status {
-        case .configured:
-            EmptyView()
-        case .pending:
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Finish setup:")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                Text("1) Open Shortcuts → Automation → + → \"App\".")
-                Text("2) Choose \(app.name), set \"Is Opened\" + \"Run Immediately\".")
-                Text("3) Select the imported shortcut for \(app.name).")
-                Text("4) Launch \(app.name) once to activate the automation.")
+    // MARK: - Connection Card (moved to top)
+    private var connectionCard: some View {
+        Button {
+            Task {
+                try? await model.family.requestAuthorization()
+                showTimeAccessPicker = true
             }
-            .font(.callout)
-        case .none:
-            VStack(alignment: .leading, spacing: 10) {
-                Text("How to set up:")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                if app.link != nil {
-                    Text("1) Tap \"Open shortcut\" below and add it.")
-                    Text("2) Open Shortcuts → Automation → + → \"App\".")
-                    Text("3) Choose \(app.name), set \"Is Opened\" + \"Run Immediately\".")
-                    Text("4) Select the imported shortcut for \(app.name).")
-                    Text("5) Launch \(app.name) once to activate the automation.")
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(timeAccessEnabled ? Color.green.opacity(0.15) : Color.orange.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    
+                    #if canImport(FamilyControls)
+                    if let token = timeAccessSelection.applicationTokens.first {
+                        Label(token)
+                            .labelStyle(.iconOnly)
+                            .frame(width: 26, height: 26)
                 } else {
-                    Text("1) Open Shortcuts → Automation → + → \"App\".")
-                    Text("2) Choose \(app.name), set \"Is Opened\" + \"Run Immediately\".")
-                    Text("3) Pick the universal DOOM CTRL shortcut or your own action.")
-                    Text("4) Launch \(app.name) once to activate the automation.")
+                        Image(systemName: "plus")
+                            .font(.body.bold())
+                            .foregroundColor(.orange)
+                    }
+                    #else
+                    Image(systemName: timeAccessEnabled ? "checkmark" : "plus")
+                        .font(.body.bold())
+                        .foregroundColor(timeAccessEnabled ? .green : .orange)
+                    #endif
                 }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(loc(appLanguage, "App Connection", "Подключение"))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(.primary)
+                    Text(timeAccessEnabled ? loc(appLanguage, "Connected", "Подключено") : loc(appLanguage, "Tap to connect", "Нажмите для подключения"))
+                        .font(.caption)
+                        .foregroundColor(timeAccessEnabled ? .green : .secondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
             }
-            .font(.callout)
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.secondarySystemBackground))
+            )
         }
+        .buttonStyle(.plain)
     }
     
-    private var unlockSettings: some View {
-        let currentLevel = model.currentShieldLevel(for: app.bundleId)
-        let spent = model.totalStepsSpent(for: app.bundleId)
-        let stepsToNext = model.stepsToNextShieldLevel(for: app.bundleId)
-        let accent = tileAccent(for: currentLevel)
-        let timeAccessEnabled = model.isTimeAccessEnabled(for: app.bundleId)
-        let minuteModeEnabled = model.isFamilyControlsModeEnabled(for: app.bundleId)
-        
-        return VStack(alignment: .leading, spacing: 12) {
-            Text("Shield level")
-                .font(.headline)
-            
-            levelHeaderButton(currentLevel: currentLevel, accent: accent)
-
-            if showLevelsTable {
-                levelsTableView(currentLevel: currentLevel, spent: spent, stepsToNext: stepsToNext, isMinuteMode: minuteModeEnabled)
-            }
-            
-            accessModeSection(minuteModeEnabled: minuteModeEnabled, timeAccessEnabled: timeAccessEnabled)
-
-            if minuteModeEnabled {
-                minuteModeSection(timeAccessEnabled: timeAccessEnabled, selection: timeAccessSelection)
-            } else {
-                openModeSection(currentLevel: currentLevel, accent: accent)
-            }
-        
-            Text("Levels change automatically based on energy spent on this shield.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.1)))
-    }
-    
-    @ViewBuilder
-    private func levelHeaderButton(currentLevel: ShieldLevel, accent: Color) -> some View {
-            Button {
-                withAnimation(.easeInOut) {
-                    showLevelsTable.toggle()
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    Text("Level")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+    // MARK: - Level Card with Expandable Levels
+    private var levelCard: some View {
+        VStack(spacing: 0) {
+            // Main level row (tappable to expand)
+                Button {
+                withAnimation(.spring(response: 0.3)) {
+                    showLevels.toggle()
+                    }
+                } label: {
+                HStack(spacing: 14) {
+                    // Level badge
                     Text(currentLevel.label)
-                        .font(.title3.weight(.bold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                    .background(Capsule().fill(accent.opacity(0.2)))
+                        .font(.title2.bold())
+                        .foregroundColor(.white)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(accent)
+                        )
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(loc(appLanguage, "Level", "Уровень") + " \(currentLevel.label)")
+                            .font(.subheadline.weight(.medium))
+                        
+                        // Mini progress
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color(.systemGray5))
+                                Capsule()
+                                    .fill(accent)
+                                    .frame(width: max(4, geo.size.width * levelProgress))
+                            }
+                        }
+                        .frame(height: 4)
+                    }
+                    
                     Spacer()
-                    Image(systemName: showLevelsTable ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.secondary)
-                }
+                    
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(currentLevel.entryCost)")
+                            .font(.subheadline.bold())
+                        Text(minuteModeEnabled ? loc(appLanguage, "/min", "/мин") : loc(appLanguage, "/entry", "/вход"))
+                            .font(.caption2)
+                .foregroundColor(.secondary)
+                    }
+                    
+                    Image(systemName: showLevels ? "chevron.up" : "chevron.down")
+                        .font(.caption.bold())
+                    .foregroundColor(.secondary)
             }
-            .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private func levelsTableView(currentLevel: ShieldLevel, spent: Int, stepsToNext: Int?, isMinuteMode: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+                .padding(14)
+        }
+        .buttonStyle(.plain)
+            
+            // Expandable levels list
+            if showLevels {
+                Divider()
+                    .padding(.horizontal, 14)
+                
+                VStack(spacing: 0) {
                     ForEach(ShieldLevel.all) { level in
-                levelRow(level: level, currentLevel: currentLevel, spent: spent, stepsToNext: stepsToNext, isMinuteMode: isMinuteMode)
+                        levelRow(level: level)
+                        if level.id < ShieldLevel.all.count {
+                            Divider()
+                                .padding(.leading, 58)
+                        }
+                    }
+                }
+                .padding(.bottom, 8)
             }
         }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.secondarySystemBackground))
+        )
     }
     
-    @ViewBuilder
-    private func levelRow(level: ShieldLevel, currentLevel: ShieldLevel, spent: Int, stepsToNext: Int?, isMinuteMode: Bool) -> some View {
-                        let isCurrent = level.id == currentLevel.id
+    private func levelRow(level: ShieldLevel) -> some View {
+        let isCurrent = level.id == currentLevel.id
         let isAchieved = level.threshold < currentLevel.threshold
         let levelAccent = tileAccent(for: level)
         
-        VStack(alignment: .leading, spacing: 8) {
-            levelRowHeader(level: level, isCurrent: isCurrent, isAchieved: isAchieved, levelAccent: levelAccent, isMinuteMode: isMinuteMode)
-            
-            if isCurrent {
-                levelProgressSection(level: level, spent: spent, stepsToNext: stepsToNext, levelAccent: levelAccent)
-            }
-            
-            levelPricesRow(level: level, isCurrent: isCurrent, levelAccent: levelAccent, isMinuteMode: isMinuteMode)
-        }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(isCurrent ? levelAccent.opacity(0.12) : (isAchieved ? Color.green.opacity(0.06) : Color.gray.opacity(0.04)))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isCurrent ? levelAccent.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
-    }
-    
-    @ViewBuilder
-    private func levelRowHeader(level: ShieldLevel, isCurrent: Bool, isAchieved: Bool, levelAccent: Color, isMinuteMode: Bool) -> some View {
-        HStack(spacing: 8) {
+        return HStack(spacing: 12) {
+            // Status icon
+            ZStack {
             if isAchieved {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundColor(.green)
-                    .font(.body)
             } else if isCurrent {
-                Image(systemName: "bolt.circle.fill")
+                    Image(systemName: "circle.fill")
                     .foregroundColor(levelAccent)
-                    .font(.body)
             } else {
                 Image(systemName: "circle")
-                    .foregroundColor(.gray.opacity(0.4))
-                    .font(.body)
+                        .foregroundColor(.gray.opacity(0.3))
             }
+            }
+            .font(.body)
+            .frame(width: 24)
             
-                            Text("Level \(level.label)")
-                                .font(.subheadline.weight(isCurrent ? .bold : .regular))
+            Text(level.label)
+                .font(.subheadline.weight(isCurrent ? .semibold : .regular))
+                .foregroundColor(isCurrent ? levelAccent : .primary)
             
                             Spacer()
             
-            let costLabel = isMinuteMode
-                ? "\(level.entryCost) " + loc(appLanguage, "per min", "за мин")
-                : "\(level.entryCost) " + loc(appLanguage, "per entry", "за вход")
-            Text(costLabel)
-                .font(.caption2.weight(.medium))
-                .foregroundColor(isCurrent ? levelAccent : .secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(isCurrent ? levelAccent.opacity(0.15) : Color.gray.opacity(0.1)))
-        }
-    }
-    
-    @ViewBuilder
-    private func levelProgressSection(level: ShieldLevel, spent: Int, stepsToNext: Int?, levelAccent: Color) -> some View {
-        let progress = levelProgressForGuide(spent: spent, level: level)
-        VStack(alignment: .leading, spacing: 4) {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(height: 6)
-                    Capsule()
-                        .fill(levelAccent)
-                        .frame(width: geo.size.width * CGFloat(progress), height: 6)
-                }
-            }
-            .frame(height: 6)
-            
-            HStack {
-                Text("\(formatSteps(spent)) " + loc(appLanguage, "invested", "вложено"))
-                    .font(.caption2)
-                                        .foregroundColor(.secondary)
-                Spacer()
-                if let toNext = stepsToNext {
-                    Text("\(formatSteps(toNext)) " + loc(appLanguage, "to next", "до след."))
-                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                } else {
-                    Text(loc(appLanguage, "MAX", "МАКС"))
-                        .font(.caption2.weight(.bold))
-                        .foregroundColor(levelAccent)
-                }
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private func levelPricesRow(level: ShieldLevel, isCurrent: Bool, levelAccent: Color, isMinuteMode: Bool) -> some View {
-        if isMinuteMode {
-            // Minute mode: just show cost per minute
-            Text("\(level.entryCost) " + loc(appLanguage, "per min", "за мин"))
-                .font(.caption2.weight(.medium))
-                .foregroundColor(isCurrent ? levelAccent : .secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(isCurrent ? levelAccent.opacity(0.15) : Color.gray.opacity(0.1)))
-        } else {
-            // Open mode: show entry-based costs
-            HStack(spacing: 12) {
-                priceTag(loc(appLanguage, "5m", "5м"), cost: level.fiveMinutesCost, isCurrent: isCurrent, accent: levelAccent)
-                priceTag(loc(appLanguage, "1h", "1ч"), cost: level.hourCost, isCurrent: isCurrent, accent: levelAccent)
-                priceTag(loc(appLanguage, "Day", "День"), cost: level.dayCost, isCurrent: isCurrent, accent: levelAccent)
-            }
-                        .font(.caption2)
-                }
-            }
-            
-    @ViewBuilder
-    private func accessModeSection(minuteModeEnabled: Bool, timeAccessEnabled: Bool) -> some View {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(loc(appLanguage, "Shield mode", "Режим"))
-                    .font(.subheadline.weight(.semibold))
-                Picker("", selection: Binding(get: {
-                    minuteModeEnabled ? 1 : 0
-                }, set: { newValue in
-                    let enableMinuteMode = newValue == 1
-                    model.setFamilyControlsModeEnabled(enableMinuteMode, for: app.bundleId)
-                    model.setMinuteTariffEnabled(enableMinuteMode, for: app.bundleId)
-                    if enableMinuteMode && timeAccessEnabled {
-                        model.applyFamilyControlsSelection(for: app.bundleId)
-                    } else {
-                        model.rebuildFamilyControlsShield()
-                    }
-                })) {
-                    Text(loc(appLanguage, "Entry mode", "Открытый режим")).tag(0)
-                    Text(loc(appLanguage, "Minute mode", "Минутный режим")).tag(1)
-                }
-                .pickerStyle(.segmented)
-
-                if minuteModeEnabled {
-                Text(loc(appLanguage, "Pay per minute of actual use. Requires Screen Time access.", "Платите за каждую минуту использования. Нужен доступ к Screen Time."))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } else {
-                Text(loc(appLanguage, "Pay once to unlock for a set time. Great for quick visits.", "Разовая оплата за доступ на время. Удобно для коротких визитов."))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-            }
-                }
-            }
-
-    @ViewBuilder
-    private func minuteModeSection(timeAccessEnabled: Bool, selection: FamilyActivitySelection) -> some View {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Time access (Screen Time)")
-                        .font(.subheadline.weight(.semibold))
-            
-            if timeAccessEnabled {
-                HStack(spacing: 12) {
-                    // Show selected app icons
-                    #if canImport(FamilyControls)
-                    ForEach(Array(selection.applicationTokens.prefix(5)), id: \.self) { token in
-                        Label(token)
-                            .labelStyle(.iconOnly)
-                            .frame(width: 32, height: 32)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    if selection.applicationTokens.count > 5 {
-                        Text("+\(selection.applicationTokens.count - 5)")
-                            .font(.caption.weight(.medium))
-                            .foregroundColor(.secondary)
-                    }
-                    #endif
-                    
-                    Spacer()
-                    
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                        .font(.title3)
-                }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.green.opacity(0.1)))
-            } else {
-                Text(loc(appLanguage, "Select the app to enable time control.", "Выберите приложение для контроля времени."))
+            // Threshold
+            if !isAchieved && !isCurrent {
+                Text("\(formatSteps(level.threshold))")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             
-            Button(timeAccessEnabled ? loc(appLanguage, "Change selection", "Изменить выбор") : loc(appLanguage, "Connect app", "Подключить")) {
-                        Task {
-                            try? await model.family.requestAuthorization()
-                            showTimeAccessPicker = true
-                        }
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.08)))
-                }
+            // Cost
+            Text("\(level.entryCost)")
+                .font(.caption.weight(.medium))
+                .foregroundColor(isCurrent ? levelAccent : .secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(isCurrent ? levelAccent.opacity(0.15) : Color.gray.opacity(0.1))
+                )
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(isCurrent ? levelAccent.opacity(0.05) : Color.clear)
     }
     
-    @ViewBuilder
-    private func openModeSection(currentLevel: ShieldLevel, accent: Color) -> some View {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Shield options")
-                        .font(.subheadline.weight(.semibold))
-                    accessOptionRow(title: "Day pass", window: .day1, level: currentLevel, tint: accent, isDisabled: false)
-                    accessOptionRow(title: "1 hour", window: .hour1, level: currentLevel, tint: accent, isDisabled: false)
-                    accessOptionRow(title: "5 minutes", window: .minutes5, level: currentLevel, tint: accent, isDisabled: false)
-                    accessOptionRow(title: "Single entry", window: .single, level: currentLevel, tint: accent, isDisabled: false)
-                }
-            }
-        
-    private func formatSteps(_ value: Int) -> String {
-        let absValue = abs(value)
-        let sign = value < 0 ? "-" : ""
-        
-        func trimTrailingZero(_ s: String) -> String {
-            s.hasSuffix(".0") ? String(s.dropLast(2)) : s
-        }
-        
-        if absValue < 1000 { return "\(value)" }
-        
-        if absValue < 10_000 {
-            let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
-            return sign + trimTrailingZero(String(format: "%.1f", v)) + "K"
-        }
-        
-        if absValue < 1_000_000 {
-            let v = Int((Double(absValue) / 1000.0).rounded())
-            return sign + "\(v)K"
-        }
-        
-        if absValue < 10_000_000 {
-            let v = (Double(absValue) / 1_000_000.0 * 10).rounded() / 10
-            return sign + trimTrailingZero(String(format: "%.1f", v)) + "M"
-        }
-        
-        let v = Int((Double(absValue) / 1_000_000.0).rounded())
-        return sign + "\(v)M"
-    }
-    
-    private func levelProgressForGuide(spent: Int, level: ShieldLevel) -> Double {
-        guard let nextThreshold = level.nextThreshold else { return 1.0 }
-        let levelStart = level.threshold
+    private var levelProgress: Double {
+        guard let nextThreshold = currentLevel.nextThreshold else { return 1.0 }
+        let levelStart = currentLevel.threshold
         let levelSpan = nextThreshold - levelStart
         guard levelSpan > 0 else { return 1.0 }
         let localSpent = spent - levelStart
         return min(max(Double(localSpent) / Double(levelSpan), 0), 1)
     }
     
-    @ViewBuilder
-    private func priceTag(_ label: String, cost: Int, isCurrent: Bool, accent: Color) -> some View {
-        HStack(spacing: 2) {
-            Text(label)
-                .foregroundColor(.secondary)
-            Text("\(cost)")
-                .foregroundColor(isCurrent ? accent : .primary)
-                .fontWeight(isCurrent ? .semibold : .regular)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.gray.opacity(0.08))
-        )
-    }
-    
-    private func accessOptionRow(title: String, window: AccessWindow, level: ShieldLevel, tint: Color, isDisabled: Bool) -> some View {
-        let cost = windowCost(for: level, window: window)
-        return HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Text("\(cost) steps")
+    // MARK: - Mode Card
+    private var modeCard: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                // Entry mode
+                modeButton(
+                    icon: "door.left.hand.open",
+                    title: loc(appLanguage, "Entry", "Вход"),
+                    subtitle: loc(appLanguage, "Pay once per session", "Плата за сессию"),
+                    isSelected: !minuteModeEnabled,
+                    isEnabled: true
+                ) {
+                    setMinuteModeEnabled(false)
+                }
+                
+                // Minute mode
+                modeButton(
+                    icon: "clock.fill",
+                    title: loc(appLanguage, "Minute", "Минуты"),
+                    subtitle: loc(appLanguage, "Pay per minute used", "Плата за минуты"),
+                    isSelected: minuteModeEnabled,
+                    isEnabled: timeAccessEnabled
+                ) {
+                    if timeAccessEnabled {
+                        setMinuteModeEnabled(true)
+                    } else {
+                        showConnectionRequired = true
+                    }
+                }
+            }
+            
+            // Mode description
+                HStack(spacing: 8) {
+                Image(systemName: "info.circle")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                Text(minuteModeEnabled 
+                    ? loc(appLanguage, "Energy is deducted for each minute you spend in the app", "Энергия списывается за каждую минуту в приложении")
+                    : loc(appLanguage, "Choose a time window (5min, 1h, day) and pay once for unlimited access", "Выберите окно времени (5мин, 1ч, день) и платите один раз"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
             }
-            Spacer()
-            Toggle(isOn: Binding(get: {
-                model.allowedAccessWindows(for: app.bundleId).contains(window)
-            }, set: { newValue in
-                model.updateAccessWindow(window, enabled: newValue, for: app.bundleId)
-            })) {
-                EmptyView()
-            }
-            .labelsHidden()
-            .toggleStyle(SwitchToggleStyle(tint: tint))
+            .padding(.horizontal, 4)
         }
-        .padding(10)
+    }
+    
+    private func modeButton(icon: String, title: String, subtitle: String, isSelected: Bool, isEnabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: icon)
+                        .font(.body)
+                    Text(title)
+                        .font(.subheadline.weight(.medium))
+                }
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundColor(isSelected ? accent.opacity(0.8) : .secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(isSelected ? accent.opacity(0.15) : Color(.secondarySystemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(isSelected ? accent : Color.clear, lineWidth: 2)
+                    )
+            )
+            .foregroundColor(isSelected ? accent : (isEnabled ? .primary : .secondary))
+            .opacity(isEnabled ? 1 : 0.5)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func setMinuteModeEnabled(_ enabled: Bool) {
+        model.setFamilyControlsModeEnabled(enabled, for: app.bundleId)
+        model.setMinuteTariffEnabled(enabled, for: app.bundleId)
+        if enabled && timeAccessEnabled {
+            model.applyFamilyControlsSelection(for: app.bundleId)
+                        } else {
+            model.rebuildFamilyControlsShield()
+        }
+    }
+    
+    // MARK: - Entry Settings Card (Expandable)
+    private var entrySettingsCard: some View {
+        VStack(spacing: 0) {
+            // Header (tappable)
+            Button {
+                withAnimation(.spring(response: 0.3)) {
+                    showEntrySettings.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                    Text(loc(appLanguage, "Entry settings", "Настройки входа"))
+                        .font(.subheadline.weight(.medium))
+                    Spacer()
+                    Image(systemName: showEntrySettings ? "chevron.up" : "chevron.down")
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                }
+                .padding(14)
+            }
+            .buttonStyle(.plain)
+
+            // Expandable content
+            if showEntrySettings {
+                Divider()
+                    .padding(.horizontal, 14)
+                
+                VStack(spacing: 0) {
+                    windowRow(title: loc(appLanguage, "Day pass", "День"), window: .day1, cost: currentLevel.dayCost, isLast: false)
+                    windowRow(title: loc(appLanguage, "1 hour", "1 час"), window: .hour1, cost: currentLevel.hourCost, isLast: false)
+                    windowRow(title: loc(appLanguage, "5 min", "5 мин"), window: .minutes5, cost: currentLevel.fiveMinutesCost, isLast: false)
+                    windowRow(title: loc(appLanguage, "Single", "Разовый"), window: .single, cost: currentLevel.entryCost, isLast: true)
+                }
+            }
+        }
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(tint.opacity(0.08))
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.secondarySystemBackground))
         )
-        .disabled(isDisabled)
-        .opacity(isDisabled ? 0.45 : 1.0)
     }
     
-    private func windowCost(for level: ShieldLevel, window: AccessWindow) -> Int {
-        switch window {
-        case .single: return level.entryCost
-        case .minutes5: return level.fiveMinutesCost
-        case .hour1: return level.hourCost
-        case .day1: return level.dayCost
+    private func windowRow(title: String, window: AccessWindow, cost: Int, isLast: Bool) -> some View {
+        let isEnabled = model.allowedAccessWindows(for: app.bundleId).contains(window)
+        
+        return VStack(spacing: 0) {
+            HStack {
+                Text(title)
+                    .font(.subheadline)
+                    
+                    Spacer()
+                    
+                Text("\(cost)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Toggle("", isOn: Binding(
+                    get: { isEnabled },
+                    set: { model.updateAccessWindow(window, enabled: $0, for: app.bundleId) }
+                ))
+                .labelsHidden()
+                .tint(accent)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            
+            if !isLast {
+                Divider()
+                    .padding(.leading, 14)
+            }
         }
     }
     
+    // MARK: - Setup Card
+    private var setupCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: "list.number")
+                    .font(.body)
+                    .foregroundColor(.blue)
+                Text(app.status == .pending ? loc(appLanguage, "Finish setup", "Завершите настройку") : loc(appLanguage, "How to set up", "Как настроить"))
+                    .font(.subheadline.weight(.medium))
+            }
+            
+            VStack(alignment: .leading, spacing: 10) {
+                if app.status == .pending {
+                    setupStep(num: 1, text: loc(appLanguage, "Shortcuts → Automation → +", "Команды → Автоматизация → +"))
+                    setupStep(num: 2, text: loc(appLanguage, "App → \(app.name) → Is Opened", "Приложение → \(app.name) → Открыто"))
+                    setupStep(num: 3, text: loc(appLanguage, "Run Immediately → select shortcut", "Выполнять сразу → выберите команду"))
+                } else {
+                    setupStep(num: 1, text: loc(appLanguage, "Tap \"Get shield\" below", "Нажмите «Взять щит»"))
+                    setupStep(num: 2, text: loc(appLanguage, "Add shortcut to library", "Добавьте в библиотеку"))
+                    setupStep(num: 3, text: loc(appLanguage, "Create automation", "Создайте автоматизацию"))
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+    
+    private func setupStep(num: Int, text: String) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Text("\(num)")
+                .font(.caption2.bold())
+                .foregroundColor(.white)
+                .frame(width: 18, height: 18)
+                .background(Circle().fill(accent))
+            
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.primary)
+        }
+    }
+    
+    // MARK: - Shortcut Button
+    @ViewBuilder
+    private var shortcutButton: some View {
+        if let link = app.link, let url = URL(string: link) {
+            Button {
+                markPending(app.bundleId)
+                openURL(url)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: app.status == .configured ? "arrow.triangle.2.circlepath" : "arrow.down.circle.fill")
+                        .font(.body)
+                    Text(app.status == .configured ? loc(appLanguage, "Update", "Обновить") : loc(appLanguage, "Get shield", "Взять щит"))
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption)
+                }
+                .padding(14)
+        .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(
+                            LinearGradient(
+                                colors: [accent, accent.opacity(0.7)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                )
+                .foregroundColor(.white)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    // MARK: - Deactivate Button
+    private var deactivateButton: some View {
+        Button {
+            if app.status == .configured {
+                showDeactivateAlert = true
+            } else {
+                deleteModule(app.bundleId)
+                dismiss()
+            }
+        } label: {
+            Text(loc(appLanguage, "Deactivate", "Отключить"))
+                .font(.caption.weight(.medium))
+                .foregroundColor(.red.opacity(0.8))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.red.opacity(0.08))
+                )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 16)
+        .background(
+            LinearGradient(
+                colors: [Color(.systemGroupedBackground).opacity(0), Color(.systemGroupedBackground)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 70)
+            .allowsHitTesting(false)
+        )
+    }
+    
+    // MARK: - Helpers
+    private func formatSteps(_ value: Int) -> String {
+        let absValue = abs(value)
+        if absValue < 1000 { return "\(value)" }
+        if absValue < 10_000 {
+            let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
+            return String(format: "%.1fK", v).replacingOccurrences(of: ".0K", with: "K")
+        }
+        if absValue < 1_000_000 {
+            return "\(Int((Double(absValue) / 1000.0).rounded()))K"
+        }
+        return "\(Int((Double(absValue) / 1_000_000.0).rounded()))M"
+    }
 }
 
 struct ManualsPage: View {
@@ -1591,11 +1712,39 @@ struct ManualsPage: View {
         }
     }
     
+    // Glass card style for ManualsPage
+    private var manualsGlassCard: some View {
+        RoundedRectangle(cornerRadius: 20)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.5
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
+    }
+    
     // MARK: - Header
     private var headerSection: some View {
         HStack(spacing: 12) {
-            Image(systemName: "book.fill")
-                .font(.title2)
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.3), Color.purple.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 44, height: 44)
+                Image(systemName: "book.closed.fill")
+                    .font(.title3)
                 .foregroundStyle(
                     LinearGradient(
                         colors: [.blue, .purple],
@@ -1603,12 +1752,13 @@ struct ManualsPage: View {
                         endPoint: .bottomTrailing
                     )
                 )
+            }
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(loc(appLanguage, "Manuals", "Мануалы"))
-                    .font(.title2.bold())
-                Text(loc(appLanguage, "Learn how to use shields effectively", "Узнайте, как эффективно использовать щиты"))
-                    .font(.caption)
+                Text(loc(appLanguage, "Field Manual", "Боевой мануал"))
+                    .font(.headline)
+                Text(loc(appLanguage, "Level up your shield game 🎮", "Прокачай свой контроль 🎮"))
+                    .font(.caption2)
                     .foregroundColor(.secondary)
             }
             
@@ -1619,7 +1769,9 @@ struct ManualsPage: View {
     
     // MARK: - Setup Guide Card
     private var setupGuideCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
+        
+        return VStack(alignment: .leading, spacing: 0) {
             // Card header
                             Button {
                 withAnimation(.spring(response: 0.3)) {
@@ -1627,106 +1779,88 @@ struct ManualsPage: View {
                                 }
                             } label: {
                 HStack(spacing: 12) {
-                    // Icon
                     ZStack {
                         Circle()
-                            .fill(Color.blue.opacity(0.15))
-                            .frame(width: 40, height: 40)
-                        Image(systemName: "gearshape.2.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.blue)
+                            .fill(pink.opacity(0.15))
+                            .frame(width: 38, height: 38)
+                        Image(systemName: "wrench.and.screwdriver.fill")
+                            .font(.subheadline)
+                            .foregroundColor(pink)
                     }
                     
                     VStack(alignment: .leading, spacing: 2) {
-                                    Text(appLanguage == "ru" ? "Как подключить щит" : "How to set up a shield")
-                                        .font(.headline)
+                        Text(appLanguage == "ru" ? "Как врубить щит" : "How to arm your shield")
+                            .font(.subheadline.weight(.semibold))
                             .foregroundColor(.primary)
-                        Text(appLanguage == "ru" ? "Пошаговая инструкция" : "Step-by-step guide")
-                            .font(.caption)
+                        Text(appLanguage == "ru" ? "4 шага до контроля 💪" : "4 steps to take control 💪")
+                            .font(.caption2)
                                         .foregroundColor(.secondary)
                                 }
                     
                     Spacer()
                     
-                    Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(.blue.opacity(0.6))
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                        .padding(8)
+                        .background(Circle().fill(Color(.tertiarySystemBackground)))
                 }
-                .padding(16)
+                .padding(14)
                             }
                             
                             if isExpanded {
-                Divider()
-                    .padding(.horizontal, 16)
-                
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 14) {
                     // Image carousel
                                     let manualImages = (1...11).map { "manual_1_\($0)" }
                                     ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 12) {
+                        HStack(spacing: 10) {
                                             ForEach(Array(manualImages.enumerated()), id: \.offset) { index, name in
                                                 Image(name)
                                                     .resizable()
                                                     .scaledToFit()
-                                    .frame(height: 200)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                                    .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                    .frame(height: 180)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
                                                     .onTapGesture {
                                                         openGallery(images: manualImages, startAt: index)
                                                     }
                                             }
                                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                                    }
-                                    
-                    // Steps
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "list.number")
-                                .foregroundColor(.blue)
-                                    Text(appLanguage == "ru" ? "Шаги" : "Steps")
-                                .font(.subheadline.bold())
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 10) {
-                            stepRow(number: 1, text: appLanguage == "ru" ? "Откройте ссылку на щит и добавьте его в Команды." : "Open the shield link and add it to Shortcuts.")
-                            stepRow(number: 2, text: appLanguage == "ru" ? "В Команды → Автоматизация → + → Приложение выберите нужное приложение и включите «Открыто» и «Выполнять сразу»." : "In Shortcuts → Automation → + → App, pick the target app and enable 'Is Opened' and 'Run Immediately'.")
-                            stepRow(number: 3, text: appLanguage == "ru" ? "Укажите щит [app] CTRL и сохраните." : "Select the [app] CTRL shield and save.")
-                            stepRow(number: 4, text: appLanguage == "ru" ? "Откройте приложение один раз, чтобы активировать автоматизацию." : "Open the app once to activate automation.")
-                        }
+                        .padding(.horizontal, 14)
                     }
-                    .padding(.horizontal, 16)
                     
-                    // Tip
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "lightbulb.fill")
-                            .foregroundColor(.yellow)
-                            .font(.title3)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                                    Text(appLanguage == "ru" ? "Подсказка" : "Tip")
-                                .font(.subheadline.bold())
-                            Text(appLanguage == "ru" ? "Если щит не срабатывает, убедитесь, что включены уведомления и доступ к Командам." : "If the shield doesn't fire, ensure notifications and Shortcuts access are enabled.")
+                    // Steps - edgy
+                    VStack(alignment: .leading, spacing: 8) {
+                        stepRow(number: 1, text: appLanguage == "ru" ? "Открой ссылку → добавь в Команды" : "Open link → Add to Shortcuts")
+                        stepRow(number: 2, text: appLanguage == "ru" ? "Команды → Автоматизация → + → Приложение → включи 'Открыто' + 'Выполнять сразу'" : "Shortcuts → Automation → + → App → enable 'Is Opened' + 'Run Immediately'")
+                        stepRow(number: 3, text: appLanguage == "ru" ? "Выбери [app] CTRL щит → Сохрани" : "Pick [app] CTRL shield → Save")
+                        stepRow(number: 4, text: appLanguage == "ru" ? "Открой приложение один раз — щит активирован 🔥" : "Open the app once — shield is live 🔥")
+                    }
+                    .padding(.horizontal, 14)
+                    
+                    // Tip - edgy
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
                                 .font(.subheadline)
+                        
+                        Text(appLanguage == "ru" ? "Не работает? Проверь уведомления и доступ к Командам" : "Not working? Check notifications & Shortcuts access")
+                            .font(.caption)
                                         .foregroundColor(.secondary)
                         }
-                    }
-                    .padding(12)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.yellow.opacity(0.1))
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.orange.opacity(0.1))
                     )
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 14)
                                 }
                                 .transition(.opacity.combined(with: .move(edge: .top)))
                             }
                         }
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.secondarySystemBackground))
-        )
+        .background(manualsGlassCard)
     }
     
     @ViewBuilder
@@ -1805,74 +1939,74 @@ struct ManualsPage: View {
     @ViewBuilder
     private func levelsContent() -> some View {
         let items: [(icon: String, color: Color, ru: String, en: String)] = [
-            ("flame.fill", .orange, "Чем больше путешествуете, тем сильнее прокачивается щит — топливо тратится, опыт копится.", "The more you travel, the stronger the shield gets — fuel spent turns into experience."),
-            ("star.fill", .yellow, "Уровней 10: второй открывается после 10 000 шагов, дальше пороги растут до 500 000.", "There are 10 levels: level II at 10,000 steps, then thresholds grow up to 500,000."),
-            ("bolt.fill", .green, "С ростом уровня входить легче: I=100 шагов, ... , X=10 шагов.", "Higher level = cheaper launch: I=100 steps ... X=10 steps."),
-            ("chart.bar.fill", .blue, "За прогрессом смотрите в карточке щита: там видно, сколько топлива уже сожжено.", "Track your progress on the shield page to see how much fuel you've burned.")
+            ("flame.fill", .orange, "Чем больше тратишь — тем сильнее щит. Топливо = опыт 🔥", "More fuel burned = stronger shield. Fuel = XP 🔥"),
+            ("star.fill", .yellow, "10 уровней: II на 10K, до X на 500K шагов", "10 levels: II at 10K, up to X at 500K steps"),
+            ("bolt.fill", .green, "Выше уровень → дешевле вход: I=100, X=10 шагов", "Higher level → cheaper entry: I=100, X=10 steps"),
+            ("chart.bar.fill", .blue, "Смотри прогресс на карточке щита", "Check progress on the shield card")
         ]
         
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             ForEach(items, id: \.ru) { item in
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: 10) {
                     Image(systemName: item.icon)
                         .foregroundColor(item.color)
-                        .frame(width: 24)
+                        .font(.caption)
+                        .frame(width: 20)
                     Text(appLanguage == "ru" ? item.ru : item.en)
-                        .font(.subheadline)
+                        .font(.caption)
                         .foregroundColor(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
-        .padding(16)
+        .padding(14)
     }
 
     @ViewBuilder
     private func entryOptionsContent() -> some View {
         let manualImages = ["manual_2_1", "manual_2_2", "manual_2_3"]
         let items: [(icon: String, color: Color, ru: String, en: String)] = [
-            ("clock.fill", .purple, "Во время путешествий по соцсетям нужен разный запас времени.", "Different worlds need different fuel."),
-            ("door.left.hand.open", .orange, "Где-то хватает одного входа, где-то надо «жить» часами.", "Sometimes one entry is enough, sometimes you camp there for hours."),
-            ("square.grid.2x2.fill", .blue, "Выбирайте формат: разовый, 5 мин, 1 час или день.", "Pick your mode: single, 5 min, 1 hour, or a day pass."),
-            ("bolt.fill", .green, "Стоимость зависит от уровня (10–100 шагов за вход, 50–500 за 5 мин и т.д.).", "Costs scale with your level (10–100 for single, 50–500 for 5 min, etc.)."),
-            ("slider.horizontal.3", .gray, "Лишние варианты можно выключить в настройках щита.", "Toggle off the modes you don't need in the shield settings.")
+            ("clock.fill", .purple, "Разным приложениям — разное время ⏰", "Different apps need different fuel ⏰"),
+            ("door.left.hand.open", .orange, "Где-то хватит входа, где-то надо зависнуть", "Sometimes quick peek, sometimes deep dive"),
+            ("square.grid.2x2.fill", .blue, "Выбирай: разовый, 5 мин, час или день", "Pick: single, 5 min, hour, or day pass"),
+            ("bolt.fill", .green, "Цена зависит от уровня (10–100 за вход)", "Cost scales with level (10–100 per entry)"),
+            ("slider.horizontal.3", .gray, "Лишнее отключи в настройках щита", "Turn off unused modes in shield settings")
         ]
 
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             // Image carousel
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     ForEach(Array(manualImages.enumerated()), id: \.offset) { index, name in
                         Image(name)
                             .resizable()
                             .scaledToFit()
-                            .frame(height: 180)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                            .frame(height: 160)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
                             .onTapGesture {
                                 openGallery(images: manualImages, startAt: index)
                             }
                     }
                 }
-                .padding(.vertical, 4)
             }
 
-            // Text items
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 ForEach(items, id: \.ru) { item in
-                    HStack(alignment: .top, spacing: 12) {
+                    HStack(alignment: .top, spacing: 10) {
                         Image(systemName: item.icon)
                             .foregroundColor(item.color)
-                            .frame(width: 24)
+                            .font(.caption)
+                            .frame(width: 20)
                         Text(appLanguage == "ru" ? item.ru : item.en)
-                            .font(.subheadline)
+                            .font(.caption)
                         .foregroundColor(.primary)
                             .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
         }
-        .padding(16)
+        .padding(14)
     }
 
     private func openGallery(images: [String], startAt index: Int) {
@@ -1897,40 +2031,35 @@ struct ManualsPage: View {
                 }
             } label: {
                 HStack(spacing: 12) {
-                    // Icon
                     ZStack {
                         Circle()
                             .fill(iconColor.opacity(0.15))
-                            .frame(width: 40, height: 40)
+                            .frame(width: 38, height: 38)
                         Image(systemName: icon)
-                            .font(.system(size: 16))
+                            .font(.subheadline)
                             .foregroundColor(iconColor)
                     }
                     
                     Text(title)
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(.primary)
                     
                     Spacer()
                     
-                    Image(systemName: expanded.wrappedValue ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(iconColor.opacity(0.6))
+                    Image(systemName: expanded.wrappedValue ? "chevron.up" : "chevron.down")
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                        .padding(8)
+                        .background(Circle().fill(Color(.tertiarySystemBackground)))
                 }
-                .padding(16)
+                .padding(14)
             }
 
             if expanded.wrappedValue {
-                Divider()
-                    .padding(.horizontal, 16)
-                
                 content()
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.secondarySystemBackground))
-        )
+        .background(manualsGlassCard)
     }
 }

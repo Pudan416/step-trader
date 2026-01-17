@@ -2,7 +2,6 @@ import Foundation
 import Combine
 #if canImport(FamilyControls)
 import FamilyControls
-import ManagedSettings
 import DeviceActivity
 #endif
 
@@ -11,7 +10,6 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
     @Published var selection = FamilyActivitySelection()
     @Published var isAuthorized: Bool = false
     #if canImport(FamilyControls)
-    private let store = ManagedSettingsStore()
     private let center = AuthorizationCenter.shared
     private let deviceActivityCenter = DeviceActivityCenter()
     private let minuteActivityName = DeviceActivityName("minuteMode")
@@ -43,31 +41,6 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
         selection = newSelection
     }
 
-    // Shield controls (no-op)
-    func enableShield() {
-        #if canImport(FamilyControls)
-        // Shield disabled by request: always clear settings.
-        store.clearAllSettings()
-        #endif
-    }
-    
-    func disableShield() {
-        #if canImport(FamilyControls)
-        store.clearAllSettings()
-        #endif
-    }
-    
-    func allowOneSession() {
-        #if canImport(FamilyControls)
-        store.shield.applications = nil
-        store.shield.applicationCategories = nil
-        #endif
-    }
-    
-    func reenableShield() {
-        enableShield()
-    }
-
     func updateMinuteModeMonitoring() {
         #if canImport(FamilyControls)
         let events = buildMinuteEvents()
@@ -83,6 +56,8 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
         )
 
         do {
+            // Restart to avoid "already monitoring" errors and to pick up updated selections/settings.
+            deviceActivityCenter.stopMonitoring([minuteActivityName])
             try deviceActivityCenter.startMonitoring(minuteActivityName, during: schedule, events: events)
         } catch {
             print("❌ Failed to start DeviceActivity monitoring: \(error)")
@@ -103,14 +78,10 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
               let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
         else { return [:] }
 
-        let dayKey = Self.dayKey(for: Date())
+        let dayKey = currentDayKey()
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
         
-        for (bundleId, settings) in decoded {
-            let enabled = (settings.familyControlsModeEnabled ?? false)
-                || (settings.minuteTariffEnabled ?? false)
-            guard enabled else { continue }
-
+        for (bundleId, _) in decoded {
             let key = "timeAccessSelection_v1_\(bundleId)"
             guard let selectionData = g.data(forKey: key),
                   let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
@@ -120,11 +91,12 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
                 continue
             }
 
-            // Get current minute count for this app today to set correct threshold
+            // DeviceActivity tracks CUMULATIVE usage since schedule start.
+            // After threshold fires for minute N, next threshold must be N+1.
             let countKey = "minuteCount_\(dayKey)_\(bundleId)"
             let currentMinutes = g.integer(forKey: countKey)
             let nextThreshold = currentMinutes + 1
-            
+
             let eventName = DeviceActivityEvent.Name("minute_\(bundleId)")
             let event = DeviceActivityEvent(
                 applications: selection.applicationTokens,
@@ -138,11 +110,11 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
         return events
     }
     
-    private static func dayKey(for date: Date) -> String {
+    private func currentDayKey() -> String {
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.dateFormat = "yyyy-MM-dd"
-        return df.string(from: date)
+        return df.string(from: Date())
     }
     #endif
 }

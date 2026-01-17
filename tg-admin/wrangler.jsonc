@@ -1,0 +1,18 @@
+{
+    "name": "doomctrl-tg-admin",
+    "main": "src/index.ts",
+    "compatibility_date": "2025-01-01",
+    "observability": {
+        "enabled": true
+    },
+    "vars": {
+        // Comma-separated Telegram numeric user IDs allowed to use admin commands.
+        // Example: "113872890,123456"
+        "ADMIN_IDS": "113872890"
+    }
+    // Secrets (set via `wrangler secret put`):
+    // - TELEGRAM_BOT_TOKEN
+    // - SUPABASE_URL
+    // - SUPABASE_SERVICE_ROLE_KEY
+    // - OPENAI_API_KEY (optional, for natural language)
+}
