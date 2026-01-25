@@ -464,11 +464,13 @@ struct HandoffProtectionView: View {
                 VStack(spacing: 16) {
                     Text("🛡️")
                         .font(.system(size: 60))
+                        .accessibilityHidden(true)
 
                     Text("Protection Screen")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
+                        .accessibilityAddTraits(.isHeader)
 
                     Text("You're about to open \(token.targetAppName)")
                         .font(.title2)
@@ -501,6 +503,7 @@ struct HandoffProtectionView: View {
                         .foregroundColor(.white)
                         .font(.headline)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .accessibilityLabel("Cancel opening \(token.targetAppName)")
 
                         Button("Open \(token.targetAppName)") {
                             print("🛡️ User clicked Continue button for \(token.targetAppName)")
@@ -511,6 +514,8 @@ struct HandoffProtectionView: View {
                         .foregroundColor(.white)
                         .font(.headline)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .accessibilityLabel("Open \(token.targetAppName)")
+                        .accessibilityHint("Opens the app \(token.targetAppName) after confirming access")
                     }
                     .padding(.horizontal, 20)
                 }
@@ -751,6 +756,8 @@ struct QuickStatusView: View {
                 .font(.headline)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 20)
+                .accessibilityLabel("Close quick status")
+                .accessibilityHint("Closes the quick status view")
             }
         }
     }
@@ -1129,6 +1136,9 @@ struct PayGateView: View {
         }
         .contentShape(Rectangle())
         .disabled(isDisabled)
+        .accessibilityLabel("\(accessWindowShortName(window)) access, \(effectiveCost) energy")
+        .accessibilityHint(isDisabled ? "Not enough energy or timed out" : "Opens access for \(accessWindowShortName(window))")
+        .accessibilityValue(canPay ? "Available" : "Insufficient energy")
     }
     
     private func windowIcon(_ window: AccessWindow) -> String {
@@ -1176,6 +1186,8 @@ struct PayGateView: View {
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
         .contentShape(Rectangle())
+        .accessibilityLabel(loc("Close", "Закрыть"))
+        .accessibilityHint("Closes the pay gate and returns to home screen")
     }
 }
 
@@ -1769,6 +1781,8 @@ struct OnboardingStoriesView: View {
                             .background(Color.white.opacity(0.10))
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
+                    .accessibilityLabel(skipText)
+                    .accessibilityHint("Skips the onboarding and goes to the main app")
 
                     Button(action: next) {
                         Text(primaryButtonTitle)
@@ -1778,6 +1792,8 @@ struct OnboardingStoriesView: View {
                             .background(accent)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
+                    .accessibilityLabel(primaryButtonTitle)
+                    .accessibilityHint("Continues to the next onboarding slide or starts the app")
                 }
                 .padding(.bottom, 32)
                 .padding(.horizontal, 16)
