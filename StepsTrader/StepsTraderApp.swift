@@ -2,6 +2,25 @@ import SwiftUI
 import Combine
 import UIKit
 import CoreLocation
+import UserNotifications
+
+// Локальная копия минимальных настроек для декодинга appUnlockSettings_v1
+private struct StoredUnlockSettingsForNotification: Codable {
+    let entryCostSteps: Int?
+    let minuteTariffEnabled: Bool?
+    let familyControlsModeEnabled: Bool?
+}
+
+// Минимальная структура для декодинга групп щитов
+private struct ShieldGroupDataForNotification: Codable {
+    let id: String
+    let name: String
+    let selectionData: Data?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, selectionData
+    }
+}
 
 @main
 struct StepsTraderApp: App {
@@ -11,7 +30,9 @@ struct StepsTraderApp: App {
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     @AppStorage("hasSeenIntro_v3") private var hasSeenIntro: Bool = false
+    @AppStorage("hasSeenEnergySetup_v1") private var hasSeenEnergySetup: Bool = false
     @State private var showIntro: Bool = false
+    @State private var showEnergySetup: Bool = false
 
     init() {
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
@@ -23,7 +44,7 @@ struct StepsTraderApp: App {
                 if model.showPayGate {
                     PayGateView(model: model)
                         .onAppear {
-                            print("🎯 PayGateView appeared - target: \(model.payGateTargetBundleId ?? "nil")")
+                            print("🎯 PayGateView appeared - target group: \(model.payGateTargetGroupId ?? "nil")")
                         }
                 } else if model.showQuickStatusPage {
                     QuickStatusView(model: model)
@@ -31,13 +52,6 @@ struct StepsTraderApp: App {
                     MainTabView(model: model, theme: currentTheme)
                 }
 
-                // Shortcut message overlay
-                if model.showShortcutMessage, let message = model.shortcutMessage {
-                    ShortcutMessageView(message: message) {
-                        model.showShortcutMessage = false
-                        model.shortcutMessage = nil
-                    }
-                }
 
                 // Handoff protection screen (disabled for Instagram flow)
                 if model.showHandoffProtection, let token = model.handoffToken {
@@ -55,7 +69,7 @@ struct StepsTraderApp: App {
                     OnboardingStoriesView(
                         isPresented: $showIntro,
                         slides: introSlides(appLanguage: appLanguage),
-                        accent: Color(red: 224/255, green: 130/255, blue: 217/255),
+                        accent: AppColors.brandPink,
                         skipText: loc(appLanguage, "Skip", "Пропустить"),
                         nextText: loc(appLanguage, "Next", "Дальше"),
                         startText: loc(appLanguage, "Start", "Начать"),
@@ -76,10 +90,23 @@ struct StepsTraderApp: App {
                         }
                     ) {
                         hasSeenIntro = true
-                        Task { await model.refreshStepsIfAuthorized() }
+                        Task {
+                            await model.refreshStepsIfAuthorized()
+                            await model.refreshSleepIfAuthorized()
+                        }
+                        if !hasSeenEnergySetup {
+                            showEnergySetup = true
+                        }
                     }
                     .transition(.opacity)
                     .zIndex(3)
+                }
+            }
+            .sheet(isPresented: $showEnergySetup, onDismiss: {
+                hasSeenEnergySetup = true
+            }) {
+                NavigationView {
+                    EnergySetupView(model: model)
                 }
             }
             .onAppear {
@@ -98,17 +125,18 @@ struct StepsTraderApp: App {
                 print(
                     "🎭 App state - showHandoffProtection: \(model.showHandoffProtection), handoffToken: \(model.handoffToken?.targetAppName ?? "nil")"
                 )
+                
+                // Setup notification handling
+                setupNotificationHandling()
                 print(
-                    "🎭 PayGate state - showPayGate: \(model.showPayGate), targetBundleId: \(model.payGateTargetBundleId ?? "nil")"
+                    "🎭 PayGate state - showPayGate: \(model.showPayGate), targetGroupId: \(model.payGateTargetGroupId ?? "nil")"
                 )
-                if let bundleId = model.payGateTargetBundleId, model.isAccessBlocked(for: bundleId) {
-                    print("🚫 PayGate dismissed on appear: access window active for \(bundleId)")
-                    model.dismissPayGate(reason: .programmatic)
-                    clearPayGateFlags(UserDefaults.stepsTrader())
-                }
                 checkForHandoffToken()
                 checkForPayGateFlags()
                 if !hasSeenIntro { showIntro = true }
+                if hasSeenIntro && !hasSeenEnergySetup {
+                    showEnergySetup = true
+                }
             }
             .onOpenURL { url in
                 print("🔗 App received URL: \(url)")
@@ -165,7 +193,7 @@ struct StepsTraderApp: App {
                     }
                     print("📱 PayGate notification - target: \(target), bundleId: \(bundleId)")
                     Task { @MainActor in
-                        model.startPayGateSession(for: bundleId)
+                        model.openPayGateForBundleId(bundleId)
                     }
                 }
             }
@@ -203,7 +231,7 @@ struct StepsTraderApp: App {
                     print("📱 Local notification PayGate - target: \(target), bundleId: \(bundleId)")
                     Task { @MainActor in
                         model.startPayGateSession(for: bundleId)
-                        print("📱 PayGate state after setting - showPayGate: \(model.showPayGate), targetBundleId: \(model.payGateTargetBundleId ?? "nil")")
+                        print("📱 PayGate state after setting - showPayGate: \(model.showPayGate), targetGroupId: \(model.payGateTargetGroupId ?? "nil")")
                     }
                 }
             }
@@ -255,23 +283,11 @@ struct StepsTraderApp: App {
             print("ℹ️ No handoff token found")
         }
 
-        // Проверяем, есть ли сообщение от шортката (для ошибок)
-        if let message = userDefaults.string(forKey: "shortcutMessage") {
-            model.shortcutMessage = message
-            model.showShortcutMessage = true
-            userDefaults.removeObject(forKey: "shortcutMessage")
-        }
     }
     
     private func checkForPayGateFlags() {
         let userDefaults = UserDefaults.stepsTrader()
 
-        if let until = userDefaults.object(forKey: "suppressShortcutUntil") as? Date,
-           Date() < until {
-            print("🚫 PayGate suppressed (minute mode), skipping PayGate")
-            clearPayGateFlags(userDefaults)
-            return
-        }
 
         if let until = userDefaults.object(forKey: "payGateDismissedUntil_v1") as? Date,
            Date() < until
@@ -281,73 +297,40 @@ struct StepsTraderApp: App {
             return
         }
         
-        // Check if shortcut set flags to show PayGate
+        // Check if flags set to show PayGate
         let shouldShowPayGate = userDefaults.bool(forKey: "shouldShowPayGate")
-        let shortcutTriggered = userDefaults.bool(forKey: "shortcutTriggered")
-        let triggerTime = userDefaults.object(forKey: "shortcutTriggerTime") as? Date
-        let isRecentTrigger: Bool = {
-            guard let triggerTime else { return false }
-            // Даем больше времени на доставку уведомления/запуск приложения из шортката
-            return Date().timeIntervalSince(triggerTime) < 120
-        }()
         
-        print("🔍 Checking PayGate flags - shouldShowPayGate: \(shouldShowPayGate), shortcutTriggered: \(shortcutTriggered), isRecentTrigger: \(isRecentTrigger)")
-        
-        if (shouldShowPayGate || shortcutTriggered) && isRecentTrigger {
-            let targetBundleId = userDefaults.string(forKey: "payGateTargetBundleId")
-            let shortcutTarget = userDefaults.string(forKey: "shortcutTarget")
-            let target = targetBundleId ?? shortcutTarget ?? "unknown"
+        if shouldShowPayGate {
+            let targetGroupId = userDefaults.string(forKey: "payGateTargetGroupId")
             
-            print("🎯 Shortcut triggered PayGate for: \(target)")
-            print("🎯 shouldShowPayGate: \(shouldShowPayGate), shortcutTriggered: \(shortcutTriggered)")
-            
-            // Map shortcut target to bundle ID if needed
-            let finalBundleId = targetBundleId ?? TargetResolver.bundleId(from: shortcutTarget)
-            
-            print("🎯 Final bundle ID: \(finalBundleId ?? "nil")")
-            if let bundleId = finalBundleId {
-                if !model.showPayGate, isRecentPayGateOpen(bundleId: bundleId, userDefaults: userDefaults) {
-                    print("🚫 PayGate flags ignored: recent PayGate open for \(bundleId)")
+            if let groupId = targetGroupId {
+                if !model.showPayGate, isRecentPayGateOpen(groupId: groupId, userDefaults: userDefaults) {
+                    print("🚫 PayGate flags ignored: recent PayGate open for group \(groupId)")
                     clearPayGateFlags(userDefaults)
                     return
                 }
                 Task { @MainActor in
-                    if model.isAccessBlocked(for: bundleId) {
-                        print("🚫 PayGate flags ignored: access window active for \(bundleId)")
-                        reopenTargetIfPossible(bundleId: bundleId)
-                        clearPayGateFlags(userDefaults)
-                        return
-                    }
-                    // If PayGate is already visible, switch the target instead of ignoring.
-                    model.startPayGateSession(for: bundleId)
+                    model.openPayGate(for: groupId)
                 }
             }
             
-            // Clear the flags
             clearPayGateFlags(userDefaults)
-            
-            print("🎯 PayGate should now be visible!")
         } else {
-            print("🔍 No PayGate flags found")
-            // Cleanup stale flags so PayGate won't show on normal app launch
             clearPayGateFlags(userDefaults)
         }
     }
     
     private func clearPayGateFlags(_ userDefaults: UserDefaults) {
         userDefaults.removeObject(forKey: "shouldShowPayGate")
-        userDefaults.removeObject(forKey: "payGateTargetBundleId")
-        userDefaults.removeObject(forKey: "shortcutTriggered")
-        userDefaults.removeObject(forKey: "shortcutTarget")
-        userDefaults.removeObject(forKey: "shortcutTriggerTime")
+        userDefaults.removeObject(forKey: "payGateTargetGroupId")
     }
 
-    private func isRecentPayGateOpen(bundleId: String, userDefaults: UserDefaults) -> Bool {
+    private func isRecentPayGateOpen(groupId: String, userDefaults: UserDefaults) -> Bool {
         if let last = userDefaults.object(forKey: "lastPayGateAction") as? Date,
            Date().timeIntervalSince(last) < 5 {
             return true
         }
-        if let last = userDefaults.object(forKey: "lastAppOpenedFromStepsTrader_\(bundleId)") as? Date,
+        if let last = userDefaults.object(forKey: "lastGroupPayGateOpen_\(groupId)") as? Date,
            Date().timeIntervalSince(last) < 5 {
             return true
         }
@@ -390,25 +373,26 @@ private extension StepsTraderApp {
             ),
             // 2. Energy source
             OnboardingSlide(
-                title: loc(appLanguage, "Walk = Fuel ⚡", "Ходишь = Топливо ⚡"),
-                subtitle: loc(appLanguage, "Steps become your currency", "Шаги становятся валютой"),
+                title: loc(appLanguage, "Daily Energy ⚡", "Энергия дня ⚡"),
+                subtitle: loc(appLanguage, "Recovery, activity, and joy build 100 points", "Восстановление, активность и радость дают 100 баллов"),
                 symbol: "bolt.fill",
                 gradient: [.yellow, .orange],
                 bullets: [
-                    loc(appLanguage, "🚶 More steps → more Energy", "🚶 Больше шагов → больше энергии"),
+                    loc(appLanguage, "😴 Sleep + habits = Recovery points", "😴 Сон + практики = очки восстановления"),
+                    loc(appLanguage, "🚶 Steps + workouts = Activity points", "🚶 Шаги + тренировки = очки активности"),
                     loc(appLanguage, "🔋 Collect batteries on the map for bonus", "🔋 Собирай батарейки на карте для бонуса")
                 ],
                 action: .none
             ),
             // 3. Level up
             OnboardingSlide(
-                title: loc(appLanguage, "Level Up 📈", "Прокачивайся 📈"),
-                subtitle: loc(appLanguage, "Invest Energy → cheaper prices", "Вкладывай энергию → дешевле цены"),
+                title: loc(appLanguage, "Track Progress 📈", "Следи за прогрессом 📈"),
+                subtitle: loc(appLanguage, "Spend energy, see your impact", "Трать энергию и смотри на результат"),
                 symbol: "star.fill",
                 gradient: [.blue, .purple],
                 bullets: [
                     loc(appLanguage, "⭐ 10 levels per shield", "⭐ 10 уровней на каждый щит"),
-                    loc(appLanguage, "💰 Max level = 90% discount", "💰 Макс уровень = скидка 90%")
+                    loc(appLanguage, "📊 Track total energy spent", "📊 Смотри, сколько энергии потрачено")
                 ],
                 action: .none
             ),
@@ -431,7 +415,7 @@ private extension StepsTraderApp {
                 symbol: "map.fill",
                 gradient: [.green, .teal],
                 bullets: [
-                    loc(appLanguage, "🔋 +500 Energy per battery", "🔋 +500 энергии за батарейку"),
+                    loc(appLanguage, "🔋 +5 Energy per battery", "🔋 +5 энергии за батарейку"),
                     loc(appLanguage, "🧲 3 magnets/day to grab from afar", "🧲 3 магнита/день чтобы притянуть издалека")
                 ],
                 action: .requestLocation
@@ -548,36 +532,77 @@ struct MainTabView: View {
     @State private var selection: Int = 0
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     var theme: AppTheme = .system
+    @State private var selectedCategory: EnergyCategory? = nil
+    @State private var showCategoryDetail = false
+    @State private var showOuterWorldDetail = false
 
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
                 StepBalanceCard(
                     remainingSteps: model.totalStepsBalance,
-                    totalSteps: Int(model.effectiveStepsToday),
+                    totalSteps: model.baseEnergyToday + model.bonusSteps,
                     spentSteps: model.spentStepsToday,
-                    // Show remaining energy split by source in the bar
                     healthKitSteps: model.stepsBalance,
                     outerWorldSteps: model.outerWorldBonusSteps,
                     grantedSteps: model.serverGrantedSteps,
-                    showDetails: selection == 0
+                    dayEndHour: model.dayEndHour,
+                    dayEndMinute: model.dayEndMinute,
+                    showDetails: selection == 0, // Show category details only on Shields tab
+                    recoveryPoints: model.recoveryPointsToday,
+                    activityPoints: model.activityPointsToday,
+                    joyPoints: model.joyCategoryPointsToday,
+                    baseEnergyToday: model.baseEnergyToday,
+                    onRecoveryTap: {
+                        selectedCategory = .recovery
+                        showCategoryDetail = true
+                    },
+                    onActivityTap: {
+                        selectedCategory = .activity
+                        showCategoryDetail = true
+                    },
+                    onJoyTap: {
+                        selectedCategory = .joy
+                        showCategoryDetail = true
+                    },
+                    onOuterWorldTap: {
+                        showOuterWorldDetail = true
+                    }
                 )
                 .padding(.horizontal)
                 .padding(.top, 8)
                 .padding(.bottom, 8)
 
                 TabView(selection: $selection) {
+                    // 0: Shields (first tab)
+                    AppsPageSimplified(model: model)
+                        .tabItem {
+                            Image(systemName: "square.grid.2x2")
+                            Text(loc(appLanguage, "Shields", "Щиты"))
+                        }
+                        .sheet(isPresented: $showCategoryDetail) {
+                            if let category = selectedCategory {
+                                CategoryDetailView(
+                                    model: model,
+                                    category: category,
+                                    outerWorldSteps: model.outerWorldBonusSteps
+                                )
+                            }
+                        }
+                        .sheet(isPresented: $showOuterWorldDetail) {
+                            CategoryDetailView(
+                                model: model,
+                                category: nil,
+                                outerWorldSteps: model.outerWorldBonusSteps
+                            )
+                        }
+                        .tag(0)
+
+                    // 1: Status (second tab)
                     StatusView(model: model)
                         .tabItem {
                             Image(systemName: "chart.bar.fill")
                             Text(loc(appLanguage, "Status", "Статус"))
-                        }
-                        .tag(0)
-
-                    AppsPage(model: model, automationApps: SettingsView.automationAppsStatic)
-                        .tabItem {
-                            Image(systemName: "square.grid.2x2")
-                            Text(loc(appLanguage, "Shields", "Щиты"))
                         }
                         .tag(1)
                     
@@ -607,12 +632,12 @@ struct MainTabView: View {
             .background(Color(.systemBackground))
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in
-            selection = 1
+            selection = 0
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("OpenShieldSettings"))) { notification in
             print("🔧 Received OpenShieldSettings notification")
-            // Navigate to modules tab and open shield settings for the app
-            selection = 1
+            // Navigate to shields tab (now first tab)
+            selection = 0
             if let bundleId = notification.userInfo?["bundleId"] as? String {
                 print("🔧 Will open shield for bundleId: \(bundleId)")
                 // Post delayed notification to open specific shield
@@ -731,37 +756,6 @@ struct QuickStatusView: View {
     }
 }
 
-// MARK: - Shortcut Message View
-struct ShortcutMessageView: View {
-    let message: String
-    let onDismiss: () -> Void
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-
-            VStack(spacing: 20) {
-                Text("📱 Shortcut")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-
-                Text(message)
-                    .font(.body)
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(.primary)
-
-                Button("OK") {
-                    onDismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding(20)
-            .background(RoundedRectangle(cornerRadius: 16).fill(.regularMaterial))
-            .padding(.horizontal, 40)
-        }
-    }
-}
 
 // MARK: - PayGate Background Style
 enum PayGateBackgroundStyle: String, CaseIterable, Identifiable {
@@ -800,45 +794,45 @@ enum PayGateBackgroundStyle: String, CaseIterable, Identifiable {
         switch self {
         case .midnight:
             return [
-                Color(red: 0.05, green: 0.05, blue: 0.15),
-                Color(red: 0.1, green: 0.05, blue: 0.2),
-                Color(red: 0.15, green: 0.1, blue: 0.3),
-                Color(red: 0.05, green: 0.02, blue: 0.1)
+                AppColors.PayGate.midnight1,
+                AppColors.PayGate.midnight2,
+                AppColors.PayGate.midnight3,
+                AppColors.PayGate.midnight4
             ]
         case .aurora:
             return [
-                Color(red: 0.05, green: 0.1, blue: 0.15),
-                Color(red: 0.1, green: 0.3, blue: 0.4),
-                Color(red: 0.2, green: 0.5, blue: 0.4),
-                Color(red: 0.1, green: 0.2, blue: 0.3)
+                AppColors.PayGate.aurora1,
+                AppColors.PayGate.aurora2,
+                AppColors.PayGate.aurora3,
+                AppColors.PayGate.aurora4
             ]
         case .sunset:
             return [
-                Color(red: 0.15, green: 0.05, blue: 0.1),
-                Color(red: 0.4, green: 0.15, blue: 0.2),
-                Color(red: 0.6, green: 0.3, blue: 0.2),
-                Color(red: 0.2, green: 0.05, blue: 0.1)
+                AppColors.PayGate.sunset1,
+                AppColors.PayGate.sunset2,
+                AppColors.PayGate.sunset3,
+                AppColors.PayGate.sunset4
             ]
         case .ocean:
             return [
-                Color(red: 0.02, green: 0.1, blue: 0.2),
-                Color(red: 0.05, green: 0.2, blue: 0.35),
-                Color(red: 0.1, green: 0.3, blue: 0.5),
-                Color(red: 0.02, green: 0.08, blue: 0.15)
+                AppColors.PayGate.ocean1,
+                AppColors.PayGate.ocean2,
+                AppColors.PayGate.ocean3,
+                AppColors.PayGate.ocean4
             ]
         case .neon:
             return [
-                Color(red: 0.05, green: 0.02, blue: 0.1),
-                Color(red: 0.2, green: 0.05, blue: 0.3),
-                Color(red: 0.4, green: 0.1, blue: 0.5),
-                Color(red: 0.1, green: 0.02, blue: 0.15)
+                AppColors.PayGate.neon1,
+                AppColors.PayGate.neon2,
+                AppColors.PayGate.neon3,
+                AppColors.PayGate.neon4
             ]
         case .minimal:
             return [
-                Color(red: 0.08, green: 0.08, blue: 0.08),
-                Color(red: 0.12, green: 0.12, blue: 0.12),
-                Color(red: 0.1, green: 0.1, blue: 0.1),
-                Color(red: 0.05, green: 0.05, blue: 0.05)
+                AppColors.PayGate.minimal1,
+                AppColors.PayGate.minimal2,
+                AppColors.PayGate.minimal3,
+                AppColors.PayGate.minimal4
             ]
         }
     }
@@ -873,24 +867,20 @@ struct PayGateView: View {
         if let id = model.currentPayGateSessionId, let session = model.payGateSessions[id] {
             return session
         }
-        if let id = model.payGateTargetBundleId, let session = model.payGateSessions[id] {
+        if let id = model.payGateTargetGroupId, let session = model.payGateSessions[id] {
             return session
         }
         return nil
     }
     
-    private var activeBundleId: String? { activeSession?.bundleId }
-    private var activeLevel: ShieldLevel {
-        guard let bundleId = activeBundleId else { return ShieldLevel.all.first! }
-        return model.currentShieldLevel(for: bundleId)
+    private var activeGroup: AppModel.ShieldGroup? {
+        guard let groupId = activeSession?.groupId else { return nil }
+        return model.shieldGroups.first(where: { $0.id == groupId })
     }
-    private var isMinuteModeActive: Bool {
-        guard let bundleId = activeBundleId else { return false }
-        return model.isMinuteTariffEnabled(for: bundleId) || model.isFamilyControlsModeEnabled(for: bundleId)
-    }
+    
     private var isCountdownActive: Bool {
-        guard let session = activeSession, let bundleId = activeBundleId else { return false }
-        return !timedOutSessions.contains(bundleId) && remainingSeconds(for: session) > 0
+        guard let session = activeSession else { return false }
+        return !timedOutSessions.contains(session.groupId) && remainingSeconds(for: session) > 0
     }
     
     private func remainingSeconds(for session: AppModel.PayGateSession) -> Int {
@@ -991,92 +981,51 @@ struct PayGateView: View {
     }
     
     var body: some View {
-        ZStack {
-            payGateBackground()
-                .ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // Top section with balance
-                stepsProgressBar
-                    .padding(.horizontal, 20)
-                    .padding(.top, 50)
+        GeometryReader { geometry in
+            ZStack {
+                payGateBackground()
+                    .ignoresSafeArea()
                 
-                Spacer(minLength: 10)
-            
-                // Center content - app icons and countdown
-                if let bundleId = activeBundleId {
-                    VStack(spacing: 16) {
-                        // Dual app icons - target app + DOOM CTRL
-                        ZStack {
-                            // Glow
-                            Circle()
-                                .fill(selectedBackgroundStyle.accentColor.opacity(0.2))
-                                .frame(width: 120, height: 120)
-                                .blur(radius: 30)
+                VStack(spacing: 0) {
+                    // Top section with balance
+                    stepsProgressBar
+                        .padding(.horizontal, 20)
+                        .padding(.top, 50)
+                    
+                    Spacer(minLength: 10)
+                
+                    // Center content - app icons and countdown
+                    if let group = activeGroup {
+                        VStack(spacing: 16) {
+                            // App icons from group
+                            groupAppIconsView(group: group)
+                                .frame(height: 100)
                             
-                            // Target app icon (larger, background)
-                            appIconView(bundleId)
-                                .frame(width: 72, height: 72)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                                .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
-                                .rotationEffect(.degrees(-8))
-                                .offset(x: -16, y: 8)
+                            // Group name
+                            Text(group.name.isEmpty ? "Shield Group" : group.name)
+                                .font(.headline)
+                                .foregroundColor(.white)
                             
-                            // DOOM CTRL icon (smaller, foreground, overlapping)
-                            doomCtrlIconView
-                                .frame(width: 48, height: 48)
-                                .clipShape(RoundedRectangle(cornerRadius: 11))
-                                .shadow(color: .black.opacity(0.5), radius: 8, x: 2, y: 4)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 11)
-                                        .stroke(Color.white.opacity(0.3), lineWidth: 2)
-                                )
-                                .rotationEffect(.degrees(12))
-                                .offset(x: 28, y: -20)
-                        }
-                        .frame(height: 100)
-                        
-                        // App name
-                        Text(getAppDisplayName(bundleId))
-                            .font(.headline)
-                            .foregroundColor(.white)
-                        
-                        // Countdown (if active)
-                        if isCountdownActive {
-                            countdownBadgeCompact
-                                .transition(.scale.combined(with: .opacity))
+                            // Difficulty level badge
+                            difficultyLevelBadge(level: group.difficultyLevel)
                         }
                     }
-                    .animation(.spring(response: 0.4), value: isCountdownActive)
+                    
+                    Spacer(minLength: 10)
+                    
+                    // Bottom action panel - scrollable for small screens
+                    ScrollView(showsIndicators: false) {
+                        bottomActionPanel
+                    }
+                    .frame(maxHeight: geometry.size.height * 0.45)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
                 }
-                
-                Spacer(minLength: 10)
-                
-                // Bottom action panel - scrollable for small screens
-                ScrollView(showsIndicators: false) {
-                    bottomActionPanel
-                }
-                .frame(maxHeight: UIScreen.main.bounds.height * 0.45)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
             }
         }
         .overlay(transitionOverlay)
-        .onAppear {
-            refreshCountdown()
-            didForfeitSessions.removeAll()
-            timedOutSessions.removeAll()
-            showTransitionCircle = false
-            transitionScale = 0.01
-        }
-        .onReceive(countdownTimer) { _ in
-            handleCountdownTick()
-        }
-        .onChange(of: model.currentPayGateSessionId) { _, _ in
-            refreshCountdown()
-        }
         .onDisappear {
-            if let id = activeBundleId {
+            if let id = activeSession?.groupId {
                 didForfeitSessions.insert(id)
             }
             model.dismissPayGate(reason: .programmatic)
@@ -1085,27 +1034,13 @@ struct PayGateView: View {
     
     @ViewBuilder
     private var bottomActionPanel: some View {
-        VStack(spacing: 12) {
-                    if let bundleId = activeBundleId, let session = activeSession {
-                        let isTimedOut = timedOutSessions.contains(bundleId) || remainingSeconds(for: session) <= 0
-                        
-                        if !isTimedOut {
-                            if isMinuteModeActive {
-                        minuteModePanel(bundleId: bundleId)
-                    } else {
-                        openModePanel(bundleId: bundleId, isTimedOut: isTimedOut)
-                    }
-                } else {
-                    timedOutPanel(bundleId: bundleId)
-                }
+        VStack(spacing: 16) {
+            if let group = activeGroup {
+                openModePanel(group: group, isTimedOut: timedOutSessions.contains(group.id))
+                closeButton(groupId: group.id)
             } else {
-                // No active session - missed state
-                missedSessionPanel
-            }
-            
-            // Close button (always visible at bottom)
-            if let bundleId = activeBundleId {
-                closeButton(bundleId: bundleId)
+                Text(loc("No group selected", "Группа не выбрана"))
+                    .foregroundColor(.secondary)
             }
         }
         .padding(20)
@@ -1117,136 +1052,8 @@ struct PayGateView: View {
     }
     
     @ViewBuilder
-    private func minuteModePanel(bundleId: String) -> some View {
-        let minutesLeft = model.minutesAvailable(for: bundleId)
-        let minutesText = minutesLeft == Int.max ? "∞" : "\(minutesLeft)"
-        let rate = model.unlockSettings(for: bundleId).entryCostSteps
-        let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
-        let canStart = model.isDeviceActivityMinuteModeAvailable(for: bundleId)
-        
-        VStack(spacing: 16) {
-            // Header with icon
-            HStack(spacing: 12) {
-                Image(systemName: "clock.fill")
-                    .font(.title2)
-                    .foregroundColor(pink)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(loc("Minute Mode", "Минутный режим"))
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Text(loc("\(rate) fuel per minute", "\(rate) топлива за минуту"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                // Minutes badge
-                HStack(spacing: 4) {
-                    Image(systemName: "hourglass")
-                        .font(.caption)
-                    Text(minutesText)
-                        .font(.subheadline.weight(.bold))
-                        .monospacedDigit()
-                    Text("min")
-                        .font(.caption)
-                }
-                .foregroundColor(minutesLeft > 10 ? .green : (minutesLeft > 3 ? .orange : .red))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(Color(.systemBackground).opacity(0.8))
-                )
-            }
-            
-            // If Family Controls not configured - show setup button instead of blocking
-            if !canStart {
-                VStack(spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                        Text(loc("Screen Time not configured", "Screen Time не настроен"))
-                            .font(.subheadline.weight(.medium))
-                            .foregroundColor(.primary)
-                    }
-                    
-                    Text(loc("Tap below to finish shield setup, then you can use this app", "Нажмите ниже чтобы завершить настройку щита"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    
-                    Button {
-                        print("🔧 Configure Shield tapped for \(bundleId)")
-                        // Close PayGate first
-                        model.dismissPayGate(reason: .programmatic)
-                        // Post notification after delay to let PayGate close
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            print("🔧 Posting OpenShieldSettings notification")
-                            NotificationCenter.default.post(
-                                name: NSNotification.Name("OpenShieldSettings"),
-                                object: nil,
-                                userInfo: ["bundleId": bundleId]
-                            )
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "gearshape.fill")
-                            Text(loc("Configure Shield", "Настроить щит"))
-                        }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                        .background(
-                            LinearGradient(
-                                colors: [.orange, .orange.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .shadow(color: .orange.opacity(0.4), radius: 10, x: 0, y: 5)
-                    }
-                }
-            } else {
-                // Normal enter button
-                Button {
-                    Task { await model.handleMinuteTariffEntry(for: bundleId) }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "play.fill")
-                        Text(loc("Start Session", "Начать сессию"))
-                    }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .background(
-                        LinearGradient(
-                            colors: minutesLeft > 0 ? [pink, pink.opacity(0.8)] : [.gray, .gray.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(color: pink.opacity(0.4), radius: 10, x: 0, y: 5)
-                }
-                .contentShape(Rectangle())
-                .disabled(minutesLeft <= 0)
-            }
-            
-            if !canStart {
-                Text(loc("Connect Screen Time for Minute Mode", "Подключи Screen Time для минутного режима"))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private func openModePanel(bundleId: String, isTimedOut: Bool) -> some View {
-                                    let allowed = model.allowedAccessWindows(for: bundleId)
-                                    let windows = [AccessWindow.day1, .hour1, .minutes5, .single].filter { allowed.contains($0) }
+    private func openModePanel(group: AppModel.ShieldGroup, isTimedOut: Bool) -> some View {
+        let windows = Array(group.enabledIntervals).sorted { $0.minutes < $1.minutes }
         
         VStack(spacing: 16) {
             // Header
@@ -1257,39 +1064,33 @@ struct PayGateView: View {
                     .font(.headline)
                 Spacer()
                 
-                // Level badge
-                Text("Lv.\(activeLevel.label)")
-                    .font(.caption.weight(.bold))
-                    .foregroundColor(.purple)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.purple.opacity(0.15)))
+                // Difficulty level badge
+                difficultyLevelBadge(level: group.difficultyLevel)
             }
             
             // Access options grid
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                                        ForEach(windows, id: \.self) { window in
-                    accessWindowCard(window: window, bundleId: bundleId, isTimedOut: isTimedOut, isForfeited: isForfeited(bundleId))
+                ForEach(windows, id: \.self) { window in
+                    accessWindowCard(window: window, group: group, isTimedOut: isTimedOut, isForfeited: isForfeited(group.id))
                 }
             }
         }
     }
     
     @ViewBuilder
-    private func accessWindowCard(window: AccessWindow, bundleId: String, isTimedOut: Bool, isForfeited: Bool) -> some View {
-        let baseCost = windowCost(for: activeLevel, window: window)
-        let hasPass = model.hasDayPass(for: bundleId)
-        let effectiveCost = hasPass ? 0 : baseCost
+    private func accessWindowCard(window: AccessWindow, group: AppModel.ShieldGroup, isTimedOut: Bool, isForfeited: Bool) -> some View {
+        let baseCost = group.cost(for: window)
+        let effectiveCost = baseCost
         let canPay = effectiveCost == 0 || model.totalStepsBalance >= effectiveCost
         let isDisabled = !canPay || isTimedOut || isForfeited
-        let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
+        let pink = AppColors.brandPink
         
         Button {
             guard !isDisabled else { return }
-            setForfeit(bundleId)
+            setForfeit(group.id)
             Task {
                 performTransition {
-                    Task { await model.handlePayGatePayment(for: bundleId, window: window, costOverride: effectiveCost) }
+                    Task { await model.handlePayGatePaymentForGroup(groupId: group.id, window: window, costOverride: effectiveCost) }
                 }
             }
         } label: {
@@ -1334,71 +1135,35 @@ struct PayGateView: View {
         switch window {
         case .single: return "arrow.right.circle"
         case .minutes5: return "5.circle"
+        case .minutes15: return "15.circle"
+        case .minutes30: return "30.circle"
         case .hour1: return "clock"
+        case .hour2: return "clock.fill"
         case .day1: return "sun.max.fill"
         }
     }
     
     private func accessWindowShortName(_ window: AccessWindow) -> String {
         switch window {
-        case .single: return loc("Entry", "Вход")
+        case .single: return loc("1 min", "1 мин")
         case .minutes5: return loc("5 min", "5 мин")
+        case .minutes15: return loc("15 min", "15 мин")
+        case .minutes30: return loc("30 min", "30 мин")
         case .hour1: return loc("1 hour", "1 час")
+        case .hour2: return loc("2 hours", "2 часа")
         case .day1: return loc("Day", "День")
         }
     }
     
-    @ViewBuilder
-    private func timedOutPanel(bundleId: String) -> some View {
-                            VStack(spacing: 12) {
-            Image(systemName: "clock.badge.xmark")
-                .font(.system(size: 40))
-                .foregroundColor(.orange)
-            
-            Text(loc("Time's up!", "Время вышло!"))
-                .font(.title3.weight(.bold))
-                .foregroundColor(.primary)
-            
-            Text(loc("You saved \(windowCost(for: activeLevel, window: .single)) fuel", "Вы сохранили \(windowCost(for: activeLevel, window: .single)) топлива"))
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-                        }
-    
-    @ViewBuilder
-    private var missedSessionPanel: some View {
-                        VStack(spacing: 12) {
-            Image(systemName: "hand.raised.fill")
-                .font(.system(size: 40))
-                .foregroundColor(.blue)
-            
-                            if let bundleId = model.payGateTargetBundleId {
-                Text(loc("Stopped yourself!", "Остановились!"))
-                    .font(.title3.weight(.bold))
-                    .foregroundColor(.primary)
-                
-                Text(loc("You didn't open \(getAppDisplayName(bundleId))", "Вы не открыли \(getAppDisplayName(bundleId))"))
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            } else {
-                Text(loc("Session ended", "Сессия завершена"))
-                    .font(.title3.weight(.bold))
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-                    }
                 
     @ViewBuilder
-    private func closeButton(bundleId: String) -> some View {
+    private func closeButton(groupId: String) -> some View {
         Button {
-                        setForfeit(bundleId)
+            setForfeit(groupId)
             performTransition(duration: 0.6) {
-                            model.dismissPayGate(reason: .userDismiss)
-                            sendAppToBackground()
-                        }
+                model.dismissPayGate(reason: .userDismiss)
+                sendAppToBackground()
+            }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "xmark")
@@ -1420,23 +1185,119 @@ extension PayGateView {
             countdown = 0
             return
         }
-        if lastSessionId != session.bundleId {
-            lastSessionId = session.bundleId
+        if lastSessionId != session.groupId {
+            lastSessionId = session.groupId
             countdown = remainingSeconds(for: session)
             // reset forfeit/timedOut for new session
-            didForfeitSessions.remove(session.bundleId)
-            timedOutSessions.remove(session.bundleId)
+            didForfeitSessions.remove(session.groupId)
+            timedOutSessions.remove(session.groupId)
         } else {
             countdown = remainingSeconds(for: session)
         }
     }
     
-    private func isForfeited(_ bundleId: String) -> Bool {
-        didForfeitSessions.contains(bundleId) || timedOutSessions.contains(bundleId)
+    private func isForfeited(_ groupId: String) -> Bool {
+        didForfeitSessions.contains(groupId) || timedOutSessions.contains(groupId)
     }
     
-    private func setForfeit(_ bundleId: String) {
-        didForfeitSessions.insert(bundleId)
+    private func setForfeit(_ groupId: String) {
+        didForfeitSessions.insert(groupId)
+    }
+    
+    // MARK: - Group App Icons View
+    @ViewBuilder
+    private func groupAppIconsView(group: AppModel.ShieldGroup) -> some View {
+        #if canImport(FamilyControls)
+        let appTokens = Array(group.selection.applicationTokens.prefix(3))
+        let remainingSlots = max(0, 3 - appTokens.count)
+        let categoryTokens = Array(group.selection.categoryTokens.prefix(remainingSlots))
+        let hasMore = (group.selection.applicationTokens.count + group.selection.categoryTokens.count) > 3
+        
+        ZStack {
+            // Glow
+            Circle()
+                .fill(selectedBackgroundStyle.accentColor.opacity(0.2))
+                .frame(width: 120, height: 120)
+                .blur(radius: 30)
+            
+            // App icons stack
+            ForEach(Array(appTokens.enumerated()), id: \.offset) { index, token in
+                AppIconView(token: token)
+                    .frame(width: iconSizeForPayGate(index), height: iconSizeForPayGate(index))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: .black.opacity(0.4), radius: 8, x: 0, y: 4)
+                    .offset(x: iconOffsetForPayGate(index).x, y: iconOffsetForPayGate(index).y)
+                    .zIndex(Double(3 - index))
+            }
+            
+            // Category icons
+            ForEach(Array(categoryTokens.enumerated()), id: \.offset) { offset, token in
+                let index = appTokens.count + offset
+                CategoryIconView(token: token)
+                    .frame(width: iconSizeForPayGate(index), height: iconSizeForPayGate(index))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: .black.opacity(0.4), radius: 8, x: 0, y: 4)
+                    .offset(x: iconOffsetForPayGate(index).x, y: iconOffsetForPayGate(index).y)
+                    .zIndex(Double(3 - index))
+            }
+            
+            // +N badge if more apps
+            if hasMore {
+                let totalCount = group.selection.applicationTokens.count + group.selection.categoryTokens.count
+                Text("+\(totalCount - 3)")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.black.opacity(0.6))
+                    .clipShape(Capsule())
+                    .offset(x: 20, y: 20)
+                    .zIndex(10)
+            }
+        }
+        #else
+        Image(systemName: "app.fill")
+            .font(.system(size: 48))
+            .foregroundColor(.white)
+        #endif
+    }
+    
+    private func iconSizeForPayGate(_ index: Int) -> CGFloat {
+        switch index {
+        case 0: return 64
+        case 1: return 56
+        default: return 48
+        }
+    }
+    
+    private func iconOffsetForPayGate(_ index: Int) -> (x: CGFloat, y: CGFloat) {
+        switch index {
+        case 0: return (-12, -8)
+        case 1: return (12, 8)
+        default: return (0, 16)
+        }
+    }
+    
+    @ViewBuilder
+    private func difficultyLevelBadge(level: Int) -> some View {
+        let color = difficultyColor(for: level)
+        Text("Level \(level)")
+            .font(.caption.weight(.bold))
+            .foregroundColor(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(color.opacity(0.15)))
+    }
+    
+    private func difficultyColor(for level: Int) -> Color {
+        switch level {
+        case 1: return .green
+        case 2: return .blue
+        case 3: return .orange
+        case 4: return .red
+        case 5: return .purple
+        default: return .gray
+        }
     }
 }
 
@@ -1447,7 +1308,7 @@ extension PayGateView {
         if let session = activeSession {
             let remaining = remainingSeconds(for: session)
             if remaining <= 0 {
-                timedOutSessions.insert(session.bundleId)
+                timedOutSessions.insert(session.groupId)
             }
         }
     }
@@ -1455,10 +1316,28 @@ extension PayGateView {
 
 // MARK: - Helper Functions
 private func getAppDisplayName(_ bundleId: String) -> String {
+    // 1) Старые преднастроенные приложения (Instagram, TikTok и т.п.)
     if let name = SettingsView.automationAppsStatic.first(where: { $0.bundleId == bundleId })?.name {
         return name
     }
-    return bundleId
+    
+    // 2) Новые карточки FamilyControls: пробуем взять имя из selection по токену.
+    let defaults = UserDefaults.stepsTrader()
+    let key = "timeAccessSelection_v1_\(bundleId)"
+    if let data = defaults.data(forKey: key),
+       let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data),
+       let token = sel.applicationTokens.first {
+        // Ключ для имени по токену, который пишет экстеншен ShieldConfiguration.
+        if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
+            let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
+            if let storedName = defaults.string(forKey: tokenKey) {
+                return storedName
+            }
+        }
+    }
+    
+    // 3) Fallback: не светим внутренний id, показываем общее имя.
+    return "Selected app"
 }
 
 // MARK: - PayGate transition helper
@@ -1575,14 +1454,21 @@ extension PayGateView {
     }
     
     private var stepsProgressBar: some View {
-        let total = max(1, Int(model.effectiveStepsToday))
+        // Текущий баланс = stepsBalance (из шагов) + bonusSteps
+        // Это реальный баланс энергии, который отображается в приложении
         let remaining = max(0, model.totalStepsBalance)
-        let used = max(0, total - min(total, remaining))
-        let denominator = Double(total)
+        
+        // Общее количество энергии за сегодня = базовая энергия + бонусы
+        // Если текущий баланс больше начальной энергии (добавились бонусы), используем баланс как total
+        let total = max(remaining, model.baseEnergyToday + model.bonusSteps)
+        
+        // Потрачено = общая энергия - текущий баланс
+        let used = max(0, total - remaining)
+        let denominator = Double(max(1, total))
         let displayRemaining = min(remaining, total)
         let remainingProgress = min(1, Double(displayRemaining) / denominator)
-        let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
-        let progressColor = remaining > 500 ? pink : (remaining > 100 ? .orange : .red)
+        let pink = AppColors.brandPink
+        let progressColor = remaining > 50 ? pink : (remaining > 20 ? .orange : .red)
 
         return VStack(spacing: 12) {
             // Balance display
@@ -1596,7 +1482,7 @@ extension PayGateView {
                     .foregroundColor(.white)
                     .monospacedDigit()
                 
-                Text(loc("fuel left", "топлива"))
+                Text(loc("energy left", "энергии"))
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.7))
                 
@@ -1767,7 +1653,7 @@ extension PayGateView {
         // Check balance for entry with this tariff
         model.updateUnlockSettings(for: bundleId, tariff: tariff)
         guard model.canPayForEntry(for: bundleId) else {
-            model.message = loc("en", "Not enough steps for this tariff today.", "Недостаточно шагов для этого тарифа сегодня.")
+            model.message = loc("en", "Not enough energy for this option today.", "Недостаточно энергии для этого варианта сегодня.")
             // Revert selection so picker stays visible
             model.dailyTariffSelections.removeValue(forKey: bundleId)
             return
@@ -1776,12 +1662,33 @@ extension PayGateView {
         await model.handlePayGatePayment(for: bundleId, window: .single)
     }
 
-    private func windowCost(for level: ShieldLevel, window: AccessWindow) -> Int {
+    private func windowCost(for level: ShieldLevel, window: AccessWindow, bundleId: String? = nil) -> Int {
+        // Если есть bundleId, используем настройки из unlockSettings
+        if let bundleId = bundleId {
+            let settings = model.unlockSettings(for: bundleId)
+            let baseCost = settings.entryCostSteps
+            
+            // Рассчитываем стоимость для разных окон на основе entryCostSteps
+            switch window {
+            case .single: return baseCost
+            case .minutes5: return max(1, baseCost * 5)
+            case .minutes15: return max(1, baseCost * 15)
+            case .minutes30: return max(1, baseCost * 30)
+            case .hour1: return max(1, baseCost * 60)
+            case .hour2: return max(1, baseCost * 120)
+            case .day1: return max(1, baseCost * 1440)
+            }
+        }
+        
+        // Fallback на старую логику с уровнями
         switch window {
-        case .single: return level.entryCost
-        case .minutes5: return level.fiveMinutesCost
-        case .hour1: return level.hourCost
-        case .day1: return level.dayCost
+        case .single: return 1
+        case .minutes5: return 2
+        case .minutes15: return 5
+        case .minutes30: return 10
+        case .hour1: return 20
+        case .hour2: return 40
+        case .day1: return 20
         }
     }
 
@@ -2093,6 +2000,227 @@ struct OnboardingStoriesView: View {
             isPresented = false
         }
         onFinish()
+    }
+}
+
+// MARK: - Notification Handling
+extension StepsTraderApp {
+    func setupNotificationHandling() {
+        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+        NotificationDelegate.shared.model = model
+    }
+}
+
+final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationDelegate()
+    weak var model: AppModel?
+    
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        let userInfo = response.notification.request.content.userInfo
+        
+        if let action = userInfo["action"] as? String, action == "unlock" {
+            // Пытаемся определить bundleId:
+            // 1) прямо из userInfo;
+            // 2) из lastBlockedAppBundleId в shared defaults;
+            // 3) из групп щитов (shieldGroups_v1);
+            // 4) из appUnlockSettings_v1 (берём первый включённый бандл или просто первый ключ).
+            let directBundleId = userInfo["bundleId"] as? String
+            let defaults = UserDefaults.stepsTrader()
+            let sharedBundleId = defaults.string(forKey: "lastBlockedAppBundleId")
+            
+            // Проверяем группы щитов - ищем по имени приложения из lastBlockedAppBundleId
+            let groupBundleId: String? = {
+                guard let groupsData = defaults.data(forKey: "shieldGroups_v1"),
+                      let groups = try? JSONDecoder().decode([ShieldGroupDataForNotification].self, from: groupsData),
+                      !groups.isEmpty
+                else { return nil }
+                
+                // Если есть lastBlockedAppBundleId, проверяем, есть ли он в группах
+                if let blockedAppName = sharedBundleId {
+                    for group in groups {
+                        if let selectionData = group.selectionData,
+                           let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData) {
+                            // Проверяем, есть ли приложение с таким именем в группе
+                            for token in sel.applicationTokens {
+                                if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
+                                    let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
+                                    if let appName = defaults.string(forKey: tokenKey),
+                                       (appName.lowercased() == blockedAppName.lowercased() ||
+                                        blockedAppName.lowercased().contains(appName.lowercased()) ||
+                                        appName.lowercased().contains(blockedAppName.lowercased())) {
+                                        print("✅ Found app name in group: \(appName)")
+                                        // Конвертируем appName в bundleId
+                                        let bundleId = TargetResolver.bundleId(from: appName) ?? appName
+                                        print("✅ Resolved bundleId: \(bundleId)")
+                                        return bundleId
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Если не нашли по имени, берем первое приложение из первой активной группы
+                for group in groups {
+                    if let selectionData = group.selectionData,
+                       let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData),
+                       !sel.applicationTokens.isEmpty {
+                        // Берем имя первого приложения из группы
+                        if let firstToken = sel.applicationTokens.first,
+                           let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: firstToken, requiringSecureCoding: true) {
+                            let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
+                            if let appName = defaults.string(forKey: tokenKey) {
+                                print("✅ Using first app from group: \(appName)")
+                                // Конвертируем appName в bundleId
+                                let bundleId = TargetResolver.bundleId(from: appName) ?? appName
+                                print("✅ Resolved bundleId: \(bundleId)")
+                                return bundleId
+                            }
+                        }
+                    }
+                }
+                return nil
+            }()
+            
+            let fallbackBundleId: String? = {
+                guard let data = defaults.data(forKey: "appUnlockSettings_v1"),
+                      let decoded = try? JSONDecoder().decode([String: StoredUnlockSettingsForNotification].self, from: data),
+                      !decoded.isEmpty
+                else { return nil }
+                
+                let enabledKey = decoded.first { (_, settings) in
+                    (settings.minuteTariffEnabled ?? false) || (settings.familyControlsModeEnabled ?? false)
+                }?.key
+                return enabledKey ?? decoded.keys.first
+            }()
+            
+            let bundleId = directBundleId ?? sharedBundleId ?? groupBundleId ?? fallbackBundleId
+            
+            if let bundleId {
+                print("📲 Push notification tapped for unlock: \(bundleId)")
+                print("   - directBundleId: \(directBundleId ?? "nil")")
+                print("   - sharedBundleId: \(sharedBundleId ?? "nil")")
+                print("   - groupBundleId: \(groupBundleId ?? "nil")")
+                print("   - fallbackBundleId: \(fallbackBundleId ?? "nil")")
+                
+                // Open paygate - ищем группу по bundleId
+                Task { @MainActor in
+                    self.model?.openPayGateForBundleId(bundleId)
+                }
+            } else {
+                print("⚠️ Push notification tapped for unlock, but bundleId not found")
+                print("   - directBundleId: \(directBundleId ?? "nil")")
+                print("   - sharedBundleId: \(sharedBundleId ?? "nil")")
+                print("   - groupBundleId: \(groupBundleId ?? "nil")")
+                print("   - fallbackBundleId: \(fallbackBundleId ?? "nil")")
+                print("   - shieldGroups_v1 exists: \(defaults.data(forKey: "shieldGroups_v1") != nil)")
+                
+                // Попытка открыть PayGate с первым доступным bundleId из групп
+                // Используем модель напрямую, так как она уже загружена
+                Task { @MainActor in
+                    guard let model = self.model else { 
+                        print("⚠️ Fallback: Model is nil")
+                        return 
+                    }
+                    
+                    let defaults = UserDefaults.stepsTrader()
+                    var bundleId: String? = nil
+                    
+                    // Способ 1: Используем lastBlockedAppBundleId (самый надежный)
+                    if let blockedApp = defaults.string(forKey: "lastBlockedAppBundleId") {
+                        bundleId = TargetResolver.bundleId(from: blockedApp) ?? blockedApp
+                        print("🔄 Fallback: Using lastBlockedAppBundleId: \(blockedApp) -> \(bundleId ?? "nil")")
+                    }
+                    
+                    // Способ 2: Если нет lastBlockedAppBundleId, используем первый bundleId из appUnlockSettings
+                    if bundleId == nil {
+                        if let data = defaults.data(forKey: "appUnlockSettings_v1") {
+                            print("🔄 Fallback: Found appUnlockSettings_v1 data, size: \(data.count) bytes")
+                            if let decoded = try? JSONDecoder().decode([String: StoredUnlockSettingsForNotification].self, from: data) {
+                                print("🔄 Fallback: Decoded \(decoded.keys.count) app unlock settings")
+                                // Ищем первый включенный или просто первый ключ
+                                let enabledKey = decoded.first { (_, settings) in
+                                    (settings.minuteTariffEnabled ?? false) || (settings.familyControlsModeEnabled ?? false)
+                                }?.key
+                                
+                                let firstKey = enabledKey ?? decoded.keys.first
+                                if let firstKey = firstKey {
+                                    bundleId = TargetResolver.bundleId(from: firstKey) ?? firstKey
+                                    print("🔄 Fallback: Using key from appUnlockSettings: \(firstKey) -> \(bundleId ?? "nil")")
+                                } else {
+                                    print("⚠️ Fallback: appUnlockSettings decoded but no keys found")
+                                }
+                            } else {
+                                print("⚠️ Fallback: Could not decode appUnlockSettings_v1")
+                            }
+                        } else {
+                            print("⚠️ Fallback: No appUnlockSettings_v1 data found")
+                        }
+                    }
+                    
+                    // Способ 3: Если есть shield groups, пробуем найти bundleId через все сохраненные имена приложений
+                    if bundleId == nil {
+                        if let firstGroup = model.shieldGroups.first(where: { !$0.selection.applicationTokens.isEmpty }) {
+                            print("🔄 Fallback: Found group with \(firstGroup.selection.applicationTokens.count) apps")
+                            
+                            // Пробуем найти через все сохраненные имена приложений в UserDefaults
+                            let allKeys = defaults.dictionaryRepresentation().keys
+                            for key in allKeys where key.hasPrefix("fc_appName_") {
+                                if let appName = defaults.string(forKey: key) {
+                                    bundleId = TargetResolver.bundleId(from: appName) ?? appName
+                                    print("🔄 Fallback: Using first found app name from UserDefaults: \(appName) -> \(bundleId ?? "nil")")
+                                    break
+                                }
+                            }
+                            
+                            // Если не нашли через UserDefaults, пробуем архивацию токена
+                            if bundleId == nil {
+                                #if canImport(FamilyControls)
+                                if let firstToken = firstGroup.selection.applicationTokens.first {
+                                    if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: firstToken, requiringSecureCoding: true) {
+                                        let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
+                                        if let appName = defaults.string(forKey: tokenKey) {
+                                            bundleId = TargetResolver.bundleId(from: appName) ?? appName
+                                            print("🔄 Fallback: Found app name via archiving: \(appName) -> \(bundleId ?? "nil")")
+                                        } else {
+                                            print("⚠️ Fallback: Token archived but no app name found for key: \(tokenKey)")
+                                        }
+                                    } else {
+                                        print("⚠️ Fallback: Could not archive token")
+                                    }
+                                }
+                                #endif
+                            }
+                        } else {
+                            print("⚠️ Fallback: No shield groups with apps found")
+                        }
+                    }
+                    
+                    // Открываем PayGate если нашли bundleId
+                    if let bundleId = bundleId {
+                        print("🔄 Fallback: Opening PayGate with bundleId: \(bundleId)")
+                        model.openPayGateForBundleId(bundleId)
+                    } else {
+                        print("⚠️ Fallback: Could not find bundleId from any source")
+                        
+                        // Последняя попытка: если есть shield groups, открываем первую группу напрямую
+                        if let firstGroup = model.shieldGroups.first {
+                            print("🔄 Fallback: Using first shield group: \(firstGroup.name) (id: \(firstGroup.id))")
+                            model.openPayGate(for: firstGroup.id)
+                        } else {
+                            print("⚠️ Fallback: No shield groups available")
+                        }
+                    }
+                }
+            }
+        }
+        
+        completionHandler()
+    }
+    
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        // Show notification even when app is in foreground
+        completionHandler([.banner, .sound, .badge])
     }
 }
 

@@ -50,28 +50,31 @@ struct StatusView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                // Liquid Glass background
+                // Background
                 backgroundGradient
                 
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 20) {
                         // Connect CTA or main content
-                    if showConnectCTA {
-                        connectFirstModuleCTA
-                    } else {
-                            // Hero card with greeting + quick stats
+                        if showConnectCTA {
+                            connectFirstModuleCTA
+                        } else {
+                            // Hero stats card
                             heroCard
                             
-                        // Activity Chart
-                        activityChartSection
-                        
-                        // App Usage List
-                        appUsageSection
+                            // Daily Energy Card
+                            DailyEnergyCard(model: model)
+                            
+                            // Activity Chart
+                            activityChartSection
+                            
+                            // App Usage List
+                            appUsageSection
+                        }
                     }
-                }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
-                .padding(.bottom, 100)
+                    .padding(.bottom, 100)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -121,25 +124,23 @@ struct StatusView: View {
         .ignoresSafeArea()
     }
     
-    // MARK: - Hero Card (Greeting + Stats)
+    // MARK: - Hero Card (Stats)
     private var heroCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 16) {
             // Section header
-            HStack(spacing: 6) {
-                Image(systemName: "person.crop.circle.badge.checkmark")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text(loc(appLanguage, "Your Results", "Твой прогресс"))
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(.secondary)
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(loc(appLanguage, "Your Progress", "Твой прогресс"))
+                        .font(.title3.weight(.bold))
+                    Text(loc(appLanguage, "Tap stats for details", "Нажми на статистику для деталей"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
-                Text(loc(appLanguage, "tap icon for info", "нажми для инфо"))
-                    .font(.caption2)
-                    .foregroundColor(.secondary.opacity(0.6))
             }
             
-            // Stats row
-            HStack(spacing: 10) {
+            // Stats grid - improved layout
+            HStack(spacing: 12) {
                 statPill(
                     type: .shields,
                     icon: "shield.checkered",
@@ -162,28 +163,33 @@ struct StatusView: View {
                 )
             }
             
-            // Explanation text
+            // Explanation text with animation
             if let stat = showStatExplanation {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: "info.circle.fill")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundColor(.blue)
                     Text(explanationText(for: stat))
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                 }
-                .padding(.top, 2)
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.blue.opacity(0.08))
+                )
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(16)
+        .padding(20)
         .background(glassCard)
-        .animation(.easeInOut(duration: 0.2), value: showStatExplanation)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showStatExplanation)
     }
     
     private var batteriesCollectedTotal: Int {
-        UserDefaults.standard.integer(forKey: "outerworld_totalcollected") / 500
+        UserDefaults.standard.integer(forKey: "outerworld_totalcollected") / 5
     }
     
     private func explanationText(for stat: StatType) -> String {
@@ -200,7 +206,7 @@ struct StatusView: View {
     @ViewBuilder
     private func statPill(type: StatType, icon: String, value: String, color: Color) -> some View {
         Button {
-            withAnimation {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 if showStatExplanation == type {
                     showStatExplanation = nil
                 } else {
@@ -208,25 +214,45 @@ struct StatusView: View {
                 }
             }
         } label: {
-            VStack(spacing: 6) {
+            VStack(spacing: 10) {
                 ZStack {
                     Circle()
-                        .fill(color.opacity(0.12))
-                        .frame(width: 36, height: 36)
-            Image(systemName: icon)
-                        .font(.subheadline.bold())
-                .foregroundColor(color)
+                        .fill(
+                            LinearGradient(
+                                colors: [color.opacity(0.15), color.opacity(0.08)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 48, height: 48)
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [color, color.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                 }
-            
-            Text(value)
-                    .font(.subheadline.bold())
+                .shadow(color: color.opacity(0.2), radius: 4, x: 0, y: 2)
+                
+                Text(value)
+                    .font(.title3.weight(.bold))
                     .foregroundColor(.primary)
-        }
-        .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-        .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(showStatExplanation == type ? color.opacity(0.08) : Color.clear)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(showStatExplanation == type ? color.opacity(0.1) : Color.clear)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(showStatExplanation == type ? color.opacity(0.3) : Color.clear, lineWidth: 1.5)
+                    )
             )
         }
         .buttonStyle(.plain)
@@ -271,14 +297,19 @@ struct StatusView: View {
     
     // MARK: - Activity Chart Section
     private var activityChartSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text(loc(appLanguage, "Activity", "Активность"))
-                    .font(.subheadline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(loc(appLanguage, "Activity", "Активность"))
+                        .font(.title3.weight(.bold))
+                    Text(loc(appLanguage, "Energy spent over time", "Энергия потрачена за период"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
                 
-                // Range picker - glass style
-                HStack(spacing: 2) {
+                // Range picker - improved design
+                HStack(spacing: 4) {
                     ForEach([ChartRange.today, .week, .month], id: \.self) { range in
                         Button {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -286,24 +317,27 @@ struct StatusView: View {
                             }
                         } label: {
                             Text(rangeLabel(range))
-                                .font(.caption2.weight(.medium))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
                                 .background(
                                     Capsule()
-                                        .fill(chartRange == range ? Color.blue.opacity(0.9) : Color.clear)
+                                        .fill(chartRange == range ? 
+                                              LinearGradient(colors: [.blue, .cyan], startPoint: .leading, endPoint: .trailing) :
+                                              LinearGradient(colors: [Color.clear], startPoint: .leading, endPoint: .trailing)
+                                        )
                                 )
                                 .foregroundColor(chartRange == range ? .white : .secondary)
                         }
                     }
                 }
-                .padding(3)
+                .padding(4)
                 .background(
                     Capsule()
                         .fill(.ultraThinMaterial)
                         .overlay(
                             Capsule()
-                                .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                                .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
                         )
                 )
             }
@@ -316,7 +350,7 @@ struct StatusView: View {
                 chartView(data: chartData)
             }
         }
-        .padding(16)
+        .padding(20)
         .background(glassCard)
     }
     
@@ -329,15 +363,15 @@ struct StatusView: View {
     }
     
     private var emptyChartPlaceholder: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(.title)
-                .foregroundColor(.secondary.opacity(0.35))
+                .font(.system(size: 40, weight: .light))
+                .foregroundColor(.secondary.opacity(0.4))
             Text(loc(appLanguage, "No activity yet", "Пока нет активности"))
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundColor(.secondary)
         }
-        .frame(height: 140)
+        .frame(height: 160)
         .frame(maxWidth: .infinity)
     }
     
@@ -435,49 +469,61 @@ struct StatusView: View {
     
     // MARK: - App Usage Section
     private var appUsageSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text(loc(appLanguage, "Apps", "Приложения"))
-                    .font(.subheadline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(loc(appLanguage, "Apps", "Приложения"))
+                        .font(.title3.weight(.bold))
+                    Text(loc(appLanguage, "Energy spent per app", "Энергия потрачена по приложениям"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
                 if !trackedAppsToday.isEmpty {
                     Text("\(trackedAppsToday.count)")
-                        .font(.caption.weight(.medium))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
+                        .font(.headline.weight(.semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                         .background(
                             Capsule()
-                                .fill(Color.gray.opacity(0.12))
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.blue, .cyan],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
                         )
                 }
             }
             
             if trackedAppsToday.isEmpty {
-                VStack(spacing: 10) {
-                        Image(systemName: "apps.iphone")
-                        .font(.title2)
+                VStack(spacing: 12) {
+                    Image(systemName: "apps.iphone")
+                        .font(.system(size: 40, weight: .light))
                         .foregroundColor(.secondary.opacity(0.4))
                     Text(loc(appLanguage, "No usage yet", "Нет использования"))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 28)
+                .padding(.vertical, 40)
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(trackedAppsToday.enumerated()), id: \.element.id) { index, item in
-                    appUsageRow(item: item)
+                        appUsageRow(item: item)
                         
                         if index < trackedAppsToday.count - 1 {
                             Divider()
-                                .padding(.leading, 56)
+                                .padding(.leading, 64)
+                                .opacity(0.3)
                         }
                     }
                 }
             }
         }
-        .padding(16)
+        .padding(20)
         .background(glassCard)
     }
     
@@ -489,35 +535,58 @@ struct StatusView: View {
         let appColor = colorForBundle(item.bundleId)
         
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                // App icon with glow
+            HStack(spacing: 14) {
+                // App icon with improved glow
                 ZStack {
-                    // Subtle glow
+                    // Enhanced glow
                     Circle()
-                        .fill(appColor.opacity(0.2))
-                        .frame(width: 48, height: 48)
-                        .blur(radius: 8)
+                        .fill(
+                            RadialGradient(
+                                colors: [appColor.opacity(0.25), appColor.opacity(0.1), Color.clear],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: 30
+                            )
+                        )
+                        .frame(width: 56, height: 56)
+                        .blur(radius: 10)
                     
                     appIconImage(item.imageName)
-                        .frame(width: 40, height: 40)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
                         )
+                        .shadow(color: appColor.opacity(0.2), radius: 4, x: 0, y: 2)
                 }
                 
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                    Text(item.name)
-                        .font(.subheadline.weight(.medium))
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(item.name)
+                            .font(.headline.weight(.semibold))
+                            .lineLimit(1)
                         Spacer()
                         Text("\(formatNumber(item.steps))")
-                            .font(.subheadline.bold())
-                            .foregroundColor(appColor)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [appColor, appColor.opacity(0.8)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .monospacedDigit()
                     }
                     
-                    // Energy bar - glass style
+                    // Energy bar - improved design
                     GeometryReader { geo in
                         let maxSteps = trackedAppsToday.map { $0.steps }.max() ?? 1
                         let ratio = Double(item.steps) / Double(max(1, maxSteps))
@@ -525,39 +594,46 @@ struct StatusView: View {
                         
                         ZStack(alignment: .leading) {
                             Capsule()
-                                .fill(Color.gray.opacity(0.1))
-                                .frame(height: 4)
+                                .fill(Color.gray.opacity(0.12))
+                                .frame(height: 6)
                             
                             Capsule()
                                 .fill(
                                     LinearGradient(
-                                        colors: [appColor, appColor.opacity(0.5)],
+                                        colors: [appColor, appColor.opacity(0.7)],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
                                 )
-                                .frame(width: max(4, width), height: 4)
+                                .frame(width: max(6, width), height: 6)
+                                .shadow(color: appColor.opacity(0.3), radius: 2, x: 0, y: 1)
                         }
                     }
-                    .frame(height: 4)
+                    .frame(height: 6)
                     
                     HStack {
-                        Text(minutesText)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                
-                Spacer()
-                
+                        if timeAccessEnabled {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock.fill")
+                                    .font(.caption2)
+                                Text(minutesText)
+                                    .font(.caption.weight(.medium))
+                            }
+                            .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
                         // Only show chevron in week/month mode
                         if chartRange != .today {
-                Image(systemName: isSelected ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 10, weight: .medium))
+                            Image(systemName: isSelected ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                                .font(.caption)
                                 .foregroundColor(.secondary.opacity(0.6))
-            }
+                        }
                     }
                 }
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, 12)
             .contentShape(Rectangle())
             .onTapGesture {
                 // Only allow expand in week/month mode
@@ -577,9 +653,10 @@ struct StatusView: View {
             // Expanded detail (only in week/month mode)
             if chartRange != .today && detailBundle == item.bundleId {
                 detailEntriesView(bundleId: item.bundleId)
-                    .padding(.leading, 52)
-                    .padding(.bottom, 10)
-                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
+                    .padding(.leading, 64)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
@@ -603,72 +680,93 @@ struct StatusView: View {
     }
 
     private var connectFirstModuleCTA: some View {
-        VStack(spacing: 24) {
-            // Icon with glow effect
+        VStack(spacing: 28) {
+            // Icon with enhanced glow effect
             ZStack {
+                // Outer glow
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [Color.blue.opacity(0.3), Color.purple.opacity(0.1), Color.clear],
+                            colors: [Color.blue.opacity(0.25), Color.purple.opacity(0.15), Color.clear],
                             center: .center,
                             startRadius: 20,
-                            endRadius: 80
+                            endRadius: 100
                         )
                     )
-                    .frame(width: 160, height: 160)
+                    .frame(width: 200, height: 200)
                 
+                // Middle glow
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.cyan.opacity(0.2), Color.clear],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 60
+                        )
+                    )
+                    .frame(width: 120, height: 120)
+                
+                // Icon container
                 Circle()
                     .fill(.ultraThinMaterial)
-                    .frame(width: 80, height: 80)
+                    .frame(width: 96, height: 96)
                     .overlay(
                         Circle()
                             .stroke(
-                    LinearGradient(
+                                LinearGradient(
                                     colors: [Color.white.opacity(0.4), Color.white.opacity(0.1)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
                                 ),
-                                lineWidth: 1
+                                lineWidth: 1.5
                             )
                     )
-                    .shadow(color: Color.blue.opacity(0.2), radius: 20, x: 0, y: 10)
+                    .shadow(color: Color.blue.opacity(0.3), radius: 24, x: 0, y: 12)
                 
                 Image(systemName: "shield.lefthalf.filled.badge.checkmark")
-                    .font(.system(size: 32, weight: .medium))
+                    .font(.system(size: 40, weight: .medium))
                     .foregroundStyle(accentGradient)
             }
             
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 Text(loc(appLanguage, "No shields yet", "Нет щитов"))
-                .font(.title3.bold())
-            
+                    .font(.title2.bold())
+                
                 Text(loc(appLanguage, "Connect your first shield to track app usage", "Подключите щит для отслеживания приложений"))
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
             }
             
             Button {
                 NotificationCenter.default.post(name: openModulesNotification, object: nil)
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus")
-                        .font(.subheadline.bold())
+                HStack(spacing: 10) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
                     Text(loc(appLanguage, "Connect Shield", "Подключить щит"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(.headline.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(accentGradient)
+                .padding(.vertical, 16)
+                .background(
+                    LinearGradient(
+                        colors: [.blue, .cyan],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
                 .foregroundColor(.white)
                 .clipShape(Capsule())
-                .shadow(color: Color.blue.opacity(0.3), radius: 12, x: 0, y: 6)
+                .shadow(color: Color.blue.opacity(0.4), radius: 16, x: 0, y: 8)
             }
             .buttonStyle(.plain)
         }
-        .padding(28)
+        .padding(32)
         .background(glassCard)
-        .padding(.top, 60)
+        .padding(.top, 40)
     }
 
     // MARK: - Chart Data
@@ -860,22 +958,34 @@ struct StatusView: View {
         }.filter { $0.1 > 0 }
         
         if entries.isEmpty {
-            Text(loc(appLanguage, "No usage in this period", "Нет использования за этот период"))
-                .font(.caption)
-                .foregroundColor(.secondary)
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle")
+                    .font(.caption2)
+                Text(loc(appLanguage, "No usage in this period", "Нет использования за этот период"))
+                    .font(.caption)
+            }
+            .foregroundColor(.secondary)
+            .padding(.vertical, 8)
         } else {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 ForEach(entries.prefix(7), id: \.0) { entry in
                     HStack {
                         Text(detailDateFormatter.string(from: entry.0))
-                            .font(.caption)
+                            .font(.caption.weight(.medium))
                         Spacer()
-                        Text("\(entry.1) \(loc(appLanguage, "energy", "энергии"))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 4) {
+                            Image(systemName: "bolt.fill")
+                                .font(.caption2)
+                            Text("\(entry.1)")
+                                .font(.caption.weight(.semibold))
+                                .monospacedDigit()
+                        }
+                        .foregroundColor(.secondary)
                     }
+                    .padding(.vertical, 4)
                 }
             }
+            .padding(.vertical, 4)
         }
     }
     

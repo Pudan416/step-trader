@@ -3,6 +3,12 @@ import Foundation
 #if canImport(FamilyControls)
 import FamilyControls
 #endif
+#if canImport(ManagedSettings)
+import ManagedSettings
+#endif
+#if canImport(UserNotifications)
+import UserNotifications
+#endif
 
 fileprivate func stepsTraderDefaults() -> UserDefaults {
     let groupId = "group.personal-project.StepsTrader"
@@ -23,12 +29,185 @@ private struct MinuteChargeLog: Codable {
 }
 
 final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
+    override func intervalDidStart(for activity: DeviceActivityName) {
+        // Enable custom shield for minute mode
+        if activity == DeviceActivityName("minuteMode") {
+            setupShieldForMinuteMode()
+        }
+    }
+    
+    override func intervalDidEnd(for activity: DeviceActivityName) {
+        // Clear shield when interval ends (but don't clear if monitoring is still active)
+        // Shield will be re-enabled on next interval start
+        if activity == DeviceActivityName("minuteMode") {
+            // Don't clear immediately - let it persist until next day
+            // clearShield()
+        }
+    }
+    
     override func eventDidReachThreshold(
         _ event: DeviceActivityEvent.Name,
         activity: DeviceActivityName
     ) {
         handleMinuteEvent(event)
     }
+    
+    #if canImport(ManagedSettings)
+    private func setupShieldForMinuteMode() {
+        let defaults = stepsTraderDefaults()
+        var allApps: Set<ApplicationToken> = []
+        var allCategories: Set<ActivityCategoryToken> = []
+        var unlockSettingsByBundle: [String: StoredUnlockSettings] = [:]
+        
+        // Каждый раз, когда мы включаем щит, сбрасываем его состояние
+        // (первый экран "App Blocked" → потом уже по действиям ShieldActionExtension).
+        defaults.set(0, forKey: "doomShieldState_v1")
+        
+        // Сначала собираем приложения из групп щитов
+        if let groupsData = defaults.data(forKey: "shieldGroups_v1"),
+           let groups = try? JSONDecoder().decode([ShieldGroupDataForMonitor].self, from: groupsData) {
+            print("🛡️ DeviceActivityMonitor: Found \(groups.count) shield groups")
+            for group in groups {
+                if let selectionData = group.selectionData,
+                   let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData) {
+                    // Проверяем настройки группы (нужно декодировать settings)
+                    if group.hasActiveSettings {
+                        allApps.formUnion(sel.applicationTokens)
+                        allCategories.formUnion(sel.categoryTokens)
+                        print("🛡️ Added \(sel.applicationTokens.count) apps from group: \(group.name)")
+                    }
+                }
+            }
+        }
+        
+        // Also collect apps from per-app selections (for backward compatibility)
+        if let data = defaults.data(forKey: "appUnlockSettings_v1"),
+           let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data) {
+            unlockSettingsByBundle = decoded
+            for (bundleId, settings) in decoded {
+                if settings.minuteTariffEnabled == true || settings.familyControlsModeEnabled == true {
+                    let key = "timeAccessSelection_v1_\(bundleId)"
+                    if let selectionData = defaults.data(forKey: key),
+                       let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData) {
+                        allApps.formUnion(selection.applicationTokens)
+                        allCategories.formUnion(selection.categoryTokens)
+                    }
+                }
+            }
+        }
+        
+        // Setup shield to show custom shield instead of system blocking
+        let store = ManagedSettingsStore(named: .init("shield"))
+        store.shield.applications = allApps.isEmpty ? nil : allApps
+        store.shield.applicationCategories = allCategories.isEmpty ? nil : .specific(allCategories)
+        
+        // Save blocked apps info for ShieldActionExtension to use
+        // We'll save the first app's bundleId as the "last blocked app"
+        if let firstApp = allApps.first {
+            var foundBundleId: String? = nil
+            
+            // 1) Сначала проверяем группы щитов
+            if let groupsData = defaults.data(forKey: "shieldGroups_v1"),
+               let groups = try? JSONDecoder().decode([ShieldGroupDataForMonitor].self, from: groupsData) {
+                for group in groups {
+                    if let selectionData = group.selectionData,
+                       let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData),
+                       sel.applicationTokens.contains(firstApp) {
+                        // Получаем имя приложения из токена
+                        if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: firstApp, requiringSecureCoding: true) {
+                            let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
+                            if let appName = defaults.string(forKey: tokenKey) {
+                                foundBundleId = appName
+                                print("💾 Found app in shield group: \(appName)")
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 2) Если не нашли в группах, проверяем старые настройки
+            if foundBundleId == nil {
+                if let globalSelectionData = defaults.data(forKey: "appSelection_v1"),
+                   let globalSelection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: globalSelectionData) {
+                    if globalSelection.applicationTokens.contains(firstApp) {
+                        if let data = defaults.data(forKey: "appUnlockSettings_v1"),
+                           let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data) {
+                            for (bundleId, _) in decoded {
+                                let key = "timeAccessSelection_v1_\(bundleId)"
+                                if let selectionData = defaults.data(forKey: key),
+                                   let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData),
+                                   selection.applicationTokens.contains(firstApp) {
+                                    foundBundleId = bundleId
+                                    print("💾 Found app in old settings: \(bundleId)")
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Save for unlock action
+            if let bundleId = foundBundleId {
+                defaults.set(bundleId, forKey: "lastBlockedAppBundleId")
+                print("💾 Saved last blocked app: \(bundleId)")
+            } else {
+                print("⚠️ Could not find bundleId for blocked app token")
+            }
+        }
+        
+        print("🛡️ Shield applied: \(allApps.count) apps, \(allCategories.count) categories")
+    }
+    
+    #if canImport(UserNotifications)
+    private func sendBlockedAppPushNotifications(for settings: [String: StoredUnlockSettings], defaults: UserDefaults) {
+        let center = UNUserNotificationCenter.current()
+        
+        for (bundleId, settings) in settings {
+            if settings.minuteTariffEnabled == true || settings.familyControlsModeEnabled == true {
+                // Get app name
+                let appName = defaults.string(forKey: "appName_\(bundleId)") ?? bundleId
+                
+                // Create notification
+                let content = UNMutableNotificationContent()
+                content.title = "App Blocked"
+                content.body = "\(appName) is blocked. Tap to unlock."
+                content.sound = .default
+                content.categoryIdentifier = "UNLOCK_APP"
+                content.userInfo = [
+                    "bundleId": bundleId,
+                    "appName": appName,
+                    "action": "unlock"
+                ]
+                
+                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+                let request = UNNotificationRequest(
+                    identifier: "blocked_\(bundleId)_\(UUID().uuidString)",
+                    content: content,
+                    trigger: trigger
+                )
+                
+                center.add(request) { error in
+                    if let error = error {
+                        print("❌ Failed to send blocked app push: \(error)")
+                    } else {
+                        print("✅ Sent blocked app push for \(bundleId)")
+                    }
+                }
+            }
+        }
+    }
+    #endif
+    
+    private func clearShield() {
+        let store = ManagedSettingsStore(named: .init("minuteModeShield"))
+        store.clearAllSettings()
+    }
+    #else
+    private func setupShieldForMinuteMode() {}
+    private func clearShield() {}
+    #endif
 
     private func handleMinuteEvent(_ event: DeviceActivityEvent.Name) {
         let raw = event.rawValue
@@ -151,7 +330,6 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             let event = DeviceActivityEvent(
                 applications: selection.applicationTokens,
                 categories: selection.categoryTokens,
-                webDomains: selection.webDomainTokens,
                 threshold: DateComponents(minute: nextThreshold)
             )
             events[eventName] = event
@@ -291,6 +469,33 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         df.locale = Locale(identifier: "en_US_POSIX")
         df.dateFormat = "yyyy-MM-dd"
         return df.string(from: date)
+    }
+    
+    // Минимальная структура для декодирования групп щитов
+    private struct ShieldGroupDataForMonitor: Decodable {
+        let id: String
+        let name: String
+        let selectionData: Data?
+        let settingsData: Data?
+        
+        enum CodingKeys: String, CodingKey {
+            case id, name, selectionData, settings
+        }
+        
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(String.self, forKey: .id)
+            name = try container.decode(String.self, forKey: .name)
+            selectionData = try? container.decode(Data.self, forKey: .selectionData)
+            settingsData = try? container.decode(Data.self, forKey: .settings)
+        }
+        
+        var hasActiveSettings: Bool {
+            guard let settingsData = settingsData,
+                  let settings = try? JSONDecoder().decode(StoredUnlockSettings.self, from: settingsData)
+            else { return false }
+            return (settings.minuteTariffEnabled ?? false) || (settings.familyControlsModeEnabled ?? false)
+        }
     }
 
 }

@@ -25,6 +25,7 @@ struct HandoffToken: Codable {
 // MARK: - HealthKit Service Protocol
 @preconcurrency
 protocol HealthKitServiceProtocol {
+    func fetchTodaySleep() async throws -> Double
     @MainActor
     func requestAuthorization() async throws
     @MainActor
@@ -44,6 +45,8 @@ protocol FamilyControlsServiceProtocol {
     func updateSelection(_ newSelection: FamilyActivitySelection)
     /// Updates DeviceActivity monitoring for minute-mode charging (if supported/authorized).
     func updateMinuteModeMonitoring()
+    /// Updates shield configuration (shield is configured in DeviceActivityMonitorExtension).
+    func updateShieldSchedule()
 }
 
 // MARK: - Notification Service Protocol

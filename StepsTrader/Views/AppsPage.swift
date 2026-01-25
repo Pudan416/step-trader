@@ -128,15 +128,17 @@ struct AppsPage: View {
     var body: some View {
         NavigationView {
             let horizontalPadding: CGFloat = 16
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    deactivatedSection(horizontalPadding: horizontalPadding)
-                    activatedSection
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        deactivatedSection(horizontalPadding: horizontalPadding, availableWidth: geometry.size.width)
+                        activatedSection
+                    }
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, 8)
+                    .padding(.bottom, 100)
+                    .id(statusVersion)
                 }
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, 8)
-                .padding(.bottom, 100)
-                .id(statusVersion)
             }
             .scrollIndicators(.hidden)
             .background(Color(.systemGroupedBackground))
@@ -208,15 +210,15 @@ struct AppsPage: View {
     }
     
     @ViewBuilder
-    private func deactivatedSection(horizontalPadding: CGFloat) -> some View {
+    private func deactivatedSection(horizontalPadding: CGFloat, availableWidth: CGFloat) -> some View {
         let spacing: CGFloat = 10
         let minTile: CGFloat = 48
         let maxColumns = 6
         let cardPadding: CGFloat = 16
-        let availableWidth = UIScreen.main.bounds.width - horizontalPadding * 2 - cardPadding * 2
-        let computedColumns = Int((availableWidth + spacing) / (minTile + spacing))
+        let calculatedWidth = availableWidth - horizontalPadding * 2 - cardPadding * 2
+        let computedColumns = Int((calculatedWidth + spacing) / (minTile + spacing))
         let columns = max(3, min(maxColumns, computedColumns))
-        let tileSize = max(minTile, (availableWidth - CGFloat(columns - 1) * spacing) / CGFloat(columns))
+        let tileSize = max(minTile, (calculatedWidth - CGFloat(columns - 1) * spacing) / CGFloat(columns))
         
         VStack(alignment: .leading, spacing: 14) {
             // Section header - edgy
@@ -725,22 +727,13 @@ struct AppsPage: View {
     }
     
     private func costInfoMessage(for stage: ModuleLevelStage) -> String {
-        let entryLine = loc(appLanguage, "Entry: \(formatSteps(stage.entryCost)) steps", "Вход: \(formatSteps(stage.entryCost)) шагов")
-        let fiveLine = loc(appLanguage, "5 minutes: \(formatSteps(stage.fiveMinutesCost)) steps", "5 минут: \(formatSteps(stage.fiveMinutesCost)) шагов")
-        let hourLine = loc(appLanguage, "1 hour: \(formatSteps(stage.hourCost)) steps", "1 час: \(formatSteps(stage.hourCost)) шагов")
-        let dayLine = loc(appLanguage, "Day: \(formatSteps(stage.dayCost)) steps", "День: \(formatSteps(stage.dayCost)) шагов")
-        return [entryLine, fiveLine, hourLine, dayLine].joined(separator: "\n")
+        let entryLine = loc(appLanguage, "1 min: 1 energy", "1 мин: 1 энергия")
+        let fiveLine = loc(appLanguage, "5 min: 2 energy", "5 мин: 2 энергии")
+        let halfHourLine = loc(appLanguage, "30 min: 10 energy", "30 мин: 10 энергии")
+        let hourLine = loc(appLanguage, "1 hour: 20 energy", "1 час: 20 энергии")
+        return [entryLine, fiveLine, halfHourLine, hourLine].joined(separator: "\n")
     }
 
-    private func windowCost(for level: ShieldLevel, window: AccessWindow) -> Int {
-        switch window {
-        case .single: return level.entryCost
-        case .minutes5: return level.fiveMinutesCost
-        case .hour1: return level.hourCost
-        case .day1: return level.dayCost
-        }
-    }
-    
     private func statusFor(_ app: AutomationApp,
                            configured: Set<String>,
                            pending: Set<String>) -> AutomationStatus {
@@ -1437,6 +1430,18 @@ struct AutomationGuideView: View {
         .buttonStyle(.plain)
     }
 
+    private func windowCost(for level: ShieldLevel, window: AccessWindow) -> Int {
+        switch window {
+        case .single: return 1
+        case .minutes5: return 2
+        case .minutes15: return 5
+        case .minutes30: return 10
+        case .hour1: return 20
+        case .hour2: return 40
+        case .day1: return 20
+        }
+    }
+
     private func setMinuteModeEnabled(_ enabled: Bool) {
         model.setFamilyControlsModeEnabled(enabled, for: app.bundleId)
         model.setMinuteTariffEnabled(enabled, for: app.bundleId)
@@ -1477,10 +1482,10 @@ struct AutomationGuideView: View {
                     .padding(.horizontal, 14)
                 
                 VStack(spacing: 0) {
-                    windowRow(title: loc(appLanguage, "Day pass", "День"), window: .day1, cost: currentLevel.dayCost, isLast: false)
-                    windowRow(title: loc(appLanguage, "1 hour", "1 час"), window: .hour1, cost: currentLevel.hourCost, isLast: false)
-                    windowRow(title: loc(appLanguage, "5 min", "5 мин"), window: .minutes5, cost: currentLevel.fiveMinutesCost, isLast: false)
-                    windowRow(title: loc(appLanguage, "Single", "Разовый"), window: .single, cost: currentLevel.entryCost, isLast: true)
+                    windowRow(title: loc(appLanguage, "1 hour", "1 час"), window: .hour1, cost: windowCost(for: currentLevel, window: .hour1), isLast: false)
+                    windowRow(title: loc(appLanguage, "30 min", "30 мин"), window: .minutes30, cost: windowCost(for: currentLevel, window: .minutes30), isLast: false)
+                    windowRow(title: loc(appLanguage, "5 min", "5 мин"), window: .minutes5, cost: windowCost(for: currentLevel, window: .minutes5), isLast: false)
+                    windowRow(title: loc(appLanguage, "1 min", "1 мин"), window: .single, cost: windowCost(for: currentLevel, window: .single), isLast: true)
                 }
             }
         }

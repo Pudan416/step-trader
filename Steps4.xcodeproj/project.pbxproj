@@ -14,6 +14,17 @@
 		200AC5AA2F16E8370018004E /* CloudKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A92F16E8370018004E /* CloudKitService.swift */; };
 		200AC5B82F17A16B0018004E /* OuterWorldView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5B72F17A16B0018004E /* OuterWorldView.swift */; };
 		2035D7582E7D9CF90011B21D /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
+		2061EB4D2F23FA84009FEC24 /* BlockScreenNew.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB4C2F23FA84009FEC24 /* BlockScreenNew.swift */; };
+		2061EB532F23FD14009FEC24 /* ManagedSettings.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 200AC4892F1402CF0018004E /* ManagedSettings.framework */; };
+		2061EB542F23FD14009FEC24 /* ManagedSettingsUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 200AC48B2F1402CF0018004E /* ManagedSettingsUI.framework */; };
+		2061EB5C2F23FD14009FEC24 /* ShieldConfiguration.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 2061EB522F23FD14009FEC24 /* ShieldConfiguration.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		2061EB662F250A0B009FEC24 /* ManagedSettings.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 200AC4892F1402CF0018004E /* ManagedSettings.framework */; };
+		2061EB6E2F250A0B009FEC24 /* ShieldAction.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 2061EB652F250A0B009FEC24 /* ShieldAction.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		2061EB742F253EBD009FEC24 /* DailyEnergy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB732F253EBD009FEC24 /* DailyEnergy.swift */; };
+		2061EB762F254237009FEC24 /* DailyEnergyCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB752F254237009FEC24 /* DailyEnergyCard.swift */; };
+		2061EB782F2542A8009FEC24 /* EnergySetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB772F2542A8009FEC24 /* EnergySetupView.swift */; };
+		2061EB7A2F26593A009FEC24 /* CategoryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB792F26593A009FEC24 /* CategoryDetailView.swift */; };
+		2061EB7C2F26594D009FEC24 /* CategorySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB7B2F26594D009FEC24 /* CategorySettingsView.swift */; };
 		2089F0BC2E71A18F00ABF5FA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */; };
 		2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */; };
 		2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */; };
@@ -22,7 +33,6 @@
 		2089F0EE2E71AE3400ABF5FA /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */; };
 		2089F0EF2E71AE3400ABF5FA /* Date+Today.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E72E71AE3400ABF5FA /* Date+Today.swift */; };
 		2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E92E71AE3400ABF5FA /* StepsTraderApp.swift */; };
-		209424AF2E80C52C00904A0A /* AllAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424AD2E80C52C00904A0A /* AllAppIntents.swift */; };
 		209424BF2E8593DA00904A0A /* StatMiniCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424B72E8593DA00904A0A /* StatMiniCard.swift */; };
 		209424C02E8593DA00904A0A /* StatusRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424B82E8593DA00904A0A /* StatusRow.swift */; };
 		209424C12E8593DA00904A0A /* TariffOptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424B92E8593DA00904A0A /* TariffOptionView.swift */; };
@@ -36,6 +46,7 @@
 		20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */; };
 		20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0012FFF000100000001 /* AutomationUIModels.swift */; };
 		20F5A0042FFF000100000004 /* AppsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0022FFF000100000002 /* AppsPage.swift */; };
+		20F5A0052FFF000100000005 /* AppsPageSimplified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0062FFF000100000006 /* AppsPageSimplified.swift */; };
 		20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A00F2FFF020000000000 /* StepBalanceCard.swift */; };
 		20F5A0112FFF030000000002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0122FFF030000000003 /* Localization.swift */; };
 		20F5A0612FFF040000000007 /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0602FFF040000000006 /* LLMService.swift */; };
@@ -45,6 +56,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		2061EB5A2F23FD14009FEC24 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2089F0AC2E71A18E00ABF5FA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2061EB512F23FD14009FEC24;
+			remoteInfo = ShieldConfiguration;
+		};
+		2061EB6C2F250A0B009FEC24 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2089F0AC2E71A18E00ABF5FA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2061EB642F250A0B009FEC24;
+			remoteInfo = ShieldAction;
+		};
 		2089F0C52E71A18F00ABF5FA /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 2089F0AC2E71A18E00ABF5FA /* Project object */;
@@ -75,6 +100,8 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				2061EB6E2F250A0B009FEC24 /* ShieldAction.appex in Embed Foundation Extensions */,
+				2061EB5C2F23FD14009FEC24 /* ShieldConfiguration.appex in Embed Foundation Extensions */,
 				B59E9C524161418AB1CE7C33 /* DeviceActivityMonitor.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
@@ -91,6 +118,14 @@
 		200AC5A72F16DA570018004E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		200AC5A92F16E8370018004E /* CloudKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitService.swift; sourceTree = "<group>"; };
 		200AC5B72F17A16B0018004E /* OuterWorldView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OuterWorldView.swift; sourceTree = "<group>"; };
+		2061EB4C2F23FA84009FEC24 /* BlockScreenNew.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockScreenNew.swift; sourceTree = "<group>"; };
+		2061EB522F23FD14009FEC24 /* ShieldConfiguration.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShieldConfiguration.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		2061EB652F250A0B009FEC24 /* ShieldAction.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShieldAction.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		2061EB732F253EBD009FEC24 /* DailyEnergy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergy.swift; sourceTree = "<group>"; };
+		2061EB752F254237009FEC24 /* DailyEnergyCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergyCard.swift; sourceTree = "<group>"; };
+		2061EB772F2542A8009FEC24 /* EnergySetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergySetupView.swift; sourceTree = "<group>"; };
+		2061EB792F26593A009FEC24 /* CategoryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryDetailView.swift; sourceTree = "<group>"; };
+		2061EB7B2F26594D009FEC24 /* CategorySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategorySettingsView.swift; sourceTree = "<group>"; };
 		2089F0B42E71A18E00ABF5FA /* DOOM CTRL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "DOOM CTRL.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -104,7 +139,6 @@
 		2089F0E92E71AE3400ABF5FA /* StepsTraderApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepsTraderApp.swift; sourceTree = "<group>"; };
 		2089F0F12E72D68C00ABF5FA /* Steps4.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Steps4.entitlements; sourceTree = "<group>"; };
 		2089F0F42E72EC1700ABF5FA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		209424AD2E80C52C00904A0A /* AllAppIntents.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AllAppIntents.swift; sourceTree = "<group>"; };
 		209424B72E8593DA00904A0A /* StatMiniCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StatMiniCard.swift; sourceTree = "<group>"; };
 		209424B82E8593DA00904A0A /* StatusRow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StatusRow.swift; sourceTree = "<group>"; };
 		209424B92E8593DA00904A0A /* TariffOptionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TariffOptionView.swift; sourceTree = "<group>"; };
@@ -119,6 +153,7 @@
 		20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
 		20F5A0012FFF000100000001 /* AutomationUIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationUIModels.swift; sourceTree = "<group>"; };
 		20F5A0022FFF000100000002 /* AppsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsPage.swift; sourceTree = "<group>"; };
+		20F5A0062FFF000100000006 /* AppsPageSimplified.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsPageSimplified.swift; sourceTree = "<group>"; };
 		20F5A00F2FFF020000000000 /* StepBalanceCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepBalanceCard.swift; sourceTree = "<group>"; };
 		20F5A0122FFF030000000003 /* Localization.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		20F5A0602FFF040000000006 /* LLMService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
@@ -126,6 +161,20 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		2061EB5D2F23FD14009FEC24 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 2061EB512F23FD14009FEC24 /* ShieldConfiguration */;
+		};
+		2061EB6F2F250A0B009FEC24 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 2061EB642F250A0B009FEC24 /* ShieldAction */;
+		};
 		923D8ED70C4548ACAC59D99E /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -136,10 +185,29 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		2061EB552F23FD14009FEC24 /* ShieldConfiguration */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (2061EB5D2F23FD14009FEC24 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = ShieldConfiguration; sourceTree = "<group>"; };
+		2061EB672F250A0B009FEC24 /* ShieldAction */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (2061EB6F2F250A0B009FEC24 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = ShieldAction; sourceTree = "<group>"; };
 		69402D60D4CF4D02AA37F801 /* DeviceActivityMonitor */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (923D8ED70C4548ACAC59D99E /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = DeviceActivityMonitor; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		2061EB4F2F23FD14009FEC24 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2061EB532F23FD14009FEC24 /* ManagedSettings.framework in Frameworks */,
+				2061EB542F23FD14009FEC24 /* ManagedSettingsUI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2061EB622F250A0B009FEC24 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2061EB662F250A0B009FEC24 /* ManagedSettings.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2089F0B12E71A18E00ABF5FA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -180,6 +248,8 @@
 				2089F0EA2E71AE3400ABF5FA /* StepsTrader */,
 				2089F0B62E71A18E00ABF5FA /* Steps4 */,
 				69402D60D4CF4D02AA37F801 /* DeviceActivityMonitor */,
+				2061EB552F23FD14009FEC24 /* ShieldConfiguration */,
+				2061EB672F250A0B009FEC24 /* ShieldAction */,
 				20E8EF842E7D41B200C092A1 /* Frameworks */,
 				2089F0B52E71A18E00ABF5FA /* Products */,
 			);
@@ -192,6 +262,8 @@
 				2089F0C42E71A18F00ABF5FA /* DOOM CTRL.xctest */,
 				2089F0CE2E71A18F00ABF5FA /* DOOM CTRL.xctest */,
 				554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */,
+				2061EB522F23FD14009FEC24 /* ShieldConfiguration.appex */,
+				2061EB652F250A0B009FEC24 /* ShieldAction.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -219,6 +291,7 @@
 				200AC47C2F0C825C0018004E /* AccessWindow.swift */,
 				2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */,
 				2089F0E22E71AE3400ABF5FA /* Types.swift */,
+				2061EB732F253EBD009FEC24 /* DailyEnergy.swift */,
 				20F5A0012FFF000100000001 /* AutomationUIModels.swift */,
 			);
 			path = Models;
@@ -249,9 +322,7 @@
 		2089F0EA2E71AE3400ABF5FA /* StepsTrader */ = {
 			isa = PBXGroup;
 			children = (
-				20B0A3512E8C658800D5EBE4 /* Shield */,
 				209424AE2E80C52C00904A0A /* Intents */,
-				209424AC2E80C51300904A0A /* Shield */,
 				2089F0E32E71AE3400ABF5FA /* Models */,
 				2089F0E62E71AE3400ABF5FA /* Services */,
 				209424BE2E8593DA00904A0A /* Views */,
@@ -268,17 +339,9 @@
 			path = StepsTrader;
 			sourceTree = "<group>";
 		};
-		209424AC2E80C51300904A0A /* Shield */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Shield;
-			sourceTree = "<group>";
-		};
 		209424AE2E80C52C00904A0A /* Intents */ = {
 			isa = PBXGroup;
 			children = (
-				209424AD2E80C52C00904A0A /* AllAppIntents.swift */,
 			);
 			path = Intents;
 			sourceTree = "<group>";
@@ -289,6 +352,7 @@
 				209424B72E8593DA00904A0A /* StatMiniCard.swift */,
 				209424B82E8593DA00904A0A /* StatusRow.swift */,
 				209424B92E8593DA00904A0A /* TariffOptionView.swift */,
+				2061EB752F254237009FEC24 /* DailyEnergyCard.swift */,
 				20F5A00F2FFF020000000000 /* StepBalanceCard.swift */,
 			);
 			path = Components;
@@ -299,20 +363,18 @@
 			children = (
 				209424BA2E8593DA00904A0A /* Components */,
 				209424BB2E8593DA00904A0A /* BlockScreen.swift */,
+				2061EB4C2F23FA84009FEC24 /* BlockScreenNew.swift */,
 				200AC5B72F17A16B0018004E /* OuterWorldView.swift */,
+				2061EB792F26593A009FEC24 /* CategoryDetailView.swift */,
+				2061EB7B2F26594D009FEC24 /* CategorySettingsView.swift */,
 				200AC5A72F16DA570018004E /* LoginView.swift */,
+				2061EB772F2542A8009FEC24 /* EnergySetupView.swift */,
 				209424BC2E8593DA00904A0A /* SettingsView.swift */,
 				209424BD2E8593DA00904A0A /* StatusView.swift */,
 				20F5A0022FFF000100000002 /* AppsPage.swift */,
+				20F5A0062FFF000100000006 /* AppsPageSimplified.swift */,
 			);
 			path = Views;
-			sourceTree = "<group>";
-		};
-		20B0A3512E8C658800D5EBE4 /* Shield */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Shield;
 			sourceTree = "<group>";
 		};
 		20E8EF842E7D41B200C092A1 /* Frameworks */ = {
@@ -328,6 +390,50 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		2061EB512F23FD14009FEC24 /* ShieldConfiguration */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2061EB5E2F23FD14009FEC24 /* Build configuration list for PBXNativeTarget "ShieldConfiguration" */;
+			buildPhases = (
+				2061EB4E2F23FD14009FEC24 /* Sources */,
+				2061EB4F2F23FD14009FEC24 /* Frameworks */,
+				2061EB502F23FD14009FEC24 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				2061EB552F23FD14009FEC24 /* ShieldConfiguration */,
+			);
+			name = ShieldConfiguration;
+			packageProductDependencies = (
+			);
+			productName = ShieldConfiguration;
+			productReference = 2061EB522F23FD14009FEC24 /* ShieldConfiguration.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		2061EB642F250A0B009FEC24 /* ShieldAction */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2061EB702F250A0B009FEC24 /* Build configuration list for PBXNativeTarget "ShieldAction" */;
+			buildPhases = (
+				2061EB612F250A0B009FEC24 /* Sources */,
+				2061EB622F250A0B009FEC24 /* Frameworks */,
+				2061EB632F250A0B009FEC24 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				2061EB672F250A0B009FEC24 /* ShieldAction */,
+			);
+			name = ShieldAction;
+			packageProductDependencies = (
+			);
+			productName = ShieldAction;
+			productReference = 2061EB652F250A0B009FEC24 /* ShieldAction.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		2089F0B32E71A18E00ABF5FA /* Steps4 */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 2089F0D82E71A18F00ABF5FA /* Build configuration list for PBXNativeTarget "Steps4" */;
@@ -341,6 +447,8 @@
 			);
 			dependencies = (
 				AC4D16A7D62B4F939697955A /* PBXTargetDependency */,
+				2061EB5B2F23FD14009FEC24 /* PBXTargetDependency */,
+				2061EB6D2F250A0B009FEC24 /* PBXTargetDependency */,
 			);
 			name = Steps4;
 			productName = Steps4;
@@ -412,9 +520,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1640;
-				LastUpgradeCheck = 1640;
+				LastSwiftUpdateCheck = 2610;
+				LastUpgradeCheck = 2610;
 				TargetAttributes = {
+					2061EB512F23FD14009FEC24 = {
+						CreatedOnToolsVersion = 26.1;
+					};
+					2061EB642F250A0B009FEC24 = {
+						CreatedOnToolsVersion = 26.1;
+					};
 					2089F0B32E71A18E00ABF5FA = {
 						CreatedOnToolsVersion = 15.4;
 					};
@@ -448,11 +562,27 @@
 				2089F0C32E71A18F00ABF5FA /* Steps4Tests */,
 				2089F0CD2E71A18F00ABF5FA /* Steps4UITests */,
 				661EF750582B4195A3B59550 /* DeviceActivityMonitor */,
+				2061EB512F23FD14009FEC24 /* ShieldConfiguration */,
+				2061EB642F250A0B009FEC24 /* ShieldAction */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		2061EB502F23FD14009FEC24 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2061EB632F250A0B009FEC24 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2089F0B22E71A18E00ABF5FA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -486,6 +616,20 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		2061EB4E2F23FD14009FEC24 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2061EB612F250A0B009FEC24 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2089F0B02E71A18E00ABF5FA /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -495,9 +639,13 @@
 				209424BF2E8593DA00904A0A /* StatMiniCard.swift in Sources */,
 				2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */,
 				209424C82E85952D00904A0A /* NotificationManager.swift in Sources */,
+				2061EB7A2F26593A009FEC24 /* CategoryDetailView.swift in Sources */,
+				2061EB742F253EBD009FEC24 /* DailyEnergy.swift in Sources */,
 				209424C02E8593DA00904A0A /* StatusRow.swift in Sources */,
+				2061EB762F254237009FEC24 /* DailyEnergyCard.swift in Sources */,
 				20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */,
 				2089F0EE2E71AE3400ABF5FA /* HealthKitService.swift in Sources */,
+				2061EB782F2542A8009FEC24 /* EnergySetupView.swift in Sources */,
 				2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */,
 				200AC5AA2F16E8370018004E /* CloudKitService.swift in Sources */,
 				2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */,
@@ -511,12 +659,14 @@
 				20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */,
 				209424C32E8593DA00904A0A /* SettingsView.swift in Sources */,
 				20F5A0042FFF000100000004 /* AppsPage.swift in Sources */,
+				20F5A0052FFF000100000005 /* AppsPageSimplified.swift in Sources */,
 				209424CA2E85952D00904A0A /* DIContainer.swift in Sources */,
+				2061EB7C2F26594D009FEC24 /* CategorySettingsView.swift in Sources */,
 				2089F0EC2E71AE3400ABF5FA /* Types.swift in Sources */,
 				200AC5A82F16DA570018004E /* LoginView.swift in Sources */,
 				209424C92E85952D00904A0A /* AppModel.swift in Sources */,
+				2061EB4D2F23FA84009FEC24 /* BlockScreenNew.swift in Sources */,
 				20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */,
-				209424AF2E80C52C00904A0A /* AllAppIntents.swift in Sources */,
 				200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */,
 				20F5A0612FFF040000000007 /* LLMService.swift in Sources */,
 			);
@@ -546,6 +696,16 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		2061EB5B2F23FD14009FEC24 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2061EB512F23FD14009FEC24 /* ShieldConfiguration */;
+			targetProxy = 2061EB5A2F23FD14009FEC24 /* PBXContainerItemProxy */;
+		};
+		2061EB6D2F250A0B009FEC24 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2061EB642F250A0B009FEC24 /* ShieldAction */;
+			targetProxy = 2061EB6C2F250A0B009FEC24 /* PBXContainerItemProxy */;
+		};
 		2089F0C62E71A18F00ABF5FA /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 2089F0B32E71A18E00ABF5FA /* Steps4 */;
@@ -592,6 +752,134 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
+		};
+		2061EB5F2F23FD14009FEC24 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShieldConfiguration/ShieldConfiguration.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39V44D64DY;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShieldConfiguration/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ShieldConfiguration;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		2061EB602F23FD14009FEC24 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShieldConfiguration/ShieldConfiguration.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39V44D64DY;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShieldConfiguration/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ShieldConfiguration;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		2061EB712F250A0B009FEC24 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShieldAction/ShieldAction.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39V44D64DY;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShieldAction/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ShieldAction;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		2061EB722F250A0B009FEC24 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShieldAction/ShieldAction.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39V44D64DY;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShieldAction/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ShieldAction;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
 		};
 		2089F0D62E71A18F00ABF5FA /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -652,6 +940,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -709,6 +998,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -892,6 +1182,24 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		2061EB5E2F23FD14009FEC24 /* Build configuration list for PBXNativeTarget "ShieldConfiguration" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2061EB5F2F23FD14009FEC24 /* Debug */,
+				2061EB602F23FD14009FEC24 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2061EB702F250A0B009FEC24 /* Build configuration list for PBXNativeTarget "ShieldAction" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2061EB712F250A0B009FEC24 /* Debug */,
+				2061EB722F250A0B009FEC24 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		2089F0AF2E71A18E00ABF5FA /* Build configuration list for PBXProject "Steps4" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

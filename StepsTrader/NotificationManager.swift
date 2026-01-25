@@ -17,7 +17,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendTimeExpiredNotification() {
         let content = UNMutableNotificationContent()
         content.title = "⏰ DOOM CTRL"
-        content.body = "Fuel empty. Earn more steps to unlock."
+        content.body = "Energy empty. Earn more to unlock."
         content.sound = .default
         content.badge = nil
         
@@ -40,9 +40,9 @@ final class NotificationManager: NotificationServiceProtocol {
         let content = UNMutableNotificationContent()
         content.title = "⏰ DOOM CTRL"
         if remainingMinutes > 0 {
-            content.body = "Fuel empty. You had \(remainingMinutes) min. Earn steps to unlock."
+            content.body = "Energy empty. You had \(remainingMinutes) min. Earn more to unlock."
         } else {
-            content.body = "Fuel empty. Earn steps to unlock."
+            content.body = "Energy empty. Earn more to unlock."
         }
         content.sound = .default
         content.badge = nil
@@ -65,7 +65,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendUnblockNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
         content.title = "🎉 DOOM CTRL"
-        content.body = "Fuel restored: \(remainingMinutes) min."
+        content.body = "Energy restored: \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
         
@@ -87,7 +87,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendRemainingTimeNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
         content.title = "⏱️ DOOM CTRL"
-        content.body = "Fuel left: \(remainingMinutes) min."
+        content.body = "Energy left: \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
         
@@ -114,11 +114,11 @@ final class NotificationManager: NotificationServiceProtocol {
         content.title = "⏱️ \(displayName)"
         
         if minutesUsed > 0 && stepsCharged > 0 {
-            content.body = "Used: \(minutesUsed) min • Charged: \(stepsCharged) fuel."
+            content.body = "Used: \(minutesUsed) min • Charged: \(stepsCharged) energy."
         } else if minutesUsed > 0 {
             content.body = "Used: \(minutesUsed) min."
         } else {
-            content.body = "Charged: \(stepsCharged) fuel."
+            content.body = "Charged: \(stepsCharged) energy."
         }
         
         content.sound = .default

@@ -4,6 +4,7 @@ import HealthKit
 final class HealthKitService: HealthKitServiceProtocol {
     private let store = HKHealthStore()
     private let stepType = HKObjectType.quantityType(forIdentifier: .stepCount)!
+    private let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
     private var observerQuery: HKQuery?
     private var isObserving = false
     private var stepsAnchor: HKQueryAnchor?
@@ -13,6 +14,8 @@ final class HealthKitService: HealthKitServiceProtocol {
 
     @MainActor
     func authorizationStatus() -> HKAuthorizationStatus {
+        // Возвращаем статус для шагов (основной тип)
+        // Для сна проверяем отдельно, если нужно
         store.authorizationStatus(for: stepType)
     }
 
@@ -33,7 +36,7 @@ final class HealthKitService: HealthKitServiceProtocol {
             print("🚫 HealthKit is not available on this device/configuration.")
             return
         }
-        let readTypes: Set = [stepType]
+        let readTypes: Set<HKObjectType> = [stepType, sleepType]
         if #available(iOS 15.0, *) {
             let status = try await store.statusForAuthorizationRequest(toShare: [], read: readTypes)
             print("🏥 HealthKit request status: \(status.rawValue)")
@@ -71,6 +74,69 @@ final class HealthKitService: HealthKitServiceProtocol {
     func fetchTodaySteps() async throws -> Double {
         let now = Date()
         return try await fetchSteps(from: .startOfToday, to: now)
+    }
+    
+    func fetchTodaySleep() async throws -> Double {
+        let now = Date()
+        return try await fetchSleep(from: .startOfToday, to: now)
+    }
+    
+    func fetchSleep(from start: Date, to end: Date) async throws -> Double {
+        // Ensure authorization is determined before querying
+        if #available(iOS 12.0, *) {
+            let status = store.authorizationStatus(for: sleepType)
+            if status == .notDetermined {
+                try await requestAuthorization()
+            }
+        }
+        
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: sleepType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                // Суммируем все интервалы сна
+                var totalSleepHours: Double = 0
+                if let samples = samples as? [HKCategorySample] {
+                    for sample in samples {
+                        // Учитываем все типы сна: asleep, inBed, awake
+                        // Обычно учитываем только asleep для точности, но можно включить и inBed
+                        let sleepValue = sample.value
+                        var shouldCount = false
+                        
+                        if #available(iOS 16.0, *) {
+                            // Учитываем все типы сна в iOS 16+
+                            shouldCount = sleepValue == HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue ||
+                                         sleepValue == HKCategoryValueSleepAnalysis.asleepCore.rawValue ||
+                                         sleepValue == HKCategoryValueSleepAnalysis.asleepDeep.rawValue ||
+                                         sleepValue == HKCategoryValueSleepAnalysis.asleepREM.rawValue ||
+                                         sleepValue == HKCategoryValueSleepAnalysis.inBed.rawValue
+                        } else {
+                            // Fallback для iOS < 16
+                            shouldCount = sleepValue == HKCategoryValueSleepAnalysis.asleep.rawValue ||
+                                         sleepValue == HKCategoryValueSleepAnalysis.inBed.rawValue
+                        }
+                        
+                        if shouldCount {
+                            let duration = sample.endDate.timeIntervalSince(sample.startDate)
+                            totalSleepHours += duration / 3600.0 // Конвертируем секунды в часы
+                        }
+                    }
+                }
+                
+                continuation.resume(returning: totalSleepHours)
+            }
+            store.execute(query)
+        }
     }
     
     func fetchSteps(from start: Date, to end: Date) async throws -> Double {
@@ -208,19 +274,34 @@ final class HealthKitService: HealthKitServiceProtocol {
 
     private func logAuthorizationStatus(context: String) {
         if #available(iOS 12.0, *) {
-            let status = store.authorizationStatus(for: stepType)
-            let statusDescription: String
-            switch status {
+            let stepStatus = store.authorizationStatus(for: stepType)
+            let sleepStatus = store.authorizationStatus(for: sleepType)
+            let stepStatusDescription: String
+            let sleepStatusDescription: String
+            
+            switch stepStatus {
             case .sharingAuthorized:
-                statusDescription = "sharing authorized"
+                stepStatusDescription = "sharing authorized"
             case .sharingDenied:
-                statusDescription = "sharing denied"
+                stepStatusDescription = "sharing denied"
             case .notDetermined:
-                statusDescription = "not determined"
+                stepStatusDescription = "not determined"
             @unknown default:
-                statusDescription = "unknown (\(status.rawValue))"
+                stepStatusDescription = "unknown (\(stepStatus.rawValue))"
             }
-            print("🏥 HealthKit [\(context)]: \(statusDescription)")
+            
+            switch sleepStatus {
+            case .sharingAuthorized:
+                sleepStatusDescription = "sharing authorized"
+            case .sharingDenied:
+                sleepStatusDescription = "sharing denied"
+            case .notDetermined:
+                sleepStatusDescription = "not determined"
+            @unknown default:
+                sleepStatusDescription = "unknown (\(sleepStatus.rawValue))"
+            }
+            
+            print("🏥 HealthKit [\(context)]: steps=\(stepStatusDescription), sleep=\(sleepStatusDescription)")
         } else {
             print("🏥 HealthKit [\(context)]: authorization status unavailable (iOS < 12)")
         }

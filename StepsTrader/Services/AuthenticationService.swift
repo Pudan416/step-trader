@@ -525,7 +525,7 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     private func totalLocalBatteriesCollected() -> Int {
-        UserDefaults.standard.integer(forKey: "outerworld_totalcollected") / 500
+        UserDefaults.standard.integer(forKey: "outerworld_totalcollected") / 5
     }
     
     private func applyEnergySpentToLocal(_ total: Int) {
@@ -555,7 +555,7 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     private func applyBatteriesToLocal(_ count: Int) {
-        let energy = count * 500
+        let energy = count * 5
         UserDefaults.standard.set(energy, forKey: "outerworld_totalcollected")
         print("📊 Applying server batteries to local: \(count) (\(energy) energy)")
     }
@@ -942,4 +942,3 @@ private struct SupabasePublicUserPatch: Codable {
         self.lastSyncAt = ISO8601DateFormatter().string(from: Date())
     }
 }
-

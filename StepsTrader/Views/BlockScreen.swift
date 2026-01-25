@@ -41,7 +41,7 @@ struct BlockScreen: View {
                     }
                     
                     HStack {
-                        Text("Steps spent:")
+                        Text("Energy spent:")
                         Spacer()
                         Text("\(model.spentSteps)")
                             .fontWeight(.semibold)
@@ -50,11 +50,11 @@ struct BlockScreen: View {
                     Divider()
                     
                     HStack {
-                        Text("Steps today:")
+                        Text("Energy today:")
                         Spacer()
-                        Text("\(Int(model.effectiveStepsToday))")
-                            .fontWeight(.semibold)
-                            .foregroundColor(.green)
+                        Text("\(model.baseEnergyToday)")
+                        .fontWeight(.semibold)
+                        .foregroundColor(.green)
                     }
                 }
                 .padding()
@@ -66,12 +66,12 @@ struct BlockScreen: View {
                         .font(.headline)
                         .multilineTextAlignment(.center)
                     
-                    Text("🚶‍♂️ Walk more steps")
+                    Text("⚡ Earn more energy")
                         .font(.title3)
                         .fontWeight(.medium)
                         .foregroundColor(.blue)
                     
-                    Text("\(Int(model.budget.tariff.stepsPerMinute)) steps = 1 minute of fun")
+                    Text("\(Int(model.budget.tariff.stepsPerMinute)) energy = 1 minute of fun")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -89,7 +89,7 @@ struct BlockScreen: View {
                                     model.isBlocked = false
                                     model.message = "✅ Time restored! Available: \(model.remainingMinutes) min"
                                 } else {
-                                    model.message = "❌ Not enough steps to unlock"
+                                    model.message = "❌ Not enough energy to unlock"
                                 }
                             } catch {
                                 model.message = "❌ Refresh failed: \(error.localizedDescription)"

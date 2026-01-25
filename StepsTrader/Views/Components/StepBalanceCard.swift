@@ -7,34 +7,51 @@ struct StepBalanceCard: View {
     let healthKitSteps: Int
     let outerWorldSteps: Int
     let grantedSteps: Int
+    let dayEndHour: Int
+    let dayEndMinute: Int
     let showDetails: Bool
+    
+    // New parameters for category breakdown
+    let recoveryPoints: Int
+    let activityPoints: Int
+    let joyPoints: Int
+    let baseEnergyToday: Int
+    
+    // Navigation handlers
+    var onRecoveryTap: (() -> Void)? = nil
+    var onActivityTap: (() -> Void)? = nil
+    var onJoyTap: (() -> Void)? = nil
+    var onOuterWorldTap: (() -> Void)? = nil
     
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     
+    private let maxEnergy: Int = 100
+    
+    private var currentEnergy: Int {
+        // Текущая энергия = baseEnergyToday + bonusSteps (outerWorldSteps), но максимум 100
+        let total = baseEnergyToday + outerWorldSteps
+        return min(maxEnergy, total)
+    }
+    
     private var progress: Double {
-        guard totalSteps > 0 else { return 0 }
-        return min(1, Double(remainingSteps) / Double(totalSteps))
+        guard maxEnergy > 0 else { return 0 }
+        return min(1, Double(currentEnergy) / Double(maxEnergy))
     }
     
     private var progressColor: Color {
-        if remainingSteps > 500 { return .green }
-        if remainingSteps > 100 { return .orange }
+        if currentEnergy > 70 { return .green }
+        if currentEnergy > 40 { return .orange }
         return .red
     }
     
     private var timeUntilReset: String {
         let now = Date()
         let calendar = Calendar.current
-        var components = calendar.dateComponents([.year, .month, .day], from: now)
-        components.hour = 0
-        components.minute = 0
-        
-        guard let todayMidnight = calendar.date(from: components),
-              let tomorrowMidnight = calendar.date(byAdding: .day, value: 1, to: todayMidnight) else {
-            return "--:--"
-        }
-        
-        let diff = tomorrowMidnight.timeIntervalSince(now)
+        var comps = DateComponents()
+        comps.hour = dayEndHour
+        comps.minute = dayEndMinute
+        let nextReset = calendar.nextDate(after: now, matching: comps, matchingPolicy: .nextTimePreservingSmallerComponents) ?? now
+        let diff = max(0, nextReset.timeIntervalSince(now))
         let hours = Int(diff) / 3600
         let minutes = (Int(diff) % 3600) / 60
         
@@ -75,13 +92,27 @@ struct StepBalanceCard: View {
                         .foregroundColor(.secondary)
                     
                     HStack(alignment: .lastTextBaseline, spacing: 4) {
-                        Text(formatNumber(remainingSteps))
+                        Text("\(currentEnergy)")
                             .font(.title2.bold())
                             .foregroundColor(.primary)
+                            .monospacedDigit()
                         
-                        Text("/ \(formatNumber(totalSteps))")
+                        if outerWorldSteps > 0 {
+                            Text("+\(outerWorldSteps)")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.blue, .cyan],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                        }
+                        
+                        Text("/ \(maxEnergy)")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+                            .monospacedDigit()
                     }
                 }
                 
@@ -114,93 +145,80 @@ VStack(spacing: 2) {
 )
             }
             
-            // Progress bar
+            // Progress bar - shows current energy out of 100
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     // Background
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: 8)
                         .fill(Color(.systemGray5))
                     
-                    // Remaining energy split by source (Steps vs Outer World)
-                    if remainingSteps > 0 && totalSteps > 0 {
-                        let remainingWidth = proxy.size.width * progress
-                        let hkRemaining = max(0, healthKitSteps)
-                        let owRemaining = max(0, outerWorldSteps)
-                        let grRemaining = max(0, grantedSteps)
-                        let denom = max(1, hkRemaining + owRemaining + grRemaining)
-                        let hkWidth = remainingWidth * (Double(hkRemaining) / Double(denom))
-                        let owWidth = remainingWidth * (Double(owRemaining) / Double(denom))
-                        let grWidth = max(0, remainingWidth - hkWidth - owWidth)
+                    // Progress bar showing current energy (base + bonus, max 100)
+                    if currentEnergy > 0 {
+                        let progressWidth = proxy.size.width * progress
                         
-                        HStack(spacing: 0) {
-                            Rectangle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [.pink, .pink.opacity(0.7)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(
+                                LinearGradient(
+                                    colors: [progressColor, progressColor.opacity(0.8)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
                                 )
-                                .frame(width: hkWidth)
-                            
-                            Rectangle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [.blue, .purple.opacity(0.8)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .frame(width: owWidth)
-                            
-                            if grRemaining > 0 {
-                                Rectangle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color(red: 0.85, green: 0.65, blue: 0.13), Color.orange.opacity(0.8)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .frame(width: grWidth)
-                            }
-                        }
-                        .frame(width: remainingWidth, alignment: .leading)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+                            )
+                            .frame(width: max(8, progressWidth))
+                            .shadow(color: progressColor.opacity(0.3), radius: 4, x: 0, y: 2)
                     }
                 }
             }
-            .frame(height: 12)
+            .frame(height: 14)
             .animation(.spring(response: 0.4), value: progress)
             
-            // Details section (sources only)
+            // Details section - category breakdown
             if showDetails {
-                HStack(spacing: 10) {
-                    sourceChip(
-                        icon: "figure.walk",
-                        title: loc(appLanguage, "Steps", "Шаги"),
-                        value: formatNumber(healthKitSteps),
-                        color: .pink
-                    )
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        categoryChip(
+                            icon: "moon.zzz.fill",
+                            title: loc(appLanguage, "Recovery", "Восстановление"),
+                            value: recoveryPoints,
+                            max: 40,
+                            color: .blue,
+                            category: .recovery,
+                            onTap: { onRecoveryTap?() }
+                        )
+                        
+                        categoryChip(
+                            icon: "figure.run",
+                            title: loc(appLanguage, "Activity", "Активность"),
+                            value: activityPoints,
+                            max: 40,
+                            color: .green,
+                            category: .activity,
+                            onTap: { onActivityTap?() }
+                        )
+                    }
                     
-                    sourceChip(
-                        icon: "map.fill",
-                        title: loc(appLanguage, "Outer World", "Внешний мир"),
-                        value: formatNumber(outerWorldSteps),
-                        color: .blue
-                    )
-                    
-                    if grantedSteps > 0 {
-                        sourceChip(
-                            icon: "wand.and.stars",
-                            title: loc(appLanguage, "Doom's Will", "Воля Doom"),
-                            value: formatNumber(grantedSteps),
-                            color: Color(red: 0.85, green: 0.65, blue: 0.13) // Gold
+                    HStack(spacing: 12) {
+                        categoryChip(
+                            icon: "heart.fill",
+                            title: loc(appLanguage, "Joy", "Радость"),
+                            value: joyPoints,
+                            max: 20,
+                            color: .orange,
+                            category: .joy,
+                            onTap: { onJoyTap?() }
+                        )
+                        
+                        categoryChip(
+                            icon: "battery.100.bolt",
+                            title: loc(appLanguage, "Outer World", "Внешний мир"),
+                            value: outerWorldSteps,
+                            max: 50,
+                            color: .cyan,
+                            category: nil,
+                            onTap: { onOuterWorldTap?() }
                         )
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
                 .transition(.asymmetric(
                     insertion: .move(edge: .top).combined(with: .opacity),
                     removal: .opacity
@@ -221,35 +239,66 @@ VStack(spacing: 2) {
 }
     
 @ViewBuilder
-private func sourceChip(icon: String, title: String, value: String, color: Color) -> some View {
-    HStack(spacing: 6) {
-        ZStack {
-            Circle()
-                .fill(color.opacity(0.15))
-                .frame(width: 24, height: 24)
-            Image(systemName: icon)
-                .font(.caption2)
-                .foregroundColor(color)
-        }
-        VStack(alignment: .leading, spacing: 1) {
-            Text(title)
+private func categoryChip(icon: String, title: String, value: Int, max: Int, color: Color, category: EnergyCategory?, onTap: @escaping () -> Void) -> some View {
+    Button(action: onTap) {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [color.opacity(0.2), color.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 32, height: 32)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [color, color.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .foregroundColor(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("\(value)")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(.primary)
+                        .monospacedDigit()
+                    Text("/\(max)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                }
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
                 .font(.caption2)
                 .foregroundColor(.secondary)
-            Text(value)
-                .font(.caption.weight(.bold))
-                .foregroundColor(.primary)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(.thinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(color.opacity(0.2), lineWidth: 1)
+                )
+        )
+        .frame(maxWidth: .infinity)
     }
-    .padding(.horizontal, 10)
-    .padding(.vertical, 6)
-    .background(
-        Capsule()
-            .fill(.thinMaterial)
-            .overlay(
-                Capsule()
-                    .stroke(color.opacity(0.2), lineWidth: 1)
-            )
-    )
+    .buttonStyle(.plain)
 }
     
     private func formatNumber(_ num: Int) -> String {
@@ -285,23 +334,35 @@ private func sourceChip(icon: String, title: String, value: String, color: Color
 #Preview {
     VStack(spacing: 20) {
         StepBalanceCard(
-            remainingSteps: 4520,
-            totalSteps: 6000,
-            spentSteps: 1480,
-            healthKitSteps: 5000,
-            outerWorldSteps: 800,
-            grantedSteps: 200,
-            showDetails: true
+            remainingSteps: 85,
+            totalSteps: 100,
+            spentSteps: 15,
+            healthKitSteps: 60,
+            outerWorldSteps: 25,
+            grantedSteps: 0,
+            dayEndHour: 0,
+            dayEndMinute: 0,
+            showDetails: true,
+            recoveryPoints: 35,
+            activityPoints: 30,
+            joyPoints: 15,
+            baseEnergyToday: 60
         )
         
         StepBalanceCard(
-            remainingSteps: 150,
-            totalSteps: 6000,
-            spentSteps: 5850,
-            healthKitSteps: 6000,
-            outerWorldSteps: 0,
+            remainingSteps: 45,
+            totalSteps: 100,
+            spentSteps: 55,
+            healthKitSteps: 40,
+            outerWorldSteps: 5,
             grantedSteps: 0,
-            showDetails: false
+            dayEndHour: 0,
+            dayEndMinute: 0,
+            showDetails: false,
+            recoveryPoints: 20,
+            activityPoints: 15,
+            joyPoints: 10,
+            baseEnergyToday: 40
         )
     }
     .padding()

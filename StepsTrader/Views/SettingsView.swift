@@ -17,80 +17,80 @@ struct SettingsView: View {
     
     // Popular apps list reused across the app
     static let automationAppsStatic: [AutomationApp] = [
-        .init(name: "YouTube", scheme: "youtube://", icon: "▶️", imageName: "youtube", link: "https://www.icloud.com/shortcuts/38c0a69461e544aea9b09fbe370f0023", bundleId: "com.google.ios.youtube"),
-        .init(name: "Instagram", scheme: "instagram://", icon: "📸", imageName: "instagram", link: "https://www.icloud.com/shortcuts/fe70c69ad493452c80fb68e06d0f6f80", bundleId: "com.burbn.instagram"),
-        .init(name: "TikTok", scheme: "tiktok://", icon: "🎵", imageName: "tiktok", link: "https://www.icloud.com/shortcuts/d4de1bb8470b46c9b2892451c6780638", bundleId: "com.zhiliaoapp.musically"),
-        .init(name: "Telegram", scheme: "tg://", icon: "✈️", imageName: "telegram", link: "https://www.icloud.com/shortcuts/d6a413d544c44823aa4833a0d7660a1b", bundleId: "ph.telegra.Telegraph"),
-        .init(name: "WhatsApp", scheme: "whatsapp://", icon: "💬", imageName: "whatsapp", link: "https://www.icloud.com/shortcuts/5da3f8a981994af4bfda1f56bc617ed3", bundleId: "net.whatsapp.WhatsApp"),
-        .init(name: "Snapchat", scheme: "snapchat://", icon: "👻", imageName: "snapchat", link: "https://www.icloud.com/shortcuts/d1b2814d94124c58a02eccee8e414f1e", bundleId: "com.toyopagroup.picaboo"),
-        .init(name: "Facebook", scheme: "fb://", icon: "📘", imageName: "facebook", link: "https://www.icloud.com/shortcuts/592b0f5deec04338a878f59f7ac2c196", bundleId: "com.facebook.Facebook"),
-        .init(name: "LinkedIn", scheme: "linkedin://", icon: "💼", imageName: "linkedin", link: "https://www.icloud.com/shortcuts/18a05ebbf8c2476ebd71501c3a3df5f1", bundleId: "com.linkedin.LinkedIn"),
-        .init(name: "X (Twitter)", scheme: "twitter://", icon: "🐦", imageName: "x", link: "https://www.icloud.com/shortcuts/541a0884df234c33877465c96ac16724", bundleId: "com.atebits.Tweetie2"),
-        .init(name: "Reddit", scheme: "reddit://", icon: "👽", imageName: "reddit", link: "https://www.icloud.com/shortcuts/a42f97e52f4341d887ef83dc87b1a154", bundleId: "com.reddit.Reddit"),
-        .init(name: "Pinterest", scheme: "pinterest://", icon: "📌", imageName: "pinterest", link: "https://www.icloud.com/shortcuts/bf2079f1a4bc40c7a81199e632fbc7f3", bundleId: "com.pinterest"),
+        .init(name: "YouTube", scheme: "youtube://", icon: "▶️", imageName: "youtube", link: nil, bundleId: "com.google.ios.youtube"),
+        .init(name: "Instagram", scheme: "instagram://", icon: "📸", imageName: "instagram", link: nil, bundleId: "com.burbn.instagram"),
+        .init(name: "TikTok", scheme: "tiktok://", icon: "🎵", imageName: "tiktok", link: nil, bundleId: "com.zhiliaoapp.musically"),
+        .init(name: "Telegram", scheme: "tg://", icon: "✈️", imageName: "telegram", link: nil, bundleId: "ph.telegra.Telegraph"),
+        .init(name: "WhatsApp", scheme: "whatsapp://", icon: "💬", imageName: "whatsapp", link: nil, bundleId: "net.whatsapp.WhatsApp"),
+        .init(name: "Snapchat", scheme: "snapchat://", icon: "👻", imageName: "snapchat", link: nil, bundleId: "com.toyopagroup.picaboo"),
+        .init(name: "Facebook", scheme: "fb://", icon: "📘", imageName: "facebook", link: nil, bundleId: "com.facebook.Facebook"),
+        .init(name: "LinkedIn", scheme: "linkedin://", icon: "💼", imageName: "linkedin", link: nil, bundleId: "com.linkedin.LinkedIn"),
+        .init(name: "X (Twitter)", scheme: "twitter://", icon: "🐦", imageName: "x", link: nil, bundleId: "com.atebits.Tweetie2"),
+        .init(name: "Reddit", scheme: "reddit://", icon: "👽", imageName: "reddit", link: nil, bundleId: "com.reddit.Reddit"),
+        .init(name: "Pinterest", scheme: "pinterest://", icon: "📌", imageName: "pinterest", link: nil, bundleId: "com.pinterest"),
         
         // Other apps pool
-        .init(name: "Google Maps", scheme: "comgooglemaps://", icon: "🗺️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.google.Maps", category: .other),
-        .init(name: "Waze", scheme: "waze://", icon: "🚗", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.waze.iphone", category: .other),
-        .init(name: "Apple Maps", scheme: "maps://", icon: "🧭", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.apple.Maps", category: .other),
-        .init(name: "Gmail", scheme: "googlegmail://", icon: "✉️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.google.Gmail", category: .other),
-        .init(name: "Outlook", scheme: "ms-outlook://", icon: "📧", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.microsoft.Office.Outlook", category: .other),
-        .init(name: "Spark", scheme: "readdle-spark://", icon: "⚡️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.readdle.smartemail", category: .other),
-        .init(name: "Yahoo Mail", scheme: "ymail://", icon: "💌", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.yahoo.Aerogram", category: .other),
-        .init(name: "Proton Mail", scheme: "protonmail://", icon: "🔐", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "ch.protonmail.protonmail", category: .other),
-        .init(name: "Slack", scheme: "slack://", icon: "💬", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.tinyspeck.chatlyio", category: .other),
-        .init(name: "Microsoft Teams", scheme: "msteams://", icon: "👥", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.microsoft.skype.teams", category: .other),
-        .init(name: "Zoom", scheme: "zoomus://", icon: "🎥", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "us.zoom.videomeetings", category: .other),
-        .init(name: "Webex", scheme: "wbx://", icon: "🌀", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.cisco.webex.meetings", category: .other),
-        .init(name: "Skype", scheme: "skype://", icon: "📞", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.skype.skype", category: .other),
-        .init(name: "Signal", scheme: "sgnl://", icon: "🔵", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "org.whispersystems.signal", category: .other),
-        .init(name: "Viber", scheme: "viber://", icon: "📱", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.viber", category: .other),
-        .init(name: "Line", scheme: "line://", icon: "💬", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "jp.naver.line", category: .other),
-        .init(name: "WeChat", scheme: "weixin://", icon: "🟩", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.tencent.xin", category: .other),
-        .init(name: "KakaoTalk", scheme: "kakaolink://", icon: "🟡", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.iwilab.KakaoTalk", category: .other),
-        .init(name: "Notion", scheme: "notion://", icon: "📓", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "notion.id", category: .other),
-        .init(name: "Trello", scheme: "trello://", icon: "🗂️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.fogcreek.trello", category: .other),
-        .init(name: "Evernote", scheme: "evernote://", icon: "🟢", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.evernote.iPhone.Evernote", category: .other),
-        .init(name: "Todoist", scheme: "todoist://", icon: "✅", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.todoist.mac.Todoist", category: .other),
-        .init(name: "Dropbox", scheme: "dbapi-1://", icon: "📦", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.getdropbox.Dropbox", category: .other),
-        .init(name: "Google Drive", scheme: "googledrive://", icon: "🟢", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.google.Drive", category: .other),
-        .init(name: "OneDrive", scheme: "ms-onedrive://", icon: "☁️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.microsoft.skydrive", category: .other),
-        .init(name: "Box", scheme: "box://", icon: "📁", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "net.box.BoxNet", category: .other),
-        .init(name: "1Password", scheme: "onepassword://", icon: "🛡️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.agilebits.onepassword-ios", category: .other),
-        .init(name: "NordVPN", scheme: "nordvpn://", icon: "🧭", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.nordvpn.NordVPN", category: .other),
-        .init(name: "Apple Music", scheme: "music://", icon: "🎵", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.apple.Music", category: .other),
-        .init(name: "Tidal", scheme: "tidal://", icon: "🌊", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.aspiro.TIDAL", category: .other),
-        .init(name: "Deezer", scheme: "deezer://", icon: "🎶", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.deezer.Deezer", category: .other),
-        .init(name: "SoundCloud", scheme: "soundcloud://", icon: "☁️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.soundcloud.TouchApp", category: .other),
-        .init(name: "Shazam", scheme: "shazam://", icon: "🔎", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.shazam.Shazam", category: .other),
-        .init(name: "Audible", scheme: "audible://", icon: "🎧", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.audible.iphone", category: .other),
-        .init(name: "Kindle", scheme: "kindle://", icon: "📚", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.amazon.Lassen", category: .other),
-        .init(name: "Twitch", scheme: "twitch://", icon: "🟣", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "tv.twitch", category: .other),
-        .init(name: "Uber", scheme: "uber://", icon: "🚕", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.ubercab.UberClient", category: .other),
-        .init(name: "Lyft", scheme: "lyft://", icon: "🚙", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.zimride.instant", category: .other),
-        .init(name: "Roblox", scheme: "roblox://", icon: "🎮", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.roblox.robloxmobile", category: .other),
-        .init(name: "Minecraft", scheme: "minecraft://", icon: "⛏️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.mojang.minecraftpe", category: .other),
-        .init(name: "PUBG Mobile", scheme: "pubgmobile://", icon: "⚔️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.tencent.ig", category: .other),
-        .init(name: "Call of Duty Mobile", scheme: "codm://", icon: "🎯", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.activision.callofduty.shooter", category: .other),
-        .init(name: "Genshin Impact", scheme: "yuanshen://", icon: "🌌", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.miHoYo.GenshinImpact", category: .other),
-        .init(name: "Fortnite", scheme: "fortnite://", icon: "🛡️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.epicgames.fortnite", category: .other),
-        .init(name: "FIFA Mobile", scheme: "fifamobile://", icon: "⚽️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.ea.ios.fifaultimate", category: .other),
-        .init(name: "Clash of Clans", scheme: "clashofclans://", icon: "🛡️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.supercell.magic", category: .other),
-        .init(name: "Clash Royale", scheme: "clashroyale://", icon: "👑", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.supercell.scroll", category: .other),
-        .init(name: "Brawl Stars", scheme: "brawlstars://", icon: "⭐️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.supercell.brawlstars", category: .other),
-        .init(name: "Pokémon GO", scheme: "com.nianticlabs.pokemongo://", icon: "🐾", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.nianticlabs.pokemongo", category: .other),
-        .init(name: "Candy Crush", scheme: "candycrushsaga://", icon: "🍭", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.midasplayer.apps.candycrushsaga", category: .other),
-        .init(name: "Subway Surfers", scheme: "subwaysurfers://", icon: "🏃‍♂️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.kiloo.subwaysurf", category: .other),
-        .init(name: "Asphalt 9", scheme: "asphalt9://", icon: "🏎️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.gameloft.asphalt9", category: .other),
-        .init(name: "Hearthstone", scheme: "hearthstone://", icon: "🃏", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.blizzard.wtcg.hearthstone", category: .other),
-        .init(name: "Wild Rift", scheme: "lor://", icon: "🗡️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.riotgames.league.wildrift", category: .other),
-        .init(name: "Valorant", scheme: "valorant://", icon: "🎯", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.riotgames.valorant", category: .other),
-        .init(name: "Apex Legends Mobile", scheme: "apexm://", icon: "🪂", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.ea.gp.apexlegendsmobilefps", category: .other),
-        .init(name: "Among Us", scheme: "amongus://", icon: "👩‍🚀", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.innersloth.amongus", category: .other),
-        .init(name: "Stumble Guys", scheme: "stumbleguys://", icon: "🤸‍♂️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.kitkagames.fallbuddies", category: .other),
-        .init(name: "Mobile Legends", scheme: "mobilelegends://", icon: "🛡️", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.mobile.legends", category: .other),
-        .init(name: "Free Fire", scheme: "freefire://", icon: "🔥", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.dts.freefireth", category: .other),
-        .init(name: "Hay Day", scheme: "hayday://", icon: "🌾", imageName: nil, link: "https://www.icloud.com/shortcuts/8d1cd21e18eb41d3ae6d7f049977dee8", bundleId: "com.supercell.hayday", category: .other),
+        .init(name: "Google Maps", scheme: "comgooglemaps://", icon: "🗺️", imageName: nil, link: nil, bundleId: "com.google.Maps", category: .other),
+        .init(name: "Waze", scheme: "waze://", icon: "🚗", imageName: nil, link: nil, bundleId: "com.waze.iphone", category: .other),
+        .init(name: "Apple Maps", scheme: "maps://", icon: "🧭", imageName: nil, link: nil, bundleId: "com.apple.Maps", category: .other),
+        .init(name: "Gmail", scheme: "googlegmail://", icon: "✉️", imageName: nil, link: nil, bundleId: "com.google.Gmail", category: .other),
+        .init(name: "Outlook", scheme: "ms-outlook://", icon: "📧", imageName: nil, link: nil, bundleId: "com.microsoft.Office.Outlook", category: .other),
+        .init(name: "Spark", scheme: "readdle-spark://", icon: "⚡️", imageName: nil, link: nil, bundleId: "com.readdle.smartemail", category: .other),
+        .init(name: "Yahoo Mail", scheme: "ymail://", icon: "💌", imageName: nil, link: nil, bundleId: "com.yahoo.Aerogram", category: .other),
+        .init(name: "Proton Mail", scheme: "protonmail://", icon: "🔐", imageName: nil, link: nil, bundleId: "ch.protonmail.protonmail", category: .other),
+        .init(name: "Slack", scheme: "slack://", icon: "💬", imageName: nil, link: nil, bundleId: "com.tinyspeck.chatlyio", category: .other),
+        .init(name: "Microsoft Teams", scheme: "msteams://", icon: "👥", imageName: nil, link: nil, bundleId: "com.microsoft.skype.teams", category: .other),
+        .init(name: "Zoom", scheme: "zoomus://", icon: "🎥", imageName: nil, link: nil, bundleId: "us.zoom.videomeetings", category: .other),
+        .init(name: "Webex", scheme: "wbx://", icon: "🌀", imageName: nil, link: nil, bundleId: "com.cisco.webex.meetings", category: .other),
+        .init(name: "Skype", scheme: "skype://", icon: "📞", imageName: nil, link: nil, bundleId: "com.skype.skype", category: .other),
+        .init(name: "Signal", scheme: "sgnl://", icon: "🔵", imageName: nil, link: nil, bundleId: "org.whispersystems.signal", category: .other),
+        .init(name: "Viber", scheme: "viber://", icon: "📱", imageName: nil, link: nil, bundleId: "com.viber", category: .other),
+        .init(name: "Line", scheme: "line://", icon: "💬", imageName: nil, link: nil, bundleId: "jp.naver.line", category: .other),
+        .init(name: "WeChat", scheme: "weixin://", icon: "🟩", imageName: nil, link: nil, bundleId: "com.tencent.xin", category: .other),
+        .init(name: "KakaoTalk", scheme: "kakaolink://", icon: "🟡", imageName: nil, link: nil, bundleId: "com.iwilab.KakaoTalk", category: .other),
+        .init(name: "Notion", scheme: "notion://", icon: "📓", imageName: nil, link: nil, bundleId: "notion.id", category: .other),
+        .init(name: "Trello", scheme: "trello://", icon: "🗂️", imageName: nil, link: nil, bundleId: "com.fogcreek.trello", category: .other),
+        .init(name: "Evernote", scheme: "evernote://", icon: "🟢", imageName: nil, link: nil, bundleId: "com.evernote.iPhone.Evernote", category: .other),
+        .init(name: "Todoist", scheme: "todoist://", icon: "✅", imageName: nil, link: nil, bundleId: "com.todoist.mac.Todoist", category: .other),
+        .init(name: "Dropbox", scheme: "dbapi-1://", icon: "📦", imageName: nil, link: nil, bundleId: "com.getdropbox.Dropbox", category: .other),
+        .init(name: "Google Drive", scheme: "googledrive://", icon: "🟢", imageName: nil, link: nil, bundleId: "com.google.Drive", category: .other),
+        .init(name: "OneDrive", scheme: "ms-onedrive://", icon: "☁️", imageName: nil, link: nil, bundleId: "com.microsoft.skydrive", category: .other),
+        .init(name: "Box", scheme: "box://", icon: "📁", imageName: nil, link: nil, bundleId: "net.box.BoxNet", category: .other),
+        .init(name: "1Password", scheme: "onepassword://", icon: "🛡️", imageName: nil, link: nil, bundleId: "com.agilebits.onepassword-ios", category: .other),
+        .init(name: "NordVPN", scheme: "nordvpn://", icon: "🧭", imageName: nil, link: nil, bundleId: "com.nordvpn.NordVPN", category: .other),
+        .init(name: "Apple Music", scheme: "music://", icon: "🎵", imageName: nil, link: nil, bundleId: "com.apple.Music", category: .other),
+        .init(name: "Tidal", scheme: "tidal://", icon: "🌊", imageName: nil, link: nil, bundleId: "com.aspiro.TIDAL", category: .other),
+        .init(name: "Deezer", scheme: "deezer://", icon: "🎶", imageName: nil, link: nil, bundleId: "com.deezer.Deezer", category: .other),
+        .init(name: "SoundCloud", scheme: "soundcloud://", icon: "☁️", imageName: nil, link: nil, bundleId: "com.soundcloud.TouchApp", category: .other),
+        .init(name: "Shazam", scheme: "shazam://", icon: "🔎", imageName: nil, link: nil, bundleId: "com.shazam.Shazam", category: .other),
+        .init(name: "Audible", scheme: "audible://", icon: "🎧", imageName: nil, link: nil, bundleId: "com.audible.iphone", category: .other),
+        .init(name: "Kindle", scheme: "kindle://", icon: "📚", imageName: nil, link: nil, bundleId: "com.amazon.Lassen", category: .other),
+        .init(name: "Twitch", scheme: "twitch://", icon: "🟣", imageName: nil, link: nil, bundleId: "tv.twitch", category: .other),
+        .init(name: "Uber", scheme: "uber://", icon: "🚕", imageName: nil, link: nil, bundleId: "com.ubercab.UberClient", category: .other),
+        .init(name: "Lyft", scheme: "lyft://", icon: "🚙", imageName: nil, link: nil, bundleId: "com.zimride.instant", category: .other),
+        .init(name: "Roblox", scheme: "roblox://", icon: "🎮", imageName: nil, link: nil, bundleId: "com.roblox.robloxmobile", category: .other),
+        .init(name: "Minecraft", scheme: "minecraft://", icon: "⛏️", imageName: nil, link: nil, bundleId: "com.mojang.minecraftpe", category: .other),
+        .init(name: "PUBG Mobile", scheme: "pubgmobile://", icon: "⚔️", imageName: nil, link: nil, bundleId: "com.tencent.ig", category: .other),
+        .init(name: "Call of Duty Mobile", scheme: "codm://", icon: "🎯", imageName: nil, link: nil, bundleId: "com.activision.callofduty.shooter", category: .other),
+        .init(name: "Genshin Impact", scheme: "yuanshen://", icon: "🌌", imageName: nil, link: nil, bundleId: "com.miHoYo.GenshinImpact", category: .other),
+        .init(name: "Fortnite", scheme: "fortnite://", icon: "🛡️", imageName: nil, link: nil, bundleId: "com.epicgames.fortnite", category: .other),
+        .init(name: "FIFA Mobile", scheme: "fifamobile://", icon: "⚽️", imageName: nil, link: nil, bundleId: "com.ea.ios.fifaultimate", category: .other),
+        .init(name: "Clash of Clans", scheme: "clashofclans://", icon: "🛡️", imageName: nil, link: nil, bundleId: "com.supercell.magic", category: .other),
+        .init(name: "Clash Royale", scheme: "clashroyale://", icon: "👑", imageName: nil, link: nil, bundleId: "com.supercell.scroll", category: .other),
+        .init(name: "Brawl Stars", scheme: "brawlstars://", icon: "⭐️", imageName: nil, link: nil, bundleId: "com.supercell.brawlstars", category: .other),
+        .init(name: "Pokémon GO", scheme: "com.nianticlabs.pokemongo://", icon: "🐾", imageName: nil, link: nil, bundleId: "com.nianticlabs.pokemongo", category: .other),
+        .init(name: "Candy Crush", scheme: "candycrushsaga://", icon: "🍭", imageName: nil, link: nil, bundleId: "com.midasplayer.apps.candycrushsaga", category: .other),
+        .init(name: "Subway Surfers", scheme: "subwaysurfers://", icon: "🏃‍♂️", imageName: nil, link: nil, bundleId: "com.kiloo.subwaysurf", category: .other),
+        .init(name: "Asphalt 9", scheme: "asphalt9://", icon: "🏎️", imageName: nil, link: nil, bundleId: "com.gameloft.asphalt9", category: .other),
+        .init(name: "Hearthstone", scheme: "hearthstone://", icon: "🃏", imageName: nil, link: nil, bundleId: "com.blizzard.wtcg.hearthstone", category: .other),
+        .init(name: "Wild Rift", scheme: "lor://", icon: "🗡️", imageName: nil, link: nil, bundleId: "com.riotgames.league.wildrift", category: .other),
+        .init(name: "Valorant", scheme: "valorant://", icon: "🎯", imageName: nil, link: nil, bundleId: "com.riotgames.valorant", category: .other),
+        .init(name: "Apex Legends Mobile", scheme: "apexm://", icon: "🪂", imageName: nil, link: nil, bundleId: "com.ea.gp.apexlegendsmobilefps", category: .other),
+        .init(name: "Among Us", scheme: "amongus://", icon: "👩‍🚀", imageName: nil, link: nil, bundleId: "com.innersloth.amongus", category: .other),
+        .init(name: "Stumble Guys", scheme: "stumbleguys://", icon: "🤸‍♂️", imageName: nil, link: nil, bundleId: "com.kitkagames.fallbuddies", category: .other),
+        .init(name: "Mobile Legends", scheme: "mobilelegends://", icon: "🛡️", imageName: nil, link: nil, bundleId: "com.mobile.legends", category: .other),
+        .init(name: "Free Fire", scheme: "freefire://", icon: "🔥", imageName: nil, link: nil, bundleId: "com.dts.freefireth", category: .other),
+        .init(name: "Hay Day", scheme: "hayday://", icon: "🌾", imageName: nil, link: nil, bundleId: "com.supercell.hayday", category: .other),
     ]
 
     var body: some View {
@@ -488,6 +488,37 @@ struct SettingsView: View {
                         Text(payGateStyleDisplayName)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary.opacity(0.5))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                
+                Divider()
+                    .padding(.leading, 58)
+                
+                NavigationLink {
+                    EnergySetupView(model: model)
+                } label: {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.orange.opacity(0.15))
+                                .frame(width: 32, height: 32)
+                            Image(systemName: "bolt.heart.fill")
+                                .font(.subheadline)
+                                .foregroundColor(.orange)
+                        }
+                        
+                        Text(loc(appLanguage, "Daily setup", "Настройка дня"))
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
                         
                         Image(systemName: "chevron.right")
                             .font(.caption)

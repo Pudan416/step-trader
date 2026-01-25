@@ -72,7 +72,7 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
     private let pickupRadius: CLLocationDistance = 50 // meters
     private let maxDropsOnScreen = 1
     private let dropLifetime: TimeInterval = 24 * 3600 // 24 hours
-    private let dropEnergy: Int = 500
+    private let dropEnergy: Int = 5
     private let spawnRadius: CLLocationDistance = 500 // meters
     private let maxMagnetUsesPerDay: Int = 3
     
@@ -495,10 +495,22 @@ class OuterWorldLocationManager: NSObject, ObservableObject, CLLocationManagerDe
 
     private func dayKey(for date: Date) -> String {
         // Local day key to avoid @MainActor isolation of AppModel.dayKey(for:)
+        let cal = Calendar.current
+        let hour = UserDefaults.standard.integer(forKey: "dayEndHour_v1")
+        let minute = UserDefaults.standard.integer(forKey: "dayEndMinute_v1")
+        let cutoff = cal.date(bySettingHour: hour, minute: minute, second: 0, of: date)
+        let anchor: Date
+        if let cutoff, date >= cutoff {
+            anchor = cutoff
+        } else if let cutoff, let prev = cal.date(byAdding: .day, value: -1, to: cutoff) {
+            anchor = prev
+        } else {
+            anchor = cal.startOfDay(for: date)
+        }
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.dateFormat = "yyyy-MM-dd"
-        return df.string(from: date)
+        return df.string(from: anchor)
     }
     
     private func loadMagnetUsesToday() {
@@ -592,8 +604,10 @@ struct OuterWorldView: View {
     
     var body: some View {
         ZStack {
-            // Map
-            mapView
+            // Map - используем Group для безопасной инициализации
+            Group {
+                mapView
+            }
             
             // Overlay UI
             VStack {
@@ -674,14 +688,16 @@ struct OuterWorldView: View {
         }
         .onAppear {
             checkLocationPermission()
-            // Force refresh to catch midnight reset
-            DispatchQueue.main.async {
+            // Force refresh to catch midnight reset - откладываем, чтобы не блокировать инициализацию view
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms задержка
                 locationManager.refreshEconomySnapshot()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            // Ensure daily counters (10k/day cap + magnets/day) reset after midnight even if the app was backgrounded.
-            DispatchQueue.main.async {
+            // Ensure daily counters (50/day cap + magnets/day) reset after midnight even if the app was backgrounded.
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms задержка
                 locationManager.refreshEconomySnapshot()
             }
         }
@@ -690,13 +706,14 @@ struct OuterWorldView: View {
             locationManager.refreshEconomySnapshot()
         }
         .onChange(of: model.stepsToday) { _, _ in
-            // Daily cap depends on HealthKit steps; AppModel persists it into defaults.
+            // Daily cap uses the latest app settings; AppModel persists it into defaults.
             locationManager.refreshEconomySnapshot()
         }
         .onReceive(locationManager.$collectedDrop) { drop in
             if drop != nil {
                 showCollectedAlert = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 2_500_000_000) // 2.5 секунды
                     locationManager.collectedDrop = nil
                 }
             }
@@ -704,21 +721,24 @@ struct OuterWorldView: View {
         .onReceive(locationManager.$magnetLimitReachedAt) { date in
             guard date != nil else { return }
             showMagnetLimitToast = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 секунды
                 showMagnetLimitToast = false
             }
         }
         .onReceive(locationManager.$magnetNoDropsAt) { date in
             guard date != nil else { return }
             showMagnetNoDropsToast = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_800_000_000) // 1.8 секунды
                 showMagnetNoDropsToast = false
             }
         }
         .onReceive(locationManager.$dailyCapReachedAt) { date in
             guard date != nil else { return }
             showDailyCapToast = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 секунды
                 showDailyCapToast = false
             }
         }
@@ -773,6 +793,7 @@ struct OuterWorldView: View {
     
     // MARK: - Map View
     
+    @ViewBuilder
     private var mapView: some View {
         Map(position: $cameraPosition) {
             // User location
@@ -792,7 +813,8 @@ struct OuterWorldView: View {
                         // Tap = show actions (route / magnet)
                         selectedDropForAction = drop
                         selectedDrop = drop
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_600_000_000) // 1.6 секунды
                             if selectedDrop?.id == drop.id { selectedDrop = nil }
                         }
                     } label: {
@@ -813,6 +835,10 @@ struct OuterWorldView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .top)
+        .task {
+            // Небольшая задержка для безопасной инициализации Metal
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        }
     }
     
     // MARK: - Header Overlay
@@ -922,7 +948,7 @@ struct OuterWorldView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(loc(appLanguage, "Outer World", "Внешний мир"))
                             .font(.headline)
-                        Text(loc(appLanguage, "Touch grass, get fuel ⚡️", "На прогулку за топливом ⚡️"))
+                        Text(loc(appLanguage, "Touch grass, get energy ⚡️", "На прогулку за энергией ⚡️"))
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -1012,7 +1038,7 @@ struct OuterWorldView: View {
                         }
                         
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(loc(appLanguage, "Fuel Hunt", "Охота за топливом"))
+                            Text(loc(appLanguage, "Energy Hunt", "Охота за энергией"))
                                 .font(.headline)
                             Text(loc(appLanguage, "Walk → Collect → Dominate 🏆", "Гуляй → Собирай → Властвуй 🏆"))
                                 .font(.caption2)
@@ -1050,7 +1076,7 @@ struct OuterWorldView: View {
                                 Image(systemName: "battery.100.bolt")
                                     .font(.caption2)
                                     .foregroundColor(.orange)
-                                Text("+500")
+                                Text("+5")
                                     .font(.caption2.weight(.semibold))
                             }
                             

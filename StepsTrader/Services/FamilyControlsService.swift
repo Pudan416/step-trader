@@ -43,26 +43,34 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
 
     func updateMinuteModeMonitoring() {
         #if canImport(FamilyControls)
-        let events = buildMinuteEvents()
-        if events.isEmpty {
-            deviceActivityCenter.stopMonitoring([minuteActivityName])
-            return
-        }
+        // Выполняем асинхронно, чтобы не блокировать главный поток
+        Task { @MainActor in
+            let events = buildMinuteEvents()
+            if events.isEmpty {
+                deviceActivityCenter.stopMonitoring([minuteActivityName])
+                return
+            }
 
-        let schedule = DeviceActivitySchedule(
-            intervalStart: DateComponents(hour: 0, minute: 0),
-            intervalEnd: DateComponents(hour: 23, minute: 59),
-            repeats: true
-        )
+            let schedule = DeviceActivitySchedule(
+                intervalStart: DateComponents(hour: 0, minute: 0),
+                intervalEnd: DateComponents(hour: 23, minute: 59),
+                repeats: true
+            )
 
-        do {
-            // Restart to avoid "already monitoring" errors and to pick up updated selections/settings.
-            deviceActivityCenter.stopMonitoring([minuteActivityName])
-            try deviceActivityCenter.startMonitoring(minuteActivityName, during: schedule, events: events)
-        } catch {
-            print("❌ Failed to start DeviceActivity monitoring: \(error)")
+            do {
+                // Restart to avoid "already monitoring" errors and to pick up updated selections/settings.
+                deviceActivityCenter.stopMonitoring([minuteActivityName])
+                try deviceActivityCenter.startMonitoring(minuteActivityName, during: schedule, events: events)
+            } catch {
+                print("❌ Failed to start DeviceActivity monitoring: \(error)")
+            }
         }
         #endif
+    }
+    
+    func updateShieldSchedule() {
+        // Shield is configured in DeviceActivityMonitorExtension.intervalDidStart()
+        // via ManagedSettingsStore. This method is kept for protocol compliance.
     }
 
     // Legacy DeviceActivity hooks (no-op)
@@ -101,7 +109,6 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
             let event = DeviceActivityEvent(
                 applications: selection.applicationTokens,
                 categories: selection.categoryTokens,
-                webDomains: selection.webDomainTokens,
                 threshold: DateComponents(minute: nextThreshold)
             )
             events[eventName] = event
