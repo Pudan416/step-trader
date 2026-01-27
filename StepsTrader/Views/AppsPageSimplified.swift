@@ -4,12 +4,15 @@ import FamilyControls
 #endif
 import Foundation
 
+struct ShieldGroupId: Identifiable {
+    let id: String
+}
+
 struct AppsPageSimplified: View {
     @ObservedObject var model: AppModel
     @State private var selection = FamilyActivitySelection()
     @State private var showPicker = false
-    @State private var selectedGroupId: String? = nil
-    @State private var showGroupSettings = false
+    @State private var selectedGroupId: ShieldGroupId? = nil
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     
     var body: some View {
@@ -37,7 +40,7 @@ struct AppsPageSimplified: View {
                     appLanguage: appLanguage,
                     onDone: {
                         if let groupId = selectedGroupId {
-                            model.addAppsToGroup(groupId, selection: selection)
+                            model.addAppsToGroup(groupId.id, selection: selection)
                         } else {
                             model.syncFamilyControlsCards(from: selection)
                         }
@@ -50,14 +53,17 @@ struct AppsPageSimplified: View {
                     .padding()
                 #endif
             }
-            .sheet(isPresented: $showGroupSettings) {
-                if let groupId = selectedGroupId,
-                   let group = model.shieldGroups.first(where: { $0.id == groupId }) {
+            .sheet(item: $selectedGroupId) { groupIdWrapper in
+                if let group = model.shieldGroups.first(where: { $0.id == groupIdWrapper.id }) {
                     ShieldGroupSettingsView(
                         model: model,
                         group: group,
                         appLanguage: appLanguage
                     )
+                } else {
+                    Text("Error: Shield group not found")
+                        .foregroundColor(.red)
+                        .padding()
                 }
             }
             .onAppear {
@@ -75,9 +81,9 @@ struct AppsPageSimplified: View {
             // Header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(loc(appLanguage, "Shields", "Щиты"))
+                    Text(loc(appLanguage, "Shields"))
                         .font(.title3.weight(.bold))
-                    Text(loc(appLanguage, "\(groupsCount) shields protecting your apps", "\(groupsCount) щитов защищают приложения"))
+                    Text(loc(appLanguage, "\(groupsCount) shields protecting your apps"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -97,14 +103,13 @@ struct AppsPageSimplified: View {
     
     private var addShieldButtonCompact: some View {
         Button {
-            let group = model.createShieldGroup(name: loc(appLanguage, "New Shield", "Новый щит"))
-            selectedGroupId = group.id
-            showGroupSettings = true
+            let group = model.createShieldGroup(name: loc(appLanguage, "New Shield"))
+            selectedGroupId = ShieldGroupId(id: group.id)
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "plus")
                     .font(.system(size: 14, weight: .semibold))
-                Text(loc(appLanguage, "Add", "Добавить"))
+                Text(loc(appLanguage, "Add"))
                     .font(.subheadline.weight(.semibold))
             }
             .foregroundColor(.white)
@@ -149,9 +154,9 @@ struct AppsPageSimplified: View {
             }
             
             VStack(spacing: 6) {
-                Text(loc(appLanguage, "No shields yet", "Пока нет щитов"))
+                Text(loc(appLanguage, "No shields yet"))
                     .font(.headline)
-                Text(loc(appLanguage, "Add your first shield to protect apps", "Добавьте первый щит для защиты приложений"))
+                Text(loc(appLanguage, "Add your first shield to protect apps"))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -171,8 +176,7 @@ struct AppsPageSimplified: View {
                     group: group,
                     appLanguage: appLanguage,
                     onEdit: {
-                        selectedGroupId = group.id
-                        showGroupSettings = true
+                        selectedGroupId = ShieldGroupId(id: group.id)
                     }
                 )
             }
@@ -239,267 +243,6 @@ struct AppsPageSimplified: View {
         case 5: return .purple
         default: return .gray
         }
-    }
-    
-    private func loc(_ lang: String, _ en: String, _ ru: String) -> String {
-        lang == "ru" ? ru : en
-    }
-}
-
-// MARK: - Shield Row View (New Clean Design)
-struct ShieldRowView: View {
-    @ObservedObject var model: AppModel
-    let group: AppModel.ShieldGroup
-    let appLanguage: String
-    let onEdit: () -> Void
-    @State private var remainingTime: TimeInterval? = nil
-    @State private var timer: Timer? = nil
-    
-    private var appsCount: Int {
-        group.selection.applicationTokens.count + group.selection.categoryTokens.count
-    }
-    
-    private var isActive: Bool {
-        group.settings.familyControlsModeEnabled || group.settings.minuteTariffEnabled
-    }
-    
-    private var isUnlocked: Bool {
-        model.isGroupUnlocked(group.id)
-    }
-    
-    var body: some View {
-        Button {
-            onEdit()
-        } label: {
-            HStack(spacing: 14) {
-                // App icons stack
-                appIconsStack
-                
-                // Info
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Text(group.name.isEmpty ? loc(appLanguage, "Shield", "Щит") : group.name)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                        
-                        if isActive {
-                            Circle()
-                                .fill(.green)
-                                .frame(width: 6, height: 6)
-                        }
-                    }
-                    
-                    HStack(spacing: 12) {
-                        // Apps count
-                        Label("\(appsCount)", systemImage: "app.fill")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        // Difficulty level
-                        HStack(spacing: 3) {
-                            Image(systemName: "chart.bar.fill")
-                                .font(.caption2)
-                                .foregroundColor(difficultyColor(for: group.difficultyLevel))
-                            Text("\(loc(appLanguage, "Level", "Уровень")) \(group.difficultyLevel)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        // Remaining unlock time
-                        if isUnlocked, let remaining = remainingTime {
-                            HStack(spacing: 3) {
-                                Image(systemName: "clock.fill")
-                                    .font(.caption2)
-                                    .foregroundColor(.orange)
-                                Text(formatRemainingTime(remaining))
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(.orange)
-                                    .monospacedDigit()
-                            }
-                        }
-                    }
-                }
-                
-                Spacer()
-                
-                // Chevron
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary.opacity(0.5))
-            }
-            .padding(14)
-            .background(glassCard)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(
-                        isUnlocked ? Color.orange.opacity(0.4) : 
-                        (isActive ? Color.blue.opacity(0.2) : Color.clear),
-                        lineWidth: isUnlocked ? 2 : 1.5
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .onAppear {
-            updateRemainingTime()
-            // Обновляем время каждую секунду
-            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                updateRemainingTime()
-            }
-        }
-        .onDisappear {
-            timer?.invalidate()
-            timer = nil
-        }
-    }
-    
-    private func updateRemainingTime() {
-        remainingTime = model.remainingUnlockTime(for: group.id)
-    }
-    
-    private func formatRemainingTime(_ timeInterval: TimeInterval) -> String {
-        let totalSeconds = Int(timeInterval)
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        let seconds = totalSeconds % 60
-        
-        if hours > 0 {
-            return String(format: "%dh %02dm", hours, minutes)
-        } else if minutes > 0 {
-            return String(format: "%dm %02ds", minutes, seconds)
-        } else {
-            return String(format: "%ds", seconds)
-        }
-    }
-    
-    // MARK: - App Icons Stack
-    private var appIconsStack: some View {
-        ZStack {
-            #if canImport(FamilyControls)
-            let appTokens = Array(group.selection.applicationTokens.prefix(3))
-            let remainingSlots = max(0, 3 - appTokens.count)
-            let categoryTokens = Array(group.selection.categoryTokens.prefix(remainingSlots))
-            let hasMore = appsCount > 3
-            
-            // Показываем иконки приложений
-            ForEach(Array(appTokens.enumerated()), id: \.offset) { index, token in
-                AppIconView(token: token)
-                    .frame(width: iconSize(for: index), height: iconSize(for: index))
-                    .clipShape(RoundedRectangle(cornerRadius: iconRadius(for: index)))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: iconRadius(for: index))
-                            .stroke(Color.white, lineWidth: 2)
-                    )
-                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-                    .offset(x: iconOffset(for: index).x, y: iconOffset(for: index).y)
-                    .zIndex(Double(3 - index))
-            }
-            
-            // Показываем иконки категорий, если остались слоты
-            ForEach(Array(categoryTokens.enumerated()), id: \.offset) { offset, token in
-                let index = appTokens.count + offset
-                CategoryIconView(token: token)
-                    .frame(width: iconSize(for: index), height: iconSize(for: index))
-                    .clipShape(RoundedRectangle(cornerRadius: iconRadius(for: index)))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: iconRadius(for: index))
-                            .stroke(Color.white, lineWidth: 2)
-                    )
-                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-                    .offset(x: iconOffset(for: index).x, y: iconOffset(for: index).y)
-                    .zIndex(Double(3 - index))
-            }
-            
-            // Empty state
-            if appTokens.isEmpty && categoryTokens.isEmpty {
-                emptyIcon
-            }
-            
-            // +N badge
-            if hasMore {
-                Text("+\(appsCount - 3)")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(Color.black.opacity(0.6))
-                    .clipShape(Capsule())
-                    .offset(x: 16, y: 16)
-                    .zIndex(10)
-            }
-            #else
-            emptyIcon
-            #endif
-        }
-        .frame(width: 56, height: 56)
-    }
-    
-    private func iconSize(for index: Int) -> CGFloat {
-        switch index {
-        case 0: return 44
-        case 1: return 36
-        default: return 30
-        }
-    }
-    
-    private func iconRadius(for index: Int) -> CGFloat {
-        switch index {
-        case 0: return 10
-        case 1: return 8
-        default: return 7
-        }
-    }
-    
-    private func iconOffset(for index: Int) -> (x: CGFloat, y: CGFloat) {
-        switch index {
-        case 0: return (-4, -4)
-        case 1: return (8, 6)
-        default: return (14, 14)
-        }
-    }
-    
-    private var emptyIcon: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(.tertiarySystemBackground))
-                .frame(width: 44, height: 44)
-            
-            Image(systemName: "app.dashed")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.secondary)
-        }
-    }
-    
-    // MARK: - Glass Card Style
-    private var glassCard: some View {
-        RoundedRectangle(cornerRadius: 18)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.25), Color.white.opacity(0.08)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 0.5
-                    )
-            )
-            .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 3)
-    }
-    
-    private func difficultyColor(for level: Int) -> Color {
-        switch level {
-        case 1: return .green
-        case 2: return .blue
-        case 3: return .orange
-        case 4: return .red
-        case 5: return .purple
-        default: return .gray
-        }
-    }
-    
-    private func loc(_ lang: String, _ en: String, _ ru: String) -> String {
-        lang == "ru" ? ru : en
     }
 }
 
@@ -801,11 +544,11 @@ struct ShieldGroupCardView: View {
     private var modeDescription: String {
         switch (group.settings.familyControlsModeEnabled, group.settings.minuteTariffEnabled) {
         case (true, true):
-            return loc(appLanguage, "Shield + minute mode", "Щит + минутный режим")
+            return loc(appLanguage, "Shield + minute mode")
         case (true, false):
-            return loc(appLanguage, "Shield enabled", "Щит включен")
+            return loc(appLanguage, "Shield enabled")
         case (false, true):
-            return loc(appLanguage, "Minute mode only", "Только минутный режим")
+            return loc(appLanguage, "Minute mode only")
         default:
             return ""
         }
@@ -925,10 +668,6 @@ struct ShieldGroupCardView: View {
         default: return .gray
         }
     }
-    
-    private func loc(_ lang: String, _ en: String, _ ru: String) -> String {
-        lang == "ru" ? ru : en
-    }
 }
 
 // MARK: - Shield Card View (Legacy)
@@ -949,7 +688,7 @@ struct ShieldCardView: View {
     private var title: String {
         let name = model.appDisplayName(for: cardId)
         if name == "Selected app", isGroup {
-            return loc(appLanguage, "App group shield", "Щит для группы приложений")
+            return loc(appLanguage, "App group shield")
         } else {
             return name
         }
@@ -963,33 +702,30 @@ struct ShieldCardView: View {
             if appsCount > 0 && catsCount > 0 {
                 return loc(
                     appLanguage,
-                    "\(appsCount) apps, \(catsCount) categories",
-                    "\(appsCount) приложений, \(catsCount) категорий"
+                    "\(appsCount) apps, \(catsCount) categories"
                 )
             } else if catsCount > 0 {
                 return loc(
                     appLanguage,
-                    "\(catsCount) categories",
-                    "\(catsCount) категорий"
+                    "\(catsCount) categories"
                 )
             }
         }
         
         return loc(
             appLanguage,
-            "Single app shield",
-            "Щит для одного приложения"
+            "Single app shield"
         )
     }
 
     private var modeDescription: String {
         switch (settings.familyControlsModeEnabled, settings.minuteTariffEnabled) {
         case (true, true):
-            return loc(appLanguage, "Shield + minute mode", "Щит + минутный режим")
+            return loc(appLanguage, "Shield + minute mode")
         case (true, false):
-            return loc(appLanguage, "Shield enabled", "Щит включен")
+            return loc(appLanguage, "Shield enabled")
         case (false, true):
-            return loc(appLanguage, "Minute mode only", "Только минутный режим")
+            return loc(appLanguage, "Minute mode only")
         default:
             return ""
         }
@@ -1183,398 +919,5 @@ struct ShieldCardView: View {
             return (0, 0)
         }
     }
-
-    private func loc(_ lang: String, _ en: String, _ ru: String) -> String {
-        lang == "ru" ? ru : en
-    }
 }
 
-// MARK: - Shield Group Settings View
-struct ShieldGroupSettingsView: View {
-    @ObservedObject var model: AppModel
-    @State var group: AppModel.ShieldGroup
-    let appLanguage: String
-    @Environment(\.dismiss) private var dismiss
-    @State private var showAppPicker = false
-    @State private var pickerSelection = FamilyActivitySelection()
-    @State private var showAuthAlert = false
-    
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                LazyVStack(spacing: 20) {
-                    // Apps in group
-                    appsInGroupSection
-                    
-                    // Difficulty level and intervals settings
-                    difficultyAndIntervalsSection
-                    
-                    // Delete button
-                    deleteGroupButton
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 20)
-            }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Group Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        model.updateShieldGroup(group)
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                }
-            }
-            .sheet(isPresented: $showAppPicker) {
-                #if canImport(FamilyControls)
-                AppSelectionSheet(
-                    selection: $pickerSelection,
-                    appLanguage: appLanguage,
-                    onDone: {
-                        // Объединяем существующий выбор с новым
-                        #if canImport(FamilyControls)
-                        group.selection.applicationTokens.formUnion(pickerSelection.applicationTokens)
-                        group.selection.categoryTokens.formUnion(pickerSelection.categoryTokens)
-                        #endif
-                        showAppPicker = false
-                    }
-                )
-                #endif
-            }
-            .alert("Authorization Required", isPresented: $showAuthAlert) {
-                Button("OK") { }
-            } message: {
-                Text("Please authorize Family Controls in Settings to enable shield features")
-            }
-        }
-    }
-    
-    private var appsInGroupSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Apps in Group")
-                    .font(.headline)
-                Spacer()
-                Text("\(group.selection.applicationTokens.count + group.selection.categoryTokens.count)")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.secondary)
-            }
-            
-            if group.selection.applicationTokens.isEmpty && group.selection.categoryTokens.isEmpty {
-                Button {
-                    pickerSelection = FamilyActivitySelection()
-                    showAppPicker = true
-                } label: {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add Apps")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-            } else {
-                LazyVStack(spacing: 8) {
-                    // Показываем список приложений
-                    // Используем LazyVStack для ленивой загрузки
-                    #if canImport(FamilyControls)
-                    ForEach(Array(group.selection.applicationTokens.enumerated()), id: \.offset) { index, token in
-                        appRow(token: token, isCategory: false)
-                            .id("app_\(index)")
-                    }
-                    ForEach(Array(group.selection.categoryTokens.enumerated()), id: \.offset) { index, token in
-                        appRow(token: token, isCategory: true)
-                            .id("cat_\(index)")
-                    }
-                    #endif
-                    
-                    Button {
-                        pickerSelection = group.selection
-                        showAppPicker = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text("Add More Apps")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .background(glassCard)
-    }
-    
-    @ViewBuilder
-    private func appRow(token: Any, isCategory: Bool) -> some View {
-        #if canImport(FamilyControls)
-        if isCategory, let catToken = token as? ActivityCategoryToken {
-            HStack {
-                // Используем встроенный Label для отображения категории
-                Label(catToken)
-                    .labelStyle(.titleAndIcon)
-                    .font(.subheadline)
-                
-                Spacer()
-                
-                Button {
-                    group.selection.categoryTokens.remove(catToken)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.red)
-                }
-            }
-            .padding(.vertical, 8)
-        } else if let appToken = token as? ApplicationToken {
-            HStack {
-                // Используем встроенный Label для отображения иконки и имени приложения
-                Label(appToken)
-                    .labelStyle(.titleAndIcon)
-                    .font(.subheadline)
-                
-                Spacer()
-                
-                Button {
-                    group.selection.applicationTokens.remove(appToken)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.red)
-                }
-            }
-            .padding(.vertical, 8)
-        }
-        #endif
-    }
-    
-    // MARK: - Difficulty and Intervals Section
-    private var difficultyAndIntervalsSection: some View {
-        // Кэшируем вычисления стоимости для всех интервалов
-        let intervals: [AccessWindow] = [.minutes5, .minutes15, .minutes30, .hour1, .hour2]
-        let intervalCosts = Dictionary(uniqueKeysWithValues: intervals.map { ($0, group.cost(for: $0)) })
-        
-        return VStack(alignment: .leading, spacing: 16) {
-            Text("Difficulty & Time")
-                .font(.title3.weight(.semibold))
-            
-            // Уровень сложности (1-5)
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Difficulty Level")
-                        .font(.subheadline.weight(.medium))
-                    Spacer()
-                    difficultyLevelBadge
-                }
-                
-                // 5 кнопок для выбора уровня
-                HStack(spacing: 8) {
-                    ForEach(1...5, id: \.self) { level in
-                        difficultyLevelButton(level: level)
-                    }
-                }
-                
-                // Описание уровней
-                difficultyLevelDescription
-            }
-            
-            Divider()
-            
-            // Интервалы времени с динамической стоимостью
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Available intervals")
-                    .font(.subheadline.weight(.medium))
-                
-                ForEach(intervals, id: \.self) { interval in
-                    HStack {
-                        Toggle(isOn: Binding(
-                            get: { group.enabledIntervals.contains(interval) },
-                            set: { enabled in
-                                if enabled {
-                                    group.enabledIntervals.insert(interval)
-                                } else {
-                                    group.enabledIntervals.remove(interval)
-                                }
-                            }
-                        )) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(interval.displayName)
-                                    .font(.subheadline)
-                                Text("\(intervalCosts[interval] ?? 0) energy")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(glassCard)
-    }
-    
-    private var difficultyLevelBadge: some View {
-        Text("\(group.difficultyLevel)")
-            .font(.title3.weight(.bold))
-            .foregroundColor(difficultyColor(for: group.difficultyLevel))
-            .frame(width: 40, height: 40)
-            .background(
-                Circle()
-                    .fill(difficultyColor(for: group.difficultyLevel).opacity(0.2))
-            )
-    }
-    
-    private func difficultyLevelButton(level: Int) -> some View {
-        Button {
-            group.difficultyLevel = level
-        } label: {
-            Text("\(level)")
-                .font(.headline.weight(.semibold))
-                .foregroundColor(level == group.difficultyLevel ? .white : difficultyColor(for: level))
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(level == group.difficultyLevel ? 
-                              difficultyColor(for: level) :
-                              difficultyColor(for: level).opacity(0.15))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(level == group.difficultyLevel ? Color.clear : difficultyColor(for: level).opacity(0.3), lineWidth: 1.5)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-    
-    private var difficultyLevelDescription: some View {
-        let descriptions = [
-            "Very Easy",
-            "Easy",
-            "Medium",
-            "Hard",
-            "Very Hard"
-        ]
-        
-        return Text(descriptions[group.difficultyLevel - 1])
-            .font(.caption)
-            .foregroundColor(.secondary)
-    }
-    
-    private func difficultyColor(for level: Int) -> Color {
-        switch level {
-        case 1: return .green
-        case 2: return .blue
-        case 3: return .orange
-        case 4: return .red
-        case 5: return .purple
-        default: return .gray
-        }
-    }
-    
-    private var deleteGroupButton: some View {
-        Button {
-            model.deleteShieldGroup(group.id)
-            dismiss()
-        } label: {
-            HStack {
-                Image(systemName: "trash.fill")
-                Text("Delete Group")
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.red.opacity(0.1))
-            .foregroundColor(.red)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-        }
-    }
-    
-    private var glassCard: some View {
-        RoundedRectangle(cornerRadius: 20)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 0.5
-                    )
-            )
-            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
-    }
-    
-    private func loc(_ lang: String, _ en: String, _ ru: String) -> String {
-        lang == "ru" ? ru : en
-    }
-}
-
-#if canImport(FamilyControls)
-// MARK: - App Icon View (получает иконку из ApplicationToken)
-struct AppIconView: View {
-    let token: ApplicationToken
-    
-    var body: some View {
-        // FamilyControls Label автоматически отображает иконку приложения
-        Label(token)
-            .labelStyle(.iconOnly)
-    }
-}
-
-// MARK: - Category Icon View (получает иконку из ActivityCategoryToken)
-struct CategoryIconView: View {
-    let token: ActivityCategoryToken
-    
-    var body: some View {
-        // FamilyControls Label автоматически отображает иконку категории
-        Label(token)
-            .labelStyle(.iconOnly)
-    }
-}
-
-struct AppSelectionSheet: View {
-    @Binding var selection: FamilyActivitySelection
-    let appLanguage: String
-    let onDone: () -> Void
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // FamilyActivityPicker (apps and categories only)
-                FamilyActivityPicker(selection: $selection)
-            }
-            .navigationTitle(loc(appLanguage, "Select Apps", "Выбрать приложения"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Cancel", "Отмена")) {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(loc(appLanguage, "Done", "Готово")) {
-                        onDone()
-                    }
-                    .fontWeight(.semibold)
-                }
-            }
-        }
-    }
-    
-    private func loc(_ lang: String, _ en: String, _ ru: String) -> String {
-        lang == "ru" ? ru : en
-    }
-}
-#endif

@@ -1,0 +1,11 @@
+=== BUILD ERROR SUMMARY (from log) ===
+Project: Steps4
+Scheme: DeviceActivityMonitor
+Build Date: Mon Jan 26 20:48:05 CET 2026
+Build Status: SUCCEEDED
+
+=== ERRORS ===
+/Users/kpudan/dev/xcode/Steps4/Steps4.xcodeproj: error: Provisioning profile "iOS Team Provisioning Profile: personal-project.StepsTrader.ShieldConfiguration" doesn't include the currently selected device "i112762759" (identifier 00006000-000451023E7A401E). (in target 'ShieldConfiguration' from project 'Steps4')
+/Users/kpudan/dev/xcode/Steps4/Steps4.xcodeproj: error: Provisioning profile "iOS Team Provisioning Profile: personal-project.StepsTrader" doesn't include the currently selected device "i112762759" (identifier 00006000-000451023E7A401E). (in target 'Steps4' from project 'Steps4')
+/Users/kpudan/dev/xcode/Steps4/Steps4.xcodeproj: error: Provisioning profile "iOS Team Provisioning Profile: personal-project.StepsTrader.DeviceActivityMonitor" doesn't include the currently selected device "i112762759" (identifier 00006000-000451023E7A401E). (in target 'DeviceActivityMonitor' from project 'Steps4')
+/Users/kpudan/dev/xcode/Steps4/Steps4.xcodeproj: error: Provisioning profile "iOS Team Provisioning Profile: personal-project.StepsTrader.ShieldAction" doesn't include the currently selected device "i112762759" (identifier 00006000-000451023E7A401E). (in target 'ShieldAction' from project 'Steps4')

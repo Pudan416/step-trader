@@ -11,13 +11,13 @@ enum AccessWindow: String, CaseIterable, Sendable, Codable {
 
     var displayName: String {
         switch self {
-        case .single: return "1 минута"
-        case .minutes5: return "5 минут"
-        case .minutes15: return "15 минут"
-        case .minutes30: return "30 минут"
-        case .hour1: return "1 час"
-        case .hour2: return "2 часа"
-        case .day1: return "До конца дня"
+        case .single: return "1 min"
+        case .minutes5: return "5 min"
+        case .minutes15: return "15 min"
+        case .minutes30: return "30 min"
+        case .hour1: return "1 hour"
+        case .hour2: return "2 hours"
+        case .day1: return "All day"
         }
     }
     

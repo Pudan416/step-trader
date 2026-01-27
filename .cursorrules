@@ -7,4 +7,5 @@ Rules:
 - Interactions: Gestures, haptics, accessibility.
 - Avoid UIKit if SwiftUI alternative exists.
 - Never delete comments or existing code unless critical; build iteratively.
-- Enforce 4-space indent, 100-line limit per file.
+- Enforce 4-space indent, 300-line limit per file.
+- Never refer to any specific app other then ours (e.g. Instagram)

@@ -20,12 +20,12 @@ struct BlockScreen: View {
                     Text("⏰")
                         .font(.system(size: 80))
                     
-                    Text("Time's up!")
+                    Text("Time's up")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .foregroundColor(.red)
                     
-                    Text("Your entertainment time has run out")
+                    Text("Your call")
                         .font(.title2)
                         .multilineTextAlignment(.center)
                         .foregroundColor(.secondary)
@@ -34,14 +34,14 @@ struct BlockScreen: View {
                 // Stats
                 VStack(spacing: 12) {
                     HStack {
-                        Text("Time spent:")
+                        Text("Time spent")
                         Spacer()
                         Text(formatTime(minutes: model.spentMinutes))
                             .fontWeight(.semibold)
                     }
                     
                     HStack {
-                        Text("Energy spent:")
+                        Text("Control spent")
                         Spacer()
                         Text("\(model.spentSteps)")
                             .fontWeight(.semibold)
@@ -50,7 +50,7 @@ struct BlockScreen: View {
                     Divider()
                     
                     HStack {
-                        Text("Energy today:")
+                        Text("Control today")
                         Spacer()
                         Text("\(model.baseEnergyToday)")
                         .fontWeight(.semibold)
@@ -62,16 +62,16 @@ struct BlockScreen: View {
                 
                 // Action buttons
                 VStack(spacing: 12) {
-                    Text("To get more time:")
+                    Text("Do whatever you want")
                         .font(.headline)
                         .multilineTextAlignment(.center)
                     
-                    Text("⚡ Earn more energy")
+                    Text("Get more control")
                         .font(.title3)
                         .fontWeight(.medium)
                         .foregroundColor(.blue)
                     
-                    Text("\(Int(model.budget.tariff.stepsPerMinute)) energy = 1 minute of fun")
+                    Text("\(Int(model.spentTariff.stepsPerMinute)) control = 1 minute")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -80,19 +80,18 @@ struct BlockScreen: View {
                 
                 // Bottom buttons
                 VStack(spacing: 12) {
-                    Button("🔄 Refresh balance") {
+                    Button("Refresh") {
                         Task {
                             do {
                                 try await model.recalc()
-                                // Если появились новые минуты, снимаем блокировку
                                 if model.remainingMinutes > 0 {
                                     model.isBlocked = false
-                                    model.message = "✅ Time restored! Available: \(model.remainingMinutes) min"
+                                    model.message = "Available: \(model.remainingMinutes) min"
                                 } else {
-                                    model.message = "❌ Not enough energy to unlock"
+                                    model.message = "Not enough control"
                                 }
                             } catch {
-                                model.message = "❌ Refresh failed: \(error.localizedDescription)"
+                                model.message = "Refresh failed"
                             }
                         }
                     }
@@ -100,7 +99,7 @@ struct BlockScreen: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     
-                    Button("❌ End session") {
+                    Button("End session") {
                         model.stopTracking()
                         model.isBlocked = false
                     }
@@ -109,7 +108,7 @@ struct BlockScreen: View {
                     .controlSize(.large)
                     .foregroundColor(.red)
                     
-                    Button("🗑️ Reset all stats") {
+                    Button("Reset stats") {
                         model.resetStatistics()
                     }
                     .frame(maxWidth: .infinity)

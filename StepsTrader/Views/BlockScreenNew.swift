@@ -44,7 +44,7 @@ struct BlockScreenNew: View {
                 .foregroundColor(.red)
             
             // Title
-            Text(loc(appLanguage, "App Blocked", "Приложение заблокировано"))
+            Text(loc(appLanguage, "App Blocked"))
                 .font(.largeTitle)
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
@@ -55,7 +55,7 @@ struct BlockScreenNew: View {
                 .foregroundColor(.secondary)
             
             // Description
-            Text(loc(appLanguage, "This app is protected by a shield. Unlock it to continue.", "Это приложение защищено щитом. Разблокируйте его, чтобы продолжить."))
+            Text(loc(appLanguage, "This app is protected by a shield. Unlock it to continue."))
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -69,7 +69,7 @@ struct BlockScreenNew: View {
             } label: {
                 HStack {
                     Image(systemName: "lock.open.fill")
-                    Text(loc(appLanguage, "Unlock", "Разблокировать"))
+                    Text(loc(appLanguage, "Unlock"))
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
@@ -97,13 +97,13 @@ struct BlockScreenNew: View {
                 .foregroundColor(pushSent ? .green : .orange)
             
             // Title
-            Text(loc(appLanguage, "Check Your Notifications", "Проверьте уведомления"))
+            Text(loc(appLanguage, "Check Your Notifications"))
                 .font(.largeTitle)
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
             
             // Description
-            Text(loc(appLanguage, "We sent you a push notification. Tap on it to open the paygate and choose how long to unlock the app.", "Мы отправили вам push-уведомление. Нажмите на него, чтобы открыть paygate и выбрать время разблокировки."))
+            Text(loc(appLanguage, "We sent you a push notification. Tap on it to open the paygate and choose how long to unlock the app."))
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -117,7 +117,7 @@ struct BlockScreenNew: View {
             } label: {
                 HStack {
                     Image(systemName: "arrow.clockwise")
-                    Text(loc(appLanguage, "Push Not Received", "Пуш не пришел"))
+                    Text(loc(appLanguage, "Push Not Received"))
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
@@ -165,8 +165,8 @@ struct BlockScreenNew: View {
         
         // Create notification content
         let content = UNMutableNotificationContent()
-        content.title = loc(appLanguage, "Unlock \(appName)", "Разблокировать \(appName)")
-        content.body = loc(appLanguage, "Tap to choose unlock time", "Нажмите, чтобы выбрать время разблокировки")
+        content.title = loc(appLanguage, "Unlock \(appName)")
+        content.body = loc(appLanguage, "Tap to choose unlock time")
         content.sound = .default
         content.categoryIdentifier = "UNLOCK_APP"
         content.userInfo = [
@@ -200,10 +200,6 @@ struct BlockScreenNew: View {
         } catch {
             print("❌ Failed to send push notification: \(error)")
         }
-    }
-    
-    private func loc(_ lang: String, _ en: String, _ ru: String) -> String {
-        lang == "ru" ? ru : en
     }
 }
 

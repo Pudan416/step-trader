@@ -68,6 +68,8 @@ final class HealthKitService: HealthKitServiceProtocol {
         if #available(iOS 12.0, *) {
             try await store.enableBackgroundDelivery(for: stepType, frequency: .immediate)
             print("📡 HealthKit: background delivery for step count enabled")
+            try await store.enableBackgroundDelivery(for: sleepType, frequency: .immediate)
+            print("📡 HealthKit: background delivery for sleep data enabled")
         }
     }
 

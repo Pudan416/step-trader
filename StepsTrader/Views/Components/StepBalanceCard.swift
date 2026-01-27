@@ -12,14 +12,14 @@ struct StepBalanceCard: View {
     let showDetails: Bool
     
     // New parameters for category breakdown
-    let recoveryPoints: Int
-    let activityPoints: Int
+    let movePoints: Int
+    let rebootPoints: Int
     let joyPoints: Int
     let baseEnergyToday: Int
     
     // Navigation handlers
-    var onRecoveryTap: (() -> Void)? = nil
-    var onActivityTap: (() -> Void)? = nil
+    var onMoveTap: (() -> Void)? = nil
+    var onRebootTap: (() -> Void)? = nil
     var onJoyTap: (() -> Void)? = nil
     var onOuterWorldTap: (() -> Void)? = nil
     
@@ -87,7 +87,7 @@ struct StepBalanceCard: View {
                 
                 // Balance text
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(loc(appLanguage, "Energy Balance", "Баланс энергии"))
+                    Text(loc(appLanguage, "Control Balance"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
@@ -129,7 +129,7 @@ VStack(spacing: 2) {
             .monospacedDigit()
     }
     .foregroundColor(.primary)
-    Text(loc(appLanguage, "reset", "сброс"))
+    Text(loc(appLanguage, "reset"))
         .font(.caption2)
         .foregroundColor(.secondary)
 }
@@ -177,30 +177,30 @@ VStack(spacing: 2) {
                 VStack(spacing: 12) {
                     HStack(spacing: 12) {
                         categoryChip(
-                            icon: "moon.zzz.fill",
-                            title: loc(appLanguage, "Recovery", "Восстановление"),
-                            value: recoveryPoints,
+                            icon: "figure.run",
+                            title: loc(appLanguage, "Move"),
+                            value: movePoints,
                             max: 40,
-                            color: .blue,
-                            category: .recovery,
-                            onTap: { onRecoveryTap?() }
+                            color: .green,
+                            category: .move,
+                            onTap: { onMoveTap?() }
                         )
                         
                         categoryChip(
-                            icon: "figure.run",
-                            title: loc(appLanguage, "Activity", "Активность"),
-                            value: activityPoints,
+                            icon: "moon.zzz.fill",
+                            title: loc(appLanguage, "Reboot"),
+                            value: rebootPoints,
                             max: 40,
-                            color: .green,
-                            category: .activity,
-                            onTap: { onActivityTap?() }
+                            color: .blue,
+                            category: .reboot,
+                            onTap: { onRebootTap?() }
                         )
                     }
                     
                     HStack(spacing: 12) {
                         categoryChip(
                             icon: "heart.fill",
-                            title: loc(appLanguage, "Joy", "Радость"),
+                            title: loc(appLanguage, "Choice"),
                             value: joyPoints,
                             max: 20,
                             color: .orange,
@@ -210,7 +210,7 @@ VStack(spacing: 2) {
                         
                         categoryChip(
                             icon: "battery.100.bolt",
-                            title: loc(appLanguage, "Outer World", "Внешний мир"),
+                            title: loc(appLanguage, "Outer World"),
                             value: outerWorldSteps,
                             max: 50,
                             color: .cyan,
@@ -224,20 +224,21 @@ VStack(spacing: 2) {
                     removal: .opacity
                 ))
             }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
+        )
+        .animation(.spring(response: 0.3), value: showDetails)
     }
-    .padding(16)
-    .background(
-        RoundedRectangle(cornerRadius: 20)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
-    )
-    .animation(.spring(response: 0.3), value: showDetails)
 }
-    
+
 @ViewBuilder
 private func categoryChip(icon: String, title: String, value: Int, max: Int, color: Color, category: EnergyCategory?, onTap: @escaping () -> Void) -> some View {
     Button(action: onTap) {
@@ -300,8 +301,8 @@ private func categoryChip(icon: String, title: String, value: Int, max: Int, col
     }
     .buttonStyle(.plain)
 }
-    
-    private func formatNumber(_ num: Int) -> String {
+
+private func formatNumber(_ num: Int) -> String {
         let absValue = abs(num)
         let sign = num < 0 ? "-" : ""
         
@@ -328,7 +329,6 @@ private func categoryChip(icon: String, title: String, value: Int, max: Int, col
         
         let v = Int((Double(absValue) / 1_000_000.0).rounded())
         return sign + "\(v)M"
-    }
 }
 
 #Preview {
@@ -343,8 +343,8 @@ private func categoryChip(icon: String, title: String, value: Int, max: Int, col
             dayEndHour: 0,
             dayEndMinute: 0,
             showDetails: true,
-            recoveryPoints: 35,
-            activityPoints: 30,
+            movePoints: 30,
+            rebootPoints: 25,
             joyPoints: 15,
             baseEnergyToday: 60
         )
@@ -359,8 +359,8 @@ private func categoryChip(icon: String, title: String, value: Int, max: Int, col
             dayEndHour: 0,
             dayEndMinute: 0,
             showDetails: false,
-            recoveryPoints: 20,
-            activityPoints: 15,
+            movePoints: 20,
+            rebootPoints: 15,
             joyPoints: 10,
             baseEnergyToday: 40
         )

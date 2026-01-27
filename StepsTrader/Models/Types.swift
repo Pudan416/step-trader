@@ -75,6 +75,7 @@ protocol BudgetEngineProtocol: ObservableObject {
     func resetIfNeeded()
     func updateTariff(_ newTariff: Tariff)
     func updateDayEnd(hour: Int, minute: Int)
+    func reloadFromStorage()
     
     // Backward compatibility
     var difficultyLevel: DifficultyLevel { get set }
@@ -126,63 +127,6 @@ enum Tariff: String, CaseIterable {
 
 // Backward compatibility
 typealias DifficultyLevel = Tariff
-
-struct ShieldLevel: Identifiable, Equatable {
-    let id: Int
-    let label: String
-    let threshold: Int
-    let nextThreshold: Int?
-    let entryCost: Int
-    let fiveMinutesCost: Int
-    let hourCost: Int
-    let dayCost: Int
-}
-
-extension ShieldLevel {
-    static let all: [ShieldLevel] = {
-        let thresholds = [
-            0,
-            10_000,
-            25_000,
-            45_000,
-            70_000,
-            100_000,
-            150_000,
-            220_000,
-            320_000,
-            500_000
-        ]
-        let labels = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
-        let entryCosts = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]
-        let fiveMultiplier = 5
-        let hourMultiplier = 12
-        let dayMultiplier = 100
-        return thresholds.enumerated().map { index, threshold in
-            let entry = entryCosts[index]
-            let next = index + 1 < thresholds.count ? thresholds[index + 1] : nil
-            return ShieldLevel(
-                id: index + 1,
-                label: labels[index],
-                threshold: threshold,
-                nextThreshold: next,
-                entryCost: entry,
-                fiveMinutesCost: entry * fiveMultiplier,
-                hourCost: entry * hourMultiplier,
-                dayCost: entry * dayMultiplier
-            )
-        }
-    }()
-
-    static func current(forSpent spent: Int) -> ShieldLevel {
-        ShieldLevel.all.last { spent >= $0.threshold } ?? ShieldLevel.all.first!
-    }
-
-    static func stepsToNext(forSpent spent: Int) -> Int? {
-        let level = current(forSpent: spent)
-        guard let next = level.nextThreshold else { return nil }
-        return max(0, next - spent)
-    }
-}
 
 // MARK: - FamilyControls placeholders / aliases
 #if canImport(FamilyControls)

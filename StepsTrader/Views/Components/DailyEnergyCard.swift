@@ -3,6 +3,11 @@ import SwiftUI
 struct DailyEnergyCard: View {
     @ObservedObject var model: AppModel
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @AppStorage("userStepsTarget") private var userStepsTarget: Double = 10_000
+    @AppStorage("userSleepTarget") private var userSleepTarget: Double = 8.0
+    @State private var showMoveSettings = false
+    @State private var showRebootSettings = false
+    @State private var showJoySettings = false
     
     private var sleepBinding: Binding<Double> {
         Binding(
@@ -14,12 +19,21 @@ struct DailyEnergyCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             header
-            recoverySection
-            activitySection
+            moveSection
+            rebootSection
             joySection
         }
         .padding(20)
         .background(glassCard)
+        .sheet(isPresented: $showMoveSettings) {
+            CategorySettingsView(model: model, category: .move, appLanguage: appLanguage)
+        }
+        .sheet(isPresented: $showRebootSettings) {
+            CategorySettingsView(model: model, category: .reboot, appLanguage: appLanguage)
+        }
+        .sheet(isPresented: $showJoySettings) {
+            CategorySettingsView(model: model, category: .joy, appLanguage: appLanguage)
+        }
     }
     
     // MARK: - Glass Card Style
@@ -43,9 +57,9 @@ struct DailyEnergyCard: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 6) {
-                Text(loc(appLanguage, "Daily Energy", "Энергия дня"))
+                Text(loc(appLanguage, "Daily Control"))
                     .font(.title3.weight(.bold))
-                Text(loc(appLanguage, "Build 100 points from recovery, activity, and joy", "Собери 100 баллов из восстановления, активности и радости"))
+                Text(loc(appLanguage, "Build 100 points from move, reboot, and choice"))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -68,17 +82,50 @@ struct DailyEnergyCard: View {
         }
     }
     
-    private var recoverySection: some View {
+    private var moveSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
-                title: loc(appLanguage, "Recovery", "Восстановление"),
-                points: model.recoveryPointsToday,
-                maxPoints: 40
+                title: loc(appLanguage, "Move"),
+                points: model.movePointsToday,
+                maxPoints: 40,
+                category: .move
             )
             
+            // Steps
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(loc(appLanguage, "Sleep", "Сон"))
+                    Text(loc(appLanguage, "Steps"))
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Text("\(model.stepsPointsToday)/\(EnergyDefaults.stepsMaxPoints)")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(.secondary)
+                }
+                Text("\(formatNumber(Int(model.stepsToday)))/\(formatNumber(Int(userStepsTarget)))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            optionGrid(
+                options: model.preferredOptions(for: .move),
+                category: .move
+            )
+        }
+    }
+    
+    private var rebootSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader(
+                title: loc(appLanguage, "Reboot"),
+                points: model.rebootPointsToday,
+                maxPoints: 40,
+                category: .reboot
+            )
+            
+            // Sleep
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(loc(appLanguage, "Sleep"))
                         .font(.subheadline.weight(.semibold))
                     Spacer()
                     Text("\(model.sleepPointsToday)/\(EnergyDefaults.sleepMaxPoints)")
@@ -95,37 +142,8 @@ struct DailyEnergyCard: View {
             }
             
             optionGrid(
-                options: model.preferredOptions(for: .recovery),
-                category: .recovery
-            )
-        }
-    }
-    
-    private var activitySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader(
-                title: loc(appLanguage, "Activity", "Активность"),
-                points: model.activityPointsToday,
-                maxPoints: 40
-            )
-            
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(loc(appLanguage, "Steps", "Шаги"))
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Text("\(model.stepsPointsToday)/\(EnergyDefaults.stepsMaxPoints)")
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(.secondary)
-                }
-                Text("\(formatNumber(Int(model.stepsToday)))/\(formatNumber(Int(EnergyDefaults.stepsTarget)))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            optionGrid(
-                options: model.preferredOptions(for: .activity),
-                category: .activity
+                options: model.preferredOptions(for: .reboot),
+                category: .reboot
             )
         }
     }
@@ -133,9 +151,10 @@ struct DailyEnergyCard: View {
     private var joySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
-                title: loc(appLanguage, "Joy", "Радость"),
+                title: loc(appLanguage, "Choice"),
                 points: model.joyCategoryPointsToday,
-                maxPoints: 20
+                maxPoints: 20,
+                category: .joy
             )
             
             optionGrid(
@@ -145,7 +164,7 @@ struct DailyEnergyCard: View {
         }
     }
     
-    private func sectionHeader(title: String, points: Int, maxPoints: Int) -> some View {
+    private func sectionHeader(title: String, points: Int, maxPoints: Int, category: EnergyCategory) -> some View {
         HStack {
             Text(title)
                 .font(.subheadline.weight(.semibold))
@@ -153,13 +172,25 @@ struct DailyEnergyCard: View {
             Text("\(points)/\(maxPoints)")
                 .font(.caption.weight(.bold))
                 .foregroundColor(.secondary)
+            
+            Button {
+                if category == .move {
+                    showMoveSettings = true
+                } else if category == .joy {
+                    showJoySettings = true
+                }
+            } label: {
+                Image(systemName: "pencil.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(.blue)
+            }
         }
     }
     
     @ViewBuilder
     private func optionGrid(options: [EnergyOption], category: EnergyCategory) -> some View {
         if options.isEmpty {
-            Text(loc(appLanguage, "No options selected", "Список пуст"))
+            Text(loc(appLanguage, "No options selected"))
                 .font(.caption)
                 .foregroundColor(.secondary)
         } else {
@@ -175,8 +206,8 @@ struct DailyEnergyCard: View {
         let isSelected = model.isDailySelected(option.id, category: category)
         let chipColor: Color = {
             switch category {
-            case .recovery: return .blue
-            case .activity: return .green
+            case .move: return .green
+            case .reboot: return .blue
             case .joy: return .orange
             }
         }()
@@ -187,6 +218,12 @@ struct DailyEnergyCard: View {
             }
         } label: {
             HStack(spacing: 8) {
+                // Icon
+                Image(systemName: option.icon)
+                    .font(.caption)
+                    .foregroundColor(isSelected ? .white : chipColor)
+                    .frame(width: 20)
+                
                 Text(option.title(for: appLanguage))
                     .font(.caption.weight(.semibold))
                     .foregroundColor(isSelected ? .white : .primary)

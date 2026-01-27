@@ -130,9 +130,9 @@ struct StatusView: View {
             // Section header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(loc(appLanguage, "Your Progress", "Твой прогресс"))
+                    Text(loc(appLanguage, "Your Progress"))
                         .font(.title3.weight(.bold))
-                    Text(loc(appLanguage, "Tap stats for details", "Нажми на статистику для деталей"))
+                    Text(loc(appLanguage, "Tap to see details"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -195,11 +195,11 @@ struct StatusView: View {
     private func explanationText(for stat: StatType) -> String {
         switch stat {
         case .shields:
-            return loc(appLanguage, "Apps protected by shields. Add more in Modules tab", "Приложения под щитами. Добавьте ещё во вкладке Модули")
+            return loc(appLanguage, "Apps protected by shields. Your call")
         case .energy:
-            return loc(appLanguage, "Total energy spent on entries and shield upgrades", "Всего энергии потрачено на входы и прокачку щитов")
+            return loc(appLanguage, "Total control spent on entries and shield upgrades")
         case .batteries:
-            return loc(appLanguage, "Batteries collected in Outer World map", "Батареек собрано на карте Outer World")
+            return loc(appLanguage, "Batteries collected in Outer World map")
         }
     }
     
@@ -279,15 +279,15 @@ struct StatusView: View {
     private var greetingText: String {
         let hour = Calendar.current.component(.hour, from: Date())
         if hour < 6 {
-            return loc(appLanguage, "Night", "Ночь")
+            return loc(appLanguage, "Night")
         } else if hour < 12 {
-            return loc(appLanguage, "Morning", "Утро")
+            return loc(appLanguage, "Morning")
         } else if hour < 17 {
-            return loc(appLanguage, "Afternoon", "День")
+            return loc(appLanguage, "Afternoon")
         } else if hour < 22 {
-            return loc(appLanguage, "Evening", "Вечер")
+            return loc(appLanguage, "Evening")
         } else {
-            return loc(appLanguage, "Night", "Ночь")
+            return loc(appLanguage, "Night")
         }
     }
     
@@ -300,9 +300,9 @@ struct StatusView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(loc(appLanguage, "Activity", "Активность"))
+                    Text(loc(appLanguage, "Activity"))
                         .font(.title3.weight(.bold))
-                    Text(loc(appLanguage, "Energy spent over time", "Энергия потрачена за период"))
+                    Text(loc(appLanguage, "Control spent over time"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -356,9 +356,9 @@ struct StatusView: View {
     
     private func rangeLabel(_ range: ChartRange) -> String {
         switch range {
-        case .today: return loc(appLanguage, "Today", "Сегодня")
-        case .week: return loc(appLanguage, "Week", "Неделя")
-        case .month: return loc(appLanguage, "Month", "Месяц")
+        case .today: return loc(appLanguage, "Today")
+        case .week: return loc(appLanguage, "Week")
+        case .month: return loc(appLanguage, "Month")
         }
     }
     
@@ -367,7 +367,7 @@ struct StatusView: View {
             Image(systemName: "chart.line.uptrend.xyaxis")
                 .font(.system(size: 40, weight: .light))
                 .foregroundColor(.secondary.opacity(0.4))
-            Text(loc(appLanguage, "No activity yet", "Пока нет активности"))
+            Text(loc(appLanguage, "No activity yet"))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
@@ -385,7 +385,7 @@ struct StatusView: View {
                 Chart(Array(todayData)) { item in
                     BarMark(
                         x: .value("App", item.name),
-                        y: .value("Energy", item.steps)
+                        y: .value("Control", item.steps)
                     )
                     .foregroundStyle(
                         LinearGradient(
@@ -411,6 +411,7 @@ struct StatusView: View {
                     }
                 }
                 .frame(height: 160)
+                .drawingGroup()
             }
         } else {
             Chart(data) { item in
@@ -419,7 +420,7 @@ struct StatusView: View {
                 
                 AreaMark(
                     x: .value("Day", item.day, unit: .day),
-                    y: .value("Energy", item.count),
+                    y: .value("Control", item.count),
                     series: .value("App", item.appName)
                 )
                 .foregroundStyle(baseColor.opacity(isHighlighted ? 0.12 : 0.03))
@@ -427,7 +428,7 @@ struct StatusView: View {
                 
                 LineMark(
                     x: .value("Day", item.day, unit: .day),
-                    y: .value("Energy", item.count),
+                    y: .value("Control", item.count),
                     series: .value("App", item.appName)
                 )
                 .foregroundStyle(baseColor.opacity(isHighlighted ? 0.9 : 0.2))
@@ -464,6 +465,7 @@ struct StatusView: View {
                 }
             }
             .frame(height: 160)
+            .drawingGroup()
         }
     }
     
@@ -472,9 +474,9 @@ struct StatusView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(loc(appLanguage, "Apps", "Приложения"))
+                    Text(loc(appLanguage, "Apps"))
                         .font(.title3.weight(.bold))
-                    Text(loc(appLanguage, "Energy spent per app", "Энергия потрачена по приложениям"))
+                    Text(loc(appLanguage, "Control spent per app"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -503,7 +505,7 @@ struct StatusView: View {
                     Image(systemName: "apps.iphone")
                         .font(.system(size: 40, weight: .light))
                         .foregroundColor(.secondary.opacity(0.4))
-                    Text(loc(appLanguage, "No usage yet", "Нет использования"))
+                    Text(loc(appLanguage, "No usage yet"))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -662,13 +664,7 @@ struct StatusView: View {
     }
 
     private func formatMinutes(_ minutes: Int) -> String {
-        let clamped = max(0, minutes)
-        let hours = clamped / 60
-        let mins = clamped % 60
-        if hours > 0 {
-            return loc(appLanguage, "\(hours)h \(mins)m", "\(hours)ч \(mins)м")
-        }
-        return loc(appLanguage, "\(mins) min", "\(mins) мин")
+        StatusViewHelpers.formatMinutes(minutes, appLanguage: appLanguage)
     }
 
     private var showConnectCTA: Bool {
@@ -730,10 +726,10 @@ struct StatusView: View {
             }
             
             VStack(spacing: 10) {
-                Text(loc(appLanguage, "No shields yet", "Нет щитов"))
+                Text(loc(appLanguage, "No shields yet"))
                     .font(.title2.bold())
                 
-                Text(loc(appLanguage, "Connect your first shield to track app usage", "Подключите щит для отслеживания приложений"))
+                Text(loc(appLanguage, "Connect your first shield. Or don't. Your call"))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -746,7 +742,7 @@ struct StatusView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "plus.circle.fill")
                         .font(.title3)
-                    Text(loc(appLanguage, "Connect Shield", "Подключить щит"))
+                    Text(loc(appLanguage, "Connect Shield"))
                         .font(.headline.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity)
@@ -770,13 +766,6 @@ struct StatusView: View {
     }
 
     // MARK: - Chart Data
-    private struct DailyOpen: Identifiable {
-        let id = UUID()
-        let day: Date
-        let bundleId: String
-        let count: Int
-        let appName: String
-    }
     
     private var bundleIdsForChart: [String] {
         var totals: [String: Int] = [:]
@@ -818,21 +807,7 @@ struct StatusView: View {
     }
     
     private func colorForBundle(_ bundleId: String) -> Color {
-        switch bundleId {
-        case "com.burbn.instagram": return .pink
-        case "com.zhiliaoapp.musically": return .red
-        case "com.google.ios.youtube": return Color(red: 1, green: 0, blue: 0)
-        case "com.facebook.Facebook": return .blue
-        case "com.linkedin.LinkedIn": return Color(red: 0, green: 0.47, blue: 0.71)
-        case "com.atebits.Tweetie2": return .primary
-        case "com.toyopagroup.picaboo": return .yellow
-        case "net.whatsapp.WhatsApp": return .green
-        case "ph.telegra.Telegraph": return .cyan
-        case "com.duolingo.DuolingoMobile": return Color(red: 0.35, green: 0.8, blue: 0.2)
-        case "com.pinterest": return .red
-        case "com.reddit.Reddit": return .orange
-        default: return .purple
-        }
+        StatusViewHelpers.colorForBundle(bundleId)
     }
     
     private var dateLabelFormatter: DateFormatter {
@@ -841,14 +816,6 @@ struct StatusView: View {
         return df
     }
 
-    private struct AppUsageToday: Identifiable {
-        let id = UUID()
-        let bundleId: String
-        let name: String
-        let imageName: String?
-        let opens: Int
-        let steps: Int
-    }
     
     private var daysInRange: [Date] {
         (0..<chartRange.days).compactMap { offset -> Date? in
@@ -866,16 +833,25 @@ struct StatusView: View {
     private var trackedAppsToday: [AppUsageToday] {
         let cutoff = dateByAddingDays(to: currentDayStart, value: -(chartRange.days - 1))
         var opensDict: [String: Int] = [:]
-        for log in model.appOpenLogs where log.date >= cutoff {
-            let canonical = normalizeBundleId(log.bundleId)
-            opensDict[canonical, default: 0] += 1
+        // Count opens from steps spent data (approximation)
+        let keys = (0..<chartRange.days).compactMap { dayOffset in
+            AppModel.dayKey(for: dateByAddingDays(to: currentDayStart, value: -dayOffset))
+        }
+        for key in keys {
+            if let dayData = model.appStepsSpentByDay[key] {
+                for (bundleId, _) in dayData {
+                    let canonical = normalizeBundleId(bundleId)
+                    opensDict[canonical, default: 0] += 1
+                }
+            }
         }
 
         let baseIds: [String]
         if chartRange == .today {
             let todayKey = AppModel.dayKey(for: currentDayStart)
             let spentTodayKeys = model.appStepsSpentByDay[todayKey]?.keys.map { normalizeBundleId($0) } ?? []
-            baseIds = Set(model.appOpenLogs.map { normalizeBundleId($0.bundleId) })
+            let allSpentKeys = model.appStepsSpentByDay.values.flatMap { $0.keys }.map { normalizeBundleId($0) }
+            baseIds = Set(allSpentKeys)
                 .union(spentTodayKeys)
                 .union(bundleIdsForChart)
                 .sorted()
@@ -961,7 +937,7 @@ struct StatusView: View {
             HStack(spacing: 6) {
                 Image(systemName: "info.circle")
                     .font(.caption2)
-                Text(loc(appLanguage, "No usage in this period", "Нет использования за этот период"))
+                Text(loc(appLanguage, "No usage in this period"))
                     .font(.caption)
             }
             .foregroundColor(.secondary)
@@ -1040,7 +1016,6 @@ struct StatusView: View {
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in
                 model.reloadBudgetFromStorage()
-                model.loadSpentTime()
             }
 
             if calculatedRemainingMinutes > 0 {

@@ -17,10 +17,10 @@ import FamilyControls
 @MainActor
 final class AppModel: ObservableObject {
     // Dependencies
-    private let healthKitService: any HealthKitServiceProtocol
+    let healthKitService: any HealthKitServiceProtocol
     let familyControlsService: any FamilyControlsServiceProtocol
     let notificationService: any NotificationServiceProtocol
-    private let budgetEngine: any BudgetEngineProtocol
+    let budgetEngine: any BudgetEngineProtocol
     private let authService = AuthenticationService.shared
 
     static func dayKey(for date: Date) -> String {
@@ -30,187 +30,15 @@ final class AppModel: ObservableObject {
         return df.string(from: date)
     }
 
-    private let minuteTariffBundleKey = "minuteTariffBundleId_v1"
-    private let minuteTariffLastTickKey = "minuteTariffLastTick_v1"
-    private let minuteTariffRateKey = "minuteTariffRate_v1"
-    
-    // Minute mode session summary (local notifications)
-    private let minuteModeSessionBundleKey = "minuteModeSessionBundleId_v1"
-    private let minuteModeSessionStartMinuteCountKey = "minuteModeSessionStartMinuteCount_v1"
-    private let minuteModeSessionStartSpentStepsKey = "minuteModeSessionStartSpentSteps_v1"
-    private let minuteModeSessionStartDayKeyKey = "minuteModeSessionStartDayKey_v1"
-    
     // MARK: - Outer World economy
     private let outerWorldDailyCapKey = "outerworld_dailyCap_v1"
     private let outerWorldLifetimeCollectedKey = "outerworld_totalcollected" // maintained by OuterWorldLocationManager
     private let serverGrantedStepsKey = "serverGrantedSteps_v1"
     private var lastSupabaseSyncAt: Date = .distantPast
     
-    // MARK: - Daily energy system
-    private let dailyEnergyAnchorKey = "dailyEnergyAnchor_v1"
-    private let dailySleepHoursKey = "dailySleepHours_v1"
-    private let baseEnergyTodayKey = "baseEnergyToday_v1"
-    
     // MARK: - Performance optimization
-    private var rebuildShieldTask: Task<Void, Never>?
-    private func dailySelectionsKey(for category: EnergyCategory) -> String {
-        "dailyEnergySelections_v1_\(category.rawValue)"
-    }
-    private func preferredOptionsKey(for category: EnergyCategory) -> String {
-        "preferredEnergyOptions_v1_\(category.rawValue)"
-    }
-
-    private func timeAccessSelectionKey(for bundleId: String) -> String {
-        "timeAccessSelection_v1_\(bundleId)"
-    }
-
-    func timeAccessSelection(for bundleId: String) -> FamilyActivitySelection {
-        let g = UserDefaults.stepsTrader()
-        #if canImport(FamilyControls)
-        if let data = g.data(forKey: timeAccessSelectionKey(for: bundleId)),
-           let decoded = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data) {
-            return decoded
-        }
-        #endif
-        return FamilyActivitySelection()
-    }
-
-    func saveTimeAccessSelection(_ selection: FamilyActivitySelection, for bundleId: String) {
-        let g = UserDefaults.stepsTrader()
-        #if canImport(FamilyControls)
-        if let data = try? JSONEncoder().encode(selection) {
-            g.set(data, forKey: timeAccessSelectionKey(for: bundleId))
-        }
-        #endif
-    }
-
-    func applyFamilyControlsSelection(for bundleId: String) {
-        _ = bundleId
-        rebuildFamilyControlsShield()
-    }
-
-    func disableFamilyControlsShield() {
-        rebuildFamilyControlsShield()
-    }
-
-    func rebuildFamilyControlsShield() {
-        // Отменяем предыдущую задачу, если она еще не выполнилась (дебаунсинг)
-        rebuildShieldTask?.cancel()
-        
-        rebuildShieldTask = Task { @MainActor in
-            // Небольшая задержка для дебаунсинга (50ms)
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            
-            // Проверяем, не была ли задача отменена
-            guard !Task.isCancelled else { return }
-            
-            // Проверяем авторизацию перед выполнением
-            guard familyControlsService.isAuthorized else {
-                print("⚠️ Cannot rebuild shield: Family Controls not authorized")
-                return
-            }
-            
-            let startTime = CFAbsoluteTimeGetCurrent()
-            var combined = FamilyActivitySelection()
-            
-            // Добавляем приложения из групп щитов (исключая временно разблокированные)
-            let defaults = UserDefaults.stepsTrader()
-            let now = Date()
-            
-            for group in shieldGroups {
-                // Проверяем, не разблокирована ли группа временно
-                let unlockKey = "groupUnlock_\(group.id)"
-                if let unlockUntil = defaults.object(forKey: unlockKey) as? Date,
-                   now < unlockUntil {
-                    print("⏭️ Skipping group \(group.name) - unlocked until \(unlockUntil)")
-                    continue
-                }
-                
-                if group.settings.familyControlsModeEnabled == true || group.settings.minuteTariffEnabled == true {
-                    #if canImport(FamilyControls)
-                    // Фильтруем токены, которые временно разблокированы
-                    var groupTokens = group.selection.applicationTokens
-                    var groupCategories = group.selection.categoryTokens
-                    
-                    // Убираем временно разблокированные токены
-                    groupTokens = groupTokens.filter { token in
-                        if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-                            let tokenKey = "fc_unlockUntil_" + tokenData.base64EncodedString()
-                            if let unlockUntil = defaults.object(forKey: tokenKey) as? Date {
-                                return now >= unlockUntil // Включаем только если разблокировка истекла
-                            }
-                        }
-                        return true // Если нет информации о разблокировке, включаем
-                    }
-                    
-                    combined.applicationTokens.formUnion(groupTokens)
-                    combined.categoryTokens.formUnion(groupCategories)
-                    #endif
-                }
-            }
-            
-            // Также добавляем старые карточки для обратной совместимости
-            for (cardId, settings) in appUnlockSettings {
-                if settings.familyControlsModeEnabled == true || settings.minuteTariffEnabled == true {
-                    let selection = timeAccessSelection(for: cardId)
-                    combined.applicationTokens.formUnion(selection.applicationTokens)
-                    combined.categoryTokens.formUnion(selection.categoryTokens)
-                }
-            }
-            
-            familyControlsService.updateSelection(combined)
-            
-            // Обновляем мониторинг минутного режима (может быть тяжелым)
-            // updateMinuteModeMonitoring() уже асинхронный внутри, не блокирует главный поток
-            familyControlsService.updateMinuteModeMonitoring()
-            
-            familyControlsService.updateShieldSchedule()
-            
-            // Apply shield immediately (don't wait for intervalDidStart)
-            applyShieldImmediately(selection: combined)
-            
-            let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-            if elapsed > 0.1 {
-                print("⚠️ rebuildFamilyControlsShield took \(String(format: "%.3f", elapsed))s")
-            }
-            
-            // Сбрасываем состояние щита на первый экран при любом обновлении выбора
-            let sharedDefaults = UserDefaults.stepsTrader()
-            sharedDefaults.set(0, forKey: "doomShieldState_v1")
-        }
-    }
+    var rebuildShieldTask: Task<Void, Never>?
     
-    #if canImport(ManagedSettings)
-    private func applyShieldImmediately(selection: FamilyActivitySelection) {
-        // Проверяем авторизацию перед применением щита
-        guard familyControlsService.isAuthorized else {
-            print("⚠️ Cannot apply shield: Family Controls not authorized")
-            return
-        }
-        
-        let store = ManagedSettingsStore(named: .init("shield"))
-        store.shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
-        store.shield.applicationCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
-        print("🛡️ Shield applied immediately: \(selection.applicationTokens.count) apps, \(selection.categoryTokens.count) categories")
-    }
-    #endif
-
-    func isTimeAccessEnabled(for bundleId: String) -> Bool {
-        let selection = timeAccessSelection(for: bundleId)
-        return !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
-    }
-
-    func isMinuteTariffEnabled(for bundleId: String) -> Bool {
-        unlockSettings(for: bundleId).minuteTariffEnabled
-    }
-
-    func setMinuteTariffEnabled(_ enabled: Bool, for bundleId: String) {
-        var settings = unlockSettings(for: bundleId)
-        settings.minuteTariffEnabled = enabled
-        appUnlockSettings[bundleId] = settings
-        persistAppUnlockSettings()
-        scheduleSupabaseShieldUpsert(bundleId: bundleId)
-    }
 
     func isFamilyControlsModeEnabled(for bundleId: String) -> Bool {
         unlockSettings(for: bundleId).familyControlsModeEnabled
@@ -222,12 +50,6 @@ final class AppModel: ObservableObject {
         appUnlockSettings[bundleId] = settings
         persistAppUnlockSettings()
         scheduleSupabaseShieldUpsert(bundleId: bundleId)
-    }
-
-    func minutesAvailable(for bundleId: String) -> Int {
-        let costPerMinute = unlockSettings(for: bundleId).entryCostSteps
-        guard costPerMinute > 0 else { return Int.max }
-        return max(0, totalStepsBalance / costPerMinute)
     }
 
     // Published properties
@@ -243,19 +65,19 @@ final class AppModel: ObservableObject {
     // Оплата входа шагами
     @Published var entryCostSteps: Int = 5
     @Published var stepsBalance: Int = 0
-    @Published private(set) var baseEnergyToday: Int = 0
+    @Published var baseEnergyToday: Int = 0
     @Published var dailySleepHours: Double = 0
-    @Published var dailyRecoverySelections: [String] = []
-    @Published var dailyActivitySelections: [String] = []
+    @Published var dailyMoveSelections: [String] = []
+    @Published var dailyRebootSelections: [String] = []
     @Published var dailyJoySelections: [String] = []
-    @Published var preferredRecoveryOptions: [String] = []
-    @Published var preferredActivityOptions: [String] = []
+    @Published var preferredMoveOptions: [String] = []
+    @Published var preferredRebootOptions: [String] = []
     @Published var preferredJoyOptions: [String] = []
     /// Total non-HealthKit energy.
     /// We keep this as a single published value because many parts of the app rely on it.
-    @Published private(set) var bonusSteps: Int = 0
+    @Published var bonusSteps: Int = 0
     /// Energy collected from the Outer World (map drops).
-    @Published private(set) var outerWorldBonusSteps: Int = 0
+    @Published var outerWorldBonusSteps: Int = 0
     /// Energy granted from Supabase (admin grants / server-side economy).
     @Published private(set) var serverGrantedSteps: Int = 0
     var totalStepsBalance: Int { max(0, stepsBalance + bonusSteps) }
@@ -263,139 +85,19 @@ final class AppModel: ObservableObject {
     @Published var spentStepsToday: Int = 0
     @Published var healthAuthorizationStatus: HKAuthorizationStatus = .notDetermined
     
-    struct AppUnlockSettings: Codable, Equatable {
-        var entryCostSteps: Int
-        var dayPassCostSteps: Int
-        var allowedWindows: Set<AccessWindow> = [.single, .minutes5, .minutes30, .hour1] // day pass off by default
-        var minuteTariffEnabled: Bool = false
-        var familyControlsModeEnabled: Bool = false
-    }
+    // Персональные настройки для приложений
+    @Published var appUnlockSettings: [String: AppUnlockSettings] = [:]
+    // Активированные безлимиты на день по bundleId (дата активации)
+    @Published var dayPassGrants: [String: Date] = [:]
     
-    // MARK: - Shield Group Model
-    struct ShieldGroup: Identifiable, Codable {
-        let id: String
-        var name: String
-        var selection: FamilyActivitySelection
-        var settings: AppUnlockSettings
-        var difficultyLevel: Int = 1 // Уровень сложности (1-5)
-        var enabledIntervals: Set<AccessWindow> = [.minutes5, .minutes15, .minutes30, .hour1, .hour2] // Включенные интервалы
-        
-        init(id: String = UUID().uuidString, name: String, selection: FamilyActivitySelection = FamilyActivitySelection(), settings: AppUnlockSettings) {
-            self.id = id
-            self.name = name
-            self.selection = selection
-            self.settings = settings
-            self.difficultyLevel = 1
-            self.enabledIntervals = [.minutes5, .minutes15, .minutes30, .hour1, .hour2]
-        }
-        
-        // Вычисляет стоимость для интервала на основе уровня сложности
-        func cost(for interval: AccessWindow) -> Int {
-            // Базовые стоимости для каждого интервала (для уровня 1)
-            let baseCosts: [AccessWindow: Int] = [
-                .minutes5: 2,
-                .minutes15: 5,
-                .minutes30: 10,
-                .hour1: 20,
-                .hour2: 40
-            ]
-            
-            // Получаем базовую стоимость для интервала
-            let baseCost = baseCosts[interval] ?? 5
-            
-            // Умножаем на уровень сложности (1-5)
-            // Уровень 1 = базовая стоимость, уровень 5 = базовая стоимость * 2.5
-            let multiplier = 1.0 + (Double(difficultyLevel - 1) * 0.375) // 1.0, 1.375, 1.75, 2.125, 2.5
-            
-            return max(1, Int(Double(baseCost) * multiplier))
-        }
-        
-        // Custom Codable implementation for FamilyActivitySelection
-        enum CodingKeys: String, CodingKey {
-            case id, name, selectionData, settings, minuteCost, difficultyLevel, enabledIntervals
-        }
-        
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            id = try container.decode(String.self, forKey: .id)
-            name = try container.decode(String.self, forKey: .name)
-            settings = try container.decode(AppUnlockSettings.self, forKey: .settings)
-            
-            // Поддержка обратной совместимости: если есть minuteCost, конвертируем в difficultyLevel
-            if let oldMinuteCost = try? container.decodeIfPresent(Int.self, forKey: .minuteCost) {
-                difficultyLevel = oldMinuteCost
-            } else {
-                difficultyLevel = try container.decodeIfPresent(Int.self, forKey: .difficultyLevel) ?? 1
-            }
-            
-            enabledIntervals = try container.decodeIfPresent(Set<AccessWindow>.self, forKey: .enabledIntervals) ?? [.minutes5, .minutes15, .minutes30, .hour1, .hour2]
-            
-            #if canImport(FamilyControls)
-            if let data = try? container.decode(Data.self, forKey: .selectionData),
-               let decoded = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data) {
-                selection = decoded
-            } else {
-                selection = FamilyActivitySelection()
-            }
-            #else
-            selection = FamilyActivitySelection()
-            #endif
-        }
-        
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(id, forKey: .id)
-            try container.encode(name, forKey: .name)
-            try container.encode(settings, forKey: .settings)
-            try container.encode(difficultyLevel, forKey: .difficultyLevel)
-            try container.encode(enabledIntervals, forKey: .enabledIntervals)
-            
-            #if canImport(FamilyControls)
-            if let data = try? JSONEncoder().encode(selection) {
-                try container.encode(data, forKey: .selectionData)
-            }
-            #endif
-        }
-    }
-    
-    struct AppOpenLog: Codable, Identifiable {
-        var id: UUID = UUID()
-        let bundleId: String
-        let date: Date
-        let spentSteps: Int?
-    }
-    
-    struct MinuteChargeLog: Codable, Identifiable {
-        var id: UUID { UUID() }
-        let bundleId: String
-        let timestamp: Date
-        let cost: Int
-        let balanceAfter: Int
-    }
-    
-    @Published var appOpenLogs: [AppOpenLog] = []
     @Published var minuteChargeLogs: [MinuteChargeLog] = []
     @Published var minuteTimeByDay: [String: [String: Int]] = [:] // [dayKey: [bundleId: minutes]]
     @Published var appStepsSpentToday: [String: Int] = [:]
     @Published var appStepsSpentByDay: [String: [String: Int]] = [:]
     @Published var appStepsSpentLifetime: [String: Int] = [:]
     
-    struct DailyStory: Codable {
-        let dateKey: String
-        let english: String
-        let russian: String
-        let createdAt: Date
-    }
-    @Published var dailyStories: [String: DailyStory] = [:]
-    
-    // Персональные настройки для приложений
-    @Published private(set) var appUnlockSettings: [String: AppUnlockSettings] = [:]
-    // Активированные безлимиты на день по bundleId (дата активации)
-    @Published private var dayPassGrants: [String: Date] = [:]
-    
     // MARK: - Shield Groups
     @Published var shieldGroups: [ShieldGroup] = []
-    private let shieldGroupsKey = "shieldGroups_v1"
 
     // Budget properties that mirror BudgetEngine for UI updates
     @Published var dailyBudgetMinutes: Int = 0
@@ -406,7 +108,6 @@ final class AppModel: ObservableObject {
     @Published var showPayGate: Bool = false
     @Published var payGateTargetGroupId: String? = nil  // ID группы для PayGate
     
-    private let payGateDismissedUntilKey = "payGateDismissedUntil_v1"
     
     enum PayGateDismissReason {
         case userDismiss
@@ -414,11 +115,6 @@ final class AppModel: ObservableObject {
         case programmatic
     }
     
-    struct PayGateSession: Identifiable {
-        let id: String  // groupId
-        let groupId: String
-        let startedAt: Date
-    }
     @Published var payGateSessions: [String: PayGateSession] = [:]
     @Published var currentPayGateSessionId: String? = nil
     
@@ -439,7 +135,6 @@ final class AppModel: ObservableObject {
             if appSelection.applicationTokens != oldValue.applicationTokens
                 || appSelection.categoryTokens != oldValue.categoryTokens
             {
-                syncAppSelectionToService()
                 saveAppSelection()  // Сохраняем выбор пользователя
                 if let service = familyControlsService as? FamilyControlsService {
                     service.updateSelection(appSelection)
@@ -458,7 +153,7 @@ final class AppModel: ObservableObject {
 
             UserDefaults.standard.set(isInstagramSelected, forKey: "isInstagramSelected")
             if isInstagramSelected {
-                setInstagramAsTarget()
+                setAppAsTarget(bundleId: "com.burbn.instagram")
             } else {
                 clearAppSelection()
             }
@@ -467,9 +162,26 @@ final class AppModel: ObservableObject {
 
     // Флаг для предотвращения рекурсии при обновлении Instagram selection
     private var isUpdatingInstagramSelection = false
+    
+    private func setAppAsTarget(bundleId: String) {
+        // For Instagram specifically, we use the existing selection mechanism
+        if bundleId == "com.burbn.instagram" {
+            // Apply the existing time access selection for this bundle ID
+            applyFamilyControlsSelection(for: bundleId)
+        } else {
+            // For other apps, apply their selection
+            applyFamilyControlsSelection(for: bundleId)
+        }
+    }
+    
+    private func clearAppSelection() {
+        appSelection = FamilyActivitySelection()
+        familyControlsService.updateSelection(FamilyActivitySelection())
+        rebuildFamilyControlsShield()
+    }
 
-    private var startTime: Date?
-    private var timer: Timer?
+    var startTime: Date?
+    var timer: Timer?
 
     init(
         healthKitService: any HealthKitServiceProtocol,
@@ -481,1428 +193,23 @@ final class AppModel: ObservableObject {
         self.familyControlsService = familyControlsService
         self.notificationService = notificationService
         self.budgetEngine = budgetEngine
-
-        // Initialize budget properties
-        self.dailyBudgetMinutes = budgetEngine.dailyBudgetMinutes
-        self.remainingMinutes = budgetEngine.remainingMinutes
-        if let engine = budgetEngine as? BudgetEngine {
-            self.dayEndHour = engine.dayEndHour
-            self.dayEndMinute = engine.dayEndMinute
-        }
-        
-        // Sync entry cost with current tariff
-        syncEntryCostWithTariff()
-
-        // Восстановим закреплённый выбор приложений (если есть)
-        if let service = familyControlsService as? FamilyControlsService {
-            // FamilyControlsService сам вызвал restorePersistentSelection() в init
-            self.appSelection = service.selection
-        }
-
-        // Загрузка бонусного баланса от секретного действия
-        loadDebugStepsBonus()
-        loadServerGrantedSteps()
-        // Make sure Outer World daily cap exists even before HealthKit finishes (uses cached/sim steps).
-        persistOuterWorldDailyCap()
-        // Загрузка баланса шагов
-        loadSpentStepsBalance()
-        // Загрузка стоимости входа
-        loadEntryCost()
-        loadEnergyPreferences()
-        loadDailyEnergyState()
-        recalculateDailyEnergy()
-        // Загрузка индивидуальных настроек
-        loadAppUnlockSettings()
-        // Загрузка групп щитов
-        loadShieldGroups()
-        // Откладываем rebuildFamilyControlsShield - может быть тяжелым при запуске
-        // Выполним его асинхронно после инициализации
-        loadDayPassGrants()
-        loadAppOpenLogs()
-        loadMinuteChargeLogs()
-        loadAppStepsSpentLifetime()
-        loadAppStepsSpentToday()
-        loadDailyTariffSelections()
-        loadDailyStories()
-        loadCachedStepsToday()
-        if stepsToday > 0 {
-            // Use cached steps to keep UI/budget non-zero on cold launch
-            let mins = budgetEngine.minutes(from: stepsToday)
-            budgetEngine.setBudget(minutes: mins)
-            syncBudgetProperties()
-            recalculateDailyEnergy()
-        }
-
-        // Инициализируем значения по умолчанию если их нет
-        if entryCostSteps == 0 {
-            entryCostSteps = 5  // 5 энергии по умолчанию
-            persistEntryCost(tariff: .easy)
-        }
-
-        // Обновляем баланс шагов и запрашиваем HealthKit, если онбординг уже пройден
-        let hasSeenIntro = UserDefaults.standard.bool(forKey: "hasSeenIntro_v3")
-        if hasSeenIntro {
-            Task {
-                await ensureHealthAuthorizationAndRefresh()
-            }
-        } else {
-            print("⏳ Skipping HealthKit prompt until intro is finished")
-        }
-        
-        // Start automatic step updates if onboarding finished
-        if hasSeenIntro {
-            startStepObservation()
-        } else {
-            print("⏳ Skipping step observation until intro is finished")
-        }
-
-        print("🎯 AppModel initialized with dependencies")
-
-        // Загружаем сохраненное состояние Instagram
-        self.isInstagramSelected = UserDefaults.standard.bool(forKey: "isInstagramSelected")
-
-        // Синхронизируем начальное состояние без вызова didSet
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-
-            // Сначала загружаем сохраненный выбор приложений
-            self.loadAppSelection()
-
-            // Если нет сохраненного выбора, пробуем загрузить из FamilyControlsService
-            if self.appSelection.applicationTokens.isEmpty
-                && self.appSelection.categoryTokens.isEmpty
-            {
-                print("🔄 No saved selection found, checking FamilyControlsService...")
-                if !self.familyControlsService.selection.applicationTokens.isEmpty
-                    || !self.familyControlsService.selection.categoryTokens.isEmpty
-                {
-                    self.appSelection = self.familyControlsService.selection
-                    print(
-                        "🔄 Loaded from FamilyControlsService: \(self.appSelection.applicationTokens.count) apps"
-                    )
-                }
-            } else {
-                // Если есть сохраненный выбор, синхронизируем его с FamilyControlsService
-                print("🔄 Found saved selection, syncing to FamilyControlsService...")
-                self.syncAppSelectionToService()
-            }
-
-            // Восстанавливаем сохраненное время использования
-            self.loadSpentTime()
-            
-            // Отложенная инициализация щита - после загрузки всех данных
-            // Это предотвращает падение при запуске из-за тяжелых операций
-            // Увеличиваем задержку, чтобы избежать проблем при профилировании
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.rebuildFamilyControlsShield()
-            }
-            
-            print(
-                "🔄 Initial sync complete: \(self.appSelection.applicationTokens.count) apps, \(self.appSelection.categoryTokens.count) categories"
-            )
-        }
-
-        // Подписываемся на уведомления о жизненном цикле приложения
-        setupAppLifecycleObservers()
-        
-        // Подписка на уведомление о сборе энергии из Outer World
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleEnergyCollected(_:)),
-            name: NSNotification.Name("com.steps.trader.energy.collected"),
-            object: nil
-        )
-        
-        // Подписка на уведомление о восстановлении данных с сервера
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleStatsRestored),
-            name: NSNotification.Name("StatsRestoredFromServer"),
-            object: nil
-        )
-
-        // Подписка на дарвиновское уведомление от сниппета/интента (безопасная привязка observer)
-        CFNotificationCenterAddObserver(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            Unmanaged.passUnretained(self).toOpaque(),
-            { _, observer, name, object, userInfo in
-                guard let observer = observer, let name = name else { return }
-                let `self` = Unmanaged<AppModel>.fromOpaque(observer).takeUnretainedValue()
-                if name.rawValue as String == "com.steps.trader.refresh" {
-                    Task { @MainActor in
-                        await `self`.recalcSilently()
-                        `self`.loadSpentTime()
-                    }
-                } else if name.rawValue as String == "com.steps.trader.paygate" {
-                    Task { @MainActor in
-                        print("📱 Received PayGate notification from shortcut")
-                        if let userInfo = userInfo as? [String: Any],
-                           let target = userInfo["target"] as? String,
-                           let bundleId = userInfo["bundleId"] as? String {
-                            print("📱 PayGate notification - target: \(target), bundleId: \(bundleId)")
-                            `self`.openPayGateForBundleId(bundleId)
-                        }
-                    }
-                } else if name.rawValue as String == "com.steps.trader.logs" {
-                    Task { @MainActor in
-                        `self`.loadAppOpenLogs()
-                    }
-                }
-            },
-            "com.steps.trader.refresh" as CFString,
-            nil,
-            .deliverImmediately
-        )
-    }
-    
-    // MARK: - Outer World Energy Collection
-    
-    @objc private func handleEnergyCollected(_ notification: Notification) {
-        guard let energy = notification.userInfo?["energy"] as? Int else { return }
-        
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            
-            // Проверяем дневной лимит для Outer World (50)
-            let currentOuterWorld = self.outerWorldBonusSteps
-            let maxOuterWorld = EnergyDefaults.maxBonusEnergy // 50
-            let availableOuterWorld = max(0, maxOuterWorld - currentOuterWorld)
-            let energyToAdd = min(energy, availableOuterWorld)
-            
-            if energyToAdd > 0 {
-                // Add energy to Outer World bonus (separated from HealthKit energy)
-                self.outerWorldBonusSteps += energyToAdd
-                self.syncAndPersistBonusBreakdown()
-                
-                if energyToAdd < energy {
-                    print("⚡ Outer World: Collected \(energyToAdd)/\(energy) energy (daily cap reached). Bonus now: \(self.bonusSteps)")
-                } else {
-                    print("⚡ Outer World: Collected \(energy) energy. Bonus now: \(self.bonusSteps)")
-                }
-            } else {
-                print("⚡ Outer World: Daily cap (\(maxOuterWorld)) reached, cannot collect more energy")
-            }
-        }
-    }
-    
-    @objc private func handleStatsRestored() {
-        print("📊 Stats restored from server, reloading local data...")
-        DispatchQueue.main.async { [weak self] in
-            self?.loadAppStepsSpentLifetime()
-            self?.loadAppStepsSpentToday()
-        }
     }
 
-    var outerWorldLifetimeCollected: Int {
-        UserDefaults.standard.integer(forKey: outerWorldLifetimeCollectedKey)
-    }
-    
-    var outerWorldDailyCap: Int {
-        // Spec: each drop gives +5, max 50 per day (matches EnergyDefaults.maxBonusEnergy)
-        EnergyDefaults.maxBonusEnergy
-    }
-    
-    private func persistOuterWorldDailyCap() {
-        UserDefaults.standard.set(outerWorldDailyCap, forKey: outerWorldDailyCapKey)
-    }
-
-    // MARK: - PayGate handlers + Pay per entry
-    func handleIncomingURL(_ url: URL) {
-        let host = url.host?.lowercased() ?? ""
-        let scheme = url.scheme?.lowercased() ?? ""
-        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        let target = components?.queryItems?.first(where: { $0.name == "target" })?.value
-        
-        print("🔗 handleIncomingURL called with: \(url)")
-        print("🔗 URL details - scheme: \(scheme), host: \(host), target: \(target ?? "nil")")
-        
-        let userDefaults = UserDefaults.stepsTrader()
-        let now = Date()
-        
-        // Check for recent URL handling to prevent rapid successive calls
-        if let lastURLHandleTime = userDefaults.object(forKey: "lastURLHandleTime") as? Date {
-            let timeSinceLastHandle = now.timeIntervalSince(lastURLHandleTime)
-            if timeSinceLastHandle < 1.0 {
-                print("🚫 URL handled too recently (\(String(format: "%.1f", timeSinceLastHandle))s), ignoring to prevent loop")
-                return
-            }
-        }
-
-        // Update last URL handle time
-        userDefaults.set(now, forKey: "lastURLHandleTime")
-
-        if host == "unlock" {
-            // Handle unlock from shield
-            let bundleIdFromQuery = components?.queryItems?.first(where: { $0.name == "bundleId" })?.value
-            let bundleId = bundleIdFromQuery ?? userDefaults.string(forKey: "lastBlockedAppBundleId")
-            
-            print("🔓 Unlock request from shield for bundleId: \(bundleId ?? "unknown")")
-            
-            // If we have a bundleId, open paygate for it
-            if let bundleId = bundleId {
-                Task { @MainActor in
-                    openPayGateForBundleId(bundleId)
-                }
-            } else {
-                print("⚠️ No bundleId found for unlock request")
-            }
-            return
-        }
-        
-        if host == "pay" {
-            let bundleIdForPay = TargetResolver.bundleId(from: target)
-            if let bundleIdForPay, isFamilyControlsModeEnabled(for: bundleIdForPay) {
-                print("🛡️ Shield pay deeplink for minute mode: \(bundleIdForPay)")
-                Task { @MainActor in
-                    let now = Date()
-                    userDefaults.set(now, forKey: "lastPayGateAction")
-                    userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
-                    userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader_\(bundleIdForPay)")
-                    await handleMinuteTariffEntry(for: bundleIdForPay)
-                }
-                return
-            }
-
-            Task { @MainActor in
-                await refreshStepsBalance()
-                startPayGateSession(for: bundleIdForPay ?? "unknown")
-                let settings = unlockSettings(for: bundleIdForPay)
-                if hasDayPass(for: bundleIdForPay) {
-                    message = "✅ Day pass already active for today."
-                } else if canPayForEntry(for: bundleIdForPay) {
-                    _ = payForEntry(for: bundleIdForPay)
-                    message = "✅ \(settings.entryCostSteps) energy deducted. Access granted."
-                } else {
-                    let shortage = max(0, settings.entryCostSteps - totalStepsBalance)
-                    message =
-                        "❌ Not enough energy. Need another \(shortage)."
-                }
-            }
-            return
-        }
-
-        // поддержка: steps-trader://pay?target=instagram | steps-trader://guard?target=instagram
-        let isPay = (host == "pay" || url.path.contains("pay"))
-        let isGuard = (host == "guard" || url.path.contains("guard"))
-        guard isPay || isGuard else { return }
-        let bundleId: String? = TargetResolver.bundleId(from: target)
-        if let bid = bundleId { openPayGateForBundleId(bid) }
-        print("🎯 Deeplink: host=\(url.host ?? "nil") target=\(bundleId ?? "nil")")
-
-        // Otherwise show our pay gate overlay with a pay button
-        if let bundleId {
-            openPayGateForBundleId(bundleId)
-        }
-        print("🎯 PayGate: target=\(payGateTargetGroupId ?? "nil") show=\(showPayGate)")
-        if let engine = budgetEngine as? BudgetEngine { engine.reloadFromStorage() }
-    }
-
-    // MARK: - PayGate payment pipeline
-    func handlePayGatePayment(
-        for bundleId: String,
-        window: AccessWindow = .single,
-        costOverride: Int? = nil
-    ) async {
-        // Минутный режим (legacy): только если явно включён minuteTariffEnabled.
-        // Для новых FamilyControls‑карточек мы идём по обычному пути с разблокировкой щита.
-        if isMinuteTariffEnabled(for: bundleId) {
-            familyControlsService.updateMinuteModeMonitoring()
-            await handleMinuteTariffEntry(for: bundleId)
-            return
-        }
-
-        _ = UserDefaults.stepsTrader()
-        await refreshStepsBalance()
-        let settings = unlockSettings(for: bundleId)
-        let effectiveCost = costOverride ?? settings.entryCostSteps
-        print("🎯 PayGate: Evaluating payment for \(bundleId)")
-        print("   - stepsToday: \(Int(stepsToday))")
-        print("   - stepsBalance: base \(stepsBalance), bonus \(bonusSteps), total \(totalStepsBalance)")
-        print("   - entryCostSteps: \(effectiveCost)")
-        print("   - dayPassCostSteps: \(settings.dayPassCostSteps)")
-        print("   - selected apps: \(appSelection.applicationTokens.count)")
-        print("   - selected categories: \(appSelection.categoryTokens.count)")
-
-        let dayPassActive = hasDayPass(for: bundleId)
-        if dayPassActive {
-            message = "✅ Day pass active for today."
-            print("✅ PayGate: Day pass already active for \(bundleId)")
-        } else {
-            guard canPayForEntry(for: bundleId, costOverride: costOverride) else {
-                let shortage = max(0, effectiveCost - totalStepsBalance)
-                message =
-                    "❌ Not enough energy. Need another \(shortage)."
-                print("❌ PayGate: Not enough steps (total balance \(totalStepsBalance) < cost \(effectiveCost))")
-                return
-            }
-
-            guard payForEntry(for: bundleId, costOverride: costOverride) else {
-                print("❌ PayGate: payForEntry() returned false")
-                return
-            }
-            print("✅ PayGate: payForEntry() succeeded; new balance \(totalStepsBalance)")
-
-            message = "✅ \(effectiveCost) energy deducted. Access granted."
-        }
-
-        print("✅ PayGate: Steps deducted or day pass active, unlocking shield for \(bundleId)")
-        
-        // Разблокируем карточку в FamilyControls: убираем её из щита.
-        unlockFamilyControlsCard(bundleId)
-        
-        // Фиксируем, что PayGate был открыт (для статистики/логов).
-        markPayGateOpen(for: bundleId)
-        
-        // Пользователь сам вернётся в нужное приложение; просто закрываем PayGate.
-        await MainActor.run {
-            self.endPayGateSession(bundleId)
-        }
-    }
-    
-    // MARK: - PayGate Payment for Group
-    func handlePayGatePaymentForGroup(
-        groupId: String,
-        window: AccessWindow,
-        costOverride: Int? = nil
-    ) async {
-        guard let group = shieldGroups.first(where: { $0.id == groupId }) else {
-            print("⚠️ PayGate: Group \(groupId) not found")
-            return
-        }
-        
-        await refreshStepsBalance()
-        let effectiveCost = costOverride ?? group.cost(for: window)
-        
-        print("🎯 PayGate: Evaluating payment for group \(group.name)")
-        print("   - stepsToday: \(Int(stepsToday))")
-        print("   - stepsBalance: base \(stepsBalance), bonus \(bonusSteps), total \(totalStepsBalance)")
-        print("   - window: \(window.displayName)")
-        print("   - cost: \(effectiveCost)")
-        print("   - apps in group: \(group.selection.applicationTokens.count)")
-        
-        guard canPayForEntry(cost: effectiveCost) else {
-            let shortage = max(0, effectiveCost - totalStepsBalance)
-            message = "❌ Not enough energy. Need another \(shortage)."
-            print("❌ PayGate: Not enough steps (total balance \(totalStepsBalance) < cost \(effectiveCost))")
-            return
-        }
-        
-        guard payForEntry(cost: effectiveCost) else {
-            print("❌ PayGate: payForEntry() returned false")
-            return
-        }
-        print("✅ PayGate: payForEntry() succeeded; new balance \(totalStepsBalance)")
-        
-        message = "✅ \(effectiveCost) energy deducted. Access granted."
-        
-        // Разблокируем приложения из группы на выбранное время
-        unlockGroupForWindow(groupId: groupId, window: window)
-        
-        // Фиксируем, что PayGate был открыт
-        markPayGateOpenForGroup(groupId: groupId)
-        
-        // Закрываем PayGate
-        await MainActor.run {
-            self.endPayGateSession(groupId)
-        }
-    }
-    
-    private func canPayForEntry(cost: Int) -> Bool {
-        totalStepsBalance >= cost
-    }
-    
-    private func payForEntry(cost: Int) -> Bool {
-        guard canPayForEntry(cost: cost) else { return false }
-        return pay(cost: cost)
-    }
-    
-    private func unlockGroupForWindow(groupId: String, window: AccessWindow) {
-        guard let group = shieldGroups.first(where: { $0.id == groupId }) else { return }
-        
-        #if canImport(FamilyControls)
-        // Создаем временное окно доступа для группы
-        let now = Date()
-        let endDate = now.addingTimeInterval(TimeInterval(window.minutes * 60))
-        
-        // Сохраняем информацию о разблокировке для каждого приложения в группе
-        let defaults = UserDefaults.stepsTrader()
-        let unlockKey = "groupUnlock_\(groupId)"
-        defaults.set(endDate, forKey: unlockKey)
-        
-        // Сохраняем информацию о разблокировке для каждого токена в группе
-        for token in group.selection.applicationTokens {
-            if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-                let tokenKey = "fc_unlockUntil_" + tokenData.base64EncodedString()
-                defaults.set(endDate, forKey: tokenKey)
-            }
-        }
-        
-        // Временно убираем группу из щита
-        rebuildFamilyControlsShield()
-        
-        // Планируем уведомление за 1 минуту до окончания
-        scheduleUnlockExpirationNotification(groupId: groupId, endDate: endDate, groupName: group.name)
-        
-        print("✅ Unlocked group \(group.name) (\(group.selection.applicationTokens.count) apps) until \(endDate)")
-        #endif
-    }
-    
-    // MARK: - Group Unlock Time Helpers
-    func remainingUnlockTime(for groupId: String) -> TimeInterval? {
-        let defaults = UserDefaults.stepsTrader()
-        let unlockKey = "groupUnlock_\(groupId)"
-        guard let endDate = defaults.object(forKey: unlockKey) as? Date else {
-            return nil
-        }
-        let remaining = endDate.timeIntervalSince(Date())
-        return remaining > 0 ? remaining : nil
-    }
-    
-    func isGroupUnlocked(_ groupId: String) -> Bool {
-        return remainingUnlockTime(for: groupId) != nil
-    }
-    
-    private func scheduleUnlockExpirationNotification(groupId: String, endDate: Date, groupName: String) {
-        let now = Date()
-        let timeUntilEnd = endDate.timeIntervalSince(now)
-        
-        // Планируем уведомление за 1 минуту до окончания
-        let notificationTime = timeUntilEnd - 60 // 1 минута до окончания
-        
-        guard notificationTime > 0 else {
-            // Если до окончания меньше минуты, не планируем уведомление
-            return
-        }
-        
-        // Отменяем предыдущее уведомление для этой группы
-        let notificationId = "groupUnlockExpiring_\(groupId)"
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationId])
-        
-        // Создаем уведомление
-        let content = UNMutableNotificationContent()
-        content.title = "⏰ Access expiring soon"
-        content.body = "\(groupName) will be blocked in 1 minute"
-        content.sound = .default
-        
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: notificationTime, repeats: false)
-        let request = UNNotificationRequest(identifier: notificationId, content: content, trigger: trigger)
-        
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("⚠️ Failed to schedule expiration notification: \(error)")
-            } else {
-                print("📅 Scheduled expiration notification for group \(groupName) in \(Int(notificationTime))s")
-            }
-        }
-    }
-    
-    private func markPayGateOpenForGroup(groupId: String) {
-        let defaults = UserDefaults.stepsTrader()
-        defaults.set(Date(), forKey: "lastPayGateAction")
-        defaults.set(Date(), forKey: "payGateLastOpen")
-        defaults.set(Date(), forKey: "lastGroupPayGateOpen_\(groupId)")
-    }
-
-    func handleMinuteTariffEntry(for bundleId: String) async {
-        await refreshStepsBalance()
-        let settings = unlockSettings(for: bundleId)
-        let rate = settings.entryCostSteps
-        guard rate > 0 else {
-            message = "✅ Access granted."
-            openTargetAppFromPayGate(bundleId, logCost: 0) { [weak self] opened in
-                guard let self = self else { return }
-                if !opened {
-                    self.message = "⚠️ Could not open the target app. Try again."
-                }
-                self.endPayGateSession(bundleId)
-            }
-            return
-        }
-
-        let minutesLeft = minutesAvailable(for: bundleId)
-        guard minutesLeft > 0 else {
-            message = "❌ Not enough energy for minute access."
-            return
-        }
-
-        // Minute mode MUST be usage-based (DeviceActivity). We do not support wall-clock charging anymore,
-        // because it keeps charging while the user is not actually using the target app.
-        guard isDeviceActivityMinuteModeAvailable(for: bundleId) else {
-            message = "⚠️ Minute mode requires Screen Time selection."
-            return
-        }
-        familyControlsService.updateMinuteModeMonitoring()
-        clearMinuteTariffSessionState()
-        
-        // Track session start snapshot for summary notification.
-        startMinuteModeSessionSnapshot(bundleId: bundleId)
-        let userDefaults = UserDefaults.stepsTrader()
-        markPayGateOpen(for: bundleId)
-
-        openTargetAppFromPayGate(bundleId, logCost: 0) { [weak self] opened in
-            guard let self = self else { return }
-            if opened {
-                // Charge immediately on entry so < 1 minute opens are not free.
-                // Then skip the first 1-minute threshold event to avoid double-charging.
-                if self.pay(cost: rate) {
-                    self.addSpentSteps(rate, for: bundleId)
-                    self.logMinuteModeEntryCharge(bundleId: bundleId, cost: rate)
-                } else {
-                    self.message = "⚠️ Could not charge minute mode entry."
-                }
-            } else {
-                self.message = "⚠️ Could not open the target app. Try again."
-            }
-            self.endPayGateSession(bundleId)
-        }
-    }
-
-    private func logMinuteModeEntryCharge(bundleId: String, cost: Int) {
-        let g = UserDefaults.stepsTrader()
-        let now = Date()
-        let dayKey = Self.dayKey(for: now)
-
-        // 1) Mark to skip the next DeviceActivity 1-minute threshold event (avoids double-charge for minute 1).
-        g.set(true, forKey: "minuteModeSkipNextCharge_v1_\(bundleId)")
-
-        // 2) Increment "minutes used" counters for UI/summary.
-        let countKey = "minuteCount_\(dayKey)_\(bundleId)"
-        let currentMinutes = g.integer(forKey: countKey)
-        g.set(currentMinutes + 1, forKey: countKey)
-
-        // 3) Persist minuteTimeByDay_v1 (same shape as extension).
-        var perDay: [String: [String: Int]] = [:]
-        if let data = g.data(forKey: "minuteTimeByDay_v1"),
-           let decoded = try? JSONDecoder().decode([String: [String: Int]].self, from: data) {
-            perDay = decoded
-        }
-        var dayMap = perDay[dayKey] ?? [:]
-        dayMap[bundleId, default: 0] += 1
-        perDay[dayKey] = dayMap
-        // Keep last 7 days to avoid bloat (mirrors extension behavior).
-        let sortedKeys = perDay.keys.sorted().suffix(7)
-        perDay = perDay.filter { sortedKeys.contains($0.key) }
-        if let data = try? JSONEncoder().encode(perDay) {
-            g.set(data, forKey: "minuteTimeByDay_v1")
-        }
-
-        // 4) Append to minuteChargeLogs_v1 for UI.
-        var logs: [MinuteChargeLog] = []
-        if let data = g.data(forKey: "minuteChargeLogs_v1"),
-           let decoded = try? JSONDecoder().decode([MinuteChargeLog].self, from: data) {
-            logs = decoded
-        }
-        let balanceAfter = g.integer(forKey: "stepsBalance") + g.integer(forKey: "debugStepsBonus_v1")
-        logs.append(MinuteChargeLog(bundleId: bundleId, timestamp: now, cost: cost, balanceAfter: balanceAfter))
-        if logs.count > 100 { logs = Array(logs.suffix(100)) }
-        if let data = try? JSONEncoder().encode(logs) {
-            g.set(data, forKey: "minuteChargeLogs_v1")
-        }
-
-        // Refresh in-memory mirrors (so UI updates without relaunch).
-        loadMinuteChargeLogs()
-    }
-
-    private func shouldUseDeviceActivityMinuteMode(for bundleId: String) -> Bool {
-        #if canImport(FamilyControls)
-        guard let service = familyControlsService as? FamilyControlsService else { return false }
-        guard service.isAuthorized else { return false }
-        // Must have a concrete selection, otherwise DeviceActivity cannot track this bundle.
-        guard isTimeAccessEnabled(for: bundleId) else { return false }
-        return true
-        #else
-        _ = bundleId
-        return false
-        #endif
-    }
-
-    func isDeviceActivityMinuteModeAvailable(for bundleId: String) -> Bool {
-        shouldUseDeviceActivityMinuteMode(for: bundleId)
-    }
-
-    private func clearMinuteTariffSessionState() {
-        let g = UserDefaults.stepsTrader()
-        g.removeObject(forKey: minuteTariffBundleKey)
-        g.removeObject(forKey: minuteTariffLastTickKey)
-        g.removeObject(forKey: minuteTariffRateKey)
-    }
-
-    private func markPayGateOpen(for bundleId: String) {
-        let userDefaults = UserDefaults.stepsTrader()
-        let now = Date()
-        userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
-        userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader_\(bundleId)")
-        userDefaults.set(now, forKey: "lastPayGateAction")
-        userDefaults.set(now, forKey: "payGateLastOpen")
-        userDefaults.removeObject(forKey: "shouldShowPayGate")
-        userDefaults.removeObject(forKey: "payGateTargetGroupId")
-    }
-
-    private func persistSessionAllowanceMetadata() {
-        guard !appSelection.applicationTokens.isEmpty else { return }
-
-        let userDefaults = UserDefaults.stepsTrader()
-        userDefaults.set(Date().addingTimeInterval(60 * 5), forKey: "sessionAllowedUntil")
-
-        if let data = try? NSKeyedArchiver.archivedData(
-            withRootObject: appSelection.applicationTokens as NSSet, requiringSecureCoding: true)
-        {
-            userDefaults.set(data, forKey: "sessionAllowedTokens")
-        }
-    }
-
-    private func openTargetAppFromPayGate(_ bundleId: String, logCost: Int, completion: @escaping (Bool) -> Void) {
-        let schemes = primaryAndFallbackSchemes(for: bundleId)
-        guard !schemes.isEmpty else {
-            print("❌ PayGate: No URL schemes available for bundle \(bundleId)")
-            completion(false)
-            return
-        }
-
-        let target = bundleId
-        showPayGate = false
-        payGateTargetGroupId = nil
-        payGateSessions.removeAll()
-        currentPayGateSessionId = nil
-        attemptOpen(schemes: schemes, index: 0, bundleId: target, logCost: logCost, completion: completion)
-    }
-
-    private func attemptOpen(
-        schemes: [String],
-        index: Int,
-        bundleId: String,
-        logCost: Int,
-        completion: @escaping (Bool) -> Void
-    ) {
-        guard index < schemes.count else {
-            print("❌ PayGate: Failed to open \(bundleId) after trying all schemes")
-            completion(false)
-            return
-        }
-
-        let scheme = schemes[index]
-        guard let url = URL(string: scheme) else {
-            print("⚠️ PayGate: Invalid URL scheme \(scheme), trying next")
-            attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId, logCost: logCost, completion: completion)
-            return
-        }
-
-        print("🚀 PayGate: Attempting to open \(bundleId) with scheme \(scheme)")
-        UIApplication.shared.open(url) { [weak self] success in
-            guard let self = self else { return }
-
-            if success {
-                print("✅ PayGate: Successfully opened \(bundleId)")
-                self.recordAutomationOpen(bundleId: bundleId, spentSteps: logCost)
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                    self.showPayGate = false
-                    self.payGateTargetGroupId = nil
-                    completion(true)
-                }
-            } else {
-                print("❌ PayGate: Scheme \(scheme) failed for \(bundleId), trying next")
-                self.attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId, logCost: logCost, completion: completion)
-            }
-        }
-    }
-
-    private func primaryAndFallbackSchemes(for bundleId: String) -> [String] {
-        switch bundleId {
-        case "com.burbn.instagram":
-            return [
-                "instagram://app",
-                "instagram://",
-                "instagram://feed",
-                "instagram://camera",
-            ]
-        case "com.zhiliaoapp.musically":
-            return ["tiktok://"]
-        case "com.google.ios.youtube":
-            return ["youtube://"]
-        case "ph.telegra.Telegraph":
-            return ["tg://", "telegram://"]
-        case "net.whatsapp.WhatsApp":
-            return ["whatsapp://"]
-        case "com.toyopagroup.picaboo":
-            return ["snapchat://"]
-        case "com.facebook.Facebook":
-            return ["fb://", "facebook://"]
-        case "com.linkedin.LinkedIn":
-            return ["linkedin://"]
-        case "com.atebits.Tweetie2":
-            return ["twitter://", "x://"]
-        case "com.reddit.Reddit":
-            return ["reddit://"]
-        case "com.pinterest":
-            return ["pinterest://"]
-        case "com.duolingo.DuolingoMobile":
-            return ["duolingo://"]
-        default:
-            print("⚠️ PayGate: Unknown bundle id \(bundleId), using instagram fallback")
-            return ["instagram://"]
-        }
-    }
-
-    // MARK: - PayGate sessions
-    @MainActor
-    func openPayGate(for groupId: String) {
-        startPayGateSession(for: groupId)
-    }
-    
-    // Находит группу по bundleId и открывает PayGate для этой группы
-    func openPayGateForBundleId(_ bundleId: String) {
-        // Ищем группу, которая содержит это приложение
-        if let group = findShieldGroup(for: bundleId) {
-            openPayGate(for: group.id)
-        } else {
-            // Если группа не найдена, пробуем найти через токены
-            #if canImport(FamilyControls)
-            let defaults = UserDefaults.stepsTrader()
-            for group in shieldGroups {
-                for token in group.selection.applicationTokens {
-                    if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-                        let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-                        if let appName = defaults.string(forKey: tokenKey) {
-                            let resolvedBundleId = TargetResolver.bundleId(from: appName) ?? appName
-                            if resolvedBundleId.lowercased() == bundleId.lowercased() ||
-                               bundleId.lowercased().contains(resolvedBundleId.lowercased()) ||
-                               resolvedBundleId.lowercased().contains(bundleId.lowercased()) {
-                                openPayGate(for: group.id)
-                                return
-                            }
-                        }
-                    }
-                }
-            }
-            #endif
-            print("⚠️ PayGate: Could not find group for bundleId \(bundleId)")
-        }
-    }
-    
-    @MainActor
-    func startPayGateSession(for groupId: String) {
-        let g = UserDefaults.stepsTrader()
-        if !showPayGate,
-           let until = g.object(forKey: payGateDismissedUntilKey) as? Date,
-           Date() < until
-        {
-            print("🚫 PayGate suppressed after dismiss (\(String(format: "%.1f", until.timeIntervalSinceNow))s left), ignoring start for group \(groupId)")
-            return
-        }
-
-        // Проверяем, существует ли группа
-        guard let group = shieldGroups.first(where: { $0.id == groupId }) else {
-            print("⚠️ PayGate: Group \(groupId) not found")
-            return
-        }
-
-        let session = PayGateSession(id: groupId, groupId: groupId, startedAt: Date())
-        // Keep PayGate single-target: replace any previous session so a new trigger switches the target.
-        payGateSessions = [groupId: session]
-        currentPayGateSessionId = groupId
-        payGateTargetGroupId = groupId
-        showPayGate = true
-        print("🎯 PayGate opened for group: \(group.name)")
-    }
-    
-    @MainActor
-    func endPayGateSession(_ groupId: String) {
-        payGateSessions.removeValue(forKey: groupId)
-        if currentPayGateSessionId == groupId {
-            currentPayGateSessionId = payGateSessions.keys.first
-            payGateTargetGroupId = currentPayGateSessionId
-        }
-        if payGateSessions.isEmpty {
-            showPayGate = false
-            payGateTargetGroupId = nil
-        }
-    }
-
-    private func setupAppLifecycleObservers() {
-        // Когда приложение уходит в фон
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.didEnterBackgroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let strongSelf = self else { return }
-            Task { @MainActor in
-                strongSelf.handleAppDidEnterBackground()
-            }
-        }
-
-        // Когда приложение возвращается на передний план
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let strongSelf = self else { return }
-            Task { @MainActor in
-                strongSelf.handleAppWillEnterForeground()
-            }
-        }
-    }
-
-    func handleAppDidEnterBackground() {
-        print("📱 App entered background - timer will be suspended")
-        // Закрываем PayGate, если пользователь свернул приложение
-        dismissPayGate(reason: .background)
-
-        // Pause wall-clock minute tariff session so we don't charge while the app is backgrounded.
-        // (DeviceActivity-based minute mode charges only for actual app usage and doesn't need this.)
-        let g = UserDefaults.stepsTrader()
-        if g.string(forKey: minuteTariffBundleKey) != nil {
-            g.set(Date(), forKey: minuteTariffLastTickKey)
-        }
-
-        if isTrackingTime {
-            // Сохраняем время ухода в фон
-            UserDefaults.standard.set(Date(), forKey: "backgroundTime")
-            print("💾 Saved background time for tracking calculation")
-        }
-    }
-
-    func handleAppWillEnterForeground() {
-        print("📱 App entering foreground - checking elapsed time")
-        purgeExpiredAccessWindows()
-        handleBlockedRedirect()
-        resetDailyEnergyIfNeeded()
-        recalculateDailyEnergy()
-        // Kill legacy wall-clock minute tariff state (we only support DeviceActivity usage-based minute mode).
-        clearMinuteTariffSessionState()
-        
-        // Reload minute mode and steps data from storage (may have been updated by extensions)
-        loadAppStepsSpentToday()
-        loadMinuteChargeLogs()
-        loadAppStepsSpentLifetime()
-        
-        // If user returns after using a minute-mode app, send a local notification summary.
-        sendMinuteModeSummaryIfNeeded()
-
-        // Принудительно восстанавливаем выбор приложений при возврате в приложение
-        forceRestoreAppSelection()
-
-        // Проверяем, сколько времени прошло в фоне (только если включено отслеживание)
-        if isTrackingTime {
-            if let backgroundTime = UserDefaults.standard.object(forKey: "backgroundTime") as? Date
-            {
-                let elapsedSeconds = Date().timeIntervalSince(backgroundTime)
-                let elapsedMinutes = Int(elapsedSeconds / 60)
-
-                if elapsedMinutes > 0 {
-                    print("⏰ App was in background for \(elapsedMinutes) minutes")
-
-                    // Симулируем использование приложения за время в фоне
-                    for _ in 0..<elapsedMinutes {
-                        guard remainingMinutes > 0 else {
-                            // Время истекло пока были в фоне
-                            stopTracking()
-                            isBlocked = true
-                            message = "⏰ Time expired while you were away!"
-
-                            notificationService.sendTimeExpiredNotification()
-                            sendReturnToAppNotification()
-                            AudioServicesPlaySystemSound(1005)
-                            break
-                        }
-
-                        updateSpentTime(minutes: spentMinutes + 1)
-                        consumeMinutes(1)
-                    }
-
-                    print("⏱️ Updated: spent \(spentMinutes) min, remaining \(remainingMinutes) min")
-                }
-
-                UserDefaults.standard.removeObject(forKey: "backgroundTime")
-            }
-        }
-
-        // Проверяем, нужно ли показать Quick Status Page (независимо от tracking)
-        checkForQuickStatusPage()
-        
-        // Автогенерация дневника за вчера (если ещё не сгенерирован)
-        ensureYesterdayStoryGenerated()
-
-        // Всегда обновляем шаги из HealthKit при возвращении в приложение
-        Task { @MainActor in
-            await refreshStepsBalance()
-            await syncSupabaseStateIfAvailable()
-        }
-
-    }
-
-    // MARK: - Supabase Sync (energy grants)
-    func syncSupabaseStateIfAvailable(force: Bool = false) async {
-        guard authService.isAuthenticated, let userId = authService.currentUser?.id else { return }
-        guard let accessToken = authService.currentSupabaseAccessToken, !accessToken.isEmpty else { return }
-        
-        // Throttle: no more than once per 30s unless forced.
-        if !force, Date().timeIntervalSince(lastSupabaseSyncAt) < 30 { return }
-        lastSupabaseSyncAt = Date()
-        
-        do {
-            let granted = try await fetchSupabaseGrantedEnergy(userId: userId, accessToken: accessToken)
-            let clamped = max(0, granted)
-            if clamped != serverGrantedSteps {
-                serverGrantedSteps = clamped
-                persistServerGrantedSteps()
-            }
-        } catch {
-            // Keep UI quiet; just log.
-            print("❌ Supabase sync failed: \(error.localizedDescription)")
-        }
-        
-        // NOTE: We don't pull shields from Supabase anymore.
-        // Shields are device-local (require Family Controls setup).
-        // We only PUSH shield data to Supabase for admin visibility.
-        // Pulling would show N shields but user has 0 configured after reinstall.
-    }
-    
-    private struct SupabaseConfig {
-        let baseURL: URL
-        let anonKey: String
-        
-        static func load() throws -> SupabaseConfig {
-            guard let urlString = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String,
-                  let anonKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String,
-                  let url = URL(string: urlString),
-                  !anonKey.isEmpty
-            else {
-                throw NSError(domain: "Supabase", code: 1, userInfo: [NSLocalizedDescriptionKey: "Supabase not configured"])
-            }
-            return SupabaseConfig(baseURL: url, anonKey: anonKey)
-        }
-    }
-    
-    private func fetchSupabaseGrantedEnergy(userId: String, accessToken: String) async throws -> Int {
-        let cfg = try SupabaseConfig.load()
-        
-        // No aggregates (PostgREST forbids them). Paginate and sum delta.
-        let pageSize = 1000
-        var offset = 0
-        var total = 0
-        
-        while true {
-            let url = cfg.baseURL.appendingPathComponent("rest/v1/energy_ledger")
-            var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-            comps.queryItems = [
-                URLQueryItem(name: "select", value: "delta"),
-                URLQueryItem(name: "user_id", value: "eq.\(userId)"),
-                URLQueryItem(name: "order", value: "created_at.desc"),
-                URLQueryItem(name: "limit", value: "\(pageSize)"),
-                URLQueryItem(name: "offset", value: "\(offset)")
-            ]
-            
-            var req = URLRequest(url: comps.url!)
-            req.httpMethod = "GET"
-            req.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-            req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "authorization")
-            req.setValue("application/json", forHTTPHeaderField: "accept")
-            
-            let (data, resp) = try await URLSession.shared.data(for: req)
-            guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-            guard http.statusCode < 400 else {
-                let msg = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
-                throw NSError(domain: "Supabase", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: msg])
-            }
-            
-            struct Row: Decodable { let delta: Int }
-            let rows = (try? JSONDecoder().decode([Row].self, from: data)) ?? []
-            if rows.isEmpty { break }
-            total += rows.reduce(0) { $0 + $1.delta }
-            
-            if rows.count < pageSize { break }
-            offset += pageSize
-            if offset > 200_000 { break } // safety
-        }
-        
-        return total
-    }
-
-    private struct SupabaseShieldRow: Decodable {
-        let id: String
-        let userId: String
-        let bundleId: String
-        let mode: String
-        let level: Int
-        let settings: AppUnlockSettings
-        let updatedAt: Date?
-        
-        enum CodingKeys: String, CodingKey {
-            case id
-            case userId = "user_id"
-            case bundleId = "bundle_id"
-            case mode
-            case level
-            case settings = "settings_json"
-            case updatedAt = "updated_at"
-        }
-    }
-    
-    private func fetchSupabaseShields(userId: String, accessToken: String) async throws -> [SupabaseShieldRow] {
-        let cfg = try SupabaseConfig.load()
-        
-        let url = cfg.baseURL.appendingPathComponent("rest/v1/shields")
-        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-        comps.queryItems = [
-            URLQueryItem(name: "select", value: "id,user_id,bundle_id,mode,level,settings_json,updated_at"),
-            URLQueryItem(name: "user_id", value: "eq.\(userId)")
-        ]
-        
-        var req = URLRequest(url: comps.url!)
-        req.httpMethod = "GET"
-        req.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-        req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "authorization")
-        req.setValue("application/json", forHTTPHeaderField: "accept")
-        
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        guard http.statusCode < 400 else {
-            let msg = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
-            throw NSError(domain: "Supabase", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: msg])
-        }
-        
-        let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
-        return (try? d.decode([SupabaseShieldRow].self, from: data)) ?? []
-    }
-
-    // MARK: - Supabase Push (shields)
-    private var pendingSupabaseShieldUpserts: Set<String> = []
-    private var lastSupabaseShieldPushAt: [String: Date] = [:]
-    
-    private func scheduleSupabaseShieldUpsert(bundleId: String) {
-        guard authService.isAuthenticated else { return }
-        // Coalesce repeated edits.
-        pendingSupabaseShieldUpserts.insert(bundleId)
-        
-        Task { @MainActor in
-            // Small debounce window for slider/stepper UI changes
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            guard self.pendingSupabaseShieldUpserts.contains(bundleId) else { return }
-            self.pendingSupabaseShieldUpserts.remove(bundleId)
-            await self.upsertSupabaseShield(bundleId: bundleId)
-        }
-    }
-    
-    private func upsertSupabaseShield(bundleId: String) async {
-        guard authService.isAuthenticated, let userId = authService.currentUser?.id else { return }
-        guard let accessToken = authService.currentSupabaseAccessToken, !accessToken.isEmpty else { return }
-        
-        // Per-shield throttle: no more than once per 2s
-        if let last = lastSupabaseShieldPushAt[bundleId], Date().timeIntervalSince(last) < 2 { return }
-        lastSupabaseShieldPushAt[bundleId] = Date()
-        
-        let cfg: SupabaseConfig
-        do { cfg = try SupabaseConfig.load() } catch { return }
-        
-        let settings = unlockSettings(for: bundleId)
-        // Supabase DB constraint `shields_mode_check` expects "minute" / "entry" (not "open").
-        let mode = settings.minuteTariffEnabled ? "minute" : "entry"
-        let level = currentShieldLevel(for: bundleId).id
-        
-        let updatedAt = ISO8601DateFormatter().string(from: Date())
-        let payload: [String: Any] = [
-            "id": UUID().uuidString,
-            "user_id": userId,
-            "bundle_id": bundleId,
-            "mode": mode,
-            "level": level,
-            "settings_json": [
-                "entryCostSteps": settings.entryCostSteps,
-                "dayPassCostSteps": settings.dayPassCostSteps,
-                "allowedWindows": settings.allowedWindows.map(\.rawValue),
-                "minuteTariffEnabled": settings.minuteTariffEnabled,
-                "familyControlsModeEnabled": settings.familyControlsModeEnabled
-            ],
-            "updated_at": updatedAt
-        ]
-        
-        func makeReq(url: URL, method: String, body: Data?) -> URLRequest {
-            var req = URLRequest(url: url)
-            req.httpMethod = method
-            req.httpBody = body
-            req.setValue("application/json", forHTTPHeaderField: "content-type")
-            req.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-            req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "authorization")
-            req.setValue("return=representation", forHTTPHeaderField: "prefer")
-            req.setValue("application/json", forHTTPHeaderField: "accept")
-            return req
-        }
-        
-        do {
-            let url = cfg.baseURL.appendingPathComponent("rest/v1/shields")
-            var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-            comps.queryItems = [
-                URLQueryItem(name: "on_conflict", value: "user_id,bundle_id")
-            ]
-            
-            var req = makeReq(url: comps.url!, method: "POST", body: try JSONSerialization.data(withJSONObject: payload, options: []))
-            req.setValue("resolution=merge-duplicates", forHTTPHeaderField: "prefer")
-            
-            let (_, resp) = try await URLSession.shared.data(for: req)
-            if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
-                throw NSError(domain: "Supabase", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode)"])
-            }
-        } catch {
-            print("❌ Supabase shield upsert failed: \(error.localizedDescription)")
-        }
-    }
-    
-    func deleteSupabaseShield(bundleId: String) async {
-        guard authService.isAuthenticated, let userId = authService.currentUser?.id else { return }
-        guard let accessToken = authService.currentSupabaseAccessToken, !accessToken.isEmpty else { return }
-        
-        let cfg: SupabaseConfig
-        do { cfg = try SupabaseConfig.load() } catch { return }
-        
-        let url = cfg.baseURL.appendingPathComponent("rest/v1/shields")
-        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-        comps.queryItems = [
-            URLQueryItem(name: "user_id", value: "eq.\(userId)"),
-            URLQueryItem(name: "bundle_id", value: "eq.\(bundleId)")
-        ]
-        
-        var req = URLRequest(url: comps.url!)
-        req.httpMethod = "DELETE"
-        req.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-        req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "authorization")
-        
-        do {
-            let (_, _) = try await URLSession.shared.data(for: req)
-        } catch {
-            print("❌ Supabase shield delete failed: \(error.localizedDescription)")
-        }
-    }
-
-    private func startMinuteModeSessionSnapshot(bundleId: String) {
-        let g = UserDefaults.stepsTrader()
-        let dayKey = Self.dayKey(for: Date())
-        
-        let minuteCountKey = "minuteCount_\(dayKey)_\(bundleId)"
-        let currentMinutes = g.integer(forKey: minuteCountKey)
-        
-        var perAppToday: [String: Int] = [:]
-        if let data = g.data(forKey: "appStepsSpentToday_v1"),
-           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
-            perAppToday = decoded
-        }
-        let currentSpent = perAppToday[bundleId] ?? 0
-        
-        g.set(bundleId, forKey: minuteModeSessionBundleKey)
-        g.set(dayKey, forKey: minuteModeSessionStartDayKeyKey)
-        g.set(currentMinutes, forKey: minuteModeSessionStartMinuteCountKey)
-        g.set(currentSpent, forKey: minuteModeSessionStartSpentStepsKey)
-    }
-
-    private func sendMinuteModeSummaryIfNeeded() {
-        let g = UserDefaults.stepsTrader()
-        guard let bundleId = g.string(forKey: minuteModeSessionBundleKey),
-              let sessionDayKey = g.string(forKey: minuteModeSessionStartDayKeyKey)
-        else { return }
-        
-        let todayKey = Self.dayKey(for: Date())
-        // If day changed, reset snapshot (avoid negative deltas).
-        guard sessionDayKey == todayKey else {
-            g.removeObject(forKey: minuteModeSessionBundleKey)
-            g.removeObject(forKey: minuteModeSessionStartDayKeyKey)
-            g.removeObject(forKey: minuteModeSessionStartMinuteCountKey)
-            g.removeObject(forKey: minuteModeSessionStartSpentStepsKey)
-            return
-        }
-        
-        let startMinutes = g.integer(forKey: minuteModeSessionStartMinuteCountKey)
-        let startSpent = g.integer(forKey: minuteModeSessionStartSpentStepsKey)
-        
-        let minuteCountKey = "minuteCount_\(todayKey)_\(bundleId)"
-        let nowMinutes = g.integer(forKey: minuteCountKey)
-        
-        var perAppToday: [String: Int] = [:]
-        if let data = g.data(forKey: "appStepsSpentToday_v1"),
-           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
-            perAppToday = decoded
-        }
-        let nowSpent = perAppToday[bundleId] ?? 0
-        
-        let deltaMinutes = max(0, nowMinutes - startMinutes)
-        let deltaSpent = max(0, nowSpent - startSpent)
-        
-        if deltaMinutes > 0 || deltaSpent > 0 {
-            notificationService.sendMinuteModeSummary(
-                bundleId: bundleId,
-                minutesUsed: deltaMinutes,
-                stepsCharged: deltaSpent
-            )
-            
-            // Update snapshot so repeated returns show incremental usage.
-            g.set(nowMinutes, forKey: minuteModeSessionStartMinuteCountKey)
-            g.set(nowSpent, forKey: minuteModeSessionStartSpentStepsKey)
-        }
-    }
-
-    // Convenience computed properties for backward compatibility
-    var budget: any BudgetEngineProtocol { budgetEngine }
-    var family: any FamilyControlsServiceProtocol { familyControlsService }
-
-    // MARK: - Budget Sync
-    private func syncBudgetProperties() {
-        dailyBudgetMinutes = budgetEngine.dailyBudgetMinutes
-        remainingMinutes = budgetEngine.remainingMinutes
-        if let engine = budgetEngine as? BudgetEngine {
-            dayEndHour = engine.dayEndHour
-            dayEndMinute = engine.dayEndMinute
-        }
-    }
-
-    private func syncAppSelectionToService() {
-        print(
-            "🔄 Syncing app selection to service: \(appSelection.applicationTokens.count) apps, \(appSelection.categoryTokens.count) categories"
-        )
-
-        // Применяем ограничение только одного элемента
-        var finalSelection = appSelection
-
-        if appSelection.applicationTokens.count > 1 {
-            finalSelection = FamilyActivitySelection()
-            if let firstApp = appSelection.applicationTokens.first {
-                finalSelection.applicationTokens.insert(firstApp)
-            }
-            print("🔄 Limited to first app")
-        } else if appSelection.categoryTokens.count > 1 {
-            finalSelection = FamilyActivitySelection()
-            if let firstCategory = appSelection.categoryTokens.first {
-                finalSelection.categoryTokens.insert(firstCategory)
-            }
-            print("🔄 Limited to first category")
-        }
-
-        // Обновляем сервис напрямую без вызова updateSelection (избегаем циклов)
-        if let familyService = familyControlsService as? FamilyControlsService {
-            familyService.selection = finalSelection
-            print(
-                "✅ Service updated with \(finalSelection.applicationTokens.count) apps, \(finalSelection.categoryTokens.count) categories"
-            )
-        } else {
-            print("❌ Failed to cast familyControlsService to FamilyControlsService")
-        }
-    }
-
-    func loadSpentTime() {
-        let userDefaults = UserDefaults.stepsTrader()
-        let savedSpentMinutes = userDefaults.integer(forKey: "spentMinutes")
-        let savedDate = userDefaults.object(forKey: "spentTimeDate") as? Date ?? Date()
-        let savedSpentTariffRaw = userDefaults.string(forKey: "spentTariff") ?? "light"
-        let savedSpentTariff = Tariff(rawValue: savedSpentTariffRaw) ?? .easy
-
-        // Сбрасываем время если прошел день
-        if !Calendar.current.isDate(savedDate, inSameDayAs: Date()) {
-            spentMinutes = 0
-            spentSteps = 0
-            spentTariff = .easy
-            saveSpentTime()
-            print("🔄 Reset spent time for new day")
-        } else {
-            // Ограничиваем загруженное время максимальным доступным бюджетом
-            let maxSpentMinutes = budgetEngine.dailyBudgetMinutes
-            spentMinutes = min(savedSpentMinutes, maxSpentMinutes)
-            spentTariff = savedSpentTariff
-            spentSteps = spentMinutes * Int(spentTariff.stepsPerMinute)
-            syncBudgetProperties()  // Sync budget properties for UI updates
-            print(
-                "📊 Loaded spent time: \(spentMinutes) minutes, \(spentSteps) steps (max: \(maxSpentMinutes))"
-            )
-        }
-    }
-
-    private func saveSpentTime() {
-        let userDefaults = UserDefaults.stepsTrader()
-        userDefaults.set(spentMinutes, forKey: "spentMinutes")
-        userDefaults.set(spentTariff.rawValue, forKey: "spentTariff")
-        userDefaults.set(Date(), forKey: "spentTimeDate")
-        print("💾 Saved spent time: \(spentMinutes) minutes with tariff: \(spentTariff.rawValue)")
-    }
-
-    // MARK: - Steps Balance (per-entry payment)
-    func refreshStepsBalance() async {
-        do {
-            let now = Date()
-            let start = currentDayStart(for: now)
-            stepsToday = try await healthKitService.fetchSteps(from: start, to: now)
-        } catch {
-            print("❌ Failed to refresh steps from HealthKit: \(error.localizedDescription)")
-
-            if let hkError = error as? HKError {
-                switch hkError.code {
-                case .errorAuthorizationDenied:
-                    message =
-                        "❌ HealthKit access denied. Open the Health app → Sources → DOOM CTRL and enable step reading."
-                case .errorAuthorizationNotDetermined:
-                    message = "⚠️ Step access not granted yet. Requesting permission..."
-                    do {
-                        try await healthKitService.requestAuthorization()
-                    } catch {
-                        print(
-                            "❌ Failed to re-request HealthKit authorization: \(error.localizedDescription)"
-                        )
-                    }
-                default:
-                    message =
-                        "❌ Could not fetch steps. Open HealthKit and re-enable access."
-                }
-            } else {
-                message =
-                    "❌ HealthKit error. Try again or verify the permission in the Health app."
-            }
-
-            #if targetEnvironment(simulator)
-                stepsToday = 2500
-            #else
-                stepsToday = fallbackCachedSteps()
-            #endif
-        }
-        let g = UserDefaults.stepsTrader()
-        let anchor = g.object(forKey: "stepsBalanceAnchor") as? Date ?? .distantPast
-        if !isSameCustomDay(anchor, Date()) {
-            spentStepsToday = 0
-            g.set(currentDayStart(for: Date()), forKey: "stepsBalanceAnchor")
-            resetDailyEnergyState()
-        }
-        g.set(spentStepsToday, forKey: "spentStepsToday")
-        recalculateDailyEnergy()
-        clearExpiredDayPasses()
-        
-        // Outer World daily cap depends on HealthKit steps; keep it updated in UserDefaults for the map layer.
-        persistOuterWorldDailyCap()
-        
-        // Log energy state to Supabase for admin visibility
-        await logEnergyStateToSupabase()
-    }
-    
-    private func logEnergyStateToSupabase() async {
-        let stepsInt = Int(stepsToday)
-        let balance = totalStepsBalance
-        let spent = appStepsSpentLifetime.values.reduce(0, +)
-        let batteries = UserDefaults.standard.integer(forKey: "outerworld_totalcollected") / 5
-        
-        await authService.logEnergyState(
-            stepsToday: stepsInt,
-            energyBalance: balance,
-            energySpent: spent,
-            batteriesCollected: batteries
-        )
-    }
-    
-    // MARK: - Custom day boundary
-    private func currentDayStart(for date: Date) -> Date {
+    func currentDayStart(for date: Date) -> Date {
         let cal = Calendar.current
-        guard let cutoffToday = cal.date(
-            bySettingHour: dayEndHour,
-            minute: dayEndMinute,
-            second: 0,
-            of: date
-        ) else {
+        // If day end is set to midnight (0:00), use standard start of day
+        if dayEndHour == 0 && dayEndMinute == 0 {
+            return cal.startOfDay(for: date)
+        }
+        
+        // Calculate the start of the current "day" based on dayEndHour:dayEndMinute
+        // The day starts at the previous day's end time
+        var comps = DateComponents()
+        comps.hour = dayEndHour
+        comps.minute = dayEndMinute
+        let cutoffToday = cal.nextDate(after: cal.startOfDay(for: date), matching: comps, matchingPolicy: .nextTimePreservingSmallerComponents)
+        
+        guard let cutoffToday = cutoffToday else {
             return cal.startOfDay(for: date)
         }
         if date >= cutoffToday {
@@ -1913,643 +220,9 @@ final class AppModel: ObservableObject {
             return cal.startOfDay(for: date)
         }
     }
-
-    func ensureHealthAuthorizationAndRefresh() async {
-        let status = healthKitService.authorizationStatus()
-        print("🏥 HealthKit status before ensure: \(status.rawValue)")
-        healthAuthorizationStatus = status
-        switch status {
-        case .sharingAuthorized:
-            print("🏥 HealthKit already authorized, refreshing steps")
-        case .sharingDenied:
-            print("❌ HealthKit access denied. Open the Health app → Sources → DOOM CTRL and enable step reading.")
-            return
-        case .notDetermined:
-            print("🏥 HealthKit not determined. Requesting authorization...")
-            do {
-                try await healthKitService.requestAuthorization()
-            print("✅ HealthKit authorization completed (ensureHealthAuthorizationAndRefresh)")
-            healthAuthorizationStatus = healthKitService.authorizationStatus()
-        } catch {
-            print("❌ HealthKit authorization failed: \(error.localizedDescription)")
-            return
-        }
-        @unknown default:
-            print("❓ HealthKit status unknown: \(status.rawValue). Attempting authorization.")
-            do {
-                try await healthKitService.requestAuthorization()
-            } catch {
-                print("❌ HealthKit authorization failed: \(error.localizedDescription)")
-                return
-            }
-        }
-        await refreshStepsBalance()
-        startStepObservation()
-    }
     
-    private func isSameCustomDay(_ a: Date, _ b: Date) -> Bool {
+    func isSameCustomDay(_ a: Date, _ b: Date) -> Bool {
         currentDayStart(for: a) == currentDayStart(for: b)
-    }
-    
-    private func fetchStepsForCurrentDay() async throws -> Double {
-        let now = Date()
-        let start = currentDayStart(for: now)
-        return try await healthKitService.fetchSteps(from: start, to: now)
-    }
-    
-    // MARK: - App open logs
-    private func loadAppOpenLogs() {
-        let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: "appOpenLogs_v1"),
-              let decoded = try? JSONDecoder().decode([AppOpenLog].self, from: data) else { return }
-        appOpenLogs = decoded
-        trimOpenLogs()
-    }
-    
-    private func persistAppOpenLogs() {
-        let g = UserDefaults.stepsTrader()
-        if let data = try? JSONEncoder().encode(appOpenLogs) {
-            g.set(data, forKey: "appOpenLogs_v1")
-        }
-    }
-    
-    func loadMinuteChargeLogs() {
-        let g = UserDefaults.stepsTrader()
-        if let data = g.data(forKey: "minuteChargeLogs_v1"),
-           let decoded = try? JSONDecoder().decode([MinuteChargeLog].self, from: data) {
-            minuteChargeLogs = decoded
-        }
-        if let data = g.data(forKey: "minuteTimeByDay_v1"),
-           let decoded = try? JSONDecoder().decode([String: [String: Int]].self, from: data) {
-            minuteTimeByDay = decoded
-        }
-    }
-    
-    func refreshMinuteChargeLogs() {
-        loadMinuteChargeLogs()
-    }
-    
-    func clearMinuteChargeLogs() {
-        let g = UserDefaults.stepsTrader()
-        g.removeObject(forKey: "minuteChargeLogs_v1")
-        minuteChargeLogs = []
-    }
-    
-    func minuteTimeToday(for bundleId: String) -> Int {
-        let dayKey = Self.dayKey(for: Date())
-        return minuteTimeByDay[dayKey]?[bundleId] ?? 0
-    }
-    
-    func totalMinutesToday() -> Int {
-        let dayKey = Self.dayKey(for: Date())
-        guard let dayMap = minuteTimeByDay[dayKey] else { return 0 }
-        return dayMap.values.reduce(0, +)
-    }
-    
-    private func trimOpenLogs() {
-        let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
-        appOpenLogs = appOpenLogs.filter { $0.date >= cutoff }
-    }
-    
-    // MARK: - Daily stories
-    private func loadDailyStories() {
-        let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: "dailyStories_v1"),
-              let decoded = try? JSONDecoder().decode([String: DailyStory].self, from: data) else { return }
-        dailyStories = decoded
-    }
-    
-    private func persistDailyStories() {
-        let g = UserDefaults.stepsTrader()
-        if let data = try? JSONEncoder().encode(dailyStories) {
-            g.set(data, forKey: "dailyStories_v1")
-        }
-    }
-    
-    private func loadDailyTariffSelections() {
-        let g = UserDefaults.stepsTrader()
-        let anchor = g.object(forKey: "dailyTariffSelectionsAnchor") as? Date ?? .distantPast
-        if !Calendar.current.isDateInToday(anchor) {
-            dailyTariffSelections = [:]
-            g.set(Calendar.current.startOfDay(for: Date()), forKey: "dailyTariffSelectionsAnchor")
-            g.removeObject(forKey: "dailyTariffSelections_v1")
-            return
-        }
-        if let data = g.data(forKey: "dailyTariffSelections_v1"),
-           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
-            var result: [String: Tariff] = [:]
-            for (k,v) in decoded {
-                if let t = Tariff(rawValue: v) {
-                    result[k] = t
-                }
-            }
-            dailyTariffSelections = result
-        }
-    }
-    
-    private func persistDailyTariffSelections() {
-        let g = UserDefaults.stepsTrader()
-        let dict = dailyTariffSelections.mapValues { $0.rawValue }
-        if let data = try? JSONEncoder().encode(dict) {
-            g.set(data, forKey: "dailyTariffSelections_v1")
-        }
-        g.set(Calendar.current.startOfDay(for: Date()), forKey: "dailyTariffSelectionsAnchor")
-    }
-    
-    private func dateKey(_ date: Date) -> String {
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "en_US_POSIX")
-        df.dateFormat = "yyyy-MM-dd"
-        return df.string(from: date)
-    }
-    
-    func story(for date: Date) -> DailyStory? {
-        dailyStories[dateKey(date)]
-    }
-    
-    @MainActor
-    func saveStory(for date: Date, english: String, russian: String) {
-        let key = dateKey(date)
-        dailyStories[key] = DailyStory(dateKey: key, english: english, russian: russian, createdAt: Date())
-        persistDailyStories()
-    }
-    
-    func ensureYesterdayStoryGenerated() {
-        let cal = Calendar.current
-        guard let yesterday = cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: Date())) else { return }
-        let key = dateKey(yesterday)
-        guard dailyStories[key] == nil else { return }
-        let entries = appOpenLogs.filter { cal.isDate($0.date, inSameDayAs: yesterday) }
-        guard !entries.isEmpty else { return }
-        Task {
-            await generateAndStoreStory(for: yesterday, entries: entries)
-        }
-    }
-    
-    private func generateAndStoreStory(for date: Date, entries: [AppOpenLog]) async {
-        let promptEN = buildStoryPromptEnglish(for: date, entries: entries)
-        do {
-            let english = try await LLMService.shared.generateCosmicJournal(prompt: promptEN)
-            let translatePrompt = "Translate the following captain's log into Russian, keep the cosmic pilot vibe and warmth, keep 4-6 sentences:\n\(english)"
-            let russian = try await LLMService.shared.generateCosmicJournal(prompt: translatePrompt)
-            await MainActor.run {
-                saveStory(for: date, english: english, russian: russian)
-            }
-        } catch {
-            print("❌ Failed to auto-generate story for \(dateKey(date)): \(error)")
-        }
-    }
-    
-    private func buildStoryPromptEnglish(for date: Date, entries: [AppOpenLog]) -> String {
-        let cal = Calendar.current
-        let uniqueUsageDays = usageDayCount()
-        let stepsMade = cal.isDateInToday(date) ? Int(stepsToday) : nil
-        let stepsSpent = cal.isDateInToday(date) ? appStepsSpentToday.values.reduce(0, +) : nil
-        let remaining = cal.isDateInToday(date) ? max(0, baseEnergyToday - spentStepsToday) : nil
-        let dayPassActive: [String] = cal.isDateInToday(date)
-            ? Array(dayPassGrants.keys.filter { hasDayPass(for: $0) })
-            : []
-        
-        let df = DateFormatter()
-        df.dateStyle = .medium
-        let tf = DateFormatter()
-        tf.dateFormat = "HH:mm:ss"
-        
-        var lines: [String] = []
-        lines.append("Date: \(df.string(from: date))")
-        lines.append("Days using app: \(uniqueUsageDays)")
-        if let made = stepsMade { lines.append("Steps made: \(made)") }
-        if let spent = stepsSpent { lines.append("Steps spent: \(spent)") }
-        if let rem = remaining { lines.append("Fuel left: \(rem)") }
-        if !dayPassActive.isEmpty {
-            let joined = dayPassActive.joined(separator: ", ")
-            lines.append("Day passes active: \(joined)")
-        }
-        lines.append("Jumps:")
-        
-        let sortedEntries = entries.sorted { $0.date < $1.date }
-        for (idx, entry) in sortedEntries.enumerated() {
-            let time = tf.string(from: entry.date)
-            let name = entry.bundleId
-            var gapText = ""
-            if idx > 0 {
-                let delta = entry.date.timeIntervalSince(sortedEntries[idx-1].date)
-                let minutes = Int(delta / 60)
-                gapText = " | pause \(minutes) min"
-            }
-            lines.append("- \(time): jumped to universe \(name)\(gapText)")
-        }
-        
-        lines.append("Write a short captain's log of a spaceship pilot, warm and imaginative (4-6 sentences). Use metaphors of fuel and jumps between universes. Language: English.")
-        return lines.joined(separator: "\n")
-    }
-
-    private func usageDayCount() -> Int {
-        let cal = Calendar.current
-        let unique = Set(appOpenLogs.map { cal.startOfDay(for: $0.date) })
-        return unique.count
-    }
-
-    func canPayForEntry(for bundleId: String? = nil, costOverride: Int? = nil) -> Bool {
-        if hasDayPass(for: bundleId) { return true }
-        let cost = costOverride ?? unlockSettings(for: bundleId).entryCostSteps
-        return totalStepsBalance >= cost
-    }
-
-    func canPayForDayPass(for bundleId: String?) -> Bool {
-        guard let bundleId else { return false }
-        if hasDayPass(for: bundleId) { return true }
-        let cost = unlockSettings(for: bundleId).dayPassCostSteps
-        return totalStepsBalance >= cost
-    }
-
-    @discardableResult
-    func payForEntry(for bundleId: String? = nil, costOverride: Int? = nil) -> Bool {
-        if hasDayPass(for: bundleId) { return true }
-        let cost = costOverride ?? unlockSettings(for: bundleId).entryCostSteps
-        let success = pay(cost: cost)
-        if success, let bundleId { addSpentSteps(cost, for: bundleId) }
-        return success
-    }
-    
-    @discardableResult
-    func payForDayPass(for bundleId: String?) -> Bool {
-        guard let bundleId else { return false }
-        if hasDayPass(for: bundleId) { return true }
-        let cost = unlockSettings(for: bundleId).dayPassCostSteps
-        guard pay(cost: cost) else { return false }
-        addSpentSteps(cost, for: bundleId)
-        dayPassGrants[bundleId] = Date()
-        persistDayPassGrants()
-        return true
-    }
-    
-    private func pay(cost: Int) -> Bool {
-        guard totalStepsBalance >= cost else { return false }
-        // Не позволяем тратить больше базовой энергии за день
-        let todaysBaseEnergy = baseEnergyToday
-        let baseAvailable = stepsBalance
-        let consumeFromBase = min(baseAvailable, cost)
-        let newSpent = min(spentStepsToday + consumeFromBase, max(0, todaysBaseEnergy))
-        spentStepsToday = newSpent
-        stepsBalance = max(0, todaysBaseEnergy - spentStepsToday)
-
-        let remainingCost = max(0, cost - consumeFromBase)
-        if remainingCost > 0 {
-            consumeBonusSteps(remainingCost)
-        }
-
-        let g = UserDefaults.stepsTrader()
-        g.set(spentStepsToday, forKey: "spentStepsToday")
-        g.set(stepsBalance, forKey: "stepsBalance")
-        g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
-        return true
-    }
-
-    func loadSpentStepsBalance() {
-        let g = UserDefaults.stepsTrader()
-        let anchor = g.object(forKey: "stepsBalanceAnchor") as? Date ?? .distantPast
-        if !Calendar.current.isDateInToday(anchor) {
-            spentStepsToday = 0
-            g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
-        } else {
-            spentStepsToday = g.integer(forKey: "spentStepsToday")
-        }
-        // Клэмп только если уже знаем базовую энергию (иначе при запуске с 0 мы затираем данные)
-        let todaysBaseEnergy = baseEnergyToday
-        if todaysBaseEnergy > 0, spentStepsToday > todaysBaseEnergy { spentStepsToday = todaysBaseEnergy }
-        stepsBalance = g.integer(forKey: "stepsBalance")
-        if stepsBalance == 0, todaysBaseEnergy > 0 {
-            stepsBalance = max(0, todaysBaseEnergy - spentStepsToday)
-        }
-    }
-
-    private func loadDebugStepsBonus() {
-        let g = UserDefaults.stepsTrader()
-        
-        let outerWorldKey = "debugStepsBonus_outerworld_v1"
-
-        // We no longer support "debug/legacy" bonus energy.
-        // Only Outer World energy is allowed as extra energy.
-        outerWorldBonusSteps = max(0, g.integer(forKey: outerWorldKey))
-        syncAndPersistBonusBreakdown()
-    }
-
-    private func loadServerGrantedSteps() {
-        let g = UserDefaults.stepsTrader()
-        serverGrantedSteps = max(0, g.integer(forKey: serverGrantedStepsKey))
-        syncAndPersistBonusBreakdown()
-    }
-
-    // MARK: - Daily energy system
-    private func loadEnergyPreferences() {
-        preferredRecoveryOptions = loadPreferredOptions(for: .recovery)
-        preferredActivityOptions = loadPreferredOptions(for: .activity)
-        preferredJoyOptions = loadPreferredOptions(for: .joy)
-    }
-
-    private func loadDailyEnergyState() {
-        let g = UserDefaults.stepsTrader()
-        let anchor = g.object(forKey: dailyEnergyAnchorKey) as? Date ?? .distantPast
-        if !isSameCustomDay(anchor, Date()) {
-            resetDailyEnergyState()
-            return
-        }
-        dailySleepHours = g.double(forKey: dailySleepHoursKey)
-        dailyRecoverySelections = loadStringArray(forKey: dailySelectionsKey(for: .recovery))
-        dailyActivitySelections = loadStringArray(forKey: dailySelectionsKey(for: .activity))
-        dailyJoySelections = loadStringArray(forKey: dailySelectionsKey(for: .joy))
-        
-        dailyRecoverySelections = Array(dailyRecoverySelections.filter { preferredRecoveryOptions.contains($0) }.prefix(EnergyDefaults.maxSelectionsPerCategory))
-        dailyActivitySelections = Array(dailyActivitySelections.filter { preferredActivityOptions.contains($0) }.prefix(EnergyDefaults.maxSelectionsPerCategory))
-        dailyJoySelections = Array(dailyJoySelections.filter { preferredJoyOptions.contains($0) }.prefix(EnergyDefaults.maxSelectionsPerCategory))
-        baseEnergyToday = g.integer(forKey: baseEnergyTodayKey)
-    }
-
-    private func resetDailyEnergyState() {
-        dailySleepHours = 0
-        dailyRecoverySelections = []
-        dailyActivitySelections = []
-        dailyJoySelections = []
-        baseEnergyToday = 0
-        if outerWorldBonusSteps != 0 {
-            outerWorldBonusSteps = 0
-            syncAndPersistBonusBreakdown()
-        }
-        persistDailyEnergyState()
-        let g = UserDefaults.stepsTrader()
-        g.set(currentDayStart(for: Date()), forKey: dailyEnergyAnchorKey)
-    }
-
-    private func resetDailyEnergyIfNeeded() {
-        let g = UserDefaults.stepsTrader()
-        let anchor = g.object(forKey: dailyEnergyAnchorKey) as? Date ?? .distantPast
-        if !isSameCustomDay(anchor, Date()) {
-            resetDailyEnergyState()
-        }
-    }
-
-    private func loadPreferredOptions(for category: EnergyCategory) -> [String] {
-        let g = UserDefaults.stepsTrader()
-        let stored = loadStringArray(forKey: preferredOptionsKey(for: category))
-        if !stored.isEmpty {
-            return stored
-        }
-        let defaults = EnergyDefaults.options
-            .filter { $0.category == category }
-            .map(\.id)
-        let fallback = Array(defaults.prefix(EnergyDefaults.maxSelectionsPerCategory))
-        saveStringArray(fallback, forKey: preferredOptionsKey(for: category))
-        return fallback
-    }
-
-    private func loadStringArray(forKey key: String) -> [String] {
-        let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: key),
-              let decoded = try? JSONDecoder().decode([String].self, from: data) else {
-            return []
-        }
-        return decoded
-    }
-
-    private func saveStringArray(_ value: [String], forKey key: String) {
-        let g = UserDefaults.stepsTrader()
-        if let data = try? JSONEncoder().encode(value) {
-            g.set(data, forKey: key)
-        }
-    }
-
-    func preferredOptions(for category: EnergyCategory) -> [EnergyOption] {
-        let ids: [String]
-        switch category {
-        case .recovery: ids = preferredRecoveryOptions
-        case .activity: ids = preferredActivityOptions
-        case .joy: ids = preferredJoyOptions
-        }
-        return EnergyDefaults.options.filter { $0.category == category && ids.contains($0.id) }
-    }
-
-    func availableOptions(for category: EnergyCategory) -> [EnergyOption] {
-        EnergyDefaults.options.filter { $0.category == category }
-    }
-
-    func updatePreferredOptions(_ ids: [String], category: EnergyCategory) {
-        let unique = Array(NSOrderedSet(array: ids)) as? [String] ?? ids
-        let trimmed = Array(unique.prefix(EnergyDefaults.maxSelectionsPerCategory))
-        switch category {
-        case .recovery: preferredRecoveryOptions = trimmed
-        case .activity: preferredActivityOptions = trimmed
-        case .joy: preferredJoyOptions = trimmed
-        }
-        let filteredDaily = dailySelections(for: category).filter { trimmed.contains($0) }
-        setDailySelections(filteredDaily, category: category)
-        saveStringArray(trimmed, forKey: preferredOptionsKey(for: category))
-        persistDailyEnergyState()
-        recalculateDailyEnergy()
-    }
-
-    func togglePreferredOption(optionId: String, category: EnergyCategory) {
-        var selections: [String]
-        switch category {
-        case .recovery: selections = preferredRecoveryOptions
-        case .activity: selections = preferredActivityOptions
-        case .joy: selections = preferredJoyOptions
-        }
-        if let idx = selections.firstIndex(of: optionId) {
-            selections.remove(at: idx)
-        } else if selections.count < EnergyDefaults.maxSelectionsPerCategory {
-            selections.append(optionId)
-        }
-        updatePreferredOptions(selections, category: category)
-    }
-
-    func isPreferredOptionSelected(_ optionId: String, category: EnergyCategory) -> Bool {
-        switch category {
-        case .recovery: return preferredRecoveryOptions.contains(optionId)
-        case .activity: return preferredActivityOptions.contains(optionId)
-        case .joy: return preferredJoyOptions.contains(optionId)
-        }
-    }
-
-    func toggleDailySelection(optionId: String, category: EnergyCategory) {
-        var selections = dailySelections(for: category)
-        if let idx = selections.firstIndex(of: optionId) {
-            selections.remove(at: idx)
-        } else if selections.count < EnergyDefaults.maxSelectionsPerCategory {
-            selections.append(optionId)
-        }
-        setDailySelections(selections, category: category)
-        persistDailyEnergyState()
-        recalculateDailyEnergy()
-    }
-
-    func isDailySelected(_ optionId: String, category: EnergyCategory) -> Bool {
-        dailySelections(for: category).contains(optionId)
-    }
-
-    func setDailySleepHours(_ hours: Double) {
-        dailySleepHours = min(max(0, hours), 24)
-        persistDailyEnergyState()
-        recalculateDailyEnergy()
-    }
-
-    private func dailySelections(for category: EnergyCategory) -> [String] {
-        switch category {
-        case .recovery: return dailyRecoverySelections
-        case .activity: return dailyActivitySelections
-        case .joy: return dailyJoySelections
-        }
-    }
-
-    private func setDailySelections(_ selections: [String], category: EnergyCategory) {
-        switch category {
-        case .recovery: dailyRecoverySelections = selections
-        case .activity: dailyActivitySelections = selections
-        case .joy: dailyJoySelections = selections
-        }
-    }
-
-    private func persistDailyEnergyState() {
-        let g = UserDefaults.stepsTrader()
-        g.set(dailySleepHours, forKey: dailySleepHoursKey)
-        saveStringArray(dailyRecoverySelections, forKey: dailySelectionsKey(for: .recovery))
-        saveStringArray(dailyActivitySelections, forKey: dailySelectionsKey(for: .activity))
-        saveStringArray(dailyJoySelections, forKey: dailySelectionsKey(for: .joy))
-        g.set(baseEnergyToday, forKey: baseEnergyTodayKey)
-        if g.object(forKey: dailyEnergyAnchorKey) == nil {
-            g.set(currentDayStart(for: Date()), forKey: dailyEnergyAnchorKey)
-        }
-    }
-
-    var sleepPointsToday: Int {
-        pointsFromSleep(hours: dailySleepHours)
-    }
-
-    var stepsPointsToday: Int {
-        pointsFromSteps(stepsToday)
-    }
-
-    var recoveryExtrasPoints: Int {
-        pointsFromSelections(dailyRecoverySelections.count)
-    }
-
-    var activityExtrasPoints: Int {
-        pointsFromSelections(dailyActivitySelections.count)
-    }
-
-    var joyPointsToday: Int {
-        pointsFromSelections(dailyJoySelections.count)
-    }
-
-    var recoveryPointsToday: Int {
-        sleepPointsToday + recoveryExtrasPoints
-    }
-
-    var activityPointsToday: Int {
-        stepsPointsToday + activityExtrasPoints
-    }
-
-    var joyCategoryPointsToday: Int {
-        joyPointsToday
-    }
-
-    private func pointsFromSleep(hours: Double) -> Int {
-        let capped = min(max(0, hours), EnergyDefaults.sleepTargetHours)
-        let ratio = capped / EnergyDefaults.sleepTargetHours
-        return Int(ratio * Double(EnergyDefaults.sleepMaxPoints))
-    }
-
-    private func pointsFromSteps(_ steps: Double) -> Int {
-        let capped = min(max(0, steps), EnergyDefaults.stepsTarget)
-        let ratio = capped / EnergyDefaults.stepsTarget
-        return Int(ratio * Double(EnergyDefaults.stepsMaxPoints))
-    }
-
-    private func pointsFromSelections(_ count: Int) -> Int {
-        min(count, EnergyDefaults.maxSelectionsPerCategory) * EnergyDefaults.selectionPoints
-    }
-
-    private func recalculateDailyEnergy() {
-        let total = recoveryPointsToday + activityPointsToday + joyCategoryPointsToday
-        
-        // Базовая энергия ограничена максимумом 100
-        baseEnergyToday = min(EnergyDefaults.maxBaseEnergy, total)
-        
-        // Проверяем суммарный лимит: baseEnergyToday + bonusSteps не должно превышать 100
-        // Если baseEnergyToday увеличился и сумма превышает лимит, уменьшаем bonusSteps
-        let maxTotalEnergy = EnergyDefaults.maxBaseEnergy // 100
-        let currentTotal = baseEnergyToday + bonusSteps
-        if currentTotal > maxTotalEnergy {
-            // Уменьшаем bonusSteps, чтобы сумма была <= 100
-            bonusSteps = max(0, maxTotalEnergy - baseEnergyToday)
-            syncAndPersistBonusBreakdown() // Обновим сохранение
-        }
-        
-        if spentStepsToday > baseEnergyToday {
-            spentStepsToday = baseEnergyToday
-            let g = UserDefaults.stepsTrader()
-            g.set(spentStepsToday, forKey: "spentStepsToday")
-        }
-        stepsBalance = max(0, baseEnergyToday - spentStepsToday)
-        let g = UserDefaults.stepsTrader()
-        g.set(baseEnergyToday, forKey: baseEnergyTodayKey)
-        g.set(stepsBalance, forKey: "stepsBalance")
-    }
-    
-    private func persistServerGrantedSteps() {
-        let g = UserDefaults.stepsTrader()
-        g.set(serverGrantedSteps, forKey: serverGrantedStepsKey)
-        syncAndPersistBonusBreakdown()
-    }
-
-    private func persistDebugStepsBonus() {
-        syncAndPersistBonusBreakdown()
-    }
-
-    private func syncAndPersistBonusBreakdown() {
-        // Суммируем бонусную энергию
-        let rawBonus = outerWorldBonusSteps + serverGrantedSteps
-        
-        // Ограничиваем бонусную энергию максимумом 50
-        let cappedBonus = min(rawBonus, EnergyDefaults.maxBonusEnergy)
-        
-        // Проверяем суммарный лимит: baseEnergyToday + bonusSteps не должно превышать 100
-        // Если превышает, уменьшаем bonusSteps
-        let maxTotalEnergy = EnergyDefaults.maxBaseEnergy // 100
-        let availableForBonus = max(0, maxTotalEnergy - baseEnergyToday)
-        bonusSteps = min(cappedBonus, availableForBonus)
-        
-        let g = UserDefaults.stepsTrader()
-        // Keep compatibility (extensions / older code) by writing Outer World bonus into legacy key.
-        g.set(bonusSteps, forKey: "debugStepsBonus_v1")
-        g.set(outerWorldBonusSteps, forKey: "debugStepsBonus_outerworld_v1")
-        // Explicitly clear removed debug bucket if it exists.
-        g.removeObject(forKey: "debugStepsBonus_debug_v1")
-    }
-
-    private func consumeBonusSteps(_ cost: Int) {
-        guard cost > 0 else { return }
-        
-        outerWorldBonusSteps = max(0, outerWorldBonusSteps - min(outerWorldBonusSteps, cost))
-        
-        syncAndPersistBonusBreakdown()
-    }
-
-    func loadEntryCost() {
-        let g = UserDefaults.stepsTrader()
-        let raw = g.string(forKey: "entryCostTariff")
-        if let raw, let t = Tariff(rawValue: raw) {
-            entryCostSteps = t.entryCostSteps
-        } else {
-            // Fallback to current tariff's entry cost
-            entryCostSteps = budgetEngine.tariff.entryCostSteps
-        }
-    }
-
-    func persistEntryCost(tariff: Tariff) {
-        let g = UserDefaults.stepsTrader()
-        g.set(tariff.rawValue, forKey: "entryCostTariff")
-        entryCostSteps = tariff.entryCostSteps
     }
     
     // MARK: - App display name
@@ -2590,325 +263,6 @@ final class AppModel: ObservableObject {
         return "Selected app"
     }
     
-    // MARK: - Find Shield Group
-    func findShieldGroup(for bundleId: String?) -> ShieldGroup? {
-        guard let bundleId else { return nil }
-        
-        #if canImport(FamilyControls)
-        let defaults = UserDefaults.stepsTrader()
-        
-        // Проходим по всем группам и ищем приложение
-        for group in shieldGroups {
-            // Проверяем все ApplicationToken в группе
-            for token in group.selection.applicationTokens {
-                if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-                    let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-                    
-                    // Проверяем сохраненное имя приложения
-                    if let storedName = defaults.string(forKey: tokenKey) {
-                        let bundleIdLower = bundleId.lowercased()
-                        let storedNameLower = storedName.lowercased()
-                        
-                        if bundleIdLower == storedNameLower || 
-                           bundleIdLower.contains(storedNameLower) ||
-                           storedNameLower.contains(bundleIdLower) {
-                            return group
-                        }
-                    }
-                }
-            }
-        }
-        #endif
-        
-        return nil
-    }
-    
-    // MARK: - Per-app unlock settings
-    func unlockSettings(for bundleId: String?) -> AppUnlockSettings {
-        let fallback = AppUnlockSettings(
-            entryCostSteps: entryCostSteps,
-            dayPassCostSteps: defaultDayPassCost(forEntryCost: entryCostSteps),
-            allowedWindows: [.single, .minutes5, .hour1]
-        )
-        guard let bundleId else { return fallback }
-        
-        // Сначала проверяем группы щитов
-        // Ищем группу, которая содержит это приложение
-        #if canImport(FamilyControls)
-        let defaults = UserDefaults.stepsTrader()
-        
-        // Проходим по всем группам и ищем приложение
-        for group in shieldGroups {
-            // Проверяем все ApplicationToken в группе
-            for token in group.selection.applicationTokens {
-                if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-                    let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-                    
-                    // Сохраняем маппинг token -> groupId для быстрого поиска в будущем
-                    let groupIdKey = "fc_groupId_" + tokenData.base64EncodedString()
-                    defaults.set(group.id, forKey: groupIdKey)
-                    
-                    // Проверяем сохраненное имя приложения
-                    if let storedName = defaults.string(forKey: tokenKey) {
-                        // Сравниваем bundleId с именем приложения (может совпадать или содержать)
-                        let bundleIdLower = bundleId.lowercased()
-                        let storedNameLower = storedName.lowercased()
-                        
-                        // Если имена совпадают или bundleId содержит имя (или наоборот)
-                        if bundleIdLower == storedNameLower || 
-                           bundleIdLower.contains(storedNameLower) ||
-                           storedNameLower.contains(bundleIdLower) {
-                            // Нашли группу, возвращаем её настройки
-                            var settings = group.settings
-                            if settings.allowedWindows.isEmpty {
-                                settings.allowedWindows = [.single, .minutes5, .hour1]
-                            }
-                            return settings
-                        }
-                    }
-                }
-            }
-        }
-        #endif
-        
-        // Если не нашли в группах, используем старые настройки
-        var settings = appUnlockSettings[bundleId] ?? fallback
-        if settings.allowedWindows.isEmpty {
-            settings.allowedWindows = [.single, .minutes5, .hour1]
-        }
-        return settings
-    }
-    
-    func presetTariff(for bundleId: String?) -> Tariff? {
-        let settings = unlockSettings(for: bundleId)
-        switch (settings.entryCostSteps, settings.dayPassCostSteps) {
-        case (0, 0): return .free
-        case (Tariff.easy.entryCostSteps, 1000): return .easy
-        case (Tariff.medium.entryCostSteps, 5000): return .medium
-        case (Tariff.hard.entryCostSteps, 10000): return .hard
-        default: return nil
-        }
-    }
-    
-    func updateUnlockSettings(for bundleId: String, tariff: Tariff) {
-        updateUnlockSettings(
-            for: bundleId,
-            entryCost: tariff.entryCostSteps,
-            dayPassCost: dayPassCost(for: tariff)
-        )
-    }
-    
-    func updateUnlockSettings(for bundleId: String, entryCost: Int? = nil, dayPassCost: Int? = nil) {
-        var settings = unlockSettings(for: bundleId)
-        if let entryCost { settings.entryCostSteps = max(0, entryCost) }
-        if let dayPassCost { settings.dayPassCostSteps = max(0, dayPassCost) }
-        appUnlockSettings[bundleId] = settings
-        persistAppUnlockSettings()
-        scheduleSupabaseShieldUpsert(bundleId: bundleId)
-    }
-
-    func allowedAccessWindows(for bundleId: String?) -> Set<AccessWindow> {
-        // Сначала проверяем группы
-        if let group = findShieldGroup(for: bundleId) {
-            return group.enabledIntervals
-        }
-        return unlockSettings(for: bundleId).allowedWindows
-    }
-
-    func updateAccessWindow(_ window: AccessWindow, enabled: Bool, for bundleId: String) {
-        var settings = unlockSettings(for: bundleId)
-        if enabled {
-            settings.allowedWindows.insert(window)
-        } else {
-            settings.allowedWindows.remove(window)
-        }
-        if settings.allowedWindows.isEmpty {
-            settings.allowedWindows = [.single, .minutes5, .hour1]
-        }
-        appUnlockSettings[bundleId] = settings
-        persistAppUnlockSettings()
-        scheduleSupabaseShieldUpsert(bundleId: bundleId)
-    }
-
-    func deactivateShield(bundleId: String) {
-        appUnlockSettings.removeValue(forKey: bundleId)
-        persistAppUnlockSettings()
-        rebuildFamilyControlsShield()
-        
-        Task { @MainActor in
-            await deleteSupabaseShield(bundleId: bundleId)
-        }
-    }
-    
-    // MARK: - Shield levels
-    func totalStepsSpent(for bundleId: String) -> Int {
-        if let total = appStepsSpentLifetime[bundleId] {
-            return total
-        }
-        return appStepsSpentByDay.values.reduce(0) { acc, perDay in
-            acc + (perDay[bundleId] ?? 0)
-        }
-    }
-
-    func currentShieldLevel(for bundleId: String) -> ShieldLevel {
-        ShieldLevel.current(forSpent: totalStepsSpent(for: bundleId))
-    }
-
-    func stepsToNextShieldLevel(for bundleId: String) -> Int? {
-        ShieldLevel.stepsToNext(forSpent: totalStepsSpent(for: bundleId))
-    }
-
-    func applyCurrentLevelCosts(for bundleId: String) {
-        let level = currentShieldLevel(for: bundleId)
-        updateUnlockSettings(for: bundleId, entryCost: level.entryCost, dayPassCost: level.dayCost)
-    }
-    
-    func hasDayPass(for bundleId: String?) -> Bool {
-        guard let bundleId, let date = dayPassGrants[bundleId] else { return false }
-        if Calendar.current.isDateInToday(date) { return true }
-        dayPassGrants.removeValue(forKey: bundleId)
-        persistDayPassGrants()
-        return false
-    }
-    
-    func tariffForToday(_ bundleId: String) -> Tariff? {
-        if let t = dailyTariffSelections[bundleId] { return t }
-        let settings = unlockSettings(for: bundleId)
-        return Tariff.allCases.first(where: { $0.entryCostSteps == settings.entryCostSteps && dayPassCost(for: $0) == settings.dayPassCostSteps })
-    }
-
-    @MainActor
-    func selectTariffForToday(_ tariff: Tariff, bundleId: String) {
-        dailyTariffSelections[bundleId] = tariff
-        persistDailyTariffSelections()
-        updateUnlockSettings(for: bundleId, tariff: tariff)
-    }
-    
-    func clearExpiredDayPasses() {
-        let today = Calendar.current.startOfDay(for: Date())
-        dayPassGrants = dayPassGrants.filter { _, value in
-            Calendar.current.isDate(value, inSameDayAs: today)
-        }
-        persistDayPassGrants()
-    }
-    
-    private func loadAppUnlockSettings() {
-        let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: "appUnlockSettings_v1") else { return }
-        if let decoded = try? JSONDecoder().decode([String: AppUnlockSettings].self, from: data) {
-            // Normalize values that were previously clamped to 1
-            appUnlockSettings = decoded.mapValues { settings in
-                var s = settings
-                if s.entryCostSteps == 1 { s.entryCostSteps = 0 }
-                if s.dayPassCostSteps == 1 { s.dayPassCostSteps = 0 }
-                return s
-            }
-        }
-    }
-    
-    private func persistAppUnlockSettings() {
-        let g = UserDefaults.stepsTrader()
-        if let data = try? JSONEncoder().encode(appUnlockSettings) {
-            g.set(data, forKey: "appUnlockSettings_v1")
-        }
-    }
-    
-    // MARK: - Shield Groups Management
-    private func loadShieldGroups() {
-        let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: shieldGroupsKey) else {
-            // Если групп нет, создаем пустой массив
-            shieldGroups = []
-            return
-        }
-        if let decoded = try? JSONDecoder().decode([ShieldGroup].self, from: data) {
-            shieldGroups = decoded
-        } else {
-            shieldGroups = []
-        }
-    }
-    
-    private func persistShieldGroups() {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        let g = UserDefaults.stepsTrader()
-        if let data = try? JSONEncoder().encode(shieldGroups) {
-            g.set(data, forKey: shieldGroupsKey)
-        }
-        let persistTime = CFAbsoluteTimeGetCurrent() - startTime
-        if persistTime > 0.05 {
-            print("⏱️ persistShieldGroups took \(String(format: "%.3f", persistTime))s")
-        }
-        // Пересобираем shield после изменения групп (асинхронно с задержкой, чтобы не блокировать UI)
-        Task { @MainActor in
-            // Небольшая задержка, чтобы избежать множественных вызовов при быстрых изменениях
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-            guard !Task.isCancelled else { return }
-            self.rebuildFamilyControlsShield()
-        }
-    }
-    
-    func createShieldGroup(name: String) -> ShieldGroup {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        let defaultSettings = AppUnlockSettings(
-            entryCostSteps: entryCostSteps,
-            dayPassCostSteps: defaultDayPassCost(forEntryCost: entryCostSteps),
-            allowedWindows: [.single, .minutes5, .minutes30, .hour1],
-            minuteTariffEnabled: false,
-            familyControlsModeEnabled: true
-        )
-        let group = ShieldGroup(name: name, settings: defaultSettings)
-        shieldGroups.append(group)
-        persistShieldGroups()
-        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-        if elapsed > 0.05 {
-            print("⏱️ createShieldGroup took \(String(format: "%.3f", elapsed))s")
-        }
-        return group
-    }
-    
-    func updateShieldGroup(_ group: ShieldGroup) {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        if let index = shieldGroups.firstIndex(where: { $0.id == group.id }) {
-            shieldGroups[index] = group
-            persistShieldGroups()
-            
-            // Перестраиваем щит после обновления группы
-            rebuildFamilyControlsShield()
-            
-            let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-            if elapsed > 0.05 {
-                print("⏱️ updateShieldGroup took \(String(format: "%.3f", elapsed))s")
-            }
-        }
-    }
-    
-    func deleteShieldGroup(_ groupId: String) {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        shieldGroups.removeAll { $0.id == groupId }
-        persistShieldGroups()
-        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-        if elapsed > 0.05 {
-            print("⏱️ deleteShieldGroup took \(String(format: "%.3f", elapsed))s")
-        }
-    }
-    
-    func addAppsToGroup(_ groupId: String, selection: FamilyActivitySelection) {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        guard let index = shieldGroups.firstIndex(where: { $0.id == groupId }) else { return }
-        var group = shieldGroups[index]
-        // Объединяем существующий выбор с новым
-        #if canImport(FamilyControls)
-        group.selection.applicationTokens.formUnion(selection.applicationTokens)
-        group.selection.categoryTokens.formUnion(selection.categoryTokens)
-        #endif
-        shieldGroups[index] = group
-        persistShieldGroups()
-        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-        if elapsed > 0.05 {
-            print("⏱️ addAppsToGroup took \(String(format: "%.3f", elapsed))s")
-        }
-    }
-    
     private func loadDayPassGrants() {
         let g = UserDefaults.stepsTrader()
         guard let data = g.data(forKey: "appDayPassGrants_v1") else { return }
@@ -2918,14 +272,24 @@ final class AppModel: ObservableObject {
         }
     }
     
-    private func persistDayPassGrants() {
+    func persistDayPassGrants() {
         let g = UserDefaults.stepsTrader()
         if let data = try? JSONEncoder().encode(dayPassGrants) {
             g.set(data, forKey: "appDayPassGrants_v1")
         }
     }
     
-    private func loadAppStepsSpentToday() {
+    // MARK: - Steps Spent Tracking (for display purposes)
+    func totalStepsSpent(for bundleId: String) -> Int {
+        if let total = appStepsSpentLifetime[bundleId] {
+            return total
+        }
+        return appStepsSpentByDay.values.reduce(0) { acc, perDay in
+            acc + (perDay[bundleId] ?? 0)
+        }
+    }
+    
+    func loadAppStepsSpentToday() {
         let g = UserDefaults.stepsTrader()
         if let data = g.data(forKey: "appStepsSpentByDay_v1"),
            let decoded = try? JSONDecoder().decode([String: [String: Int]].self, from: data) {
@@ -2952,14 +316,14 @@ final class AppModel: ObservableObject {
         }
     }
     
-    private func persistAppStepsSpentToday() {
+    func persistAppStepsSpentToday() {
         let g = UserDefaults.stepsTrader()
         if let data = try? JSONEncoder().encode(appStepsSpentToday) {
             g.set(data, forKey: "appStepsSpentToday_v1")
         }
     }
 
-    private func persistAppStepsSpentByDay() {
+    func persistAppStepsSpentByDay() {
         let g = UserDefaults.stepsTrader()
         if let data = try? JSONEncoder().encode(appStepsSpentByDay) {
             g.set(data, forKey: "appStepsSpentByDay_v1")
@@ -2976,7 +340,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func persistAppStepsSpentLifetime() {
+    func persistAppStepsSpentLifetime() {
         let g = UserDefaults.stepsTrader()
         if let data = try? JSONEncoder().encode(appStepsSpentLifetime) {
             g.set(data, forKey: "appStepsSpentLifetime_v1")
@@ -2985,89 +349,19 @@ final class AppModel: ObservableObject {
         }
     }
     
-    private func dayPassCost(for tariff: Tariff) -> Int {
-        switch tariff {
-        case .free: return 0
-        case .easy: return 1000
-        case .medium: return 5000
-        case .hard: return 10000
-        }
-    }
     
-    private func defaultDayPassCost(forEntryCost entryCost: Int) -> Int {
+    func defaultDayPassCost(forEntryCost entryCost: Int) -> Int {
         if entryCost <= 0 { return 0 }
         return entryCost * 100
     }
     
-    private func addSpentSteps(_ cost: Int, for bundleId: String) {
-        appStepsSpentToday[bundleId, default: 0] += cost
-        appStepsSpentLifetime[bundleId, default: 0] += cost
-        let key = Self.dayKey(for: Date())
-        var perDay = appStepsSpentByDay[key] ?? [:]
-        perDay[bundleId, default: 0] += cost
-        appStepsSpentByDay[key] = perDay
-        persistAppStepsSpentToday()
-        persistAppStepsSpentByDay()
-        persistAppStepsSpentLifetime()
+    // MARK: - Supabase Shield Sync (stubs)
+    
+    func deleteSupabaseShield(bundleId: String) async {
+        // TODO: Implement Supabase shield deletion
+        // This would delete the shield from Supabase
     }
-
-    // MARK: - Access window helpers
-    func applyAccessWindow(_ window: AccessWindow, for bundleId: String) {
-        let g = UserDefaults.stepsTrader()
-        guard let until = accessWindowExpiration(window, now: Date()) else {
-            g.removeObject(forKey: accessBlockKey(for: bundleId))
-            return
-        }
-        g.set(until, forKey: accessBlockKey(for: bundleId))
-        let remaining = Int(until.timeIntervalSince(Date()))
-        print("⏱️ Access window set for \(bundleId) until \(until) (\(remaining) seconds)")
-        // Push notifications on payment/activation removed per request
-    }
-
-    func isAccessBlocked(for bundleId: String) -> Bool {
-        let g = UserDefaults.stepsTrader()
-        guard let until = g.object(forKey: accessBlockKey(for: bundleId)) as? Date else {
-            return false
-        }
-        if Date() >= until {
-            g.removeObject(forKey: accessBlockKey(for: bundleId))
-            return false
-        }
-        let remaining = Int(until.timeIntervalSince(Date()))
-        print("⏱️ Access window active for \(bundleId), remaining \(remaining) seconds")
-        return true
-    }
-
-    func remainingAccessSeconds(for bundleId: String) -> Int? {
-        let g = UserDefaults.stepsTrader()
-        guard let until = g.object(forKey: accessBlockKey(for: bundleId)) as? Date else { return nil }
-        let remaining = Int(until.timeIntervalSince(Date()))
-        if remaining <= 0 {
-            g.removeObject(forKey: accessBlockKey(for: bundleId))
-            return nil
-        }
-        return remaining
-    }
-
-    private func accessBlockKey(for bundleId: String) -> String {
-        "blockUntil_\(bundleId)"
-    }
-
-    private func purgeExpiredAccessWindows() {
-        let g = UserDefaults.stepsTrader()
-        let now = Date()
-        let keys = g.dictionaryRepresentation().keys.filter { $0.hasPrefix("blockUntil_") }
-        for key in keys {
-            if let until = g.object(forKey: key) as? Date {
-                if now >= until {
-                    g.removeObject(forKey: key)
-                }
-            } else {
-                g.removeObject(forKey: key)
-            }
-        }
-    }
-
+    
     /// Полностью разблокировать карточку FamilyControls (убрать из щита).
     @MainActor
     func unlockFamilyControlsCard(_ cardId: String) {
@@ -3096,8 +390,70 @@ final class AppModel: ObservableObject {
         let schemes = primaryAndFallbackSchemes(for: bundleId)
         attemptOpen(schemes: schemes, index: 0, bundleId: bundleId, logCost: 0) { _ in }
     }
+    
+    private func primaryAndFallbackSchemes(for bundleId: String) -> [String] {
+        switch bundleId {
+        case "com.burbn.instagram":
+            return [
+                "instagram://app",
+                "instagram://",
+                "instagram://feed",
+                "instagram://camera",
+            ]
+        case "com.zhiliaoapp.musically":
+            return ["tiktok://"]
+        case "com.google.ios.youtube":
+            return ["youtube://"]
+        case "ph.telegra.Telegraph":
+            return ["tg://", "telegram://"]
+        case "net.whatsapp.WhatsApp":
+            return ["whatsapp://"]
+        case "com.toyopagroup.picaboo":
+            return ["snapchat://"]
+        case "com.facebook.Facebook":
+            return ["fb://", "facebook://"]
+        case "com.linkedin.LinkedIn":
+            return ["linkedin://"]
+        case "com.atebits.Tweetie2":
+            return ["twitter://", "x://"]
+        case "com.reddit.Reddit":
+            return ["reddit://"]
+        case "com.pinterest":
+            return ["pinterest://"]
+        case "com.duolingo.DuolingoMobile":
+            return ["duolingo://"]
+        default:
+            print("⚠️ Unknown bundle id \(bundleId), using instagram fallback")
+            return ["instagram://"]
+        }
+    }
+    
+    private func attemptOpen(schemes: [String], index: Int, bundleId: String, logCost: Int, completion: @escaping (Bool) -> Void) {
+        guard index < schemes.count else {
+            completion(false)
+            return
+        }
+        
+        let scheme = schemes[index]
+        guard let url = URL(string: scheme) else {
+            attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId, logCost: logCost, completion: completion)
+            return
+        }
+        
+        DispatchQueue.main.async {
+            UIApplication.shared.open(url, options: [:]) { success in
+                if success {
+                    print("✅ Opened \(bundleId) via \(scheme)")
+                    completion(true)
+                } else {
+                    print("❌ Scheme \(scheme) failed for \(bundleId), trying next")
+                    self.attemptOpen(schemes: schemes, index: index + 1, bundleId: bundleId, logCost: logCost, completion: completion)
+                }
+            }
+        }
+    }
 
-    private func accessWindowExpiration(_ window: AccessWindow, now: Date) -> Date? {
+    func accessWindowExpiration(_ window: AccessWindow, now: Date) -> Date? {
         switch window {
         case .single:
             return now.addingTimeInterval(60)
@@ -3123,279 +479,7 @@ final class AppModel: ObservableObject {
         }
     }
     
-    // MARK: - PayGate helpers
-    func dismissPayGate(reason: PayGateDismissReason = .userDismiss) {
-        showPayGate = false
-        payGateTargetGroupId = nil
-        payGateSessions.removeAll()
-        currentPayGateSessionId = nil
-        let g = UserDefaults.stepsTrader()
-        let now = Date()
-        if reason == .userDismiss {
-            // Cooldown to prevent instant re-open loops when the user dismisses PayGate.
-            g.set(now.addingTimeInterval(10), forKey: payGateDismissedUntilKey)
-            g.set(now, forKey: "lastPayGateAction")
-        }
-        g.removeObject(forKey: "shouldShowPayGate")
-        g.removeObject(forKey: "payGateTargetGroupId")
-    }
     
-    func recordAutomationOpen(bundleId: String, spentSteps: Int? = nil) {
-        let defaults = UserDefaults.stepsTrader()
-        var dict: [String: Date] = [:]
-        if let data = defaults.data(forKey: "automationLastOpened_v1"),
-           let decoded = try? JSONDecoder().decode([String: Date].self, from: data) {
-            dict = decoded
-        }
-        dict[bundleId] = Date()
-        if let data = try? JSONEncoder().encode(dict) {
-            defaults.set(data, forKey: "automationLastOpened_v1")
-        }
-        
-        // Mark as configured and clear pending once opened
-        var configured = defaults.array(forKey: "automationConfiguredBundles") as? [String] ?? []
-        if !configured.contains(bundleId) {
-            configured.append(bundleId)
-            defaults.set(configured, forKey: "automationConfiguredBundles")
-        }
-        var pending = defaults.array(forKey: "automationPendingBundles") as? [String] ?? []
-        if let idx = pending.firstIndex(of: bundleId) {
-            pending.remove(at: idx)
-            defaults.set(pending, forKey: "automationPendingBundles")
-        }
-        if let pendingData = defaults.data(forKey: "automationPendingTimestamps_v1"),
-           var ts = try? JSONDecoder().decode([String: Date].self, from: pendingData) {
-            ts.removeValue(forKey: bundleId)
-            if let data = try? JSONEncoder().encode(ts) {
-                defaults.set(data, forKey: "automationPendingTimestamps_v1")
-            }
-        }
-        // Log open for chart analytics
-        appOpenLogs.append(AppOpenLog(bundleId: bundleId, date: Date(), spentSteps: spentSteps))
-        trimOpenLogs()
-        persistAppOpenLogs()
-    }
-    
-    // Sync entry cost with current tariff
-    private func syncEntryCostWithTariff() {
-        if entryCostSteps <= 0 {
-            entryCostSteps = 5
-        }
-    }
-
-    func updateSpentTime(minutes: Int) {
-        // Ограничиваем потраченное время максимальным доступным бюджетом
-        let maxSpentMinutes = budgetEngine.dailyBudgetMinutes
-        spentMinutes = min(minutes, maxSpentMinutes)
-        spentSteps = spentMinutes * Int(spentTariff.stepsPerMinute)
-        saveSpentTime()
-        syncBudgetProperties()  // Sync budget properties for UI updates
-        print(
-            "🕐 Updated spent time: \(spentMinutes) minutes (\(spentSteps) steps) (max: \(maxSpentMinutes))"
-        )
-    }
-
-    func consumeMinutes(_ minutes: Int) {
-        budgetEngine.consume(mins: minutes)
-
-        // Устанавливаем тариф, по которому тратятся минуты
-        spentTariff = budgetEngine.tariff
-
-        // Обновляем потраченное время с учетом ограничений
-        updateSpentTime(minutes: spentMinutes + minutes)
-
-        syncBudgetProperties()  // Sync budget properties for UI updates
-        print("⏱️ Consumed \(minutes) minutes, remaining: \(remainingMinutes)")
-    }
-
-    // MARK: - App Selection Persistence
-
-    private func saveAppSelection() {
-        let userDefaults = UserDefaults.stepsTrader()
-        
-        // Новая схема: сохраняем весь FamilyActivitySelection целиком (appSelection_v1),
-        // чтобы его можно было восстановить и в основном приложении, и в экстеншенах.
-        do {
-            let data = try JSONEncoder().encode(appSelection)
-            userDefaults.set(data, forKey: "appSelection_v1")
-            userDefaults.set(Date(), forKey: "appSelectionSavedDate")
-            print("💾 Saved app selection (appSelection_v1): \(appSelection.applicationTokens.count) apps, \(appSelection.categoryTokens.count) categories")
-        } catch {
-            print("❌ Failed to save app selection (appSelection_v1): \(error)")
-        }
-    }
-
-    private func loadAppSelection() {
-        let userDefaults = UserDefaults.stepsTrader()
-        var hasSelection = false
-        var newSelection = FamilyActivitySelection()
-
-        // Сначала пробуем новую схему хранения (appSelection_v1).
-        if let data = userDefaults.data(forKey: "appSelection_v1"),
-           let decoded = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data),
-           !decoded.applicationTokens.isEmpty || !decoded.categoryTokens.isEmpty {
-            newSelection = decoded
-            hasSelection = true
-            print("📱 Restored app selection from appSelection_v1: \(decoded.applicationTokens.count) apps, \(decoded.categoryTokens.count) categories")
-        }
-
-        // Далее — fallback на старую схему с persistentApplicationTokens/persistentCategoryTokens
-        // (оставляем на случай, если у пользователя есть данные старого формата).
-        // Восстанавливаем ApplicationTokens
-        if !hasSelection, let tokensData = userDefaults.data(forKey: "persistentApplicationTokens") {
-            do {
-                let obj = try NSKeyedUnarchiver.unarchivedObject(
-                    ofClass: NSSet.self, from: tokensData)
-                if let applicationTokens = obj as? Set<ApplicationToken> {
-                    newSelection.applicationTokens = applicationTokens
-                    hasSelection = true
-                    print("📱 Restored app selection: \(applicationTokens.count) apps")
-                }
-            } catch {
-                print("❌ Failed to restore app selection: \(error)")
-            }
-        }
-
-        // Восстанавливаем CategoryTokens
-        if !hasSelection, let categoriesData = userDefaults.data(forKey: "persistentCategoryTokens") {
-            do {
-                let obj = try NSKeyedUnarchiver.unarchivedObject(
-                    ofClass: NSSet.self, from: categoriesData)
-                if let categoryTokens = obj as? Set<ActivityCategoryToken> {
-                    newSelection.categoryTokens = categoryTokens
-                    hasSelection = true
-                    print("📱 Restored category selection: \(categoryTokens.count) categories")
-                }
-            } catch {
-                print("❌ Failed to restore category selection: \(error)")
-            }
-        }
-
-        if hasSelection {
-            // Обновляем выбор без вызова didSet (чтобы избежать повторного сохранения)
-            self.appSelection = newSelection
-            print("✅ App selection restored successfully")
-            
-            // Apply shield immediately after loading
-            rebuildFamilyControlsShield()
-
-            // Проверяем дату сохранения
-            if let savedDate = userDefaults.object(forKey: "appSelectionSavedDate") as? Date {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                formatter.timeStyle = .short
-                print("📅 App selection was saved on: \(formatter.string(from: savedDate))")
-            }
-        } else {
-            print("📱 No saved app selection found")
-            // Still apply shield in case there are per-app selections
-            rebuildFamilyControlsShield()
-        }
-    }
-
-    // Синхронизируем карточки (appUnlockSettings + per-card FamilyActivitySelection)
-    // с текущим выбором в FamilyActivityPicker.
-    func syncFamilyControlsCards(from selection: FamilyActivitySelection) {
-        #if canImport(FamilyControls)
-        let newAppTokens = selection.applicationTokens
-        let newCategoryTokens = selection.categoryTokens
-        
-        // Копия настроек, которую будем мутировать.
-        var updatedUnlock = appUnlockSettings
-        
-        // Построим карту token -> cardId для уже существующих карточек.
-        var appTokenToCard: [ApplicationToken: String] = [:]
-        var categoryTokenToCard: [ActivityCategoryToken: String] = [:]
-        
-        for (cardId, settings) in updatedUnlock {
-            let sel = timeAccessSelection(for: cardId)
-            if sel.applicationTokens.count == 1, let t = sel.applicationTokens.first {
-                appTokenToCard[t] = cardId
-            }
-            if sel.categoryTokens.count == 1, let c = sel.categoryTokens.first {
-                categoryTokenToCard[c] = cardId
-            }
-        }
-        
-        // Отключаем карточки, чьи токены больше не выбраны.
-        for (cardId, var settings) in updatedUnlock {
-            let sel = timeAccessSelection(for: cardId)
-            var stillSelected = false
-            
-            if sel.applicationTokens.count == 1, let t = sel.applicationTokens.first {
-                if newAppTokens.contains(t) { stillSelected = true }
-            }
-            if sel.categoryTokens.count == 1, let c = sel.categoryTokens.first {
-                if newCategoryTokens.contains(c) { stillSelected = true }
-            }
-            
-            if !stillSelected {
-                settings.familyControlsModeEnabled = false
-                settings.minuteTariffEnabled = false
-                updatedUnlock[cardId] = settings
-            }
-        }
-        
-        // Для каждого выбранного приложения гарантируем существование и включённость карточки.
-        for token in newAppTokens {
-            if let cardId = appTokenToCard[token] {
-                var settings = updatedUnlock[cardId] ?? unlockSettings(for: cardId)
-                settings.familyControlsModeEnabled = true
-                updatedUnlock[cardId] = settings
-                
-                var sel = timeAccessSelection(for: cardId)
-                sel.applicationTokens = [token]
-                sel.categoryTokens = []
-                saveTimeAccessSelection(sel, for: cardId)
-            } else {
-                let cardId = "fc_app_" + UUID().uuidString
-                var settings = unlockSettings(for: cardId)
-                settings.familyControlsModeEnabled = true
-                updatedUnlock[cardId] = settings
-                
-                var sel = FamilyActivitySelection()
-                sel.applicationTokens = [token]
-                saveTimeAccessSelection(sel, for: cardId)
-            }
-        }
-        
-        // То же для категорий (групп приложений).
-        for cat in newCategoryTokens {
-            if let cardId = categoryTokenToCard[cat] {
-                var settings = updatedUnlock[cardId] ?? unlockSettings(for: cardId)
-                settings.familyControlsModeEnabled = true
-                updatedUnlock[cardId] = settings
-                
-                var sel = timeAccessSelection(for: cardId)
-                sel.applicationTokens = []
-                sel.categoryTokens = [cat]
-                saveTimeAccessSelection(sel, for: cardId)
-            } else {
-                let cardId = "fc_cat_" + UUID().uuidString
-                var settings = unlockSettings(for: cardId)
-                settings.familyControlsModeEnabled = true
-                updatedUnlock[cardId] = settings
-                
-                var sel = FamilyActivitySelection()
-                sel.categoryTokens = [cat]
-                saveTimeAccessSelection(sel, for: cardId)
-            }
-        }
-        
-        // Сохраняем обновлённые настройки карточек.
-        appUnlockSettings = updatedUnlock
-        persistAppUnlockSettings()
-        
-        // Обновляем глобальный selection для UI и shield.
-        appSelection = selection
-        
-        // Пересобираем shield на основе карточек.
-        rebuildFamilyControlsShield()
-        #else
-        _ = selection
-        #endif
-    }
-
     func runDiagnostics() {
         print("🔍 === FAMILY CONTROLS DIAGNOSTICS ===")
 
@@ -3600,7 +684,7 @@ final class AppModel: ObservableObject {
         print("🚀 DOOM CTRL: Starting bootstrap...")
 
         // Обновляем время из shared storage (на случай если DeviceActivity обновил его)
-        loadSpentTime()
+        // Note: spentMinutes and spentSteps are managed via updateSpentTime()
 
         do {
             let authStatus = healthKitService.authorizationStatus()
@@ -3663,6 +747,18 @@ final class AppModel: ObservableObject {
             budgetEngine.resetIfNeeded()
             let budgetMinutes = budgetEngine.minutes(from: stepsToday)
             
+            // Load daily energy preferences and state
+            loadEnergyPreferences()
+            resetDailyEnergyIfNeeded()
+            loadDailyEnergyState()
+            recalculateDailyEnergy()
+            
+            // Load shield groups
+            loadShieldGroups()
+            
+            // Load app unlock settings
+            loadAppUnlockSettings()
+            
             // Apply shield after bootstrap
             rebuildFamilyControlsShield()
             budgetEngine.setBudget(minutes: budgetMinutes)
@@ -3685,6 +781,38 @@ final class AppModel: ObservableObject {
         } catch {
             print("❌ Bootstrap failed: \(error)")
             message = "Initialization error: \(error.localizedDescription)"
+        }
+    }
+    
+    private func checkForQuickStatusPage() {
+        // Check if we should show the quick status page
+        // For now, we don't auto-show it, but this can be customized
+        // based on conditions like first launch, specific state, etc.
+        let defaults = UserDefaults.stepsTrader()
+        let hasShownQuickStatus = defaults.bool(forKey: "hasShownQuickStatusPage")
+        
+        // Example: Show on first launch (can be customized)
+        // if !hasShownQuickStatus {
+        //     showQuickStatusPage = true
+        //     defaults.set(true, forKey: "hasShownQuickStatusPage")
+        // }
+    }
+    
+    func withTimeout(seconds: TimeInterval, operation: @escaping () async throws -> Void) async rethrows {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            // Add the operation task
+            group.addTask {
+                try await operation()
+            }
+            
+            // Add the timeout task
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            }
+            
+            // Wait for the first completed task
+            _ = try await group.next()
+            group.cancelAll()
         }
     }
 
@@ -3716,6 +844,27 @@ final class AppModel: ObservableObject {
         message = "✅ Budget recalculated: \(mins) minutes (\(Int(stepsToday)) steps)"
     }
 
+    func handleIncomingURL(_ url: URL) {
+        // Handle incoming URL schemes
+        print("🔗 Handling incoming URL: \(url)")
+        // Add URL handling logic here if needed
+    }
+    
+    func handleAppDidEnterBackground() {
+        // Handle app entering background
+        print("📱 App entered background")
+        // Add background logic here if needed
+    }
+    
+    func handleAppWillEnterForeground() {
+        // Handle app entering foreground
+        print("📱 App will enter foreground")
+        Task {
+            await refreshStepsBalance()
+            await refreshSleepIfAuthorized()
+        }
+    }
+    
     func recalcSilently() async {
         budgetEngine.resetIfNeeded()
 
@@ -3795,564 +944,6 @@ final class AppModel: ObservableObject {
         print("🚀 === TOGGLE REAL BLOCKING END ===")
     }
 
-    private func startTracking() {
-        print("🎯 === START TRACKING BEGIN ===")
-
-        // Пересчитываем бюджет с текущим тарифом перед запуском отслеживания
-        Task {
-            await recalcSilently()
-            await MainActor.run {
-                print("💰 Budget recalculated: \(budgetEngine.remainingMinutes) minutes")
-
-                guard budgetEngine.remainingMinutes > 0 else {
-                    print("❌ No remaining time - aborting")
-                    message = "DOOM CTRL: No time left! Walk more steps."
-                    return
-                }
-
-                continueStartTracking()
-            }
-        }
-    }
-
-    private func continueStartTracking() {
-        print("🎯 === START TRACKING CONTINUE ===")
-        print("💰 Checking budget: \(budgetEngine.remainingMinutes) minutes")
-
-        print(
-            "📱 Checking selection: \(appSelection.applicationTokens.count) apps, \(appSelection.categoryTokens.count) categories"
-        )
-        guard !appSelection.applicationTokens.isEmpty || !appSelection.categoryTokens.isEmpty else {
-            print("❌ No applications selected - aborting")
-            message = "❌ Choose an app to track"
-            return
-        }
-
-        print("✅ Checks passed, starting tracking")
-        isTrackingTime = true
-        startTime = Date()
-        currentSessionElapsed = 0
-        print("⏱️ Tracking flags set: isTrackingTime=true, startTime=\(Date())")
-
-        let appCount = appSelection.applicationTokens.count
-        print("🚀 Started tracking for \(appCount) selected applications")
-        print("⏱️ Available time: \(budgetEngine.remainingMinutes) minutes")
-        print("🎯 Using DeviceActivity for real-time usage monitoring")
-
-        // Запускаем DeviceActivity мониторинг для реального отслеживания времени
-        if let familyService = familyControlsService as? FamilyControlsService {
-            print("🔧 DEBUG: Starting monitoring with:")
-            print("   - Selected apps: \(appSelection.applicationTokens.count)")
-            print("   - Selected categories: \(appSelection.categoryTokens.count)")
-            print("   - Budget minutes: \(budgetEngine.remainingMinutes)")
-
-            // Запускаем мониторинг с таймаутом
-            Task { [weak self] in
-                print("🔄 Created task to start monitoring with a 10s timeout")
-                await self?.withTimeout(seconds: 10) {
-                    print("⏰ Calling startMonitoring in FamilyControlsService")
-                    await MainActor.run {
-                        familyService.startMonitoring(
-                            budgetMinutes: self?.budgetEngine.remainingMinutes ?? 0)
-                    }
-                    print("✅ startMonitoring finished")
-                }
-
-                print("🔍 Running DeviceActivity diagnostics")
-                // Run diagnostic after starting monitoring
-                familyService.checkDeviceActivityStatus()
-                print("✅ Diagnostics finished")
-            }
-        } else {
-            print("❌ Failed to cast familyControlsService to FamilyControlsService")
-        }
-
-        // Проверяем, работает ли DeviceActivity
-        #if targetEnvironment(simulator)
-            // В симуляторе используем таймер как fallback
-            print("⚠️ Using timer-based tracking (Simulator - DeviceActivity not available)")
-            startTimerFallback()
-        #else
-            // На реальном устройстве проверяем наличие DeviceActivity
-            if familyControlsService.isAuthorized {
-                print("✅ Using DeviceActivity for real background tracking")
-                print("✅ Real tracking enabled. Time counts in the background.")
-            } else {
-                print("⚠️ Using timer-based tracking (Family Controls not authorized)")
-                startTimerFallback()
-            }
-        #endif
-    }
-
-    private func startTimerFallback() {
-        // Таймер каждые 60 секунд симулирует 1 минуту использования (1:1 соответствие)
-        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.simulateAppUsage()
-            }
-        }
-
-        print("⚠️ Demo mode: time decreases every real minute (in-app only)")
-    }
-
-    func stopTracking() {
-        isTrackingTime = false
-        isBlocked = false  // Снимаем блокировку
-        timer?.invalidate()
-        timer = nil
-        startTime = nil
-        currentSessionElapsed = nil
-
-        // Останавливаем DeviceActivity мониторинг
-        if let familyService = familyControlsService as? FamilyControlsService {
-            familyService.stopMonitoring()
-        }
-
-        print("🛑 Tracking stopped - DeviceActivity monitoring disabled")
-    }
-
-    private func startMinuteTariffSession(for bundleId: String, rate: Int) {
-        let g = UserDefaults.stepsTrader()
-        g.set(bundleId, forKey: minuteTariffBundleKey)
-        g.set(rate, forKey: minuteTariffRateKey)
-        g.set(Date(), forKey: minuteTariffLastTickKey)
-        g.removeObject(forKey: accessBlockKey(for: bundleId))
-    }
-
-    private func setCustomAccessWindow(until: Date, for bundleId: String) {
-        let g = UserDefaults.stepsTrader()
-        g.set(until, forKey: accessBlockKey(for: bundleId))
-        let remaining = Int(until.timeIntervalSince(Date()))
-        print("⏱️ Custom access window set for \(bundleId) until \(until) (\(remaining) seconds)")
-    }
-
-    private func applyMinuteTariffCatchup() {
-        let g = UserDefaults.stepsTrader()
-        guard let bundleId = g.string(forKey: minuteTariffBundleKey),
-              let lastTick = g.object(forKey: minuteTariffLastTickKey) as? Date
-        else { return }
-
-        let rate = g.integer(forKey: minuteTariffRateKey)
-        guard rate > 0 else { return }
-
-        let elapsedMinutes = Int(Date().timeIntervalSince(lastTick) / 60)
-        guard elapsedMinutes > 0 else { return }
-
-        let minutesToCharge = min(elapsedMinutes, minutesAvailable(for: bundleId))
-        guard minutesToCharge > 0 else {
-            g.removeObject(forKey: minuteTariffBundleKey)
-            g.removeObject(forKey: minuteTariffLastTickKey)
-            g.removeObject(forKey: minuteTariffRateKey)
-            return
-        }
-
-        let totalCost = minutesToCharge * rate
-        if pay(cost: totalCost) {
-            addSpentSteps(totalCost, for: bundleId)
-            let remainingMinutes = minutesAvailable(for: bundleId)
-            if remainingMinutes <= 0 {
-                g.removeObject(forKey: accessBlockKey(for: bundleId))
-                g.removeObject(forKey: minuteTariffBundleKey)
-                g.removeObject(forKey: minuteTariffLastTickKey)
-                g.removeObject(forKey: minuteTariffRateKey)
-            }
-        }
-
-        g.set(Date(), forKey: minuteTariffLastTickKey)
-    }
-
-    // Timer-based tracking (fallback without DeviceActivity entitlement)
-
-    private func simulateAppUsage() {
-        guard isTrackingTime else { return }
-        print("⏱️ DEMO: Simulating 1 minute of app usage")
-
-        // Увеличиваем время использования приложения на 1 минуту
-        updateSpentTime(minutes: spentMinutes + 1)
-
-        // Списываем из бюджета
-        consumeMinutes(1)
-
-        print("⏱️ Spent: \(spentMinutes) min, Remaining: \(remainingMinutes) min")
-
-        if remainingMinutes <= 0 {
-            stopTracking()
-            isBlocked = true
-            message = "⏰ DEMO: Time is up!"
-
-            notificationService.sendTimeExpiredNotification()
-            sendReturnToAppNotification()
-            AudioServicesPlaySystemSound(1005)
-        }
-    }
-
-    func checkForQuickStatusPage() {
-        let userDefaults = UserDefaults.stepsTrader()
-        let now = Date()
-        let shouldShow = userDefaults.bool(forKey: "shouldShowQuickStatusPage")
-        let shouldShowPayGate = userDefaults.bool(forKey: "shouldShowPayGate")
-        let shouldAutoSelectApps = userDefaults.bool(forKey: "shouldAutoSelectApps")
-        let shouldPayBeforeOpen = userDefaults.bool(forKey: "shouldPayBeforeOpen")
-
-        print(
-            "🔍 Checking flags - Quick Status: \(shouldShow), Auto Select: \(shouldAutoSelectApps)")
-
-        // Автоматический выбор приложений отключен (только ручной выбор)
-
-        if shouldShow {
-            print("🎯 Setting showQuickStatusPage = true")
-            showQuickStatusPage = true
-            // Очищаем флаг
-            userDefaults.removeObject(forKey: "shouldShowQuickStatusPage")
-            print("🎯 Opening Quick Status Page from Intent")
-
-
-            // Проверяем, нужно ли автоматически закрыть через секунду
-            let shouldAutoClose = userDefaults.bool(forKey: "shouldAutoCloseQuickStatus")
-            if shouldAutoClose {
-                let targetApp =
-                    userDefaults.string(forKey: "targetAppForReturn") ?? "unknown app"
-                print("🔄 Auto-close requested, target app: \(targetApp)")
-                userDefaults.removeObject(forKey: "shouldAutoCloseQuickStatus")
-                userDefaults.removeObject(forKey: "targetAppForReturn")
-                
-                // Anti-loop on cold launch: wait until app has been active for at least 1.5s
-                let baseDelay: TimeInterval = max(1.0, 1.5 - Date().timeIntervalSince(self.appLaunchTime))
-                func scheduleOpen(after delay: TimeInterval) {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                        // Ensure app is active before redirect to avoid UI freeze
-                        if UIApplication.shared.applicationState != .active {
-                            scheduleOpen(after: 0.5)
-                            return
-                        }
-                        print("🔄 Auto-closing QuickStatusView and opening \(targetApp) after delay: \(delay)s")
-                        self.showQuickStatusPage = false
-
-                        if shouldPayBeforeOpen {
-                            Task { @MainActor in
-                                await self.refreshStepsBalance()
-                                if self.canPayForEntry() { _ = self.payForEntry() }
-                            }
-                            userDefaults.removeObject(forKey: "shouldPayBeforeOpen")
-                        }
-
-                        userDefaults.set(Date(), forKey: "returnModeActivatedTime")
-                        self.openTargetApp(targetApp)
-                    }
-                }
-                scheduleOpen(after: baseDelay)
-            }
-        } else {
-            print("🔍 No Quick Status flag found")
-        }
-
-        if shouldShowPayGate {
-            if let until = userDefaults.object(forKey: payGateDismissedUntilKey) as? Date,
-               now < until
-            {
-                let remaining = until.timeIntervalSince(now)
-                print("🚫 PayGate flag suppressed after dismiss (\(String(format: "%.1f", remaining))s left)")
-                userDefaults.removeObject(forKey: "shouldShowPayGate")
-                userDefaults.removeObject(forKey: "payGateTargetGroupId")
-                return
-            }
-            if let groupId = userDefaults.string(forKey: "payGateTargetGroupId") {
-                startPayGateSession(for: groupId)
-            }
-            userDefaults.removeObject(forKey: "shouldShowPayGate")
-            print(
-                "🎯 PayGate (from UserDefaults): show=\(showPayGate), target=\(payGateTargetGroupId ?? "nil")"
-            )
-        }
-    }
-
-    // MARK: - Public helpers for views
-    func reloadBudgetFromStorage() {
-        if let engine = budgetEngine as? BudgetEngine {
-            engine.reloadFromStorage()
-            syncBudgetProperties()  // Sync budget properties for UI updates
-        }
-    }
-
-    func updateDayEnd(hour: Int, minute: Int) {
-        let clampedHour = max(0, min(23, hour))
-        let clampedMinute = max(0, min(59, minute))
-        dayEndHour = clampedHour
-        dayEndMinute = clampedMinute
-        budgetEngine.updateDayEnd(hour: clampedHour, minute: clampedMinute)
-    }
-    
-
-    func forceRestoreAppSelection() {
-        print("🔄 Force restoring app selection...")
-
-        // Сначала загружаем из UserDefaults
-        let userDefaults = UserDefaults.stepsTrader()
-        var hasSelection = false
-        var newSelection = FamilyActivitySelection()
-
-        // Восстанавливаем ApplicationTokens
-        if let tokensData = userDefaults.data(forKey: "persistentApplicationTokens") {
-            do {
-                let obj = try NSKeyedUnarchiver.unarchivedObject(
-                    ofClass: NSSet.self, from: tokensData)
-                if let applicationTokens = obj as? Set<ApplicationToken> {
-                    newSelection.applicationTokens = applicationTokens
-                    hasSelection = true
-                    print("📱 Restored app selection: \(applicationTokens.count) apps")
-                }
-            } catch {
-                print("❌ Failed to restore app selection: \(error)")
-            }
-        }
-
-        // Восстанавливаем CategoryTokens
-        if let categoriesData = userDefaults.data(forKey: "persistentCategoryTokens") {
-            do {
-                let obj = try NSKeyedUnarchiver.unarchivedObject(
-                    ofClass: NSSet.self, from: categoriesData)
-                if let categoryTokens = obj as? Set<ActivityCategoryToken> {
-                    newSelection.categoryTokens = categoryTokens
-                    hasSelection = true
-                    print("📱 Restored category selection: \(categoryTokens.count) categories")
-                }
-            } catch {
-                print("❌ Failed to restore category selection: \(error)")
-            }
-        }
-
-        if hasSelection {
-            // Принудительно обновляем appSelection (это вызовет didSet и обновит UI)
-            self.appSelection = newSelection
-            print("✅ App selection restored and UI updated")
-        } else {
-            print("ℹ️ No saved selection found")
-        }
-    }
-
-    func forceSaveAppSelection() {
-        print("💾 Force saving current app selection...")
-        saveAppSelection()
-        print("✅ Current selection saved to UserDefaults")
-    }
-
-    private func openTargetApp(_ appName: String) {
-        print("🚀 Attempting to open target app: \(appName)")
-
-        let urlScheme: String
-        switch appName.lowercased() {
-        case "instagram":
-            urlScheme = "instagram://"
-        case "tiktok":
-            urlScheme = "tiktok://"
-        case "youtube":
-            urlScheme = "youtube://"
-        default:
-            print("❌ Unknown app: \(appName)")
-            return
-        }
-
-        guard let url = URL(string: urlScheme) else {
-            print("❌ Invalid URL scheme: \(urlScheme)")
-            return
-        }
-
-        DispatchQueue.main.async {
-            UIApplication.shared.open(url) { success in
-                if success {
-                    print("✅ Successfully opened \(appName)")
-                    let bundleId: String?
-                    switch appName.lowercased() {
-                    case "instagram": bundleId = "com.burbn.instagram"
-                    case "tiktok": bundleId = "com.zhiliaoapp.musically"
-                    case "youtube": bundleId = "com.google.ios.youtube"
-                    default: bundleId = nil
-                    }
-                    if let bundleId { self.recordAutomationOpen(bundleId: bundleId) }
-                } else {
-                    print("❌ Failed to open \(appName) - app might not be installed")
-                }
-            }
-        }
-    }
-
-
-    private func getBundleIdDisplayName(_ bundleId: String) -> String {
-        TargetResolver.displayName(for: bundleId)
-    }
-
-    private func reopenTargetIfPossible(bundleId: String) {
-        guard let scheme = TargetResolver.urlScheme(forBundleId: bundleId),
-              let url = URL(string: scheme)
-        else { return }
-        DispatchQueue.main.async {
-            UIApplication.shared.open(url, options: [:], completionHandler: nil)
-        }
-    }
-
-    // MARK: - App Selection Methods
-
-    func toggleInstagramSelection(_ enabled: Bool) {
-        isInstagramSelected = enabled
-    }
-
-    private func setInstagramAsTarget() {
-        // Не меняем appSelection программно — выбор делает пользователь в FamilyActivityPicker
-        print("🎯 Instagram: user-driven selection via FamilyActivityPicker (no-op)")
-        isUpdatingInstagramSelection = true
-        defer { isUpdatingInstagramSelection = false }
-        isInstagramSelected = true
-    }
-
-    private func clearAppSelection() {
-        print("🧹 === CLEAR SELECTION BEGIN ===")
-
-        // Устанавливаем флаг для предотвращения рекурсии
-        isUpdatingInstagramSelection = true
-        defer { isUpdatingInstagramSelection = false }
-
-        appSelection = FamilyActivitySelection()
-        print("📱 App selection cleared")
-
-        // Сбрасываем флаг Instagram без вызова didSet (избегаем рекурсии)
-        isInstagramSelected = false
-        print("✅ isInstagramSelected = false (no recursion)")
-
-        print("🧹 === CLEAR SELECTION END ===")
-    }
-
-    // MARK: - Smart App Selection
-
-    /// Автоматически устанавливает приложение для отслеживания по bundle ID
-    private func autoSetTargetApp(bundleId: String) {
-        print("🎯 Auto-setting target app: \(bundleId)")
-
-        switch bundleId {
-        case "com.burbn.instagram":
-            setInstagramAsTarget()
-        case "com.zhiliaoapp.musically", "com.google.ios.youtube":
-            // Для TikTok и YouTube оставляем только сохранение метаданных (ручной выбор)
-            break
-        default:
-            // Без автозаполнения — только ручной выбор в FamilyActivityPicker
-            break
-        }
-
-        // Сохраняем информацию о том, что выбор был автоматическим
-        let userDefaults = UserDefaults.stepsTrader()
-        userDefaults.set(bundleId, forKey: "autoSelectedAppBundleId")
-        userDefaults.set(Date(), forKey: "autoSelectionDate")
-
-        print("✅ Auto-selected app: \(getBundleIdDisplayName(bundleId))")
-    }
-
-    // Автоматический выбор приложений удален — используем только ручной выбор
-
-    // Автоматический умный выбор удален — используем только ручной выбор
-
-    private func setEntertainmentAsTarget() {
-        let newSelection = FamilyActivitySelection()
-        // Оставляем пустой выбор - DeviceActivityMonitor будет использовать fallback категории
-        appSelection = newSelection
-        print("📱 Entertainment apps selected for tracking")
-    }
-
-    // setSocialMediaAsTarget удален — оставляем только ручной выбор в FamilyActivityPicker
-
-    // MARK: - Utility Functions
-
-    private func withTimeout<T>(seconds: TimeInterval, operation: @Sendable @escaping () async -> T)
-        async -> T?
-    {
-        await withTaskGroup(of: T?.self) { group in
-            group.addTask { await operation() }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                return nil
-            }
-            var result: T? = nil
-            while let value = await group.next() {
-                if let unwrapped = value {
-                    result = unwrapped
-                    group.cancelAll()
-                    break
-                }
-            }
-            return result
-        }
-    }
-
-    // MARK: - Step Observation
-    private func startStepObservation() {
-        healthKitService.startObservingSteps { [weak self] _ in
-            Task { @MainActor in
-                await self?.refreshStepsBalance()
-                if let steps = self?.stepsToday {
-                    print("📊 Auto-updated steps (custom day): \(Int(steps))")
-                }
-            }
-        }
-    }
-    
-    // MARK: - CloudKit Sync Helpers
-    
-    func getAllShieldSettingsForCloud() -> [String: CloudShieldSettings] {
-        var result: [String: CloudShieldSettings] = [:]
-        for (bundleId, settings) in appUnlockSettings {
-            result[bundleId] = CloudShieldSettings(
-                entryCostSteps: settings.entryCostSteps,
-                dayPassCostSteps: settings.dayPassCostSteps,
-                minuteTariffEnabled: settings.minuteTariffEnabled,
-                familyControlsModeEnabled: settings.familyControlsModeEnabled,
-                allowedWindowsRaw: settings.allowedWindows.map { $0.rawValue }
-            )
-        }
-        return result
-    }
-    
-    func getStepsSpentByDayForCloud() -> [String: [String: Int]] {
-        let g = UserDefaults.stepsTrader()
-        if let data = g.data(forKey: "appStepsSpentByDay_v1"),
-           let decoded = try? JSONDecoder().decode([String: [String: Int]].self, from: data) {
-            return decoded
-        }
-        return [:]
-    }
-    
-    func getDayPassesForCloud() -> [String: Date] {
-        return dayPassGrants
-    }
-    
-    func restoreShieldSettingsFromCloud(_ cloudSettings: [String: CloudShieldSettings]) async {
-        for (bundleId, cloud) in cloudSettings {
-            var settings = AppUnlockSettings(
-                entryCostSteps: cloud.entryCostSteps,
-                dayPassCostSteps: cloud.dayPassCostSteps
-            )
-            settings.minuteTariffEnabled = cloud.minuteTariffEnabled
-            settings.familyControlsModeEnabled = cloud.familyControlsModeEnabled
-            settings.allowedWindows = Set(cloud.allowedWindowsRaw.compactMap { AccessWindow(rawValue: $0) })
-            
-            appUnlockSettings[bundleId] = settings
-        }
-        persistAppUnlockSettings()
-        print("☁️ Restored \(cloudSettings.count) shield settings from cloud")
-    }
-    
-    func restoreStepsSpentFromCloud(_ cloudSteps: [String: [String: Int]]) async {
-        let g = UserDefaults.stepsTrader()
-        if let data = try? JSONEncoder().encode(cloudSteps) {
-            g.set(data, forKey: "appStepsSpentByDay_v1")
-        }
-        loadAppStepsSpentToday()
-        print("☁️ Restored steps spent data from cloud")
-    }
-    
-    func restoreDayPassesFromCloud(_ cloudDayPasses: [String: Date]) async {
-        dayPassGrants = cloudDayPasses
-        persistDayPassGrants()
-        print("☁️ Restored \(cloudDayPasses.count) day passes from cloud")
-    }
     
     deinit {
         // Stop HealthKit observation
@@ -4380,59 +971,6 @@ extension AppModel {
     func requestNotificationPermission() async {
         do { try await notificationService.requestPermission() }
         catch { print("❌ Notification permission failed: \(error)") }
-    }
-
-    func refreshSleepIfAuthorized() async {
-        let status = healthKitService.authorizationStatus()
-        guard status == .sharingAuthorized else {
-            print("ℹ️ HealthKit not authorized yet, skipping sleep refresh")
-            return
-        }
-        
-        do {
-            let sleepHours = try await healthKitService.fetchTodaySleep()
-            // AppModel is @MainActor, so we can update directly
-            dailySleepHours = sleepHours
-            persistDailyEnergyState()
-            recalculateDailyEnergy()
-            print("😴 Fetched sleep from HealthKit: \(String(format: "%.1f", sleepHours)) hours")
-        } catch {
-            print("❌ Failed to refresh sleep from HealthKit: \(error.localizedDescription)")
-        }
-    }
-    
-    func refreshStepsIfAuthorized() async {
-        let status = healthKitService.authorizationStatus()
-        guard status == .sharingAuthorized else {
-            print("ℹ️ HealthKit not authorized yet, skipping refresh")
-            return
-        }
-        await refreshStepsBalance()
-        await refreshSleepIfAuthorized()
-    }
-
-    func cacheStepsToday() {
-        let g = UserDefaults.stepsTrader()
-        g.set(Int(stepsToday), forKey: "cachedStepsToday")
-    }
-    
-    func loadCachedStepsToday() {
-        let g = UserDefaults.stepsTrader()
-        let cached = g.integer(forKey: "cachedStepsToday")
-        if cached > 0 {
-            stepsToday = Double(cached)
-            print("💾 Loaded cached stepsToday: \(cached)")
-        }
-    }
-
-    private func fallbackCachedSteps() -> Double {
-        let g = UserDefaults.stepsTrader()
-        let cached = g.integer(forKey: "cachedStepsToday")
-        if cached > 0 {
-            print("💾 Falling back to cached steps: \(cached)")
-            return Double(cached)
-        }
-        return 0
     }
 
     // Debug bonus removed: we intentionally do not support minting energy outside HealthKit/Outer World.

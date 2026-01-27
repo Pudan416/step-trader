@@ -34,17 +34,31 @@ struct CategoryDetailView: View {
             .sheet(isPresented: $showSettings) {
                 if let category = category {
                     CategorySettingsView(model: model, category: category, appLanguage: appLanguage)
+                        .onAppear {
+                            print("🟡 CategoryDetailView: Showing CategorySettingsView for category: \(category.rawValue)")
+                        }
+                } else {
+                    Text("Error: No category selected")
+                        .foregroundColor(.red)
+                        .padding()
+                        .onAppear {
+                            print("🔴 CategoryDetailView: category is nil, cannot show settings")
+                        }
                 }
             }
+        }
+        .navigationViewStyle(.stack)
+        .onAppear {
+            print("🟢 CategoryDetailView body appeared, category: \(category?.rawValue ?? "nil"), outerWorldSteps: \(outerWorldSteps)")
         }
     }
     
     private var categoryTitle: String {
         switch category {
-        case .recovery: return loc(appLanguage, "Recovery", "Восстановление")
-        case .activity: return loc(appLanguage, "Activity", "Активность")
-        case .joy: return loc(appLanguage, "Joy", "Радость")
-        case nil: return loc(appLanguage, "Outer World", "Внешний мир")
+        case .move: return loc(appLanguage, "Move")
+        case .reboot: return loc(appLanguage, "Reboot")
+        case .joy: return loc(appLanguage, "Choice")
+        case nil: return loc(appLanguage, "Outer World")
         }
     }
     
@@ -73,7 +87,7 @@ struct CategoryDetailView: View {
                         .foregroundColor(.secondary)
                         .monospacedDigit()
                 }
-                Text(loc(appLanguage, "points", "баллов"))
+                Text(loc(appLanguage, "points"))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -85,9 +99,9 @@ struct CategoryDetailView: View {
     private func categoryContent(category: EnergyCategory) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             // Steps/Sleep info
-            if category == .activity {
+            if category == .move {
                 stepsInfoSection
-            } else if category == .recovery {
+            } else if category == .reboot {
                 sleepInfoSection
             }
             
@@ -98,14 +112,14 @@ struct CategoryDetailView: View {
     
     private var outerWorldContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text(loc(appLanguage, "Collect energy drops from the map by exploring the Outer World", "Собирайте капли энергии с карты, исследуя Внешний мир"))
+            Text(loc(appLanguage, "Collect energy drops from the map by exploring the Outer World"))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .padding()
                 .background(Color(.secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             
-            Text(loc(appLanguage, "Daily cap: 50 energy", "Дневной лимит: 50 энергии"))
+            Text(loc(appLanguage, "Daily cap: 50 energy"))
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -113,14 +127,14 @@ struct CategoryDetailView: View {
     
     private var stepsInfoSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(loc(appLanguage, "Steps", "Шаги"))
+            Text(loc(appLanguage, "Steps"))
                 .font(.headline)
             
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(formatNumber(Int(model.stepsToday)))")
                         .font(.title2.bold())
-                    Text(loc(appLanguage, "steps today", "шагов сегодня"))
+                    Text(loc(appLanguage, "steps today"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -130,7 +144,7 @@ struct CategoryDetailView: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("\(model.stepsPointsToday)/\(EnergyDefaults.stepsMaxPoints)")
                         .font(.title3.bold())
-                    Text(loc(appLanguage, "points", "баллов"))
+                    Text(loc(appLanguage, "points"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -143,14 +157,14 @@ struct CategoryDetailView: View {
     
     private var sleepInfoSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(loc(appLanguage, "Sleep", "Сон"))
+            Text(loc(appLanguage, "Sleep"))
                 .font(.headline)
             
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(String(format: "%.1fh", model.dailySleepHours))
                         .font(.title2.bold())
-                    Text(loc(appLanguage, "hours slept", "часов сна"))
+                    Text(loc(appLanguage, "hours slept"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -160,7 +174,7 @@ struct CategoryDetailView: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("\(model.sleepPointsToday)/\(EnergyDefaults.sleepMaxPoints)")
                         .font(.title3.bold())
-                    Text(loc(appLanguage, "points", "баллов"))
+                    Text(loc(appLanguage, "points"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -176,11 +190,11 @@ struct CategoryDetailView: View {
         let options = model.preferredOptions(for: category)
         
         VStack(alignment: .leading, spacing: 16) {
-            Text(loc(appLanguage, "Activities", "Активности"))
+            Text(loc(appLanguage, "Activities"))
                 .font(.headline)
             
             if options.isEmpty {
-                Text(loc(appLanguage, "No activities selected. Tap Edit to add activities.", "Активности не выбраны. Нажмите Edit чтобы добавить."))
+                Text(loc(appLanguage, "No activities selected. Tap Edit to add activities."))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .padding()
@@ -256,7 +270,7 @@ struct CategoryDetailView: View {
         } label: {
             HStack {
                 Image(systemName: "gearshape.fill")
-                Text(loc(appLanguage, "Edit", "Настроить"))
+                Text(loc(appLanguage, "Edit"))
             }
             .font(.headline)
             .foregroundColor(.white)
@@ -278,8 +292,8 @@ struct CategoryDetailView: View {
     // Computed properties
     private var categoryColor: Color {
         switch category {
-        case .recovery: return .blue
-        case .activity: return .green
+        case .move: return .green
+        case .reboot: return .blue
         case .joy: return .orange
         case nil: return .cyan
         }
@@ -287,8 +301,8 @@ struct CategoryDetailView: View {
     
     private var categoryIcon: String {
         switch category {
-        case .recovery: return "moon.zzz.fill"
-        case .activity: return "figure.run"
+        case .move: return "figure.run"
+        case .reboot: return "moon.zzz.fill"
         case .joy: return "heart.fill"
         case nil: return "battery.100.bolt"
         }
@@ -296,8 +310,8 @@ struct CategoryDetailView: View {
     
     private var currentPoints: Int {
         switch category {
-        case .recovery: return model.recoveryPointsToday
-        case .activity: return model.activityPointsToday
+        case .move: return model.movePointsToday
+        case .reboot: return model.rebootPointsToday
         case .joy: return model.joyCategoryPointsToday
         case nil: return outerWorldSteps
         }
@@ -305,8 +319,8 @@ struct CategoryDetailView: View {
     
     private var maxPoints: Int {
         switch category {
-        case .recovery: return 40
-        case .activity: return 40
+        case .move: return 40
+        case .reboot: return 40
         case .joy: return 20
         case nil: return 50
         }
@@ -314,9 +328,5 @@ struct CategoryDetailView: View {
     
     private func formatNumber(_ value: Int) -> String {
         value < 1000 ? "\(value)" : "\(value / 1000)k"
-    }
-    
-    private func loc(_ lang: String, _ en: String, _ ru: String) -> String {
-        lang == "ru" ? ru : en
     }
 }

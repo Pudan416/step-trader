@@ -81,7 +81,7 @@ struct LoginView: View {
                             .font(.system(size: 32, weight: .black, design: .rounded))
                             .foregroundColor(.white)
                         
-                        Text(loc(appLanguage, "Trade steps for screen time", "Меняй шаги на экранное время"))
+                        Text(loc(appLanguage, "Trade steps for screen time"))
                             .font(.subheadline)
                             .foregroundColor(.white.opacity(0.6))
                     }
@@ -93,17 +93,17 @@ struct LoginView: View {
                 VStack(spacing: 16) {
                     featureRow(
                         icon: "figure.walk",
-                        title: loc(appLanguage, "Earn energy by walking", "Зарабатывай энергию ходьбой"),
+                        title: loc(appLanguage, "Earn energy by walking"),
                         color: .green
                     )
                     featureRow(
                         icon: "app.badge.checkmark",
-                        title: loc(appLanguage, "Control app access", "Контролируй доступ к приложениям"),
+                        title: loc(appLanguage, "Control app access"),
                         color: .blue
                     )
                     featureRow(
                         icon: "chart.line.uptrend.xyaxis",
-                        title: loc(appLanguage, "Track your progress", "Отслеживай прогресс"),
+                        title: loc(appLanguage, "Track your progress"),
                         color: .orange
                     )
                 }
@@ -132,7 +132,7 @@ struct LoginView: View {
                     .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
                     .disabled(authService.isLoading || authService.isAuthenticated)
                     
-                    Text(loc(appLanguage, "Account syncs across devices", "Аккаунт синхронизируется между устройствами"))
+                    Text(loc(appLanguage, "Account syncs across devices"))
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.4))
                 }
@@ -146,10 +146,10 @@ struct LoginView: View {
                 }
             }
         }
-        .alert(loc(appLanguage, "Error", "Ошибка"), isPresented: $showError) {
+        .alert(loc(appLanguage, "Error"), isPresented: $showError) {
             Button("OK") { showError = false }
         } message: {
-            Text(authService.error ?? loc(appLanguage, "Something went wrong", "Что-то пошло не так"))
+            Text(authService.error ?? loc(appLanguage, "Something went wrong"))
         }
         .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
             if isAuthenticated {

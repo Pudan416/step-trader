@@ -135,13 +135,13 @@ struct SettingsView: View {
             .sheet(isPresented: $showProfileEditor) {
                 ProfileEditorView(authService: authService)
             }
-            .alert(loc(appLanguage, "Restore from iCloud", "Восстановить из iCloud"), isPresented: $showRestoreAlert) {
-                Button(loc(appLanguage, "Cancel", "Отмена"), role: .cancel) { }
-                Button(loc(appLanguage, "Restore", "Восстановить"), role: .destructive) {
+            .alert(loc(appLanguage, "Restore from iCloud"), isPresented: $showRestoreAlert) {
+                Button(loc(appLanguage, "Cancel"), role: .cancel) { }
+                Button(loc(appLanguage, "Restore"), role: .destructive) {
                     Task { await cloudService.restoreFromCloud(model: model) }
                 }
             } message: {
-                Text(loc(appLanguage, "This will replace your current shields and progress with data from iCloud.", "Это заменит ваши текущие щиты и прогресс данными из iCloud."))
+                Text(loc(appLanguage, "This will replace your current shields and progress with data from iCloud."))
             }
             .navigationTitle("")
                             .navigationBarTitleDisplayMode(.inline)
@@ -186,9 +186,9 @@ struct SettingsView: View {
             }
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(loc(appLanguage, "Command Center", "Командный центр"))
+                Text(loc(appLanguage, "Command Center"))
                     .font(.headline)
-                Text(loc(appLanguage, "Tweak everything here ⚙️", "Настрой всё под себя ⚙️"))
+                Text(loc(appLanguage, "Tweak everything here ⚙️"))
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -204,7 +204,7 @@ struct SettingsView: View {
         
         return VStack(alignment: .leading, spacing: 0) {
             // Section header - edgy
-            sectionHeaderEdgy(icon: "person.fill", title: loc(appLanguage, "Identity", "Личность"), subtitle: loc(appLanguage, "Who are you, warrior?", "Кто ты, воин?"), color: pink)
+            sectionHeaderEdgy(icon: "person.fill", title: loc(appLanguage, "Identity"), subtitle: loc(appLanguage, "Who are you, warrior?"), color: pink)
             
             if authService.isAuthenticated, let user = authService.currentUser {
                 // User profile
@@ -273,7 +273,7 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundColor(.red.opacity(0.8))
                             .frame(width: 24)
-                        Text(loc(appLanguage, "Leave", "Выйти"))
+                        Text(loc(appLanguage, "Leave"))
                             .font(.caption)
                             .foregroundColor(.red.opacity(0.8))
                         Spacer()
@@ -297,10 +297,10 @@ struct SettingsView: View {
                         }
                         
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(loc(appLanguage, "Join the game", "Вступай в игру"))
+                            Text(loc(appLanguage, "Join the game"))
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundColor(.primary)
-                            Text(loc(appLanguage, "Sign in to sync progress 🔄", "Войди чтобы сохранять прогресс 🔄"))
+                            Text(loc(appLanguage, "Sign in to sync progress 🔄"))
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
@@ -325,8 +325,8 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeaderEdgy(
                 icon: "icloud.fill",
-                title: loc(appLanguage, "Cloud Backup", "Бэкап в облаке"),
-                subtitle: loc(appLanguage, "Never lose your progress ☁️", "Не теряй прогресс ☁️"),
+                title: loc(appLanguage, "Cloud Backup"),
+                subtitle: loc(appLanguage, "Never lose your progress ☁️"),
                 color: .cyan
             )
             
@@ -344,7 +344,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("iCloud")
                         .font(.caption.weight(.medium))
-                    Text(cloudService.isCloudKitAvailable ? loc(appLanguage, "Online", "Онлайн") : loc(appLanguage, "Offline", "Офлайн"))
+                    Text(cloudService.isCloudKitAvailable ? loc(appLanguage, "Online") : loc(appLanguage, "Offline"))
                         .font(.caption2)
                         .foregroundColor(cloudService.isCloudKitAvailable ? .green : .red)
                 }
@@ -374,7 +374,7 @@ struct SettingsView: View {
                                 Image(systemName: "arrow.triangle.2.circlepath")
                                     .font(.caption)
                             }
-                            Text(loc(appLanguage, "Sync", "Синк"))
+                            Text(loc(appLanguage, "Sync"))
                                 .font(.caption.weight(.medium))
                         }
                         .frame(maxWidth: .infinity)
@@ -391,7 +391,7 @@ struct SettingsView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.down.circle")
                                 .font(.caption)
-                            Text(loc(appLanguage, "Restore", "Восстановить"))
+                            Text(loc(appLanguage, "Restore"))
                                 .font(.caption.weight(.medium))
                         }
                         .frame(maxWidth: .infinity)
@@ -416,8 +416,8 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeaderEdgy(
                 icon: "slider.horizontal.3",
-                title: loc(appLanguage, "Preferences", "Настройки"),
-                subtitle: loc(appLanguage, "Make it yours 🎨", "Сделай под себя 🎨"),
+                title: loc(appLanguage, "Preferences"),
+                subtitle: loc(appLanguage, "Make it yours 🎨"),
                 color: .purple
             )
             
@@ -425,7 +425,7 @@ struct SettingsView: View {
                 // Theme
                 NavigationLink {
                     ThemeSettingsView(appLanguage: appLanguage, selectedTheme: $appThemeRaw)
-                        .navigationTitle(loc(appLanguage, "Theme", "Тема"))
+                        .navigationTitle(loc(appLanguage, "Theme"))
                         .navigationBarTitleDisplayMode(.inline)
                 } label: {
                     HStack(spacing: 12) {
@@ -438,7 +438,7 @@ struct SettingsView: View {
                                 .foregroundColor(.purple)
                         }
                         
-                        Text(loc(appLanguage, "Theme", "Тема"))
+                        Text(loc(appLanguage, "Theme"))
                             .font(.subheadline)
                             .foregroundColor(.primary)
                         
@@ -466,7 +466,7 @@ struct SettingsView: View {
                         appLanguage: appLanguage,
                         selectedStyle: $payGateBackgroundStyle
                     )
-                    .navigationTitle(loc(appLanguage, "Entry Screen", "Экран входа"))
+                    .navigationTitle(loc(appLanguage, "Entry Screen"))
                     .navigationBarTitleDisplayMode(.inline)
                 } label: {
                     HStack(spacing: 12) {
@@ -479,7 +479,7 @@ struct SettingsView: View {
                                 .foregroundColor(.pink)
                         }
                         
-                        Text(loc(appLanguage, "Entry Screen", "Экран входа"))
+                        Text(loc(appLanguage, "Entry Screen"))
                             .font(.subheadline)
                             .foregroundColor(.primary)
                         
@@ -514,7 +514,7 @@ struct SettingsView: View {
                                 .foregroundColor(.orange)
                         }
                         
-                        Text(loc(appLanguage, "Daily setup", "Настройка дня"))
+                        Text(loc(appLanguage, "Daily setup"))
                             .font(.subheadline)
                             .foregroundColor(.primary)
                         
@@ -550,7 +550,7 @@ struct SettingsView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary.opacity(0.5))
             
-            Text(loc(appLanguage, "Built with 💜 for bloody meantal health", "Создано c 💜 к сраному ментальному здоровью"))
+            Text(loc(appLanguage, "Built with 💜 for bloody meantal health"))
                 .font(.caption2)
                 .foregroundColor(.secondary.opacity(0.4))
         }
@@ -672,7 +672,7 @@ struct SettingsView: View {
         
         var body: some View {
             Form {
-                Picker(loc(appLanguage, "Theme", "Тема"), selection: $selectedTheme) {
+                Picker(loc(appLanguage, "Theme"), selection: $selectedTheme) {
                     ForEach(AppTheme.allCases, id: \.rawValue) { theme in
                         Text(appLanguage == "ru" ? theme.displayNameRu : theme.displayNameEn)
                             .tag(theme.rawValue)
@@ -690,7 +690,7 @@ struct SettingsView: View {
         var body: some View {
             ScrollView {
                 VStack(spacing: 16) {
-                    Text(loc(appLanguage, "Choose your entry screen style", "Выбери стиль экрана входа"))
+                    Text(loc(appLanguage, "Choose your entry screen style"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.top, 8)
@@ -809,7 +809,7 @@ struct SettingsView: View {
         var body: some View {
             Form {
                 DatePicker(
-                    loc(appLanguage, "End of day", "Конец дня"),
+                    loc(appLanguage, "End of day"),
                     selection: dayEndDateBinding,
                     displayedComponents: .hourAndMinute
                 )
@@ -843,995 +843,3 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - Journal View
-struct JournalView: View {
-    @ObservedObject var model: AppModel
-    let automationApps: [AutomationApp]
-    let appLanguage: String
-    @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
-    @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
-    @State private var monthOffset: Int = 0
-    @State private var selectedDate: Date = Date()
-    @State private var isGeneratingStory: Bool = false
-    @State private var generatedEnglish: String?
-    @State private var generatedRussian: String?
-    @State private var storyError: String?
-    @State private var showDetails: Bool = false
-    // Debug bonus removed (no minting energy outside HealthKit / Outer World)
-    
-    private var storedStory: AppModel.DailyStory? {
-        model.story(for: selectedDate)
-    }
-    
-    private var storyToShow: String? {
-        if appLanguage == "ru" {
-            return generatedRussian ?? storedStory?.russian ?? generatedEnglish ?? storedStory?.english
-        } else {
-            return generatedEnglish ?? storedStory?.english ?? generatedRussian ?? storedStory?.russian
-        }
-    }
-    
-    private var isTodaySelected: Bool {
-        Calendar.current.isDateInToday(selectedDate)
-    }
-    
-    private var automationBundleIds: Set<String> {
-        Set(automationApps.map { $0.bundleId })
-    }
-    
-    private var groupedLogs: [(date: Date, entries: [AppModel.AppOpenLog])] {
-        let cal = Calendar.current
-        let filtered = model.appOpenLogs.filter { automationBundleIds.contains($0.bundleId) }
-        let grouped = Dictionary(grouping: filtered) { cal.startOfDay(for: $0.date) }
-        return grouped
-            .map { (date: $0.key, entries: $0.value.sorted { $0.date > $1.date }) }
-            .sorted { $0.date > $1.date }
-    }
-    
-    private var currentMonthDays: [Date] {
-        let cal = Calendar.current
-        guard let baseMonth = cal.date(byAdding: .month, value: monthOffset, to: cal.startOfDay(for: Date())),
-              let monthRange = cal.range(of: .day, in: .month, for: baseMonth),
-              let startOfMonth = cal.date(from: cal.dateComponents([.year, .month], from: baseMonth))
-        else { return [] }
-        return monthRange.compactMap { day -> Date? in
-            cal.date(byAdding: .day, value: day - 1, to: startOfMonth)
-        }
-    }
-    
-    private func hasEntries(on date: Date) -> Bool {
-        let cal = Calendar.current
-        return groupedLogs.contains { cal.isDate($0.date, inSameDayAs: date) }
-    }
-    
-    private func entries(for date: Date) -> [AppModel.AppOpenLog] {
-        let cal = Calendar.current
-        return model.appOpenLogs
-            .filter { automationBundleIds.contains($0.bundleId) && cal.isDate($0.date, inSameDayAs: date) }
-            .sorted { $0.date < $1.date } // chronological for storytelling
-    }
-    
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text("DOOM CTRL")
-                        .font(.caption2)
-                        .foregroundColor(.clear)
-                    Spacer()
-                }
-                calendarGrid
-                Divider()
-                storyBlock
-                if showDetails {
-                    dayLogView
-                } else {
-                    Button {
-                        showDetails = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "chevron.down.circle")
-                            Text(loc(appLanguage, "Show detailed log", "Показать детальный лог"))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(10)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
-                    }
-                }
-            }
-            .padding()
-        }
-        .background(Color.clear)
-        .navigationTitle(loc(appLanguage, "Journal", "Журнал"))
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear { preloadStory() }
-        .onChange(of: selectedDate) { _, _ in preloadStory() }
-    }
-    
-    private var calendarGrid: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Button {
-                    monthOffset -= 1
-                    adjustSelectionToDisplayedMonth()
-                } label: {
-                    Image(systemName: "chevron.left")
-                }
-                Spacer()
-                Text(monthTitle(for: displayedMonth))
-                    .font(.headline)
-                Spacer()
-                Button {
-                    guard monthOffset < 0 else { return }
-                    monthOffset += 1
-                    adjustSelectionToDisplayedMonth()
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(monthOffset < 0 ? .blue : .gray.opacity(0.4))
-                }
-                .disabled(monthOffset >= 0)
-            }
-            
-            let columns = Array(repeating: GridItem(.flexible()), count: 7)
-            LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(currentMonthDays, id: \.self) { day in
-                    let isSelected = Calendar.current.isDate(day, inSameDayAs: selectedDate)
-                    let hasLog = hasEntries(on: day)
-                    VStack(spacing: 6) {
-                        Text(dayNumberFormatter.string(from: day))
-                            .font(.subheadline)
-                            .fontWeight(hasLog ? .bold : .regular)
-                            .foregroundColor(isSelected ? .white : .primary)
-                        if hasLog {
-                            Circle()
-                                .fill(isSelected ? Color.white : Color.blue)
-                                .frame(width: 6, height: 6)
-                        } else {
-                            Circle()
-                                .fill(Color.clear)
-                                .frame(width: 6, height: 6)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(isSelected ? Color.blue : Color.gray.opacity(0.1))
-                    )
-                    .onTapGesture { selectedDate = day }
-                }
-            }
-        }
-    }
-    
-    private var displayedMonth: Date {
-        Calendar.current.date(byAdding: .month, value: monthOffset, to: Calendar.current.startOfDay(for: Date())) ?? Date()
-    }
-    
-    private func adjustSelectionToDisplayedMonth() {
-        let cal = Calendar.current
-        if !cal.isDate(selectedDate, equalTo: displayedMonth, toGranularity: .month) {
-            if let start = cal.date(from: cal.dateComponents([.year, .month], from: displayedMonth)) {
-                selectedDate = start
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private var storyBlock: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(loc(appLanguage, "Journal of craws", "Журнал вылазок"))
-                .font(.headline)
-            if isTodaySelected && storyToShow == nil {
-                Text(
-                    loc(
-                        appLanguage,
-                        "Journal will be updated at \(formattedDayEnd())",
-                        "Журнал будет обновлен в \(formattedDayEnd())"
-                    )
-                )
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
-            } else if let story = storyToShow {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(appLanguage == "ru" ? "Русский" : "English")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    markupText(story)
-                        .font(.subheadline)
-                }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
-            } else if let error = storyError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundColor(.red)
-            } else {
-                Text(loc(appLanguage, "No story yet.", "История пока не создана."))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-    
-    private var dayLogView: some View {
-        let dayEntries = entries(for: selectedDate)
-        return VStack(alignment: .leading, spacing: 10) {
-            Text(dateFormatter.string(from: selectedDate))
-                .font(.headline)
-            daySummaryView
-            if dayEntries.isEmpty {
-                Text(loc(appLanguage, "No opens this day.", "В этот день открытий не было."))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            } else {
-                Button {
-                    showDetails = false
-                } label: {
-                    HStack {
-                        Image(systemName: "chevron.up.circle")
-                        Text(loc(appLanguage, "Hide detailed log", "Скрыть детальный лог"))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
-                }
-                
-                ForEach(dayEntries.indices, id: \.self) { idx in
-                    let entry = dayEntries[idx]
-                    HStack(alignment: .top, spacing: 10) {
-                        Circle()
-                            .fill(colorForBundle(entry.bundleId))
-                            .frame(width: 8, height: 8)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(appName(entry.bundleId))
-                                .font(.subheadline).bold()
-                            Text(timeFormatter.string(from: entry.date))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            if let spent = entry.spentSteps {
-                                Text(loc(appLanguage, "Steps spent", "Потрачено шагов") + ": \(spent)")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                            if isTodaySelected, model.hasDayPass(for: entry.bundleId) {
-                                Text(loc(appLanguage, "Day pass active today", "Дневной проход активен"))
-                                    .font(.caption2)
-                                    .foregroundColor(.green)
-                            }
-                        }
-                        Spacer()
-                    }
-                    .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
-                }
-            }
-        }
-    }
-    
-    private var daySummaryView: some View {
-        let stepsMade = isTodaySelected ? Int(model.effectiveStepsToday) : nil
-        let stepsSpent = isTodaySelected ? model.appStepsSpentToday.values.reduce(0, +) : nil
-        let remaining = isTodaySelected ? max(0, Int(model.effectiveStepsToday) - model.spentStepsToday) : nil
-        let opensCount = entries(for: selectedDate).count
-        let dayPassActiveCount = automationApps.filter { model.hasDayPass(for: $0.bundleId) }.count
-        
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(loc(appLanguage, "Steps made", "Сделано шагов"))
-                Spacer()
-                Text(stepsMade != nil ? "\(stepsMade!)" : "—")
-            }.font(.caption)
-            HStack {
-                Text(loc(appLanguage, "Shields used", "Щитов использовано"))
-                Spacer()
-                Text("\(opensCount)")
-            }.font(.caption)
-            HStack {
-                Text(loc(appLanguage, "Steps spent", "Шагов потрачено"))
-                Spacer()
-                Text(stepsSpent != nil ? "\(stepsSpent!)" : "—")
-            }.font(.caption)
-            HStack {
-                Text(loc(appLanguage, "Steps left", "Шагов осталось"))
-                Spacer()
-                Text(remaining != nil ? "\(remaining!)" : "—")
-            }.font(.caption)
-            .foregroundColor(.secondary)
-            
-            if isTodaySelected, dayPassActiveCount > 0 {
-                Text(loc(appLanguage, "Day pass active for \(dayPassActiveCount) shields", "Дневной проход активен для \(dayPassActiveCount) щитов"))
-                    .font(.caption)
-                    .foregroundColor(.green)
-            }
-        }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
-    }
-    
-    private func richDescription(for entry: AppModel.AppOpenLog, previous: AppModel.AppOpenLog?) -> String {
-        let timeString = timeFormatter.string(from: entry.date)
-        guard let previous else {
-            return "Открыто в \(timeString). День только начинается."
-        }
-        let delta = entry.date.timeIntervalSince(previous.date)
-        let minutes = Int(delta / 60)
-        switch minutes {
-        case 0..<5:
-            return "Открыто в \(timeString). Почти подряд — кажется, что-то забыли проверить."
-        case 5..<30:
-            return "Открыто в \(timeString). Короткая пауза, быстрый возврат."
-        case 30..<180:
-            return "Открыто в \(timeString). Перерыв \(minutes) мин — похоже, переключались."
-        case 180..<720:
-            return "Открыто в \(timeString). Долгая пауза (\(minutes/60) ч) — возможно, было не до приложений."
-        default:
-            return "Открыто в \(timeString). Большой перерыв — тут я явно отдыхал от экранов."
-        }
-    }
-    
-    // MARK: - LLM prompt and call
-    private func buildPromptEnglish(dayEntries: [AppModel.AppOpenLog]) -> String {
-        let stepsMade = isTodaySelected ? Int(model.effectiveStepsToday) : nil
-        let stepsSpent = isTodaySelected ? model.appStepsSpentToday.values.reduce(0, +) : nil
-        let remaining = isTodaySelected ? max(0, Int(model.effectiveStepsToday) - model.spentStepsToday) : nil
-        let dayPassActive = isTodaySelected ? automationApps.filter { model.hasDayPass(for: $0.bundleId) }.map { $0.name } : []
-        
-        var lines: [String] = []
-        lines.append("Дата: \(dateFormatter.string(from: selectedDate))")
-        if let made = stepsMade { lines.append("Шагов сделано: \(made)") }
-        if let spent = stepsSpent { lines.append("Шагов потрачено: \(spent)") }
-        if let rem = remaining { lines.append("Топлива осталось: \(rem)") }
-        if !dayPassActive.isEmpty {
-            let joined = dayPassActive.joined(separator: ", ")
-            lines.append("Дневные пропуски активны: \(joined)")
-        }
-        lines.append("Путешествия:")
-        
-        for (idx, entry) in dayEntries.enumerated() {
-            let time = timeFormatter.string(from: entry.date)
-            let name = appName(entry.bundleId)
-            var gapText = ""
-            if idx > 0 {
-                let delta = entry.date.timeIntervalSince(dayEntries[idx-1].date)
-                let minutes = Int(delta / 60)
-                gapText = " | пауза \(minutes) мин"
-            }
-            lines.append("- \(time): jumped to universe \(name)\(gapText)")
-        }
-        
-        lines.append("Write a short captain's log of a spaceship pilot, warm and imaginative (4-6 sentences). Use metaphors of fuel and jumps between universes. Language: English.")
-        return lines.joined(separator: "\n")
-    }
-    
-    private func generateStory(dayEntries: [AppModel.AppOpenLog]) async {
-        storyError = nil
-        generatedEnglish = nil
-        generatedRussian = nil
-        guard !dayEntries.isEmpty else { return }
-        let promptEN = buildPromptEnglish(dayEntries: dayEntries)
-        isGeneratingStory = true
-        do {
-            let english = try await LLMService.shared.generateCosmicJournal(prompt: promptEN)
-            let translatePrompt = "Translate the following captain's log into Russian, keep the cosmic pilot vibe and warmth, keep 4-6 sentences:\n\(english)"
-            let russian = try await LLMService.shared.generateCosmicJournal(prompt: translatePrompt)
-            await MainActor.run {
-                generatedEnglish = english
-                generatedRussian = russian
-                isGeneratingStory = false
-            }
-            await MainActor.run {
-                model.saveStory(for: selectedDate, english: english, russian: russian)
-            }
-        } catch {
-            await MainActor.run {
-                storyError = loc(appLanguage, "Story generation failed. Add DEEPSEEK_API_KEY in Info.plist or set deepseek_api_key in UserDefaults.", "Ошибка генерации. Добавьте DEEPSEEK_API_KEY в Info.plist или установите deepseek_api_key в UserDefaults.")
-                isGeneratingStory = false
-            }
-        }
-    }
-    
-    private func appName(_ bundleId: String) -> String {
-        automationApps.first(where: { $0.bundleId == bundleId })?.name ?? bundleId
-    }
-    
-    private func appIcon(_ bundleId: String) -> some View {
-        if let imageName = automationApps.first(where: { $0.bundleId == bundleId })?.imageName,
-           let uiImage = UIImage(named: imageName) {
-            return AnyView(Image(uiImage: uiImage).resizable().scaledToFit())
-        }
-        return AnyView(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.gray.opacity(0.2))
-                .overlay(Image(systemName: "app").foregroundColor(.secondary))
-        )
-    }
-    
-    private func colorForBundle(_ bundleId: String) -> Color {
-        switch bundleId {
-        case "com.burbn.instagram": return .pink
-        case "com.zhiliaoapp.musically": return .red
-        case "com.google.ios.youtube": return .red.opacity(0.8)
-        case "com.facebook.Facebook": return .blue
-        case "com.linkedin.LinkedIn": return .blue.opacity(0.6)
-        case "com.atebits.Tweetie2": return .gray
-        case "com.toyopagroup.picaboo": return .yellow
-        case "net.whatsapp.WhatsApp": return .green
-        case "ph.telegra.Telegraph": return .cyan
-        case "com.duolingo.DuolingoMobile": return .green.opacity(0.7)
-        case "com.pinterest": return .red
-        case "com.reddit.Reddit": return .orange
-        default: return .purple
-        }
-    }
-    
-    private var dateFormatter: DateFormatter {
-        let df = DateFormatter()
-        df.dateStyle = .medium
-        return df
-    }
-    
-    private var dayNumberFormatter: DateFormatter {
-        let df = DateFormatter()
-        df.dateFormat = "d"
-        return df
-    }
-    
-    private func monthTitle(for date: Date) -> String {
-        let df = DateFormatter()
-        df.dateFormat = "LLLL yyyy"
-        return df.string(from: date).capitalized
-    }
-    
-    private var timeFormatter: DateFormatter {
-        let df = DateFormatter()
-        df.dateFormat = "HH:mm:ss"
-        return df
-    }
-    
-    private func preloadStory() {
-        if let stored = storedStory {
-            generatedEnglish = stored.english
-            generatedRussian = stored.russian
-        } else {
-            generatedEnglish = nil
-            generatedRussian = nil
-        }
-    }
-    
-    @ViewBuilder
-    private func markupText(_ text: String) -> some View {
-        if let attributed = try? AttributedString(markdown: text) {
-            Text(attributed)
-        } else {
-            Text(text)
-        }
-    }
-    
-    private func formattedDayEnd() -> String {
-        var comps = DateComponents()
-        comps.hour = dayEndHourSetting
-        comps.minute = dayEndMinuteSetting
-        let cal = Calendar.current
-        let date = cal.date(from: comps) ?? Date()
-        let df = DateFormatter()
-        df.locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
-        df.dateFormat = "HH:mm"
-        return df.string(from: date)
-    }
-}
-
-// MARK: - Profile Editor View
-
-struct ProfileEditorView: View {
-    @ObservedObject var authService: AuthenticationService
-    @StateObject private var locationManager = ProfileLocationManager()
-    @Environment(\.dismiss) private var dismiss
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
-    
-    @State private var nickname: String = ""
-    @State private var selectedCountryCode: String = ""
-    @State private var showCountryPicker: Bool = false
-    @State private var avatarImage: UIImage?
-    @State private var showImagePicker: Bool = false
-    @State private var showImageSourcePicker: Bool = false
-    @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
-    @State private var isSaving: Bool = false
-    @State private var saveError: String?
-    
-    // All countries sorted by localized name
-    private var countries: [(code: String, name: String)] {
-        let codes = Locale.Region.isoRegions.map { $0.identifier }
-        let locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
-        return codes.compactMap { code -> (String, String)? in
-            guard let name = locale.localizedString(forRegionCode: code), !name.isEmpty else { return nil }
-            return (code, name)
-        }.sorted { $0.name < $1.name }
-    }
-    
-    private var selectedCountryName: String {
-        if selectedCountryCode.isEmpty { return "" }
-        let locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
-        return locale.localizedString(forRegionCode: selectedCountryCode) ?? selectedCountryCode
-    }
-    
-    var body: some View {
-        NavigationView {
-            Form {
-                // Photo section
-                Section {
-                    HStack {
-                        Spacer()
-                        Button {
-                            showImageSourcePicker = true
-                        } label: {
-                            ZStack {
-                                if let image = avatarImage {
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 96, height: 96)
-                                        .clipShape(Circle())
-                                } else {
-                                    Circle()
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [Color.purple.opacity(0.6), Color.blue.opacity(0.6)],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-                                        .frame(width: 96, height: 96)
-                                    
-                                    Text(String((authService.currentUser?.displayName ?? "U").prefix(2)).uppercased())
-                                        .font(.title2.weight(.bold))
-                                        .foregroundColor(.white)
-                                }
-                                
-                                Circle()
-                                    .fill(Color.blue)
-                                    .frame(width: 30, height: 30)
-                                    .overlay(
-                                        Image(systemName: "camera.fill")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(.white)
-                                    )
-                                    .offset(x: 34, y: 34)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        Spacer()
-                    }
-                    .listRowBackground(Color.clear)
-                    
-                    if avatarImage != nil {
-                        Button(role: .destructive) {
-                            avatarImage = nil
-                        } label: {
-                            HStack {
-                                Spacer()
-                                Text(loc(appLanguage, "Remove Photo", "Удалить фото"))
-                                Spacer()
-                            }
-                        }
-                    }
-                }
-                
-                // Nickname section
-                Section {
-                    HStack {
-                        Image(systemName: "at")
-                            .foregroundColor(.secondary)
-                            .frame(width: 24)
-                        TextField(loc(appLanguage, "Nickname", "Никнейм"), text: $nickname)
-                            .autocapitalization(.none)
-                            .autocorrectionDisabled()
-                    }
-                } header: {
-                    Text(loc(appLanguage, "Nickname", "Никнейм"))
-                } footer: {
-                    Text(loc(appLanguage, "This name will be displayed instead of your real name", "Это имя будет отображаться вместо настоящего"))
-                }
-                
-                // Location section
-                Section {
-                    // Use my location button
-                    Button {
-                        locationManager.requestCountryCode { detectedCountryCode in
-                            if let cc = detectedCountryCode { selectedCountryCode = cc }
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "location.fill")
-                                .foregroundColor(.blue)
-                            Text(loc(appLanguage, "Detect my country", "Определить страну"))
-                                .foregroundColor(.blue)
-                            Spacer()
-                            if locationManager.isLoading {
-                                ProgressView()
-                            }
-                        }
-                    }
-                    .disabled(locationManager.isLoading)
-                    
-                    // Country picker
-                    Button {
-                        showCountryPicker = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "globe")
-                                .foregroundColor(.secondary)
-                                .frame(width: 24)
-                            Text(loc(appLanguage, "Country", "Страна"))
-                                .foregroundColor(.primary)
-                            Spacer()
-                            if !selectedCountryCode.isEmpty {
-                                Text(selectedCountryName)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text(loc(appLanguage, "Select", "Выбрать"))
-                                    .foregroundColor(.secondary)
-                            }
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                } header: {
-                    Text(loc(appLanguage, "Location", "Локация"))
-                } footer: {
-                    if let error = locationManager.errorMessage {
-                        Text(error)
-                            .foregroundColor(.red)
-                    }
-                }
-                
-                // Email (read-only)
-                if let email = authService.currentUser?.email {
-                    Section {
-                        HStack {
-                            Image(systemName: "envelope")
-                                .foregroundColor(.secondary)
-                                .frame(width: 24)
-                            Text(email)
-                                .foregroundColor(.secondary)
-                        }
-                    } header: {
-                        Text("Email")
-                    } footer: {
-                        Text(loc(appLanguage, "Email is managed by Apple ID", "Email управляется через Apple ID"))
-                    }
-                }
-            }
-            .navigationTitle(loc(appLanguage, "Edit Profile", "Редактировать профиль"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Cancel", "Отмена")) {
-                        dismiss()
-                    }
-                    .disabled(isSaving)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if isSaving {
-                        ProgressView()
-                    } else {
-                        Button(loc(appLanguage, "Save", "Сохранить")) {
-                            Task {
-                                await saveProfileAsync()
-                            }
-                        }
-                        .fontWeight(.semibold)
-                    }
-                }
-            }
-            .onAppear {
-                loadCurrentProfile()
-            }
-            .alert(loc(appLanguage, "Error", "Ошибка"), isPresented: .init(
-                get: { saveError != nil },
-                set: { if !$0 { saveError = nil } }
-            )) {
-                Button(loc(appLanguage, "OK", "Ок")) { saveError = nil }
-            } message: {
-                Text(saveError ?? "")
-            }
-            .confirmationDialog(
-                loc(appLanguage, "Choose Photo", "Выбрать фото"),
-                isPresented: $showImageSourcePicker,
-                titleVisibility: .visible
-            ) {
-                Button(loc(appLanguage, "Camera", "Камера")) {
-                    imageSourceType = .camera
-                    showImagePicker = true
-                }
-                Button(loc(appLanguage, "Photo Library", "Галерея")) {
-                    imageSourceType = .photoLibrary
-                    showImagePicker = true
-                }
-                Button(loc(appLanguage, "Cancel", "Отмена"), role: .cancel) { }
-            }
-            .sheet(isPresented: $showImagePicker) {
-                ImagePicker(image: $avatarImage, sourceType: imageSourceType)
-            }
-            .sheet(isPresented: $showCountryPicker) {
-                CountryPickerView(
-                    selectedCountryCode: $selectedCountryCode,
-                    countries: countries,
-                    appLanguage: appLanguage
-                )
-            }
-        }
-    }
-    
-    private func countryFlag(_ countryCode: String) -> String {
-        let base: UInt32 = 127397
-        var flag = ""
-        for scalar in countryCode.uppercased().unicodeScalars {
-            if let unicode = UnicodeScalar(base + scalar.value) {
-                flag.append(String(unicode))
-            }
-        }
-        return flag
-    }
-    
-    private func loadCurrentProfile() {
-        if let user = authService.currentUser {
-            nickname = user.nickname ?? ""
-            if let storedCountry = user.country, countries.contains(where: { $0.code == storedCountry }) {
-                selectedCountryCode = storedCountry
-            } else {
-                selectedCountryCode = user.country ?? ""
-            }
-            if let data = user.avatarData, let image = UIImage(data: data) {
-                avatarImage = image
-            } else {
-                avatarImage = nil
-            }
-        }
-    }
-    
-    private func saveProfile() {
-        let trimmedNickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        let avatarData = avatarImage?.jpegData(compressionQuality: 0.75)
-        
-        authService.updateProfile(
-            nickname: trimmedNickname.isEmpty ? nil : trimmedNickname,
-            country: selectedCountryCode.isEmpty ? nil : selectedCountryCode,
-            avatarData: avatarData
-        )
-    }
-    
-    @MainActor
-    private func saveProfileAsync() async {
-        let trimmedNickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        let avatarData = avatarImage?.jpegData(compressionQuality: 0.75)
-        
-        isSaving = true
-        saveError = nil
-        
-        do {
-            try await authService.updateProfileAsync(
-                nickname: trimmedNickname.isEmpty ? nil : trimmedNickname,
-                country: selectedCountryCode.isEmpty ? nil : selectedCountryCode,
-                avatarData: avatarData
-            )
-            dismiss()
-        } catch {
-            saveError = error.localizedDescription
-        }
-        
-        isSaving = false
-    }
-}
-
-// MARK: - Country Picker View
-
-struct CountryPickerView: View {
-    @Binding var selectedCountryCode: String
-    let countries: [(code: String, name: String)]
-    let appLanguage: String
-    @Environment(\.dismiss) private var dismiss
-    @State private var searchText: String = ""
-    
-    private var filteredCountries: [(code: String, name: String)] {
-        if searchText.isEmpty {
-            return countries
-        }
-        return countries.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-    }
-    
-    var body: some View {
-        NavigationView {
-            List {
-                ForEach(filteredCountries, id: \.code) { country in
-                    Button {
-                        selectedCountryCode = country.code
-                        dismiss()
-                    } label: {
-                        HStack {
-                            Text(country.name)
-                                .foregroundColor(.primary)
-                            Spacer()
-                            if selectedCountryCode == country.code {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    }
-                }
-            }
-            .searchable(text: $searchText, prompt: loc(appLanguage, "Search country", "Поиск страны"))
-            .navigationTitle(loc(appLanguage, "Select Country", "Выбор страны"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Cancel", "Отмена")) {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-    
-    private func countryFlag(_ countryCode: String) -> String {
-        let base: UInt32 = 127397
-        var flag = ""
-        for scalar in countryCode.uppercased().unicodeScalars {
-            if let unicode = UnicodeScalar(base + scalar.value) {
-                flag.append(String(unicode))
-            }
-        }
-        return flag
-    }
-}
-
-// MARK: - Profile Location Manager
-
-import CoreLocation
-
-class ProfileLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
-    private let manager = CLLocationManager()
-    private let geocoder = CLGeocoder()
-    
-    @Published var isLoading: Bool = false
-    @Published var errorMessage: String?
-    
-    private var completion: ((String?) -> Void)?
-    
-    override init() {
-        super.init()
-        manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyKilometer
-    }
-    
-    func requestCountryCode(completion: @escaping (String?) -> Void) {
-        self.completion = completion
-        self.errorMessage = nil
-        self.isLoading = true
-        
-        let status = manager.authorizationStatus
-        
-        switch status {
-        case .notDetermined:
-            manager.requestWhenInUseAuthorization()
-        case .authorizedWhenInUse, .authorizedAlways:
-            manager.requestLocation()
-        case .denied, .restricted:
-            isLoading = false
-            errorMessage = "Location access denied. Enable in Settings."
-            completion(nil)
-        @unknown default:
-            isLoading = false
-            completion(nil)
-        }
-    }
-    
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
-            manager.requestLocation()
-        } else if manager.authorizationStatus == .denied {
-            isLoading = false
-            errorMessage = "Location access denied"
-            completion?(nil)
-        }
-    }
-    
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.first else {
-            isLoading = false
-            completion?(nil)
-            return
-        }
-        
-        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
-            DispatchQueue.main.async {
-                self?.isLoading = false
-                
-                if let error = error {
-                    self?.errorMessage = error.localizedDescription
-                    self?.completion?(nil)
-                    return
-                }
-                
-                guard let placemark = placemarks?.first else {
-                    self?.completion?(nil)
-                    return
-                }
-                
-                let countryCode = placemark.isoCountryCode
-                
-                self?.completion?(countryCode)
-            }
-        }
-    }
-    
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        DispatchQueue.main.async {
-            self.isLoading = false
-            
-            // Provide user-friendly error messages
-            let nsError = error as NSError
-            if nsError.domain == kCLErrorDomain {
-                switch CLError.Code(rawValue: nsError.code) {
-                case .locationUnknown:
-                    self.errorMessage = "Could not determine location. Try again or select manually."
-                case .denied:
-                    self.errorMessage = "Location access denied. Enable in Settings."
-                case .network:
-                    self.errorMessage = "Network error. Check your connection."
-                default:
-                    self.errorMessage = "Location error. Please select country manually."
-                }
-            } else {
-                self.errorMessage = error.localizedDescription
-            }
-            
-            self.completion?(nil)
-        }
-    }
-}
-
-// MARK: - Image Picker
-struct ImagePicker: UIViewControllerRepresentable {
-    @Binding var image: UIImage?
-    let sourceType: UIImagePickerController.SourceType
-    @Environment(\.dismiss) private var dismiss
-    
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = sourceType
-        picker.delegate = context.coordinator
-        picker.allowsEditing = true
-        return picker
-    }
-    
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: ImagePicker
-        
-        init(_ parent: ImagePicker) {
-            self.parent = parent
-        }
-        
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            if let edited = info[.editedImage] as? UIImage {
-                parent.image = edited
-            } else if let original = info[.originalImage] as? UIImage {
-                parent.image = original
-            }
-            parent.dismiss()
-        }
-        
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.dismiss()
-        }
-    }
-}
