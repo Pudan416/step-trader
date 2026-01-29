@@ -79,7 +79,6 @@ extension AppModel {
     }
 
     private func loadPreferredOptions(for category: EnergyCategory) -> [String] {
-        let g = UserDefaults.stepsTrader()
         let stored = loadStringArray(forKey: preferredOptionsKey(for: category))
         if !stored.isEmpty {
             return stored
@@ -270,8 +269,11 @@ extension AppModel {
         min(count, EnergyDefaults.maxSelectionsPerCategory) * EnergyDefaults.selectionPoints
     }
 
+    @MainActor
     func recalculateDailyEnergy() {
         let total = movePointsToday + rebootPointsToday + joyCategoryPointsToday
+        
+        print("⚡️ recalculateDailyEnergy: move=\(movePointsToday), reboot=\(rebootPointsToday), joy=\(joyCategoryPointsToday), total=\(total)")
         
         // Базовая энергия ограничена максимумом 100
         baseEnergyToday = min(EnergyDefaults.maxBaseEnergy, total)
@@ -282,18 +284,32 @@ extension AppModel {
         let currentTotal = baseEnergyToday + bonusSteps
         if currentTotal > maxTotalEnergy {
             // Уменьшаем bonusSteps, чтобы сумма была <= 100
+            let oldBonus = bonusSteps
             bonusSteps = max(0, maxTotalEnergy - baseEnergyToday)
+            print("⚡️ Capped bonusSteps: \(oldBonus) → \(bonusSteps)")
             syncAndPersistBonusBreakdown() // Обновим сохранение
         }
         
         if spentStepsToday > baseEnergyToday {
+            print("⚡️ Capping spentStepsToday from \(spentStepsToday) to \(baseEnergyToday)")
             spentStepsToday = baseEnergyToday
             let g = UserDefaults.stepsTrader()
             g.set(spentStepsToday, forKey: "spentStepsToday")
         }
+        
+        let oldBalance = stepsBalance
         stepsBalance = max(0, baseEnergyToday - spentStepsToday)
+        print("⚡️ stepsBalance: \(oldBalance) → \(stepsBalance) (base=\(baseEnergyToday), spent=\(spentStepsToday))")
+        
         let g = UserDefaults.stepsTrader()
         g.set(baseEnergyToday, forKey: baseEnergyTodayKey)
         g.set(stepsBalance, forKey: "stepsBalance")
+        
+        // Explicitly update totalStepsBalance after all changes
+        updateTotalStepsBalance()
+        print("⚡️ totalStepsBalance = \(totalStepsBalance)")
+        
+        // Force UI update
+        objectWillChange.send()
     }
 }

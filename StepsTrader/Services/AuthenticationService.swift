@@ -11,7 +11,8 @@ struct AppUser: Codable {
     let email: String?
     var nickname: String?
     var country: String?
-    var avatarData: Data?
+    var avatarData: Data?  // Local cache
+    var avatarURL: String? // Supabase Storage URL
     let createdAt: Date
     
     // Synced stats
@@ -43,12 +44,13 @@ struct AppUser: Codable {
         return flag.isEmpty ? nil : flag
     }
     
-    init(id: String, email: String?, nickname: String? = nil, country: String? = nil, avatarData: Data? = nil, createdAt: Date, energySpentLifetime: Int = 0, batteriesCollected: Int = 0) {
+    init(id: String, email: String?, nickname: String? = nil, country: String? = nil, avatarData: Data? = nil, avatarURL: String? = nil, createdAt: Date, energySpentLifetime: Int = 0, batteriesCollected: Int = 0) {
         self.id = id
         self.email = email
         self.nickname = nickname
         self.country = country
         self.avatarData = avatarData
+        self.avatarURL = avatarURL
         self.createdAt = createdAt
         self.energySpentLifetime = energySpentLifetime
         self.batteriesCollected = batteriesCollected
@@ -168,7 +170,7 @@ class AuthenticationService: NSObject, ObservableObject {
     func updateProfile(nickname: String?, country: String?, avatarData: Data?) {
         guard var user = currentUser else { return }
         
-        // Avatar is currently local-only (no column yet in public.users). We keep it in UserDefaults per user id.
+        // Store avatar locally for immediate display
         user.avatarData = avatarData
         storeAvatarData(avatarData, for: user.id)
         
@@ -180,7 +182,19 @@ class AuthenticationService: NSObject, ObservableObject {
         Task { @MainActor in
             do {
                 guard let session = loadStoredSession() else { return }
-                try await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: country)
+                
+                // Upload avatar to Supabase Storage if provided
+                var avatarUrl: String? = nil
+                if let data = avatarData, !data.isEmpty {
+                    avatarUrl = try await uploadAvatarToStorage(session: session, userId: user.id, imageData: data)
+                    print("📸 Avatar uploaded: \(avatarUrl ?? "nil")")
+                } else if avatarData == nil {
+                    // Avatar was removed - delete from storage
+                    try? await deleteAvatarFromStorage(session: session, userId: user.id)
+                    avatarUrl = "" // Empty string to clear the URL in DB
+                }
+                
+                try await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: country, avatarUrl: avatarUrl)
                 // Refresh from DB to keep canonical values
                 try await loadCurrentUserFromSupabase(session: session)
             } catch {
@@ -198,7 +212,7 @@ class AuthenticationService: NSObject, ObservableObject {
     func updateProfileAsync(nickname: String?, country: String?, avatarData: Data?) async throws {
         guard var user = currentUser else { return }
         
-        // Avatar is local-only
+        // Store avatar locally
         user.avatarData = avatarData
         storeAvatarData(avatarData, for: user.id)
         
@@ -208,7 +222,18 @@ class AuthenticationService: NSObject, ObservableObject {
         currentUser = user
         
         guard let session = loadStoredSession() else { return }
-        try await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: country)
+        
+        // Upload avatar to Supabase Storage if provided
+        var avatarUrl: String? = nil
+        if let data = avatarData, !data.isEmpty {
+            avatarUrl = try await uploadAvatarToStorage(session: session, userId: user.id, imageData: data)
+        } else if avatarData == nil {
+            // Avatar was removed
+            try? await deleteAvatarFromStorage(session: session, userId: user.id)
+            avatarUrl = ""
+        }
+        
+        try await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: country, avatarUrl: avatarUrl)
         try await loadCurrentUserFromSupabase(session: session)
     }
     
@@ -334,13 +359,19 @@ class AuthenticationService: NSObject, ObservableObject {
         
         // POST /auth/v1/token?grant_type=id_token
         let url = cfg.baseURL.appendingPathComponent("auth/v1/token")
-        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        guard var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            throw AuthError.supabaseError("Invalid URL: \(url)")
+        }
         comps.queryItems = [URLQueryItem(name: "grant_type", value: "id_token")]
+        
+        guard let finalURL = comps.url else {
+            throw AuthError.supabaseError("Failed to construct auth URL")
+        }
         
         let payload = SupabaseIdTokenGrantRequest(provider: "apple", idToken: idToken, nonce: nonce)
         let body = try JSONEncoder().encode(payload)
         let (data, http) = try await makeJSONRequest(
-            url: comps.url!,
+            url: finalURL,
             method: "POST",
             headers: ["apikey": cfg.anonKey, "authorization": "Bearer \(cfg.anonKey)"],
             body: body
@@ -361,12 +392,18 @@ class AuthenticationService: NSObject, ObservableObject {
         
         let cfg = try SupabaseConfig.load()
         let url = cfg.baseURL.appendingPathComponent("auth/v1/token")
-        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        guard var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            throw AuthError.supabaseError("Invalid URL: \(url)")
+        }
         comps.queryItems = [URLQueryItem(name: "grant_type", value: "refresh_token")]
+        
+        guard let finalURL = comps.url else {
+            throw AuthError.supabaseError("Failed to construct refresh URL")
+        }
         
         let body = try JSONEncoder().encode(SupabaseRefreshGrantRequest(refreshToken: session.refreshToken))
         let (data, http) = try await makeJSONRequest(
-            url: comps.url!,
+            url: finalURL,
             method: "POST",
             headers: ["apikey": cfg.anonKey, "authorization": "Bearer \(cfg.anonKey)"],
             body: body
@@ -385,15 +422,21 @@ class AuthenticationService: NSObject, ObservableObject {
         
         // Fetch canonical profile row from PostgREST: public.users
         let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
-        var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false)!
+        guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
+            throw AuthError.supabaseError("Invalid users URL: \(usersURL)")
+        }
         let uid = session.user.id
         comps.queryItems = [
             URLQueryItem(name: "select", value: "id,email,nickname,country,created_at,is_banned,ban_reason,ban_until,energy_spent_lifetime,batteries_collected"),
             URLQueryItem(name: "id", value: "eq.\(uid)")
         ]
         
+        guard let finalURL = comps.url else {
+            throw AuthError.supabaseError("Failed to construct users URL")
+        }
+        
         let (data, http) = try await makeJSONRequest(
-            url: comps.url!,
+            url: finalURL,
             method: "GET",
             headers: [
                 "apikey": cfg.anonKey,
@@ -420,6 +463,7 @@ class AuthenticationService: NSObject, ObservableObject {
                 nickname: generatedNickname,
                 country: nil,
                 avatarData: loadAvatarData(for: session.user.id),
+                avatarURL: nil,
                 createdAt: session.user.createdAt ?? Date(),
                 energySpentLifetime: 0,
                 batteriesCollected: 0
@@ -445,6 +489,17 @@ class AuthenticationService: NSObject, ObservableObject {
             }
         }
         
+        // Load avatar: prefer local cache, fallback to URL
+        var avatarData = loadAvatarData(for: row.id)
+        if avatarData == nil, let urlString = row.avatarUrl, !urlString.isEmpty,
+           let url = URL(string: urlString) {
+            // Download avatar from Supabase Storage
+            avatarData = try? await downloadAvatar(from: url)
+            if let data = avatarData {
+                storeAvatarData(data, for: row.id)
+            }
+        }
+        
         // Ban gating (client-side visibility; server-side should still enforce via RLS if needed)
         if row.isBanned {
             // If ban_until is nil => permanent. If future => active.
@@ -455,7 +510,8 @@ class AuthenticationService: NSObject, ObservableObject {
                     email: row.email,
                     nickname: row.nickname,
                     country: row.country,
-                    avatarData: loadAvatarData(for: row.id),
+                    avatarData: avatarData,
+                    avatarURL: row.avatarUrl,
                     createdAt: row.createdAt,
                     energySpentLifetime: row.energySpentLifetime ?? 0,
                     batteriesCollected: row.batteriesCollected ?? 0
@@ -481,7 +537,8 @@ class AuthenticationService: NSObject, ObservableObject {
             email: row.email,
             nickname: row.nickname,
             country: row.country,
-            avatarData: loadAvatarData(for: row.id),
+            avatarData: avatarData,
+            avatarURL: row.avatarUrl,
             createdAt: row.createdAt,
             energySpentLifetime: mergedEnergy,
             batteriesCollected: mergedBatteries
@@ -563,14 +620,20 @@ class AuthenticationService: NSObject, ObservableObject {
     private func syncStatsToSupabase(session: SupabaseSessionResponse, userId: String, energy: Int, batteries: Int) async throws {
         let cfg = try SupabaseConfig.load()
         let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
-        var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false)!
+        guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
+            throw AuthError.supabaseError("Invalid users URL")
+        }
         comps.queryItems = [URLQueryItem(name: "id", value: "eq.\(userId)")]
+        
+        guard let finalURL = comps.url else {
+            throw AuthError.supabaseError("Failed to construct sync URL")
+        }
         
         let patch = ["energy_spent_lifetime": energy, "batteries_collected": batteries]
         let body = try JSONEncoder().encode(patch)
         
         let (_, http) = try await makeJSONRequest(
-            url: comps.url!,
+            url: finalURL,
             method: "PATCH",
             headers: [
                 "apikey": cfg.anonKey,
@@ -602,8 +665,16 @@ class AuthenticationService: NSObject, ObservableObject {
         do {
             let cfg = try SupabaseConfig.load()
             let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
-            var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false)!
+            guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
+                print("❌ Invalid users URL")
+                return
+            }
             comps.queryItems = [URLQueryItem(name: "id", value: "eq.\(userId)")]
+            
+            guard let finalURL = comps.url else {
+                print("❌ Failed to construct energy log URL")
+                return
+            }
             
             let patch = SupabasePublicUserPatch(
                 energySpentLifetime: energySpent,
@@ -613,11 +684,11 @@ class AuthenticationService: NSObject, ObservableObject {
             )
             let body = try JSONEncoder().encode(patch)
             
-            print("📊 PATCH URL: \(comps.url?.absoluteString ?? "nil")")
+            print("📊 PATCH URL: \(finalURL.absoluteString)")
             print("📊 PATCH body: \(String(data: body, encoding: .utf8) ?? "nil")")
             
             let (data, http) = try await makeJSONRequest(
-                url: comps.url!,
+                url: finalURL,
                 method: "PATCH",
                 headers: [
                     "apikey": cfg.anonKey,
@@ -685,14 +756,20 @@ class AuthenticationService: NSObject, ObservableObject {
         do {
             let cfg = try SupabaseConfig.load()
             let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
-            var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false)!
+            guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
+                return true // Assume available on error
+            }
             comps.queryItems = [
                 URLQueryItem(name: "select", value: "id"),
                 URLQueryItem(name: "nickname", value: "eq.\(nickname)"),
                 URLQueryItem(name: "limit", value: "1")
             ]
             
-            var request = URLRequest(url: comps.url!)
+            guard let finalURL = comps.url else {
+                return true // Assume available on error
+            }
+            
+            var request = URLRequest(url: finalURL)
             request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
             request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -715,20 +792,26 @@ class AuthenticationService: NSObject, ObservableObject {
         }
     }
     
-    private func patchUserProfile(session: SupabaseSessionResponse, userId: String, nickname: String?, country: String?) async throws {
+    private func patchUserProfile(session: SupabaseSessionResponse, userId: String, nickname: String?, country: String?, avatarUrl: String? = nil) async throws {
         let cfg = try SupabaseConfig.load()
         let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
-        var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false)!
+        guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
+            throw AuthError.supabaseError("Invalid users URL")
+        }
         comps.queryItems = [URLQueryItem(name: "id", value: "eq.\(userId)")]
         
-        let patch = SupabasePublicUserPatch(nickname: nickname, country: country)
+        guard let finalURL = comps.url else {
+            throw AuthError.supabaseError("Failed to construct profile URL")
+        }
+        
+        let patch = SupabasePublicUserPatch(nickname: nickname, country: country, avatarUrl: avatarUrl)
         let body = try JSONEncoder().encode(patch)
         
-        print("🔄 PATCH profile: userId=\(userId), nickname=\(nickname ?? "nil"), country=\(country ?? "nil")")
-        print("🔄 PATCH URL: \(comps.url?.absoluteString ?? "nil")")
+        print("🔄 PATCH profile: userId=\(userId), nickname=\(nickname ?? "nil"), country=\(country ?? "nil"), avatarUrl=\(avatarUrl ?? "nil")")
+        print("🔄 PATCH URL: \(finalURL.absoluteString)")
         
         let (data, http) = try await makeJSONRequest(
-            url: comps.url!,
+            url: finalURL,
             method: "PATCH",
             headers: [
                 "apikey": cfg.anonKey,
@@ -752,6 +835,78 @@ class AuthenticationService: NSObject, ObservableObject {
             print("⚠️ PATCH returned empty array - check RLS policies or if user row exists")
             throw AuthError.supabaseError("Profile update failed. User row may not exist or access denied.")
         }
+    }
+    
+    // MARK: - Supabase Storage (Avatars)
+    
+    /// Uploads avatar image to Supabase Storage and returns the public URL
+    private func uploadAvatarToStorage(session: SupabaseSessionResponse, userId: String, imageData: Data) async throws -> String {
+        let cfg = try SupabaseConfig.load()
+        
+        // Storage endpoint: /storage/v1/object/avatars/{userId}.jpg
+        let fileName = "\(userId).jpg"
+        let storageURL = cfg.baseURL
+            .appendingPathComponent("storage/v1/object/avatars")
+            .appendingPathComponent(fileName)
+        
+        print("📸 Uploading avatar to: \(storageURL.absoluteString)")
+        
+        var request = URLRequest(url: storageURL)
+        request.httpMethod = "POST"
+        request.httpBody = imageData
+        request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "authorization")
+        request.setValue("image/jpeg", forHTTPHeaderField: "content-type")
+        request.setValue("true", forHTTPHeaderField: "x-upsert") // Overwrite if exists
+        
+        let (data, resp) = try await URLSession.shared.data(for: request)
+        guard let http = resp as? HTTPURLResponse else { throw AuthError.unknown }
+        
+        let responseString = String(data: data, encoding: .utf8) ?? "(empty)"
+        print("📸 Upload response: status=\(http.statusCode), body=\(responseString)")
+        
+        if http.statusCode >= 400 {
+            throw AuthError.supabaseError("Avatar upload failed: \(responseString)")
+        }
+        
+        // Return public URL
+        let publicURL = cfg.baseURL
+            .appendingPathComponent("storage/v1/object/public/avatars")
+            .appendingPathComponent(fileName)
+        
+        return publicURL.absoluteString
+    }
+    
+    /// Deletes avatar from Supabase Storage
+    private func deleteAvatarFromStorage(session: SupabaseSessionResponse, userId: String) async throws {
+        let cfg = try SupabaseConfig.load()
+        
+        let fileName = "\(userId).jpg"
+        let storageURL = cfg.baseURL
+            .appendingPathComponent("storage/v1/object/avatars")
+            .appendingPathComponent(fileName)
+        
+        var request = URLRequest(url: storageURL)
+        request.httpMethod = "DELETE"
+        request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "authorization")
+        
+        let (_, resp) = try await URLSession.shared.data(for: request)
+        guard let http = resp as? HTTPURLResponse else { throw AuthError.unknown }
+        
+        // 404 is OK - file might not exist
+        if http.statusCode >= 400 && http.statusCode != 404 {
+            print("⚠️ Avatar delete failed with status: \(http.statusCode)")
+        }
+    }
+    
+    /// Downloads avatar from URL
+    private func downloadAvatar(from url: URL) async throws -> Data {
+        let (data, resp) = try await URLSession.shared.data(from: url)
+        guard let http = resp as? HTTPURLResponse, http.statusCode < 400 else {
+            throw AuthError.supabaseError("Failed to download avatar")
+        }
+        return data
     }
     
     // MARK: - Nonce helpers (Apple Sign In)
@@ -892,6 +1047,7 @@ private struct SupabasePublicUserRow: Codable {
     let email: String?
     let nickname: String?
     let country: String?
+    let avatarUrl: String?
     let createdAt: Date
     let isBanned: Bool
     let banReason: String?
@@ -904,6 +1060,7 @@ private struct SupabasePublicUserRow: Codable {
         case email
         case nickname
         case country
+        case avatarUrl = "avatar_url"
         case createdAt = "created_at"
         case isBanned = "is_banned"
         case banReason = "ban_reason"
@@ -916,6 +1073,7 @@ private struct SupabasePublicUserRow: Codable {
 private struct SupabasePublicUserPatch: Codable {
     let nickname: String?
     let country: String?
+    let avatarUrl: String?
     let energySpentLifetime: Int?
     let batteriesCollected: Int?
     let currentStepsToday: Int?
@@ -925,6 +1083,7 @@ private struct SupabasePublicUserPatch: Codable {
     enum CodingKeys: String, CodingKey {
         case nickname
         case country
+        case avatarUrl = "avatar_url"
         case energySpentLifetime = "energy_spent_lifetime"
         case batteriesCollected = "batteries_collected"
         case currentStepsToday = "current_steps_today"
@@ -932,9 +1091,10 @@ private struct SupabasePublicUserPatch: Codable {
         case lastSyncAt = "last_sync_at"
     }
     
-    init(nickname: String? = nil, country: String? = nil, energySpentLifetime: Int? = nil, batteriesCollected: Int? = nil, currentStepsToday: Int? = nil, currentEnergyBalance: Int? = nil) {
+    init(nickname: String? = nil, country: String? = nil, avatarUrl: String? = nil, energySpentLifetime: Int? = nil, batteriesCollected: Int? = nil, currentStepsToday: Int? = nil, currentEnergyBalance: Int? = nil) {
         self.nickname = nickname
         self.country = country
+        self.avatarUrl = avatarUrl
         self.energySpentLifetime = energySpentLifetime
         self.batteriesCollected = batteriesCollected
         self.currentStepsToday = currentStepsToday

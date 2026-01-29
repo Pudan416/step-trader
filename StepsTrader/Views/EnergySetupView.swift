@@ -2,6 +2,7 @@ import SwiftUI
 
 struct EnergySetupView: View {
     @ObservedObject var model: AppModel
+    var onDone: (() -> Void)? = nil
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
     @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
@@ -173,6 +174,7 @@ struct EnergySetupView: View {
                         let defaults = UserDefaults.stepsTrader()
                         defaults.set(userStepsTarget, forKey: "userStepsTarget")
                         defaults.set(userSleepTarget, forKey: "userSleepTarget")
+                        onDone?()
                         dismiss()
                     }
                 }

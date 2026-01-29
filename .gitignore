@@ -107,6 +107,9 @@ TestResults/
 .env.local
 .env.development
 
+# Secrets configuration (contains API keys)
+Config/Secrets.xcconfig
+
 # Documentation build
 docs/
 documentation/

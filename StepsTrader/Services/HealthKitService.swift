@@ -1,45 +1,82 @@
 import HealthKit
+import os.log
+
+// MARK: - HealthKit Logger
+private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "StepsTrader", category: "HealthKit")
+
+// MARK: - HealthKit Errors
+
+enum HealthKitServiceError: LocalizedError {
+    case healthKitNotAvailable
+    case stepTypeNotAvailable
+    case sleepTypeNotAvailable
+    
+    var errorDescription: String? {
+        switch self {
+        case .healthKitNotAvailable:
+            return "HealthKit is not available on this device"
+        case .stepTypeNotAvailable:
+            return "Step count type is not available"
+        case .sleepTypeNotAvailable:
+            return "Sleep analysis type is not available"
+        }
+    }
+}
 
 @preconcurrency
 final class HealthKitService: HealthKitServiceProtocol {
     private let store = HKHealthStore()
-    private let stepType = HKObjectType.quantityType(forIdentifier: .stepCount)!
-    private let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
+    private let stepType: HKQuantityType?
+    private let sleepType: HKCategoryType?
     private var observerQuery: HKQuery?
     private var isObserving = false
     private var stepsAnchor: HKQueryAnchor?
     private var lastStepCount: Double = 0
     private var isRequestingAuthorization = false
     private var authTimeoutTask: Task<Void, Never>?
+    
+    init() {
+        self.stepType = HKObjectType.quantityType(forIdentifier: .stepCount)
+        self.sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)
+    }
 
     @MainActor
     func authorizationStatus() -> HKAuthorizationStatus {
         // Возвращаем статус для шагов (основной тип)
         // Для сна проверяем отдельно, если нужно
-        store.authorizationStatus(for: stepType)
+        guard let stepType = stepType else { return .notDetermined }
+        return store.authorizationStatus(for: stepType)
     }
 
     @MainActor
     func requestAuthorization() async throws {
         if isRequestingAuthorization {
-            print("🏥 HealthKit authorization already in-flight, skipping duplicate call")
+            log.debug("Authorization already in-flight, skipping duplicate call")
             return
         }
         isRequestingAuthorization = true
         defer { isRequestingAuthorization = false }
 
-        print("🏥 HealthKit requestAuthorization started on main actor")
+        log.info("requestAuthorization started on main actor")
         logHealthKitEntitlement()
         logEmbeddedProfileHealthKit()
-        print("🏥 isHealthDataAvailable: \(HKHealthStore.isHealthDataAvailable())")
+        log.info("isHealthDataAvailable: \(HKHealthStore.isHealthDataAvailable())")
         guard HKHealthStore.isHealthDataAvailable() else {
-            print("🚫 HealthKit is not available on this device/configuration.")
-            return
+            log.error("HealthKit is not available on this device/configuration")
+            throw HealthKitServiceError.healthKitNotAvailable
+        }
+        guard let stepType = stepType else {
+            log.error("Step count type not available")
+            throw HealthKitServiceError.stepTypeNotAvailable
+        }
+        guard let sleepType = sleepType else {
+            log.error("Sleep analysis type not available")
+            throw HealthKitServiceError.sleepTypeNotAvailable
         }
         let readTypes: Set<HKObjectType> = [stepType, sleepType]
         if #available(iOS 15.0, *) {
             let status = try await store.statusForAuthorizationRequest(toShare: [], read: readTypes)
-            print("🏥 HealthKit request status: \(status.rawValue)")
+            log.info("Request status: \(status.rawValue)")
         }
         logAuthorizationStatus(context: "requestAuthorization:pre-flight")
         // Watchdog in case completion never fires
@@ -47,7 +84,7 @@ final class HealthKitService: HealthKitServiceProtocol {
         authTimeoutTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             if self.isRequestingAuthorization {
-                print("⚠️ HealthKit requestAuthorization appears stalled (no completion in 5s). Resetting flag.")
+                log.warning("requestAuthorization appears stalled (no completion in 5s). Resetting flag.")
                 self.isRequestingAuthorization = false
             }
         }
@@ -60,16 +97,20 @@ final class HealthKitService: HealthKitServiceProtocol {
                 }
             }
         }
-        print("🏥 HealthKit requestAuthorization returned: \(granted)")
+        log.info("requestAuthorization returned: \(granted)")
         logAuthorizationStatus(context: "requestAuthorization:post-request")
         authTimeoutTask?.cancel()
         
         // Enable background delivery for automatic updates
         if #available(iOS 12.0, *) {
-            try await store.enableBackgroundDelivery(for: stepType, frequency: .immediate)
-            print("📡 HealthKit: background delivery for step count enabled")
-            try await store.enableBackgroundDelivery(for: sleepType, frequency: .immediate)
-            print("📡 HealthKit: background delivery for sleep data enabled")
+            if let stepType = self.stepType {
+                try await store.enableBackgroundDelivery(for: stepType, frequency: .immediate)
+                log.info("Background delivery for step count enabled")
+            }
+            if let sleepType = self.sleepType {
+                try await store.enableBackgroundDelivery(for: sleepType, frequency: .immediate)
+                log.info("Background delivery for sleep data enabled")
+            }
         }
     }
 
@@ -84,6 +125,11 @@ final class HealthKitService: HealthKitServiceProtocol {
     }
     
     func fetchSleep(from start: Date, to end: Date) async throws -> Double {
+        guard let sleepType = sleepType else {
+            log.warning("Sleep type not available, returning 0")
+            return 0
+        }
+        
         // Ensure authorization is determined before querying
         if #available(iOS 12.0, *) {
             let status = store.authorizationStatus(for: sleepType)
@@ -142,6 +188,11 @@ final class HealthKitService: HealthKitServiceProtocol {
     }
     
     func fetchSteps(from start: Date, to end: Date) async throws -> Double {
+        guard let stepType = stepType else {
+            log.warning("Step type not available, returning cached: \(self.lastStepCount)")
+            return lastStepCount
+        }
+        
         // Ensure authorization is determined before querying
         if #available(iOS 12.0, *) {
             let status = store.authorizationStatus(for: stepType)
@@ -163,11 +214,11 @@ final class HealthKitService: HealthKitServiceProtocol {
                     let nsError = error as NSError
                     if nsError.code == 11 || // HKErrorCode 11 - no data available
                        nsError.localizedDescription.contains("No data available") {
-                        print("📊 No step data available for today, returning cached")
+                        log.debug("No step data available for today, returning cached")
                         continuation.resume(returning: self.lastStepCount)
                         return
                     }
-                    print("❌ HealthKit error: \(error.localizedDescription)")
+                    log.error("HealthKit error: \(error.localizedDescription)")
                     if self.lastStepCount > 0 {
                         continuation.resume(returning: self.lastStepCount)
                     } else {
@@ -178,7 +229,7 @@ final class HealthKitService: HealthKitServiceProtocol {
                 
                 let steps = stats?.sumQuantity()?.doubleValue(for: .count()) ?? 0
                 self.lastStepCount = steps
-                print("📊 Fetched \(Int(steps)) steps for today")
+                log.info("Fetched \(Int(steps)) steps for today")
                 if steps > 0 {
                     self.logAuthorizationStatus(context: "fetchTodaySteps:data-available")
                 }
@@ -191,35 +242,35 @@ final class HealthKitService: HealthKitServiceProtocol {
     // MARK: - Background Updates
     func startObservingSteps(updateHandler: @escaping (Double) -> Void) {
         guard !isObserving else { return }
-
-        if #available(iOS 12.0, *) {
-            let status = store.authorizationStatus(for: stepType)
-            switch status {
-            case .notDetermined:
-                print("⚠️ HealthKit authorization not determined. Requesting before observing.")
-                Task { [weak self] in
-                    do {
-                        try await self?.requestAuthorization()
-                        await self?.beginObservation(updateHandler: updateHandler)
-                    } catch {
-                        print("❌ HealthKit authorization request failed: \(error)")
-                    }
-                }
-                return
-            case .sharingDenied:
-                print("❌ HealthKit authorization denied. Observation not started.")
-                return
-            default:
-                break
-            }
+        guard let stepType = stepType else {
+            log.warning("Step type not available, cannot observe")
+            return
         }
 
+        // Note: authorizationStatus() returns WRITE status, not READ status.
+        // For read-only apps, sharingDenied is expected and doesn't mean read is denied.
+        // We should just try to observe and fetch data.
+        
         Task { [weak self] in
+            guard let self = self else { return }
+            // Request authorization if not done yet
+            if #available(iOS 12.0, *) {
+                let status = self.store.authorizationStatus(for: stepType)
+                if status == .notDetermined {
+                    log.warning("Authorization not determined. Requesting before observing.")
+                    do {
+                        try await self.requestAuthorization()
+                    } catch {
+                        log.error("Authorization request failed: \(error.localizedDescription)")
+                    }
+                }
+            }
+            
             // Initial fetch so UI has fresh value before anchored updates
-            if let steps = try? await self?.fetchTodaySteps() {
+            if let steps = try? await self.fetchTodaySteps() {
                 await MainActor.run { updateHandler(steps) }
             }
-            await self?.beginObservation(updateHandler: updateHandler)
+            await self.beginObservation(updateHandler: updateHandler)
         }
     }
 
@@ -229,14 +280,18 @@ final class HealthKitService: HealthKitServiceProtocol {
         store.stop(query)
         observerQuery = nil
         isObserving = false
-        print("🛑 HealthKit step observation stopped")
+        log.info("Step observation stopped")
     }
 
     @MainActor
     private func beginObservation(updateHandler: @escaping (Double) -> Void) async {
         guard !isObserving else { return }
+        guard let stepType = stepType else {
+            log.warning("Step type not available, cannot begin observation")
+            return
+        }
 
-        print("🔄 Starting HealthKit step observation")
+        log.info("Starting step observation")
 
         let predicate = HKQuery.predicateForSamples(
             withStart: Date.startOfToday,
@@ -252,7 +307,7 @@ final class HealthKitService: HealthKitServiceProtocol {
         ) { [weak self] _, samples, _, newAnchor, error in
             guard let self = self else { return }
             if let error = error {
-                print("❌ HealthKit anchored query error: \(error.localizedDescription)")
+                log.error("Anchored query error: \(error.localizedDescription)")
                 return
             }
             self.stepsAnchor = newAnchor
@@ -270,59 +325,67 @@ final class HealthKitService: HealthKitServiceProtocol {
         if let query = observerQuery {
             store.execute(query)
             isObserving = true
-            print("✅ HealthKit step observation started (anchored)")
+            log.info("Step observation started (anchored)")
         }
     }
 
     private func logAuthorizationStatus(context: String) {
         if #available(iOS 12.0, *) {
-            let stepStatus = store.authorizationStatus(for: stepType)
-            let sleepStatus = store.authorizationStatus(for: sleepType)
             let stepStatusDescription: String
             let sleepStatusDescription: String
             
-            switch stepStatus {
-            case .sharingAuthorized:
-                stepStatusDescription = "sharing authorized"
-            case .sharingDenied:
-                stepStatusDescription = "sharing denied"
-            case .notDetermined:
-                stepStatusDescription = "not determined"
-            @unknown default:
-                stepStatusDescription = "unknown (\(stepStatus.rawValue))"
+            if let stepType = stepType {
+                let stepStatus = store.authorizationStatus(for: stepType)
+                switch stepStatus {
+                case .sharingAuthorized:
+                    stepStatusDescription = "sharing authorized"
+                case .sharingDenied:
+                    stepStatusDescription = "sharing denied"
+                case .notDetermined:
+                    stepStatusDescription = "not determined"
+                @unknown default:
+                    stepStatusDescription = "unknown (\(stepStatus.rawValue))"
+                }
+            } else {
+                stepStatusDescription = "type unavailable"
             }
             
-            switch sleepStatus {
-            case .sharingAuthorized:
-                sleepStatusDescription = "sharing authorized"
-            case .sharingDenied:
-                sleepStatusDescription = "sharing denied"
-            case .notDetermined:
-                sleepStatusDescription = "not determined"
-            @unknown default:
-                sleepStatusDescription = "unknown (\(sleepStatus.rawValue))"
+            if let sleepType = sleepType {
+                let sleepStatus = store.authorizationStatus(for: sleepType)
+                switch sleepStatus {
+                case .sharingAuthorized:
+                    sleepStatusDescription = "sharing authorized"
+                case .sharingDenied:
+                    sleepStatusDescription = "sharing denied"
+                case .notDetermined:
+                    sleepStatusDescription = "not determined"
+                @unknown default:
+                    sleepStatusDescription = "unknown (\(sleepStatus.rawValue))"
+                }
+            } else {
+                sleepStatusDescription = "type unavailable"
             }
             
-            print("🏥 HealthKit [\(context)]: steps=\(stepStatusDescription), sleep=\(sleepStatusDescription)")
+            log.debug("[\(context)] steps=\(stepStatusDescription), sleep=\(sleepStatusDescription)")
         } else {
-            print("🏥 HealthKit [\(context)]: authorization status unavailable (iOS < 12)")
+            log.debug("[\(context)] authorization status unavailable (iOS < 12)")
         }
     }
 
     private func logHealthKitEntitlement() {
         // SecTask* APIs can be unavailable in some build configs; skip detailed entitlement check.
-        print("🏥 Entitlement check skipped (SecTask APIs unavailable in this build)")
+        log.debug("Entitlement check skipped (SecTask APIs unavailable in this build)")
     }
 
     private func logEmbeddedProfileHealthKit() {
         guard let path = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision"),
               let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
               let content = String(data: data, encoding: .ascii) else {
-            print("🏥 embedded.mobileprovision not found or unreadable")
+            log.debug("embedded.mobileprovision not found or unreadable")
             return
         }
         let hasHealthKit = content.contains("com.apple.developer.healthkit")
         let hasBackground = content.contains("com.apple.developer.healthkit.background-delivery")
-        print("🏥 Provision profile contains healthkit: \(hasHealthKit), background: \(hasBackground)")
+        log.debug("Provision profile contains healthkit: \(hasHealthKit), background: \(hasBackground)")
     }
 }

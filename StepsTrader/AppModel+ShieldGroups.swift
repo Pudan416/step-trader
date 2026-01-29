@@ -34,15 +34,18 @@ extension AppModel {
             print("⏱️ persistShieldGroups took \(String(format: "%.3f", persistTime))s")
         }
         // Rebuild shield after group changes (async with delay to avoid blocking UI)
-        Task { @MainActor in
-            // Small delay to prevent multiple rapid rebuild calls
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        // Cancel any existing rebuild task to debounce rapid updates
+        rebuildShieldTask?.cancel()
+        
+        rebuildShieldTask = Task { @MainActor in
+            // Debounce delay to prevent multiple rapid rebuild calls (especially from slider)
+            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
             guard !Task.isCancelled else { return }
             self.rebuildFamilyControlsShield()
         }
     }
     
-    func createShieldGroup(name: String) -> ShieldGroup {
+    func createShieldGroup(name: String, templateApp: String? = nil) -> ShieldGroup {
         let startTime = CFAbsoluteTimeGetCurrent()
         let defaultSettings = AppUnlockSettings(
             entryCostSteps: entryCostSteps,
@@ -51,7 +54,7 @@ extension AppModel {
             minuteTariffEnabled: false,
             familyControlsModeEnabled: true
         )
-        let group = ShieldGroup(name: name, settings: defaultSettings)
+        let group = ShieldGroup(name: name, settings: defaultSettings, templateApp: templateApp)
         shieldGroups.append(group)
         persistShieldGroups()
         let elapsed = CFAbsoluteTimeGetCurrent() - startTime
@@ -65,10 +68,8 @@ extension AppModel {
         let startTime = CFAbsoluteTimeGetCurrent()
         if let index = shieldGroups.firstIndex(where: { $0.id == group.id }) {
             shieldGroups[index] = group
+            // persistShieldGroups() already calls rebuildFamilyControlsShield() with debouncing
             persistShieldGroups()
-            
-            // Rebuild shield after group update
-            rebuildFamilyControlsShield()
             
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
             if elapsed > 0.05 {

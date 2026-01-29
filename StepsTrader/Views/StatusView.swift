@@ -17,6 +17,13 @@ struct StatusView: View {
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     private let openModulesNotification = Notification.Name("com.steps.trader.open.modules")
     
+    private struct DayDetailItem: Identifiable {
+        let id = UUID()
+        let date: Date
+    }
+    
+    @State private var selectedDayForDetail: DayDetailItem? = nil
+    
     private enum StatType: String {
         case shields
         case energy
@@ -55,22 +62,11 @@ struct StatusView: View {
                 
                 ScrollView {
                     VStack(spacing: 20) {
-                        // Connect CTA or main content
-                        if showConnectCTA {
-                            connectFirstModuleCTA
-                        } else {
-                            // Hero stats card
-                            heroCard
-                            
-                            // Daily Energy Card
-                            DailyEnergyCard(model: model)
-                            
-                            // Activity Chart
-                            activityChartSection
-                            
-                            // App Usage List
-                            appUsageSection
-                        }
+                        // Today's App Usage Chart (shows energy spent on shields today)
+                        todayAppUsageChartSection
+                        
+                        // 7-Day Calendar (at the bottom)
+                        sevenDayCalendarSection
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
@@ -667,12 +663,91 @@ struct StatusView: View {
         StatusViewHelpers.formatMinutes(minutes, appLanguage: appLanguage)
     }
 
-    private var showConnectCTA: Bool {
-        let defaults = UserDefaults.stepsTrader()
-        let configured = defaults.array(forKey: "automationConfiguredBundles") as? [String] ?? []
-        let single = defaults.string(forKey: "automationBundleId")
-        let pending = defaults.array(forKey: "automationPendingBundles") as? [String] ?? []
-        return configured.isEmpty && single == nil && pending.isEmpty
+    // MARK: - Today's App Usage Chart
+    
+    private var todayAppUsageData: [(name: String, bundleId: String, spent: Int)] {
+        let todayKey = AppModel.dayKey(for: Date())
+        let todaySpent = model.appStepsSpentByDay[todayKey] ?? [:]
+        
+        var result: [(name: String, bundleId: String, spent: Int)] = []
+        
+        for (bundleId, spent) in todaySpent {
+            if spent > 0 {
+                // Check if it's a shield group
+                if bundleId.hasPrefix("group_") {
+                    let groupId = String(bundleId.dropFirst(6))
+                    if let group = model.shieldGroups.first(where: { $0.id == groupId }) {
+                        result.append((name: group.name, bundleId: bundleId, spent: spent))
+                    } else {
+                        result.append((name: "Shield Group", bundleId: bundleId, spent: spent))
+                    }
+                } else {
+                    result.append((name: appDisplayName(bundleId), bundleId: bundleId, spent: spent))
+                }
+            }
+        }
+        
+        return result.sorted { $0.spent > $1.spent }
+    }
+    
+    private var todayAppUsageChartSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(loc(appLanguage, "Today's Usage"))
+                        .font(.title3.weight(.bold))
+                    Text(loc(appLanguage, "Energy spent on shields"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            }
+            
+            let chartData = todayAppUsageData
+            if chartData.isEmpty {
+                emptyChartPlaceholder
+            } else {
+                todayChartView(data: chartData)
+            }
+        }
+        .padding(20)
+        .background(glassCard)
+    }
+    
+    @ViewBuilder
+    private func todayChartView(data: [(name: String, bundleId: String, spent: Int)]) -> some View {
+        Chart(data, id: \.bundleId) { item in
+            let baseColor = colorForBundle(item.bundleId)
+            
+            BarMark(
+                x: .value("App", item.name),
+                y: .value("Energy", item.spent)
+            )
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [baseColor, baseColor.opacity(0.6)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .cornerRadius(6)
+        }
+        .chartXAxis {
+            AxisMarks { value in
+                AxisValueLabel()
+                    .font(.caption2)
+            }
+        }
+        .chartYAxis {
+            AxisMarks { _ in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3, dash: [3]))
+                    .foregroundStyle(Color.gray.opacity(0.3))
+                AxisValueLabel()
+                    .font(.caption2)
+            }
+        }
+        .frame(height: 250)
+        .drawingGroup()
     }
 
     private var connectFirstModuleCTA: some View {
@@ -831,7 +906,6 @@ struct StatusView: View {
     }
 
     private var trackedAppsToday: [AppUsageToday] {
-        let cutoff = dateByAddingDays(to: currentDayStart, value: -(chartRange.days - 1))
         var opensDict: [String: Int] = [:]
         // Count opens from steps spent data (approximation)
         let keys = (0..<chartRange.days).compactMap { dayOffset in
@@ -1079,5 +1153,306 @@ struct StatusView: View {
 
     private func onDisappear() {
         stopTimer()
+    }
+    
+    // MARK: - 7-Day Calendar
+    
+    private struct DayData {
+        let date: Date
+        let dayKey: String
+        let earned: Int
+        let spent: Int
+        let remaining: Int
+        let remainingPercent: Double
+        
+        var hasData: Bool {
+            spent > 0 || earned > 0
+        }
+    }
+    
+    private var last7Days: [Date] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        return (0..<7).compactMap { offset in
+            cal.date(byAdding: .day, value: -offset, to: today)
+        }.reversed()
+    }
+    
+    private func dayData(for date: Date) -> DayData {
+        let dayKey = AppModel.dayKey(for: date)
+        let isToday = Calendar.current.isDateInToday(date)
+        
+        // Calculate earned: steps for the day + bonuses (if available)
+        // For today, use actual stepsToday + bonusSteps
+        // For historical days, we don't have step data, so earned = 0 unless we can infer from spent
+        let earned: Int
+        if isToday {
+            earned = Int(model.stepsToday) + model.bonusSteps
+        } else {
+            // For historical days, we don't have step data stored
+            // We'll show based on spent data only
+            earned = 0
+        }
+        
+        // Calculate spent: sum of all appStepsSpentByDay[dayKey]
+        let spent = (model.appStepsSpentByDay[dayKey] ?? [:]).values.reduce(0, +)
+        
+        let remaining = max(0, earned - spent)
+        let remainingPercent = earned > 0 ? Double(remaining) / Double(earned) : 0.0
+        
+        return DayData(
+            date: date,
+            dayKey: dayKey,
+            earned: earned,
+            spent: spent,
+            remaining: remaining,
+            remainingPercent: remainingPercent
+        )
+    }
+    
+    private func punkRockTitle(for remainingPercent: Double) -> String {
+        switch remainingPercent {
+        case 0.0..<0.02: return "Burned Punk"
+        case 0.02..<0.05: return "Empty Tank"
+        case 0.05..<0.08: return "Fuse Blower"
+        case 0.08..<0.12: return "Last Riffer"
+        case 0.12..<0.16: return "Stage Diver"
+        case 0.16..<0.20: return "Broken Amp"
+        case 0.20..<0.25: return "Cracked Strings"
+        case 0.25..<0.30: return "Low Gain"
+        case 0.30..<0.35: return "Mosh Dweller"
+        case 0.35..<0.40: return "Worn Shouter"
+        case 0.40..<0.45: return "Tight Driver"
+        case 0.45..<0.50: return "Noise Maker"
+        case 0.50..<0.55: return "Rebel Grinder"
+        case 0.55..<0.60: return "Backline Boss"
+        case 0.60..<0.65: return "Spare Picks"
+        case 0.65..<0.70: return "Clean Break"
+        case 0.70..<0.75: return "Quiet Riot"
+        case 0.75..<0.80: return "Crowd Denier"
+        case 0.80..<0.90: return "Stage Saver"
+        case 0.90...1.0: return "Sweat Free"
+        default: return "Neutral"
+        }
+    }
+    
+    // Color intensity based on remaining balance: less remaining = brighter/more intense
+    // Formula: remaining = earned - spent. Intensity = 1 - (remaining / earned)
+    // Less remaining balance means higher intensity (red/orange), more remaining means calmer (green)
+    private func colorForDay(_ dayData: DayData) -> Color {
+        guard dayData.hasData else {
+            return Color.gray.opacity(0.2)
+        }
+        
+        // Invert: less remaining = more intense (brighter)
+        // More remaining = calmer (darker/muted)
+        let intensity = 1.0 - dayData.remainingPercent
+        
+        // Use orange/red gradient for intensity
+        if intensity > 0.7 {
+            return Color.red.opacity(0.6 + intensity * 0.4)
+        } else if intensity > 0.4 {
+            return Color.orange.opacity(0.5 + intensity * 0.3)
+        } else if intensity > 0.2 {
+            return Color.yellow.opacity(0.4 + intensity * 0.2)
+        } else {
+            return Color.green.opacity(0.3 + intensity * 0.2)
+        }
+    }
+    
+    private var sevenDayCalendarSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(loc(appLanguage, "7-Day Dashboard"))
+                        .font(.title3.weight(.bold))
+                    Text(loc(appLanguage, "Tap a day for details"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            }
+            
+            // Calendar grid
+            HStack(spacing: 8) {
+                ForEach(last7Days, id: \.self) { date in
+                    calendarDayCell(date: date)
+                }
+            }
+        }
+        .padding(20)
+        .background(glassCard)
+        .sheet(item: $selectedDayForDetail) { item in
+            dayDetailSheet(date: item.date)
+        }
+    }
+    
+    @ViewBuilder
+    private func calendarDayCell(date: Date) -> some View {
+        let data = dayData(for: date)
+        let isToday = Calendar.current.isDateInToday(date)
+        let dayColor = colorForDay(data)
+        
+        Button {
+            selectedDayForDetail = DayDetailItem(date: date)
+        } label: {
+            VStack(spacing: 8) {
+                // Day label
+                Text(dayLabel(for: date))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(.secondary)
+                
+                // Day number
+                Text("\(Calendar.current.component(.day, from: date))")
+                    .font(.headline.weight(.bold))
+                    .foregroundColor(.primary)
+                
+                // Color indicator
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(dayColor)
+                    .frame(height: 32)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(isToday ? Color.blue : Color.clear, lineWidth: 2)
+                    )
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func dayLabel(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        formatter.locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
+        return formatter.string(from: date).uppercased()
+    }
+    
+    @ViewBuilder
+    private func dayDetailSheet(date: Date) -> some View {
+        let data = dayData(for: date)
+        let dayKey = AppModel.dayKey(for: date)
+        let spentByApp = model.appStepsSpentByDay[dayKey] ?? [:]
+        let title = punkRockTitle(for: data.remainingPercent)
+        let isToday = Calendar.current.isDateInToday(date)
+        
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Day title with punk-rock style
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(dayDetailDateFormatter.string(from: date))
+                            .font(.title2.weight(.bold))
+                        Text(title)
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(accentGradient)
+                    }
+                    .padding(.bottom, 8)
+                    
+                    // Summary stats
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(loc(appLanguage, "Summary"))
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        
+                        summaryRow(label: loc(appLanguage, "Steps"), value: data.earned > 0 ? "\(data.earned)" : "—")
+                        summaryRow(label: loc(appLanguage, "Sleep"), value: isToday ? String(format: "%.1f", model.dailySleepHours) : "—")
+                        summaryRow(label: loc(appLanguage, "Move Energy"), value: isToday ? "\(model.movePointsToday)" : "—")
+                        summaryRow(label: loc(appLanguage, "Reboot Energy"), value: isToday ? "\(model.rebootPointsToday)" : "—")
+                        summaryRow(label: loc(appLanguage, "Joy Energy"), value: isToday ? "\(model.joyCategoryPointsToday)" : "—")
+                        summaryRow(label: loc(appLanguage, "Remaining Balance"), value: "\(data.remaining)")
+                    }
+                    .padding()
+                    .background(glassCard)
+                    
+                    // Spent per app
+                    if !spentByApp.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(loc(appLanguage, "Spent per App"))
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                            
+                            ForEach(Array(spentByApp.sorted { $0.value > $1.value }), id: \.key) { bundleId, spent in
+                                appSpentRow(bundleId: bundleId, spent: spent)
+                            }
+                        }
+                        .padding()
+                        .background(glassCard)
+                    }
+                }
+                .padding()
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(loc(appLanguage, "Done")) {
+                        selectedDayForDetail = nil
+                    }
+                }
+            }
+        }
+    }
+    
+    private func summaryRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(value)
+                .font(.headline)
+                .monospacedDigit()
+        }
+    }
+    
+    @ViewBuilder
+    private func appSpentRow(bundleId: String, spent: Int) -> some View {
+        // Check if it's a shield group (group_x format)
+        if bundleId.hasPrefix("group_") {
+            let groupId = String(bundleId.dropFirst(6)) // Remove "group_" prefix
+            if let group = model.shieldGroups.first(where: { $0.id == groupId }) {
+                HStack {
+                    Image(systemName: "shield.checkered")
+                        .foregroundColor(.blue)
+                    Text(group.name)
+                        .font(.subheadline.weight(.medium))
+                    Spacer()
+                    Text("\(spent)")
+                        .font(.subheadline.weight(.semibold))
+                        .monospacedDigit()
+                }
+                .padding(.vertical, 4)
+            } else {
+                HStack {
+                    Image(systemName: "shield.checkered")
+                        .foregroundColor(.blue)
+                    Text("Shield Group")
+                        .font(.subheadline.weight(.medium))
+                    Spacer()
+                    Text("\(spent)")
+                        .font(.subheadline.weight(.semibold))
+                        .monospacedDigit()
+                }
+                .padding(.vertical, 4)
+            }
+        } else {
+            // Regular app
+            HStack {
+                Text(TargetResolver.displayName(for: bundleId))
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Text("\(spent)")
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+            }
+            .padding(.vertical, 4)
+        }
+    }
+    
+    private var dayDetailDateFormatter: DateFormatter {
+        let df = DateFormatter()
+        df.dateFormat = "EEEE, MMMM d"
+        df.locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
+        return df
     }
 }

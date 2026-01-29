@@ -13,21 +13,58 @@ struct ShieldGroupSettingsView: View {
     @State private var showAuthAlert = false
     @State private var showIntervals = false
     @State private var isUnlocking = false
+    @State private var difficultyUpdateTask: Task<Void, Never>? = nil
     
-    // Computed dynamic title based on selection
+    // Computed dynamic title based on selection - uses actual app names
     private var displayTitle: String {
+        // If template app is set, use its display name
+        if let templateApp = group.templateApp {
+            return TargetResolver.displayName(for: templateApp)
+        }
+        
         let appCount = group.selection.applicationTokens.count
         let catCount = group.selection.categoryTokens.count
         
-        if appCount == 1 && catCount == 0 {
-            return "App Shield"
-        } else if appCount == 0 && catCount == 1 {
-            return "Category Shield"
-        } else if appCount + catCount == 0 {
+        if appCount + catCount == 0 {
             return "New Shield"
-        } else {
-            return "\(appCount + catCount) Apps Shield"
         }
+        
+        // Try to get actual app name from first token
+        if appCount == 1 && catCount == 0 {
+            if let firstName = getFirstAppName() {
+                return firstName
+            }
+            return "App Shield"
+        }
+        
+        if appCount == 0 && catCount == 1 {
+            return "Category"
+        }
+        
+        // Multiple apps - show first name + count
+        if let firstName = getFirstAppName() {
+            let remaining = appCount + catCount - 1
+            if remaining > 0 {
+                return "\(firstName) +\(remaining)"
+            }
+            return firstName
+        }
+        
+        return "\(appCount + catCount) Apps"
+    }
+    
+    // Helper to get app name from first token
+    private func getFirstAppName() -> String? {
+        #if canImport(FamilyControls)
+        let defaults = UserDefaults(suiteName: "group.personal-project.StepsTrader") ?? .standard
+        
+        if let firstToken = group.selection.applicationTokens.first,
+           let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: firstToken, requiringSecureCoding: true) {
+            let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
+            return defaults.string(forKey: tokenKey)
+        }
+        #endif
+        return nil
     }
     
     // Get first enabled interval for quick unlock
@@ -72,6 +109,9 @@ struct ShieldGroupSettingsView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        // Cancel any pending debounced update
+                        difficultyUpdateTask?.cancel()
+                        // Save immediately
                         model.updateShieldGroup(group)
                         dismiss()
                     }
@@ -83,6 +123,7 @@ struct ShieldGroupSettingsView: View {
                 AppSelectionSheet(
                     selection: $pickerSelection,
                     appLanguage: appLanguage,
+                    templateApp: group.templateApp,
                     onDone: {
                         group.selection.applicationTokens.formUnion(pickerSelection.applicationTokens)
                         group.selection.categoryTokens.formUnion(pickerSelection.categoryTokens)
@@ -95,6 +136,10 @@ struct ShieldGroupSettingsView: View {
                 Button("OK") { }
             } message: {
                 Text("Please authorize Family Controls in Settings to enable shield features")
+            }
+            .onDisappear {
+                // Cancel any pending debounced updates when view disappears
+                difficultyUpdateTask?.cancel()
             }
         }
     }
@@ -155,12 +200,22 @@ struct ShieldGroupSettingsView: View {
         return Button {
             Task {
                 isUnlocking = true
+                let balanceBefore = model.totalStepsBalance
+                
                 await model.handlePayGatePaymentForGroup(
                     groupId: group.id,
                     window: interval,
                     costOverride: cost
                 )
+                
+                let balanceAfter = model.totalStepsBalance
+                print("🔓 Shield settings unlock: \(balanceBefore) → \(balanceAfter)")
+                
+                // Small delay to let UI update before dismissing
+                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+                
                 isUnlocking = false
+                dismiss()
             }
         } label: {
             VStack(spacing: 4) {
@@ -313,7 +368,20 @@ struct ShieldGroupSettingsView: View {
                 Slider(
                     value: Binding(
                         get: { Double(group.difficultyLevel) },
-                        set: { group.difficultyLevel = Int($0.rounded()) }
+                        set: { newValue in
+                            let newLevel = Int(newValue.rounded())
+                            group.difficultyLevel = newLevel
+                            
+                            // Debounce shield rebuild - cancel previous task
+                            difficultyUpdateTask?.cancel()
+                            
+                            // Schedule update after 0.5s of no changes
+                            difficultyUpdateTask = Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                                guard !Task.isCancelled else { return }
+                                model.updateShieldGroup(group)
+                            }
+                        }
                     ),
                     in: 1...5,
                     step: 1
@@ -341,12 +409,12 @@ struct ShieldGroupSettingsView: View {
     
     private var difficultyLabel: String {
         switch group.difficultyLevel {
-        case 1: return "Very Easy"
-        case 2: return "Easy"
-        case 3: return "Medium"
-        case 4: return "Hard"
-        case 5: return "Very Hard"
-        default: return "Medium"
+        case 1: return "Rookie"
+        case 2: return "Rebel"
+        case 3: return "Fighter"
+        case 4: return "Warrior"
+        case 5: return "Legend"
+        default: return "Fighter"
         }
     }
     

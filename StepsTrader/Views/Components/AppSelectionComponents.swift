@@ -27,12 +27,24 @@ struct CategoryIconView: View {
 struct AppSelectionSheet: View {
     @Binding var selection: FamilyActivitySelection
     let appLanguage: String
+    let templateApp: String?
     let onDone: () -> Void
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
+                // Instruction text for template shields
+                if let templateApp = templateApp {
+                    let appName = TargetResolver.displayName(for: templateApp)
+                    Text(loc(appLanguage, "choose #APPNAME from the list").replacingOccurrences(of: "#APPNAME", with: appName))
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                }
+                
                 // FamilyActivityPicker (apps and categories only)
                 FamilyActivityPicker(selection: $selection)
             }

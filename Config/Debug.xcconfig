@@ -1,0 +1,7 @@
+// Debug Configuration
+// Includes secrets from Secrets.xcconfig
+
+#include "Secrets.xcconfig"
+
+// Debug-specific settings can go here
+// Example: SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG

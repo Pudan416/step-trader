@@ -38,6 +38,7 @@ final class AppModel: ObservableObject {
     
     // MARK: - Performance optimization
     var rebuildShieldTask: Task<Void, Never>?
+    var unlockExpiryTasks: [String: Task<Void, Never>] = [:]  // Tasks to rebuild shield when unlock expires
     
 
     func isFamilyControlsModeEnabled(for bundleId: String) -> Bool {
@@ -64,7 +65,12 @@ final class AppModel: ObservableObject {
 
     // Оплата входа шагами
     @Published var entryCostSteps: Int = 5
-    @Published var stepsBalance: Int = 0
+    @Published var stepsBalance: Int = 0 {
+        didSet {
+            // Update totalStepsBalance when stepsBalance changes
+            totalStepsBalance = max(0, stepsBalance + bonusSteps)
+        }
+    }
     @Published var baseEnergyToday: Int = 0
     @Published var dailySleepHours: Double = 0
     @Published var dailyMoveSelections: [String] = []
@@ -75,12 +81,28 @@ final class AppModel: ObservableObject {
     @Published var preferredJoyOptions: [String] = []
     /// Total non-HealthKit energy.
     /// We keep this as a single published value because many parts of the app rely on it.
-    @Published var bonusSteps: Int = 0
+    @Published var bonusSteps: Int = 0 {
+        didSet {
+            // Update totalStepsBalance when bonusSteps changes
+            totalStepsBalance = max(0, stepsBalance + bonusSteps)
+        }
+    }
     /// Energy collected from the Outer World (map drops).
     @Published var outerWorldBonusSteps: Int = 0
     /// Energy granted from Supabase (admin grants / server-side economy).
-    @Published private(set) var serverGrantedSteps: Int = 0
-    var totalStepsBalance: Int { max(0, stepsBalance + bonusSteps) }
+    @Published var serverGrantedSteps: Int = 0
+    @Published var totalStepsBalance: Int = 0
+    
+    // Helper to update totalStepsBalance from extensions
+    @MainActor
+    func updateTotalStepsBalance() {
+        let newValue = max(0, stepsBalance + bonusSteps)
+        if totalStepsBalance != newValue {
+            totalStepsBalance = newValue
+            // Explicitly notify observers
+            objectWillChange.send()
+        }
+    }
     var effectiveStepsToday: Double { stepsToday + Double(bonusSteps) }
     @Published var spentStepsToday: Int = 0
     @Published var healthAuthorizationStatus: HKAuthorizationStatus = .notDetermined
@@ -131,13 +153,40 @@ final class AppModel: ObservableObject {
 
     @Published var appSelection = FamilyActivitySelection() {
         didSet {
-            // Синхронизируем с FamilyControlsService только если есть реальные изменения
-            if appSelection.applicationTokens != oldValue.applicationTokens
+            // Предотвращаем рекурсию (когда service обновляет нас обратно)
+            guard !isUpdatingAppSelection else { return }
+            
+            // Проверяем реальные изменения
+            let hasChanges = appSelection.applicationTokens != oldValue.applicationTokens
                 || appSelection.categoryTokens != oldValue.categoryTokens
-            {
-                saveAppSelection()  // Сохраняем выбор пользователя
-                if let service = familyControlsService as? FamilyControlsService {
-                    service.updateSelection(appSelection)
+            
+            guard hasChanges else { return }
+            
+            // Проверяем, не сохраняли ли мы уже это состояние
+            if let lastSaved = lastSavedAppSelection,
+               lastSaved.applicationTokens == appSelection.applicationTokens,
+               lastSaved.categoryTokens == appSelection.categoryTokens {
+                return
+            }
+            
+            // Debounce: отменяем предыдущую задачу сохранения
+            saveAppSelectionTask?.cancel()
+            
+            // Запускаем новую задачу с небольшой задержкой
+            saveAppSelectionTask = Task { @MainActor [weak self] in
+                // Небольшая задержка для группировки быстрых изменений
+                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+                
+                guard let self = self, !Task.isCancelled else { return }
+                
+                self.isUpdatingAppSelection = true
+                defer { self.isUpdatingAppSelection = false }
+                
+                self.saveAppSelection()
+                self.lastSavedAppSelection = self.appSelection
+                
+                if let service = self.familyControlsService as? FamilyControlsService {
+                    service.updateSelection(self.appSelection)
                 }
             }
         }
@@ -163,6 +212,30 @@ final class AppModel: ObservableObject {
     // Флаг для предотвращения рекурсии при обновлении Instagram selection
     private var isUpdatingInstagramSelection = false
     
+    // MARK: - App Selection Race Condition Prevention
+    /// Flag to prevent recursive updates when appSelection changes
+    private var isUpdatingAppSelection = false
+    /// Debounce task for saving app selection
+    private var saveAppSelectionTask: Task<Void, Never>?
+    /// Last saved selection for comparison
+    private var lastSavedAppSelection: FamilyActivitySelection?
+    
+    /// Safely update appSelection from external sources (e.g., FamilyControlsService callback)
+    /// without triggering recursive didSet updates
+    func updateAppSelectionFromService(_ selection: FamilyActivitySelection) {
+        guard !isUpdatingAppSelection else { return }
+        
+        // Skip if no actual change
+        guard selection.applicationTokens != appSelection.applicationTokens
+            || selection.categoryTokens != appSelection.categoryTokens else { return }
+        
+        isUpdatingAppSelection = true
+        defer { isUpdatingAppSelection = false }
+        
+        appSelection = selection
+        lastSavedAppSelection = selection
+    }
+    
     private func setAppAsTarget(bundleId: String) {
         // For Instagram specifically, we use the existing selection mechanism
         if bundleId == "com.burbn.instagram" {
@@ -175,8 +248,15 @@ final class AppModel: ObservableObject {
     }
     
     private func clearAppSelection() {
-        appSelection = FamilyActivitySelection()
-        familyControlsService.updateSelection(FamilyActivitySelection())
+        // Use safe update to avoid triggering didSet recursively
+        isUpdatingAppSelection = true
+        defer { isUpdatingAppSelection = false }
+        
+        let emptySelection = FamilyActivitySelection()
+        appSelection = emptySelection
+        lastSavedAppSelection = emptySelection
+        
+        familyControlsService.updateSelection(emptySelection)
         rebuildFamilyControlsShield()
     }
 
@@ -571,7 +651,10 @@ final class AppModel: ObservableObject {
         familyControlsService.updateMinuteModeMonitoring()
 
         // 7. Очищаем выбор приложений (как выбор, так и сохраненные данные)
+        isUpdatingAppSelection = true
         appSelection = FamilyActivitySelection()
+        lastSavedAppSelection = FamilyActivitySelection()
+        isUpdatingAppSelection = false
         print("📱 Cleared app selection and cached data")
         appUnlockSettings = [:]
         dayPassGrants = [:]
@@ -688,15 +771,11 @@ final class AppModel: ObservableObject {
 
         do {
             let authStatus = healthKitService.authorizationStatus()
-            print("🏥 HealthKit status at bootstrap: \(authStatus.rawValue)")
+            print("🏥 HealthKit status at bootstrap: \(authStatus.rawValue) (note: this is WRITE status)")
             if requestPermissions {
-                if authStatus == .sharingAuthorized {
-                    print("📊 HealthKit already authorized (bootstrap)")
-                } else {
-                    print("📊 Requesting HealthKit authorization...")
-                    try await healthKitService.requestAuthorization()
-                    print("✅ HealthKit authorization completed")
-                }
+                print("📊 Requesting HealthKit authorization...")
+                try await healthKitService.requestAuthorization()
+                print("✅ HealthKit authorization completed")
                 
                 print("🔐 Requesting Family Controls authorization...")
                 do {
@@ -715,32 +794,26 @@ final class AppModel: ObservableObject {
                 print("⏳ Skipping notifications prompt (intro not finished)")
             }
 
+            // Always try to fetch steps - this is the only way to know if read access works
+            // authorizationStatus() only shows WRITE status, not READ status
             print("📈 Fetching today's steps...")
-            let finalStatus = healthKitService.authorizationStatus()
-            if finalStatus == .sharingAuthorized {
-                do {
-                    stepsToday = try await fetchStepsForCurrentDay()
-                    print("✅ Today's steps: \(Int(stepsToday))")
-                    cacheStepsToday()
-                } catch {
-                    print("⚠️ Could not fetch step data: \(error)")
-                    // На симуляторе или если нет данных, используем демо-значение
-                    #if targetEnvironment(simulator)
-                        stepsToday = 2500  // Демо-значение для симулятора
-                        print("🎮 Using demo steps for Simulator: \(Int(stepsToday))")
-                    #else
-                        stepsToday = 0
-                        print("📱 No step data available on device, using 0")
-                    #endif
-                }
+            do {
+                stepsToday = try await fetchStepsForCurrentDay()
+                print("✅ Today's steps: \(Int(stepsToday))")
+                cacheStepsToday()
                 
                 // Также обновляем данные о сне
                 await refreshSleepIfAuthorized()
-            } else {
-                print("ℹ️ HealthKit not authorized, skipping steps fetch for now")
-                if stepsToday == 0 {
-                    print("ℹ️ Using cached steps if available: \(Int(stepsToday))")
-                }
+            } catch {
+                print("⚠️ Could not fetch step data: \(error)")
+                // На симуляторе или если нет данных, используем демо-значение
+                #if targetEnvironment(simulator)
+                    stepsToday = 2500  // Демо-значение для симулятора
+                    print("🎮 Using demo steps for Simulator: \(Int(stepsToday))")
+                #else
+                    loadCachedStepsToday()
+                    print("📱 Using cached steps: \(Int(stepsToday))")
+                #endif
             }
 
             print("💰 Calculating budget...")
@@ -751,10 +824,18 @@ final class AppModel: ObservableObject {
             loadEnergyPreferences()
             resetDailyEnergyIfNeeded()
             loadDailyEnergyState()
+            
+            // CRITICAL: Load spent steps balance BEFORE recalculating daily energy
+            // This ensures spentStepsToday is loaded before stepsBalance is calculated
+            loadSpentStepsBalance()
+            
             recalculateDailyEnergy()
             
             // Load shield groups
             loadShieldGroups()
+            
+            // Clean up expired unlocks and rebuild shield
+            cleanupExpiredUnlocks()
             
             // Load app unlock settings
             loadAppUnlockSettings()
@@ -763,6 +844,9 @@ final class AppModel: ObservableObject {
             rebuildFamilyControlsShield()
             budgetEngine.setBudget(minutes: budgetMinutes)
             syncBudgetProperties()  // Sync budget properties for UI updates
+            
+            // Ensure totalStepsBalance is updated after all loading
+            updateTotalStepsBalance()
 
         if stepsToday == 0 {
             print("⚠️ No steps available - budget is 0 minutes")
@@ -788,8 +872,7 @@ final class AppModel: ObservableObject {
         // Check if we should show the quick status page
         // For now, we don't auto-show it, but this can be customized
         // based on conditions like first launch, specific state, etc.
-        let defaults = UserDefaults.stepsTrader()
-        let hasShownQuickStatus = defaults.bool(forKey: "hasShownQuickStatusPage")
+        _ = UserDefaults.stepsTrader().bool(forKey: "hasShownQuickStatusPage")
         
         // Example: Show on first launch (can be customized)
         // if !hasShownQuickStatus {
@@ -859,6 +942,10 @@ final class AppModel: ObservableObject {
     func handleAppWillEnterForeground() {
         // Handle app entering foreground
         print("📱 App will enter foreground")
+        
+        // Clean up expired unlocks when app returns from background
+        cleanupExpiredUnlocks()
+        
         Task {
             await refreshStepsBalance()
             await refreshSleepIfAuthorized()

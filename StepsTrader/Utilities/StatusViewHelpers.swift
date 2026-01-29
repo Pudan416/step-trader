@@ -8,7 +8,7 @@ enum StatusViewHelpers {
         case "com.google.ios.youtube": return Color(red: 1, green: 0, blue: 0)
         case "com.facebook.Facebook": return .blue
         case "com.linkedin.LinkedIn": return Color(red: 0, green: 0.47, blue: 0.71)
-        case "com.atebits.Tweetie2": return .primary
+        case "com.atebits.Tweetie2": return .black
         case "com.toyopagroup.picaboo": return .yellow
         case "net.whatsapp.WhatsApp": return .green
         case "ph.telegra.Telegraph": return .cyan

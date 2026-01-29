@@ -78,6 +78,7 @@
 		209424D72E85952D00904A0E /* AppModel+AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424D82E85952D00904A0E /* AppModel+AppSettings.swift */; };
 		20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */; };
 		20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */; };
+		20DE0E652F2B78970016EEAE /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DE0E642F2B78970016EEAE /* AppLogger.swift */; };
 		20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0012FFF000100000001 /* AutomationUIModels.swift */; };
 		20F5A0042FFF000100000004 /* AppsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0022FFF000100000002 /* AppsPage.swift */; };
 		20F5A0052FFF000100000005 /* AppsPageSimplified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0062FFF000100000006 /* AppsPageSimplified.swift */; };
@@ -87,11 +88,15 @@
 		27AD90C5198349049E4EC714 /* AppModel+CloudKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E0A6EF05154A91AA51F820 /* AppModel+CloudKit.swift */; };
 		31E56CC97BFC4B2EB6CAA2A8 /* AppModel+PayGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E8B78AD65E54737AA7CA90F /* AppModel+PayGate.swift */; };
 		7006BD0F3FCF41D192D99AB8 /* ManagedSettings.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 200AC4892F1402CF0018004E /* ManagedSettings.framework */; };
+		7C1A1D2E3F4A5B6C7D8E9F02 /* OnboardingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1A1D2E3F4A5B6C7D8E9F01 /* OnboardingFlowView.swift */; };
 		B59E9C524161418AB1CE7C33 /* DeviceActivityMonitor.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BA2C944BDF2E4A9FAF9E3D81 /* AppModel+Payment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A0EFF57C944F958DDA1052 /* AppModel+Payment.swift */; };
 		C0AA553BDAC248AE9599AB12 /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
 		C5D6E7F8A9B0C1D2E3F4A5B6 /* AppModel+AccessWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E7F8A9B0C1D2E3F4A5B6C7 /* AppModel+AccessWindow.swift */; };
-		E8A4A43BE0F242E5A36640BB /* AppModel+AppSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A144CE444E274901BA446821 /* AppModel+AppSelection.swift */; };
+		T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */; };
+		T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */; };
+		T1E5T5D22E71A18F00ABF5FA /* MinuteChargeLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5D12E71A18F00ABF5FA /* MinuteChargeLogicTests.swift */; };
+		T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -194,11 +199,12 @@
 		2061ECF52F277010009FEC24 /* MinuteChargeLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteChargeLog.swift; sourceTree = "<group>"; };
 		2061ECF92F277010009FEC24 /* PayGateSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayGateSession.swift; sourceTree = "<group>"; };
 		2061F0092F2803AC009FEC24 /* AppModel+AppSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+AppSelection.swift"; sourceTree = "<group>"; };
-		2089F0B42E71A18E00ABF5FA /* DOOM CTRL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "DOOM CTRL.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0B42E71A18E00ABF5FA /* DOOM_CTRL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DOOM_CTRL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		2089F0C42E71A18F00ABF5FA /* DOOM CTRL.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "DOOM CTRL.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		2089F0CE2E71A18F00ABF5FA /* DOOM CTRL.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "DOOM CTRL.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0C42E71A18F00ABF5FA /* Steps4Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Steps4Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2089F0CE2E71A18F00ABF5FA /* Steps4UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Steps4UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
 		2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BudgetEngine.swift; sourceTree = "<group>"; };
 		2089F0E22E71AE3400ABF5FA /* Types.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Types.swift; sourceTree = "<group>"; };
 		2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FamilyControlsService.swift; sourceTree = "<group>"; };
@@ -224,6 +230,11 @@
 		209424D82E85952D00904A0E /* AppModel+AppSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+AppSettings.swift"; sourceTree = "<group>"; };
 		20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StepsTrader.swift"; sourceTree = "<group>"; };
 		20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffManager.swift; sourceTree = "<group>"; };
+		20DE0E5F2F2B62230016EEAE /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		20DE0E602F2B62230016EEAE /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		20DE0E612F2B62230016EEAE /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		20DE0E622F2B62230016EEAE /* Secrets.xcconfig.template */ = {isa = PBXFileReference; lastKnownFileType = text; path = Secrets.xcconfig.template; sourceTree = "<group>"; };
+		20DE0E642F2B78970016EEAE /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
 		20F5A0012FFF000100000001 /* AutomationUIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationUIModels.swift; sourceTree = "<group>"; };
 		20F5A0022FFF000100000002 /* AppsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsPage.swift; sourceTree = "<group>"; };
@@ -232,10 +243,13 @@
 		20F5A0122FFF030000000003 /* Localization.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		20F5A0142FFF030000000005 /* ColorConstants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ColorConstants.swift; sourceTree = "<group>"; };
 		554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeviceActivityMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		A144CE444E274901BA446821 /* AppModel+AppSelection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+AppSelection.swift"; sourceTree = "<group>"; };
+		7C1A1D2E3F4A5B6C7D8E9F01 /* OnboardingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowView.swift; sourceTree = "<group>"; };
 		A9E0A6EF05154A91AA51F820 /* AppModel+CloudKit.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+CloudKit.swift"; sourceTree = "<group>"; };
 		D4A0EFF57C944F958DDA1052 /* AppModel+Payment.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+Payment.swift"; sourceTree = "<group>"; };
 		D6E7F8A9B0C1D2E3F4A5B6C7 /* AppModel+AccessWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+AccessWindow.swift"; sourceTree = "<group>"; };
+		T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetEngineTests.swift; sourceTree = "<group>"; };
+		T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergyLogicTests.swift; sourceTree = "<group>"; };
+		T1E5T5D12E71A18F00ABF5FA /* MinuteChargeLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteChargeLogicTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -323,8 +337,11 @@
 		2089F0AB2E71A18E00ABF5FA = {
 			isa = PBXGroup;
 			children = (
+				20DE0E632F2B62230016EEAE /* Config */,
 				2089F0EA2E71AE3400ABF5FA /* StepsTrader */,
 				2089F0B62E71A18E00ABF5FA /* Steps4 */,
+				T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */,
+				T1E5T5E02E71A18F00ABF5FA /* Steps4UITests */,
 				69402D60D4CF4D02AA37F801 /* DeviceActivityMonitor */,
 				2061EB552F23FD14009FEC24 /* ShieldConfiguration */,
 				2061EB672F250A0B009FEC24 /* ShieldAction */,
@@ -336,9 +353,9 @@
 		2089F0B52E71A18E00ABF5FA /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				2089F0B42E71A18E00ABF5FA /* DOOM CTRL.app */,
-				2089F0C42E71A18F00ABF5FA /* DOOM CTRL.xctest */,
-				2089F0CE2E71A18F00ABF5FA /* DOOM CTRL.xctest */,
+				2089F0B42E71A18E00ABF5FA /* DOOM_CTRL.app */,
+				2089F0C42E71A18F00ABF5FA /* Steps4Tests.xctest */,
+				2089F0CE2E71A18F00ABF5FA /* Steps4UITests.xctest */,
 				554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */,
 				2061EB522F23FD14009FEC24 /* ShieldConfiguration.appex */,
 				2061EB652F250A0B009FEC24 /* ShieldAction.appex */,
@@ -400,6 +417,7 @@
 		2089F0E82E71AE3400ABF5FA /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				20DE0E642F2B78970016EEAE /* AppLogger.swift */,
 				20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */,
 				20F5A0122FFF030000000003 /* Localization.swift */,
 				20F5A0142FFF030000000005 /* ColorConstants.swift */,
@@ -431,7 +449,6 @@
 				D4A0EFF57C944F958DDA1052 /* AppModel+Payment.swift */,
 				1E8B78AD65E54737AA7CA90F /* AppModel+PayGate.swift */,
 				D6E7F8A9B0C1D2E3F4A5B6C7 /* AppModel+AccessWindow.swift */,
-				A144CE444E274901BA446821 /* AppModel+AppSelection.swift */,
 				A9E0A6EF05154A91AA51F820 /* AppModel+CloudKit.swift */,
 				209424C72E85952D00904A0A /* DIContainer.swift */,
 				209424C52E85952D00904A0A /* NotificationManager.swift */,
@@ -478,6 +495,7 @@
 				2061EB7D2F269C99009FEC24 /* HandoffProtectionView.swift */,
 				2061EB7E2F269C99009FEC24 /* MainTabView.swift */,
 				2061EB7F2F269C99009FEC24 /* OnboardingStoriesView.swift */,
+				7C1A1D2E3F4A5B6C7D8E9F01 /* OnboardingFlowView.swift */,
 				2061EB802F269C99009FEC24 /* PayGateView.swift */,
 				2061EB812F269C99009FEC24 /* QuickStatusView.swift */,
 				2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */,
@@ -494,6 +512,17 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		20DE0E632F2B62230016EEAE /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				20DE0E5F2F2B62230016EEAE /* Debug.xcconfig */,
+				20DE0E602F2B62230016EEAE /* Release.xcconfig */,
+				20DE0E612F2B62230016EEAE /* Secrets.xcconfig */,
+				20DE0E622F2B62230016EEAE /* Secrets.xcconfig.template */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		20E8EF842E7D41B200C092A1 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -502,6 +531,24 @@
 				200AC48B2F1402CF0018004E /* ManagedSettingsUI.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
+			isa = PBXGroup;
+			children = (
+				T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */,
+				T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */,
+				T1E5T5D12E71A18F00ABF5FA /* MinuteChargeLogicTests.swift */,
+			);
+			path = Steps4Tests;
+			sourceTree = "<group>";
+		};
+		T1E5T5E02E71A18F00ABF5FA /* Steps4UITests */ = {
+			isa = PBXGroup;
+			children = (
+				T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
+			);
+			path = Steps4UITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -569,7 +616,7 @@
 			);
 			name = Steps4;
 			productName = Steps4;
-			productReference = 2089F0B42E71A18E00ABF5FA /* DOOM CTRL.app */;
+			productReference = 2089F0B42E71A18E00ABF5FA /* DOOM_CTRL.app */;
 			productType = "com.apple.product-type.application";
 		};
 		2089F0C32E71A18F00ABF5FA /* Steps4Tests */ = {
@@ -587,7 +634,7 @@
 			);
 			name = Steps4Tests;
 			productName = Steps4Tests;
-			productReference = 2089F0C42E71A18F00ABF5FA /* DOOM CTRL.xctest */;
+			productReference = 2089F0C42E71A18F00ABF5FA /* Steps4Tests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		2089F0CD2E71A18F00ABF5FA /* Steps4UITests */ = {
@@ -605,7 +652,7 @@
 			);
 			name = Steps4UITests;
 			productName = Steps4UITests;
-			productReference = 2089F0CE2E71A18F00ABF5FA /* DOOM CTRL.xctest */;
+			productReference = 2089F0CE2E71A18F00ABF5FA /* Steps4UITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		661EF750582B4195A3B59550 /* DeviceActivityMonitor */ = {
@@ -764,6 +811,7 @@
 				2061EB842F269C99009FEC24 /* PayGateView.swift in Sources */,
 				2061EB852F269C99009FEC24 /* HandoffProtectionView.swift in Sources */,
 				2061EB862F269C99009FEC24 /* OnboardingStoriesView.swift in Sources */,
+				7C1A1D2E3F4A5B6C7D8E9F02 /* OnboardingFlowView.swift in Sources */,
 				2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */,
 				2061EB8F2F269CE6009FEC24 /* CountryPickerView.swift in Sources */,
 				2061EB912F269CE6009FEC24 /* ImagePicker.swift in Sources */,
@@ -820,11 +868,11 @@
 				BA2C944BDF2E4A9FAF9E3D81 /* AppModel+Payment.swift in Sources */,
 				31E56CC97BFC4B2EB6CAA2A8 /* AppModel+PayGate.swift in Sources */,
 				C5D6E7F8A9B0C1D2E3F4A5B6 /* AppModel+AccessWindow.swift in Sources */,
-				E8A4A43BE0F242E5A36640BB /* AppModel+AppSelection.swift in Sources */,
 				27AD90C5198349049E4EC714 /* AppModel+CloudKit.swift in Sources */,
 				2061EB4D2F23FA84009FEC24 /* BlockScreenNew.swift in Sources */,
 				20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */,
 				200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */,
+				20DE0E652F2B78970016EEAE /* AppLogger.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -832,6 +880,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */,
+				T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */,
+				T1E5T5D22E71A18F00ABF5FA /* MinuteChargeLogicTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -839,6 +890,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1039,6 +1091,7 @@
 		};
 		2089F0D62E71A18F00ABF5FA /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E5F2F2B62230016EEAE /* Debug.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -1104,6 +1157,7 @@
 		};
 		2089F0D72E71A18F00ABF5FA /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E602F2B62230016EEAE /* Release.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -1191,7 +1245,8 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
-				PRODUCT_NAME = "DOOM CTRL";
+				PRODUCT_MODULE_NAME = Steps4;
+				PRODUCT_NAME = DOOM_CTRL;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -1230,7 +1285,8 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
-				PRODUCT_NAME = "DOOM CTRL";
+				PRODUCT_MODULE_NAME = Steps4;
+				PRODUCT_NAME = DOOM_CTRL;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -1245,14 +1301,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
-				PRODUCT_NAME = "DOOM CTRL";
+				PRODUCT_NAME = Steps4Tests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Steps4.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Steps4";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DOOM_CTRL.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DOOM_CTRL";
 			};
 			name = Debug;
 		};
@@ -1263,14 +1319,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
-				PRODUCT_NAME = "DOOM CTRL";
+				PRODUCT_NAME = Steps4Tests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Steps4.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Steps4";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DOOM_CTRL.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DOOM_CTRL";
 			};
 			name = Release;
 		};
@@ -1280,9 +1336,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
-				PRODUCT_NAME = "DOOM CTRL";
+				PRODUCT_NAME = Steps4UITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1296,9 +1353,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
-				PRODUCT_NAME = "Steps Trader";
+				PRODUCT_NAME = Steps4UITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

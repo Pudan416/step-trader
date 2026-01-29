@@ -22,7 +22,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         case waitingPush = 1    // After user taps "Unlock" – show "check notifications"
     }
     
-    /// Локальный helper для доступа к shared `UserDefaults` из App Group.
+    /// Shared UserDefaults from App Group
     private func sharedDefaults() -> UserDefaults {
         if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) != nil,
            let appGroup = UserDefaults(suiteName: appGroupId) {
@@ -32,77 +32,109 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     }
     
     private func currentState() -> ShieldState {
-        // Используем shared UserDefaults из App Group, чтобы синхронизировать состояние
-        // между ShieldAction, ShieldConfiguration и основным приложением.
         let raw = sharedDefaults().integer(forKey: shieldStateKey)
         return ShieldState(rawValue: raw) ?? .blocked
     }
     
     private func getAppName(for application: Application) -> String {
-        // Use localizedDisplayName from Application, or fallback to "App"
         return application.localizedDisplayName ?? "App"
     }
     
-    /// Общая конфигурация внешнего вида (тёмный фон, белый текст, логотип DOOM CTRL).
+    // MARK: - Brand Colors
+    private var brandPink: UIColor {
+        UIColor(red: 224/255, green: 130/255, blue: 217/255, alpha: 1.0)
+    }
+    
+    private var darkBackground: UIColor {
+        UIColor(red: 0.05, green: 0.05, blue: 0.12, alpha: 0.95)
+    }
+    
+    /// Base configuration with our brand styling
     private func baseConfiguration(
         title: String,
         subtitle: String,
         primaryButtonText: String,
         secondaryButtonText: String? = nil
     ) -> ShieldConfiguration {
-        // Пытаемся взять наш логотип из ассетов экстеншена; если нет — используем SF Symbol.
-        let appIcon = UIImage(named: "AppIcon") ?? UIImage(named: "paygate") ?? UIImage(systemName: "shield.checkered")
+        // Try to load app icon from extension assets
+        let appIcon = UIImage(named: "AppIcon") ?? UIImage(named: "paygate") ?? UIImage(systemName: "bolt.shield.fill")
         
         return ShieldConfiguration(
-            backgroundBlurStyle: .systemThickMaterialDark,
-            backgroundColor: UIColor.black.withAlphaComponent(0.70),
+            backgroundBlurStyle: .systemUltraThinMaterialDark,
+            backgroundColor: darkBackground,
             icon: appIcon,
             title: ShieldConfiguration.Label(text: title, color: .white),
-            subtitle: ShieldConfiguration.Label(text: subtitle, color: .white),
+            subtitle: ShieldConfiguration.Label(text: subtitle, color: UIColor.white.withAlphaComponent(0.85)),
             primaryButtonLabel: ShieldConfiguration.Label(text: primaryButtonText, color: .white),
-            primaryButtonBackgroundColor: .systemBlue,
-            secondaryButtonLabel: secondaryButtonText.map { ShieldConfiguration.Label(text: $0, color: .white) }
+            primaryButtonBackgroundColor: brandPink,
+            secondaryButtonLabel: secondaryButtonText.map { ShieldConfiguration.Label(text: $0, color: UIColor.white.withAlphaComponent(0.6)) }
         )
     }
     
     override func configuration(shielding application: Application) -> ShieldConfiguration {
         let appName = getAppName(for: application)
         
-        // Сохраняем человекочитаемое имя для токена, чтобы PayGate мог его показать.
-        if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: application.token, requiringSecureCoding: true) {
+        // Save human-readable name for token so PayGate can display it
+        if let token = application.token,
+           let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
             let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
             sharedDefaults().set(appName, forKey: tokenKey)
         }
         
         switch currentState() {
         case .blocked:
-            // Первый экран: просто говорим, что приложение заблокировано нашим щитом
+            // Screen 1: Bold, punk blocking message
             return baseConfiguration(
-                title: "App Blocked",
-                subtitle: "\(appName)\nBlocked by DOOM CTRL",
-                primaryButtonText: "Unlock"
+                title: "⚡ BLOCKED",
+                subtitle: "\(appName) is under control.\nYou set the rules. Now follow them.",
+                primaryButtonText: "Pay to unlock"
             )
+            
         case .waitingPush:
-            // Второй экран: объясняем, что отправили пуш и даём кнопку "Push not received"
+            // Screen 2: Arrow pointing up + instructions
             return baseConfiguration(
-                title: "Check notifications",
-                subtitle: "We sent a push from DOOM CTRL.\nOpen it to choose unlock time.",
-                primaryButtonText: "Push not received"
+                title: "👆 CHECK ABOVE",
+                subtitle: """
+                    ↑ ↑ ↑
+                    Swipe down for notification.
+                    Choose your unlock time there.
+                    
+                    No push? Open DOOM CTRL app
+                    → find this shield → unlock manually.
+                    """,
+                primaryButtonText: "Still nothing"
             )
         }
     }
     
     override func configuration(shielding application: Application, in category: ActivityCategory) -> ShieldConfiguration {
-        // Для категорий используем ту же логику, что и для отдельных приложений
         return configuration(shielding: application)
     }
     
     override func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
-        return baseConfiguration(
-            title: "Website Blocked",
-            subtitle: (webDomain.domain ?? "Unknown") + "\nBlocked by DOOM CTRL",
-            primaryButtonText: "OK"
-        )
+        let domain = webDomain.domain ?? "this site"
+        
+        switch currentState() {
+        case .blocked:
+            return baseConfiguration(
+                title: "⚡ BLOCKED",
+                subtitle: "\(domain) is off limits.\nFocus on what matters.",
+                primaryButtonText: "Pay to unlock"
+            )
+            
+        case .waitingPush:
+            return baseConfiguration(
+                title: "👆 CHECK ABOVE",
+                subtitle: """
+                    ↑ ↑ ↑
+                    Swipe down for notification.
+                    
+                    No push? Open DOOM CTRL app
+                    → find this shield → unlock.
+                    """,
+                primaryButtonText: "Still nothing"
+            )
+        }
     }
     
     override func configuration(shielding webDomain: WebDomain, in category: ActivityCategory) -> ShieldConfiguration {

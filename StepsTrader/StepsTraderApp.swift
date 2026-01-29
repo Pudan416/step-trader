@@ -13,8 +13,8 @@ struct StepsTraderApp: App {
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     @AppStorage("hasSeenIntro_v3") private var hasSeenIntro: Bool = false
     @AppStorage("hasSeenEnergySetup_v1") private var hasSeenEnergySetup: Bool = false
-    @State private var showIntro: Bool = false
-    @State private var showEnergySetup: Bool = false
+    @AppStorage("hasCompletedOnboarding_v1") private var hasCompletedOnboarding: Bool = false
+    @AppStorage("hasMigratedOnboarding_v1") private var hasMigratedOnboarding: Bool = false
 
     init() {
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
@@ -23,80 +23,59 @@ struct StepsTraderApp: App {
     var body: some Scene {
         WindowGroup { 
             ZStack {
-                if model.showPayGate {
-                    PayGateView(model: model)
-                        .onAppear {
-                            print("🎯 PayGateView appeared - target group: \(model.payGateTargetGroupId ?? "nil")")
-                        }
-                } else if model.showQuickStatusPage {
-                    QuickStatusView(model: model)
-                } else {
-                    MainTabView(model: model, theme: currentTheme)
-                }
+                if hasCompletedOnboarding {
+                    if model.showPayGate {
+                        PayGateView(model: model)
+                            .onAppear {
+                                print("🎯 PayGateView appeared - target group: \(model.payGateTargetGroupId ?? "nil")")
+                            }
+                    } else if model.showQuickStatusPage {
+                        QuickStatusView(model: model)
+                    } else {
+                        MainTabView(model: model, theme: currentTheme)
+                            .id("main-\(model.totalStepsBalance)-\(model.stepsBalance)-\(model.bonusSteps)")  // Force refresh when balance changes
+                    }
 
-
-                // Handoff protection screen (disabled for Instagram flow)
-                if model.showHandoffProtection, let token = model.handoffToken {
-                    // Only show handoff protection for non-Instagram targets
-                    if token.targetBundleId != "com.burbn.instagram" {
-                        HandoffProtectionView(model: model, token: token) {
-                            model.handleHandoffContinue()
-                        } onCancel: {
-                            model.handleHandoffCancel()
+                    // Handoff protection screen (disabled for Instagram flow)
+                    if model.showHandoffProtection, let token = model.handoffToken {
+                        // Only show handoff protection for non-Instagram targets
+                        if token.targetBundleId != "com.burbn.instagram" {
+                            HandoffProtectionView(model: model, token: token) {
+                                model.handleHandoffContinue()
+                            } onCancel: {
+                                model.handleHandoffCancel()
+                            }
                         }
                     }
-                }
-
-                if showIntro {
-                    OnboardingStoriesView(
-                        isPresented: $showIntro,
-                        slides: introSlides(appLanguage: appLanguage),
-                        accent: AppColors.brandPink,
-                        skipText: loc(appLanguage, "Skip"),
-                        nextText: loc(appLanguage, "Next"),
-                        startText: loc(appLanguage, "Start"),
-                        allowText: loc(appLanguage, "Allow"),
-                        onLocationSlide: {
-                            Task { @MainActor in
-                                locationPermissionRequester.requestWhenInUse()
-                            }
-                        },
-                        onHealthSlide: {
-                            Task { await model.ensureHealthAuthorizationAndRefresh() }
-                        },
-                        onNotificationSlide: {
-                            Task { await model.requestNotificationPermission() }
-                        },
-                        onFamilyControlsSlide: {
-                            Task { try? await model.familyControlsService.requestAuthorization() }
-                        }
+                } else {
+                    OnboardingFlowView(
+                        model: model,
+                        authService: authService,
+                        locationPermissionRequester: locationPermissionRequester
                     ) {
                         hasSeenIntro = true
+                        hasSeenEnergySetup = true
+                        hasCompletedOnboarding = true
                         Task {
                             await model.refreshStepsIfAuthorized()
                             await model.refreshSleepIfAuthorized()
-                        }
-                        if !hasSeenEnergySetup {
-                            showEnergySetup = true
                         }
                     }
                     .transition(.opacity)
                     .zIndex(3)
                 }
             }
-            .sheet(isPresented: $showEnergySetup, onDismiss: {
-                hasSeenEnergySetup = true
-            }) {
-                NavigationView {
-                    EnergySetupView(model: model)
-                }
-            }
             .onAppear {
                 // Language selection was removed; keep the UI in English if an old value was persisted.
                 if appLanguage == "ru" { appLanguage = "en" }
 
-                // Ensure bootstrap runs once; defer permission prompts to intro if needed
-                if hasSeenIntro {
+                if !hasMigratedOnboarding && hasSeenIntro && hasSeenEnergySetup {
+                    hasCompletedOnboarding = true
+                    hasMigratedOnboarding = true
+                }
+
+                // Ensure bootstrap runs once; defer permission prompts to onboarding flow if needed
+                if hasCompletedOnboarding {
                     Task { await model.bootstrap(requestPermissions: true) }
                 } else {
                     Task { await model.bootstrap(requestPermissions: false) }
@@ -115,10 +94,6 @@ struct StepsTraderApp: App {
                 )
                 checkForHandoffToken()
                 checkForPayGateFlags()
-                if !hasSeenIntro { showIntro = true }
-                if hasSeenIntro && !hasSeenEnergySetup {
-                    showEnergySetup = true
-                }
             }
             .onOpenURL { url in
                 print("🔗 App received URL: \(url)")
@@ -134,7 +109,7 @@ struct StepsTraderApp: App {
                 model.handleAppDidEnterBackground()
             }
             .task {
-                if hasSeenIntro {
+                if hasCompletedOnboarding {
                     await model.ensureHealthAuthorizationAndRefresh()
                 }
             }
@@ -160,7 +135,8 @@ struct StepsTraderApp: App {
                 model.handleAppWillEnterForeground()
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.showIntro")) ) { _ in
-                showIntro = true
+                hasCompletedOnboarding = false
+                hasMigratedOnboarding = true
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.paygate")))
             { notification in
@@ -346,96 +322,6 @@ struct StepsTraderApp: App {
 private extension StepsTraderApp {
     var currentTheme: AppTheme {
         AppTheme(rawValue: appThemeRaw) ?? .system
-    }
-
-    func introSlides(appLanguage: String) -> [OnboardingSlide] {
-        [
-            // 1. Welcome - bold intro
-            OnboardingSlide(
-                title: loc(appLanguage, "DOOM CTRL 🔥"),
-                subtitle: loc(appLanguage, "Take back control from your apps"),
-                symbol: "shield.checkered",
-                gradient: [.purple, .pink],
-                bullets: [
-                    loc(appLanguage, "🛡️ Shield apps that steal your time"),
-                    loc(appLanguage, "⚡ Pay with control to get access")
-                ],
-                action: .none
-            ),
-            // 2. Energy source
-            OnboardingSlide(
-                title: loc(appLanguage, "Daily Control ⚡"),
-                subtitle: loc(appLanguage, "Move and choice build 100 points"),
-                symbol: "bolt.fill",
-                gradient: [.yellow, .orange],
-                bullets: [
-                    loc(appLanguage, "🏃 Sleep + steps + habits = Move points"),
-                    loc(appLanguage, "💝 Choices = Joy points"),
-                    loc(appLanguage, "🔋 Collect batteries on the map for bonus")
-                ],
-                action: .none
-            ),
-            // 3. Level up
-            OnboardingSlide(
-                title: loc(appLanguage, "Track Progress 📈"),
-                subtitle: loc(appLanguage, "Spend control, see your impact"),
-                symbol: "star.fill",
-                gradient: [.blue, .purple],
-                bullets: [
-                    loc(appLanguage, "⭐ 10 levels per shield"),
-                    loc(appLanguage, "📊 Track total control spent")
-                ],
-                action: .none
-            ),
-            // 4. Screen Time - Family Controls
-            OnboardingSlide(
-                title: loc(appLanguage, "Screen Time 📱"),
-                subtitle: loc(appLanguage, "Track real app usage for minute mode"),
-                symbol: "hourglass",
-                gradient: [.indigo, .purple],
-                bullets: [
-                    loc(appLanguage, "⏱️ Pay per actual minute used"),
-                    loc(appLanguage, "🔒 We only see usage, not content")
-                ],
-                action: .requestFamilyControls
-            ),
-            // 5. Map - location permission
-            OnboardingSlide(
-                title: loc(appLanguage, "Hunt Batteries 🗺️"),
-                subtitle: loc(appLanguage, "Walk around → collect bonus control"),
-                symbol: "map.fill",
-                gradient: [.green, .teal],
-                bullets: [
-                    loc(appLanguage, "🔋 +5 control per battery"),
-                    loc(appLanguage, "🧲 3 magnets/day to grab from afar")
-                ],
-                action: .requestLocation
-            ),
-            // 6. Health - steps permission
-            OnboardingSlide(
-                title: loc(appLanguage, "Connect Steps 🚶"),
-                subtitle: loc(appLanguage, "Your walks = your power"),
-                symbol: "figure.walk",
-                gradient: [.pink, .purple],
-                bullets: [
-                    loc(appLanguage, "📊 We only read step count"),
-                    loc(appLanguage, "🔒 Your data stays on device")
-                ],
-                action: .requestHealth
-            ),
-            // 7. Notifications
-            OnboardingSlide(
-                title: loc(appLanguage, "Stay Sharp 🔔"),
-                subtitle: loc(appLanguage, "Know when access ends"),
-                symbol: "bell.badge.fill",
-                gradient: [.orange, .pink],
-                bullets: [
-                    loc(appLanguage, "⏰ Timers & reminders"),
-                    loc(appLanguage, "🚫 Zero spam, only useful stuff")
-                ],
-                action: .requestNotifications
-            )
-        ]
     }
 }
 

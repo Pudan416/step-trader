@@ -28,9 +28,8 @@ struct StepBalanceCard: View {
     private let maxEnergy: Int = 100
     
     private var currentEnergy: Int {
-        // Текущая энергия = baseEnergyToday + bonusSteps (outerWorldSteps), но максимум 100
-        let total = baseEnergyToday + outerWorldSteps
-        return min(maxEnergy, total)
+        // Текущая энергия = оставшийся баланс после трат (remainingSteps уже содержит totalStepsBalance)
+        return min(maxEnergy, remainingSteps)
     }
     
     private var progress: Double {
@@ -172,52 +171,36 @@ VStack(spacing: 2) {
             .frame(height: 14)
             .animation(.spring(response: 0.4), value: progress)
             
-            // Details section - category breakdown
+            // Details section - compact 4-in-a-row category breakdown
             if showDetails {
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
-                        categoryChip(
-                            icon: "figure.run",
-                            title: loc(appLanguage, "Move"),
-                            value: movePoints,
-                            max: 40,
-                            color: .green,
-                            category: .move,
-                            onTap: { onMoveTap?() }
-                        )
-                        
-                        categoryChip(
-                            icon: "moon.zzz.fill",
-                            title: loc(appLanguage, "Reboot"),
-                            value: rebootPoints,
-                            max: 40,
-                            color: .blue,
-                            category: .reboot,
-                            onTap: { onRebootTap?() }
-                        )
-                    }
+                HStack(spacing: 8) {
+                    compactCategoryChip(
+                        icon: "figure.run",
+                        value: movePoints,
+                        color: .green,
+                        onTap: { onMoveTap?() }
+                    )
                     
-                    HStack(spacing: 12) {
-                        categoryChip(
-                            icon: "heart.fill",
-                            title: loc(appLanguage, "Choice"),
-                            value: joyPoints,
-                            max: 20,
-                            color: .orange,
-                            category: .joy,
-                            onTap: { onJoyTap?() }
-                        )
-                        
-                        categoryChip(
-                            icon: "battery.100.bolt",
-                            title: loc(appLanguage, "Outer World"),
-                            value: outerWorldSteps,
-                            max: 50,
-                            color: .cyan,
-                            category: nil,
-                            onTap: { onOuterWorldTap?() }
-                        )
-                    }
+                    compactCategoryChip(
+                        icon: "moon.zzz.fill",
+                        value: rebootPoints,
+                        color: .blue,
+                        onTap: { onRebootTap?() }
+                    )
+                    
+                    compactCategoryChip(
+                        icon: "heart.fill",
+                        value: joyPoints,
+                        color: .orange,
+                        onTap: { onJoyTap?() }
+                    )
+                    
+                    compactCategoryChip(
+                        icon: "map.fill",
+                        value: outerWorldSteps,
+                        color: .cyan,
+                        onTap: { onOuterWorldTap?() }
+                    )
                 }
                 .transition(.asymmetric(
                     insertion: .move(edge: .top).combined(with: .opacity),
@@ -239,65 +222,26 @@ VStack(spacing: 2) {
     }
 }
 
+// Compact category chip - small icon + prominent number, 4 in a row
 @ViewBuilder
-private func categoryChip(icon: String, title: String, value: Int, max: Int, color: Color, category: EnergyCategory?, onTap: @escaping () -> Void) -> some View {
+private func compactCategoryChip(icon: String, value: Int, color: Color, onTap: @escaping () -> Void) -> some View {
     Button(action: onTap) {
-        HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [color.opacity(0.2), color.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 32, height: 32)
-                
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [color, color.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(color)
             
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(.secondary)
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("\(value)")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundColor(.primary)
-                        .monospacedDigit()
-                    Text("/\(max)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.secondary)
-                        .monospacedDigit()
-                }
-            }
-            
-            Spacer()
-            
-            Image(systemName: "chevron.right")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+            Text("\(value)")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.primary)
+                .monospacedDigit()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(.thinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(color.opacity(0.2), lineWidth: 1)
-                )
-        )
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(color.opacity(0.1))
+        )
     }
     .buttonStyle(.plain)
 }

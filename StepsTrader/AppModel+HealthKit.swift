@@ -4,35 +4,26 @@ import HealthKit
 // MARK: - HealthKit & Steps Management
 extension AppModel {
     func ensureHealthAuthorizationAndRefresh() async {
+        // Note: authorizationStatus() returns WRITE status, not READ status.
+        // For read-only apps, we can't check if read is authorized - we just try to read.
+        // Apple doesn't expose read authorization status for privacy reasons.
+        
         let status = healthKitService.authorizationStatus()
-        print("🏥 HealthKit status before ensure: \(status.rawValue)")
+        print("🏥 HealthKit status before ensure: \(status.rawValue) (note: this is WRITE status, not read)")
         healthAuthorizationStatus = status
-        switch status {
-        case .sharingAuthorized:
-            print("🏥 HealthKit already authorized, refreshing steps")
-        case .sharingDenied:
-            print("❌ HealthKit access denied. Open the Health app → Sources → DOOM CTRL and enable step reading.")
-            return
-        case .notDetermined:
-            print("🏥 HealthKit not determined. Requesting authorization...")
-            do {
-                try await healthKitService.requestAuthorization()
-                print("✅ HealthKit authorization completed (ensureHealthAuthorizationAndRefresh)")
-                healthAuthorizationStatus = healthKitService.authorizationStatus()
-            } catch {
-                print("❌ HealthKit authorization failed: \(error.localizedDescription)")
-                return
-            }
-        @unknown default:
-            print("❓ HealthKit status unknown: \(status.rawValue). Attempting authorization.")
-            do {
-                try await healthKitService.requestAuthorization()
-            } catch {
-                print("❌ HealthKit authorization failed: \(error.localizedDescription)")
-                return
-            }
+        
+        // Always request authorization (it's a no-op if already requested)
+        // Then try to fetch data - if it works, read access is granted
+        do {
+            try await healthKitService.requestAuthorization()
+            print("✅ HealthKit authorization request completed")
+        } catch {
+            print("❌ HealthKit authorization failed: \(error.localizedDescription)")
         }
+        
+        // Try to fetch data regardless of status - this is the only way to know if read works
         await refreshStepsBalance()
+        await refreshSleepIfAuthorized()
         startStepObservation()
     }
     
@@ -42,14 +33,15 @@ extension AppModel {
         return try await healthKitService.fetchSteps(from: start, to: now)
     }
     
+    func fetchSleepForCurrentDay() async throws -> Double {
+        let now = Date()
+        let start = currentDayStart(for: now)
+        return try await healthKitService.fetchSleep(from: start, to: now)
+    }
+    
     func refreshStepsBalance() async {
-        let status = healthKitService.authorizationStatus()
-        guard status == .sharingAuthorized else {
-            print("ℹ️ HealthKit not authorized yet, skipping steps refresh")
-            loadCachedStepsToday()
-            return
-        }
-        
+        // Don't check authorizationStatus - it shows WRITE status, not READ
+        // Just try to fetch and handle errors gracefully
         do {
             stepsToday = try await fetchStepsForCurrentDay()
             print("✅ Refreshed steps: \(Int(stepsToday))")
@@ -69,11 +61,7 @@ extension AppModel {
     }
     
     func refreshStepsIfAuthorized() async {
-        let status = healthKitService.authorizationStatus()
-        guard status == .sharingAuthorized else {
-            print("ℹ️ HealthKit not authorized yet, skipping refresh")
-            return
-        }
+        // Just try to refresh - if read access isn't granted, it will fail gracefully
         await refreshStepsBalance()
         await refreshSleepIfAuthorized()
     }
@@ -114,21 +102,16 @@ extension AppModel {
     }
     
     func refreshSleepIfAuthorized() async {
-        let status = healthKitService.authorizationStatus()
-        guard status == .sharingAuthorized else {
-            print("ℹ️ HealthKit not authorized yet, skipping sleep refresh")
-            return
-        }
-        
+        // Just try to fetch - if read access isn't granted, it will fail gracefully
         do {
-            let sleepHours = try await healthKitService.fetchTodaySleep()
+            let sleepHours = try await fetchSleepForCurrentDay()
             // AppModel is @MainActor, so we can update directly
             dailySleepHours = sleepHours
             persistDailyEnergyState()
             recalculateDailyEnergy()
             print("😴 Fetched sleep from HealthKit: \(String(format: "%.1f", sleepHours)) hours")
         } catch {
-            print("❌ Failed to refresh sleep from HealthKit: \(error.localizedDescription)")
+            print("⚠️ Could not fetch sleep from HealthKit: \(error.localizedDescription)")
         }
     }
 }

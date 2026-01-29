@@ -17,9 +17,9 @@
 		</dict>
 	</array>
 	<key>SUPABASE_URL</key>
-	<string>https://molcdgbopchbwcfgiema.supabase.co</string>
+	<string>$(SUPABASE_URL)</string>
 	<key>SUPABASE_ANON_KEY</key>
-	<string>sb_publishable_Cqv-EaDJIOcNRzsxLwtg8g_1k_oKMC7</string>
+	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>MKDirectionsApplicationSupportedModes</key>
 	<array/>
 </dict>

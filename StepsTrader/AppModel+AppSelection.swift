@@ -102,7 +102,7 @@ extension AppModel {
         var appTokenToCard: [ApplicationToken: String] = [:]
         var categoryTokenToCard: [ActivityCategoryToken: String] = [:]
         
-        for (cardId, settings) in updatedUnlock {
+        for (cardId, _) in updatedUnlock {
             let sel = timeAccessSelection(for: cardId)
             if sel.applicationTokens.count == 1, let t = sel.applicationTokens.first {
                 appTokenToCard[t] = cardId

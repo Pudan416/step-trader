@@ -1,4 +1,7 @@
 import SwiftUI
+import UIKit
+
+// MARK: - Slide Types
 
 enum OnboardingSlideAction: Equatable {
     case none
@@ -8,15 +11,40 @@ enum OnboardingSlideAction: Equatable {
     case requestFamilyControls
 }
 
+enum OnboardingSlideType: Equatable {
+    case text
+    case stepsSetup
+    case sleepSetup
+    case activitySelection(EnergyCategory)
+    case nameInput
+    case avatarSetup
+    case welcomeWithName
+}
+
 struct OnboardingSlide: Identifiable {
     let id = UUID()
-    let title: String
-    let subtitle: String
+    let lines: [String]
     let symbol: String
     let gradient: [Color]
-    let bullets: [String]
     let action: OnboardingSlideAction
+    let slideType: OnboardingSlideType
+    
+    init(
+        lines: [String],
+        symbol: String,
+        gradient: [Color],
+        action: OnboardingSlideAction = .none,
+        slideType: OnboardingSlideType = .text
+    ) {
+        self.lines = lines
+        self.symbol = symbol
+        self.gradient = gradient
+        self.action = action
+        self.slideType = slideType
+    }
 }
+
+// MARK: - Main View
 
 struct OnboardingStoriesView: View {
     @Binding var isPresented: Bool
@@ -26,12 +54,25 @@ struct OnboardingStoriesView: View {
     let nextText: String
     let startText: String
     let allowText: String
+    var showsSkip: Bool = true
     let onLocationSlide: (() -> Void)?
     let onHealthSlide: (() -> Void)?
     let onNotificationSlide: (() -> Void)?
     let onFamilyControlsSlide: (() -> Void)?
     let onFinish: () -> Void
+    
+    // Model for interactive slides
+    var model: AppModel?
+    @Binding var stepsTarget: Double
+    @Binding var sleepTarget: Double
+    @Binding var userName: String
+    @Binding var avatarImage: UIImage?
+    
     @State private var index: Int = 0
+    @FocusState private var isNameFieldFocused: Bool
+    @State private var showImageSourcePicker: Bool = false
+    @State private var showImagePicker: Bool = false
+    @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
     @State private var didTriggerLocationRequest = false
     @State private var didTriggerHealthRequest = false
     @State private var didTriggerNotificationRequest = false
@@ -41,139 +82,80 @@ struct OnboardingStoriesView: View {
         ZStack {
             onboardingBackground.ignoresSafeArea()
 
-            VStack(spacing: 24) {
-                header
-                    .padding(.top, 18)
-
+            VStack(spacing: 0) {
                 progressBar
-                    .padding(.top, 6)
+                    .padding(.top, 60)
+                    .padding(.bottom, 24)
 
                 TabView(selection: $index) {
                     ForEach(Array(slides.enumerated()), id: \.offset) { idx, slide in
-                        slideCard(slide: slide)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.bottom, 12)
-                        .tag(idx)
+                        slideContent(slide: slide)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .tag(idx)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: index)
 
-                HStack(spacing: 16) {
-                    Button(action: finish) {
-                        Text(skipText)
-                            .font(.headline)
-                            .foregroundColor(.white.opacity(0.90))
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .background(Color.white.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-                    .accessibilityLabel(skipText)
-                    .accessibilityHint("Skips the onboarding and goes to the main app")
-
-                    Button(action: next) {
-                        Text(primaryButtonTitle)
-                            .font(.headline.bold())
-                            .foregroundColor(.black)
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .background(accent)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-                    .accessibilityLabel(primaryButtonTitle)
-                    .accessibilityHint("Continues to the next onboarding slide or starts the app")
+                // Bottom button
+                Button(action: next) {
+                    Text(primaryButtonTitle)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .background(accent)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
-                .padding(.bottom, 32)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 40)
             }
-            .padding(.horizontal, 10)
         }
     }
 
     private var onboardingBackground: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color.black, Color.black.opacity(0.85)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            RadialGradient(
-                colors: [accent.opacity(0.35), Color.clear],
-                center: .topTrailing,
-                startRadius: 40,
-                endRadius: 420
-            )
-            RadialGradient(
-                colors: [Color.purple.opacity(0.22), Color.clear],
-                center: .bottomLeading,
-                startRadius: 60,
-                endRadius: 520
-            )
-        }
+        Color.black
     }
 
     private var progressBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             ForEach(slides.indices, id: \.self) { i in
                 Capsule()
-                    .fill(i <= index ? accent : Color.white.opacity(0.35))
-                    .frame(height: 4)
+                    .fill(i <= index ? accent : Color.white.opacity(0.25))
+                    .frame(height: 3)
                     .animation(.easeInOut(duration: 0.25), value: index)
             }
         }
         .padding(.horizontal, 24)
     }
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            appLogo
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("DOOM CTRL")
-                    .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .foregroundColor(.white)
-                Text("Fuel → Shields → Control")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.7))
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .overlay(alignment: .topTrailing) {
-            Button(action: finish) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title3)
-                    .foregroundColor(.white.opacity(0.6))
-            }
-            .padding(.trailing, 16)
-        }
-    }
-
-    private var appLogo: some View {
-        Group {
-            if let uiImage = appIconImage() {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 44, height: 44)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .shadow(color: .black.opacity(0.25), radius: 10, x: 0, y: 6)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(.ultraThinMaterial)
-                        .frame(width: 44, height: 44)
-                    Text("DC")
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
-                        .foregroundColor(.white)
-                }
-            }
-        }
-    }
-
     @ViewBuilder
-    private func slideCard(slide: OnboardingSlide) -> some View {
-        VStack(spacing: 16) {
+    private func slideContent(slide: OnboardingSlide) -> some View {
+        switch slide.slideType {
+        case .text:
+            textSlide(slide: slide)
+        case .stepsSetup:
+            stepsSetupSlide(slide: slide)
+        case .sleepSetup:
+            sleepSetupSlide(slide: slide)
+        case .activitySelection(let category):
+            activitySelectionSlide(slide: slide, category: category)
+        case .nameInput:
+            nameInputSlide(slide: slide)
+        case .avatarSetup:
+            avatarSetupSlide(slide: slide)
+        case .welcomeWithName:
+            welcomeWithNameSlide(slide: slide)
+        }
+    }
+
+    // MARK: - Text Slide
+    
+    @ViewBuilder
+    private func textSlide(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            // Icon
             ZStack {
                 Circle()
                     .fill(
@@ -183,64 +165,500 @@ struct OnboardingStoriesView: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 84, height: 84)
-                    .shadow(color: slide.gradient.first?.opacity(0.35) ?? .clear, radius: 20, x: 0, y: 12)
+                    .frame(width: 80, height: 80)
+                    .shadow(color: slide.gradient.first?.opacity(0.4) ?? .clear, radius: 24, x: 0, y: 12)
 
                 Image(systemName: slide.symbol)
-                    .font(.system(size: 34, weight: .heavy))
+                    .font(.system(size: 32, weight: .bold))
                     .foregroundColor(.white)
             }
-            .padding(.top, 10)
-
-            VStack(spacing: 10) {
-                Text(slide.title)
-                    .font(.system(size: 28, weight: .heavy, design: .rounded))
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 18)
-
-                Text(slide.subtitle)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.78))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 18)
+            .padding(.bottom, 40)
+            
+            // Lines
+            VStack(spacing: 8) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
+                    Text(line)
+                        .font(.system(size: 26, weight: idx == 0 ? .bold : .medium, design: .rounded))
+                        .foregroundColor(idx == 0 ? .white : .white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                }
             }
+            .padding(.horizontal, 32)
+            
+            Spacer()
+            Spacer()
+        }
+    }
+    
+    // MARK: - Steps Setup Slide
+    
+    @ViewBuilder
+    private func stepsSetupSlide(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: slide.gradient.map { $0.opacity(0.90) },
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 80, height: 80)
+                    .shadow(color: slide.gradient.first?.opacity(0.4) ?? .clear, radius: 24, x: 0, y: 12)
 
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(slide.bullets, id: \.self) { text in
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(
+                Image(systemName: slide.symbol)
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .padding(.bottom, 32)
+            
+            // Lines
+            VStack(spacing: 6) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
+                    Text(line)
+                        .font(.system(size: 24, weight: idx == 0 ? .bold : .medium, design: .rounded))
+                        .foregroundColor(idx == 0 ? .white : .white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, 32)
+            .padding(.bottom, 40)
+            
+            // Steps value display
+            Text(formatNumber(Int(stepsTarget)))
+                .font(.system(size: 64, weight: .bold, design: .rounded))
+                .foregroundColor(accent)
+            
+            Text("steps")
+                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.5))
+                .padding(.bottom, 32)
+            
+            // Slider
+            VStack(spacing: 8) {
+                Slider(value: $stepsTarget, in: 5_000...15_000, step: 500)
+                    .tint(accent)
+                    .padding(.horizontal, 40)
+                
+                HStack {
+                    Text("5,000")
+                    Spacer()
+                    Text("15,000")
+                }
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.4))
+                .padding(.horizontal, 44)
+            }
+            
+            Spacer()
+            Spacer()
+        }
+    }
+    
+    // MARK: - Sleep Setup Slide
+    
+    @ViewBuilder
+    private func sleepSetupSlide(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: slide.gradient.map { $0.opacity(0.90) },
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 80, height: 80)
+                    .shadow(color: slide.gradient.first?.opacity(0.4) ?? .clear, radius: 24, x: 0, y: 12)
+
+                Image(systemName: slide.symbol)
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .padding(.bottom, 32)
+            
+            // Lines
+            VStack(spacing: 6) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
+                    Text(line)
+                        .font(.system(size: 24, weight: idx == 0 ? .bold : .medium, design: .rounded))
+                        .foregroundColor(idx == 0 ? .white : .white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, 32)
+            .padding(.bottom, 40)
+            
+            // Sleep value display
+            Text(String(format: "%.1f", sleepTarget))
+                .font(.system(size: 64, weight: .bold, design: .rounded))
+                .foregroundColor(accent)
+            
+            Text("hours")
+                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.5))
+                .padding(.bottom, 32)
+            
+            // Slider
+            VStack(spacing: 8) {
+                Slider(value: $sleepTarget, in: 6...10, step: 0.5)
+                    .tint(accent)
+                    .padding(.horizontal, 40)
+                
+                HStack {
+                    Text("6h")
+                    Spacer()
+                    Text("10h")
+                }
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.4))
+                .padding(.horizontal, 44)
+            }
+            
+            Spacer()
+            Spacer()
+        }
+    }
+    
+    // MARK: - Activity Selection Slide
+    
+    @ViewBuilder
+    private func activitySelectionSlide(slide: OnboardingSlide, category: EnergyCategory) -> some View {
+        let options = model?.availableOptions(for: category) ?? []
+        let selectedCount = options.filter { model?.isPreferredOptionSelected($0.id, category: category) == true }.count
+        
+        VStack(spacing: 0) {
+            // Header
+            VStack(spacing: 6) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
+                    Text(line)
+                        .font(.system(size: idx == 0 ? 22 : 18, weight: idx == 0 ? .bold : .medium, design: .rounded))
+                        .foregroundColor(idx == 0 ? .white : .white.opacity(0.6))
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, 32)
+            .padding(.top, 20)
+            .padding(.bottom, 16)
+            
+            // Selection counter
+            Text("\(selectedCount) / 4")
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundColor(selectedCount == 4 ? accent : .white.opacity(0.5))
+                .padding(.bottom, 16)
+            
+            // Options grid
+            ScrollView(showsIndicators: false) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    ForEach(options) { option in
+                        activityOptionButton(option: option, category: category)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func activityOptionButton(option: EnergyOption, category: EnergyCategory) -> some View {
+        let isSelected = model?.isPreferredOptionSelected(option.id, category: category) == true
+        let categoryColor: Color = {
+            switch category {
+            case .move: return .green
+            case .reboot: return .blue
+            case .joy: return .orange
+            }
+        }()
+        
+        Button {
+            model?.togglePreferredOption(optionId: option.id, category: category)
+        } label: {
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? categoryColor.opacity(0.3) : Color.white.opacity(0.08))
+                        .frame(width: 50, height: 50)
+                    
+                    Image(systemName: option.icon)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(isSelected ? categoryColor : .white.opacity(0.6))
+                }
+                
+                Text(option.titleEn)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(isSelected ? categoryColor.opacity(0.15) : Color.white.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(isSelected ? categoryColor.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    // MARK: - Name Input Slide
+    
+    @ViewBuilder
+    private func nameInputSlide(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: slide.gradient.map { $0.opacity(0.90) },
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 80, height: 80)
+                    .shadow(color: slide.gradient.first?.opacity(0.4) ?? .clear, radius: 24, x: 0, y: 12)
+
+                Image(systemName: slide.symbol)
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .padding(.bottom, 32)
+            
+            // Lines
+            VStack(spacing: 6) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
+                    Text(line)
+                        .font(.system(size: 24, weight: idx == 0 ? .bold : .medium, design: .rounded))
+                        .foregroundColor(idx == 0 ? .white : .white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, 32)
+            .padding(.bottom, 40)
+            
+            // Name input field
+            TextField("", text: $userName)
+                .font(.system(size: 32, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+                .placeholder(when: userName.isEmpty) {
+                    Text("Your name")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.3))
+                }
+                .padding(.horizontal, 40)
+                .padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white.opacity(0.08))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(accent.opacity(0.5), lineWidth: 2)
+                        )
+                )
+                .padding(.horizontal, 32)
+                .focused($isNameFieldFocused)
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isNameFieldFocused = true
+                    }
+                }
+            
+            Spacer()
+            Spacer()
+        }
+        .onTapGesture {
+            isNameFieldFocused = false
+        }
+    }
+    
+    // MARK: - Avatar Setup Slide
+    
+    @ViewBuilder
+    private func avatarSetupSlide(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            // Lines
+            VStack(spacing: 6) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
+                    Text(line)
+                        .font(.system(size: 24, weight: idx == 0 ? .bold : .medium, design: .rounded))
+                        .foregroundColor(idx == 0 ? .white : .white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, 32)
+            .padding(.bottom, 40)
+            
+            // Avatar picker
+            Button {
+                showImageSourcePicker = true
+            } label: {
+                ZStack {
+                    if let image = avatarImage {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 140, height: 140)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(accent, lineWidth: 3)
+                            )
+                    } else {
+                        Circle()
+                            .fill(
                                 LinearGradient(
-                                    colors: slide.gradient,
+                                    colors: slide.gradient.map { $0.opacity(0.6) },
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
-                        Text(text)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.white.opacity(0.90))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
+                            .frame(width: 140, height: 140)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                            )
+                        
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 50, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
                     }
+                    
+                    // Camera badge
+                    Circle()
+                        .fill(accent)
+                        .frame(width: 44, height: 44)
+                        .overlay(
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.black)
+                        )
+                        .offset(x: 50, y: 50)
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18)
-                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                    )
-            )
-            .padding(.horizontal, 14)
-
-            Spacer(minLength: 0)
+            .buttonStyle(.plain)
+            
+            // Skip text
+            if avatarImage == nil {
+                Text("Tap to add a photo")
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.5))
+                    .padding(.top, 20)
+            } else {
+                Button {
+                    avatarImage = nil
+                } label: {
+                    Text("Remove photo")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundColor(.red.opacity(0.8))
+                }
+                .padding(.top, 20)
+            }
+            
+            Spacer()
+            Spacer()
         }
-        .padding(.top, 8)
+        .confirmationDialog(
+            "Choose Photo",
+            isPresented: $showImageSourcePicker,
+            titleVisibility: .visible
+        ) {
+            Button("Camera") {
+                imageSourceType = .camera
+                showImagePicker = true
+            }
+            Button("Photo Library") {
+                imageSourceType = .photoLibrary
+                showImagePicker = true
+            }
+            Button("Cancel", role: .cancel) { }
+        }
+        .sheet(isPresented: $showImagePicker) {
+            ImagePicker(image: $avatarImage, sourceType: imageSourceType)
+        }
+    }
+    
+    // MARK: - Welcome With Name Slide
+    
+    @ViewBuilder
+    private func welcomeWithNameSlide(slide: OnboardingSlide) -> some View {
+        let displayName = userName.isEmpty ? "User" : userName
+        
+        VStack(spacing: 0) {
+            Spacer()
+            
+            // Avatar or Icon
+            if let image = avatarImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 120, height: 120)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(accent, lineWidth: 3)
+                    )
+                    .shadow(color: accent.opacity(0.4), radius: 20, x: 0, y: 10)
+                    .padding(.bottom, 32)
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: slide.gradient.map { $0.opacity(0.90) },
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 100, height: 100)
+                        .shadow(color: slide.gradient.first?.opacity(0.5) ?? .clear, radius: 30, x: 0, y: 15)
+
+                    Image(systemName: slide.symbol)
+                        .font(.system(size: 44, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                .padding(.bottom, 40)
+            }
+            
+            // Welcome text with name
+            VStack(spacing: 12) {
+                Text("Welcome to Doom Control,")
+                    .font(.system(size: 24, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.8))
+                
+                Text(displayName)
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .foregroundColor(accent)
+                
+                Text("Your time. Your rules.")
+                    .font(.system(size: 20, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.6))
+                    .padding(.top, 8)
+            }
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 32)
+            
+            Spacer()
+            Spacer()
+        }
     }
 
     private var primaryButtonTitle: String {
@@ -250,15 +668,12 @@ struct OnboardingStoriesView: View {
         if slides[index].action != .none { return allowText }
         return nextText
     }
-
-    private func appIconImage() -> UIImage? {
-        guard
-            let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
-            let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
-            let files = primary["CFBundleIconFiles"] as? [String],
-            let last = files.last
-        else { return nil }
-        return UIImage(named: last)
+    
+    private func formatNumber(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = ","
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
     private func next() {
@@ -303,5 +718,20 @@ struct OnboardingStoriesView: View {
             isPresented = false
         }
         onFinish()
+    }
+}
+
+// MARK: - Placeholder Extension
+
+extension View {
+    func placeholder<Content: View>(
+        when shouldShow: Bool,
+        alignment: Alignment = .center,
+        @ViewBuilder placeholder: () -> Content
+    ) -> some View {
+        ZStack(alignment: alignment) {
+            placeholder().opacity(shouldShow ? 1 : 0)
+            self
+        }
     }
 }

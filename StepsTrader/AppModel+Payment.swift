@@ -17,30 +17,73 @@ extension AppModel {
     }
 
     // MARK: - Payment Execution
+    @MainActor
     @discardableResult
     func payForEntry(for bundleId: String? = nil, costOverride: Int? = nil) -> Bool {
-        if hasDayPass(for: bundleId) { return true }
+        print("💳 payForEntry called for bundleId: \(bundleId ?? "nil")")
+        
+        if hasDayPass(for: bundleId) {
+            print("💳 Day pass active, skipping payment")
+            return true
+        }
+        
         let cost = costOverride ?? unlockSettings(for: bundleId).entryCostSteps
+        print("💳 Entry cost: \(cost), current balance: \(totalStepsBalance)")
+        
         let success = pay(cost: cost)
-        if success, let bundleId { addSpentSteps(cost, for: bundleId) }
+        
+        if success {
+            if let bundleId {
+                addSpentSteps(cost, for: bundleId)
+            }
+            print("✅ payForEntry successful, new balance: \(totalStepsBalance)")
+            
+            // Force UI update
+            objectWillChange.send()
+        } else {
+            print("❌ payForEntry failed - not enough balance")
+        }
+        
         return success
     }
     
+    @MainActor
     @discardableResult
     func payForDayPass(for bundleId: String?) -> Bool {
         guard let bundleId else { return false }
         if hasDayPass(for: bundleId) { return true }
         let cost = unlockSettings(for: bundleId).dayPassCostSteps
-        guard pay(cost: cost) else { return false }
+        
+        print("💳 payForDayPass for \(bundleId), cost: \(cost)")
+        
+        guard pay(cost: cost) else {
+            print("❌ payForDayPass failed - not enough balance")
+            return false
+        }
+        
         addSpentSteps(cost, for: bundleId)
         dayPassGrants[bundleId] = Date()
         persistDayPassGrants()
+        
+        print("✅ payForDayPass successful, new balance: \(totalStepsBalance)")
+        
+        // Force UI update
+        objectWillChange.send()
+        
         return true
     }
     
+    @MainActor
     func pay(cost: Int) -> Bool {
-        guard totalStepsBalance >= cost else { return false }
-        // Не позволяем тратить больше базовой энергии за день
+        print("💳 pay(\(cost)) called on main thread: \(Thread.isMainThread)")
+        print("💳 Before: totalBalance=\(totalStepsBalance), stepsBalance=\(stepsBalance), bonusSteps=\(bonusSteps), baseEnergyToday=\(baseEnergyToday), spentStepsToday=\(spentStepsToday)")
+        
+        guard totalStepsBalance >= cost else {
+            print("💳 FAILED: Not enough balance (\(totalStepsBalance) < \(cost))")
+            return false
+        }
+        
+        // Deduct from base energy first, then from bonus
         let todaysBaseEnergy = baseEnergyToday
         let baseAvailable = stepsBalance
         let consumeFromBase = min(baseAvailable, cost)
@@ -57,28 +100,75 @@ extension AppModel {
         g.set(spentStepsToday, forKey: "spentStepsToday")
         g.set(stepsBalance, forKey: "stepsBalance")
         g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
+        
+        // Explicitly update totalStepsBalance
+        updateTotalStepsBalance()
+        
+        // CRITICAL: Force sync bonus steps to UserDefaults to ensure persistence
+        syncAndPersistBonusBreakdown()
+        
+        // Force UserDefaults to synchronize immediately
+        g.synchronize()
+        
+        print("💳 After: totalBalance=\(totalStepsBalance), stepsBalance=\(stepsBalance), bonusSteps=\(bonusSteps), spentStepsToday=\(spentStepsToday)")
+        print("💾 Balance persisted to UserDefaults: stepsBalance=\(g.integer(forKey: "stepsBalance")), bonusSteps=\(g.integer(forKey: "debugStepsBonus_v1"))")
+        
+        // Force UI update
+        objectWillChange.send()
+        
         return true
     }
 
     // MARK: - Steps Balance Management
     func loadSpentStepsBalance() {
         let g = UserDefaults.stepsTrader()
+        
+        print("💾 === LOADING SPENT STEPS BALANCE ===")
+        
         let anchor = g.object(forKey: "stepsBalanceAnchor") as? Date ?? .distantPast
-        if !Calendar.current.isDateInToday(anchor) {
+        let isSameDay = Calendar.current.isDateInToday(anchor)
+        print("💾 Anchor date: \(anchor), isToday: \(isSameDay)")
+        
+        if !isSameDay {
+            print("💾 New day detected, resetting spentStepsToday to 0")
             spentStepsToday = 0
             g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
         } else {
             spentStepsToday = g.integer(forKey: "spentStepsToday")
+            print("💾 Loaded spentStepsToday from UserDefaults: \(spentStepsToday)")
         }
+        
         // Клэмп только если уже знаем базовую энергию (иначе при запуске с 0 мы затираем данные)
         let todaysBaseEnergy = baseEnergyToday
-        if todaysBaseEnergy > 0, spentStepsToday > todaysBaseEnergy { spentStepsToday = todaysBaseEnergy }
+        if todaysBaseEnergy > 0, spentStepsToday > todaysBaseEnergy {
+            print("💾 Clamping spentStepsToday from \(spentStepsToday) to \(todaysBaseEnergy)")
+            spentStepsToday = todaysBaseEnergy
+        }
+        
         stepsBalance = g.integer(forKey: "stepsBalance")
+        print("💾 Loaded stepsBalance from UserDefaults: \(stepsBalance)")
+        
         if stepsBalance == 0, todaysBaseEnergy > 0 {
             stepsBalance = max(0, todaysBaseEnergy - spentStepsToday)
+            print("💾 Recalculated stepsBalance: \(stepsBalance) (baseEnergy \(todaysBaseEnergy) - spent \(spentStepsToday))")
         }
+        
+        // Load bonus steps from UserDefaults
+        outerWorldBonusSteps = g.integer(forKey: "debugStepsBonus_outerworld_v1")
+        serverGrantedSteps = g.integer(forKey: "serverGrantedSteps_v1")
+        print("💾 Loaded outerWorldBonusSteps: \(outerWorldBonusSteps), serverGrantedSteps: \(serverGrantedSteps)")
+        
+        // Sync bonus breakdown which will calculate and set bonusSteps correctly
+        syncAndPersistBonusBreakdown()
+        
+        // Update totalStepsBalance after loading
+        updateTotalStepsBalance()
+        
+        print("💾 Final: spentStepsToday=\(spentStepsToday), stepsBalance=\(stepsBalance), bonusSteps=\(bonusSteps), totalBalance=\(totalStepsBalance)")
+        print("💾 === END LOADING SPENT STEPS BALANCE ===")
     }
 
+    @MainActor
     func syncAndPersistBonusBreakdown() {
         // Суммируем бонусную энергию
         let rawBonus = outerWorldBonusSteps + serverGrantedSteps
@@ -98,6 +188,9 @@ extension AppModel {
         g.set(outerWorldBonusSteps, forKey: "debugStepsBonus_outerworld_v1")
         // Explicitly clear removed debug bucket if it exists.
         g.removeObject(forKey: "debugStepsBonus_debug_v1")
+        
+        // Update totalStepsBalance after bonus changes
+        updateTotalStepsBalance()
     }
 
     // MARK: - Entry Cost Management
@@ -125,12 +218,22 @@ extension AppModel {
         persistAppStepsSpentLifetime()
     }
     
+    @MainActor
     func consumeBonusSteps(_ cost: Int) {
         guard cost > 0 else { return }
         
+        let before = outerWorldBonusSteps
         outerWorldBonusSteps = max(0, outerWorldBonusSteps - min(outerWorldBonusSteps, cost))
+        print("🔋 consumeBonusSteps: \(cost), outerWorldBonusSteps: \(before) → \(outerWorldBonusSteps)")
         
         syncAndPersistBonusBreakdown()
+        
+        // Force immediate persistence
+        let g = UserDefaults.stepsTrader()
+        g.synchronize()
+        
+        // Force UI update
+        objectWillChange.send()
     }
     
     // MARK: - Day Pass Management

@@ -1,5 +1,6 @@
 import DeviceActivity
 import Foundation
+import os.log
 #if canImport(FamilyControls)
 import FamilyControls
 #endif
@@ -10,9 +11,86 @@ import ManagedSettings
 import UserNotifications
 #endif
 
+// MARK: - Logging Infrastructure
+
+private let monitorLog = OSLog(subsystem: "com.personalproject.StepsTrader.DeviceActivityMonitor", category: "Monitor")
+
+/// Structured error log entry for debugging
+private struct MonitorErrorLog: Codable {
+    let timestamp: Date
+    let function: String
+    let message: String
+    let context: [String: String]?
+    
+    init(function: String, message: String, context: [String: String]? = nil) {
+        self.timestamp = Date()
+        self.function = function
+        self.message = message
+        self.context = context
+    }
+}
+
+/// Centralized logging for DeviceActivityMonitor extension
+private enum MonitorLogger {
+    static func info(_ message: String, function: String = #function) {
+        os_log(.info, log: monitorLog, "[%{public}@] %{public}@", function, message)
+        #if DEBUG
+        print("🔵 [\(function)] \(message)")
+        #endif
+    }
+    
+    static func error(_ message: String, function: String = #function, context: [String: String]? = nil) {
+        os_log(.error, log: monitorLog, "[%{public}@] ERROR: %{public}@", function, message)
+        #if DEBUG
+        print("🔴 [\(function)] ERROR: \(message)")
+        #endif
+        
+        // Store error in UserDefaults for main app to read and potentially send to Supabase
+        storeErrorLog(function: function, message: message, context: context)
+    }
+    
+    static func warning(_ message: String, function: String = #function) {
+        os_log(.default, log: monitorLog, "[%{public}@] WARNING: %{public}@", function, message)
+        #if DEBUG
+        print("🟡 [\(function)] WARNING: \(message)")
+        #endif
+    }
+    
+    private static func storeErrorLog(function: String, message: String, context: [String: String]?) {
+        let defaults = stepsTraderDefaults()
+        var logs: [MonitorErrorLog] = []
+        
+        if let data = defaults.data(forKey: "monitorErrorLogs_v1"),
+           let decoded = try? JSONDecoder().decode([MonitorErrorLog].self, from: data) {
+            logs = decoded
+        }
+        
+        let entry = MonitorErrorLog(function: function, message: message, context: context)
+        logs.append(entry)
+        
+        // Keep only last 50 errors to avoid bloat
+        if logs.count > 50 {
+            logs = Array(logs.suffix(50))
+        }
+        
+        if let data = try? JSONEncoder().encode(logs) {
+            defaults.set(data, forKey: "monitorErrorLogs_v1")
+        }
+        
+        // Also increment error counter for quick health check
+        let errorCount = defaults.integer(forKey: "monitorErrorCount_v1") + 1
+        defaults.set(errorCount, forKey: "monitorErrorCount_v1")
+        defaults.set(Date(), forKey: "monitorLastErrorAt_v1")
+    }
+}
+
 fileprivate func stepsTraderDefaults() -> UserDefaults {
     let groupId = "group.personal-project.StepsTrader"
-    return UserDefaults(suiteName: groupId) ?? .standard
+    guard let defaults = UserDefaults(suiteName: groupId) else {
+        MonitorLogger.error("Failed to create UserDefaults with suite: \(groupId)", context: ["groupId": groupId])
+        return .standard
+    }
+    return defaults
 }
 
 private struct StoredUnlockSettings: Codable {
@@ -30,6 +108,11 @@ private struct MinuteChargeLog: Codable {
 
 final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     override func intervalDidStart(for activity: DeviceActivityName) {
+        MonitorLogger.info("intervalDidStart: \(activity.rawValue)")
+        
+        // Check for expired unlocks on any activity
+        checkAndClearExpiredUnlocks()
+        
         // Enable custom shield for minute mode
         if activity == DeviceActivityName("minuteMode") {
             setupShieldForMinuteMode()
@@ -37,6 +120,26 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     }
     
     override func intervalDidEnd(for activity: DeviceActivityName) {
+        let activityRaw = activity.rawValue
+        MonitorLogger.info("intervalDidEnd: \(activityRaw)")
+        
+        // Handle unlock expiry activities
+        if activityRaw.hasPrefix("unlockExpiry_") {
+            let groupId = String(activityRaw.dropFirst("unlockExpiry_".count))
+            MonitorLogger.info("Unlock expiry interval ended for group \(groupId)")
+            
+            // Clear the unlock and rebuild shield
+            let defaults = stepsTraderDefaults()
+            let unlockKey = "groupUnlock_\(groupId)"
+            defaults.removeObject(forKey: unlockKey)
+            
+            rebuildShieldFromExtension()
+            return
+        }
+        
+        // Check for expired unlocks
+        checkAndClearExpiredUnlocks()
+        
         // Clear shield when interval ends (but don't clear if monitoring is still active)
         // Shield will be re-enabled on next interval start
         if activity == DeviceActivityName("minuteMode") {
@@ -49,7 +152,107 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         _ event: DeviceActivityEvent.Name,
         activity: DeviceActivityName
     ) {
+        MonitorLogger.info("eventDidReachThreshold: \(event.rawValue) for activity \(activity.rawValue)")
+        
+        // Check for expired unlocks on any threshold event
+        checkAndClearExpiredUnlocks()
+        
         handleMinuteEvent(event)
+    }
+    
+    // MARK: - Expired Unlocks Check
+    /// Called from extension to check and clear any expired group unlocks, then rebuild shield
+    private func checkAndClearExpiredUnlocks() {
+        let defaults = stepsTraderDefaults()
+        let now = Date()
+        var hasExpired = false
+        
+        // Find all groupUnlock_* keys and check if they've expired
+        let allKeys = defaults.dictionaryRepresentation().keys
+        for key in allKeys where key.hasPrefix("groupUnlock_") {
+            if let unlockUntil = defaults.object(forKey: key) as? Date {
+                if now >= unlockUntil {
+                    // Unlock has expired, remove it
+                    defaults.removeObject(forKey: key)
+                    let groupId = String(key.dropFirst("groupUnlock_".count))
+                    print("⏰ DeviceActivityMonitor: Unlock expired for group \(groupId)")
+                    hasExpired = true
+                }
+            }
+        }
+        
+        // If any unlocks expired, rebuild the shield to restore blocking
+        if hasExpired {
+            print("🛡️ DeviceActivityMonitor: Rebuilding shield after unlock expiry")
+            rebuildShieldFromExtension()
+        }
+    }
+    
+    /// Rebuild shield from extension - similar to setupShieldForMinuteMode but for all active groups
+    private func rebuildShieldFromExtension() {
+        #if canImport(ManagedSettings)
+        let defaults = stepsTraderDefaults()
+        var allApps: Set<ApplicationToken> = []
+        var allCategories: Set<ActivityCategoryToken> = []
+        let now = Date()
+        
+        // Get all shield groups
+        guard let groupsData = defaults.data(forKey: "shieldGroups_v1") else {
+            MonitorLogger.warning("No shieldGroups_v1 data found in UserDefaults")
+            return
+        }
+        
+        let groups: [ShieldGroupDataForMonitor]
+        do {
+            groups = try JSONDecoder().decode([ShieldGroupDataForMonitor].self, from: groupsData)
+        } catch {
+            MonitorLogger.error("Failed to decode shield groups: \(error.localizedDescription)", context: [
+                "dataSize": "\(groupsData.count)",
+                "error": error.localizedDescription
+            ])
+            return
+        }
+        
+        MonitorLogger.info("Processing \(groups.count) shield groups")
+        
+        for group in groups {
+            // Check if this group is currently unlocked
+            let unlockKey = "groupUnlock_\(group.id)"
+            if let unlockUntil = defaults.object(forKey: unlockKey) as? Date, now < unlockUntil {
+                // Still unlocked, skip this group
+                MonitorLogger.info("Group \(group.name) still unlocked until \(unlockUntil)")
+                continue
+            }
+            
+            // Group is locked (or unlock expired), add its apps to shield
+            guard let selectionData = group.selectionData else {
+                MonitorLogger.warning("Group \(group.name) has no selectionData")
+                continue
+            }
+            
+            do {
+                let sel = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
+                if group.hasActiveSettings {
+                    allApps.formUnion(sel.applicationTokens)
+                    allCategories.formUnion(sel.categoryTokens)
+                    MonitorLogger.info("Adding \(sel.applicationTokens.count) apps from locked group: \(group.name)")
+                }
+            } catch {
+                MonitorLogger.error("Failed to decode FamilyActivitySelection for group \(group.name): \(error.localizedDescription)", context: [
+                    "groupId": group.id,
+                    "groupName": group.name,
+                    "error": error.localizedDescription
+                ])
+            }
+        }
+        
+        // Apply shield
+        let store = ManagedSettingsStore(named: .init("shield"))
+        store.shield.applications = allApps.isEmpty ? nil : allApps
+        store.shield.applicationCategories = allCategories.isEmpty ? nil : .specific(allCategories)
+        
+        MonitorLogger.info("Shield rebuilt: \(allApps.count) apps, \(allCategories.count) categories")
+        #endif
     }
     
     #if canImport(ManagedSettings)
@@ -57,42 +260,76 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let defaults = stepsTraderDefaults()
         var allApps: Set<ApplicationToken> = []
         var allCategories: Set<ActivityCategoryToken> = []
-        var unlockSettingsByBundle: [String: StoredUnlockSettings] = [:]
+        
+        MonitorLogger.info("Setting up shield for minute mode")
         
         // Каждый раз, когда мы включаем щит, сбрасываем его состояние
         // (первый экран "App Blocked" → потом уже по действиям ShieldActionExtension).
         defaults.set(0, forKey: "doomShieldState_v1")
         
         // Сначала собираем приложения из групп щитов
-        if let groupsData = defaults.data(forKey: "shieldGroups_v1"),
-           let groups = try? JSONDecoder().decode([ShieldGroupDataForMonitor].self, from: groupsData) {
-            print("🛡️ DeviceActivityMonitor: Found \(groups.count) shield groups")
-            for group in groups {
-                if let selectionData = group.selectionData,
-                   let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData) {
-                    // Проверяем настройки группы (нужно декодировать settings)
-                    if group.hasActiveSettings {
-                        allApps.formUnion(sel.applicationTokens)
-                        allCategories.formUnion(sel.categoryTokens)
-                        print("🛡️ Added \(sel.applicationTokens.count) apps from group: \(group.name)")
+        if let groupsData = defaults.data(forKey: "shieldGroups_v1") {
+            do {
+                let groups = try JSONDecoder().decode([ShieldGroupDataForMonitor].self, from: groupsData)
+                MonitorLogger.info("Found \(groups.count) shield groups")
+                
+                for group in groups {
+                    guard let selectionData = group.selectionData else {
+                        MonitorLogger.warning("Group \(group.name) has no selectionData")
+                        continue
+                    }
+                    
+                    do {
+                        let sel = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
+                        // Проверяем настройки группы (нужно декодировать settings)
+                        if group.hasActiveSettings {
+                            allApps.formUnion(sel.applicationTokens)
+                            allCategories.formUnion(sel.categoryTokens)
+                            MonitorLogger.info("Added \(sel.applicationTokens.count) apps from group: \(group.name)")
+                        }
+                    } catch {
+                        MonitorLogger.error("Failed to decode selection for group \(group.name): \(error.localizedDescription)", context: [
+                            "groupId": group.id,
+                            "error": error.localizedDescription
+                        ])
                     }
                 }
+            } catch {
+                MonitorLogger.error("Failed to decode shieldGroups_v1: \(error.localizedDescription)", context: [
+                    "dataSize": "\(groupsData.count)",
+                    "error": error.localizedDescription
+                ])
             }
+        } else {
+            MonitorLogger.warning("No shieldGroups_v1 data found")
         }
         
         // Also collect apps from per-app selections (for backward compatibility)
-        if let data = defaults.data(forKey: "appUnlockSettings_v1"),
-           let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data) {
-            unlockSettingsByBundle = decoded
-            for (bundleId, settings) in decoded {
-                if settings.minuteTariffEnabled == true || settings.familyControlsModeEnabled == true {
-                    let key = "timeAccessSelection_v1_\(bundleId)"
-                    if let selectionData = defaults.data(forKey: key),
-                       let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData) {
-                        allApps.formUnion(selection.applicationTokens)
-                        allCategories.formUnion(selection.categoryTokens)
+        if let data = defaults.data(forKey: "appUnlockSettings_v1") {
+            do {
+                let decoded = try JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
+                
+                for (bundleId, settings) in decoded {
+                    if settings.minuteTariffEnabled == true || settings.familyControlsModeEnabled == true {
+                        let key = "timeAccessSelection_v1_\(bundleId)"
+                        if let selectionData = defaults.data(forKey: key) {
+                            do {
+                                let selection = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
+                                allApps.formUnion(selection.applicationTokens)
+                                allCategories.formUnion(selection.categoryTokens)
+                            } catch {
+                                MonitorLogger.error("Failed to decode selection for \(bundleId): \(error.localizedDescription)", context: [
+                                    "bundleId": bundleId,
+                                    "error": error.localizedDescription
+                                ])
+                            }
+                        }
                     }
                 }
+            } catch {
+                MonitorLogger.error("Failed to decode appUnlockSettings_v1: \(error.localizedDescription)", context: [
+                    "error": error.localizedDescription
+                ])
             }
         }
         
@@ -107,43 +344,68 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             var foundBundleId: String? = nil
             
             // 1) Сначала проверяем группы щитов
-            if let groupsData = defaults.data(forKey: "shieldGroups_v1"),
-               let groups = try? JSONDecoder().decode([ShieldGroupDataForMonitor].self, from: groupsData) {
-                for group in groups {
-                    if let selectionData = group.selectionData,
-                       let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData),
-                       sel.applicationTokens.contains(firstApp) {
-                        // Получаем имя приложения из токена
-                        if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: firstApp, requiringSecureCoding: true) {
-                            let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-                            if let appName = defaults.string(forKey: tokenKey) {
-                                foundBundleId = appName
-                                print("💾 Found app in shield group: \(appName)")
-                                break
+            if let groupsData = defaults.data(forKey: "shieldGroups_v1") {
+                do {
+                    let groups = try JSONDecoder().decode([ShieldGroupDataForMonitor].self, from: groupsData)
+                    for group in groups {
+                        guard let selectionData = group.selectionData else { continue }
+                        
+                        do {
+                            let sel = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
+                            if sel.applicationTokens.contains(firstApp) {
+                                // Получаем имя приложения из токена
+                                do {
+                                    let tokenData = try NSKeyedArchiver.archivedData(withRootObject: firstApp, requiringSecureCoding: true)
+                                    let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
+                                    if let appName = defaults.string(forKey: tokenKey) {
+                                        foundBundleId = appName
+                                        MonitorLogger.info("Found app in shield group: \(appName)")
+                                        break
+                                    }
+                                } catch {
+                                    MonitorLogger.warning("Failed to archive app token: \(error.localizedDescription)")
+                                }
                             }
+                        } catch {
+                            // Silent continue - already logged above
                         }
                     }
+                } catch {
+                    // Silent - already logged in main shield setup
                 }
             }
             
             // 2) Если не нашли в группах, проверяем старые настройки
             if foundBundleId == nil {
-                if let globalSelectionData = defaults.data(forKey: "appSelection_v1"),
-                   let globalSelection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: globalSelectionData) {
-                    if globalSelection.applicationTokens.contains(firstApp) {
-                        if let data = defaults.data(forKey: "appUnlockSettings_v1"),
-                           let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data) {
-                            for (bundleId, _) in decoded {
-                                let key = "timeAccessSelection_v1_\(bundleId)"
-                                if let selectionData = defaults.data(forKey: key),
-                                   let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData),
-                                   selection.applicationTokens.contains(firstApp) {
-                                    foundBundleId = bundleId
-                                    print("💾 Found app in old settings: \(bundleId)")
-                                    break
+                if let globalSelectionData = defaults.data(forKey: "appSelection_v1") {
+                    do {
+                        let globalSelection = try JSONDecoder().decode(FamilyActivitySelection.self, from: globalSelectionData)
+                        if globalSelection.applicationTokens.contains(firstApp) {
+                            if let data = defaults.data(forKey: "appUnlockSettings_v1") {
+                                do {
+                                    let decoded = try JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
+                                    for (bundleId, _) in decoded {
+                                        let key = "timeAccessSelection_v1_\(bundleId)"
+                                        if let selectionData = defaults.data(forKey: key) {
+                                            do {
+                                                let selection = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
+                                                if selection.applicationTokens.contains(firstApp) {
+                                                    foundBundleId = bundleId
+                                                    MonitorLogger.info("Found app in old settings: \(bundleId)")
+                                                    break
+                                                }
+                                            } catch {
+                                                MonitorLogger.error("Failed to decode selection for \(bundleId)", context: ["error": error.localizedDescription])
+                                            }
+                                        }
+                                    }
+                                } catch {
+                                    MonitorLogger.error("Failed to decode appUnlockSettings_v1 for bundleId lookup", context: ["error": error.localizedDescription])
                                 }
                             }
                         }
+                    } catch {
+                        MonitorLogger.error("Failed to decode appSelection_v1", context: ["error": error.localizedDescription])
                     }
                 }
             }
@@ -151,13 +413,13 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             // Save for unlock action
             if let bundleId = foundBundleId {
                 defaults.set(bundleId, forKey: "lastBlockedAppBundleId")
-                print("💾 Saved last blocked app: \(bundleId)")
+                MonitorLogger.info("Saved last blocked app: \(bundleId)")
             } else {
-                print("⚠️ Could not find bundleId for blocked app token")
+                MonitorLogger.warning("Could not find bundleId for blocked app token")
             }
         }
         
-        print("🛡️ Shield applied: \(allApps.count) apps, \(allCategories.count) categories")
+        MonitorLogger.info("Shield applied: \(allApps.count) apps, \(allCategories.count) categories")
     }
     
     #if canImport(UserNotifications)
@@ -282,6 +544,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let activityName = DeviceActivityName("minuteMode")
         let events = buildAllMinuteEvents(defaults: defaults)
         if events.isEmpty {
+            MonitorLogger.info("No events to monitor, stopping minuteMode")
             center.stopMonitoring([activityName])
             return
         }
@@ -295,26 +558,52 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         center.stopMonitoring([activityName])
         do {
             try center.startMonitoring(activityName, during: schedule, events: events)
+            MonitorLogger.info("Restarted minuteMode monitoring with \(events.count) events")
         } catch {
-            // Best-effort: will be retried on next app foreground / next toggle.
+            MonitorLogger.error("Failed to restart minuteMode monitoring: \(error.localizedDescription)", context: [
+                "eventsCount": "\(events.count)",
+                "error": error.localizedDescription
+            ])
         }
         #endif
     }
     
     private func buildAllMinuteEvents(defaults: UserDefaults) -> [DeviceActivityEvent.Name: DeviceActivityEvent] {
         #if canImport(FamilyControls) && canImport(DeviceActivity)
-        guard let data = defaults.data(forKey: "appUnlockSettings_v1"),
-              let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
-        else { return [:] }
+        guard let data = defaults.data(forKey: "appUnlockSettings_v1") else {
+            MonitorLogger.warning("No appUnlockSettings_v1 data for buildAllMinuteEvents")
+            return [:]
+        }
+        
+        let decoded: [String: StoredUnlockSettings]
+        do {
+            decoded = try JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
+        } catch {
+            MonitorLogger.error("Failed to decode appUnlockSettings_v1 in buildAllMinuteEvents: \(error.localizedDescription)", context: [
+                "error": error.localizedDescription
+            ])
+            return [:]
+        }
         
         let today = dayKey(for: Date())
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
         
         for (bundleId, _) in decoded {
             let key = "timeAccessSelection_v1_\(bundleId)"
-            guard let selectionData = defaults.data(forKey: key),
-                  let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
-            else { continue }
+            guard let selectionData = defaults.data(forKey: key) else {
+                continue
+            }
+            
+            let selection: FamilyActivitySelection
+            do {
+                selection = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
+            } catch {
+                MonitorLogger.error("Failed to decode selection for \(bundleId) in buildAllMinuteEvents: \(error.localizedDescription)", context: [
+                    "bundleId": bundleId,
+                    "error": error.localizedDescription
+                ])
+                continue
+            }
             
             if selection.applicationTokens.isEmpty && selection.categoryTokens.isEmpty {
                 continue
@@ -335,6 +624,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             events[eventName] = event
         }
         
+        MonitorLogger.info("Built \(events.count) minute events")
         return events
         #else
         return [:]
@@ -343,9 +633,12 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     
     private func logMinuteCharge(bundleId: String, cost: Int, balanceAfter: Int, defaults: UserDefaults) {
         var logs: [MinuteChargeLog] = []
-        if let data = defaults.data(forKey: "minuteChargeLogs_v1"),
-           let decoded = try? JSONDecoder().decode([MinuteChargeLog].self, from: data) {
-            logs = decoded
+        if let data = defaults.data(forKey: "minuteChargeLogs_v1") {
+            do {
+                logs = try JSONDecoder().decode([MinuteChargeLog].self, from: data)
+            } catch {
+                MonitorLogger.warning("Failed to decode minuteChargeLogs_v1, starting fresh: \(error.localizedDescription)")
+            }
         }
         
         let entry = MinuteChargeLog(
@@ -361,8 +654,14 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             logs = Array(logs.suffix(100))
         }
         
-        if let data = try? JSONEncoder().encode(logs) {
+        do {
+            let data = try JSONEncoder().encode(logs)
             defaults.set(data, forKey: "minuteChargeLogs_v1")
+        } catch {
+            MonitorLogger.error("Failed to encode minuteChargeLogs_v1: \(error.localizedDescription)", context: [
+                "bundleId": bundleId,
+                "error": error.localizedDescription
+            ])
         }
         
         // Also update cumulative time per app per day
@@ -372,9 +671,12 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     private func updateMinuteTimeLog(bundleId: String, defaults: UserDefaults) {
         let dayKey = dayKey(for: Date())
         var perDay: [String: [String: Int]] = [:]
-        if let data = defaults.data(forKey: "minuteTimeByDay_v1"),
-           let decoded = try? JSONDecoder().decode([String: [String: Int]].self, from: data) {
-            perDay = decoded
+        if let data = defaults.data(forKey: "minuteTimeByDay_v1") {
+            do {
+                perDay = try JSONDecoder().decode([String: [String: Int]].self, from: data)
+            } catch {
+                MonitorLogger.warning("Failed to decode minuteTimeByDay_v1, starting fresh: \(error.localizedDescription)")
+            }
         }
         
         var dayMap = perDay[dayKey] ?? [:]
@@ -385,8 +687,14 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let sortedKeys = perDay.keys.sorted().suffix(7)
         perDay = perDay.filter { sortedKeys.contains($0.key) }
         
-        if let data = try? JSONEncoder().encode(perDay) {
+        do {
+            let data = try JSONEncoder().encode(perDay)
             defaults.set(data, forKey: "minuteTimeByDay_v1")
+        } catch {
+            MonitorLogger.error("Failed to encode minuteTimeByDay_v1: \(error.localizedDescription)", context: [
+                "bundleId": bundleId,
+                "error": error.localizedDescription
+            ])
         }
     }
 
@@ -396,10 +704,20 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     }
 
     private func unlockSettings(for bundleId: String, defaults: UserDefaults) -> StoredUnlockSettings? {
-        guard let data = defaults.data(forKey: "appUnlockSettings_v1"),
-              let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
-        else { return nil }
-        return decoded[bundleId]
+        guard let data = defaults.data(forKey: "appUnlockSettings_v1") else {
+            return nil
+        }
+        
+        do {
+            let decoded = try JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
+            return decoded[bundleId]
+        } catch {
+            MonitorLogger.error("Failed to decode appUnlockSettings_v1 for bundleId \(bundleId): \(error.localizedDescription)", context: [
+                "bundleId": bundleId,
+                "error": error.localizedDescription
+            ])
+            return nil
+        }
     }
 
     private func applyMinuteCharge(cost: Int, for bundleId: String, defaults: UserDefaults) {
@@ -423,37 +741,58 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     }
 
     private func updateSpentSteps(cost: Int, for bundleId: String, defaults: UserDefaults) {
+        // Update today's spent steps per app
         var perAppToday: [String: Int] = [:]
-        if let data = defaults.data(forKey: "appStepsSpentToday_v1"),
-           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
-            perAppToday = decoded
+        if let data = defaults.data(forKey: "appStepsSpentToday_v1") {
+            do {
+                perAppToday = try JSONDecoder().decode([String: Int].self, from: data)
+            } catch {
+                MonitorLogger.warning("Failed to decode appStepsSpentToday_v1: \(error.localizedDescription)")
+            }
         }
         perAppToday[bundleId, default: 0] += cost
-        if let data = try? JSONEncoder().encode(perAppToday) {
+        do {
+            let data = try JSONEncoder().encode(perAppToday)
             defaults.set(data, forKey: "appStepsSpentToday_v1")
+        } catch {
+            MonitorLogger.error("Failed to encode appStepsSpentToday_v1", context: ["error": error.localizedDescription])
         }
 
+        // Update lifetime spent steps per app
         var lifetime: [String: Int] = [:]
-        if let data = defaults.data(forKey: "appStepsSpentLifetime_v1"),
-           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
-            lifetime = decoded
+        if let data = defaults.data(forKey: "appStepsSpentLifetime_v1") {
+            do {
+                lifetime = try JSONDecoder().decode([String: Int].self, from: data)
+            } catch {
+                MonitorLogger.warning("Failed to decode appStepsSpentLifetime_v1: \(error.localizedDescription)")
+            }
         }
         lifetime[bundleId, default: 0] += cost
-        if let data = try? JSONEncoder().encode(lifetime) {
+        do {
+            let data = try JSONEncoder().encode(lifetime)
             defaults.set(data, forKey: "appStepsSpentLifetime_v1")
+        } catch {
+            MonitorLogger.error("Failed to encode appStepsSpentLifetime_v1", context: ["error": error.localizedDescription])
         }
 
+        // Update daily breakdown
         var perDay: [String: [String: Int]] = [:]
-        if let data = defaults.data(forKey: "appStepsSpentByDay_v1"),
-           let decoded = try? JSONDecoder().decode([String: [String: Int]].self, from: data) {
-            perDay = decoded
+        if let data = defaults.data(forKey: "appStepsSpentByDay_v1") {
+            do {
+                perDay = try JSONDecoder().decode([String: [String: Int]].self, from: data)
+            } catch {
+                MonitorLogger.warning("Failed to decode appStepsSpentByDay_v1: \(error.localizedDescription)")
+            }
         }
         let dayKey = dayKey(for: Date())
         var dayMap = perDay[dayKey] ?? [:]
         dayMap[bundleId, default: 0] += cost
         perDay[dayKey] = dayMap
-        if let data = try? JSONEncoder().encode(perDay) {
+        do {
+            let data = try JSONEncoder().encode(perDay)
             defaults.set(data, forKey: "appStepsSpentByDay_v1")
+        } catch {
+            MonitorLogger.error("Failed to encode appStepsSpentByDay_v1", context: ["error": error.localizedDescription])
         }
     }
 

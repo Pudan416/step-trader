@@ -550,7 +550,7 @@ struct SettingsView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary.opacity(0.5))
             
-            Text(loc(appLanguage, "Built with 💜 for bloody meantal health"))
+            Text(loc(appLanguage, "Built to 👊 for freedom"))
                 .font(.caption2)
                 .foregroundColor(.secondary.opacity(0.4))
         }

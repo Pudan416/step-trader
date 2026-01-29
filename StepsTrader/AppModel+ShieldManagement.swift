@@ -70,10 +70,15 @@ extension AppModel {
             for group in shieldGroups {
                 // Проверяем, не разблокирована ли группа временно
                 let unlockKey = "groupUnlock_\(group.id)"
-                if let unlockUntil = defaults.object(forKey: unlockKey) as? Date,
-                   now < unlockUntil {
-                    print("⏭️ Skipping group \(group.name) - unlocked until \(unlockUntil)")
-                    continue
+                if let unlockUntil = defaults.object(forKey: unlockKey) as? Date {
+                    if now < unlockUntil {
+                        print("⏭️ Skipping group \(group.name) - unlocked until \(unlockUntil)")
+                        continue
+                    } else {
+                        // Unlock expired - clean it up
+                        print("🧹 Cleaning expired unlock for group \(group.name)")
+                        defaults.removeObject(forKey: unlockKey)
+                    }
                 }
                 
                 if group.settings.familyControlsModeEnabled == true || group.settings.minuteTariffEnabled == true {
@@ -148,6 +153,29 @@ extension AppModel {
     func isTimeAccessEnabled(for bundleId: String) -> Bool {
         let selection = timeAccessSelection(for: bundleId)
         return !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
+    }
+    
+    // MARK: - Cleanup Expired Unlocks
+    func cleanupExpiredUnlocks() {
+        let defaults = UserDefaults.stepsTrader()
+        let now = Date()
+        var cleanedCount = 0
+        
+        // Clean up expired group unlocks
+        for group in shieldGroups {
+            let unlockKey = "groupUnlock_\(group.id)"
+            if let unlockUntil = defaults.object(forKey: unlockKey) as? Date,
+               now >= unlockUntil {
+                defaults.removeObject(forKey: unlockKey)
+                cleanedCount += 1
+                print("🧹 Cleaned expired unlock for group \(group.name)")
+            }
+        }
+        
+        if cleanedCount > 0 {
+            print("🧹 Cleaned \(cleanedCount) expired unlock(s), rebuilding shield...")
+            rebuildFamilyControlsShield()
+        }
     }
     
     func scheduleSupabaseShieldUpsert(bundleId: String) {

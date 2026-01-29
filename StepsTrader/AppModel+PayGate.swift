@@ -1,6 +1,10 @@
 import Foundation
+import UserNotifications
 #if canImport(FamilyControls)
 import FamilyControls
+#endif
+#if canImport(DeviceActivity)
+import DeviceActivity
 #endif
 
 // MARK: - PayGate Management
@@ -55,6 +59,7 @@ extension AppModel {
     }
     
     // MARK: - PayGate Payment Handling
+    @MainActor
     func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async {
         guard let group = shieldGroups.first(where: { $0.id == groupId }) else {
             print("⚠️ PayGate: Group \(groupId) not found for payment")
@@ -64,49 +69,228 @@ extension AppModel {
         // Get cost - use override if provided, otherwise use group's cost for the window
         let cost = costOverride ?? group.cost(for: window)
         
+        print("💰 Attempting to pay \(cost) control for group \(group.name)")
+        print("💰 Current balance: \(totalStepsBalance) (base: \(stepsBalance), bonus: \(bonusSteps))")
+        
         // Pay the cost
         guard pay(cost: cost) else {
             message = "Not enough control"
+            print("❌ Payment failed - not enough control")
             return
         }
         
-        // Find a bundle ID from the group to apply access window
-        #if canImport(FamilyControls)
-        let userDefaults = UserDefaults.stepsTrader()
-        for token in group.selection.applicationTokens {
-            if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-                let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-                if let appName = userDefaults.string(forKey: tokenKey) {
-                    let bundleId = TargetResolver.bundleId(from: appName) ?? appName
-                    addSpentSteps(cost, for: bundleId)
-                    applyAccessWindow(window, for: bundleId)
-                    break
-                }
-            }
-        }
-        #endif
+        print("✅ Payment successful! New balance: \(totalStepsBalance) (base: \(stepsBalance), bonus: \(bonusSteps))")
         
-        // Also set group-level unlock
-        let defaults = UserDefaults.stepsTrader()
-        if let until = accessWindowExpiration(window, now: Date()) {
-            defaults.set(until, forKey: "groupUnlock_\(groupId)")
+        // Force UI update immediately - trigger on next run loop
+        await MainActor.run {
+            objectWillChange.send()
         }
+        
+        // Small delay to let SwiftUI process the state change
+        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+        
+        // Force another update after delay
+        await MainActor.run {
+            objectWillChange.send()
+        }
+        
+        // Set group-level unlock timestamp
+        let defaults = UserDefaults.stepsTrader()
+        let now = Date()
+        if let until = accessWindowExpiration(window, now: now) {
+            defaults.set(until, forKey: "groupUnlock_\(groupId)")
+            print("🔓 Group \(group.name) unlocked until \(until)")
+            
+            let remainingSeconds = Int(until.timeIntervalSince(now))
+            
+            // Schedule notification 1 minute before expiration
+            scheduleUnlockExpiryNotification(groupName: group.name, expiresAt: until)
+            
+            // Schedule shield rebuild when unlock expires
+            scheduleShieldRebuild(after: remainingSeconds, groupId: groupId)
+        }
+        
+        // Track spent steps for analytics (use group id as identifier)
+        addSpentSteps(cost, for: "group_\(groupId)")
+        
+        // Log payment transaction for history (capture balance before payment)
+        let balanceBeforePayment = totalStepsBalance + cost
+        logPaymentTransaction(
+            amount: cost,
+            target: "group_\(groupId)",
+            targetName: group.name,
+            window: window,
+            balanceBefore: balanceBeforePayment,
+            balanceAfter: totalStepsBalance
+        )
+        
+        // CRITICAL: Rebuild shield to actually remove the block from all apps in the group
+        rebuildFamilyControlsShield()
+        
+        // Another small delay before dismissing to ensure UI has updated
+        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
         
         // Dismiss pay gate
         dismissPayGate(reason: .programmatic)
     }
     
+    // MARK: - Scheduled Shield Rebuild
+    private func scheduleShieldRebuild(after seconds: Int, groupId: String) {
+        // Cancel any existing rebuild task for this group
+        unlockExpiryTasks[groupId]?.cancel()
+        
+        // Schedule DeviceActivity interval that ends at unlock expiry
+        // This ensures the extension gets called even if app is in background
+        scheduleUnlockExpiryActivity(groupId: groupId, expiresInSeconds: seconds)
+        
+        // Also keep local Task for immediate rebuild when app is in foreground
+        let task = Task { @MainActor in
+            do {
+                // Wait until unlock expires
+                try await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
+                
+                guard !Task.isCancelled else { return }
+                
+                // Clear the unlock key
+                let defaults = UserDefaults.stepsTrader()
+                let unlockKey = "groupUnlock_\(groupId)"
+                defaults.removeObject(forKey: unlockKey)
+                
+                print("⏰ Unlock expired for group \(groupId), clearing unlock key and rebuilding shield...")
+                
+                // Rebuild shield to restore blocking
+                rebuildFamilyControlsShield()
+                
+                // Clean up the task
+                unlockExpiryTasks.removeValue(forKey: groupId)
+            } catch {
+                // Task was cancelled
+                print("🚫 Shield rebuild task cancelled for group \(groupId)")
+                unlockExpiryTasks.removeValue(forKey: groupId)
+            }
+        }
+        
+        unlockExpiryTasks[groupId] = task
+    }
+    
+    /// Schedule a DeviceActivity interval that ends when the unlock expires
+    /// This triggers intervalDidEnd in the extension, which checks for expired unlocks
+    private func scheduleUnlockExpiryActivity(groupId: String, expiresInSeconds: Int) {
+        #if canImport(DeviceActivity)
+        let center = DeviceActivityCenter()
+        let activityName = DeviceActivityName("unlockExpiry_\(groupId)")
+        
+        // Calculate end time components
+        let expiryDate = Date().addingTimeInterval(TimeInterval(expiresInSeconds))
+        let calendar = Calendar.current
+        let endComponents = calendar.dateComponents([.hour, .minute, .second], from: expiryDate)
+        
+        // Start is now
+        let now = Date()
+        let startComponents = calendar.dateComponents([.hour, .minute, .second], from: now)
+        
+        let schedule = DeviceActivitySchedule(
+            intervalStart: startComponents,
+            intervalEnd: endComponents,
+            repeats: false
+        )
+        
+        // Stop any existing monitoring for this activity
+        center.stopMonitoring([activityName])
+        
+        do {
+            try center.startMonitoring(activityName, during: schedule)
+            print("📅 Scheduled unlock expiry activity for group \(groupId) in \(expiresInSeconds) seconds")
+        } catch {
+            print("❌ Failed to schedule unlock expiry activity: \(error)")
+        }
+        #endif
+    }
+    
+    // MARK: - Expiry Notifications
+    private func scheduleUnlockExpiryNotification(groupName: String, expiresAt: Date) {
+        let now = Date()
+        let totalSeconds = Int(expiresAt.timeIntervalSince(now))
+        
+        // Schedule notification 1 minute before expiration (if unlock is longer than 1 min)
+        if totalSeconds > 60 {
+            let fireIn = totalSeconds - 60
+            scheduleGroupExpiryPush(groupName: groupName, fireInSeconds: fireIn, minutesRemaining: 1)
+        }
+        
+        // Also schedule at expiration
+        scheduleGroupExpiryPush(groupName: groupName, fireInSeconds: totalSeconds, minutesRemaining: 0)
+    }
+    
+    private func scheduleGroupExpiryPush(groupName: String, fireInSeconds: Int, minutesRemaining: Int) {
+        guard fireInSeconds > 0 else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.sound = .default
+        
+        if minutesRemaining > 0 {
+            content.title = "⏱️ \(groupName)"
+            content.body = "Access ends in \(minutesRemaining) min. Save your work!"
+        } else {
+            content.title = "🔒 \(groupName)"
+            content.body = "Access ended. Apps are blocked again."
+        }
+        
+        let trigger = UNTimeIntervalNotificationTrigger(
+            timeInterval: TimeInterval(fireInSeconds),
+            repeats: false
+        )
+        
+        let identifier = "groupUnlock-\(minutesRemaining)min-\(UUID().uuidString)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to schedule expiry notification: \(error)")
+            } else {
+                print("📤 Scheduled \(groupName) expiry notification in \(fireInSeconds)s")
+            }
+        }
+    }
+    
+    @MainActor
     func handlePayGatePayment(for bundleId: String, window: AccessWindow) async {
         let cost = unlockSettings(for: bundleId).entryCostSteps
+        
+        print("💰 handlePayGatePayment for \(bundleId), cost: \(cost)")
+        print("💰 Current balance: \(totalStepsBalance) (base: \(stepsBalance), bonus: \(bonusSteps))")
         
         // Pay the cost
         guard pay(cost: cost) else {
             message = "Not enough control"
+            print("❌ Payment failed - not enough control")
             return
         }
         
+        print("✅ Payment successful! New balance: \(totalStepsBalance) (base: \(stepsBalance), bonus: \(bonusSteps))")
+        
+        // Log payment transaction for history
+        let balanceBeforePayment = totalStepsBalance + cost
+        logPaymentTransaction(
+            amount: cost,
+            target: bundleId,
+            targetName: nil,
+            window: window,
+            balanceBefore: balanceBeforePayment,
+            balanceAfter: totalStepsBalance
+        )
+        
         addSpentSteps(cost, for: bundleId)
         applyAccessWindow(window, for: bundleId)
+        
+        // Force UI update
+        objectWillChange.send()
+        
+        // Small delay to let SwiftUI process
+        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+        
+        // Force another update
+        objectWillChange.send()
         
         // Dismiss pay gate
         dismissPayGate(reason: .programmatic)
@@ -127,6 +311,55 @@ extension AppModel {
         }
         g.removeObject(forKey: "shouldShowPayGate")
         g.removeObject(forKey: "payGateTargetGroupId")
+    }
+    
+    // MARK: - Payment Transaction Logging
+    struct PaymentTransaction: Codable {
+        let id: String
+        let timestamp: Date
+        let amount: Int
+        let target: String
+        let targetName: String?
+        let window: String?
+        let balanceBefore: Int
+        let balanceAfter: Int
+    }
+    
+    private func logPaymentTransaction(amount: Int, target: String, targetName: String?, window: AccessWindow?, balanceBefore: Int, balanceAfter: Int) {
+        let transaction = PaymentTransaction(
+            id: UUID().uuidString,
+            timestamp: Date(),
+            amount: amount,
+            target: target,
+            targetName: targetName,
+            window: window?.rawValue,
+            balanceBefore: balanceBefore,
+            balanceAfter: balanceAfter
+        )
+        
+        let defaults = UserDefaults.stepsTrader()
+        var transactions: [PaymentTransaction] = []
+        
+        // Load existing transactions
+        if let data = defaults.data(forKey: "paymentTransactions_v1"),
+           let decoded = try? JSONDecoder().decode([PaymentTransaction].self, from: data) {
+            transactions = decoded
+        }
+        
+        // Add new transaction
+        transactions.append(transaction)
+        
+        // Keep only last 1000 transactions to prevent storage bloat
+        if transactions.count > 1000 {
+            transactions = Array(transactions.suffix(1000))
+        }
+        
+        // Save transactions
+        if let data = try? JSONEncoder().encode(transactions) {
+            defaults.set(data, forKey: "paymentTransactions_v1")
+            defaults.synchronize()
+            print("📝 Logged payment transaction: \(amount) for \(target) (balance: \(balanceBefore) → \(balanceAfter))")
+        }
     }
     
     // MARK: - Automation Recording

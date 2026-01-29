@@ -3,6 +3,8 @@ import AuthenticationServices
 
 struct LoginView: View {
     @ObservedObject var authService: AuthenticationService
+    var showsClose: Bool = true
+    var onAuthenticated: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     
@@ -39,16 +41,20 @@ struct LoginView: View {
             
             VStack(spacing: 0) {
                 // Close button
-                HStack {
-                    Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(.white.opacity(0.5))
+                if showsClose {
+                    HStack {
+                        Spacer()
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        .padding()
                     }
-                    .padding()
+                } else {
+                    Spacer(minLength: 24)
                 }
                 
                 Spacer()
@@ -153,7 +159,10 @@ struct LoginView: View {
         }
         .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
             if isAuthenticated {
-                dismiss()
+                onAuthenticated?()
+                if showsClose {
+                    dismiss()
+                }
             }
         }
     }
@@ -193,4 +202,3 @@ struct LoginView: View {
 #Preview {
     LoginView(authService: AuthenticationService.shared)
 }
-

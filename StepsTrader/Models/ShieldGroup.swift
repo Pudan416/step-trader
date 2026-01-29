@@ -11,14 +11,16 @@ extension AppModel {
         var settings: AppUnlockSettings
         var difficultyLevel: Int = 1 // Difficulty level (1-5)
         var enabledIntervals: Set<AccessWindow> = [.minutes5, .minutes15, .minutes30, .hour1, .hour2] // Enabled intervals
+        var templateApp: String? = nil // Template bundle ID (e.g., "com.burbn.instagram")
         
-        init(id: String = UUID().uuidString, name: String, selection: FamilyActivitySelection = FamilyActivitySelection(), settings: AppUnlockSettings) {
+        init(id: String = UUID().uuidString, name: String, selection: FamilyActivitySelection = FamilyActivitySelection(), settings: AppUnlockSettings, templateApp: String? = nil) {
             self.id = id
             self.name = name
             self.selection = selection
             self.settings = settings
             self.difficultyLevel = 1
             self.enabledIntervals = [.minutes5, .minutes15, .minutes30, .hour1, .hour2]
+            self.templateApp = templateApp
         }
         
         // Calculates cost for interval based on difficulty level
@@ -44,7 +46,7 @@ extension AppModel {
         
         // Custom Codable implementation for FamilyActivitySelection
         enum CodingKeys: String, CodingKey {
-            case id, name, selectionData, settings, minuteCost, difficultyLevel, enabledIntervals
+            case id, name, selectionData, settings, minuteCost, difficultyLevel, enabledIntervals, templateApp
         }
         
         init(from decoder: Decoder) throws {
@@ -61,6 +63,7 @@ extension AppModel {
             }
             
             enabledIntervals = try container.decodeIfPresent(Set<AccessWindow>.self, forKey: .enabledIntervals) ?? [.minutes5, .minutes15, .minutes30, .hour1, .hour2]
+            templateApp = try container.decodeIfPresent(String.self, forKey: .templateApp)
             
             #if canImport(FamilyControls)
             if let data = try? container.decode(Data.self, forKey: .selectionData),
@@ -81,6 +84,7 @@ extension AppModel {
             try container.encode(settings, forKey: .settings)
             try container.encode(difficultyLevel, forKey: .difficultyLevel)
             try container.encode(enabledIntervals, forKey: .enabledIntervals)
+            try container.encodeIfPresent(templateApp, forKey: .templateApp)
             
             #if canImport(FamilyControls)
             if let data = try? JSONEncoder().encode(selection) {

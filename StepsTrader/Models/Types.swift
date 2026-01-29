@@ -26,6 +26,7 @@ struct HandoffToken: Codable {
 @preconcurrency
 protocol HealthKitServiceProtocol {
     func fetchTodaySleep() async throws -> Double
+    func fetchSleep(from: Date, to: Date) async throws -> Double
     @MainActor
     func requestAuthorization() async throws
     @MainActor

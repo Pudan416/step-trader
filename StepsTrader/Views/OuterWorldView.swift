@@ -719,14 +719,24 @@ struct OuterWorldView: View {
             do {
                 let cfg = try SupabaseConfig.load()
                 let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
-                var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false)!
+                guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
+                    print("❌ Invalid users URL for leaderboard")
+                    await MainActor.run { isLoadingLeaderboard = false }
+                    return
+                }
                 comps.queryItems = [
                     URLQueryItem(name: "select", value: "id,nickname,energy_spent_lifetime"),
                     URLQueryItem(name: "order", value: "energy_spent_lifetime.desc"),
                     URLQueryItem(name: "limit", value: "50")
                 ]
                 
-                var request = URLRequest(url: comps.url!)
+                guard let finalURL = comps.url else {
+                    print("❌ Failed to construct leaderboard URL")
+                    await MainActor.run { isLoadingLeaderboard = false }
+                    return
+                }
+                
+                var request = URLRequest(url: finalURL)
                 request.setValue(cfg.apiKey, forHTTPHeaderField: "apikey")
                 request.setValue("application/json", forHTTPHeaderField: "Accept")
                 
@@ -735,7 +745,7 @@ struct OuterWorldView: View {
                     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                 }
                 
-                print("🏆 Leaderboard request: \(comps.url?.absoluteString ?? "nil")")
+                print("🏆 Leaderboard request: \(finalURL.absoluteString)")
                 
                 let (data, response) = try await URLSession.shared.data(for: request)
                 
