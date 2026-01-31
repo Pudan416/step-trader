@@ -33,7 +33,6 @@ struct StepsTraderApp: App {
                         QuickStatusView(model: model)
                     } else {
                         MainTabView(model: model, theme: currentTheme)
-                            .id("main-\(model.totalStepsBalance)-\(model.stepsBalance)-\(model.bonusSteps)")  // Force refresh when balance changes
                     }
 
                     // Handoff protection screen (disabled for Instagram flow)
@@ -65,6 +64,9 @@ struct StepsTraderApp: App {
                     .zIndex(3)
                 }
             }
+            .themed(currentTheme)
+            .tint(currentTheme.accentColor)
+            .grayscale(currentTheme == .minimal ? 1.0 : 0.0)
             .onAppear {
                 // Language selection was removed; keep the UI in English if an old value was persisted.
                 if appLanguage == "ru" { appLanguage = "en" }
@@ -111,6 +113,14 @@ struct StepsTraderApp: App {
             .task {
                 if hasCompletedOnboarding {
                     await model.ensureHealthAuthorizationAndRefresh()
+                }
+                
+                // Периодическая проверка истёкших разблокировок (каждые 30 сек)
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 секунд
+                    await MainActor.run {
+                        model.cleanupExpiredUnlocks()
+                    }
                 }
             }
             .onReceive(
@@ -321,7 +331,7 @@ struct StepsTraderApp: App {
 
 private extension StepsTraderApp {
     var currentTheme: AppTheme {
-        AppTheme(rawValue: appThemeRaw) ?? .system
+        AppTheme.normalized(rawValue: appThemeRaw)
     }
 }
 

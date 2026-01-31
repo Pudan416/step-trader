@@ -17,7 +17,6 @@ struct AppUser: Codable {
     
     // Synced stats
     var energySpentLifetime: Int
-    var batteriesCollected: Int
     
     var displayName: String {
         if let nickname = nickname, !nickname.isEmpty {
@@ -44,7 +43,7 @@ struct AppUser: Codable {
         return flag.isEmpty ? nil : flag
     }
     
-    init(id: String, email: String?, nickname: String? = nil, country: String? = nil, avatarData: Data? = nil, avatarURL: String? = nil, createdAt: Date, energySpentLifetime: Int = 0, batteriesCollected: Int = 0) {
+    init(id: String, email: String?, nickname: String? = nil, country: String? = nil, avatarData: Data? = nil, avatarURL: String? = nil, createdAt: Date, energySpentLifetime: Int = 0) {
         self.id = id
         self.email = email
         self.nickname = nickname
@@ -53,7 +52,6 @@ struct AppUser: Codable {
         self.avatarURL = avatarURL
         self.createdAt = createdAt
         self.energySpentLifetime = energySpentLifetime
-        self.batteriesCollected = batteriesCollected
     }
 }
 
@@ -69,22 +67,42 @@ class AuthenticationService: NSObject, ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: String?
     
+    /// Indicates if the initial session restore has completed
+    @Published private(set) var isInitialized: Bool = false
+    
     /// Current access token for API requests (nil if not authenticated)
     var accessToken: String? {
-        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-              let session = try? JSONDecoder().decode(SupabaseSessionResponse.self, from: data)
-        else { return nil }
-        return session.accessToken
+        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else { return nil }
+        // Try both decoders for backward compatibility
+        if let session = try? supabaseJSONDecoder().decode(SupabaseSessionResponse.self, from: data) {
+            return session.accessToken
+        }
+        if let session = try? JSONDecoder().decode(SupabaseSessionResponse.self, from: data) {
+            return session.accessToken
+        }
+        return nil
     }
     
     private let userDefaultsKey = "supabaseSession_v1"
     private let avatarDefaultsPrefix = "userAvatarData_v1_"
     private var currentNonce: String?
+    private var initializationContinuation: CheckedContinuation<Void, Never>?
     
     override init() {
         super.init()
         Task { @MainActor in
             await loadStoredSessionAndRefreshUser()
+            isInitialized = true
+            print("🔐 AuthenticationService initialized: isAuthenticated=\(isAuthenticated)")
+        }
+    }
+    
+    /// Wait for the initial session restore to complete
+    func waitForInitialization() async {
+        if isInitialized { return }
+        // Poll until initialized (simple approach)
+        while !isInitialized {
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
         }
     }
     
@@ -145,19 +163,17 @@ class AuthenticationService: NSObject, ObservableObject {
         guard isAuthenticated, let user = currentUser else { return }
         
         let energy = totalLocalEnergySpent()
-        let batteries = totalLocalBatteriesCollected()
         
         // Only sync if changed
-        if energy == user.energySpentLifetime && batteries == user.batteriesCollected { return }
+        if energy == user.energySpentLifetime { return }
         
         Task { @MainActor in
             guard let session = loadStoredSession() else { return }
             do {
-                try await syncStatsToSupabase(session: session, userId: user.id, energy: energy, batteries: batteries)
+                try await syncStatsToSupabase(session: session, userId: user.id, energy: energy)
                 // Update local user
                 var updatedUser = user
                 updatedUser.energySpentLifetime = energy
-                updatedUser.batteriesCollected = batteries
                 currentUser = updatedUser
             } catch {
                 print("❌ Stats sync failed: \(error.localizedDescription)")
@@ -286,20 +302,28 @@ class AuthenticationService: NSObject, ObservableObject {
     var currentSupabaseAccessToken: String? { loadStoredSession()?.accessToken }
     
     private func loadStoredSessionAndRefreshUser() async {
+        print("🔐 loadStoredSessionAndRefreshUser called")
         guard let session = loadStoredSession() else {
+            print("🔐 No stored session found in UserDefaults")
             currentUser = nil
             isAuthenticated = false
             return
         }
         
+        print("🔐 Found stored session, user: \(session.user.id), expires: \(session.expiresAt)")
+        
         do {
             let validSession = try await ensureValidSession(session)
+            print("🔐 Session validated/refreshed successfully")
             if validSession.accessToken != session.accessToken {
+                print("🔐 Token was refreshed, storing new session")
                 storeSession(validSession)
             }
             try await loadCurrentUserFromSupabase(session: validSession)
             isAuthenticated = (currentUser != nil)
+            print("🔐 Final state: isAuthenticated=\(isAuthenticated), user=\(currentUser?.id ?? "nil")")
         } catch {
+            print("🔐 Session restore failed: \(error.localizedDescription)")
             // Session likely invalid/revoked
             clearStoredSession()
             currentUser = nil
@@ -427,7 +451,7 @@ class AuthenticationService: NSObject, ObservableObject {
         }
         let uid = session.user.id
         comps.queryItems = [
-            URLQueryItem(name: "select", value: "id,email,nickname,country,created_at,is_banned,ban_reason,ban_until,energy_spent_lifetime,batteries_collected"),
+            URLQueryItem(name: "select", value: "id,email,nickname,country,created_at,is_banned,ban_reason,ban_until,energy_spent_lifetime"),
             URLQueryItem(name: "id", value: "eq.\(uid)")
         ]
         
@@ -465,8 +489,7 @@ class AuthenticationService: NSObject, ObservableObject {
                 avatarData: loadAvatarData(for: session.user.id),
                 avatarURL: nil,
                 createdAt: session.user.createdAt ?? Date(),
-                energySpentLifetime: 0,
-                batteriesCollected: 0
+                energySpentLifetime: 0
             )
             currentUser = user
             
@@ -513,8 +536,7 @@ class AuthenticationService: NSObject, ObservableObject {
                     avatarData: avatarData,
                     avatarURL: row.avatarUrl,
                     createdAt: row.createdAt,
-                    energySpentLifetime: row.energySpentLifetime ?? 0,
-                    batteriesCollected: row.batteriesCollected ?? 0
+                    energySpentLifetime: row.energySpentLifetime ?? 0
                 )
                 isAuthenticated = true
                 error = "Account is banned."
@@ -523,14 +545,10 @@ class AuthenticationService: NSObject, ObservableObject {
         }
         
         let serverEnergy = row.energySpentLifetime ?? 0
-        let serverBatteries = row.batteriesCollected ?? 0
         
         // Merge with local data - take maximum to prevent losing progress
         let localEnergy = totalLocalEnergySpent()
-        let localBatteries = totalLocalBatteriesCollected()
-        
         let mergedEnergy = max(serverEnergy, localEnergy)
-        let mergedBatteries = max(serverBatteries, localBatteries)
         
         currentUser = AppUser(
             id: row.id,
@@ -540,30 +558,21 @@ class AuthenticationService: NSObject, ObservableObject {
             avatarData: avatarData,
             avatarURL: row.avatarUrl,
             createdAt: row.createdAt,
-            energySpentLifetime: mergedEnergy,
-            batteriesCollected: mergedBatteries
+            energySpentLifetime: mergedEnergy
         )
         
         // If local has more, push to server
-        if localEnergy > serverEnergy || localBatteries > serverBatteries {
+        if localEnergy > serverEnergy {
             Task {
-                try? await syncStatsToSupabase(session: session, userId: row.id, energy: mergedEnergy, batteries: mergedBatteries)
+                try? await syncStatsToSupabase(session: session, userId: row.id, energy: mergedEnergy)
             }
         }
         
         // Apply server data to local storage if server has more
-        var didRestoreData = false
         if serverEnergy > localEnergy {
             applyEnergySpentToLocal(serverEnergy)
-            didRestoreData = true
-        }
-        if serverBatteries > localBatteries {
-            applyBatteriesToLocal(serverBatteries)
-            didRestoreData = true
-        }
-        
-        // Notify AppModel to reload data
-        if didRestoreData {
+            
+            // Notify AppModel to reload data
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: .init("StatsRestoredFromServer"), object: nil)
             }
@@ -579,10 +588,6 @@ class AuthenticationService: NSObject, ObservableObject {
             return 0
         }
         return dict.values.reduce(0, +)
-    }
-    
-    private func totalLocalBatteriesCollected() -> Int {
-        UserDefaults.standard.integer(forKey: "outerworld_totalcollected") / 5
     }
     
     private func applyEnergySpentToLocal(_ total: Int) {
@@ -611,13 +616,7 @@ class AuthenticationService: NSObject, ObservableObject {
         }
     }
     
-    private func applyBatteriesToLocal(_ count: Int) {
-        let energy = count * 5
-        UserDefaults.standard.set(energy, forKey: "outerworld_totalcollected")
-        print("📊 Applying server batteries to local: \(count) (\(energy) energy)")
-    }
-    
-    private func syncStatsToSupabase(session: SupabaseSessionResponse, userId: String, energy: Int, batteries: Int) async throws {
+    private func syncStatsToSupabase(session: SupabaseSessionResponse, userId: String, energy: Int) async throws {
         let cfg = try SupabaseConfig.load()
         let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
         guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
@@ -629,7 +628,7 @@ class AuthenticationService: NSObject, ObservableObject {
             throw AuthError.supabaseError("Failed to construct sync URL")
         }
         
-        let patch = ["energy_spent_lifetime": energy, "batteries_collected": batteries]
+        let patch = ["energy_spent_lifetime": energy]
         let body = try JSONEncoder().encode(patch)
         
         let (_, http) = try await makeJSONRequest(
@@ -645,14 +644,14 @@ class AuthenticationService: NSObject, ObservableObject {
         )
         
         if http.statusCode < 400 {
-            print("✅ Stats synced to Supabase: energy=\(energy), batteries=\(batteries)")
+            print("✅ Stats synced to Supabase: energy=\(energy)")
         }
     }
     
     // MARK: - Energy Balance Logging
     
-    /// Logs current energy state to Supabase for admin visibility
-    func logEnergyState(stepsToday: Int, energyBalance: Int, energySpent: Int, batteriesCollected: Int) async {
+    /// Logs lifetime energy spent to Supabase
+    func logEnergyState(energySpent: Int) async {
         guard isAuthenticated,
               let userId = currentUser?.id,
               let session = loadStoredSession() else {
@@ -660,7 +659,7 @@ class AuthenticationService: NSObject, ObservableObject {
             return
         }
         
-        print("📊 Logging energy state: steps=\(stepsToday), balance=\(energyBalance), spent=\(energySpent), batteries=\(batteriesCollected)")
+        print("📊 Logging energy spent: \(energySpent)")
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -677,15 +676,9 @@ class AuthenticationService: NSObject, ObservableObject {
             }
             
             let patch = SupabasePublicUserPatch(
-                energySpentLifetime: energySpent,
-                batteriesCollected: batteriesCollected,
-                currentStepsToday: stepsToday,
-                currentEnergyBalance: energyBalance
+                energySpentLifetime: energySpent
             )
             let body = try JSONEncoder().encode(patch)
-            
-            print("📊 PATCH URL: \(finalURL.absoluteString)")
-            print("📊 PATCH body: \(String(data: body, encoding: .utf8) ?? "nil")")
             
             let (data, http) = try await makeJSONRequest(
                 url: finalURL,
@@ -699,13 +692,11 @@ class AuthenticationService: NSObject, ObservableObject {
                 body: body
             )
             
-            let responseBody = String(data: data, encoding: .utf8) ?? "empty"
-            print("📊 PATCH response: HTTP \(http.statusCode), body: \(responseBody)")
-            
             if http.statusCode < 400 {
                 print("✅ Energy state logged successfully")
             } else {
-                print("❌ Energy state log failed: HTTP \(http.statusCode)")
+                let responseBody = String(data: data, encoding: .utf8) ?? "empty"
+                print("❌ Energy state log failed: HTTP \(http.statusCode), body: \(responseBody)")
             }
         } catch {
             print("❌ Energy state log error: \(error.localizedDescription)")
@@ -909,6 +900,61 @@ class AuthenticationService: NSObject, ObservableObject {
         return data
     }
     
+    // MARK: - Fetch all users for Resistance screen
+    
+    /// Public user info for Resistance display (no sensitive data)
+    struct ResistanceUser: Identifiable {
+        let id: String
+        let nickname: String
+        let energySpentLifetime: Int
+    }
+    
+    /// Fetches list of users from Supabase for Resistance screen (randomized, limited)
+    func fetchResistanceUsers(limit: Int = 20) async throws -> [ResistanceUser] {
+        let cfg = try SupabaseConfig.load()
+        let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
+        guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
+            throw AuthError.supabaseError("Invalid users URL")
+        }
+        comps.queryItems = [
+            URLQueryItem(name: "select", value: "id,nickname,energy_spent_lifetime"),
+            URLQueryItem(name: "nickname", value: "neq."),
+            URLQueryItem(name: "limit", value: "\(limit)")
+        ]
+        
+        guard let finalURL = comps.url else {
+            throw AuthError.supabaseError("Failed to construct users list URL")
+        }
+        
+        var request = URLRequest(url: finalURL)
+        request.httpMethod = "GET"
+        request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "accept")
+        
+        let (data, resp) = try await URLSession.shared.data(for: request)
+        guard let http = resp as? HTTPURLResponse, http.statusCode < 400 else {
+            throw AuthError.supabaseError("Failed to fetch users")
+        }
+        
+        let rows = try supabaseJSONDecoder().decode([ResistanceUserRow].self, from: data)
+        return rows.shuffled().compactMap { row in
+            guard let nick = row.nickname, !nick.isEmpty else { return nil }
+            return ResistanceUser(id: row.id, nickname: nick, energySpentLifetime: row.energySpentLifetime ?? 0)
+        }
+    }
+    
+    private struct ResistanceUserRow: Codable {
+        let id: String
+        let nickname: String?
+        let energySpentLifetime: Int?
+        
+        enum CodingKeys: String, CodingKey {
+            case id
+            case nickname
+            case energySpentLifetime = "energy_spent_lifetime"
+        }
+    }
+    
     // MARK: - Nonce helpers (Apple Sign In)
     
     private func randomNonceString(length: Int = 32) -> String {
@@ -1053,7 +1099,6 @@ private struct SupabasePublicUserRow: Codable {
     let banReason: String?
     let banUntil: Date?
     let energySpentLifetime: Int?
-    let batteriesCollected: Int?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -1066,7 +1111,6 @@ private struct SupabasePublicUserRow: Codable {
         case banReason = "ban_reason"
         case banUntil = "ban_until"
         case energySpentLifetime = "energy_spent_lifetime"
-        case batteriesCollected = "batteries_collected"
     }
 }
 
@@ -1075,9 +1119,6 @@ private struct SupabasePublicUserPatch: Codable {
     let country: String?
     let avatarUrl: String?
     let energySpentLifetime: Int?
-    let batteriesCollected: Int?
-    let currentStepsToday: Int?
-    let currentEnergyBalance: Int?
     let lastSyncAt: String?
     
     enum CodingKeys: String, CodingKey {
@@ -1085,20 +1126,14 @@ private struct SupabasePublicUserPatch: Codable {
         case country
         case avatarUrl = "avatar_url"
         case energySpentLifetime = "energy_spent_lifetime"
-        case batteriesCollected = "batteries_collected"
-        case currentStepsToday = "current_steps_today"
-        case currentEnergyBalance = "current_energy_balance"
         case lastSyncAt = "last_sync_at"
     }
     
-    init(nickname: String? = nil, country: String? = nil, avatarUrl: String? = nil, energySpentLifetime: Int? = nil, batteriesCollected: Int? = nil, currentStepsToday: Int? = nil, currentEnergyBalance: Int? = nil) {
+    init(nickname: String? = nil, country: String? = nil, avatarUrl: String? = nil, energySpentLifetime: Int? = nil) {
         self.nickname = nickname
         self.country = country
         self.avatarUrl = avatarUrl
         self.energySpentLifetime = energySpentLifetime
-        self.batteriesCollected = batteriesCollected
-        self.currentStepsToday = currentStepsToday
-        self.currentEnergyBalance = currentEnergyBalance
         self.lastSyncAt = ISO8601DateFormatter().string(from: Date())
     }
 }

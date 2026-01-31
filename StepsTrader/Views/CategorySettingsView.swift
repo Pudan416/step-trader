@@ -4,57 +4,96 @@ struct CategorySettingsView: View {
     @ObservedObject var model: AppModel
     let category: EnergyCategory
     let appLanguage: String
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.editMode) private var editMode
     
     // Settings state
     @AppStorage("userStepsTarget") private var stepsTarget: Double = 10_000
     @AppStorage("userSleepTarget") private var sleepTarget: Double = 8.0
-    @State private var selectedOptions: Set<String> = []
+    @State private var orderedOptions: [EnergyOption] = []
+    @State private var editingOption: EnergyOption? = nil
+    @State private var showAddSheet = false
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                LazyVStack(spacing: 24) {
-                    // Category-specific settings
-                    if category == .move {
-                        stepsTargetSection
-                    } else if category == .reboot {
-                        sleepTargetSection
-                    }
-                    
-                    // Options selection
-                    optionsSelectionSection
+        List {
+            if category == .activity {
+                Section {
+                    stepsTargetSection
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 20)
-            }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle(loc(appLanguage, "Settings"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Cancel")) {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(loc(appLanguage, "Save")) {
-                        saveSettings()
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
+            } else if category == .recovery {
+                Section {
+                    sleepTargetSection
                 }
             }
-            .task {
-                print("🟡 CategorySettingsView: Loading settings for category: \(category.rawValue)")
-                // Загружаем настройки асинхронно
-                await loadSettingsAsync()
-                print("🟡 CategorySettingsView: Settings loaded")
+            
+            Section {
+                ForEach(orderedOptions) { option in
+                    optionRow(option: option)
+                }
+                .onMove(perform: moveOptions)
+            } header: {
+                Text(loc(appLanguage, "Cards"))
+            } footer: {
+                Text(loc(appLanguage, "Tap to select up to 4. Swipe custom cards to edit or delete."))
             }
         }
-        .navigationViewStyle(.stack)
+        .listStyle(.insetGrouped)
+        .navigationTitle(loc(appLanguage, "Settings"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                EditButton()
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showAddSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showAddSheet) {
+            CustomActivityEditorView(
+                category: category,
+                appLanguage: appLanguage,
+                initialTitle: nil,
+                initialIcon: nil,
+                isEditing: false
+            ) { title, icon in
+                _ = model.addCustomOption(
+                    category: category,
+                    titleEn: title,
+                    titleRu: title,
+                    icon: icon
+                )
+                reloadOptions()
+            }
+        }
+        .sheet(item: $editingOption) { option in
+            CustomActivityEditorView(
+                category: category,
+                appLanguage: appLanguage,
+                initialTitle: option.title(for: appLanguage),
+                initialIcon: option.icon,
+                isEditing: true
+            ) { title, icon in
+                model.replaceOptionWithCustom(
+                    optionId: option.id,
+                    category: category,
+                    titleEn: title,
+                    titleRu: title,
+                    icon: icon
+                )
+                reloadOptions()
+            }
+        }
         .onAppear {
-            print("🟢 CategorySettingsView body appeared, category: \(category.rawValue), appLanguage: \(appLanguage)")
+            reloadOptions()
+        }
+        .onChange(of: stepsTarget) { _, _ in
+            model.recalculateDailyEnergy()
+        }
+        .onChange(of: sleepTarget) { _, _ in
+            model.recalculateDailyEnergy()
         }
     }
     
@@ -84,11 +123,8 @@ struct CategorySettingsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                    .tint(categoryColor)
+                .tint(categoryColor)
             }
-            .padding()
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
     
@@ -118,75 +154,34 @@ struct CategorySettingsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                    .tint(categoryColor)
+                .tint(categoryColor)
             }
-            .padding()
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
     
-    private var optionsSelectionSection: some View {
-        let allOptions = EnergyDefaults.options.filter { $0.category == category }
+    private func optionRow(option: EnergyOption) -> some View {
+        let isSelected = model.isPreferredOptionSelected(option.id, category: category)
+        let isCustom = option.id.hasPrefix("custom_")
+        let isEditing = editMode?.wrappedValue.isEditing == true
         
-        return VStack(alignment: .leading, spacing: 16) {
-            Text(loc(appLanguage, "Select Activities"))
-                .font(.headline)
-            
-            Text(loc(appLanguage, "Choose up to 4 activities you want to track daily"))
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            if allOptions.isEmpty {
-                Text(loc(appLanguage, "No options available for this category"))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding()
-            } else {
-                LazyVStack(spacing: 12) {
-                    ForEach(allOptions) { option in
-                        optionToggle(option: option)
-                    }
-                }
+        return HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(categoryColor.opacity(isSelected ? 0.2 : 0.1))
+                    .frame(width: 44, height: 44)
+                
+                Image(systemName: option.icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(isSelected ? categoryColor : .secondary)
             }
-        }
-        .onAppear {
-            print("🟡 CategorySettingsView: optionsSelectionSection appeared for \(category.rawValue), allOptions count: \(allOptions.count), selectedOptions count: \(selectedOptions.count)")
-        }
-    }
-    
-    private func optionToggle(option: EnergyOption) -> some View {
-        let isSelected = selectedOptions.contains(option.id)
-        
-        return Button {
-            if isSelected {
-                selectedOptions.remove(option.id)
-            } else {
-                if selectedOptions.count < EnergyDefaults.maxSelectionsPerCategory {
-                    selectedOptions.insert(option.id)
-                }
-            }
-        } label: {
-            HStack(spacing: 12) {
-                // Icon
-                ZStack {
-                    Circle()
-                        .fill(categoryColor.opacity(isSelected ? 0.2 : 0.1))
-                        .frame(width: 44, height: 44)
-                    
-                    Image(systemName: option.icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(isSelected ? categoryColor : .secondary)
-                }
-                
-                // Title
-                Text(option.title(for: appLanguage))
-                    .font(.body)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                // Checkmark
+            
+            Text(option.title(for: appLanguage))
+                .font(.body)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            if !isEditing {
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(categoryColor)
@@ -197,56 +192,53 @@ struct CategorySettingsView: View {
                         .font(.title3)
                 }
             }
-            .padding(.vertical, 8)
         }
-        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isEditing {
+                editingOption = option
+            } else {
+                model.togglePreferredOption(optionId: option.id, category: category)
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if isCustom, !isEditing {
+                Button {
+                    editingOption = option
+                } label: {
+                    Label(loc(appLanguage, "Edit"), systemImage: "pencil")
+                }
+                .tint(.blue)
+                
+                Button(role: .destructive) {
+                    model.deleteCustomOption(optionId: option.id)
+                    reloadOptions()
+                } label: {
+                    Label(loc(appLanguage, "Delete"), systemImage: "trash")
+                }
+            }
+        }
     }
     
     private var categoryColor: Color {
         switch category {
-        case .move: return .green
-        case .reboot: return .blue
-        case .joy: return .orange
+        case .activity: return .green
+        case .recovery: return .blue
+        case .joys: return .orange
         }
     }
-    
-    private func loadSettings() {
-        // Загружаем настройки синхронно, но быстро
-        let preferred = model.preferredOptions(for: category)
-        selectedOptions = Set(preferred.map { $0.id })
-        
-        // Load targets from UserDefaults or use defaults from EnergyDefaults
-        let defaults = UserDefaults.stepsTrader()
-        if category == .move {
-            stepsTarget = defaults.object(forKey: "userStepsTarget") as? Double ?? EnergyDefaults.stepsTarget
-        } else if category == .reboot {
-            sleepTarget = defaults.object(forKey: "userSleepTarget") as? Double ?? EnergyDefaults.sleepTargetHours
-        }
+
+    private func moveOptions(from source: IndexSet, to destination: Int) {
+        var ids = orderedOptions.map(\.id)
+        ids.move(fromOffsets: source, toOffset: destination)
+        model.updateOptionsOrder(ids, category: category)
+        reloadOptions()
     }
     
-    @MainActor
-    private func loadSettingsAsync() async {
-        // Загружаем настройки асинхронно
-        loadSettings()
+    private func reloadOptions() {
+        orderedOptions = model.orderedOptions(for: category)
     }
-    
-    private func saveSettings() {
-        // Save preferred options
-        model.updatePreferredOptions(Array(selectedOptions), category: category)
-        
-        // Save targets to UserDefaults - these are used in calculations
-        let defaults = UserDefaults.stepsTrader()
-        if category == .move {
-            defaults.set(stepsTarget, forKey: "userStepsTarget")
-            // Trigger recalculation
-            model.recalculateDailyEnergy()
-        } else if category == .reboot {
-            defaults.set(sleepTarget, forKey: "userSleepTarget")
-            // Trigger recalculation
-            model.recalculateDailyEnergy()
-        }
-    }
-    
+
     private func formatNumber(_ value: Int) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal

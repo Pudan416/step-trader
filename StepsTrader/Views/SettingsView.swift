@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-// MARK: - SettingsView
+// MARK: - SettingsView (full settings content; can be presented in sheet from Me with bar visible)
 struct SettingsView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var authService = AuthenticationService.shared
@@ -10,6 +10,8 @@ struct SettingsView: View {
     @State private var showLoginSheet: Bool = false
     @State private var showRestoreAlert: Bool = false
     @State private var showProfileEditor: Bool = false
+    /// When true (e.g. presented from Me tab), navigation bar is visible so user can tap Done
+    var showNavigationBar: Bool = false
     @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
     @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
@@ -94,538 +96,148 @@ struct SettingsView: View {
     ]
 
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Header
-                    settingsHeader
-                    
-                    // Account Section
-                    accountSection
-                    
-                    // iCloud Sync Section - hidden from user (syncs automatically via Supabase)
-                    // if authService.isAuthenticated {
-                    //     cloudSyncSection
-                    // }
-                    
-                    // App Settings Section
-                    appSettingsSection
-                    
-                    // App Info
-                    appInfoSection
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 100)
-            }
-            .background(Color(.systemGroupedBackground))
-            .scrollIndicators(.hidden)
-            .onAppear {
-                // Language selection was removed; keep the UI in English if an old value was persisted.
-                if appLanguage == "ru" { appLanguage = "en" }
-                
-                // Refresh user data from server
-                Task {
-                    await authService.checkAuthenticationState()
-                }
-            }
-            .sheet(isPresented: $showLoginSheet) {
-                LoginView(authService: authService)
-            }
-            .sheet(isPresented: $showProfileEditor) {
-                ProfileEditorView(authService: authService)
-            }
-            .alert(loc(appLanguage, "Restore from iCloud"), isPresented: $showRestoreAlert) {
-                Button(loc(appLanguage, "Cancel"), role: .cancel) { }
-                Button(loc(appLanguage, "Restore"), role: .destructive) {
-                    Task { await cloudService.restoreFromCloud(model: model) }
-                }
-            } message: {
-                Text(loc(appLanguage, "This will replace your current shields and progress with data from iCloud."))
-            }
-            .navigationTitle("")
-                            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarHidden(true)
-        }
-    }
-    
-    // Glass card style
-    private var settingsGlassCard: some View {
-        RoundedRectangle(cornerRadius: 20)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.3), Color.white.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 0.5
-                    )
-            )
-            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
-    }
-    
-    // MARK: - Header
-    private var settingsHeader: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Color.gray.opacity(0.15))
-                    .frame(width: 44, height: 44)
-                Image(systemName: "gearshape.2.fill")
-                    .font(.title3)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.gray, .gray.opacity(0.6)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(loc(appLanguage, "Command Center"))
-                    .font(.headline)
-                Text(loc(appLanguage, "Tweak everything here ⚙️"))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-        }
-        .padding(.vertical, 8)
-    }
-    
-    // MARK: - Account Section
-    private var accountSection: some View {
-        let pink = Color(red: 224/255, green: 130/255, blue: 217/255)
-        
-        return VStack(alignment: .leading, spacing: 0) {
-            // Section header - edgy
-            sectionHeaderEdgy(icon: "person.fill", title: loc(appLanguage, "Identity"), subtitle: loc(appLanguage, "Who are you, warrior?"), color: pink)
-            
-            if authService.isAuthenticated, let user = authService.currentUser {
-                // User profile
-                Button {
-                    showProfileEditor = true
-                } label: {
-                    HStack(spacing: 12) {
-                        // Avatar
-                        if let data = user.avatarData, let uiImage = UIImage(data: data) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 48, height: 48)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(pink.opacity(0.3), lineWidth: 2))
-                        } else {
-                            ZStack {
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [pink, .purple],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: 48, height: 48)
-                                Text(String(user.displayName.prefix(2)).uppercased())
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundColor(.white)
+        List {
+            // Account
+            Section {
+                if authService.isAuthenticated, let user = authService.currentUser {
+                    Button { showProfileEditor = true } label: {
+                        HStack(spacing: 12) {
+                            settingsAvatar(user: user)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(user.displayName)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundColor(.primary)
+                                if let email = user.email {
+                                    Text(email)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                             }
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(user.displayName)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundColor(.primary)
-                            
-                            if let location = user.locationString {
-                                Text(location)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            } else if let email = user.email {
-                                Text(email)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.caption2.bold())
-                            .foregroundColor(.secondary.opacity(0.4))
-                            .padding(6)
-                            .background(Circle().fill(Color(.tertiarySystemBackground)))
-                    }
-                    .padding(14)
-                }
-                
-                // Sign out button
-                Button(role: .destructive) {
-                    authService.signOut()
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "door.left.hand.open")
-                            .font(.caption)
-                            .foregroundColor(.red.opacity(0.8))
-                            .frame(width: 24)
-                        Text(loc(appLanguage, "Leave"))
-                            .font(.caption)
-                            .foregroundColor(.red.opacity(0.8))
-                        Spacer()
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 14)
-                }
-            } else {
-                // Sign in button - edgy
-                Button {
-                    showLoginSheet = true
-                } label: {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.black)
-                                .frame(width: 40, height: 40)
-                            Image(systemName: "apple.logo")
-                                .font(.subheadline)
-                                .foregroundColor(.white)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(loc(appLanguage, "Join the game"))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundColor(.primary)
-                            Text(loc(appLanguage, "Sign in to sync progress 🔄"))
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.caption2.bold())
-                            .foregroundColor(.secondary.opacity(0.4))
-                            .padding(6)
-                            .background(Circle().fill(Color(.tertiarySystemBackground)))
-                    }
-                    .padding(14)
-                }
-            }
-        }
-        .background(settingsGlassCard)
-    }
-    
-    // MARK: - Cloud Sync Section
-    private var cloudSyncSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionHeaderEdgy(
-                icon: "icloud.fill",
-                title: loc(appLanguage, "Cloud Backup"),
-                subtitle: loc(appLanguage, "Never lose your progress ☁️"),
-                color: .cyan
-            )
-            
-            // Status row
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(cloudService.isCloudKitAvailable ? Color.green.opacity(0.15) : Color.red.opacity(0.15))
-                        .frame(width: 28, height: 28)
-                    Image(systemName: cloudService.isCloudKitAvailable ? "checkmark" : "xmark")
-                        .font(.caption.bold())
-                        .foregroundColor(cloudService.isCloudKitAvailable ? .green : .red)
-                }
-                
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("iCloud")
-                        .font(.caption.weight(.medium))
-                    Text(cloudService.isCloudKitAvailable ? loc(appLanguage, "Online") : loc(appLanguage, "Offline"))
-                        .font(.caption2)
-                        .foregroundColor(cloudService.isCloudKitAvailable ? .green : .red)
-                }
-                
-                Spacer()
-                
-                if let lastSync = cloudService.lastSyncDate {
-                    Text(lastSync, style: .relative)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.bottom, 10)
-            
-            if cloudService.isCloudKitAvailable {
-                // Action buttons
-                HStack(spacing: 8) {
-                    Button {
-                        Task { await cloudService.syncAll(model: model) }
-                    } label: {
-                        HStack(spacing: 6) {
-                            if cloudService.isSyncing {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            } else {
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                    .font(.caption)
-                            }
-                            Text(loc(appLanguage, "Sync"))
-                                .font(.caption.weight(.medium))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.cyan.opacity(0.15))
-                        .foregroundColor(.cyan)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                    .disabled(cloudService.isSyncing)
-                    
-                    Button {
-                        showRestoreAlert = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.down.circle")
+                            Spacer()
+                            Image(systemName: "chevron.right")
                                 .font(.caption)
-                            Text(loc(appLanguage, "Restore"))
-                                .font(.caption.weight(.medium))
+                                .foregroundColor(.secondary.opacity(0.5))
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.orange.opacity(0.15))
-                        .foregroundColor(.orange)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
-                    .disabled(cloudService.isSyncing)
+                    .buttonStyle(.plain)
+                    
+                    Button(role: .destructive) {
+                        authService.signOut()
+                    } label: {
+                        Label(loc(appLanguage, "Sign out"), systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                } else {
+                    Button { showLoginSheet = true } label: {
+                        Label(loc(appLanguage, "Sign in with Apple"), systemImage: "apple.logo")
+                    }
                 }
-                .padding(.horizontal, 14)
-                .padding(.bottom, 14)
+            } header: {
+                Text(loc(appLanguage, "Account"))
             }
-        }
-        .background(settingsGlassCard)
-    }
-    
-    // MARK: - App Settings Section
-    @AppStorage("payGateBackgroundStyle") private var payGateBackgroundStyle: String = "midnight"
-    
-    private var appSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionHeaderEdgy(
-                icon: "slider.horizontal.3",
-                title: loc(appLanguage, "Preferences"),
-                subtitle: loc(appLanguage, "Make it yours 🎨"),
-                color: .purple
-            )
             
-            VStack(spacing: 0) {
-                // Theme
+            // Preferences
+            Section {
                 NavigationLink {
                     ThemeSettingsView(appLanguage: appLanguage, selectedTheme: $appThemeRaw)
-                        .navigationTitle(loc(appLanguage, "Theme"))
+                        .navigationTitle(loc(appLanguage, "Appearance"))
                         .navigationBarTitleDisplayMode(.inline)
                 } label: {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.purple.opacity(0.15))
-                                .frame(width: 32, height: 32)
-                            Image(systemName: "paintbrush.fill")
-                                .font(.subheadline)
-                                .foregroundColor(.purple)
-                        }
-                        
-                        Text(loc(appLanguage, "Theme"))
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                        
+                    HStack {
+                        Label(loc(appLanguage, "Appearance"), systemImage: "circle.lefthalf.filled")
                         Spacer()
-                        
-                        Text(themeDisplayName(AppTheme(rawValue: appThemeRaw) ?? .system))
-                            .font(.subheadline)
+                        Text(themeDisplayName(AppTheme.normalized(rawValue: appThemeRaw)))
                             .foregroundColor(.secondary)
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary.opacity(0.5))
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .contentShape(Rectangle())
                 }
                 
-                Divider()
-                    .padding(.leading, 58)
-                
-                // PayGate Background
                 NavigationLink {
                     PayGateBackgroundSettingsView(
                         appLanguage: appLanguage,
                         selectedStyle: $payGateBackgroundStyle
                     )
-                    .navigationTitle(loc(appLanguage, "Entry Screen"))
+                    .navigationTitle(loc(appLanguage, "Unlock screen"))
                     .navigationBarTitleDisplayMode(.inline)
                 } label: {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.pink.opacity(0.15))
-                                .frame(width: 32, height: 32)
-                            Image(systemName: "sparkles.rectangle.stack.fill")
-                                .font(.subheadline)
-                                .foregroundColor(.pink)
-                        }
-                        
-                        Text(loc(appLanguage, "Entry Screen"))
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                        
+                    HStack {
+                        Label(loc(appLanguage, "Unlock screen"), systemImage: "sparkles.rectangle.stack")
                         Spacer()
-                        
                         Text(payGateStyleDisplayName)
-                            .font(.subheadline)
                             .foregroundColor(.secondary)
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary.opacity(0.5))
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .contentShape(Rectangle())
                 }
-                
-                Divider()
-                    .padding(.leading, 58)
                 
                 NavigationLink {
                     EnergySetupView(model: model)
                 } label: {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.orange.opacity(0.15))
-                                .frame(width: 32, height: 32)
-                            Image(systemName: "bolt.heart.fill")
-                                .font(.subheadline)
-                                .foregroundColor(.orange)
-                        }
-                        
-                        Text(loc(appLanguage, "Daily setup"))
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary.opacity(0.5))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .contentShape(Rectangle())
+                    Label(loc(appLanguage, "Daily choices"), systemImage: "sparkles")
                 }
+            } header: {
+                Text(loc(appLanguage, "Preferences"))
             }
-            .padding(.bottom, 4)
+            
+            // About
+            Section {
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text(loc(appLanguage, "About"))
+            } footer: {
+                Text(loc(appLanguage, "Less scrolling. More living."))
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
+            }
         }
-        .background(settingsGlassCard)
+        .listStyle(.insetGrouped)
+        .onAppear {
+            if appLanguage == "ru" { appLanguage = "en" }
+            Task { await authService.checkAuthenticationState() }
+        }
+        .sheet(isPresented: $showLoginSheet) {
+            LoginView(authService: authService)
+        }
+        .sheet(isPresented: $showProfileEditor) {
+            ProfileEditorView(authService: authService)
+        }
+        .alert(loc(appLanguage, "Restore"), isPresented: $showRestoreAlert) {
+            Button(loc(appLanguage, "Cancel"), role: .cancel) { }
+            Button(loc(appLanguage, "Restore"), role: .destructive) {
+                Task { await cloudService.restoreFromCloud(model: model) }
+            }
+        } message: {
+            Text(loc(appLanguage, "Replace current data with iCloud backup?"))
+        }
     }
+    
+    @ViewBuilder
+    private func settingsAvatar(user: AppUser) -> some View {
+        if let data = user.avatarData, let uiImage = UIImage(data: data) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.2))
+                    .frame(width: 40, height: 40)
+                Text(String(user.displayName.prefix(2)).uppercased())
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(.accentColor)
+            }
+        }
+    }
+    
+    // MARK: - App Settings
+    @AppStorage("payGateBackgroundStyle") private var payGateBackgroundStyle: String = "midnight"
     
     private var payGateStyleDisplayName: String {
         let style = PayGateBackgroundStyle(rawValue: payGateBackgroundStyle) ?? .midnight
         return appLanguage == "ru" ? style.displayNameRU : style.displayName
-    }
-    
-    // MARK: - App Info Section
-    private var appInfoSection: some View {
-        VStack(spacing: 8) {
-            Text("DOOM CTRL")
-                .font(.caption.weight(.bold))
-                .foregroundColor(.secondary.opacity(0.6))
-            
-            Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
-                .font(.caption2)
-                .foregroundColor(.secondary.opacity(0.5))
-            
-            Text(loc(appLanguage, "Built to 👊 for freedom"))
-                .font(.caption2)
-                .foregroundColor(.secondary.opacity(0.4))
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-    }
-    
-    // MARK: - Helper Views
-    @ViewBuilder
-    private func sectionHeader(icon: String, title: String, color: Color) -> some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(color.opacity(0.15))
-                    .frame(width: 36, height: 36)
-                Image(systemName: icon)
-                    .font(.subheadline)
-                    .foregroundColor(color)
-            }
-            
-            Text(title)
-                .font(.headline)
-            
-            Spacer()
-        }
-        .padding(16)
-    }
-    
-    @ViewBuilder
-    private func sectionHeaderEdgy(icon: String, title: String, subtitle: String, color: Color) -> some View {
-        HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(color.opacity(0.15))
-                    .frame(width: 32, height: 32)
-                Image(systemName: icon)
-                    .font(.caption)
-                    .foregroundColor(color)
-            }
-            
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Text(subtitle)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-        }
-        .padding(14)
-    }
-    
-    @ViewBuilder
-    private func settingsRow(icon: String, iconColor: Color, title: String, value: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.body)
-                .foregroundColor(iconColor)
-                .frame(width: 28)
-            
-            Text(title)
-                .foregroundColor(.primary)
-            
-            Spacer()
-            
-            Text(value)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(.secondary.opacity(0.5))
-        }
-        .padding(16)
     }
     
     private var dayEndDateBinding: Binding<Date> {
@@ -673,7 +285,7 @@ struct SettingsView: View {
         var body: some View {
             Form {
                 Picker(loc(appLanguage, "Theme"), selection: $selectedTheme) {
-                    ForEach(AppTheme.allCases, id: \.rawValue) { theme in
+                    ForEach(AppTheme.selectableThemes, id: \.rawValue) { theme in
                         Text(appLanguage == "ru" ? theme.displayNameRu : theme.displayNameEn)
                             .tag(theme.rawValue)
                     }

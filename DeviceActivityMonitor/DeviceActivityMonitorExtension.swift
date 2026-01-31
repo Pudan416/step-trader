@@ -119,6 +119,21 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         }
     }
     
+    override func intervalWillEndWarning(for activity: DeviceActivityName) {
+        let activityRaw = activity.rawValue
+        MonitorLogger.info("intervalWillEndWarning: \(activityRaw)")
+        // Short unlocks (< 15 min) use a 15-min interval with warningTime; treat warning as actual expiry
+        if activityRaw.hasPrefix("unlockExpiry_") {
+            let groupId = String(activityRaw.dropFirst("unlockExpiry_".count))
+            MonitorLogger.info("Unlock expiry warning for group \(groupId) - clearing and rebuilding shield")
+            let defaults = stepsTraderDefaults()
+            let unlockKey = "groupUnlock_\(groupId)"
+            defaults.removeObject(forKey: unlockKey)
+            rebuildShieldFromExtension()
+            DeviceActivityCenter().stopMonitoring([activity])
+        }
+    }
+    
     override func intervalDidEnd(for activity: DeviceActivityName) {
         let activityRaw = activity.rawValue
         MonitorLogger.info("intervalDidEnd: \(activityRaw)")

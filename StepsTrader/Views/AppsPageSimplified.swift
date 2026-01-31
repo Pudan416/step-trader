@@ -27,16 +27,14 @@ struct AppsPageSimplified: View {
                 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 20) {
-                        // Header section
                         headerSection
-                        
-                        // Shields grid
                         shieldsSection
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
                     .padding(.bottom, 100)
                 }
+                .scrollBounceBehavior(.basedOnSize, axes: .vertical)
             }
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showPicker, onDismiss: {

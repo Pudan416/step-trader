@@ -22,6 +22,7 @@ final class AppModel: ObservableObject {
     let notificationService: any NotificationServiceProtocol
     let budgetEngine: any BudgetEngineProtocol
     private let authService = AuthenticationService.shared
+    private let syncService = SupabaseSyncService.shared
 
     static func dayKey(for date: Date) -> String {
         let df = DateFormatter()
@@ -30,9 +31,6 @@ final class AppModel: ObservableObject {
         return df.string(from: date)
     }
 
-    // MARK: - Outer World economy
-    private let outerWorldDailyCapKey = "outerworld_dailyCap_v1"
-    private let outerWorldLifetimeCollectedKey = "outerworld_totalcollected" // maintained by OuterWorldLocationManager
     private let serverGrantedStepsKey = "serverGrantedSteps_v1"
     private var lastSupabaseSyncAt: Date = .distantPast
     
@@ -53,6 +51,9 @@ final class AppModel: ObservableObject {
         scheduleSupabaseShieldUpsert(bundleId: bundleId)
     }
 
+    // Bootstrap state - prevent syncing during initialization
+    @Published var isBootstrapping: Bool = true
+    
     // Published properties
     @Published var stepsToday: Double = 0
     @Published var spentSteps: Int = 0
@@ -73,12 +74,15 @@ final class AppModel: ObservableObject {
     }
     @Published var baseEnergyToday: Int = 0
     @Published var dailySleepHours: Double = 0
-    @Published var dailyMoveSelections: [String] = []
-    @Published var dailyRebootSelections: [String] = []
-    @Published var dailyJoySelections: [String] = []
-    @Published var preferredMoveOptions: [String] = []
-    @Published var preferredRebootOptions: [String] = []
-    @Published var preferredJoyOptions: [String] = []
+    @Published var dailyActivitySelections: [String] = []
+    @Published var dailyRecoverySelections: [String] = []
+    @Published var dailyJoysSelections: [String] = []
+    /// Choice tab: 4 slots (category + option each). Synced with daily *Selections.
+    @Published var dailyChoiceSlots: [DayChoiceSlot] = (0..<4).map { _ in DayChoiceSlot(category: nil, optionId: nil) }
+    @Published var preferredActivityOptions: [String] = []
+    @Published var preferredRecoveryOptions: [String] = []
+    @Published var preferredJoysOptions: [String] = []
+    @Published var customEnergyOptions: [CustomEnergyOption] = []
     /// Total non-HealthKit energy.
     /// We keep this as a single published value because many parts of the app rely on it.
     @Published var bonusSteps: Int = 0 {
@@ -87,8 +91,6 @@ final class AppModel: ObservableObject {
             totalStepsBalance = max(0, stepsBalance + bonusSteps)
         }
     }
-    /// Energy collected from the Outer World (map drops).
-    @Published var outerWorldBonusSteps: Int = 0
     /// Energy granted from Supabase (admin grants / server-side economy).
     @Published var serverGrantedSteps: Int = 0
     @Published var totalStepsBalance: Int = 0
@@ -794,25 +796,32 @@ final class AppModel: ObservableObject {
                 print("⏳ Skipping notifications prompt (intro not finished)")
             }
 
-            // Always try to fetch steps - this is the only way to know if read access works
-            // authorizationStatus() only shows WRITE status, not READ status
-            print("📈 Fetching today's steps...")
-            do {
-                stepsToday = try await fetchStepsForCurrentDay()
-                print("✅ Today's steps: \(Int(stepsToday))")
-                cacheStepsToday()
-                
-                // Также обновляем данные о сне
-                await refreshSleepIfAuthorized()
-            } catch {
-                print("⚠️ Could not fetch step data: \(error)")
-                // На симуляторе или если нет данных, используем демо-значение
+            // Only touch HealthKit when we have permission to request (onboarding finished or user on Health slide)
+            // Otherwise first read would trigger the system permission sheet too early
+            if requestPermissions {
+                print("📈 Fetching today's steps...")
+                do {
+                    stepsToday = try await fetchStepsForCurrentDay()
+                    print("✅ Today's steps: \(Int(stepsToday))")
+                    cacheStepsToday()
+                    await refreshSleepIfAuthorized()
+                } catch {
+                    print("⚠️ Could not fetch step data: \(error)")
+                    #if targetEnvironment(simulator)
+                        stepsToday = 2500
+                        print("🎮 Using demo steps for Simulator: \(Int(stepsToday))")
+                    #else
+                        loadCachedStepsToday()
+                        print("📱 Using cached steps: \(Int(stepsToday))")
+                    #endif
+                }
+            } else {
                 #if targetEnvironment(simulator)
-                    stepsToday = 2500  // Демо-значение для симулятора
-                    print("🎮 Using demo steps for Simulator: \(Int(stepsToday))")
+                    stepsToday = 2500
+                    print("🎮 Onboarding: using demo steps for Simulator")
                 #else
                     loadCachedStepsToday()
-                    print("📱 Using cached steps: \(Int(stepsToday))")
+                    print("📱 Onboarding: using cached steps only (no Health read until Health slide)")
                 #endif
             }
 
@@ -823,11 +832,21 @@ final class AppModel: ObservableObject {
             // Load daily energy preferences and state
             loadEnergyPreferences()
             resetDailyEnergyIfNeeded()
-            loadDailyEnergyState()
+            
+            // Try to restore from Supabase BEFORE loading local state
+            // This ensures server data takes priority on fresh install
+            let didRestoreFromServer = await syncService.restoreFromServer(model: self)
+            if didRestoreFromServer {
+                print("📡 Restored data from server, skipping local load")
+            } else {
+                loadDailyEnergyState()
+            }
             
             // CRITICAL: Load spent steps balance BEFORE recalculating daily energy
             // This ensures spentStepsToday is loaded before stepsBalance is calculated
-            loadSpentStepsBalance()
+            if !didRestoreFromServer {
+                loadSpentStepsBalance()
+            }
             
             recalculateDailyEnergy()
             
@@ -861,6 +880,14 @@ final class AppModel: ObservableObject {
 
             // Проверяем, нужно ли показать Quick Status Page
             checkForQuickStatusPage()
+            
+            // Mark bootstrap as complete - now syncing is allowed
+            isBootstrapping = false
+            
+            // Sync local changes to server (restore already happened above)
+            Task {
+                await syncService.performFullSync(model: self)
+            }
 
         } catch {
             print("❌ Bootstrap failed: \(error)")

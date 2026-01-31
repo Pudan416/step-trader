@@ -67,11 +67,28 @@ extension AppModel {
     func purgeExpiredAccessWindows() {
         let g = UserDefaults.stepsTrader()
         let now = Date()
-        let keys = g.dictionaryRepresentation().keys.filter { $0.hasPrefix("blockUntil_") }
-        for key in keys {
+        
+        // Purge expired blockUntil_* keys
+        let blockKeys = g.dictionaryRepresentation().keys.filter { $0.hasPrefix("blockUntil_") }
+        for key in blockKeys {
             if let until = g.object(forKey: key) as? Date {
                 if now >= until {
                     g.removeObject(forKey: key)
+                    print("🧹 Purged expired access window: \(key)")
+                }
+            } else {
+                g.removeObject(forKey: key)
+            }
+        }
+        
+        // Purge expired groupUnlock_* keys
+        let unlockKeys = g.dictionaryRepresentation().keys.filter { $0.hasPrefix("groupUnlock_") }
+        for key in unlockKeys {
+            if let until = g.object(forKey: key) as? Date {
+                if now >= until {
+                    g.removeObject(forKey: key)
+                    let groupId = String(key.dropFirst("groupUnlock_".count))
+                    print("🧹 Purged expired group unlock: \(groupId)")
                 }
             } else {
                 g.removeObject(forKey: key)

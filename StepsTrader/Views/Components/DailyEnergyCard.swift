@@ -26,13 +26,13 @@ struct DailyEnergyCard: View {
         .padding(20)
         .background(glassCard)
         .sheet(isPresented: $showMoveSettings) {
-            CategorySettingsView(model: model, category: .move, appLanguage: appLanguage)
+            CategorySettingsView(model: model, category: .activity, appLanguage: appLanguage)
         }
         .sheet(isPresented: $showRebootSettings) {
-            CategorySettingsView(model: model, category: .reboot, appLanguage: appLanguage)
+            CategorySettingsView(model: model, category: .recovery, appLanguage: appLanguage)
         }
         .sheet(isPresented: $showJoySettings) {
-            CategorySettingsView(model: model, category: .joy, appLanguage: appLanguage)
+            CategorySettingsView(model: model, category: .joys, appLanguage: appLanguage)
         }
     }
     
@@ -86,9 +86,9 @@ struct DailyEnergyCard: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
                 title: loc(appLanguage, "Move"),
-                points: model.movePointsToday,
+                points: model.activityPointsToday,
                 maxPoints: 40,
-                category: .move
+                category: .activity
             )
             
             // Steps
@@ -107,8 +107,8 @@ struct DailyEnergyCard: View {
             }
             
             optionGrid(
-                options: model.preferredOptions(for: .move),
-                category: .move
+                options: model.preferredOptions(for: .activity),
+                category: .activity
             )
         }
     }
@@ -117,9 +117,9 @@ struct DailyEnergyCard: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
                 title: loc(appLanguage, "Reboot"),
-                points: model.rebootPointsToday,
+                points: model.recoveryPointsToday,
                 maxPoints: 40,
-                category: .reboot
+                category: .recovery
             )
             
             // Sleep
@@ -142,8 +142,8 @@ struct DailyEnergyCard: View {
             }
             
             optionGrid(
-                options: model.preferredOptions(for: .reboot),
-                category: .reboot
+                options: model.preferredOptions(for: .recovery),
+                category: .recovery
             )
         }
     }
@@ -152,14 +152,14 @@ struct DailyEnergyCard: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
                 title: loc(appLanguage, "Choice"),
-                points: model.joyCategoryPointsToday,
+                points: model.joysCategoryPointsToday,
                 maxPoints: 20,
-                category: .joy
+                category: .joys
             )
             
             optionGrid(
-                options: model.preferredOptions(for: .joy),
-                category: .joy
+                options: model.preferredOptions(for: .joys),
+                category: .joys
             )
         }
     }
@@ -174,9 +174,9 @@ struct DailyEnergyCard: View {
                 .foregroundColor(.secondary)
             
             Button {
-                if category == .move {
+                if category == .activity {
                     showMoveSettings = true
-                } else if category == .joy {
+                } else if category == .joys {
                     showJoySettings = true
                 }
             } label: {
@@ -206,9 +206,9 @@ struct DailyEnergyCard: View {
         let isSelected = model.isDailySelected(option.id, category: category)
         let chipColor: Color = {
             switch category {
-            case .move: return .green
-            case .reboot: return .blue
-            case .joy: return .orange
+            case .activity: return .green
+            case .recovery: return .blue
+            case .joys: return .orange
             }
         }()
         

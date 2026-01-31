@@ -6,7 +6,6 @@ struct MainTabView: View {
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     var theme: AppTheme = .system
     @State private var selectedCategory: EnergyCategory? = nil
-    @State private var showOuterWorldDetail = false
 
     var body: some View {
         ZStack {
@@ -16,32 +15,21 @@ struct MainTabView: View {
                     totalSteps: model.baseEnergyToday + model.bonusSteps,
                     spentSteps: model.spentStepsToday,
                     healthKitSteps: model.stepsBalance,
-                    outerWorldSteps: model.outerWorldBonusSteps,
-                    grantedSteps: model.serverGrantedSteps,
                     dayEndHour: model.dayEndHour,
                     dayEndMinute: model.dayEndMinute,
-                    showDetails: selection == 0, // Show category details only on Shields tab
-                    movePoints: model.movePointsToday,
-                    rebootPoints: model.rebootPointsToday,
-                    joyPoints: model.joyCategoryPointsToday,
+                    showDetails: selection == 1,
+                    movePoints: model.activityPointsToday,
+                    rebootPoints: model.recoveryPointsToday,
+                    joyPoints: model.joysCategoryPointsToday,
                     baseEnergyToday: model.baseEnergyToday,
-                    onMoveTap: {
-                        print("🔵 MainTabView: Move tapped")
-                        selectedCategory = .move
-                        print("🔵 MainTabView: selectedCategory = \(selectedCategory?.rawValue ?? "nil")")
+                    onMoveTap: selection == 1 ? nil : {
+                        selectedCategory = .activity
                     },
-                    onRebootTap: {
-                        print("🔵 MainTabView: Reboot tapped")
-                        selectedCategory = .reboot
-                        print("🔵 MainTabView: selectedCategory = \(selectedCategory?.rawValue ?? "nil")")
+                    onRebootTap: selection == 1 ? nil : {
+                        selectedCategory = .recovery
                     },
-                    onJoyTap: {
-                        print("🔵 MainTabView: Joy tapped")
-                        selectedCategory = .joy
-                        print("🔵 MainTabView: selectedCategory = \(selectedCategory?.rawValue ?? "nil")")
-                    },
-                    onOuterWorldTap: {
-                        showOuterWorldDetail = true
+                    onJoyTap: selection == 1 ? nil : {
+                        selectedCategory = .joys
                     }
                 )
                 .padding(.horizontal)
@@ -49,7 +37,7 @@ struct MainTabView: View {
                 .padding(.bottom, 8)
 
                 TabView(selection: $selection) {
-                    // 0: Shields (first tab)
+                    // 0: Shields
                     AppsPageSimplified(model: model)
                         .tabItem {
                             Image(systemName: "square.grid.2x2")
@@ -57,21 +45,27 @@ struct MainTabView: View {
                         }
                         .tag(0)
 
-                    // 1: Status (second tab)
-                    StatusView(model: model)
-                        .tabItem {
-                            Image(systemName: "chart.bar.fill")
-                            Text(loc(appLanguage, "Status"))
-                        }
-                        .tag(1)
+                    // 1: Choice
+                    NavigationStack {
+                        ChoiceView(model: model)
+                    }
+                    .tabItem {
+                        Image(systemName: "hand.point.up.left.fill")
+                        Text(loc(appLanguage, "Choices"))
+                    }
+                    .tag(1)
+
+                    // 2: Resistance (center tab)
+                    NavigationStack {
+                        ResistanceView(model: model)
+                    }
+                    .tabItem {
+                        Image(systemName: "person.3.fill")
+                        Text(loc(appLanguage, "Resistance"))
+                    }
+                    .tag(2)
                     
-                    OuterWorldView(model: model)
-                        .tabItem {
-                            Image(systemName: "map.fill")
-                            Text(loc(appLanguage, "Outer World"))
-                        }
-                        .tag(2)
-                    
+                    // 3: Manuals
                     ManualsPage(model: model)
                         .tabItem {
                             Image(systemName: "questionmark.circle")
@@ -79,10 +73,11 @@ struct MainTabView: View {
                         }
                         .tag(3)
                     
-                    SettingsView(model: model)
+                    // 4: You (user + calendar; settings in toolbar)
+                    MeView(model: model)
                         .tabItem {
-                            Image(systemName: "gear")
-                            Text(loc(appLanguage, "Settings"))
+                            Image(systemName: "person.circle")
+                            Text(loc(appLanguage, "You"))
                         }
                         .tag(4)
                 }
@@ -90,22 +85,11 @@ struct MainTabView: View {
             }
             .background(Color(.systemBackground))
             .sheet(item: $selectedCategory) { category in
-                CategoryDetailView(
-                    model: model,
-                    category: category,
-                    outerWorldSteps: model.outerWorldBonusSteps
-                )
+                CategoryDetailView(model: model, category: category)
                 .onAppear {
                     print("🟢 MainTabView: Showing CategoryDetailView for category: \(category.rawValue)")
                     print("🟢 CategoryDetailView appeared for category: \(category.rawValue)")
                 }
-            }
-            .sheet(isPresented: $showOuterWorldDetail) {
-                CategoryDetailView(
-                    model: model,
-                    category: nil,
-                    outerWorldSteps: model.outerWorldBonusSteps
-                )
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in

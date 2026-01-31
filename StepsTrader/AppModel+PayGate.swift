@@ -173,34 +173,46 @@ extension AppModel {
         unlockExpiryTasks[groupId] = task
     }
     
-    /// Schedule a DeviceActivity interval that ends when the unlock expires
-    /// This triggers intervalDidEnd in the extension, which checks for expired unlocks
+    /// Schedule a DeviceActivity interval that ends when the unlock expires.
+    /// For intervals >= 15 min: interval ends at expiry → intervalDidEnd in extension.
+    /// For intervals < 15 min: 15-min window with warningTime so intervalWillEndWarning fires at expiry (extension clears unlock and rebuilds shield without app).
     private func scheduleUnlockExpiryActivity(groupId: String, expiresInSeconds: Int) {
         #if canImport(DeviceActivity)
         let center = DeviceActivityCenter()
         let activityName = DeviceActivityName("unlockExpiry_\(groupId)")
-        
-        // Calculate end time components
-        let expiryDate = Date().addingTimeInterval(TimeInterval(expiresInSeconds))
         let calendar = Calendar.current
-        let endComponents = calendar.dateComponents([.hour, .minute, .second], from: expiryDate)
-        
-        // Start is now
         let now = Date()
         let startComponents = calendar.dateComponents([.hour, .minute, .second], from: now)
         
-        let schedule = DeviceActivitySchedule(
-            intervalStart: startComponents,
-            intervalEnd: endComponents,
-            repeats: false
-        )
+        let schedule: DeviceActivitySchedule
+        if expiresInSeconds >= 900 {
+            // Long unlock: interval ends exactly at expiry
+            let expiryDate = now.addingTimeInterval(TimeInterval(expiresInSeconds))
+            let endComponents = calendar.dateComponents([.hour, .minute, .second], from: expiryDate)
+            schedule = DeviceActivitySchedule(
+                intervalStart: startComponents,
+                intervalEnd: endComponents,
+                repeats: false
+            )
+            print("📅 Scheduled unlock expiry activity for group \(groupId) in \(expiresInSeconds)s (interval end)")
+        } else {
+            // Short unlock: 15-min minimum interval; warningTime so extension gets intervalWillEndWarning at expiry
+            let endDate = now.addingTimeInterval(900)
+            let endComponents = calendar.dateComponents([.hour, .minute, .second], from: endDate)
+            let secondsBeforeEnd = 900 - expiresInSeconds
+            let warningTime = DateComponents(second: secondsBeforeEnd)
+            schedule = DeviceActivitySchedule(
+                intervalStart: startComponents,
+                intervalEnd: endComponents,
+                repeats: false,
+                warningTime: warningTime
+            )
+            print("📅 Scheduled unlock expiry activity for group \(groupId) in \(expiresInSeconds)s (warning in \(secondsBeforeEnd)s)")
+        }
         
-        // Stop any existing monitoring for this activity
         center.stopMonitoring([activityName])
-        
         do {
             try center.startMonitoring(activityName, during: schedule)
-            print("📅 Scheduled unlock expiry activity for group \(groupId) in \(expiresInSeconds) seconds")
         } catch {
             print("❌ Failed to schedule unlock expiry activity: \(error)")
         }
@@ -227,6 +239,7 @@ extension AppModel {
         
         let content = UNMutableNotificationContent()
         content.sound = .default
+        content.categoryIdentifier = "ACCESS_EXPIRED"
         
         if minutesRemaining > 0 {
             content.title = "⏱️ \(groupName)"
@@ -234,6 +247,11 @@ extension AppModel {
         } else {
             content.title = "🔒 \(groupName)"
             content.body = "Access ended. Apps are blocked again."
+            // Add action to rebuild shields when time expires
+            content.userInfo = [
+                "action": "expired",
+                "groupName": groupName
+            ]
         }
         
         let trigger = UNTimeIntervalNotificationTrigger(

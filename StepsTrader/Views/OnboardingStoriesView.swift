@@ -120,8 +120,8 @@ struct OnboardingStoriesView: View {
         HStack(spacing: 4) {
             ForEach(slides.indices, id: \.self) { i in
                 Capsule()
-                    .fill(i <= index ? accent : Color.white.opacity(0.25))
-                    .frame(height: 3)
+                    .fill(i <= index ? accent : accent.opacity(0.3))
+                    .frame(height: 4)
                     .animation(.easeInOut(duration: 0.25), value: index)
             }
         }
@@ -155,26 +155,17 @@ struct OnboardingStoriesView: View {
         VStack(spacing: 0) {
             Spacer()
             
-            // Icon
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: slide.gradient.map { $0.opacity(0.90) },
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(accent.opacity(0.9))
                     .frame(width: 80, height: 80)
-                    .shadow(color: slide.gradient.first?.opacity(0.4) ?? .clear, radius: 24, x: 0, y: 12)
-
+                    .shadow(color: accent.opacity(0.4), radius: 24, x: 0, y: 12)
                 Image(systemName: slide.symbol)
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(.white)
             }
             .padding(.bottom, 40)
             
-            // Lines
             VStack(spacing: 8) {
                 ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
                     Text(line)
@@ -197,26 +188,17 @@ struct OnboardingStoriesView: View {
         VStack(spacing: 0) {
             Spacer()
             
-            // Icon
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: slide.gradient.map { $0.opacity(0.90) },
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(accent.opacity(0.9))
                     .frame(width: 80, height: 80)
-                    .shadow(color: slide.gradient.first?.opacity(0.4) ?? .clear, radius: 24, x: 0, y: 12)
-
+                    .shadow(color: accent.opacity(0.4), radius: 24, x: 0, y: 12)
                 Image(systemName: slide.symbol)
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(.white)
             }
             .padding(.bottom, 32)
             
-            // Lines
             VStack(spacing: 6) {
                 ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
                     Text(line)
@@ -266,26 +248,17 @@ struct OnboardingStoriesView: View {
         VStack(spacing: 0) {
             Spacer()
             
-            // Icon
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: slide.gradient.map { $0.opacity(0.90) },
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(accent.opacity(0.9))
                     .frame(width: 80, height: 80)
-                    .shadow(color: slide.gradient.first?.opacity(0.4) ?? .clear, radius: 24, x: 0, y: 12)
-
+                    .shadow(color: accent.opacity(0.4), radius: 24, x: 0, y: 12)
                 Image(systemName: slide.symbol)
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(.white)
             }
             .padding(.bottom, 32)
             
-            // Lines
             VStack(spacing: 6) {
                 ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
                     Text(line)
@@ -371,13 +344,6 @@ struct OnboardingStoriesView: View {
     @ViewBuilder
     private func activityOptionButton(option: EnergyOption, category: EnergyCategory) -> some View {
         let isSelected = model?.isPreferredOptionSelected(option.id, category: category) == true
-        let categoryColor: Color = {
-            switch category {
-            case .move: return .green
-            case .reboot: return .blue
-            case .joy: return .orange
-            }
-        }()
         
         Button {
             model?.togglePreferredOption(optionId: option.id, category: category)
@@ -385,14 +351,12 @@ struct OnboardingStoriesView: View {
             VStack(spacing: 8) {
                 ZStack {
                     Circle()
-                        .fill(isSelected ? categoryColor.opacity(0.3) : Color.white.opacity(0.08))
+                        .fill(isSelected ? accent.opacity(0.3) : Color.white.opacity(0.08))
                         .frame(width: 50, height: 50)
-                    
                     Image(systemName: option.icon)
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(isSelected ? categoryColor : .white.opacity(0.6))
+                        .foregroundColor(isSelected ? accent : .white.opacity(0.6))
                 }
-                
                 Text(option.titleEn)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundColor(isSelected ? .white : .white.opacity(0.6))
@@ -404,10 +368,10 @@ struct OnboardingStoriesView: View {
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(isSelected ? categoryColor.opacity(0.15) : Color.white.opacity(0.05))
+                    .fill(isSelected ? accent.opacity(0.15) : Color.white.opacity(0.05))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(isSelected ? categoryColor.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1)
+                            .stroke(isSelected ? accent.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1)
                     )
             )
         }
@@ -421,26 +385,17 @@ struct OnboardingStoriesView: View {
         VStack(spacing: 0) {
             Spacer()
             
-            // Icon
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: slide.gradient.map { $0.opacity(0.90) },
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(accent.opacity(0.9))
                     .frame(width: 80, height: 80)
-                    .shadow(color: slide.gradient.first?.opacity(0.4) ?? .clear, radius: 24, x: 0, y: 12)
-
+                    .shadow(color: accent.opacity(0.4), radius: 24, x: 0, y: 12)
                 Image(systemName: slide.symbol)
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(.white)
             }
             .padding(.bottom, 32)
             
-            // Lines
             VStack(spacing: 6) {
                 ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
                     Text(line)
@@ -524,22 +479,15 @@ struct OnboardingStoriesView: View {
                             )
                     } else {
                         Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: slide.gradient.map { $0.opacity(0.6) },
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                            .fill(accent.opacity(0.6))
                             .frame(width: 140, height: 140)
                             .overlay(
                                 Circle()
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                                    .stroke(accent.opacity(0.5), lineWidth: 2)
                             )
-                        
                         Image(systemName: "person.fill")
                             .font(.system(size: 50, weight: .medium))
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(.white.opacity(0.8))
                     }
                     
                     // Camera badge
@@ -621,16 +569,9 @@ struct OnboardingStoriesView: View {
             } else {
                 ZStack {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: slide.gradient.map { $0.opacity(0.90) },
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(accent.opacity(0.9))
                         .frame(width: 100, height: 100)
-                        .shadow(color: slide.gradient.first?.opacity(0.5) ?? .clear, radius: 30, x: 0, y: 15)
-
+                        .shadow(color: accent.opacity(0.5), radius: 30, x: 0, y: 15)
                     Image(systemName: slide.symbol)
                         .font(.system(size: 44, weight: .bold))
                         .foregroundColor(.white)

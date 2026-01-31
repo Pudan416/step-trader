@@ -59,18 +59,78 @@ final class DailyEnergyLogicTests: XCTestCase {
     // MARK: - EnergyOption / EnergyCategory
 
     func testEnergyCategoryRawValues() {
-        XCTAssertEqual(EnergyCategory.move.rawValue, "move")
-        XCTAssertEqual(EnergyCategory.reboot.rawValue, "reboot")
-        XCTAssertEqual(EnergyCategory.joy.rawValue, "joy")
+        XCTAssertEqual(EnergyCategory.activity.rawValue, "activity")
+        XCTAssertEqual(EnergyCategory.recovery.rawValue, "recovery")
+        XCTAssertEqual(EnergyCategory.joys.rawValue, "joys")
     }
 
     func testEnergyDefaultsOptionsCount() {
-        let moveCount = EnergyDefaults.options.filter { $0.category == .move }.count
-        let rebootCount = EnergyDefaults.options.filter { $0.category == .reboot }.count
-        let joyCount = EnergyDefaults.options.filter { $0.category == .joy }.count
-        XCTAssertGreaterThan(moveCount, 0)
-        XCTAssertGreaterThan(rebootCount, 0)
-        XCTAssertGreaterThan(joyCount, 0)
+        let activityCount = EnergyDefaults.options.filter { $0.category == .activity }.count
+        let recoveryCount = EnergyDefaults.options.filter { $0.category == .recovery }.count
+        let joysCount = EnergyDefaults.options.filter { $0.category == .joys }.count
+        XCTAssertGreaterThan(activityCount, 0)
+        XCTAssertGreaterThan(recoveryCount, 0)
+        XCTAssertGreaterThan(joysCount, 0)
+    }
+
+    // MARK: - Choice tab: Other option IDs
+
+    func testOtherOptionIds() {
+        XCTAssertTrue(EnergyDefaults.otherOptionIds.contains("activity_other"))
+        XCTAssertTrue(EnergyDefaults.otherOptionIds.contains("recovery_other"))
+        XCTAssertTrue(EnergyDefaults.otherOptionIds.contains("joys_other"))
+        XCTAssertEqual(EnergyDefaults.otherOptionIds.count, 3)
+    }
+
+    // MARK: - CustomEnergyOption
+
+    func testCustomEnergyOption_title() {
+        let custom = CustomEnergyOption(id: "custom_activity_abc", titleEn: "Jogging", titleRu: "Бег", category: .activity)
+        XCTAssertEqual(custom.title(for: "en"), "Jogging")
+        XCTAssertEqual(custom.title(for: "ru"), "Бег")
+    }
+
+    func testCustomEnergyOption_asEnergyOption() {
+        let custom = CustomEnergyOption(id: "custom_activity_xyz", titleEn: "Yoga", titleRu: "Йога", category: .activity, icon: "figure.yoga")
+        let option = custom.asEnergyOption()
+        XCTAssertEqual(option.id, custom.id)
+        XCTAssertEqual(option.titleEn, custom.titleEn)
+        XCTAssertEqual(option.category, .activity)
+        XCTAssertEqual(option.icon, "figure.yoga")
+    }
+
+    func testCustomEnergyOption_codable() throws {
+        let custom = CustomEnergyOption(id: "custom_recovery_1", titleEn: "Slept well", titleRu: "Выспался", category: .recovery)
+        let data = try JSONEncoder().encode(custom)
+        let decoded = try JSONDecoder().decode(CustomEnergyOption.self, from: data)
+        XCTAssertEqual(decoded.id, custom.id)
+        XCTAssertEqual(decoded.titleEn, custom.titleEn)
+        XCTAssertEqual(decoded.category, custom.category)
+    }
+
+    // MARK: - Toggle selection contract (max 4 per category)
+
+    /// Simulates toggleDailySelection logic: add if < 4, remove if present.
+    func testToggleSelectionContract_maxFourPerCategory() {
+        func toggle(selections: inout [String], optionId: String, maxCount: Int) {
+            if let idx = selections.firstIndex(of: optionId) {
+                selections.remove(at: idx)
+            } else if selections.count < maxCount {
+                selections.append(optionId)
+            }
+        }
+        let maxCount = EnergyDefaults.maxSelectionsPerCategory
+        var sel: [String] = []
+        toggle(selections: &sel, optionId: "a", maxCount: maxCount)
+        XCTAssertEqual(sel, ["a"])
+        toggle(selections: &sel, optionId: "b", maxCount: maxCount)
+        toggle(selections: &sel, optionId: "c", maxCount: maxCount)
+        toggle(selections: &sel, optionId: "d", maxCount: maxCount)
+        XCTAssertEqual(sel.count, 4)
+        toggle(selections: &sel, optionId: "e", maxCount: maxCount)
+        XCTAssertEqual(sel.count, 4)
+        toggle(selections: &sel, optionId: "a", maxCount: maxCount)
+        XCTAssertEqual(sel, ["b", "c", "d"])
     }
 }
 

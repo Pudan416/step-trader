@@ -31,14 +31,25 @@ class ShieldActionExtension: ShieldActionDelegate {
         for application: ApplicationToken,
         completionHandler: @escaping (ShieldActionResponse) -> Void
     ) {
-        let defaults = UserDefaults(suiteName: appGroupId)
-        let currentState = defaults?.integer(forKey: shieldStateKey) ?? 0
+        guard let defaults = UserDefaults(suiteName: appGroupId) else {
+            completionHandler(.close)
+            return
+        }
+        
+        // ВАЖНО: Проверяем, не разблокирована ли уже группа с этим приложением
+        if isAppCurrentlyUnlocked(application: application, defaults: defaults) {
+            print("✅ ShieldAction: App is currently unlocked, allowing access")
+            completionHandler(.close)
+            return
+        }
+        
+        let currentState = defaults.integer(forKey: shieldStateKey)
         
         switch action {
         case .primaryButtonPressed:
             if currentState == 0 {
                 // Первый тап по "Unlock": переключаемся в состояние "waitingPush" и шлём пуш
-                defaults?.set(1, forKey: shieldStateKey)
+                defaults.set(1, forKey: shieldStateKey)
                 sendUnlockNotification(for: application, using: defaults)
                 completionHandler(.defer)
             } else {
@@ -52,6 +63,42 @@ class ShieldActionExtension: ShieldActionDelegate {
         @unknown default:
             completionHandler(.close)
         }
+    }
+    
+    /// Проверяет, разблокировано ли приложение в рамках какой-либо группы
+    private func isAppCurrentlyUnlocked(application: ApplicationToken, defaults: UserDefaults) -> Bool {
+        #if canImport(FamilyControls)
+        let now = Date()
+        
+        // Проверяем группы щитов
+        guard let groupsData = defaults.data(forKey: "shieldGroups_v1"),
+              let groups = try? JSONDecoder().decode([ShieldGroupData].self, from: groupsData)
+        else {
+            return false
+        }
+        
+        for group in groups {
+            // Проверяем, разблокирована ли эта группа
+            let unlockKey = "groupUnlock_\(group.id)"
+            guard let unlockUntil = defaults.object(forKey: unlockKey) as? Date,
+                  now < unlockUntil
+            else {
+                continue // Группа не разблокирована
+            }
+            
+            // Группа разблокирована - проверяем, есть ли в ней это приложение
+            if let selectionData = group.selectionData,
+               let sel = try? JSONDecoder().decode(FamilyControls.FamilyActivitySelection.self, from: selectionData),
+               sel.applicationTokens.contains(application) {
+                print("✅ ShieldAction: App found in unlocked group \(group.name)")
+                return true
+            }
+        }
+        
+        return false
+        #else
+        return false
+        #endif
     }
     
     override func handle(
@@ -86,17 +133,17 @@ class ShieldActionExtension: ShieldActionDelegate {
         content.sound = .default
         content.categoryIdentifier = "UNLOCK_APP"
         
-        // Пытаемся сопоставить текущий ApplicationToken с конкретной карточкой (appId),
-        // используя per-card FamilyActivitySelection (timeAccessSelection_v1_<appId>).
-        let bundleId = resolveBundleId(for: application, defaults: defaults)
-        if let bundleId {
-            content.userInfo = [
-                "bundleId": bundleId,
-                "action": "unlock"
-            ]
-        } else {
-            content.userInfo = ["action": "unlock"]
+        // Определяем bundleId и groupId для заблокированного приложения
+        let resolved = resolveAppInfo(for: application, defaults: defaults)
+        
+        var userInfo: [String: Any] = ["action": "unlock"]
+        if let bundleId = resolved.bundleId {
+            userInfo["bundleId"] = bundleId
         }
+        if let groupId = resolved.groupId {
+            userInfo["groupId"] = groupId
+        }
+        content.userInfo = userInfo
         
         let request = UNNotificationRequest(
             identifier: "shield_unlock_\(UUID().uuidString)",
@@ -108,64 +155,70 @@ class ShieldActionExtension: ShieldActionDelegate {
             if let error = error {
                 print("❌ ShieldAction: failed to schedule unlock notification: \(error)")
             } else {
-                print("✅ ShieldAction: scheduled unlock notification")
+                print("✅ ShieldAction: scheduled unlock notification (bundleId: \(resolved.bundleId ?? "nil"), groupId: \(resolved.groupId ?? "nil"))")
             }
         }
     }
     
-    /// Пытаемся определить bundleId заблокированного приложения.
-    private func resolveBundleId(for application: ApplicationToken, defaults: UserDefaults) -> String? {
+    /// Определяем bundleId и groupId заблокированного приложения.
+    private func resolveAppInfo(for application: ApplicationToken, defaults: UserDefaults) -> (bundleId: String?, groupId: String?) {
         #if canImport(FamilyControls)
-        // 1) Проверяем lastBlockedAppBundleId и убеждаемся, что его selection всё ещё содержит этот token.
-        if let existing = defaults.string(forKey: "lastBlockedAppBundleId") {
-            let key = "timeAccessSelection_v1_\(existing)"
-            if let data = defaults.data(forKey: key),
-               let sel = try? JSONDecoder().decode(FamilyControls.FamilyActivitySelection.self, from: data),
-               sel.applicationTokens.contains(application) {
-                return existing
-            }
-        }
-        
-        // 2) Проверяем группы щитов (shieldGroups_v1)
+        // 1) Проверяем группы щитов (shieldGroups_v1) - основной способ
         if let groupsData = defaults.data(forKey: "shieldGroups_v1"),
            let groups = try? JSONDecoder().decode([ShieldGroupData].self, from: groupsData) {
             for group in groups {
                 if let selectionData = group.selectionData,
                    let sel = try? JSONDecoder().decode(FamilyControls.FamilyActivitySelection.self, from: selectionData),
                    sel.applicationTokens.contains(application) {
-                    // Сохраняем имя приложения из группы для поиска
+                    // Нашли группу с этим приложением - получаем имя/bundleId
                     if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: application, requiringSecureCoding: true) {
                         let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
                         if let appName = defaults.string(forKey: tokenKey) {
-                            // Используем имя приложения как bundleId для поиска
+                            // Сохраняем для fallback
                             defaults.set(appName, forKey: "lastBlockedAppBundleId")
-                            return appName
+                            defaults.set(group.id, forKey: "lastBlockedGroupId")
+                            return (bundleId: appName, groupId: group.id)
                         }
                     }
+                    // Даже если не нашли имя, возвращаем groupId
+                    defaults.set(group.id, forKey: "lastBlockedGroupId")
+                    return (bundleId: nil, groupId: group.id)
                 }
             }
         }
         
-        // 3) Ищем нужную карточку, проходя по всем appIds из appUnlockSettings_v1.
-        guard let data = defaults.data(forKey: "appUnlockSettings_v1"),
-              let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data),
-              !decoded.isEmpty
-        else {
-            return nil
-        }
-        
-        for (appId, _) in decoded {
-            let key = "timeAccessSelection_v1_\(appId)"
-            if let selData = defaults.data(forKey: key),
-               let sel = try? JSONDecoder().decode(FamilyControls.FamilyActivitySelection.self, from: selData),
+        // 2) Проверяем lastBlockedAppBundleId и убеждаемся, что его selection всё ещё содержит этот token
+        if let existing = defaults.string(forKey: "lastBlockedAppBundleId") {
+            let key = "timeAccessSelection_v1_\(existing)"
+            if let data = defaults.data(forKey: key),
+               let sel = try? JSONDecoder().decode(FamilyControls.FamilyActivitySelection.self, from: data),
                sel.applicationTokens.contains(application) {
-                defaults.set(appId, forKey: "lastBlockedAppBundleId")
-                return appId
+                let groupId = defaults.string(forKey: "lastBlockedGroupId")
+                return (bundleId: existing, groupId: groupId)
             }
         }
-        return nil
+        
+        // 3) Ищем по appUnlockSettings_v1
+        if let data = defaults.data(forKey: "appUnlockSettings_v1"),
+           let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data) {
+            for (appId, _) in decoded {
+                let key = "timeAccessSelection_v1_\(appId)"
+                if let selData = defaults.data(forKey: key),
+                   let sel = try? JSONDecoder().decode(FamilyControls.FamilyActivitySelection.self, from: selData),
+                   sel.applicationTokens.contains(application) {
+                    defaults.set(appId, forKey: "lastBlockedAppBundleId")
+                    return (bundleId: appId, groupId: nil)
+                }
+            }
+        }
+        
+        // 4) Если ничего не нашли, очищаем старые значения чтобы не использовать неверные данные
+        defaults.removeObject(forKey: "lastBlockedAppBundleId")
+        defaults.removeObject(forKey: "lastBlockedGroupId")
+        
+        return (bundleId: nil, groupId: nil)
         #else
-        return nil
+        return (bundleId: nil, groupId: nil)
         #endif
     }
     

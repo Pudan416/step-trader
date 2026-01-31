@@ -153,10 +153,8 @@ extension AppModel {
             print("💾 Recalculated stepsBalance: \(stepsBalance) (baseEnergy \(todaysBaseEnergy) - spent \(spentStepsToday))")
         }
         
-        // Load bonus steps from UserDefaults
-        outerWorldBonusSteps = g.integer(forKey: "debugStepsBonus_outerworld_v1")
         serverGrantedSteps = g.integer(forKey: "serverGrantedSteps_v1")
-        print("💾 Loaded outerWorldBonusSteps: \(outerWorldBonusSteps), serverGrantedSteps: \(serverGrantedSteps)")
+        print("💾 Loaded serverGrantedSteps: \(serverGrantedSteps)")
         
         // Sync bonus breakdown which will calculate and set bonusSteps correctly
         syncAndPersistBonusBreakdown()
@@ -170,26 +168,16 @@ extension AppModel {
 
     @MainActor
     func syncAndPersistBonusBreakdown() {
-        // Суммируем бонусную энергию
-        let rawBonus = outerWorldBonusSteps + serverGrantedSteps
-        
-        // Ограничиваем бонусную энергию максимумом 50
-        let cappedBonus = min(rawBonus, EnergyDefaults.maxBonusEnergy)
-        
-        // Проверяем суммарный лимит: baseEnergyToday + bonusSteps не должно превышать 100
-        // Если превышает, уменьшаем bonusSteps
-        let maxTotalEnergy = EnergyDefaults.maxBaseEnergy // 100
+        let cappedBonus = min(serverGrantedSteps, EnergyDefaults.maxBonusEnergy)
+        let maxTotalEnergy = EnergyDefaults.maxBaseEnergy
         let availableForBonus = max(0, maxTotalEnergy - baseEnergyToday)
         bonusSteps = min(cappedBonus, availableForBonus)
         
         let g = UserDefaults.stepsTrader()
-        // Keep compatibility (extensions / older code) by writing Outer World bonus into legacy key.
         g.set(bonusSteps, forKey: "debugStepsBonus_v1")
-        g.set(outerWorldBonusSteps, forKey: "debugStepsBonus_outerworld_v1")
-        // Explicitly clear removed debug bucket if it exists.
+        g.removeObject(forKey: "debugStepsBonus_outerworld_v1")
         g.removeObject(forKey: "debugStepsBonus_debug_v1")
         
-        // Update totalStepsBalance after bonus changes
         updateTotalStepsBalance()
     }
 
@@ -216,20 +204,26 @@ extension AppModel {
         persistAppStepsSpentToday()
         persistAppStepsSpentByDay()
         persistAppStepsSpentLifetime()
+        
+        // Sync daily spent to Supabase
+        let todaySpent = appStepsSpentByDay[key] ?? [:]
+        let totalSpent = todaySpent.values.reduce(0, +)
+        SupabaseSyncService.shared.syncDailySpent(dayKey: key, totalSpent: totalSpent, spentByApp: todaySpent)
     }
     
     @MainActor
     func consumeBonusSteps(_ cost: Int) {
         guard cost > 0 else { return }
         
-        let before = outerWorldBonusSteps
-        outerWorldBonusSteps = max(0, outerWorldBonusSteps - min(outerWorldBonusSteps, cost))
-        print("🔋 consumeBonusSteps: \(cost), outerWorldBonusSteps: \(before) → \(outerWorldBonusSteps)")
+        let before = serverGrantedSteps
+        serverGrantedSteps = max(0, serverGrantedSteps - min(serverGrantedSteps, cost))
+        print("🔋 consumeBonusSteps: \(cost), serverGrantedSteps: \(before) → \(serverGrantedSteps)")
         
         syncAndPersistBonusBreakdown()
         
         // Force immediate persistence
         let g = UserDefaults.stepsTrader()
+        g.set(serverGrantedSteps, forKey: "serverGrantedSteps_v1")
         g.synchronize()
         
         // Force UI update

@@ -4,7 +4,62 @@ import SwiftUI
 /// Replaces hardcoded Color(red:green:blue:) values throughout the codebase
 enum AppColors {
     // MARK: - Brand Colors
-    static let brandPink = Color(red: 224/255, green: 130/255, blue: 217/255)
+    // Dusty chalk pink — rebellious but not loud
+    static let brandPink = Color(red: 0.85, green: 0.40, blue: 0.50)  // #D96680
+    
+    // MARK: - Daylight Theme (Paper)
+    // "This is not a light mode. This is a daytime version of resistance."
+    // The screen is not your life. This is just a place to notice.
+    enum Daylight {
+        static let background = Color(red: 0.96, green: 0.95, blue: 0.93)      // Warm paper
+        static let backgroundSecondary = Color(red: 0.93, green: 0.92, blue: 0.89)
+        static let backgroundTertiary = Color(red: 0.90, green: 0.88, blue: 0.85)
+        
+        static let textPrimary = Color(red: 0.08, green: 0.08, blue: 0.08)      // Near-black ink
+        static let textSecondary = Color(red: 0.25, green: 0.25, blue: 0.25)
+        static let textMuted = Color(red: 0.45, green: 0.44, blue: 0.42)
+        
+        static let accentPink = Color(red: 0.85, green: 0.40, blue: 0.50)       // Dusty chalk pink
+        static let stroke = Color(red: 0.12, green: 0.12, blue: 0.12)
+        
+        static let activity = Color(red: 0.18, green: 0.42, blue: 0.28)
+        static let recovery = Color(red: 0.22, green: 0.36, blue: 0.50)
+        static let joys = Color(red: 0.55, green: 0.38, blue: 0.22)
+    }
+    
+    // MARK: - Minimal Theme (Monochrome)
+    enum Minimal {
+        static let background = Color(red: 249 / 255, green: 248 / 255, blue: 246 / 255) // #F9F8F6
+        static let backgroundSecondary = Color(red: 245 / 255, green: 244 / 255, blue: 242 / 255)
+        
+        static let textPrimary = Color.black
+        static let textSecondary = Color.black.opacity(0.7)
+        
+        static let stroke = Color.black
+        static let mono = Color.black
+    }
+    
+    // MARK: - Night Theme
+    // Night and screens. Same pink, different context.
+    enum Night {
+        static let background = Color(red: 0.05, green: 0.05, blue: 0.07)
+        static let backgroundSecondary = Color(red: 0.08, green: 0.08, blue: 0.10)
+        static let backgroundTertiary = Color(red: 0.12, green: 0.12, blue: 0.14)
+        
+        static let textPrimary = Color(red: 0.95, green: 0.95, blue: 0.95)
+        static let textSecondary = Color(red: 0.70, green: 0.70, blue: 0.70)
+        static let textMuted = Color(red: 0.45, green: 0.45, blue: 0.45)
+        
+        static let accentPink = Color(red: 0.85, green: 0.40, blue: 0.50)       // Dusty chalk pink
+        static let accentPinkMuted = Color(red: 0.85, green: 0.40, blue: 0.50).opacity(0.6)
+        
+        static let stroke = Color(red: 0.25, green: 0.25, blue: 0.25)
+        static let strokeLight = Color(red: 0.20, green: 0.20, blue: 0.20)
+        
+        static let activity = Color(red: 0.30, green: 0.75, blue: 0.45)
+        static let recovery = Color(red: 0.40, green: 0.60, blue: 0.90)
+        static let joys = Color(red: 0.95, green: 0.60, blue: 0.30)
+    }
     
     // MARK: - PayGate Background Styles
     enum PayGate {
@@ -69,5 +124,147 @@ enum AppColors {
     // MARK: - Apps Page
     enum Apps {
         static let progressBase = Color(red: 0.88, green: 0.51, blue: 0.85)
+    }
+}
+
+// MARK: - Theme Environment Key
+/// Use @Environment(\.appTheme) to access current theme in any view
+private struct AppThemeKey: EnvironmentKey {
+    static let defaultValue: AppTheme = .system
+}
+
+extension EnvironmentValues {
+    var appTheme: AppTheme {
+        get { self[AppThemeKey.self] }
+        set { self[AppThemeKey.self] = newValue }
+    }
+}
+
+// MARK: - Themed View Modifiers
+extension View {
+    /// Apply theme to a view hierarchy
+    func themed(_ theme: AppTheme) -> some View {
+        self
+            .environment(\.appTheme, theme)
+            .preferredColorScheme(theme.colorScheme)
+    }
+    
+    /// Background for main content areas — off-white paper in daylight
+    func themedBackground(_ theme: AppTheme) -> some View {
+        self.background(theme.backgroundColor)
+    }
+    
+    /// Secondary background for grouped content — no shadows, just different paper tone
+    func themedSecondaryBackground(_ theme: AppTheme) -> some View {
+        self.background(theme.backgroundSecondary)
+    }
+    
+    /// Stroke border — thin black lines for separation (daylight philosophy: no shadows, no soft cards)
+    func themedBorder(_ theme: AppTheme, width: CGFloat = 1) -> some View {
+        self.overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(theme.stroke.opacity(theme.strokeOpacity), lineWidth: width)
+        )
+    }
+}
+
+// MARK: - Semantic Text Styles
+/// Text styles that follow the Daylight theme philosophy:
+/// - High-contrast, printed, factual
+/// - No soft greys for main content
+/// - Text should feel printed, not digital
+extension Text {
+    /// Primary text — near-black ink, high contrast
+    func themedPrimary(_ theme: AppTheme) -> Text {
+        self.foregroundColor(theme.textPrimary)
+    }
+    
+    /// Secondary text — still readable, not soft
+    func themedSecondary(_ theme: AppTheme) -> Text {
+        self.foregroundColor(theme.textSecondary)
+    }
+    
+    /// Accent text — rebellious pink marker ink
+    func themedAccent(_ theme: AppTheme) -> Text {
+        self.foregroundColor(theme.accentColor)
+    }
+}
+
+// MARK: - Resistance UI Components
+/// Components that embody the Doom Control philosophy:
+/// - No gamification. No motivation. No self-improvement tone.
+/// - Observation over instruction
+/// - Invitation over pressure
+/// - Empty states are allowed
+/// - "Losing control" is neutral, never framed as failure
+
+struct ResistanceTag: View {
+    let text: String
+    let theme: AppTheme
+    
+    var body: some View {
+        Text(text)
+            .font(.caption.weight(.medium))
+            .foregroundColor(theme.accentColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .stroke(theme.accentColor, lineWidth: 1)
+            )
+    }
+}
+
+/// Hand-drawn underline effect for rebellious accent
+struct PinkUnderline: View {
+    let width: CGFloat
+    let theme: AppTheme
+    
+    var body: some View {
+        // Slightly imperfect line — like marker on paper
+        Path { path in
+            path.move(to: CGPoint(x: 0, y: 0))
+            path.addQuadCurve(
+                to: CGPoint(x: width, y: 2),
+                control: CGPoint(x: width * 0.5, y: -1)
+            )
+        }
+        .stroke(theme.accentColor, lineWidth: 2)
+        .frame(width: width, height: 4)
+    }
+}
+
+/// Divider for daylight theme — thin black stroke, not grey
+struct ThemedDivider: View {
+    let theme: AppTheme
+    
+    var body: some View {
+        Rectangle()
+            .fill(theme.stroke.opacity(theme.strokeOpacity))
+            .frame(height: 1)
+    }
+}
+
+/// Empty state view — "Empty states are allowed. Observation, not instruction."
+struct EmptyStateView: View {
+    let message: String
+    let theme: AppTheme
+    var subMessage: String? = nil  // Optional: "or don't", "you can skip this", "nothing breaks"
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(theme.textSecondary)
+            
+            if let sub = subMessage {
+                Text(sub)
+                    .font(.caption)
+                    .foregroundColor(theme.textSecondary.opacity(0.7))
+                    .italic()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
     }
 }

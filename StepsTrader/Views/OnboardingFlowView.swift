@@ -1,6 +1,12 @@
 import SwiftUI
 import UIKit
 
+enum OnboardingFlowPhase {
+    case introImages   // 8 full-screen images, YES on 8th
+    case login         // Apple login (slide 9, login1)
+    case mainOnboarding
+}
+
 struct OnboardingFlowView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var authService: AuthenticationService
@@ -8,9 +14,9 @@ struct OnboardingFlowView: View {
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     let onComplete: () -> Void
 
-    @State private var showLogin: Bool = true
+    @State private var phase: OnboardingFlowPhase = .introImages
     @State private var onboardingPresented: Bool = true
-    @State private var didCheckAuth: Bool = false
+    @State private var didCheckAuthOnLogin: Bool = false
     
     // Setup values - use @AppStorage for immediate sync with other views
     @AppStorage("userStepsTarget") private var stepsTarget: Double = 10_000
@@ -20,16 +26,35 @@ struct OnboardingFlowView: View {
 
     var body: some View {
         ZStack {
-            if showLogin {
+            switch phase {
+            case .introImages:
+                IntroImagesView(onYes: { advanceToLogin() })
+            case .login:
                 LoginView(
                     authService: authService,
                     showsClose: false,
-                    onAuthenticated: { advanceToOnboarding() }
+                    useLogin1Background: true,
+                    onAuthenticated: { advanceToMainOnboarding() }
                 )
-            } else {
+                .onAppear {
+                    guard !didCheckAuthOnLogin else { return }
+                    didCheckAuthOnLogin = true
+                    Task { @MainActor in
+                        await authService.checkAuthenticationState()
+                        if authService.isAuthenticated {
+                            advanceToMainOnboarding()
+                        }
+                    }
+                }
+                .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+                    if isAuthenticated {
+                        advanceToMainOnboarding()
+                    }
+                }
+            case .mainOnboarding:
                 OnboardingStoriesView(
                     isPresented: $onboardingPresented,
-                    slides: allSlides(),
+                    slides: mainSlides(),
                     accent: AppColors.brandPink,
                     skipText: loc(appLanguage, "Skip"),
                     nextText: loc(appLanguage, "Next"),
@@ -60,27 +85,25 @@ struct OnboardingFlowView: View {
             }
         }
         .transition(.opacity)
-        .onAppear {
-            guard !didCheckAuth else { return }
-            didCheckAuth = true
-            Task { @MainActor in
-                await authService.checkAuthenticationState()
-                if authService.isAuthenticated {
-                    advanceToOnboarding()
-                }
-            }
-        }
-        .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
-            if isAuthenticated && showLogin {
-                advanceToOnboarding()
-            }
+    }
+
+    private func advanceToLogin() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            phase = .login
         }
     }
 
-    private func advanceToOnboarding() {
+    private func advanceToMainOnboarding() {
+        if let user = authService.currentUser {
+            if let nick = user.nickname, !nick.isEmpty {
+                userName = nick
+            }
+            if let data = user.avatarData, let img = UIImage(data: data) {
+                avatarImage = img
+            }
+        }
         withAnimation(.easeInOut(duration: 0.3)) {
-            onboardingPresented = true
-            showLogin = false
+            phase = .mainOnboarding
         }
     }
 
@@ -113,77 +136,11 @@ struct OnboardingFlowView: View {
         }
     }
     
-    // MARK: - All 17 Slides
+    // MARK: - Main onboarding slides (after intro 1–8 and login 9)
     
-    private func allSlides() -> [OnboardingSlide] {
+    private func mainSlides() -> [OnboardingSlide] {
         [
-            // 1 - Apps are built to take your time
-            OnboardingSlide(
-                lines: [
-                    "Apps are built to take your time.",
-                    "Infinite feeds.",
-                    "Endless scroll."
-                ],
-                symbol: "hourglass",
-                gradient: [.purple, .pink]
-            ),
-            
-            // 2 - You spend time
-            OnboardingSlide(
-                lines: [
-                    "You spend time.",
-                    "They collect data.",
-                    "They profit."
-                ],
-                symbol: "dollarsign.circle.fill",
-                gradient: [.red, .orange]
-            ),
-            
-            // 3 - But you're free
-            OnboardingSlide(
-                lines: [
-                    "But you're free.",
-                    "You can choose.",
-                    "You can stop doomscrolling — your way."
-                ],
-                symbol: "bird.fill",
-                gradient: [.cyan, .blue]
-            ),
-            
-            // 4 - Doom Control is resistance
-            OnboardingSlide(
-                lines: [
-                    "Doom Control is resistance.",
-                    "For people who want their time back."
-                ],
-                symbol: "shield.checkered",
-                gradient: [.pink, .purple]
-            ),
-            
-            // 5 - Do what you want
-            OnboardingSlide(
-                lines: [
-                    "Do what you want.",
-                    "Enjoy the real world.",
-                    "With people who choose the same."
-                ],
-                symbol: "sun.max.fill",
-                gradient: [.yellow, .orange]
-            ),
-            
-            // 6 - Ready to join?
-            OnboardingSlide(
-                lines: [
-                    "Ready to join?",
-                    "Ready for Doom Control?",
-                    "Just a few questions.",
-                    "No right answers."
-                ],
-                symbol: "questionmark.circle.fill",
-                gradient: [.green, .teal]
-            ),
-            
-            // 7 - Steps setup
+            // 1 - Steps setup
             OnboardingSlide(
                 lines: [
                     "How many steps a day",
@@ -194,7 +151,7 @@ struct OnboardingFlowView: View {
                 slideType: .stepsSetup
             ),
             
-            // 8 - Move activities
+            // 2 - Move activities
             OnboardingSlide(
                 lines: [
                     "Choose up to 4 things",
@@ -202,10 +159,10 @@ struct OnboardingFlowView: View {
                 ],
                 symbol: "figure.run",
                 gradient: [.green, .teal],
-                slideType: .activitySelection(.move)
+                slideType: .activitySelection(.activity)
             ),
             
-            // 9 - Sleep setup
+            // 3 - Sleep setup
             OnboardingSlide(
                 lines: [
                     "No rest — no freedom.",
@@ -217,7 +174,7 @@ struct OnboardingFlowView: View {
                 slideType: .sleepSetup
             ),
             
-            // 10 - Reboot activities
+            // 4 - Reboot activities
             OnboardingSlide(
                 lines: [
                     "Choose up to 4 ways",
@@ -226,10 +183,10 @@ struct OnboardingFlowView: View {
                 ],
                 symbol: "arrow.clockwise.heart.fill",
                 gradient: [.blue, .cyan],
-                slideType: .activitySelection(.reboot)
+                slideType: .activitySelection(.recovery)
             ),
             
-            // 11 - Choice activities
+            // 5 - Choice activities
             OnboardingSlide(
                 lines: [
                     "Freedom is a choice.",
@@ -239,10 +196,10 @@ struct OnboardingFlowView: View {
                 ],
                 symbol: "heart.fill",
                 gradient: [.orange, .pink],
-                slideType: .activitySelection(.joy)
+                slideType: .activitySelection(.joys)
             ),
             
-            // 12 - Almost there
+            // 6 - Almost there
             OnboardingSlide(
                 lines: [
                     "Almost there.",
@@ -252,7 +209,7 @@ struct OnboardingFlowView: View {
                 gradient: [.green, .mint]
             ),
             
-            // 13 - Family Controls permission
+            // 7 - Family Controls permission
             OnboardingSlide(
                 lines: [
                     "Allow access to apps.",
@@ -264,7 +221,7 @@ struct OnboardingFlowView: View {
                 action: .requestFamilyControls
             ),
             
-            // 14 - Location permission
+            // 8 - Location permission
             OnboardingSlide(
                 lines: [
                     "Allow location access.",
@@ -276,7 +233,7 @@ struct OnboardingFlowView: View {
                 action: .requestLocation
             ),
             
-            // 15 - Health permission
+            // 9 - Health permission
             OnboardingSlide(
                 lines: [
                     "Allow health access.",
@@ -288,7 +245,7 @@ struct OnboardingFlowView: View {
                 action: .requestHealth
             ),
             
-            // 16 - Notifications permission
+            // 10 - Notifications permission
             OnboardingSlide(
                 lines: [
                     "Turn on notifications",
@@ -301,7 +258,7 @@ struct OnboardingFlowView: View {
                 action: .requestNotifications
             ),
             
-            // 17 - Name input
+            // 11 - Name input
             OnboardingSlide(
                 lines: [
                     "What should we call you?",
@@ -312,7 +269,7 @@ struct OnboardingFlowView: View {
                 slideType: .nameInput
             ),
             
-            // 18 - Avatar setup
+            // 12 - Avatar setup
             OnboardingSlide(
                 lines: [
                     "Add a photo?",
@@ -323,7 +280,7 @@ struct OnboardingFlowView: View {
                 slideType: .avatarSetup
             ),
             
-            // 19 - Welcome with name
+            // 13 - Welcome with name
             OnboardingSlide(
                 lines: [],
                 symbol: "sparkles",
