@@ -2,6 +2,9 @@ import Foundation
 import SwiftUI
 import Combine
 import HealthKit
+#if canImport(UIKit)
+import UIKit
+#endif
 #if canImport(FamilyControls)
 import FamilyControls
 import ManagedSettings
@@ -31,6 +34,8 @@ protocol HealthKitServiceProtocol {
     func requestAuthorization() async throws
     @MainActor
     func authorizationStatus() -> HKAuthorizationStatus
+    @MainActor
+    func sleepAuthorizationStatus() -> HKAuthorizationStatus
     func fetchTodaySteps() async throws -> Double
     func fetchSteps(from: Date, to: Date) async throws -> Double
     func startObservingSteps(updateHandler: @escaping (Double) -> Void)
@@ -213,7 +218,16 @@ enum AppTheme: String, CaseIterable {
     
     var backgroundColor: Color {
         switch self {
-        case .system: return Color(.systemBackground)
+        case .system:
+#if canImport(UIKit)
+            return Color(uiColor: UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? UIColor(red: 0x22/255.0, green: 0x28/255.0, blue: 0x31/255.0, alpha: 1) // #222831
+                    : UIColor(red: 0xEE/255.0, green: 0xEE/255.0, blue: 0xEE/255.0, alpha: 1) // #EEEEEE
+            })
+#else
+            return Color(.systemBackground)
+#endif
         case .daylight: return AppColors.Daylight.background
         case .night: return AppColors.Night.background
         case .minimal: return AppColors.Minimal.background
@@ -272,11 +286,11 @@ enum AppTheme: String, CaseIterable {
         }
     }
     
-    var recoveryColor: Color {
+    var restColor: Color {
         switch self {
         case .system: return .blue
-        case .daylight: return AppColors.Daylight.recovery
-        case .night: return AppColors.Night.recovery
+        case .daylight: return AppColors.Daylight.rest
+        case .night: return AppColors.Night.rest
         case .minimal: return AppColors.Minimal.mono
         }
     }

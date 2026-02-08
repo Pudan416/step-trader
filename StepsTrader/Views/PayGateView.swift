@@ -1,17 +1,28 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 #if canImport(FamilyControls)
 import FamilyControls
 #endif
 
+/// Палитра PayGate: черный фон, желтый акцент.
+fileprivate enum PayGatePalette {
+    static let background = Color.black
+    static let accent = Color(red: 0xFF/255.0, green: 0xD3/255.0, blue: 0x69/255.0) // #FFD369
+    static let surface = Color(white: 0.12)
+    static let textPrimary = Color.white
+    static let textSecondary = Color.white.opacity(0.6)
+}
+
 struct PayGateView: View {
     @ObservedObject var model: AppModel
-    @AppStorage("payGateBackgroundStyle") private var backgroundStyle: String = PayGateBackgroundStyle.midnight.rawValue
+    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @State private var didForfeitSessions: Set<String> = []
     @State private var showTransitionCircle: Bool = false
     @State private var transitionScale: CGFloat = 0.01
     
-    private var activeSession: AppModel.PayGateSession? {
+    private var activeSession: PayGateSession? {
         if let id = model.currentPayGateSessionId, let session = model.payGateSessions[id] {
             return session
         }
@@ -21,9 +32,9 @@ struct PayGateView: View {
         return nil
     }
     
-    private var activeGroup: AppModel.ShieldGroup? {
+    private var activeGroup: TicketGroup? {
         guard let groupId = activeSession?.groupId else { return nil }
-        return model.shieldGroups.first(where: { $0.id == groupId })
+        return model.ticketGroups.first(where: { $0.id == groupId })
     }
     
     var body: some View {
@@ -31,30 +42,30 @@ struct PayGateView: View {
             let isCompact = geometry.size.height < 700
             
             ZStack {
-                payGateBackground()
+                PayGatePalette.background
                     .ignoresSafeArea()
                 
-                VStack(spacing: isCompact ? 12 : 20) {
-                    // App logo and balance header
-                    headerSection(isCompact: isCompact)
+                VStack(spacing: 0) {
+                    // Header: Balance
+                    headerSection
+                        .padding(.top, isCompact ? 20 : 40)
                     
-                    Spacer(minLength: 0)
+                    Spacer()
                     
-                    // Center: Target app/group info
+                    // Center: App Icon & Info
                     if let group = activeGroup {
-                        targetInfoSection(group: group, isCompact: isCompact)
+                        targetInfoSection(group: group)
                     }
                     
-                    Spacer(minLength: 0)
+                    Spacer()
                     
-                    // Bottom: Action buttons (no scroll)
+                    // Bottom: Actions
                     if let group = activeGroup {
-                        actionSection(group: group, isCompact: isCompact)
+                        actionSection(group: group)
+                            .padding(.bottom, isCompact ? 20 : 40)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, isCompact ? 40 : 50)
-                .padding(.bottom, isCompact ? 16 : 24)
+                .padding(.horizontal, 24)
             }
         }
         .overlay(transitionOverlay)
@@ -66,251 +77,145 @@ struct PayGateView: View {
         }
     }
     
-    // MARK: - Header Section
-    @ViewBuilder
-    private func headerSection(isCompact: Bool) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            // App Logo
-            appLogoView
-                .frame(width: isCompact ? 40 : 48, height: isCompact ? 40 : 48)
-                .clipShape(RoundedRectangle(cornerRadius: isCompact ? 10 : 12))
-                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-            
-            // Control balance
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Your Control")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
-                
-                HStack(spacing: 4) {
-                    Image(systemName: "bolt.fill")
-                        .font(.subheadline)
-                        .foregroundColor(controlColor)
-                    
-                    Text("\(model.totalStepsBalance)")
-                        .font(.system(size: isCompact ? 24 : 28, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .monospacedDigit()
-                }
-            }
-            
+    // MARK: - Header
+    private var headerSection: some View {
+        HStack {
             Spacer()
-            
-            // Today's total
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("Today")
-                    .font(.caption2)
-                    .foregroundColor(.white.opacity(0.5))
-                Text("\(model.baseEnergyToday + model.bonusSteps)")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.7))
+            HStack(spacing: 8) {
+                Image(systemName: "bolt.fill")
+                    .font(.title2)
+                    .foregroundColor(PayGatePalette.accent)
+                
+                Text("\(model.totalStepsBalance)")
+                    .font(.notoSerif(32, weight: .bold))
+                    .foregroundColor(PayGatePalette.textPrimary)
                     .monospacedDigit()
             }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 20)
+            .background(
+                Capsule()
+                    .fill(PayGatePalette.surface)
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    )
+            )
+            Spacer()
         }
-        .padding(isCompact ? 12 : 16)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(.ultraThinMaterial.opacity(0.6))
-        )
     }
     
-    private var controlColor: Color {
-        let balance = model.totalStepsBalance
-        if balance > 50 { return AppColors.brandPink }
-        if balance > 20 { return .orange }
-        return .red
-    }
-    
+    // MARK: - Target Info
     @ViewBuilder
-    private var appLogoView: some View {
-        if let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
-           let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
-           let files = primary["CFBundleIconFiles"] as? [String],
-           let last = files.last,
-           let uiImage = UIImage(named: last) {
-            Image(uiImage: uiImage)
-                .resizable()
-                .scaledToFit()
-        } else {
-            ZStack {
-                LinearGradient(
-                    colors: [Color.purple, AppColors.brandPink],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                Image(systemName: "bolt.shield.fill")
-                    .font(.title2)
-                    .foregroundColor(.white)
+    private func targetInfoSection(group: TicketGroup) -> some View {
+        VStack(spacing: 24) {
+            // Icons
+            groupAppIconsView(group: group)
+            
+            // Text
+            VStack(spacing: 8) {
+                Text(loc(appLanguage, "Spend experience"))
+                    .font(.notoSerif(28, weight: .bold))
+                    .foregroundColor(PayGatePalette.textPrimary)
+                    .multilineTextAlignment(.center)
+                
+                Text(group.name)
+                    .font(.body)
+                    .foregroundColor(PayGatePalette.textSecondary)
+                    .multilineTextAlignment(.center)
             }
         }
     }
     
-    // MARK: - Target Info Section
     @ViewBuilder
-    private func targetInfoSection(group: AppModel.ShieldGroup, isCompact: Bool) -> some View {
-        VStack(spacing: isCompact ? 8 : 12) {
-            // App icons from group
-            groupAppIconsView(group: group, isCompact: isCompact)
-            
-            // Warning message
-            Text("Lose control to unlock")
-                .font(isCompact ? .subheadline : .headline)
-                .foregroundColor(.white.opacity(0.8))
-            
-            // Difficulty badge
-            difficultyBadge(level: group.difficultyLevel)
-        }
-    }
-    
-    @ViewBuilder
-    private func groupAppIconsView(group: AppModel.ShieldGroup, isCompact: Bool) -> some View {
+    private func groupAppIconsView(group: TicketGroup) -> some View {
         #if canImport(FamilyControls)
         let appTokens = Array(group.selection.applicationTokens.prefix(3))
-        let remainingSlots = max(0, 3 - appTokens.count)
-        let categoryTokens = Array(group.selection.categoryTokens.prefix(remainingSlots))
-        let hasMore = (group.selection.applicationTokens.count + group.selection.categoryTokens.count) > 3
-        let iconSize: CGFloat = isCompact ? 56 : 68
+        let iconSize: CGFloat = 80
         
         ZStack {
             // Glow
             Circle()
-                .fill(selectedBackgroundStyle.accentColor.opacity(0.25))
-                .frame(width: iconSize * 1.8, height: iconSize * 1.8)
-                .blur(radius: 25)
+                .fill(PayGatePalette.accent.opacity(0.2))
+                .frame(width: iconSize * 2, height: iconSize * 2)
+                .blur(radius: 30)
             
-            // Single icon or stacked
-            if appTokens.count == 1 && categoryTokens.isEmpty {
-                AppIconView(token: appTokens[0])
+            if let templateApp = group.templateApp,
+               let imageName = TargetResolver.imageName(for: templateApp),
+               let uiImage = UIImage(named: imageName) ?? UIImage(named: imageName.lowercased()) ?? UIImage(named: imageName.capitalized) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
                     .frame(width: iconSize, height: iconSize)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(color: .black.opacity(0.4), radius: 10, x: 0, y: 5)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .shadow(color: .black.opacity(0.5), radius: 10, x: 0, y: 5)
+            } else if appTokens.isEmpty {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(PayGatePalette.accent)
             } else {
                 // Stacked icons
                 ForEach(Array(appTokens.enumerated()), id: \.offset) { index, token in
-                    let size = iconSize - CGFloat(index * 8)
+                    let size = iconSize - CGFloat(index * 10)
                     AppIconView(token: token)
                         .frame(width: size, height: size)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 3)
-                        .offset(x: CGFloat(index - 1) * 16, y: CGFloat(index) * 4)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 4)
+                        .offset(x: CGFloat(index - 1) * 20, y: CGFloat(index) * 5)
                         .zIndex(Double(3 - index))
                 }
-                
-                ForEach(Array(categoryTokens.enumerated()), id: \.offset) { offset, token in
-                    let index = appTokens.count + offset
-                    let size = iconSize - CGFloat(index * 8)
-                    CategoryIconView(token: token)
-                        .frame(width: size, height: size)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 3)
-                        .offset(x: CGFloat(index - 1) * 16, y: CGFloat(index) * 4)
-                        .zIndex(Double(3 - index))
-                }
-            }
-            
-            // +N badge
-            if hasMore {
-                let total = group.selection.applicationTokens.count + group.selection.categoryTokens.count
-                Text("+\(total - 3)")
-                    .font(.caption2.weight(.bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.black.opacity(0.7))
-                    .clipShape(Capsule())
-                    .offset(x: 24, y: 20)
-                    .zIndex(10)
             }
         }
-        .frame(height: isCompact ? 80 : 100)
+        .frame(height: 120)
         #else
-        Image(systemName: "app.fill")
-            .font(.system(size: 48))
-            .foregroundColor(.white)
+        Image(systemName: "lock.fill")
+            .font(.system(size: 60))
+            .foregroundColor(PayGatePalette.accent)
+            .padding(30)
+            .background(
+                Circle()
+                    .fill(PayGatePalette.surface)
+            )
         #endif
     }
     
+    // MARK: - Actions
     @ViewBuilder
-    private func difficultyBadge(level: Int) -> some View {
-        let color = difficultyColor(for: level)
-        let label = difficultyLabel(for: level)
-        
-        HStack(spacing: 4) {
-            Image(systemName: "dial.high.fill")
-                .font(.caption2)
-            Text(label)
-                .font(.caption.weight(.semibold))
-        }
-        .foregroundColor(color)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Capsule().fill(color.opacity(0.2)))
-    }
-    
-    private func difficultyLabel(for level: Int) -> String {
-        switch level {
-        case 1: return "Rookie"
-        case 2: return "Rebel"
-        case 3: return "Fighter"
-        case 4: return "Warrior"
-        case 5: return "Legend"
-        default: return "Fighter"
-        }
-    }
-    
-    private func difficultyColor(for level: Int) -> Color {
-        switch level {
-        case 1: return .green
-        case 2: return .blue
-        case 3: return .orange
-        case 4: return .red
-        case 5: return .purple
-        default: return .gray
-        }
-    }
-    
-    // MARK: - Action Section
-    @ViewBuilder
-    private func actionSection(group: AppModel.ShieldGroup, isCompact: Bool) -> some View {
+    private func actionSection(group: TicketGroup) -> some View {
         let windows = Array(group.enabledIntervals).sorted { $0.minutes < $1.minutes }
         let isForfeited = didForfeitSessions.contains(group.id)
         
-        VStack(spacing: isCompact ? 10 : 14) {
-            // Access buttons grid - adaptive columns based on count
-            accessButtonsGrid(windows: windows, group: group, isForfeited: isForfeited, isCompact: isCompact)
-            
-            // Close button
-            closeButton(groupId: group.id)
-        }
-        .padding(isCompact ? 14 : 18)
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: -8)
-        )
-    }
-    
-    @ViewBuilder
-    private func accessButtonsGrid(windows: [AccessWindow], group: AppModel.ShieldGroup, isForfeited: Bool, isCompact: Bool) -> some View {
-        let columns: [GridItem] = windows.count <= 2 
-            ? [GridItem(.flexible()), GridItem(.flexible())]
-            : windows.count == 3
-            ? [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
-            : [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
-        
-        LazyVGrid(columns: columns, spacing: isCompact ? 8 : 10) {
-            ForEach(windows.prefix(8), id: \.self) { window in
-                accessButton(window: window, group: group, isForfeited: isForfeited, isCompact: isCompact)
+        VStack(spacing: 16) {
+            // Unlock Buttons
+            ForEach(windows.prefix(3), id: \.self) { window in
+                unlockButton(window: window, group: group, isForfeited: isForfeited)
             }
+            
+            Spacer().frame(height: 8)
+            
+            // Close Button
+            Button {
+                didForfeitSessions.insert(group.id)
+                performTransition(duration: 0.4) {
+                    model.dismissPayGate(reason: .userDismiss)
+                    sendAppToBackground()
+                }
+            } label: {
+                Text(loc(appLanguage, "Keep it locked"))
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(PayGatePalette.textSecondary)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
         }
     }
     
     @ViewBuilder
-    private func accessButton(window: AccessWindow, group: AppModel.ShieldGroup, isForfeited: Bool, isCompact: Bool) -> some View {
+    private func unlockButton(window: AccessWindow, group: TicketGroup, isForfeited: Bool) -> some View {
         let cost = group.cost(for: window)
         let canPay = model.totalStepsBalance >= cost
         let isDisabled = !canPay || isForfeited
-        let pink = AppColors.brandPink
         
         Button {
             guard !isDisabled else { return }
@@ -321,143 +226,46 @@ struct PayGateView: View {
                 }
             }
         } label: {
-            VStack(spacing: isCompact ? 4 : 6) {
-                // Duration
-                Text(windowShortLabel(window))
-                    .font(isCompact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
-                    .foregroundColor(isDisabled ? .secondary : .primary)
+            HStack {
+                Text(unlockLabel(window))
+                    .font(.headline.weight(.bold))
+                    .foregroundColor(isDisabled ? PayGatePalette.textSecondary.opacity(0.5) : .black)
                 
-                // Cost with "lose" prefix
-                HStack(spacing: 2) {
-                    Text("-\(cost)")
-                        .font(isCompact ? .caption.weight(.bold) : .subheadline.weight(.bold))
-                        .monospacedDigit()
+                Spacer()
+                
+                HStack(spacing: 4) {
                     Image(systemName: "bolt.fill")
-                        .font(.caption2)
+                        .font(.subheadline)
+                    Text("\(cost)")
+                        .font(.headline.weight(.bold))
+                        .monospacedDigit()
                 }
-                .foregroundColor(isDisabled ? .gray : (canPay ? pink : .red))
+                .foregroundColor(isDisabled ? PayGatePalette.textSecondary.opacity(0.5) : .black)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, isCompact ? 10 : 14)
+            .padding()
+            .frame(height: 56)
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isDisabled ? Color.gray.opacity(0.1) : Color(.systemBackground))
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(isDisabled ? PayGatePalette.surface : PayGatePalette.accent)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isDisabled ? Color.gray.opacity(0.2) : pink.opacity(0.4), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.white.opacity(0.1), lineWidth: isDisabled ? 1 : 0)
             )
         }
         .disabled(isDisabled)
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(windowShortLabel(window)), lose \(cost) control")
-        .accessibilityHint(canPay ? "Unlocks access" : "Not enough control")
+        .buttonStyle(ScaleButtonStyle())
     }
     
-    private func windowShortLabel(_ window: AccessWindow) -> String {
+    private func unlockLabel(_ window: AccessWindow) -> String {
         switch window {
-        case .single: return "1m"
-        case .minutes5: return "5m"
-        case .minutes15: return "15m"
-        case .minutes30: return "30m"
-        case .hour1: return "1h"
-        case .hour2: return "2h"
-        case .day1: return "Day"
+        case .minutes10: return loc(appLanguage, "a bit (10 min)")
+        case .minutes30: return loc(appLanguage, "quite a bit (30 min)")
+        case .hour1: return loc(appLanguage, "some time (1 hour)")
         }
     }
     
-    @ViewBuilder
-    private func closeButton(groupId: String) -> some View {
-        Button {
-            didForfeitSessions.insert(groupId)
-            performTransition(duration: 0.5) {
-                model.dismissPayGate(reason: .userDismiss)
-                sendAppToBackground()
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "xmark")
-                    .font(.subheadline.weight(.medium))
-                Text("Stay Focused")
-            }
-            .foregroundColor(.secondary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(Color(.systemGray5).opacity(0.8))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Stay Focused")
-        .accessibilityHint("Closes without unlocking")
-    }
-    
-    private func sendAppToBackground() {
-        DispatchQueue.main.async {
-            UIApplication.shared.perform(#selector(NSXPCConnection.suspend))
-        }
-    }
-}
-
-// MARK: - Background & Transition
-extension PayGateView {
-    private var selectedBackgroundStyle: PayGateBackgroundStyle {
-        PayGateBackgroundStyle(rawValue: backgroundStyle) ?? .midnight
-    }
-    
-    private func payGateBackground() -> some View {
-        let style = selectedBackgroundStyle
-        
-        return ZStack {
-            // Base gradient
-            LinearGradient(
-                gradient: Gradient(colors: style.colors),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            
-            // Soft gradient orbs
-            GeometryReader { geo in
-                ZStack {
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [style.accentColor.opacity(0.2), Color.clear],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: geo.size.width * 0.5
-                            )
-                        )
-                        .frame(width: geo.size.width * 1.2)
-                        .offset(x: -geo.size.width * 0.3, y: -geo.size.height * 0.15)
-                    
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [style.colors[1].opacity(0.25), Color.clear],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: geo.size.width * 0.4
-                            )
-                        )
-                        .frame(width: geo.size.width * 0.9)
-                        .offset(x: geo.size.width * 0.25, y: geo.size.height * 0.35)
-                }
-            }
-            
-            // Vignette
-            LinearGradient(
-                gradient: Gradient(stops: [
-                    .init(color: Color.black.opacity(0.5), location: 0),
-                    .init(color: Color.clear, location: 0.25),
-                    .init(color: Color.clear, location: 0.75),
-                    .init(color: Color.black.opacity(0.6), location: 1)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-    }
-    
+    // MARK: - Helpers
     private func performTransition(duration: Double = 0.8, action: @escaping () -> Void) {
         guard !showTransitionCircle else {
             action()
@@ -473,6 +281,12 @@ extension PayGateView {
         }
     }
     
+    private func sendAppToBackground() {
+        DispatchQueue.main.async {
+            UIApplication.shared.perform(#selector(NSXPCConnection.suspend))
+        }
+    }
+    
     @ViewBuilder
     fileprivate var transitionOverlay: some View {
         if showTransitionCircle {
@@ -485,5 +299,13 @@ extension PayGateView {
                     .ignoresSafeArea()
             }
         }
+    }
+}
+
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }

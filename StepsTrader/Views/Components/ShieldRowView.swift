@@ -3,9 +3,9 @@ import SwiftUI
 import FamilyControls
 #endif
 
-struct ShieldRowView: View {
+struct TicketRowView: View {
     @ObservedObject var model: AppModel
-    let group: AppModel.ShieldGroup
+    let group: TicketGroup
     let appLanguage: String
     let onEdit: () -> Void
     @State private var remainingTime: TimeInterval? = nil
@@ -34,7 +34,7 @@ struct ShieldRowView: View {
                 // Info
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
-                        Text(group.name.isEmpty ? loc(appLanguage, "Shield") : group.name)
+                        Text(group.name.isEmpty ? Steps4.loc(appLanguage, "Ticket") : group.name)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                         
@@ -56,7 +56,7 @@ struct ShieldRowView: View {
                             Image(systemName: "chart.bar.fill")
                                 .font(.caption2)
                                 .foregroundColor(difficultyColor(for: group.difficultyLevel))
-                            Text("\(loc(appLanguage, "Level")) \(group.difficultyLevel)")
+                            Text("\(Steps4.loc(appLanguage, "Level")) \(group.difficultyLevel)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -173,7 +173,7 @@ struct ShieldRowView: View {
             // +N badge
             if hasMore {
                 Text("+\(appsCount - 3)")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.notoSerif(10, weight: .bold))
                     .foregroundColor(.white)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
@@ -220,7 +220,7 @@ struct ShieldRowView: View {
                 .frame(width: 44, height: 44)
             
             Image(systemName: "app.dashed")
-                .font(.system(size: 20, weight: .semibold))
+                .font(.notoSerif(20, weight: .semibold))
                 .foregroundColor(.secondary)
         }
     }
@@ -253,6 +253,5 @@ struct ShieldRowView: View {
         default: return .gray
         }
     }
-    
 }
 

@@ -61,6 +61,7 @@ struct AppUser: Codable {
 class AuthenticationService: NSObject, ObservableObject {
     
     static let shared = AuthenticationService()
+    private let network = NetworkClient.shared
     
     @Published var currentUser: AppUser?
     @Published var isAuthenticated: Bool = false
@@ -373,8 +374,7 @@ class AuthenticationService: NSObject, ObservableObject {
         req.setValue("application/json", forHTTPHeaderField: "content-type")
         for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
         
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse else { throw AuthError.unknown }
+        let (data, http) = try await network.data(for: req)
         return (data, http)
     }
     
@@ -765,9 +765,9 @@ class AuthenticationService: NSObject, ObservableObject {
             request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, httpResponse) = try await network.data(for: request)
             
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            guard httpResponse.statusCode == 200 else {
                 return true // Assume available on error
             }
             
@@ -850,8 +850,7 @@ class AuthenticationService: NSObject, ObservableObject {
         request.setValue("image/jpeg", forHTTPHeaderField: "content-type")
         request.setValue("true", forHTTPHeaderField: "x-upsert") // Overwrite if exists
         
-        let (data, resp) = try await URLSession.shared.data(for: request)
-        guard let http = resp as? HTTPURLResponse else { throw AuthError.unknown }
+        let (data, http) = try await network.data(for: request)
         
         let responseString = String(data: data, encoding: .utf8) ?? "(empty)"
         print("📸 Upload response: status=\(http.statusCode), body=\(responseString)")
@@ -882,8 +881,7 @@ class AuthenticationService: NSObject, ObservableObject {
         request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "authorization")
         
-        let (_, resp) = try await URLSession.shared.data(for: request)
-        guard let http = resp as? HTTPURLResponse else { throw AuthError.unknown }
+        let (_, http) = try await network.data(for: request)
         
         // 404 is OK - file might not exist
         if http.statusCode >= 400 && http.statusCode != 404 {
@@ -893,8 +891,8 @@ class AuthenticationService: NSObject, ObservableObject {
     
     /// Downloads avatar from URL
     private func downloadAvatar(from url: URL) async throws -> Data {
-        let (data, resp) = try await URLSession.shared.data(from: url)
-        guard let http = resp as? HTTPURLResponse, http.statusCode < 400 else {
+        let (data, http) = try await network.data(from: url)
+        guard http.statusCode < 400 else {
             throw AuthError.supabaseError("Failed to download avatar")
         }
         return data
@@ -931,8 +929,8 @@ class AuthenticationService: NSObject, ObservableObject {
         request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "accept")
         
-        let (data, resp) = try await URLSession.shared.data(for: request)
-        guard let http = resp as? HTTPURLResponse, http.statusCode < 400 else {
+        let (data, http) = try await network.data(for: request)
+        guard http.statusCode < 400 else {
             throw AuthError.supabaseError("Failed to fetch users")
         }
         

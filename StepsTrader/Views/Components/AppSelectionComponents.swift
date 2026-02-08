@@ -38,7 +38,7 @@ struct AppSelectionSheet: View {
                 if let templateApp = templateApp {
                     let appName = TargetResolver.displayName(for: templateApp)
                     Text(loc(appLanguage, "choose #APPNAME from the list").replacingOccurrences(of: "#APPNAME", with: appName))
-                        .font(.subheadline)
+                        .font(AppFonts.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)

@@ -86,7 +86,6 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
               let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
         else { return [:] }
 
-        let dayKey = currentDayKey()
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
         
         for (bundleId, _) in decoded {
@@ -99,17 +98,14 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
                 continue
             }
 
-            // DeviceActivity tracks CUMULATIVE usage since schedule start.
-            // After threshold fires for minute N, next threshold must be N+1.
-            let countKey = "minuteCount_\(dayKey)_\(bundleId)"
-            let currentMinutes = g.integer(forKey: countKey)
-            let nextThreshold = currentMinutes + 1
-
+            // DeviceActivity tracks usage since schedule start.
+            // Since we restart monitoring after every event, the counter resets to 0.
+            // We always want to be notified after the *next* 1 minute of usage.
             let eventName = DeviceActivityEvent.Name("minute_\(bundleId)")
             let event = DeviceActivityEvent(
                 applications: selection.applicationTokens,
                 categories: selection.categoryTokens,
-                threshold: DateComponents(minute: nextThreshold)
+                threshold: DateComponents(minute: 1)
             )
             events[eventName] = event
         }
@@ -118,10 +114,7 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
     }
     
     private func currentDayKey() -> String {
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "en_US_POSIX")
-        df.dateFormat = "yyyy-MM-dd"
-        return df.string(from: Date())
+        AppModel.dayKey(for: Date())
     }
     #endif
 }

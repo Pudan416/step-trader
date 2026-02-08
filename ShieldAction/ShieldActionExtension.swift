@@ -70,8 +70,8 @@ class ShieldActionExtension: ShieldActionDelegate {
         #if canImport(FamilyControls)
         let now = Date()
         
-        // Проверяем группы щитов
-        guard let groupsData = defaults.data(forKey: "shieldGroups_v1"),
+        // Check ticket groups (then legacy shield groups)
+        guard let groupsData = defaults.data(forKey: "ticketGroups_v1") ?? defaults.data(forKey: "shieldGroups_v1"),
               let groups = try? JSONDecoder().decode([ShieldGroupData].self, from: groupsData)
         else {
             return false
@@ -163,8 +163,8 @@ class ShieldActionExtension: ShieldActionDelegate {
     /// Определяем bundleId и groupId заблокированного приложения.
     private func resolveAppInfo(for application: ApplicationToken, defaults: UserDefaults) -> (bundleId: String?, groupId: String?) {
         #if canImport(FamilyControls)
-        // 1) Проверяем группы щитов (shieldGroups_v1) - основной способ
-        if let groupsData = defaults.data(forKey: "shieldGroups_v1"),
+        // 1) Check ticket groups (ticketGroups_v1 then shieldGroups_v1)
+        if let groupsData = defaults.data(forKey: "ticketGroups_v1") ?? defaults.data(forKey: "shieldGroups_v1"),
            let groups = try? JSONDecoder().decode([ShieldGroupData].self, from: groupsData) {
             for group in groups {
                 if let selectionData = group.selectionData,

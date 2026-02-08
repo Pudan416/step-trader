@@ -60,24 +60,24 @@ final class DailyEnergyLogicTests: XCTestCase {
 
     func testEnergyCategoryRawValues() {
         XCTAssertEqual(EnergyCategory.activity.rawValue, "activity")
-        XCTAssertEqual(EnergyCategory.recovery.rawValue, "recovery")
+        XCTAssertEqual(EnergyCategory.creativity.rawValue, "creativity")
         XCTAssertEqual(EnergyCategory.joys.rawValue, "joys")
     }
 
     func testEnergyDefaultsOptionsCount() {
         let activityCount = EnergyDefaults.options.filter { $0.category == .activity }.count
-        let recoveryCount = EnergyDefaults.options.filter { $0.category == .recovery }.count
+        let creativityCount = EnergyDefaults.options.filter { $0.category == .creativity }.count
         let joysCount = EnergyDefaults.options.filter { $0.category == .joys }.count
         XCTAssertGreaterThan(activityCount, 0)
-        XCTAssertGreaterThan(recoveryCount, 0)
+        XCTAssertGreaterThan(creativityCount, 0)
         XCTAssertGreaterThan(joysCount, 0)
     }
 
-    // MARK: - Choice tab: Other option IDs
+    // MARK: - Gallery tab: Other option IDs
 
     func testOtherOptionIds() {
         XCTAssertTrue(EnergyDefaults.otherOptionIds.contains("activity_other"))
-        XCTAssertTrue(EnergyDefaults.otherOptionIds.contains("recovery_other"))
+        XCTAssertTrue(EnergyDefaults.otherOptionIds.contains("creativity_other"))
         XCTAssertTrue(EnergyDefaults.otherOptionIds.contains("joys_other"))
         XCTAssertEqual(EnergyDefaults.otherOptionIds.count, 3)
     }
@@ -100,7 +100,7 @@ final class DailyEnergyLogicTests: XCTestCase {
     }
 
     func testCustomEnergyOption_codable() throws {
-        let custom = CustomEnergyOption(id: "custom_recovery_1", titleEn: "Slept well", titleRu: "Выспался", category: .recovery)
+        let custom = CustomEnergyOption(id: "custom_creativity_1", titleEn: "Idea", titleRu: "Идея", category: .creativity)
         let data = try JSONEncoder().encode(custom)
         let decoded = try JSONDecoder().decode(CustomEnergyOption.self, from: data)
         XCTAssertEqual(decoded.id, custom.id)

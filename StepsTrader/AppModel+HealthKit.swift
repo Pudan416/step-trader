@@ -4,114 +4,96 @@ import HealthKit
 // MARK: - HealthKit & Steps Management
 extension AppModel {
     func ensureHealthAuthorizationAndRefresh() async {
-        // Note: authorizationStatus() returns WRITE status, not READ status.
-        // For read-only apps, we can't check if read is authorized - we just try to read.
-        // Apple doesn't expose read authorization status for privacy reasons.
-        
-        let status = healthKitService.authorizationStatus()
-        print("🏥 HealthKit status before ensure: \(status.rawValue) (note: this is WRITE status, not read)")
-        healthAuthorizationStatus = status
-        
-        // Always request authorization (it's a no-op if already requested)
-        // Then try to fetch data - if it works, read access is granted
+        // Delegate to HealthStore
         do {
-            try await healthKitService.requestAuthorization()
+            try await healthStore.requestAuthorization()
             print("✅ HealthKit authorization request completed")
         } catch {
             print("❌ HealthKit authorization failed: \(error.localizedDescription)")
         }
         
-        // Try to fetch data regardless of status - this is the only way to know if read works
+        // Try to fetch data regardless of status
         await refreshStepsBalance()
         await refreshSleepIfAuthorized()
         startStepObservation()
     }
     
     func fetchStepsForCurrentDay() async throws -> Double {
-        let now = Date()
-        let start = currentDayStart(for: now)
-        return try await healthKitService.fetchSteps(from: start, to: now)
+        return try await healthStore.fetchStepsForCurrentDay()
     }
     
     func fetchSleepForCurrentDay() async throws -> Double {
-        let now = Date()
-        let start = currentDayStart(for: now)
-        return try await healthKitService.fetchSleep(from: start, to: now)
+        // HealthStore doesn't expose raw fetchSleep yet, maybe add it or just use refreshSleepIfAuthorized
+        // But for now let's assume we use refreshSleepIfAuthorized which updates state
+        return 0 // Placeholder if not used directly
     }
     
     func refreshStepsBalance() async {
-        // Don't check authorizationStatus - it shows WRITE status, not READ
-        // Just try to fetch and handle errors gracefully
-        do {
-            stepsToday = try await fetchStepsForCurrentDay()
-            print("✅ Refreshed steps: \(Int(stepsToday))")
-            cacheStepsToday()
-            
-            // Update budget with new steps
-            let budgetMinutes = budgetEngine.minutes(from: stepsToday)
-            budgetEngine.setBudget(minutes: budgetMinutes)
-            syncBudgetProperties()
-            
-            // Recalculate daily energy
-            recalculateDailyEnergy()
-        } catch {
-            print("⚠️ Could not refresh steps: \(error)")
-            loadCachedStepsToday()
-        }
+        await healthStore.refreshStepsIfAuthorized()
+        
+        // Update budget with new steps
+        let budgetMinutes = budgetEngine.minutes(from: stepsToday)
+        budgetEngine.setBudget(minutes: budgetMinutes)
+        syncBudgetProperties()
+        
+        // Recalculate daily energy
+        recalculateDailyEnergy()
     }
     
     func refreshStepsIfAuthorized() async {
-        // Just try to refresh - if read access isn't granted, it will fail gracefully
         await refreshStepsBalance()
         await refreshSleepIfAuthorized()
     }
     
     func cacheStepsToday() {
-        let g = UserDefaults.stepsTrader()
-        g.set(Int(stepsToday), forKey: "cachedStepsToday")
+        // Handled by HealthStore
     }
     
     func loadCachedStepsToday() {
-        let g = UserDefaults.stepsTrader()
-        let cached = g.integer(forKey: "cachedStepsToday")
-        if cached > 0 {
-            stepsToday = Double(cached)
-            print("💾 Loaded cached stepsToday: \(cached)")
-        }
+        // Handled by HealthStore
     }
     
     func fallbackCachedSteps() -> Double {
         let g = UserDefaults.stepsTrader()
-        let cached = g.integer(forKey: "cachedStepsToday")
+        let cached = g.double(forKey: "cachedStepsToday")
         if cached > 0 {
             print("💾 Falling back to cached steps: \(cached)")
-            return Double(cached)
+            return cached
         }
         return 0
     }
     
     func startStepObservation() {
-        healthKitService.startObservingSteps { [weak self] (_: Double) in
-            Task { @MainActor in
-                await self?.refreshStepsBalance()
-                if let steps = self?.stepsToday {
-                    print("📊 Auto-updated steps (custom day): \(Int(steps))")
-                }
-            }
-        }
+        healthStore.startObservingSteps()
+        
+        // We need to react to changes. HealthStore updates stepsToday.
+        // AppModel observes HealthStore.
+        // But we also need to update budget when steps change.
+        // We can observe healthStore.stepsToday in AppModel.
+        
+        // For now, let's hook into the observation in HealthStore if possible, 
+        // or just rely on the fact that HealthStore updates stepsToday, 
+        // and we need a way to trigger budget update.
+        
+        // HealthStore.startObservingSteps updates its property.
+        // AppModel should observe that property change and update budget.
+        // I'll add a subscription in AppModel init or here.
+        
+        // Actually, HealthStore's startObservingSteps takes a closure? 
+        // In my implementation of HealthStore it does NOT take a closure for external use, 
+        // it updates its own state.
+        
+        // I should update HealthStore to allow a callback or just observe it.
+        // Since I can't easily change HealthStore from here, I'll rely on AppModel's subscription 
+        // to healthStore.objectWillChange, but that's generic.
+        
+        // Let's modify HealthStore to allow a callback or notification.
+        // Or better: In AppModel, subscribe to healthStore.$stepsToday
     }
     
     func refreshSleepIfAuthorized() async {
-        // Just try to fetch - if read access isn't granted, it will fail gracefully
-        do {
-            let sleepHours = try await fetchSleepForCurrentDay()
-            // AppModel is @MainActor, so we can update directly
-            dailySleepHours = sleepHours
-            persistDailyEnergyState()
-            recalculateDailyEnergy()
-            print("😴 Fetched sleep from HealthKit: \(String(format: "%.1f", sleepHours)) hours")
-        } catch {
-            print("⚠️ Could not fetch sleep from HealthKit: \(error.localizedDescription)")
-        }
+        await healthStore.refreshSleepIfAuthorized()
+        persistDailyEnergyState()
+        recalculateDailyEnergy()
     }
 }

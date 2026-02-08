@@ -112,12 +112,12 @@ struct LoginView: View {
                                 .frame(width: 100, height: 100)
                                 .shadow(color: Color.purple.opacity(0.4), radius: 20, x: 0, y: 10)
                             Image(systemName: "flame.fill")
-                                .font(.system(size: 44, weight: .bold))
+                                .font(.notoSerif(44, weight: .bold))
                                 .foregroundColor(.white)
                         }
                         VStack(spacing: 8) {
                             Text("DOOM CTRL")
-                                .font(.system(size: 32, weight: .black, design: .rounded))
+                                .font(.notoSerif(32, weight: .black))
                                 .foregroundColor(.white)
                             Text(loc(appLanguage, "Trade steps for screen time"))
                                 .font(.subheadline)
@@ -133,12 +133,12 @@ struct LoginView: View {
                         )
                         featureRow(
                             icon: "app.badge.checkmark",
-                            title: loc(appLanguage, "Control app access"),
+                            title: loc(appLanguage, "Manage app access with experience"),
                             color: .blue
                         )
                         featureRow(
                             icon: "chart.line.uptrend.xyaxis",
-                            title: loc(appLanguage, "Track your progress"),
+                            title: loc(appLanguage, "Track my progress"),
                             color: .orange
                         )
                     }
@@ -201,7 +201,7 @@ struct LoginView: View {
                     .frame(width: 44, height: 44)
                 
                 Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.notoSerif(18, weight: .semibold))
                     .foregroundColor(color)
             }
             

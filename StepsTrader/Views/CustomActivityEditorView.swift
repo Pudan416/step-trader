@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct CustomActivityEditorView: View {
     let category: EnergyCategory
@@ -15,6 +18,10 @@ struct CustomActivityEditorView: View {
     
     private let maxCharacters = 30
     
+    private var catalogImageNames: [String] {
+        GalleryImageCatalog.imageNames(for: category)
+    }
+    
     private var availableIcons: [String] {
         CustomActivityIcons.icons(for: category)
     }
@@ -22,7 +29,7 @@ struct CustomActivityEditorView: View {
     private var categoryColor: Color {
         switch category {
         case .activity: return .green
-        case .recovery: return .blue
+        case .creativity: return .purple
         case .joys: return .orange
         }
     }
@@ -30,6 +37,15 @@ struct CustomActivityEditorView: View {
     private var isValid: Bool {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         return !trimmed.isEmpty && !selectedIcon.isEmpty
+    }
+    
+    /// Показывать картинку из Assets (true) или SF Symbol (false)
+    private var selectedIsAssetImage: Bool {
+        #if canImport(UIKit)
+        return loadCatalogImage(named: selectedIcon) != nil
+        #else
+        return false
+        #endif
     }
     
     var body: some View {
@@ -54,7 +70,7 @@ struct CustomActivityEditorView: View {
                         HStack {
                             Spacer()
                             Text("\(title.count)/\(maxCharacters)")
-                                .font(.caption)
+                                .font(AppFonts.caption)
                                 .foregroundStyle(title.count >= maxCharacters ? .orange : .secondary)
                         }
                     }
@@ -63,9 +79,17 @@ struct CustomActivityEditorView: View {
                 }
                 
                 Section {
+                    catalogImageGrid
+                } header: {
+                    Text(loc(appLanguage, "Image"))
+                } footer: {
+                    Text(loc(appLanguage, "Add image sets to Assets with these names to see them here."))
+                }
+                
+                Section {
                     iconGrid
                 } header: {
-                    Text(loc(appLanguage, "Icon"))
+                    Text(loc(appLanguage, "Icon (fallback)"))
                 }
             }
             .listStyle(.insetGrouped)
@@ -87,7 +111,7 @@ struct CustomActivityEditorView: View {
             }
             .onAppear {
                 title = initialTitle ?? ""
-                selectedIcon = initialIcon ?? (availableIcons.first ?? "pencil")
+                selectedIcon = initialIcon ?? (catalogImageNames.first ?? availableIcons.first ?? "pencil")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     isFieldFocused = true
                 }
@@ -103,14 +127,22 @@ struct CustomActivityEditorView: View {
                     .fill(Color(.secondarySystemBackground))
                     .frame(width: 96, height: 112)
                 
-                Image(systemName: selectedIcon.isEmpty ? "questionmark" : selectedIcon)
-                    .font(.system(size: 32, weight: .light))
-                    .foregroundColor(categoryColor.opacity(0.2))
+                if selectedIsAssetImage, let uiImage = loadCatalogImage(named: selectedIcon) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 96, height: 96)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                } else {
+                    Image(systemName: selectedIcon.isEmpty ? "questionmark" : selectedIcon)
+                        .font(.notoSerif(32, weight: .light))
+                        .foregroundColor(categoryColor.opacity(0.2))
+                }
                 
                 VStack {
                     Spacer()
                     Text(title.isEmpty ? loc(appLanguage, "Preview") : title)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.notoSerif(11, weight: .medium))
                         .foregroundColor(.primary)
                         .lineLimit(3)
                         .multilineTextAlignment(.center)
@@ -124,6 +156,54 @@ struct CustomActivityEditorView: View {
             Spacer()
         }
         .padding(.vertical, 16)
+    }
+    
+    private var catalogImageGrid: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
+            ForEach(catalogImageNames, id: \.self) { name in
+                catalogImageButton(name)
+            }
+        }
+        .padding(.vertical, 8)
+    }
+    
+    private func catalogImageButton(_ name: String) -> some View {
+        let isSelected = selectedIcon == name
+        let uiImage = loadCatalogImage(named: name)
+        
+        return Button {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                selectedIcon = name
+            }
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? categoryColor.opacity(0.3) : Color(.tertiarySystemFill))
+                    .frame(width: 64, height: 64)
+                
+                if let uiImage = uiImage {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 64, height: 64)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                } else {
+                    Image(systemName: "photo")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isSelected ? categoryColor : Color.clear, lineWidth: 3)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    /// Load from Assets trying exact name, then lowercase, then capitalized (same as shields/gallery).
+    private func loadCatalogImage(named name: String) -> UIImage? {
+        UIImage(named: name) ?? UIImage(named: name.lowercased()) ?? UIImage(named: name.capitalized)
     }
     
     private var iconGrid: some View {
@@ -147,7 +227,7 @@ struct CustomActivityEditorView: View {
                     .frame(width: 48, height: 48)
                 
                 Image(systemName: icon)
-                    .font(.system(size: 20))
+                    .font(.notoSerif(20))
                     .foregroundColor(selectedIcon == icon ? .white : .primary)
             }
             .overlay(

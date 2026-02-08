@@ -36,7 +36,7 @@ struct IntroImagesView: View {
                     if index > 0 {
                         Button(action: { index -= 1 }) {
                             Text("Back")
-                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .font(.notoSerif(16, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 12)
@@ -54,7 +54,7 @@ struct IntroImagesView: View {
                         }
                     }) {
                         Text(index == 7 ? "YES" : "Next")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .font(.notoSerif(16, weight: .semibold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 12)

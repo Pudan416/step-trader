@@ -12,7 +12,7 @@ struct TimeAccessPickerSheet: View {
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 12) {
-                Text(loc(appLanguage, "Choose app for \(appName)"))
+                Text(Steps4.loc(appLanguage, "Choose app for \(appName)"))
                     .font(.headline)
                     .padding(.horizontal)
 
@@ -27,11 +27,12 @@ struct TimeAccessPickerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(loc(appLanguage, "Done")) {
+                    Button(Steps4.loc(appLanguage, "Done")) {
                         dismiss()
                     }
                 }
             }
         }
     }
+    
 }

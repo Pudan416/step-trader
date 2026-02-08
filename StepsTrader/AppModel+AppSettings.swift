@@ -10,7 +10,7 @@ extension AppModel {
         let fallback = AppUnlockSettings(
             entryCostSteps: entryCostSteps,
             dayPassCostSteps: defaultDayPassCost(forEntryCost: entryCostSteps),
-            allowedWindows: [.single, .minutes5, .hour1]
+            allowedWindows: [.minutes10, .minutes30, .hour1]
         )
         guard let bundleId else { return fallback }
         
@@ -20,7 +20,7 @@ extension AppModel {
         let defaults = UserDefaults.stepsTrader()
         
         // Проходим по всем группам и ищем приложение
-        for group in shieldGroups {
+        for group in ticketGroups {
             // Проверяем все ApplicationToken в группе
             for token in group.selection.applicationTokens {
                 if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
@@ -43,7 +43,7 @@ extension AppModel {
                             // Нашли группу, возвращаем её настройки
                             var settings = group.settings
                             if settings.allowedWindows.isEmpty {
-                                settings.allowedWindows = [.single, .minutes5, .hour1]
+                                settings.allowedWindows = [.minutes10, .minutes30, .hour1]
                             }
                             return settings
                         }
@@ -56,7 +56,7 @@ extension AppModel {
         // Если не нашли в группах, используем старые настройки
         var settings = appUnlockSettings[bundleId] ?? fallback
         if settings.allowedWindows.isEmpty {
-            settings.allowedWindows = [.single, .minutes5, .hour1]
+            settings.allowedWindows = [.minutes10, .minutes30, .hour1]
         }
         return settings
     }
@@ -75,12 +75,12 @@ extension AppModel {
         if let dayPassCost { settings.dayPassCostSteps = max(0, dayPassCost) }
         appUnlockSettings[bundleId] = settings
         persistAppUnlockSettings()
-        scheduleSupabaseShieldUpsert(bundleId: bundleId)
+        scheduleSupabaseTicketUpsert(bundleId: bundleId)
     }
 
     func allowedAccessWindows(for bundleId: String?) -> Set<AccessWindow> {
         // Сначала проверяем группы
-        if let group = findShieldGroup(for: bundleId) {
+        if let group = findTicketGroup(for: bundleId) {
             return group.enabledIntervals
         }
         return unlockSettings(for: bundleId).allowedWindows
@@ -94,20 +94,20 @@ extension AppModel {
             settings.allowedWindows.remove(window)
         }
         if settings.allowedWindows.isEmpty {
-            settings.allowedWindows = [.single, .minutes5, .hour1]
+            settings.allowedWindows = [.minutes10, .minutes30, .hour1]
         }
         appUnlockSettings[bundleId] = settings
         persistAppUnlockSettings()
-        scheduleSupabaseShieldUpsert(bundleId: bundleId)
+        scheduleSupabaseTicketUpsert(bundleId: bundleId)
     }
 
-    func deactivateShield(bundleId: String) {
+    func deactivateTicket(bundleId: String) {
         appUnlockSettings.removeValue(forKey: bundleId)
         persistAppUnlockSettings()
         rebuildFamilyControlsShield()
-        
+
         Task { @MainActor in
-            await self.deleteSupabaseShield(bundleId: bundleId)
+            await self.deleteSupabaseTicket(bundleId: bundleId)
         }
     }
     

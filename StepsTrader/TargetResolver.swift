@@ -57,6 +57,23 @@ enum TargetResolver {
         "com.pinterest": "Pinterest",
         "com.duolingo.DuolingoMobile": "Duolingo"
     ]
+
+    /// Asset name in Assets.xcassets for shield/template icon. Use with UIImage(named:).
+    /// Add matching .imageset (e.g. "instagram.imageset") so the icon appears on shields.
+    private static let bundleToImageName: [String: String] = [
+        "com.burbn.instagram": "instagram",
+        "com.zhiliaoapp.musically": "tiktok",
+        "com.google.ios.youtube": "youtube",
+        "com.toyopagroup.picaboo": "snapchat",
+        "com.reddit.Reddit": "reddit",
+        "com.atebits.Tweetie2": "x",
+        "com.duolingo.DuolingoMobile": "duolingo",
+        "com.facebook.Facebook": "facebook",
+        "com.linkedin.LinkedIn": "linkedin",
+        "com.pinterest": "pinterest",
+        "ph.telegra.Telegraph": "telegram",
+        "net.whatsapp.WhatsApp": "whatsapp"
+    ]
     
     static func bundleId(from target: String?) -> String? {
         guard let target else { return nil }
@@ -66,6 +83,11 @@ enum TargetResolver {
     
     static func displayName(for bundleId: String) -> String {
         bundleToDisplayName[bundleId] ?? bundleId
+    }
+
+    /// Image asset name for shield icon. Name must match an imageset in Assets (e.g. instagram.imageset → "instagram").
+    static func imageName(for bundleId: String) -> String? {
+        bundleToImageName[bundleId]
     }
     
     static func urlScheme(for target: String) -> String? {

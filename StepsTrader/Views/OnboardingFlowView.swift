@@ -113,7 +113,7 @@ struct OnboardingFlowView: View {
         defaults.set(stepsTarget, forKey: "userStepsTarget")
         defaults.set(sleepTarget, forKey: "userSleepTarget")
         
-        // Note: Activity preferences (move/reboot/joy) are saved automatically
+        // Note: Activity preferences (activity/creativity/joys) are saved automatically
         // when toggled via model.togglePreferredOption()
         
         // Save username and avatar to profile
@@ -144,7 +144,7 @@ struct OnboardingFlowView: View {
             OnboardingSlide(
                 lines: [
                     "How many steps a day",
-                    "make you feel good?"
+                    "make me feel good?"
                 ],
                 symbol: "figure.walk",
                 gradient: [.green, .mint],
@@ -155,7 +155,7 @@ struct OnboardingFlowView: View {
             OnboardingSlide(
                 lines: [
                     "Choose up to 4 things",
-                    "that boost you."
+                    "that boost me."
                 ],
                 symbol: "figure.run",
                 gradient: [.green, .teal],
@@ -166,8 +166,8 @@ struct OnboardingFlowView: View {
             OnboardingSlide(
                 lines: [
                     "No rest — no freedom.",
-                    "How much sleep keeps you at your best?",
-                    "Your rules."
+                    "How much sleep keeps me at my best?",
+                    "My rules."
                 ],
                 symbol: "moon.zzz.fill",
                 gradient: [.indigo, .purple],
@@ -178,20 +178,20 @@ struct OnboardingFlowView: View {
             OnboardingSlide(
                 lines: [
                     "Choose up to 4 ways",
-                    "you rest and reset.",
+                    "I rest and reset.",
                     "Whatever works."
                 ],
                 symbol: "arrow.clockwise.heart.fill",
                 gradient: [.blue, .cyan],
-                slideType: .activitySelection(.recovery)
+                slideType: .activitySelection(.creativity)
             ),
             
-            // 5 - Choice activities
+            // 5 - Gallery activities
             OnboardingSlide(
                 lines: [
                     "Freedom is a choice.",
                     "Choose 4 things",
-                    "you want in your daily life.",
+                    "I want in my daily life.",
                     "Meaning > discipline."
                 ],
                 symbol: "heart.fill",
@@ -213,7 +213,7 @@ struct OnboardingFlowView: View {
             OnboardingSlide(
                 lines: [
                     "Allow access to apps.",
-                    "So you decide,",
+                    "So I decide,",
                     "not the feed."
                 ],
                 symbol: "apps.iphone",
@@ -226,7 +226,7 @@ struct OnboardingFlowView: View {
                 lines: [
                     "Allow location access.",
                     "To notice",
-                    "when you're back in the real world."
+                    "when I'm back in the real world."
                 ],
                 symbol: "location.fill",
                 gradient: [.blue, .cyan],
@@ -237,7 +237,7 @@ struct OnboardingFlowView: View {
             OnboardingSlide(
                 lines: [
                     "Allow health access.",
-                    "Sleep. Movement. Recovery.",
+                    "Steps. Creativity. Joys.",
                     "Nothing extra."
                 ],
                 symbol: "heart.text.square.fill",
@@ -261,8 +261,8 @@ struct OnboardingFlowView: View {
             // 11 - Name input
             OnboardingSlide(
                 lines: [
-                    "What should we call you?",
-                    "Pick a name for your journey."
+                    "What should we call me?",
+                    "Pick a name for my journey."
                 ],
                 symbol: "person.fill",
                 gradient: [.cyan, .blue],
@@ -273,7 +273,7 @@ struct OnboardingFlowView: View {
             OnboardingSlide(
                 lines: [
                     "Add a photo?",
-                    "Show the world who's in control."
+                    "Show the world who owns their experience."
                 ],
                 symbol: "camera.fill",
                 gradient: [.purple, .pink],

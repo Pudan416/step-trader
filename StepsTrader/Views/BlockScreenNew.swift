@@ -40,11 +40,11 @@ struct BlockScreenNew: View {
         VStack(spacing: 24) {
             // Shield icon
             Image(systemName: "shield.fill")
-                .font(.system(size: 80))
+                .font(.notoSerif(80))
                 .foregroundColor(.red)
             
             // Title
-            Text(loc(appLanguage, "App Blocked"))
+            Text(loc(appLanguage, "App Blocked", "Приложение заблокировано"))
                 .font(.largeTitle)
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
@@ -55,7 +55,7 @@ struct BlockScreenNew: View {
                 .foregroundColor(.secondary)
             
             // Description
-            Text(loc(appLanguage, "This app is protected by a shield. Unlock it to continue."))
+            Text(loc(appLanguage, "This app is protected by a ticket. Unlock it to continue.", "Это приложение защищено билетом. Разблокируйте его, чтобы продолжить."))
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -69,7 +69,7 @@ struct BlockScreenNew: View {
             } label: {
                 HStack {
                     Image(systemName: "lock.open.fill")
-                    Text(loc(appLanguage, "Unlock"))
+                    Text(loc(appLanguage, "Unlock", "Разблокировать"))
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
@@ -93,17 +93,17 @@ struct BlockScreenNew: View {
         VStack(spacing: 24) {
             // Notification icon
             Image(systemName: pushSent ? "bell.fill" : "bell.slash.fill")
-                .font(.system(size: 80))
+                .font(.notoSerif(80))
                 .foregroundColor(pushSent ? .green : .orange)
             
             // Title
-            Text(loc(appLanguage, "Check Your Notifications"))
+            Text(loc(appLanguage, "Check My Notifications", "Проверьте мои уведомления"))
                 .font(.largeTitle)
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
             
             // Description
-            Text(loc(appLanguage, "We sent you a push notification. Tap on it to open the paygate and choose how long to unlock the app."))
+            Text(loc(appLanguage, "I got a push. Tap to open paygate and choose how long to unlock.", "Мне пришёл пуш. Нажмите, чтобы открыть paygate и выбрать время разблокировки."))
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -117,7 +117,7 @@ struct BlockScreenNew: View {
             } label: {
                 HStack {
                     Image(systemName: "arrow.clockwise")
-                    Text(loc(appLanguage, "Push Not Received"))
+                    Text(loc(appLanguage, "Push Not Received", "Пуш не пришел"))
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
@@ -165,8 +165,8 @@ struct BlockScreenNew: View {
         
         // Create notification content
         let content = UNMutableNotificationContent()
-        content.title = loc(appLanguage, "Unlock \(appName)")
-        content.body = loc(appLanguage, "Tap to choose unlock time")
+        content.title = loc(appLanguage, "Unlock \(appName)", "Разблокировать \(appName)")
+        content.body = loc(appLanguage, "Tap to choose unlock time", "Нажмите, чтобы выбрать время разблокировки")
         content.sound = .default
         content.categoryIdentifier = "UNLOCK_APP"
         content.userInfo = [
@@ -175,11 +175,14 @@ struct BlockScreenNew: View {
             "action": "unlock"
         ]
         
+        // Create trigger (immediate)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        
         // Create request
         let request = UNNotificationRequest(
             identifier: "unlock_\(bundleId)_\(UUID().uuidString)",
             content: content,
-            trigger: nil
+            trigger: trigger
         )
         
         // Add notification
@@ -200,6 +203,10 @@ struct BlockScreenNew: View {
         } catch {
             print("❌ Failed to send push notification: \(error)")
         }
+    }
+    
+    private func loc(_ lang: String, _ en: String, _ ru: String) -> String {
+        lang == "ru" ? ru : en
     }
 }
 

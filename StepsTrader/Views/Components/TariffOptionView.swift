@@ -26,7 +26,7 @@ struct TariffOptionView: View {
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(tariff.displayName)
-                        .font(.headline)
+                        .font(AppFonts.headline)
                         .foregroundColor(isDisabled ? .secondary : .primary)
                     
                     Text(isDisabled ? "Not enough steps" : tariff.description)

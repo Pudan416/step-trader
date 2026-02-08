@@ -5,7 +5,11 @@ import AudioToolbox
 // MARK: - Budget & Time Tracking Management
 extension AppModel {
     func updateDayEnd(hour: Int, minute: Int) {
+        dayEndHour = max(0, min(23, hour))
+        dayEndMinute = max(0, min(59, minute))
         budgetEngine.updateDayEnd(hour: hour, minute: minute)
+        checkDayBoundary()
+        scheduleDayBoundaryTimer()
     }
     // MARK: - Budget & Time Tracking Keys
     private var minuteTariffBundleKey: String { "minuteTariffBundleId_v1" }
@@ -33,7 +37,7 @@ extension AppModel {
         settings.minuteTariffEnabled = enabled
         appUnlockSettings[bundleId] = settings
         persistAppUnlockSettings()
-        scheduleSupabaseShieldUpsert(bundleId: bundleId)
+        scheduleSupabaseTicketUpsert(bundleId: bundleId)
     }
 
     func minutesAvailable(for bundleId: String) -> Int {
@@ -44,14 +48,8 @@ extension AppModel {
     
     // MARK: - Minute Charge Logs
     func loadMinuteChargeLogs() {
-        let g = UserDefaults.stepsTrader()
-        if let data = g.data(forKey: "minuteChargeLogs_v1"),
-           let decoded = try? JSONDecoder().decode([MinuteChargeLog].self, from: data) {
-            minuteChargeLogs = decoded
-        }
-        if let data = g.data(forKey: "minuteTimeByDay_v1"),
-           let decoded = try? JSONDecoder().decode([String: [String: Int]].self, from: data) {
-            minuteTimeByDay = decoded
+        Task {
+            await userEconomyStore.loadMinuteChargeLogs()
         }
     }
     
@@ -60,9 +58,7 @@ extension AppModel {
     }
     
     func clearMinuteChargeLogs() {
-        let g = UserDefaults.stepsTrader()
-        g.removeObject(forKey: "minuteChargeLogs_v1")
-        minuteChargeLogs = []
+        userEconomyStore.clearMinuteChargeLogs()
     }
     
     func minuteTimeToday(for bundleId: String) -> Int {
@@ -80,9 +76,9 @@ extension AppModel {
     private func loadDailyTariffSelections() {
         let g = UserDefaults.stepsTrader()
         let anchor = g.object(forKey: "dailyTariffSelectionsAnchor") as? Date ?? .distantPast
-        if !Calendar.current.isDateInToday(anchor) {
+        if !isSameCustomDay(anchor, Date()) {
             dailyTariffSelections = [:]
-            g.set(Calendar.current.startOfDay(for: Date()), forKey: "dailyTariffSelectionsAnchor")
+            g.set(currentDayStart(for: Date()), forKey: "dailyTariffSelectionsAnchor")
             g.removeObject(forKey: "dailyTariffSelections_v1")
             return
         }
@@ -104,7 +100,7 @@ extension AppModel {
         if let data = try? JSONEncoder().encode(dict) {
             g.set(data, forKey: "dailyTariffSelections_v1")
         }
-        g.set(Calendar.current.startOfDay(for: Date()), forKey: "dailyTariffSelectionsAnchor")
+        g.set(currentDayStart(for: Date()), forKey: "dailyTariffSelectionsAnchor")
     }
     
     // MARK: - Tariff Management

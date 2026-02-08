@@ -4,22 +4,23 @@ import SwiftUI
 struct RatingView: View {
     @ObservedObject var model: AppModel
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(loc(appLanguage, "User rating"))
-                        .font(.headline)
+                        .font(AppFonts.headline)
                         .foregroundStyle(.secondary)
                     Text(loc(appLanguage, "Rating will be available soon."))
-                        .font(.subheadline)
+                        .font(AppFonts.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
             }
-            .background(Color(.systemGroupedBackground))
+            .background(theme.backgroundColor)
             .navigationTitle(loc(appLanguage, "Rating"))
             .navigationBarTitleDisplayMode(.large)
         }

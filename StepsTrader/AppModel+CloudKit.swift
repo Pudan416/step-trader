@@ -2,10 +2,10 @@ import Foundation
 
 // MARK: - CloudKit Sync Helpers
 extension AppModel {
-    func getAllShieldSettingsForCloud() -> [String: CloudShieldSettings] {
-        var result: [String: CloudShieldSettings] = [:]
+    func getAllTicketSettingsForCloud() -> [String: CloudTicketSettings] {
+        var result: [String: CloudTicketSettings] = [:]
         for (bundleId, settings) in appUnlockSettings {
-            result[bundleId] = CloudShieldSettings(
+            result[bundleId] = CloudTicketSettings(
                 entryCostSteps: settings.entryCostSteps,
                 dayPassCostSteps: settings.dayPassCostSteps,
                 minuteTariffEnabled: settings.minuteTariffEnabled,
@@ -29,7 +29,7 @@ extension AppModel {
         return dayPassGrants
     }
     
-    func restoreShieldSettingsFromCloud(_ cloudSettings: [String: CloudShieldSettings]) async {
+    func restoreTicketSettingsFromCloud(_ cloudSettings: [String: CloudTicketSettings]) async {
         for (bundleId, cloud) in cloudSettings {
             var settings = AppUnlockSettings(
                 entryCostSteps: cloud.entryCostSteps,
@@ -42,7 +42,7 @@ extension AppModel {
             appUnlockSettings[bundleId] = settings
         }
         persistAppUnlockSettings()
-        print("☁️ Restored \(cloudSettings.count) shield settings from cloud")
+        print("☁️ Restored \(cloudSettings.count) ticket settings from cloud")
     }
     
     func restoreStepsSpentFromCloud(_ cloudSteps: [String: [String: Int]]) async {

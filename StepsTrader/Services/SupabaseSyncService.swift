@@ -2,22 +2,88 @@ import Foundation
 
 // MARK: - Supabase Sync Service
 /// Handles syncing user activity data to Supabase
-@MainActor
-class SupabaseSyncService: ObservableObject {
+actor SupabaseSyncService {
     
-    static let shared = SupabaseSyncService()
+    nonisolated static let shared = SupabaseSyncService()
     
-    private let authService = AuthenticationService.shared
+    private let network = NetworkClient.shared
     
-    // Debounce timers to avoid too frequent syncs
+    // Debounce timers to avoid too frequent syncs (also used for batching/coalescing)
     private var customActivitiesSyncTask: Task<Void, Never>?
     private var dailySelectionsSyncTask: Task<Void, Never>?
     private var dailyStatsSyncTask: Task<Void, Never>?
     private var dailySpentSyncTask: Task<Void, Never>?
     private var activityStatsSyncTask: Task<Void, Never>?
     
+    // Debounce windows (nanoseconds)
+    private let selectionsDebounceNs: UInt64 = 1_500_000_000 // 1.5 sec
+    private let statsDebounceNs: UInt64 = 2_000_000_000 // 2 sec
+    private let spentDebounceNs: UInt64 = 1_500_000_000 // 1.5 sec
+    
     private var lastSyncedCustomActivitiesHash: Int = 0
     private var lastSyncedDayKey: String = ""
+    
+    // Read-cache (TTL) for today's data
+    private struct CachedTodayValue<T> {
+        let dayKey: String
+        let value: T
+        let timestamp: Date
+    }
+    
+    private var todayCacheTTL: TimeInterval {
+        let g = UserDefaults.stepsTrader()
+        let stored = g.double(forKey: "supabaseTodayCacheTTLSeconds_v1")
+        return stored > 0 ? stored : 30
+    }
+    private var cachedTodaySelections: CachedTodayValue<(activity: [String], rest: [String], joys: [String])>?
+    private var cachedTodayStats: CachedTodayValue<(steps: Int, sleepHours: Double, baseEnergy: Int, bonusEnergy: Int, remainingBalance: Int)>?
+    private var cachedTodaySpent: CachedTodayValue<(totalSpent: Int, spentByApp: [String: Int])>?
+    
+    // Historical pagination
+    private var historicalPageSize: Int {
+        let g = UserDefaults.stepsTrader()
+        let stored = g.integer(forKey: "supabaseHistoryPageSize_v1")
+        return stored > 0 ? stored : 500
+    }
+    
+    private var historicalRefreshTTL: TimeInterval {
+        let g = UserDefaults.stepsTrader()
+        let stored = g.double(forKey: "supabaseHistoryRefreshTTLSeconds_v1")
+        return stored > 0 ? stored : 86_400 // 24h
+    }
+    private var historicalLastFullSyncKey: String { "supabaseHistoryLastFullSync_v1" }
+    private var historicalLastDayKeyKey: String { "supabaseHistoryLastDayKey_v1" }
+    
+    // Payload coalescing + dedup
+    private struct DailySelectionsPayload: Equatable {
+        let dayKey: String
+        let activityIds: [String]
+        let recoveryIds: [String]
+        let joysIds: [String]
+    }
+    
+    private struct DailyStatsPayload: Equatable {
+        let dayKey: String
+        let steps: Int
+        let sleepHours: Double
+        let baseEnergy: Int
+        let bonusEnergy: Int
+        let remainingBalance: Int
+    }
+    
+    private struct DailySpentPayload: Equatable {
+        let dayKey: String
+        let totalSpent: Int
+        let spentByApp: [String: Int]
+    }
+    
+    private var pendingDailySelections: DailySelectionsPayload?
+    private var pendingDailyStats: DailyStatsPayload?
+    private var pendingDailySpent: DailySpentPayload?
+    
+    private var lastSentDailySelections: DailySelectionsPayload?
+    private var lastSentDailyStats: DailyStatsPayload?
+    private var lastSentDailySpent: DailySpentPayload?
     
     // Track which activities we've already counted for this user today
     private var countedActivitiesToday: Set<String> = []
@@ -31,43 +97,104 @@ class SupabaseSyncService: ObservableObject {
         customActivitiesSyncTask = Task {
             try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 sec debounce
             guard !Task.isCancelled else { return }
-            await performCustomActivitiesSync(activities)
+            await self.performCustomActivitiesSync(activities)
         }
     }
     
     /// Sync daily selections for a given day
     func syncDailySelections(dayKey: String, activityIds: [String], recoveryIds: [String], joysIds: [String]) {
+        let payload = DailySelectionsPayload(
+            dayKey: dayKey,
+            activityIds: activityIds,
+            recoveryIds: recoveryIds,
+            joysIds: joysIds
+        )
+        
+        // Skip if payload already queued (coalesce to latest)
+        if payload == pendingDailySelections {
+            return
+        }
+        // If payload matches last successful send, cancel any pending work
+        if payload == lastSentDailySelections {
+            pendingDailySelections = nil
+            dailySelectionsSyncTask?.cancel()
+            return
+        }
+        
+        pendingDailySelections = payload
         print("📡 syncDailySelections CALLED for \(dayKey)")
         dailySelectionsSyncTask?.cancel()
         dailySelectionsSyncTask = Task {
-            print("📡 syncDailySelections Task started, waiting 1 sec...")
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 sec debounce
+            print("📡 syncDailySelections Task started, waiting debounce...")
+            try? await Task.sleep(nanoseconds: selectionsDebounceNs)
             if Task.isCancelled {
                 print("📡 syncDailySelections Task was CANCELLED")
                 return
             }
             print("📡 syncDailySelections Task proceeding to perform sync")
-            await performDailySelectionsSync(dayKey: dayKey, activityIds: activityIds, recoveryIds: recoveryIds, joysIds: joysIds)
+            guard let latest = pendingDailySelections else { return }
+            await performDailySelectionsSync(payload: latest)
         }
     }
     
     /// Sync daily stats (steps, sleep, balance)
     func syncDailyStats(dayKey: String, steps: Int, sleepHours: Double, baseEnergy: Int, bonusEnergy: Int, remainingBalance: Int) {
+        let payload = DailyStatsPayload(
+            dayKey: dayKey,
+            steps: steps,
+            sleepHours: sleepHours,
+            baseEnergy: baseEnergy,
+            bonusEnergy: bonusEnergy,
+            remainingBalance: remainingBalance
+        )
+        
+        // Skip if payload already queued (coalesce to latest)
+        if payload == pendingDailyStats {
+            return
+        }
+        // If payload matches last successful send, cancel any pending work
+        if payload == lastSentDailyStats {
+            pendingDailyStats = nil
+            dailyStatsSyncTask?.cancel()
+            return
+        }
+        
+        pendingDailyStats = payload
         dailyStatsSyncTask?.cancel()
         dailyStatsSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 sec debounce
+            try? await Task.sleep(nanoseconds: statsDebounceNs)
             guard !Task.isCancelled else { return }
-            await performDailyStatsSync(dayKey: dayKey, steps: steps, sleepHours: sleepHours, baseEnergy: baseEnergy, bonusEnergy: bonusEnergy, remainingBalance: remainingBalance)
+            guard let latest = pendingDailyStats else { return }
+            await performDailyStatsSync(payload: latest)
         }
     }
     
     /// Sync daily spent points
     func syncDailySpent(dayKey: String, totalSpent: Int, spentByApp: [String: Int]) {
+        let payload = DailySpentPayload(
+            dayKey: dayKey,
+            totalSpent: totalSpent,
+            spentByApp: spentByApp
+        )
+        
+        // Skip if payload already queued (coalesce to latest)
+        if payload == pendingDailySpent {
+            return
+        }
+        // If payload matches last successful send, cancel any pending work
+        if payload == lastSentDailySpent {
+            pendingDailySpent = nil
+            dailySpentSyncTask?.cancel()
+            return
+        }
+        
+        pendingDailySpent = payload
         dailySpentSyncTask?.cancel()
         dailySpentSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 sec debounce
+            try? await Task.sleep(nanoseconds: spentDebounceNs)
             guard !Task.isCancelled else { return }
-            await performDailySpentSync(dayKey: dayKey, totalSpent: totalSpent, spentByApp: spentByApp)
+            guard let latest = pendingDailySpent else { return }
+            await performDailySpentSync(payload: latest)
         }
     }
     
@@ -90,7 +217,7 @@ class SupabaseSyncService: ObservableObject {
         activityStatsSyncTask = Task {
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 sec debounce
             guard !Task.isCancelled else { return }
-            await performActivityStatsIncrement(
+            await self.performActivityStatsIncrement(
                 activityId: activityId,
                 category: category.rawValue,
                 titleEn: titleEn,
@@ -120,44 +247,72 @@ class SupabaseSyncService: ObservableObject {
         print("📡 performFullSync called, waiting for auth initialization...")
         
         // Wait for AuthenticationService to finish restoring session
-        await authService.waitForInitialization()
+        await AuthenticationService.shared.waitForInitialization()
+        let isAuthenticated = await AuthenticationService.shared.isAuthenticated
+        let currentUserId = await AuthenticationService.shared.currentUser?.id
+        let hasToken = await AuthenticationService.shared.accessToken != nil
         
-        print("📡 Auth initialized. isAuthenticated: \(authService.isAuthenticated)")
-        print("📡 currentUser: \(authService.currentUser?.id ?? "nil")")
-        print("📡 accessToken: \(authService.accessToken != nil ? "exists" : "nil")")
+        print("📡 Auth initialized. isAuthenticated: \(isAuthenticated)")
+        print("📡 currentUser: \(currentUserId ?? "nil")")
+        print("📡 accessToken: \(hasToken ? "exists" : "nil")")
         
-        guard authService.isAuthenticated, authService.currentUser != nil else {
+        guard isAuthenticated, currentUserId != nil else {
             print("📡 Sync skipped: user not authenticated")
             return
         }
         
         print("📡 Starting full Supabase sync...")
         
+        let snapshot = await MainActor.run {
+            (
+                customEnergyOptions: model.customEnergyOptions,
+                dailyActivitySelections: model.dailyActivitySelections,
+                dailyRestSelections: model.dailyRestSelections,
+                dailyJoysSelections: model.dailyJoysSelections,
+                stepsToday: model.stepsToday,
+                dailySleepHours: model.dailySleepHours,
+                baseEnergyToday: model.baseEnergyToday,
+                bonusSteps: model.bonusSteps,
+                totalStepsBalance: model.totalStepsBalance,
+                appStepsSpentByDay: model.appStepsSpentByDay
+            )
+        }
+        
         // Sync custom activities
-        await performCustomActivitiesSync(model.customEnergyOptions)
+        await performCustomActivitiesSync(snapshot.customEnergyOptions)
         
         // Sync today's data
         let today = AppModel.dayKey(for: Date())
         
         await performDailySelectionsSync(
-            dayKey: today,
-            activityIds: model.dailyActivitySelections,
-            recoveryIds: model.dailyRecoverySelections,
-            joysIds: model.dailyJoysSelections
+            payload: DailySelectionsPayload(
+                dayKey: today,
+                activityIds: snapshot.dailyActivitySelections,
+                recoveryIds: snapshot.dailyRestSelections,
+                joysIds: snapshot.dailyJoysSelections
+            )
         )
         
         await performDailyStatsSync(
-            dayKey: today,
-            steps: Int(model.stepsToday),
-            sleepHours: model.dailySleepHours,
-            baseEnergy: model.baseEnergyToday,
-            bonusEnergy: model.bonusSteps,
-            remainingBalance: model.totalStepsBalance
+            payload: DailyStatsPayload(
+                dayKey: today,
+                steps: Int(snapshot.stepsToday),
+                sleepHours: snapshot.dailySleepHours,
+                baseEnergy: snapshot.baseEnergyToday,
+                bonusEnergy: snapshot.bonusSteps,
+                remainingBalance: snapshot.totalStepsBalance
+            )
         )
         
-        let todaySpent = model.appStepsSpentByDay[today] ?? [:]
+        let todaySpent = snapshot.appStepsSpentByDay[today] ?? [:]
         let totalSpent = todaySpent.values.reduce(0, +)
-        await performDailySpentSync(dayKey: today, totalSpent: totalSpent, spentByApp: todaySpent)
+        await performDailySpentSync(
+            payload: DailySpentPayload(
+                dayKey: today,
+                totalSpent: totalSpent,
+                spentByApp: todaySpent
+            )
+        )
         
         print("📡 Full sync completed")
     }
@@ -165,10 +320,10 @@ class SupabaseSyncService: ObservableObject {
     // MARK: - Private Sync Implementations
     
     private func performCustomActivitiesSync(_ activities: [CustomEnergyOption]) async {
-        await authService.waitForInitialization()
+        await AuthenticationService.shared.waitForInitialization()
         
-        guard let token = authService.accessToken,
-              let userId = authService.currentUser?.id else {
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
             print("📡 Custom activities sync skipped: no auth")
             return
         }
@@ -183,33 +338,40 @@ class SupabaseSyncService: ObservableObject {
         do {
             let cfg = try SupabaseConfig.load()
             
-            // First, delete existing custom activities for this user
-            let deleteURL = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
-            guard var deleteComps = URLComponents(url: deleteURL, resolvingAgainstBaseURL: false) else { return }
-            deleteComps.queryItems = [URLQueryItem(name: "user_id", value: "eq.\(userId)")]
-            
-            if let url = deleteComps.url {
+            // If empty, just delete all for this user (no destructive delete-before-insert)
+            if activities.isEmpty {
+                let deleteURL = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
+                guard var deleteComps = URLComponents(url: deleteURL, resolvingAgainstBaseURL: false) else { return }
+                deleteComps.queryItems = [URLQueryItem(name: "user_id", value: "eq.\(userId)")]
+                
+                guard let url = deleteComps.url else { return }
                 var request = URLRequest(url: url)
                 request.httpMethod = "DELETE"
                 request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
-                _ = try? await URLSession.shared.data(for: request)
-            }
-            
-            // Then insert all current activities
-            guard !activities.isEmpty else {
-                lastSyncedCustomActivitiesHash = hash
-                print("📡 Custom activities cleared on server")
+                
+                let (_, response) = try await network.data(for: request)
+                if response.statusCode < 400 {
+                    lastSyncedCustomActivitiesHash = hash
+                    print("📡 Custom activities cleared on server")
+                } else {
+                    print("📡 Custom activities clear failed")
+                }
                 return
             }
             
+            // Upsert current activities
             let insertURL = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
-            var request = URLRequest(url: insertURL)
+            guard var insertComps = URLComponents(url: insertURL, resolvingAgainstBaseURL: false) else { return }
+            insertComps.queryItems = [URLQueryItem(name: "on_conflict", value: "id")]
+            
+            guard let finalInsertURL = insertComps.url else { return }
+            var request = URLRequest(url: finalInsertURL)
             request.httpMethod = "POST"
             request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
             request.setValue("application/json", forHTTPHeaderField: "content-type")
-            request.setValue("return=minimal", forHTTPHeaderField: "prefer")
+            request.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "prefer")
             
             let rows = activities.map { activity in
                 CustomActivityRow(
@@ -224,36 +386,80 @@ class SupabaseSyncService: ObservableObject {
             
             request.httpBody = try JSONEncoder().encode(rows)
             
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse, http.statusCode < 400 {
+            let (_, response) = try await network.data(for: request)
+            guard response.statusCode < 400 else {
+                print("📡 Custom activities upsert failed")
+                return
+            }
+            
+            // Delete server records not present in current payload (safe after successful upsert)
+            let deleteURL = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
+            guard var deleteComps = URLComponents(url: deleteURL, resolvingAgainstBaseURL: false) else { return }
+            let idList = activities.map { $0.id }.joined(separator: ",")
+            deleteComps.queryItems = [
+                URLQueryItem(name: "user_id", value: "eq.\(userId)"),
+                URLQueryItem(name: "id", value: "not.in.(\(idList))")
+            ]
+            
+            guard let deleteFinalURL = deleteComps.url else { return }
+            var deleteRequest = URLRequest(url: deleteFinalURL)
+            deleteRequest.httpMethod = "DELETE"
+            deleteRequest.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            deleteRequest.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+            
+            let (_, deleteResponse) = try await network.data(for: deleteRequest)
+            if deleteResponse.statusCode < 400 {
                 lastSyncedCustomActivitiesHash = hash
                 print("📡 Custom activities synced: \(activities.count) items")
             } else {
-                print("📡 Custom activities sync failed")
+                print("📡 Custom activities delete-missing failed")
             }
         } catch {
             print("📡 Custom activities sync error: \(error.localizedDescription)")
         }
     }
     
-    private func performDailySelectionsSync(dayKey: String, activityIds: [String], recoveryIds: [String], joysIds: [String]) async {
+    private func performDailySelectionsSync(payload: DailySelectionsPayload) async {
+        if payload == lastSentDailySelections { return }
+        let dayKey = payload.dayKey
+        let activityIds = payload.activityIds
+        let recoveryIds = payload.recoveryIds
+        let joysIds = payload.joysIds
+        
+        defer {
+            if pendingDailySelections == payload {
+                pendingDailySelections = nil
+            }
+        }
+        
         print("📡 performDailySelectionsSync called for \(dayKey)")
         print("📡   activities: \(activityIds), recovery: \(recoveryIds), joys: \(joysIds)")
         
         // Wait for auth to be ready
-        await authService.waitForInitialization()
+        await AuthenticationService.shared.waitForInitialization()
+        if Task.isCancelled { return }
         
-        guard let token = authService.accessToken,
-              let userId = authService.currentUser?.id else {
-            print("📡 Daily selections sync skipped: no auth (token=\(authService.accessToken != nil), user=\(authService.currentUser?.id ?? "nil"))")
+        let token = await AuthenticationService.shared.accessToken
+        let userId = await AuthenticationService.shared.currentUser?.id
+        guard let token, let userId else {
+            let hasToken = token != nil
+            print("📡 Daily selections sync skipped: no auth (token=\(hasToken), user=\(userId ?? "nil"))")
             return
         }
         
         do {
             let cfg = try SupabaseConfig.load()
-            var urlComps = URLComponents(url: cfg.baseURL.appendingPathComponent("rest/v1/user_daily_selections"), resolvingAgainstBaseURL: false)!
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_daily_selections")
+            guard var urlComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+                print("📡 Error: Failed to create URLComponents for daily selections")
+                return
+            }
             urlComps.queryItems = [URLQueryItem(name: "on_conflict", value: "user_id,day_key")]
-            let url = urlComps.url!
+            
+            guard let url = urlComps.url else {
+                print("📡 Error: Failed to get URL from components for daily selections")
+                return
+            }
             print("📡 POST URL: \(url.absoluteString)")
             
             var request = URLRequest(url: url)
@@ -267,7 +473,7 @@ class SupabaseSyncService: ObservableObject {
                 userId: userId,
                 dayKey: dayKey,
                 activityIds: activityIds,
-                recoveryIds: recoveryIds,
+                restIds: recoveryIds,
                 joysIds: joysIds
             )
             
@@ -275,34 +481,57 @@ class SupabaseSyncService: ObservableObject {
             request.httpBody = bodyData
             print("📡 POST body: \(String(data: bodyData, encoding: .utf8) ?? "nil")")
             
-            let (data, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse {
-                if http.statusCode < 400 {
-                    print("📡 Daily selections synced for \(dayKey)")
-                } else {
-                    let body = String(data: data, encoding: .utf8) ?? "no body"
-                    print("📡 Daily selections sync failed for \(dayKey): HTTP \(http.statusCode) - \(body)")
-                }
+            let (data, response) = try await network.data(for: request)
+            if Task.isCancelled { return }
+            if response.statusCode < 400 {
+                lastSentDailySelections = payload
+                print("📡 Daily selections synced for \(dayKey)")
+            } else {
+                let body = String(data: data, encoding: .utf8) ?? "no body"
+                print("📡 Daily selections sync failed for \(dayKey): HTTP \(response.statusCode) - \(body)")
             }
         } catch {
             print("📡 Daily selections sync error: \(error.localizedDescription)")
         }
     }
     
-    private func performDailyStatsSync(dayKey: String, steps: Int, sleepHours: Double, baseEnergy: Int, bonusEnergy: Int, remainingBalance: Int) async {
-        await authService.waitForInitialization()
+    private func performDailyStatsSync(payload: DailyStatsPayload) async {
+        if payload == lastSentDailyStats { return }
+        let dayKey = payload.dayKey
+        let steps = payload.steps
+        let sleepHours = payload.sleepHours
+        let baseEnergy = payload.baseEnergy
+        let bonusEnergy = payload.bonusEnergy
+        let remainingBalance = payload.remainingBalance
         
-        guard let token = authService.accessToken,
-              let userId = authService.currentUser?.id else {
+        defer {
+            if pendingDailyStats == payload {
+                pendingDailyStats = nil
+            }
+        }
+        
+        await AuthenticationService.shared.waitForInitialization()
+        if Task.isCancelled { return }
+        
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
             print("📡 Daily stats sync skipped: no auth")
             return
         }
         
         do {
             let cfg = try SupabaseConfig.load()
-            var urlComps = URLComponents(url: cfg.baseURL.appendingPathComponent("rest/v1/user_daily_stats"), resolvingAgainstBaseURL: false)!
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_daily_stats")
+            guard var urlComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+                print("📡 Error: Failed to create URLComponents for daily stats")
+                return
+            }
             urlComps.queryItems = [URLQueryItem(name: "on_conflict", value: "user_id,day_key")]
-            let url = urlComps.url!
+            
+            guard let url = urlComps.url else {
+                print("📡 Error: Failed to get URL from components for daily stats")
+                return
+            }
             
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
@@ -323,8 +552,10 @@ class SupabaseSyncService: ObservableObject {
             
             request.httpBody = try JSONEncoder().encode(row)
             
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse, http.statusCode < 400 {
+            let (_, response) = try await network.data(for: request)
+            if Task.isCancelled { return }
+            if response.statusCode < 400 {
+                lastSentDailyStats = payload
                 print("📡 Daily stats synced for \(dayKey): steps=\(steps), sleep=\(sleepHours)h, balance=\(remainingBalance)")
             } else {
                 print("📡 Daily stats sync failed for \(dayKey)")
@@ -334,20 +565,40 @@ class SupabaseSyncService: ObservableObject {
         }
     }
     
-    private func performDailySpentSync(dayKey: String, totalSpent: Int, spentByApp: [String: Int]) async {
-        await authService.waitForInitialization()
+    private func performDailySpentSync(payload: DailySpentPayload) async {
+        if payload == lastSentDailySpent { return }
+        let dayKey = payload.dayKey
+        let totalSpent = payload.totalSpent
+        let spentByApp = payload.spentByApp
         
-        guard let token = authService.accessToken,
-              let userId = authService.currentUser?.id else {
+        defer {
+            if pendingDailySpent == payload {
+                pendingDailySpent = nil
+            }
+        }
+        
+        await AuthenticationService.shared.waitForInitialization()
+        if Task.isCancelled { return }
+        
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
             print("📡 Daily spent sync skipped: no auth")
             return
         }
         
         do {
             let cfg = try SupabaseConfig.load()
-            var urlComps = URLComponents(url: cfg.baseURL.appendingPathComponent("rest/v1/user_daily_spent"), resolvingAgainstBaseURL: false)!
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_daily_spent")
+            guard var urlComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+                print("📡 Error: Failed to create URLComponents for daily spent")
+                return
+            }
             urlComps.queryItems = [URLQueryItem(name: "on_conflict", value: "user_id,day_key")]
-            let url = urlComps.url!
+            
+            guard let url = urlComps.url else {
+                print("📡 Error: Failed to get URL from components for daily spent")
+                return
+            }
             
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
@@ -365,8 +616,10 @@ class SupabaseSyncService: ObservableObject {
             
             request.httpBody = try JSONEncoder().encode(row)
             
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse, http.statusCode < 400 {
+            let (_, response) = try await network.data(for: request)
+            if Task.isCancelled { return }
+            if response.statusCode < 400 {
+                lastSentDailySpent = payload
                 print("📡 Daily spent synced for \(dayKey): total=\(totalSpent)")
             } else {
                 print("📡 Daily spent sync failed for \(dayKey)")
@@ -379,9 +632,9 @@ class SupabaseSyncService: ObservableObject {
     private func performActivityStatsIncrement(activityId: String, category: String, titleEn: String, titleRu: String, icon: String, isCustom: Bool) async {
         print("📡 performActivityStatsIncrement called for \(activityId)")
         
-        await authService.waitForInitialization()
+        await AuthenticationService.shared.waitForInitialization()
         
-        guard let token = authService.accessToken else {
+        guard let token = await AuthenticationService.shared.accessToken else {
             print("📡 Activity stats sync skipped: no auth token")
             return
         }
@@ -410,14 +663,12 @@ class SupabaseSyncService: ObservableObject {
             
             request.httpBody = try JSONEncoder().encode(params)
             
-            let (data, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse {
-                if http.statusCode < 400 {
-                    print("📡 Activity stat incremented: \(activityId)")
-                } else {
-                    let body = String(data: data, encoding: .utf8) ?? "no body"
-                    print("📡 Activity stat increment failed for \(activityId): HTTP \(http.statusCode) - \(body)")
-                }
+            let (data, response) = try await network.data(for: request, policy: NetworkClient.RetryPolicy.none)
+            if response.statusCode < 400 {
+                print("📡 Activity stat incremented: \(activityId)")
+            } else {
+                let body = String(data: data, encoding: .utf8) ?? "no body"
+                print("📡 Activity stat increment failed for \(activityId): HTTP \(response.statusCode) - \(body)")
             }
         } catch {
             print("📡 Activity stat sync error: \(error.localizedDescription)")
@@ -428,9 +679,9 @@ class SupabaseSyncService: ObservableObject {
     
     /// Load custom activities from Supabase (for restoring on new device)
     func loadCustomActivitiesFromServer() async -> [CustomEnergyOption]? {
-        await authService.waitForInitialization()
-        guard let token = authService.accessToken,
-              let userId = authService.currentUser?.id else {
+        await AuthenticationService.shared.waitForInitialization()
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
             return nil
         }
         
@@ -451,8 +702,8 @@ class SupabaseSyncService: ObservableObject {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
             request.setValue("application/json", forHTTPHeaderField: "accept")
             
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode < 400 else { return nil }
+            let (data, response) = try await network.data(for: request)
+            guard response.statusCode < 400 else { return nil }
             
             let decoder = JSONDecoder()
             // CodingKeys already handle snake_case mapping
@@ -460,7 +711,7 @@ class SupabaseSyncService: ObservableObject {
             
             print("📡 Loaded \(rows.count) custom activities from server")
             
-            return rows.compactMap { row in
+            return rows.compactMap { row -> CustomEnergyOption? in
                 guard let category = EnergyCategory(rawValue: row.category) else { return nil }
                 return CustomEnergyOption(
                     id: row.id,
@@ -477,14 +728,19 @@ class SupabaseSyncService: ObservableObject {
     }
     
     /// Load today's daily selections from Supabase
-    func loadTodaySelectionsFromServer() async -> (activity: [String], recovery: [String], joys: [String])? {
-        await authService.waitForInitialization()
-        guard let token = authService.accessToken,
-              let userId = authService.currentUser?.id else {
+    func loadTodaySelectionsFromServer() async -> (activity: [String], rest: [String], joys: [String])? {
+        await AuthenticationService.shared.waitForInitialization()
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
             return nil
         }
         
         let today = AppModel.dayKey(for: Date())
+        if let cached = cachedTodaySelections,
+           cached.dayKey == today,
+           Date().timeIntervalSince(cached.timestamp) < todayCacheTTL {
+            return cached.value
+        }
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -504,8 +760,8 @@ class SupabaseSyncService: ObservableObject {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
             request.setValue("application/json", forHTTPHeaderField: "accept")
             
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode < 400 else { return nil }
+            let (data, response) = try await network.data(for: request)
+            guard response.statusCode < 400 else { return nil }
             
             print("📡 Raw selections response: \(String(data: data, encoding: .utf8) ?? "nil")")
             
@@ -518,9 +774,11 @@ class SupabaseSyncService: ObservableObject {
                 return nil
             }
             
-            print("📡 Loaded today's selections from server: activity=\(row.activityIds), recovery=\(row.recoveryIds), joys=\(row.joysIds)")
+            print("📡 Loaded today's selections from server: activity=\(row.activityIds), rest=\(row.restIds), joys=\(row.joysIds)")
             
-            return (row.activityIds, row.recoveryIds, row.joysIds)
+            let value = (row.activityIds, row.restIds, row.joysIds)
+            cachedTodaySelections = CachedTodayValue(dayKey: today, value: value, timestamp: Date())
+            return value
         } catch {
             print("📡 Failed to load today's selections: \(error)")
             return nil
@@ -529,13 +787,18 @@ class SupabaseSyncService: ObservableObject {
     
     /// Load today's daily stats from Supabase
     func loadTodayStatsFromServer() async -> (steps: Int, sleepHours: Double, baseEnergy: Int, bonusEnergy: Int, remainingBalance: Int)? {
-        await authService.waitForInitialization()
-        guard let token = authService.accessToken,
-              let userId = authService.currentUser?.id else {
+        await AuthenticationService.shared.waitForInitialization()
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
             return nil
         }
         
         let today = AppModel.dayKey(for: Date())
+        if let cached = cachedTodayStats,
+           cached.dayKey == today,
+           Date().timeIntervalSince(cached.timestamp) < todayCacheTTL {
+            return cached.value
+        }
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -555,8 +818,8 @@ class SupabaseSyncService: ObservableObject {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
             request.setValue("application/json", forHTTPHeaderField: "accept")
             
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode < 400 else { return nil }
+            let (data, response) = try await network.data(for: request)
+            guard response.statusCode < 400 else { return nil }
             
             let decoder = JSONDecoder()
             // CodingKeys already handle snake_case mapping
@@ -569,7 +832,9 @@ class SupabaseSyncService: ObservableObject {
             
             print("📡 Loaded today's stats from server: steps=\(row.stepsCount), balance=\(row.remainingBalance)")
             
-            return (row.stepsCount, row.sleepHours, row.baseEnergy, row.bonusEnergy, row.remainingBalance)
+            let value = (row.stepsCount, row.sleepHours, row.baseEnergy, row.bonusEnergy, row.remainingBalance)
+            cachedTodayStats = CachedTodayValue(dayKey: today, value: value, timestamp: Date())
+            return value
         } catch {
             print("📡 Failed to load today's stats: \(error.localizedDescription)")
             return nil
@@ -578,13 +843,18 @@ class SupabaseSyncService: ObservableObject {
     
     /// Load today's spent points from Supabase
     func loadTodaySpentFromServer() async -> (totalSpent: Int, spentByApp: [String: Int])? {
-        await authService.waitForInitialization()
-        guard let token = authService.accessToken,
-              let userId = authService.currentUser?.id else {
+        await AuthenticationService.shared.waitForInitialization()
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
             return nil
         }
         
         let today = AppModel.dayKey(for: Date())
+        if let cached = cachedTodaySpent,
+           cached.dayKey == today,
+           Date().timeIntervalSince(cached.timestamp) < todayCacheTTL {
+            return cached.value
+        }
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -604,8 +874,8 @@ class SupabaseSyncService: ObservableObject {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
             request.setValue("application/json", forHTTPHeaderField: "accept")
             
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode < 400 else { return nil }
+            let (data, response) = try await network.data(for: request)
+            guard response.statusCode < 400 else { return nil }
             
             print("📡 Raw spent response: \(String(data: data, encoding: .utf8) ?? "nil")")
             
@@ -620,7 +890,9 @@ class SupabaseSyncService: ObservableObject {
             
             print("📡 Loaded today's spent from server: total=\(row.totalSpent), byApp=\(row.spentByApp)")
             
-            return (row.totalSpent, row.spentByApp)
+            let value = (row.totalSpent, row.spentByApp)
+            cachedTodaySpent = CachedTodayValue(dayKey: today, value: value, timestamp: Date())
+            return value
         } catch {
             print("📡 Failed to load today's spent: \(error)")
             return nil
@@ -631,8 +903,10 @@ class SupabaseSyncService: ObservableObject {
     func restoreFromServer(model: AppModel) async -> Bool {
         print("📡 Starting restore from Supabase...")
         
-        await authService.waitForInitialization()
-        guard authService.isAuthenticated, authService.currentUser != nil else {
+        await AuthenticationService.shared.waitForInitialization()
+        let isAuthenticated = await AuthenticationService.shared.isAuthenticated
+        let currentUser = await AuthenticationService.shared.currentUser
+        guard isAuthenticated, currentUser != nil else {
             print("📡 Restore skipped: user not authenticated")
             return false
         }
@@ -649,11 +923,11 @@ class SupabaseSyncService: ObservableObject {
         
         // 2. Restore today's selections
         if let selections = await loadTodaySelectionsFromServer() {
-            let hasData = !selections.activity.isEmpty || !selections.recovery.isEmpty || !selections.joys.isEmpty
+            let hasData = !selections.activity.isEmpty || !selections.rest.isEmpty || !selections.joys.isEmpty
             if hasData {
                 await MainActor.run {
                     model.dailyActivitySelections = selections.activity
-                    model.dailyRecoverySelections = selections.recovery
+                    model.dailyRestSelections = selections.rest
                     model.dailyJoysSelections = selections.joys
                     // Persist locally so it doesn't get overwritten
                     model.persistDailyEnergyState()
@@ -693,10 +967,13 @@ class SupabaseSyncService: ObservableObject {
     /// Load all historical day snapshots from Supabase
     /// Combines data from user_daily_selections, user_daily_stats, and user_daily_spent
     func loadHistoricalSnapshots() async -> [String: PastDaySnapshot] {
-        await authService.waitForInitialization()
-        guard authService.isAuthenticated,
-              let userId = authService.currentUser?.id,
-              let token = authService.accessToken else {
+        await AuthenticationService.shared.waitForInitialization()
+        let isAuthenticated = await AuthenticationService.shared.isAuthenticated
+        let userId = await AuthenticationService.shared.currentUser?.id
+        let token = await AuthenticationService.shared.accessToken
+        guard isAuthenticated,
+              let userId,
+              let token else {
             print("📡 Historical load skipped: no auth")
             return [:]
         }
@@ -707,14 +984,26 @@ class SupabaseSyncService: ObservableObject {
         
         var snapshots: [String: PastDaySnapshot] = [:]
         
-        // Load all selections
-        let selections = await loadAllSelections(config: config, userId: userId, token: token)
+        let g = UserDefaults.stepsTrader()
+        let now = Date()
+        let lastFullSync = g.object(forKey: historicalLastFullSyncKey) as? Date ?? .distantPast
+        let shouldFullSync = now.timeIntervalSince(lastFullSync) >= historicalRefreshTTL
+        let lastDayKey = g.string(forKey: historicalLastDayKeyKey)
         
-        // Load all stats
-        let stats = await loadAllStats(config: config, userId: userId, token: token)
+        let selections: [String: DailySelectionsRow]
+        let stats: [String: DailyStatsRow]
+        let spent: [String: DailySpentRow]
         
-        // Load all spent
-        let spent = await loadAllSpent(config: config, userId: userId, token: token)
+        if shouldFullSync || lastDayKey == nil {
+            selections = await loadAllSelections(config: config, userId: userId, token: token)
+            stats = await loadAllStats(config: config, userId: userId, token: token)
+            spent = await loadAllSpent(config: config, userId: userId, token: token)
+            g.set(now, forKey: historicalLastFullSyncKey)
+        } else {
+            selections = await loadAllSelections(config: config, userId: userId, token: token, fromDayKey: lastDayKey)
+            stats = await loadAllStats(config: config, userId: userId, token: token, fromDayKey: lastDayKey)
+            spent = await loadAllSpent(config: config, userId: userId, token: token, fromDayKey: lastDayKey)
+        }
         
         // Combine all day keys
         var allDayKeys = Set<String>()
@@ -732,7 +1021,7 @@ class SupabaseSyncService: ObservableObject {
                 controlGained: stat?.baseEnergy ?? 0,
                 controlSpent: sp?.totalSpent ?? 0,
                 activityIds: sel?.activityIds ?? [],
-                recoveryIds: sel?.recoveryIds ?? [],
+                creativityIds: sel?.restIds ?? [],
                 joysIds: sel?.joysIds ?? [],
                 steps: stat?.stepsCount ?? 0,
                 sleepHours: stat?.sleepHours ?? 0
@@ -742,26 +1031,32 @@ class SupabaseSyncService: ObservableObject {
         }
         
         print("📡 Loaded \(snapshots.count) historical snapshots from Supabase")
+        
+        if let maxDayKey = allDayKeys.max() {
+            g.set(maxDayKey, forKey: historicalLastDayKeyKey)
+        }
         return snapshots
     }
     
-    private func loadAllSelections(config: SupabaseConfig, userId: String, token: String) async -> [String: DailySelectionsRow] {
+    private func loadAllSelections(config: SupabaseConfig, userId: String, token: String, fromDayKey: String? = nil) async -> [String: DailySelectionsRow] {
         let endpoint = config.baseURL.appendingPathComponent("/rest/v1/user_daily_selections")
-        var urlComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)!
-        urlComps.queryItems = [
+        var baseQuery = [
             URLQueryItem(name: "user_id", value: "eq.\(userId)"),
-            URLQueryItem(name: "select", value: "*")
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "order", value: "day_key.asc")
         ]
-        
-        var request = URLRequest(url: urlComps.url!)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
+        if let fromDayKey {
+            baseQuery.append(URLQueryItem(name: "day_key", value: "gt.\(fromDayKey)"))
+        }
         
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            let decoder = JSONDecoder()
-            let rows = try decoder.decode([DailySelectionsRow].self, from: data)
+            let rows: [DailySelectionsRow] = try await fetchPagedRows(
+                endpoint: endpoint,
+                token: token,
+                anonKey: config.anonKey,
+                baseQuery: baseQuery,
+                pageSize: historicalPageSize
+            )
             
             var result: [String: DailySelectionsRow] = [:]
             for row in rows {
@@ -774,23 +1069,25 @@ class SupabaseSyncService: ObservableObject {
         }
     }
     
-    private func loadAllStats(config: SupabaseConfig, userId: String, token: String) async -> [String: DailyStatsRow] {
+    private func loadAllStats(config: SupabaseConfig, userId: String, token: String, fromDayKey: String? = nil) async -> [String: DailyStatsRow] {
         let endpoint = config.baseURL.appendingPathComponent("/rest/v1/user_daily_stats")
-        var urlComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)!
-        urlComps.queryItems = [
+        var baseQuery = [
             URLQueryItem(name: "user_id", value: "eq.\(userId)"),
-            URLQueryItem(name: "select", value: "*")
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "order", value: "day_key.asc")
         ]
-        
-        var request = URLRequest(url: urlComps.url!)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
+        if let fromDayKey {
+            baseQuery.append(URLQueryItem(name: "day_key", value: "gt.\(fromDayKey)"))
+        }
         
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            let decoder = JSONDecoder()
-            let rows = try decoder.decode([DailyStatsRow].self, from: data)
+            let rows: [DailyStatsRow] = try await fetchPagedRows(
+                endpoint: endpoint,
+                token: token,
+                anonKey: config.anonKey,
+                baseQuery: baseQuery,
+                pageSize: historicalPageSize
+            )
             
             var result: [String: DailyStatsRow] = [:]
             for row in rows {
@@ -803,23 +1100,25 @@ class SupabaseSyncService: ObservableObject {
         }
     }
     
-    private func loadAllSpent(config: SupabaseConfig, userId: String, token: String) async -> [String: DailySpentRow] {
+    private func loadAllSpent(config: SupabaseConfig, userId: String, token: String, fromDayKey: String? = nil) async -> [String: DailySpentRow] {
         let endpoint = config.baseURL.appendingPathComponent("/rest/v1/user_daily_spent")
-        var urlComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)!
-        urlComps.queryItems = [
+        var baseQuery = [
             URLQueryItem(name: "user_id", value: "eq.\(userId)"),
-            URLQueryItem(name: "select", value: "*")
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "order", value: "day_key.asc")
         ]
-        
-        var request = URLRequest(url: urlComps.url!)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
+        if let fromDayKey {
+            baseQuery.append(URLQueryItem(name: "day_key", value: "gt.\(fromDayKey)"))
+        }
         
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            let decoder = JSONDecoder()
-            let rows = try decoder.decode([DailySpentRow].self, from: data)
+            let rows: [DailySpentRow] = try await fetchPagedRows(
+                endpoint: endpoint,
+                token: token,
+                anonKey: config.anonKey,
+                baseQuery: baseQuery,
+                pageSize: historicalPageSize
+            )
             
             var result: [String: DailySpentRow] = [:]
             for row in rows {
@@ -830,6 +1129,51 @@ class SupabaseSyncService: ObservableObject {
             print("📡 Failed to load all spent: \(error)")
             return [:]
         }
+    }
+
+    private func fetchPagedRows<T: Decodable>(
+        endpoint: URL,
+        token: String,
+        anonKey: String,
+        baseQuery: [URLQueryItem],
+        pageSize: Int
+    ) async throws -> [T] {
+        var all: [T] = []
+        var offset = 0
+        let decoder = JSONDecoder()
+        
+        while true {
+            guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+                throw SyncError.misconfigured
+            }
+            comps.queryItems = baseQuery + [
+                URLQueryItem(name: "limit", value: "\(pageSize)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+            
+            guard let url = comps.url else { throw SyncError.misconfigured }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue(anonKey, forHTTPHeaderField: "apikey")
+            
+            let (data, response) = try await network.data(for: request)
+            guard response.statusCode < 400 else {
+                throw SyncError.networkError
+            }
+            
+            let rows = try decoder.decode([T].self, from: data)
+            all.append(contentsOf: rows)
+            
+            if rows.count < pageSize {
+                break
+            }
+            
+            offset += pageSize
+        }
+        
+        return all
     }
 }
 
@@ -880,31 +1224,31 @@ private struct DailySelectionsRow: Codable {
     let userId: String
     let dayKey: String
     let activityIds: [String]
-    let recoveryIds: [String]
+    let restIds: [String]
     let joysIds: [String]
-    
+
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case dayKey = "day_key"
         case activityIds = "activity_ids"
-        case recoveryIds = "recovery_ids"
+        case restIds = "recovery_ids"
         case joysIds = "joys_ids"
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         userId = try container.decode(String.self, forKey: .userId)
         dayKey = try container.decode(String.self, forKey: .dayKey)
         activityIds = try container.decodeIfPresent([String].self, forKey: .activityIds) ?? []
-        recoveryIds = try container.decodeIfPresent([String].self, forKey: .recoveryIds) ?? []
+        restIds = try container.decodeIfPresent([String].self, forKey: .restIds) ?? []
         joysIds = try container.decodeIfPresent([String].self, forKey: .joysIds) ?? []
     }
-    
-    init(userId: String, dayKey: String, activityIds: [String], recoveryIds: [String], joysIds: [String]) {
+
+    init(userId: String, dayKey: String, activityIds: [String], restIds: [String], joysIds: [String]) {
         self.userId = userId
         self.dayKey = dayKey
         self.activityIds = activityIds
-        self.recoveryIds = recoveryIds
+        self.restIds = restIds
         self.joysIds = joysIds
     }
 }

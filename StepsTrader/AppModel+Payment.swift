@@ -99,7 +99,7 @@ extension AppModel {
         let g = UserDefaults.stepsTrader()
         g.set(spentStepsToday, forKey: "spentStepsToday")
         g.set(stepsBalance, forKey: "stepsBalance")
-        g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
+        g.set(currentDayStart(for: Date()), forKey: "stepsBalanceAnchor")
         
         // Explicitly update totalStepsBalance
         updateTotalStepsBalance()
@@ -126,13 +126,16 @@ extension AppModel {
         print("💾 === LOADING SPENT STEPS BALANCE ===")
         
         let anchor = g.object(forKey: "stepsBalanceAnchor") as? Date ?? .distantPast
-        let isSameDay = Calendar.current.isDateInToday(anchor)
+        let isSameDay = isSameCustomDay(anchor, Date())
         print("💾 Anchor date: \(anchor), isToday: \(isSameDay)")
         
         if !isSameDay {
             print("💾 New day detected, resetting spentStepsToday to 0")
             spentStepsToday = 0
-            g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
+            stepsBalance = 0
+            g.set(0, forKey: "spentStepsToday")
+            g.set(0, forKey: "stepsBalance")
+            g.set(currentDayStart(for: Date()), forKey: "stepsBalanceAnchor")
         } else {
             spentStepsToday = g.integer(forKey: "spentStepsToday")
             print("💾 Loaded spentStepsToday from UserDefaults: \(spentStepsToday)")
@@ -208,7 +211,9 @@ extension AppModel {
         // Sync daily spent to Supabase
         let todaySpent = appStepsSpentByDay[key] ?? [:]
         let totalSpent = todaySpent.values.reduce(0, +)
-        SupabaseSyncService.shared.syncDailySpent(dayKey: key, totalSpent: totalSpent, spentByApp: todaySpent)
+        Task {
+            await SupabaseSyncService.shared.syncDailySpent(dayKey: key, totalSpent: totalSpent, spentByApp: todaySpent)
+        }
     }
     
     @MainActor
@@ -233,16 +238,16 @@ extension AppModel {
     // MARK: - Day Pass Management
     func hasDayPass(for bundleId: String?) -> Bool {
         guard let bundleId, let date = dayPassGrants[bundleId] else { return false }
-        if Calendar.current.isDateInToday(date) { return true }
+        if isSameCustomDay(date, Date()) { return true }
         dayPassGrants.removeValue(forKey: bundleId)
         persistDayPassGrants()
         return false
     }
     
     func clearExpiredDayPasses() {
-        let today = Calendar.current.startOfDay(for: Date())
+        let today = currentDayStart(for: Date())
         dayPassGrants = dayPassGrants.filter { _, value in
-            Calendar.current.isDate(value, inSameDayAs: today)
+            isSameCustomDay(value, today)
         }
         persistDayPassGrants()
     }

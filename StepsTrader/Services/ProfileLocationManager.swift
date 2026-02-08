@@ -91,7 +91,7 @@ class ProfileLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
                 case .denied:
                     self.errorMessage = "Location access denied. Enable in Settings."
                 case .network:
-                    self.errorMessage = "Network error. Check your connection."
+                    self.errorMessage = "Network error. Check my connection."
                 default:
                     self.errorMessage = "Location error. Please select country manually."
                 }

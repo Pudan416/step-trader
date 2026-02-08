@@ -1,35 +1,32 @@
 import Foundation
 
 enum AccessWindow: String, CaseIterable, Sendable, Codable {
-    case single
-    case minutes5
-    case minutes15
+    case minutes10
     case minutes30
     case hour1
-    case hour2
-    case day1
 
     var displayName: String {
         switch self {
-        case .single: return "1 min"
-        case .minutes5: return "5 min"
-        case .minutes15: return "15 min"
+        case .minutes10: return "10 min"
         case .minutes30: return "30 min"
         case .hour1: return "1 hour"
-        case .hour2: return "2 hours"
-        case .day1: return "All day"
         }
     }
     
     var minutes: Int {
         switch self {
-        case .single: return 1
-        case .minutes5: return 5
-        case .minutes15: return 15
+        case .minutes10: return 10
         case .minutes30: return 30
         case .hour1: return 60
-        case .hour2: return 120
-        case .day1: return 1440 // 24 hours
+        }
+    }
+    
+    /// Label for "spend experience" options: friendly name + time note
+    var spendExperienceLabel: String {
+        switch self {
+        case .minutes10: return "a bit (10 min)"
+        case .minutes30: return "quite a bit (30 min)"
+        case .hour1: return "some time (1 hour)"
         }
     }
 }

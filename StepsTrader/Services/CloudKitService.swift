@@ -4,7 +4,7 @@ import Combine
 
 // MARK: - CloudKit Record Types
 enum CloudKitRecordType: String {
-    case shieldSettings = "ShieldSettings"
+    case ticketSettings = "ShieldSettings" // Keep rawValue for CloudKit backward compatibility
     case stepsSpent = "StepsSpent"
     case dayPass = "DayPass"
 }
@@ -58,15 +58,15 @@ final class CloudKitService: ObservableObject {
         }
     }
     
-    // MARK: - Shield Settings Sync
-    func saveShieldSettings(_ settings: [String: CloudShieldSettings]) async throws {
+    // MARK: - Ticket Settings Sync
+    func saveTicketSettings(_ settings: [String: CloudTicketSettings]) async throws {
         guard isCloudKitAvailable else { return }
-        
+
         isSyncing = true
         defer { isSyncing = false }
-        
+
         // Delete existing records first
-        let query = CKQuery(recordType: CloudKitRecordType.shieldSettings.rawValue, predicate: NSPredicate(value: true))
+        let query = CKQuery(recordType: CloudKitRecordType.ticketSettings.rawValue, predicate: NSPredicate(value: true))
         let existingRecords = try await privateDatabase.records(matching: query)
         
         for (recordID, _) in existingRecords.matchResults {
@@ -75,7 +75,7 @@ final class CloudKitService: ObservableObject {
         
         // Save new records
         for (bundleId, setting) in settings {
-            let record = CKRecord(recordType: CloudKitRecordType.shieldSettings.rawValue)
+            let record = CKRecord(recordType: CloudKitRecordType.ticketSettings.rawValue)
             record["bundleId"] = bundleId
             record["entryCostSteps"] = setting.entryCostSteps
             record["dayPassCostSteps"] = setting.dayPassCostSteps
@@ -91,21 +91,21 @@ final class CloudKitService: ObservableObject {
         UserDefaults.standard.set(lastSyncDate, forKey: "cloudkit_lastSync")
     }
     
-    func fetchShieldSettings() async throws -> [String: CloudShieldSettings] {
+    func fetchTicketSettings() async throws -> [String: CloudTicketSettings] {
         guard isCloudKitAvailable else { return [:] }
-        
+
         isSyncing = true
         defer { isSyncing = false }
-        
-        let query = CKQuery(recordType: CloudKitRecordType.shieldSettings.rawValue, predicate: NSPredicate(value: true))
+
+        let query = CKQuery(recordType: CloudKitRecordType.ticketSettings.rawValue, predicate: NSPredicate(value: true))
         let results = try await privateDatabase.records(matching: query)
-        
-        var settings: [String: CloudShieldSettings] = [:]
-        
+
+        var settings: [String: CloudTicketSettings] = [:]
+
         for (_, result) in results.matchResults {
             if let record = try? result.get(),
                let bundleId = record["bundleId"] as? String {
-                settings[bundleId] = CloudShieldSettings(
+                settings[bundleId] = CloudTicketSettings(
                     entryCostSteps: record["entryCostSteps"] as? Int ?? 0,
                     dayPassCostSteps: record["dayPassCostSteps"] as? Int ?? 0,
                     minuteTariffEnabled: record["minuteTariffEnabled"] as? Bool ?? false,
@@ -238,8 +238,8 @@ final class CloudKitService: ObservableObject {
         
         do {
             // Upload local data to cloud
-            let shieldSettings = model.getAllShieldSettingsForCloud()
-            try await saveShieldSettings(shieldSettings)
+            let ticketSettings = model.getAllTicketSettingsForCloud()
+            try await saveTicketSettings(ticketSettings)
             
             let stepsSpent = model.getStepsSpentByDayForCloud()
             try await saveStepsSpent(stepsSpent)
@@ -268,9 +268,9 @@ final class CloudKitService: ObservableObject {
         
         do {
             // Fetch and restore shield settings
-            let cloudSettings = try await fetchShieldSettings()
+            let cloudSettings = try await fetchTicketSettings()
             if !cloudSettings.isEmpty {
-                await model.restoreShieldSettingsFromCloud(cloudSettings)
+                await model.restoreTicketSettingsFromCloud(cloudSettings)
             }
             
             // Fetch and restore steps spent
@@ -296,7 +296,7 @@ final class CloudKitService: ObservableObject {
 }
 
 // MARK: - Cloud Data Models
-struct CloudShieldSettings: Codable {
+struct CloudTicketSettings: Codable {
     let entryCostSteps: Int
     let dayPassCostSteps: Int
     let minuteTariffEnabled: Bool

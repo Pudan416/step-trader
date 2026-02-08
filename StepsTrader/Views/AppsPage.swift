@@ -15,6 +15,7 @@ struct AppsPage: View {
     @State private var statusVersion = UUID()
     @State private var openShieldBundleId: String? = nil
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @Environment(\.appTheme) private var theme
     
     private var automationConfiguredSet: Set<String> {
         let defaults = UserDefaults.stepsTrader()
@@ -103,7 +104,7 @@ struct AppsPage: View {
     
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             let horizontalPadding: CGFloat = 16
             GeometryReader { geometry in
                 ScrollView {
@@ -118,7 +119,7 @@ struct AppsPage: View {
                 }
             }
             .scrollIndicators(.hidden)
-            .background(Color(.systemGroupedBackground))
+            .background(theme.backgroundColor)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(true)
@@ -132,13 +133,13 @@ struct AppsPage: View {
             )
         }
         .sheet(isPresented: $showDeactivatedPicker) {
-            pickerView(apps: deactivatedOverflow, title: loc(appLanguage, "Other shields"))
+            pickerView(apps: deactivatedOverflow, title: loc(appLanguage, "Other tickets"))
         }
         .onReceive(tickTimer) { _ in
             clockTick &+= 1
         }
-        .onReceive(NotificationCenter.default.publisher(for: .init("OpenShieldForBundle"))) { notification in
-            print("🔧 Received OpenShieldForBundle notification")
+        .onReceive(NotificationCenter.default.publisher(for: .init("OpenTicketForBundle"))) { notification in
+            print("🔧 Received OpenTicketForBundle notification")
             if let bundleId = notification.userInfo?["bundleId"] as? String {
                 print("🔧 Looking for app with bundleId: \(bundleId)")
                 // Find the app and open its guide
@@ -198,22 +199,22 @@ struct AppsPage: View {
                         .fill(Color.gray.opacity(0.15))
                         .frame(width: 36, height: 36)
                 Image(systemName: "shield.slash")
-                        .font(.subheadline.bold())
+                        .font(AppFonts.subheadline.bold())
                         .foregroundColor(.secondary)
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(loc(appLanguage, "Unprotected"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(AppFonts.subheadline)
                     Text(loc(appLanguage, "These apps roam free. Fix that."))
-                        .font(.caption2)
+                        .font(AppFonts.caption2)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
                 
                 if !deactivatedAll.isEmpty {
                     Text("\(deactivatedAll.count)")
-                        .font(.caption2.bold())
+                        .font(AppFonts.caption2.bold())
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -226,7 +227,7 @@ struct AppsPage: View {
                     Image(systemName: "checkmark.seal.fill")
                         .foregroundColor(.green)
                     Text(loc(appLanguage, "All locked down 🔒"))
-                        .font(.caption)
+                        .font(AppFonts.caption)
                     .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -273,7 +274,7 @@ struct AppsPage: View {
                     )
                         .frame(width: 36, height: 36)
                     Image(systemName: "shield.checkered")
-                        .font(.subheadline.bold())
+                        .font(AppFonts.subheadline.bold())
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [pink, .purple],
@@ -284,10 +285,10 @@ struct AppsPage: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(loc(appLanguage, "Your Arsenal"))
-                        .font(.subheadline.weight(.semibold))
-                    Text(loc(appLanguage, "Shields keeping you focused"))
-                        .font(.caption2)
+                    Text(loc(appLanguage, "My Arsenal"))
+                        .font(AppFonts.subheadline)
+                    Text(loc(appLanguage, "Tickets keeping me focused"))
+                        .font(AppFonts.caption2)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
@@ -295,10 +296,10 @@ struct AppsPage: View {
                 if !activatedApps.isEmpty {
                     HStack(spacing: 4) {
                         Image(systemName: "flame.fill")
-                            .font(.caption2)
+                            .font(AppFonts.caption2)
                             .foregroundColor(.orange)
                     Text("\(activatedApps.count)")
-                            .font(.caption2.bold())
+                            .font(AppFonts.caption2.bold())
                     }
                     .foregroundColor(pink)
                     .padding(.horizontal, 8)
@@ -311,7 +312,7 @@ struct AppsPage: View {
                 // Empty state - edgy
                 VStack(spacing: 10) {
                     Image(systemName: "shield.slash.fill")
-                        .font(.system(size: 32))
+                        .font(.notoSerif(32))
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [.gray.opacity(0.4), .gray.opacity(0.2)],
@@ -319,10 +320,10 @@ struct AppsPage: View {
                                 endPoint: .bottom
                             )
                         )
-                    Text(loc(appLanguage, "No shields active"))
-                        .font(.caption.weight(.semibold))
-                    Text(loc(appLanguage, "Pick an app above and take control 💪"))
-                        .font(.caption2)
+                    Text(loc(appLanguage, "No tickets active"))
+                        .font(AppFonts.caption)
+                    Text(loc(appLanguage, "Pick an app above and use your experience 💪"))
+                        .font(AppFonts.caption2)
                     .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -362,7 +363,7 @@ struct AppsPage: View {
                 
                 VStack(spacing: 2) {
                     Text("+\(deactivatedOverflow.count)")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.notoSerif(16, weight: .bold))
                         .foregroundColor(.secondary)
                 }
             }
@@ -407,15 +408,15 @@ struct AppsPage: View {
                         // App name and mode badge
                         HStack(spacing: 8) {
                         Text(app.name)
-                            .font(.headline)
+                            .font(AppFonts.headline)
                                 .foregroundColor(.primary)
                             
                             // Mode badge
                             HStack(spacing: 4) {
                                 Image(systemName: isMinuteMode ? "clock.fill" : "door.left.hand.open")
-                                    .font(.system(size: 10))
+                                    .font(.notoSerif(10))
                                 Text(loc(appLanguage, isMinuteMode ? "Minute" : "Open"))
-                                    .font(.caption2.weight(.medium))
+                                    .font(AppFonts.caption2)
                             }
                             .foregroundColor(isMinuteMode ? .blue : .orange)
                             .padding(.horizontal, 8)
@@ -430,19 +431,19 @@ struct AppsPage: View {
                         if let remaining = model.remainingAccessSeconds(for: app.bundleId), remaining > 0 {
                             HStack(spacing: 6) {
                                 Image(systemName: "timer")
-                                    .font(.caption)
+                                    .font(AppFonts.caption)
                                     .foregroundColor(.green)
                                 Text(loc(appLanguage, "Access: ") + formatRemaining(remaining))
-                                    .font(.caption.weight(.medium))
+                                    .font(AppFonts.caption)
                                     .foregroundColor(.green)
                             }
                         } else {
                             HStack(spacing: 6) {
                                 Image(systemName: "bolt.fill")
-                                    .font(.caption)
+                                    .font(AppFonts.caption)
                                     .foregroundColor(.orange)
                                 Text("\(formatSteps(spent)) " + loc(appLanguage, "invested"))
-                            .font(.caption)
+                            .font(AppFonts.caption)
                             .foregroundColor(.secondary)
                     }
                         }
@@ -452,7 +453,7 @@ struct AppsPage: View {
                     
                     // Chevron
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
+                        .font(AppFonts.caption)
                         .foregroundColor(.secondary.opacity(0.5))
                 }
                 
@@ -460,11 +461,11 @@ struct AppsPage: View {
                 HStack {
                     HStack(spacing: 4) {
                         Image(systemName: "bolt.fill")
-                            .font(.caption2)
+                            .font(AppFonts.caption2)
                         Text(isMinuteMode 
                             ? "\(settings.entryCostSteps) " + loc(appLanguage, "/min")
                             : "\(settings.entryCostSteps) " + loc(appLanguage, "/entry"))
-                            .font(.caption.weight(.medium))
+                            .font(AppFonts.caption)
                     }
                     .foregroundColor(accent)
                     .padding(.horizontal, 10)
@@ -477,7 +478,7 @@ struct AppsPage: View {
                     
                     if spent > 0 {
                         Text("\(formatSteps(spent)) " + loc(appLanguage, "spent"))
-                            .font(.caption2)
+                            .font(AppFonts.caption2)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -497,7 +498,7 @@ struct AppsPage: View {
                 Button(role: .destructive) {
                     deactivate(app)
                 } label: {
-                    Label(loc(appLanguage, "Deactivate shield"), systemImage: "trash")
+                    Label(loc(appLanguage, "Deactivate ticket"), systemImage: "trash")
                 }
             case .none:
                 Button {
@@ -594,7 +595,7 @@ struct AppsPage: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14))
         } else {
             Text(app.icon)
-                .font(.system(size: 44))
+                .font(.notoSerif(44))
         }
     }
     
@@ -623,7 +624,7 @@ struct AppsPage: View {
                                         Image(systemName: "timer")
                                         Text(formatRemaining(remaining))
                                     }
-                            .font(.system(size: 8, weight: .semibold))
+                            .font(.notoSerif(8, weight: .semibold))
                                     .foregroundColor(.white)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 2)
@@ -641,7 +642,7 @@ struct AppsPage: View {
                         HStack {
                             Spacer()
                     statusIcon(for: status)
-                                .font(.caption2)
+                                .font(AppFonts.caption2)
                                 .padding(4)
                 }
                         Spacer()
@@ -659,7 +660,7 @@ struct AppsPage: View {
                 Button(role: .destructive) {
                     deactivate(app)
                 } label: {
-                    Label(loc(appLanguage, "Deactivate shield"), systemImage: "trash")
+                    Label(loc(appLanguage, "Deactivate ticket"), systemImage: "trash")
                 }
             case .none:
                 Button {
@@ -735,8 +736,8 @@ struct AppsPage: View {
         saveDateDict(lastOpened, forKey: "automationLastOpened_v1")
         statusVersion = UUID()
 
-        // Remove local shield config + delete server-side shield row
-        model.deactivateShield(bundleId: bundleId)
+        // Remove local ticket config + delete server-side ticket row
+        model.deactivateTicket(bundleId: bundleId)
     }
     
     private func activate(_ app: AutomationApp) {
@@ -748,7 +749,7 @@ struct AppsPage: View {
     
     // Sheet with full list
     private func pickerView(apps: [AutomationApp], title: String) -> some View {
-        NavigationView {
+        NavigationStack {
             List {
                 ForEach(apps) { app in
                     Button {

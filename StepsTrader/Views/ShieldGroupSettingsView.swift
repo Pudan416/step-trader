@@ -3,11 +3,12 @@ import SwiftUI
 import FamilyControls
 #endif
 
-struct ShieldGroupSettingsView: View {
+struct TicketGroupSettingsView: View {
     @ObservedObject var model: AppModel
-    @State var group: AppModel.ShieldGroup
+    @State var group: TicketGroup
     let appLanguage: String
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     @State private var showAppPicker = false
     @State private var pickerSelection = FamilyActivitySelection()
     @State private var showAuthAlert = false
@@ -26,7 +27,7 @@ struct ShieldGroupSettingsView: View {
         let catCount = group.selection.categoryTokens.count
         
         if appCount + catCount == 0 {
-            return "New Shield"
+            return "New Ticket"
         }
         
         // Try to get actual app name from first token
@@ -34,7 +35,7 @@ struct ShieldGroupSettingsView: View {
             if let firstName = getFirstAppName() {
                 return firstName
             }
-            return "App Shield"
+            return "App Ticket"
         }
         
         if appCount == 0 && catCount == 1 {
@@ -67,9 +68,8 @@ struct ShieldGroupSettingsView: View {
         return nil
     }
     
-    // Get first enabled interval for quick unlock
     private var quickUnlockIntervals: [AccessWindow] {
-        let available: [AccessWindow] = [.minutes5, .minutes15, .minutes30, .hour1]
+        let available: [AccessWindow] = [.minutes10, .minutes30, .hour1]
         return available.filter { group.enabledIntervals.contains($0) }
     }
     
@@ -77,7 +77,6 @@ struct ShieldGroupSettingsView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 16) {
-                    // Quick unlock section at top
                     if !group.selection.applicationTokens.isEmpty || !group.selection.categoryTokens.isEmpty {
                         quickUnlockSection
                     }
@@ -97,7 +96,7 @@ struct ShieldGroupSettingsView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 16)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(theme.backgroundColor)
             .navigationTitle(displayTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -112,7 +111,7 @@ struct ShieldGroupSettingsView: View {
                         // Cancel any pending debounced update
                         difficultyUpdateTask?.cancel()
                         // Save immediately
-                        model.updateShieldGroup(group)
+                        model.updateTicketGroup(group)
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -150,7 +149,7 @@ struct ShieldGroupSettingsView: View {
             HStack {
                 Image(systemName: "lock.open.fill")
                     .foregroundColor(.green)
-                Text("Quick Unlock")
+                Text(loc(appLanguage, "I want to spend experience on"))
                     .font(.headline)
                 Spacer()
                 
@@ -178,12 +177,8 @@ struct ShieldGroupSettingsView: View {
                         .foregroundColor(.secondary)
                 }
             } else {
-                // Quick unlock buttons
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 10) {
-                    ForEach(quickUnlockIntervals.prefix(4), id: \.self) { interval in
+                VStack(spacing: 10) {
+                    ForEach(quickUnlockIntervals, id: \.self) { interval in
                         unlockButton(for: interval)
                     }
                 }
@@ -209,7 +204,7 @@ struct ShieldGroupSettingsView: View {
                 )
                 
                 let balanceAfter = model.totalStepsBalance
-                print("🔓 Shield settings unlock: \(balanceBefore) → \(balanceAfter)")
+                print("🔓 Ticket settings unlock: \(balanceBefore) → \(balanceAfter)")
                 
                 // Small delay to let UI update before dismissing
                 try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
@@ -218,16 +213,20 @@ struct ShieldGroupSettingsView: View {
                 dismiss()
             }
         } label: {
-            VStack(spacing: 4) {
-                Text(interval.displayName)
-                    .font(.subheadline.weight(.semibold))
-                HStack(spacing: 2) {
-                    Image(systemName: "bolt.fill")
-                        .font(.caption2)
-                    Text("\(cost)")
-                        .font(.caption.weight(.medium))
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(unlockOptionLabel(interval))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.primary)
+                    HStack(spacing: 2) {
+                        Image(systemName: "bolt.fill")
+                            .font(.caption2)
+                        Text("\(cost)")
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundColor(canAfford ? .green : .red)
                 }
-                .foregroundColor(canAfford ? .green : .red)
+                Spacer()
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
@@ -379,7 +378,7 @@ struct ShieldGroupSettingsView: View {
                             difficultyUpdateTask = Task { @MainActor in
                                 try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
                                 guard !Task.isCancelled else { return }
-                                model.updateShieldGroup(group)
+                                model.updateTicketGroup(group)
                             }
                         }
                     ),
@@ -429,7 +428,7 @@ struct ShieldGroupSettingsView: View {
                 GridItem(.flexible()),
                 GridItem(.flexible())
             ], spacing: 8) {
-                ForEach([AccessWindow.minutes5, .minutes15, .minutes30, .hour1, .hour2], id: \.self) { interval in
+                ForEach([AccessWindow.minutes10, .minutes30, .hour1], id: \.self) { interval in
                     if group.enabledIntervals.contains(interval) {
                         costPreviewItem(interval: interval)
                     }
@@ -487,7 +486,7 @@ struct ShieldGroupSettingsView: View {
             
             if showIntervals {
                 VStack(spacing: 8) {
-                    ForEach([AccessWindow.minutes5, .minutes15, .minutes30, .hour1, .hour2], id: \.self) { interval in
+                    ForEach([AccessWindow.minutes10, .minutes30, .hour1], id: \.self) { interval in
                         intervalToggleRow(interval: interval)
                     }
                 }
@@ -515,7 +514,7 @@ struct ShieldGroupSettingsView: View {
                 }
             )) {
                 HStack {
-                    Text(interval.displayName)
+                    Text(unlockOptionLabel(interval))
                         .font(.subheadline)
                     Spacer()
                     HStack(spacing: 2) {
@@ -534,12 +533,12 @@ struct ShieldGroupSettingsView: View {
     // MARK: - Delete Button
     private var deleteGroupButton: some View {
         Button {
-            model.deleteShieldGroup(group.id)
+            model.deleteTicketGroup(group.id)
             dismiss()
         } label: {
             HStack {
                 Image(systemName: "trash")
-                Text("Remove Shield")
+                Text("Remove Ticket")
             }
             .font(.subheadline)
             .frame(maxWidth: .infinity)
@@ -570,6 +569,14 @@ struct ShieldGroupSettingsView: View {
             return "\(hours)h \(remainingMins)m"
         }
         return "\(mins):\(String(format: "%02d", secs))"
+    }
+    
+    private func unlockOptionLabel(_ interval: AccessWindow) -> String {
+        switch interval {
+        case .minutes10: return loc(appLanguage, "a bit (10 min)")
+        case .minutes30: return loc(appLanguage, "quite a bit (30 min)")
+        case .hour1: return loc(appLanguage, "some time (1 hour)")
+        }
     }
     
     private var glassCard: some View {

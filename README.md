@@ -38,6 +38,15 @@ Keys used in `Steps4/Info.plist`:
 
 Recommendation: **don’t commit keys in `Info.plist`**. Move them to `.xcconfig` (Debug/Release) or use CI secrets + a local gitignored config.
 
+## Choice cards (polaroid images)
+Cards on the Choices tab use a polaroid style: image on top, caption on white below. When a choice is completed, a yellow cross is overlaid on the image.
+
+**To add images for testing:**
+1. In **Assets.xcassets** create an image set named `choice_<optionId>`.
+2. **Option IDs** are in `StepsTrader/Models/DailyEnergy.swift` (e.g. `activity_stairs`, `activity_10k_steps`, `recovery_sleeping_well`, `joys_coffee_tea`).
+3. Example: for “Taking the stairs instead of the elevator” the ID is `activity_stairs`, so the asset name is **`choice_activity_stairs`**. An imageset `choice_activity_stairs` already exists — add your photo as `stairs.jpg` (or update `Contents.json` to your filename).
+4. Format: JPG or PNG; recommended height ~200–300 pt for sharp @2x. If an image is missing, the card shows a gray placeholder with the option’s SF Symbol icon.
+
 ## Run / Build
 - For real **FamilyControls/DeviceActivity**, test on a **physical device** (entitlements + system limitations).
 - Quick build check:

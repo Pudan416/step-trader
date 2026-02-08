@@ -11,7 +11,7 @@ struct StatMiniCard: View {
         VStack(spacing: 8) {
             HStack {
                 Image(systemName: icon)
-                    .foregroundColor(color)
+                    .foregroundColor(.primary)
                     .font(.title2)
                 Spacer()
             }
@@ -19,10 +19,10 @@ struct StatMiniCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.primary)
                 
                 Text(value)
-                    .font(.headline)
+                    .font(AppFonts.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
             }
@@ -32,7 +32,7 @@ struct StatMiniCard: View {
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(.ultraThinMaterial)
+                .stroke(Color.primary.opacity(0.2), lineWidth: 1)
         )
     }
 }

@@ -8,6 +8,7 @@ import UIKit
 struct AutomationGuideView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.appTheme) private var theme
     let app: GuideItem
     @ObservedObject var model: AppModel
     let markPending: (String) -> Void
@@ -58,20 +59,22 @@ struct AutomationGuideView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 100)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(theme.backgroundColor)
             .overlay(alignment: .bottom) {
                 if app.status != .none {
                     deactivateButton
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(theme.backgroundColor, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
+                            .font(AppFonts.title2)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -93,7 +96,7 @@ struct AutomationGuideView: View {
                     appLanguage: appLanguage
                 )
             }
-            .alert(loc(appLanguage, "Deactivate shield"), isPresented: $showDeactivateAlert) {
+            .alert(loc(appLanguage, "Deactivate ticket"), isPresented: $showDeactivateAlert) {
                 Button(loc(appLanguage, "Open Shortcuts")) {
                     if let url = URL(string: "shortcuts://automation") ?? URL(string: "shortcuts://") {
                         openURL(url)
@@ -130,7 +133,7 @@ struct AutomationGuideView: View {
             
                 VStack(alignment: .leading, spacing: 4) {
                     Text(app.name)
-                    .font(.headline)
+                    .font(AppFonts.headline)
                 
                 // Status badge
                 HStack(spacing: 5) {
@@ -138,7 +141,7 @@ struct AutomationGuideView: View {
                         .fill(app.status == .configured ? Color.green : (app.status == .pending ? Color.orange : Color.gray))
                         .frame(width: 6, height: 6)
                     Text(statusText)
-                        .font(.caption)
+                        .font(AppFonts.caption)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -169,7 +172,7 @@ struct AutomationGuideView: View {
                 .scaledToFit()
         } else {
             Text(app.icon)
-                .font(.system(size: 28))
+                .font(.notoSerif(28))
         }
     }
     
@@ -194,29 +197,29 @@ struct AutomationGuideView: View {
                             .frame(width: 26, height: 26)
                 } else {
                         Image(systemName: "plus")
-                            .font(.body.bold())
+                            .font(AppFonts.body.bold())
                             .foregroundColor(.orange)
                     }
                     #else
                     Image(systemName: timeAccessEnabled ? "checkmark" : "plus")
-                        .font(.body.bold())
+                        .font(AppFonts.body.bold())
                         .foregroundColor(timeAccessEnabled ? .green : .orange)
                     #endif
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(loc(appLanguage, "App Connection"))
-                        .font(.subheadline.weight(.medium))
+                        .font(AppFonts.subheadline)
                         .foregroundColor(.primary)
                     Text(timeAccessEnabled ? loc(appLanguage, "Connected") : loc(appLanguage, "Tap to connect"))
-                        .font(.caption)
+                        .font(AppFonts.caption)
                         .foregroundColor(timeAccessEnabled ? .green : .secondary)
                 }
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.caption.bold())
+                    .font(AppFonts.caption.bold())
                     .foregroundColor(.secondary)
             }
             .padding(14)
@@ -262,12 +265,12 @@ struct AutomationGuideView: View {
             // Mode description
                 HStack(spacing: 8) {
                 Image(systemName: "info.circle")
-                    .font(.caption)
+                    .font(AppFonts.caption)
                     .foregroundColor(.secondary)
                 Text(minuteModeEnabled 
-                    ? loc(appLanguage, "Control is deducted for each minute you spend in the app")
+                    ? loc(appLanguage, "Experience is deducted for each minute I spend in the app")
                     : loc(appLanguage, "Choose a time window (5min, 1h, day) and pay once for unlimited access"))
-                    .font(.caption)
+                    .font(AppFonts.caption)
                     .foregroundColor(.secondary)
                 Spacer()
             }
@@ -280,12 +283,12 @@ struct AutomationGuideView: View {
             VStack(spacing: 6) {
                 HStack(spacing: 6) {
                     Image(systemName: icon)
-                        .font(.body)
+                        .font(AppFonts.body)
                     Text(title)
-                        .font(.subheadline.weight(.medium))
+                        .font(AppFonts.subheadline)
                 }
                 Text(subtitle)
-                    .font(.caption2)
+                    .font(AppFonts.caption2)
                     .foregroundColor(isSelected ? accent.opacity(0.8) : .secondary)
             }
             .frame(maxWidth: .infinity)
@@ -306,13 +309,9 @@ struct AutomationGuideView: View {
 
     private func windowCost(for window: AccessWindow) -> Int {
         switch window {
-        case .single: return 1
-        case .minutes5: return 2
-        case .minutes15: return 5
+        case .minutes10: return 4
         case .minutes30: return 10
         case .hour1: return 20
-        case .hour2: return 40
-        case .day1: return 20
         }
     }
 
@@ -337,13 +336,13 @@ struct AutomationGuideView: View {
             } label: {
                 HStack {
                     Image(systemName: "slider.horizontal.3")
-                        .font(.body)
+                        .font(AppFonts.body)
                         .foregroundColor(.secondary)
                     Text(loc(appLanguage, "Entry settings"))
-                        .font(.subheadline.weight(.medium))
+                        .font(AppFonts.subheadline)
                     Spacer()
                     Image(systemName: showEntrySettings ? "chevron.up" : "chevron.down")
-                        .font(.caption.bold())
+                        .font(AppFonts.caption.bold())
                         .foregroundColor(.secondary)
                 }
                 .padding(14)
@@ -356,10 +355,9 @@ struct AutomationGuideView: View {
                     .padding(.horizontal, 14)
                 
                 VStack(spacing: 0) {
-                    windowRow(title: loc(appLanguage, "1 hour"), window: .hour1, cost: windowCost(for: .hour1), isLast: false)
-                    windowRow(title: loc(appLanguage, "30 min"), window: .minutes30, cost: windowCost(for: .minutes30), isLast: false)
-                    windowRow(title: loc(appLanguage, "5 min"), window: .minutes5, cost: windowCost(for: .minutes5), isLast: false)
-                    windowRow(title: loc(appLanguage, "1 min"), window: .single, cost: windowCost(for: .single), isLast: true)
+                    windowRow(title: loc(appLanguage, "some time (60 min)"), window: .hour1, cost: windowCost(for: .hour1), isLast: false)
+                    windowRow(title: loc(appLanguage, "quite a bit (30 min)"), window: .minutes30, cost: windowCost(for: .minutes30), isLast: false)
+                    windowRow(title: loc(appLanguage, "a bit (10 min)"), window: .minutes10, cost: windowCost(for: .minutes10), isLast: true)
                 }
             }
         }
@@ -375,12 +373,12 @@ struct AutomationGuideView: View {
         return VStack(spacing: 0) {
             HStack {
                 Text(title)
-                    .font(.subheadline)
+                    .font(AppFonts.subheadline)
                     
                     Spacer()
                     
                 Text("\(cost)")
-                    .font(.caption)
+                    .font(AppFonts.caption)
                     .foregroundColor(.secondary)
                 
                 Toggle("", isOn: Binding(
@@ -405,10 +403,10 @@ struct AutomationGuideView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Image(systemName: "list.number")
-                    .font(.body)
+                    .font(AppFonts.body)
                     .foregroundColor(.blue)
                 Text(app.status == .pending ? loc(appLanguage, "Finish setup") : loc(appLanguage, "How to set up"))
-                    .font(.subheadline.weight(.medium))
+                    .font(AppFonts.subheadline)
             }
             
             VStack(alignment: .leading, spacing: 10) {
@@ -417,7 +415,7 @@ struct AutomationGuideView: View {
                     setupStep(num: 2, text: loc(appLanguage, "App → \(app.name) → Is Opened"))
                     setupStep(num: 3, text: loc(appLanguage, "Run Immediately → select shortcut"))
                 } else {
-                    setupStep(num: 1, text: loc(appLanguage, "Tap \"Get shield\" below"))
+                    setupStep(num: 1, text: loc(appLanguage, "Tap \"Get ticket\" below"))
                     setupStep(num: 2, text: loc(appLanguage, "Add shortcut to library"))
                     setupStep(num: 3, text: loc(appLanguage, "Create automation"))
                 }
@@ -433,13 +431,13 @@ struct AutomationGuideView: View {
     private func setupStep(num: Int, text: String) -> some View {
         HStack(alignment: .center, spacing: 10) {
             Text("\(num)")
-                .font(.caption2.bold())
+                .font(AppFonts.caption2.bold())
                 .foregroundColor(.white)
                 .frame(width: 18, height: 18)
                 .background(Circle().fill(accent))
             
             Text(text)
-                .font(.caption)
+                .font(AppFonts.caption)
                 .foregroundColor(.primary)
         }
     }
@@ -454,12 +452,12 @@ struct AutomationGuideView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: app.status == .configured ? "arrow.triangle.2.circlepath" : "arrow.down.circle.fill")
-                        .font(.body)
-                    Text(app.status == .configured ? loc(appLanguage, "Update") : loc(appLanguage, "Get shield"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(AppFonts.body)
+                    Text(app.status == .configured ? loc(appLanguage, "Update") : loc(appLanguage, "Get ticket"))
+                        .font(AppFonts.subheadline)
                     Spacer()
                     Image(systemName: "arrow.up.right")
-                        .font(.caption)
+                        .font(AppFonts.caption)
                 }
                 .padding(14)
         .background(
@@ -489,7 +487,7 @@ struct AutomationGuideView: View {
             }
         } label: {
             Text(loc(appLanguage, "Deactivate"))
-                .font(.caption.weight(.medium))
+                .font(AppFonts.caption)
                 .foregroundColor(.red.opacity(0.8))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)

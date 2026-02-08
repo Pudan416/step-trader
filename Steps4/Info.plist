@@ -20,5 +20,14 @@
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SUPABASE_URL</key>
 	<string>$(SUPABASE_URL)</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>ReenieBeanie-Regular.ttf</string>
+		<string>BigShouldersStencil-VariableFont_opsz,wght.ttf</string>
+		<string>CarterOne-Regular.ttf</string>
+		<string>Tourney-Italic-VariableFont_wdth,wght.ttf</string>
+		<string>UnifrakturCook-Bold.ttf</string>
+		<string>VastShadow-Regular.ttf</string>
+	</array>
 </dict>
 </plist>

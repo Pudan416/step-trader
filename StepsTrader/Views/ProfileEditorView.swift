@@ -71,7 +71,7 @@ struct ProfileEditorView: View {
                                     .frame(width: 30, height: 30)
                                     .overlay(
                                         Image(systemName: "camera.fill")
-                                            .font(.system(size: 14))
+                                            .font(.notoSerif(14))
                                             .foregroundColor(.white)
                                     )
                                     .offset(x: 34, y: 34)
@@ -108,7 +108,7 @@ struct ProfileEditorView: View {
                 } header: {
                     Text(loc(appLanguage, "Nickname"))
                 } footer: {
-                    Text(loc(appLanguage, "This name will be displayed instead of your real name"))
+                    Text(loc(appLanguage, "This name will be displayed instead of my real name"))
                 }
                 
                 // Location section

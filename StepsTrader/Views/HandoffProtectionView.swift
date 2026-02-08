@@ -14,7 +14,7 @@ struct HandoffProtectionView: View {
             VStack(spacing: 30) {
                 VStack(spacing: 16) {
                     Text("🛡️")
-                        .font(.system(size: 60))
+                        .font(.notoSerif(60))
                         .accessibilityHidden(true)
 
                     Text("Protection Screen")

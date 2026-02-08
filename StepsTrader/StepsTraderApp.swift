@@ -7,6 +7,7 @@ import UserNotifications
 @main
 struct StepsTraderApp: App {
     @StateObject private var model: AppModel
+    @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var authService = AuthenticationService.shared
     @StateObject private var locationPermissionRequester = LocationPermissionRequester()
     @AppStorage("appLanguage") private var appLanguage: String = "en"
@@ -15,9 +16,13 @@ struct StepsTraderApp: App {
     @AppStorage("hasSeenEnergySetup_v1") private var hasSeenEnergySetup: Bool = false
     @AppStorage("hasCompletedOnboarding_v1") private var hasCompletedOnboarding: Bool = false
     @AppStorage("hasMigratedOnboarding_v1") private var hasMigratedOnboarding: Bool = false
+    private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
 
     init() {
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
+        // Install notification delegate as early as possible so taps that *launch* the app
+        // are routed through our handler (onAppear can be too late).
+        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
     }
 
     var body: some Scene {
@@ -67,6 +72,13 @@ struct StepsTraderApp: App {
             .themed(currentTheme)
             .tint(currentTheme.accentColor)
             .grayscale(currentTheme == .minimal ? 1.0 : 0.0)
+            .alert(isPresented: $errorManager.showErrorAlert, error: errorManager.currentError) { _ in
+                Button("OK", role: .cancel) {
+                    errorManager.dismiss()
+                }
+            } message: { error in
+                Text(error.recoverySuggestion ?? "")
+            }
             .onAppear {
                 // Language selection was removed; keep the UI in English if an old value was persisted.
                 if appLanguage == "ru" { appLanguage = "en" }
@@ -78,7 +90,7 @@ struct StepsTraderApp: App {
 
                 // Ensure bootstrap runs once; defer permission prompts to onboarding flow if needed
                 if hasCompletedOnboarding {
-                    Task { await model.bootstrap(requestPermissions: true) }
+                    Task { await model.bootstrap(requestPermissions: !isUITest) }
                 } else {
                     Task { await model.bootstrap(requestPermissions: false) }
                 }
@@ -88,6 +100,7 @@ struct StepsTraderApp: App {
                 print(
                     "🎭 App state - showHandoffProtection: \(model.showHandoffProtection), handoffToken: \(model.handoffToken?.targetAppName ?? "nil")"
                 )
+
                 
                 // Setup notification handling
                 setupNotificationHandling()
@@ -111,7 +124,7 @@ struct StepsTraderApp: App {
                 model.handleAppDidEnterBackground()
             }
             .task {
-                if hasCompletedOnboarding {
+                if hasCompletedOnboarding && !isUITest {
                     await model.ensureHealthAuthorizationAndRefresh()
                 }
                 
@@ -120,6 +133,7 @@ struct StepsTraderApp: App {
                     try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 секунд
                     await MainActor.run {
                         model.cleanupExpiredUnlocks()
+                        model.checkDayBoundary()
                     }
                 }
             }
@@ -137,6 +151,9 @@ struct StepsTraderApp: App {
             ) { _ in
                 print("🕛 Significant time change detected (day changed)")
                 Task {
+                    await MainActor.run {
+                        model.checkDayBoundary()
+                    }
                     await model.refreshStepsIfAuthorized()
                 }
             }
@@ -279,6 +296,7 @@ struct StepsTraderApp: App {
         
         if shouldShowPayGate {
             let targetGroupId = userDefaults.string(forKey: "payGateTargetGroupId")
+            let targetBundleId = userDefaults.string(forKey: "payGateTargetBundleId_v1")
             
             if let groupId = targetGroupId {
                 if !model.showPayGate, isRecentPayGateOpen(groupId: groupId, userDefaults: userDefaults) {
@@ -288,6 +306,17 @@ struct StepsTraderApp: App {
                 }
                 Task { @MainActor in
                     model.openPayGate(for: groupId)
+                }
+            } else if let bundleId = targetBundleId {
+                Task { @MainActor in
+                    model.openPayGateForBundleId(bundleId)
+                }
+            } else {
+                // Last-resort fallback: open the first shield group if present.
+                if let first = model.ticketGroups.first {
+                    Task { @MainActor in
+                        model.openPayGate(for: first.id)
+                    }
                 }
             }
             
@@ -300,6 +329,7 @@ struct StepsTraderApp: App {
     private func clearPayGateFlags(_ userDefaults: UserDefaults) {
         userDefaults.removeObject(forKey: "shouldShowPayGate")
         userDefaults.removeObject(forKey: "payGateTargetGroupId")
+        userDefaults.removeObject(forKey: "payGateTargetBundleId_v1")
     }
 
     private func isRecentPayGateOpen(groupId: String, userDefaults: UserDefaults) -> Bool {
@@ -364,7 +394,6 @@ private func getAppDisplayName(_ bundleId: String) -> String {
 // MARK: - Notification Handling
 extension StepsTraderApp {
     func setupNotificationHandling() {
-        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
         NotificationDelegate.shared.model = model
     }
 }

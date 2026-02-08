@@ -93,6 +93,17 @@ fileprivate func stepsTraderDefaults() -> UserDefaults {
     return defaults
 }
 
+private func appendMonitorLog(_ message: String) {
+    let defaults = stepsTraderDefaults()
+    let now = ISO8601DateFormatter().string(from: Date())
+    var logs = defaults.stringArray(forKey: "monitorLogs_v1") ?? []
+    logs.append("[\(now)] \(message)")
+    if logs.count > 200 {
+        logs = Array(logs.suffix(200))
+    }
+    defaults.set(logs, forKey: "monitorLogs_v1")
+}
+
 private struct StoredUnlockSettings: Codable {
     let entryCostSteps: Int?
     let minuteTariffEnabled: Bool?
@@ -109,19 +120,21 @@ private struct MinuteChargeLog: Codable {
 final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     override func intervalDidStart(for activity: DeviceActivityName) {
         MonitorLogger.info("intervalDidStart: \(activity.rawValue)")
+        appendMonitorLog("intervalDidStart: \(activity.rawValue)")
         
         // Check for expired unlocks on any activity
         checkAndClearExpiredUnlocks()
         
         // Enable custom shield for minute mode
         if activity == DeviceActivityName("minuteMode") {
-            setupShieldForMinuteMode()
+            setupBlockForMinuteMode()
         }
     }
     
     override func intervalWillEndWarning(for activity: DeviceActivityName) {
         let activityRaw = activity.rawValue
         MonitorLogger.info("intervalWillEndWarning: \(activityRaw)")
+        appendMonitorLog("intervalWillEndWarning: \(activityRaw)")
         // Short unlocks (< 15 min) use a 15-min interval with warningTime; treat warning as actual expiry
         if activityRaw.hasPrefix("unlockExpiry_") {
             let groupId = String(activityRaw.dropFirst("unlockExpiry_".count))
@@ -129,7 +142,16 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             let defaults = stepsTraderDefaults()
             let unlockKey = "groupUnlock_\(groupId)"
             defaults.removeObject(forKey: unlockKey)
-            rebuildShieldFromExtension()
+            rebuildBlockFromExtension()
+            DeviceActivityCenter().stopMonitoring([activity])
+        }
+        if activityRaw.hasPrefix("accessWindowExpiry_") {
+            let bundleId = String(activityRaw.dropFirst("accessWindowExpiry_".count))
+            MonitorLogger.info("Access window expiry warning for bundleId \(bundleId) - clearing and rebuilding shield")
+            let defaults = stepsTraderDefaults()
+            let blockKey = "blockUntil_\(bundleId)"
+            defaults.removeObject(forKey: blockKey)
+            rebuildBlockFromExtension()
             DeviceActivityCenter().stopMonitoring([activity])
         }
     }
@@ -137,6 +159,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     override func intervalDidEnd(for activity: DeviceActivityName) {
         let activityRaw = activity.rawValue
         MonitorLogger.info("intervalDidEnd: \(activityRaw)")
+        appendMonitorLog("intervalDidEnd: \(activityRaw)")
         
         // Handle unlock expiry activities
         if activityRaw.hasPrefix("unlockExpiry_") {
@@ -148,7 +171,18 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             let unlockKey = "groupUnlock_\(groupId)"
             defaults.removeObject(forKey: unlockKey)
             
-            rebuildShieldFromExtension()
+            rebuildBlockFromExtension()
+            return
+        }
+        if activityRaw.hasPrefix("accessWindowExpiry_") {
+            let bundleId = String(activityRaw.dropFirst("accessWindowExpiry_".count))
+            MonitorLogger.info("Access window expiry interval ended for bundleId \(bundleId)")
+            
+            let defaults = stepsTraderDefaults()
+            let blockKey = "blockUntil_\(bundleId)"
+            defaults.removeObject(forKey: blockKey)
+            
+            rebuildBlockFromExtension()
             return
         }
         
@@ -168,6 +202,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         activity: DeviceActivityName
     ) {
         MonitorLogger.info("eventDidReachThreshold: \(event.rawValue) for activity \(activity.rawValue)")
+        appendMonitorLog("eventDidReachThreshold: \(event.rawValue) for activity \(activity.rawValue)")
         
         // Check for expired unlocks on any threshold event
         checkAndClearExpiredUnlocks()
@@ -192,70 +227,103 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                     let groupId = String(key.dropFirst("groupUnlock_".count))
                     print("⏰ DeviceActivityMonitor: Unlock expired for group \(groupId)")
                     hasExpired = true
+                    appendMonitorLog("Expired group unlock: \(groupId)")
+                }
+            }
+        }
+        
+        // Find all blockUntil_* keys and check if they've expired
+        for key in allKeys where key.hasPrefix("blockUntil_") {
+            if let until = defaults.object(forKey: key) as? Date {
+                if now >= until {
+                    defaults.removeObject(forKey: key)
+                    let bundleId = String(key.dropFirst("blockUntil_".count))
+                    print("⏰ DeviceActivityMonitor: Access window expired for bundleId \(bundleId)")
+                    hasExpired = true
+                    appendMonitorLog("Expired access window: \(bundleId)")
                 }
             }
         }
         
         // If any unlocks expired, rebuild the shield to restore blocking
         if hasExpired {
-            print("🛡️ DeviceActivityMonitor: Rebuilding shield after unlock expiry")
-            rebuildShieldFromExtension()
+            print("🛡️ DeviceActivityMonitor: Rebuilding block after unlock expiry")
+            rebuildBlockFromExtension()
         }
     }
     
-    /// Rebuild shield from extension - similar to setupShieldForMinuteMode but for all active groups
-    private func rebuildShieldFromExtension() {
+    /// Rebuild block from extension - similar to setupBlockForMinuteMode but for all active groups
+    private func rebuildBlockFromExtension() {
         #if canImport(ManagedSettings)
         let defaults = stepsTraderDefaults()
         var allApps: Set<ApplicationToken> = []
         var allCategories: Set<ActivityCategoryToken> = []
         let now = Date()
         
-        // Get all shield groups
-        guard let groupsData = defaults.data(forKey: "shieldGroups_v1") else {
-            MonitorLogger.warning("No shieldGroups_v1 data found in UserDefaults")
-            return
+        let groups = loadTicketGroupsForExtension(defaults: defaults)
+        if groups.isEmpty {
+            MonitorLogger.warning("No ticket groups (lite or legacy) found in UserDefaults")
+            appendMonitorLog("rebuildBlockFromExtension: no groups")
         }
-        
-        let groups: [ShieldGroupDataForMonitor]
-        do {
-            groups = try JSONDecoder().decode([ShieldGroupDataForMonitor].self, from: groupsData)
-        } catch {
-            MonitorLogger.error("Failed to decode shield groups: \(error.localizedDescription)", context: [
-                "dataSize": "\(groupsData.count)",
-                "error": error.localizedDescription
-            ])
-            return
-        }
-        
-        MonitorLogger.info("Processing \(groups.count) shield groups")
+        MonitorLogger.info("Processing \(groups.count) ticket groups")
         
         for group in groups {
-            // Check if this group is currently unlocked
             let unlockKey = "groupUnlock_\(group.id)"
             if let unlockUntil = defaults.object(forKey: unlockKey) as? Date, now < unlockUntil {
-                // Still unlocked, skip this group
                 MonitorLogger.info("Group \(group.name) still unlocked until \(unlockUntil)")
                 continue
             }
-            
-            // Group is locked (or unlock expired), add its apps to shield
             guard let selectionData = group.selectionData else {
                 MonitorLogger.warning("Group \(group.name) has no selectionData")
                 continue
             }
-            
             do {
                 let sel = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
-                if group.hasActiveSettings {
-                    allApps.formUnion(sel.applicationTokens)
-                    allCategories.formUnion(sel.categoryTokens)
-                    MonitorLogger.info("Adding \(sel.applicationTokens.count) apps from locked group: \(group.name)")
-                }
+                allApps.formUnion(sel.applicationTokens)
+                allCategories.formUnion(sel.categoryTokens)
+                MonitorLogger.info("Adding \(sel.applicationTokens.count) apps from locked group: \(group.name)")
             } catch {
                 MonitorLogger.error("Failed to decode FamilyActivitySelection for group \(group.name): \(error.localizedDescription)", context: [
                     "groupId": group.id,
                     "groupName": group.name,
+                    "error": error.localizedDescription
+                ])
+            }
+        }
+        
+        // Also collect apps from per-app selections (for backward compatibility / single-app mode)
+        if let data = defaults.data(forKey: "appUnlockSettings_v1") {
+            do {
+                let decoded = try JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
+                
+                for (bundleId, settings) in decoded {
+                    if settings.minuteTariffEnabled == true || settings.familyControlsModeEnabled == true {
+                        let blockKey = "blockUntil_\(bundleId)"
+                        if let until = defaults.object(forKey: blockKey) as? Date {
+                            if now < until {
+                                // Access window active — skip shielding this app
+                                continue
+                            } else {
+                                defaults.removeObject(forKey: blockKey)
+                            }
+                        }
+                        let key = "timeAccessSelection_v1_\(bundleId)"
+                        if let selectionData = defaults.data(forKey: key) {
+                            do {
+                                let selection = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
+                                allApps.formUnion(selection.applicationTokens)
+                                allCategories.formUnion(selection.categoryTokens)
+                            } catch {
+                                MonitorLogger.error("Failed to decode selection for \(bundleId): \(error.localizedDescription)", context: [
+                                    "bundleId": bundleId,
+                                    "error": error.localizedDescription
+                                ])
+                            }
+                        }
+                    }
+                }
+            } catch {
+                MonitorLogger.error("Failed to decode appUnlockSettings_v1: \(error.localizedDescription)", context: [
                     "error": error.localizedDescription
                 ])
             }
@@ -267,11 +335,12 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         store.shield.applicationCategories = allCategories.isEmpty ? nil : .specific(allCategories)
         
         MonitorLogger.info("Shield rebuilt: \(allApps.count) apps, \(allCategories.count) categories")
+        appendMonitorLog("Shield rebuilt: \(allApps.count) apps, \(allCategories.count) categories")
         #endif
     }
     
     #if canImport(ManagedSettings)
-    private func setupShieldForMinuteMode() {
+    private func setupBlockForMinuteMode() {
         let defaults = stepsTraderDefaults()
         var allApps: Set<ApplicationToken> = []
         var allCategories: Set<ActivityCategoryToken> = []
@@ -282,41 +351,24 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         // (первый экран "App Blocked" → потом уже по действиям ShieldActionExtension).
         defaults.set(0, forKey: "doomShieldState_v1")
         
-        // Сначала собираем приложения из групп щитов
-        if let groupsData = defaults.data(forKey: "shieldGroups_v1") {
+        let groups = loadTicketGroupsForExtension(defaults: defaults)
+        MonitorLogger.info("Found \(groups.count) ticket groups")
+        for group in groups where group.active {
+            guard let selectionData = group.selectionData else {
+                MonitorLogger.warning("Group \(group.name) has no selectionData")
+                continue
+            }
             do {
-                let groups = try JSONDecoder().decode([ShieldGroupDataForMonitor].self, from: groupsData)
-                MonitorLogger.info("Found \(groups.count) shield groups")
-                
-                for group in groups {
-                    guard let selectionData = group.selectionData else {
-                        MonitorLogger.warning("Group \(group.name) has no selectionData")
-                        continue
-                    }
-                    
-                    do {
-                        let sel = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
-                        // Проверяем настройки группы (нужно декодировать settings)
-                        if group.hasActiveSettings {
-                            allApps.formUnion(sel.applicationTokens)
-                            allCategories.formUnion(sel.categoryTokens)
-                            MonitorLogger.info("Added \(sel.applicationTokens.count) apps from group: \(group.name)")
-                        }
-                    } catch {
-                        MonitorLogger.error("Failed to decode selection for group \(group.name): \(error.localizedDescription)", context: [
-                            "groupId": group.id,
-                            "error": error.localizedDescription
-                        ])
-                    }
-                }
+                let sel = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
+                allApps.formUnion(sel.applicationTokens)
+                allCategories.formUnion(sel.categoryTokens)
+                MonitorLogger.info("Added \(sel.applicationTokens.count) apps from group: \(group.name)")
             } catch {
-                MonitorLogger.error("Failed to decode shieldGroups_v1: \(error.localizedDescription)", context: [
-                    "dataSize": "\(groupsData.count)",
+                MonitorLogger.error("Failed to decode selection for group \(group.name): \(error.localizedDescription)", context: [
+                    "groupId": group.id,
                     "error": error.localizedDescription
                 ])
             }
-        } else {
-            MonitorLogger.warning("No shieldGroups_v1 data found")
         }
         
         // Also collect apps from per-app selections (for backward compatibility)
@@ -358,35 +410,26 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         if let firstApp = allApps.first {
             var foundBundleId: String? = nil
             
-            // 1) Сначала проверяем группы щитов
-            if let groupsData = defaults.data(forKey: "shieldGroups_v1") {
+            let groups = loadTicketGroupsForExtension(defaults: defaults)
+            for group in groups {
+                guard let selectionData = group.selectionData else { continue }
                 do {
-                    let groups = try JSONDecoder().decode([ShieldGroupDataForMonitor].self, from: groupsData)
-                    for group in groups {
-                        guard let selectionData = group.selectionData else { continue }
-                        
+                    let sel = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
+                    if sel.applicationTokens.contains(firstApp) {
                         do {
-                            let sel = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
-                            if sel.applicationTokens.contains(firstApp) {
-                                // Получаем имя приложения из токена
-                                do {
-                                    let tokenData = try NSKeyedArchiver.archivedData(withRootObject: firstApp, requiringSecureCoding: true)
-                                    let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-                                    if let appName = defaults.string(forKey: tokenKey) {
-                                        foundBundleId = appName
-                                        MonitorLogger.info("Found app in shield group: \(appName)")
-                                        break
-                                    }
-                                } catch {
-                                    MonitorLogger.warning("Failed to archive app token: \(error.localizedDescription)")
-                                }
+                            let tokenData = try NSKeyedArchiver.archivedData(withRootObject: firstApp, requiringSecureCoding: true)
+                            let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
+                            if let appName = defaults.string(forKey: tokenKey) {
+                                foundBundleId = appName
+                                MonitorLogger.info("Found app in shield group: \(appName)")
+                                break
                             }
                         } catch {
-                            // Silent continue - already logged above
+                            MonitorLogger.warning("Failed to archive app token: \(error.localizedDescription)")
                         }
                     }
                 } catch {
-                    // Silent - already logged in main shield setup
+                    // Silent continue
                 }
             }
             
@@ -482,7 +525,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         store.clearAllSettings()
     }
     #else
-    private func setupShieldForMinuteMode() {}
+    private func setupBlockForMinuteMode() {}
     private func clearShield() {}
     #endif
 
@@ -600,7 +643,6 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             return [:]
         }
         
-        let today = dayKey(for: Date())
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
         
         for (bundleId, _) in decoded {
@@ -624,17 +666,14 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                 continue
             }
             
-            // DeviceActivity tracks CUMULATIVE usage since schedule start.
-            // After threshold fires for minute N, next threshold must be N+1.
-            let countKey = "minuteCount_\(today)_\(bundleId)"
-            let currentMinutes = defaults.integer(forKey: countKey)
-            let nextThreshold = currentMinutes + 1
-            
+            // DeviceActivity tracks usage since schedule start.
+            // Since we restart monitoring after every event, the counter resets to 0.
+            // We always want to be notified after the *next* 1 minute of usage.
             let eventName = DeviceActivityEvent.Name("minute_\(bundleId)")
             let event = DeviceActivityEvent(
                 applications: selection.applicationTokens,
                 categories: selection.categoryTokens,
-                threshold: DateComponents(minute: nextThreshold)
+                threshold: DateComponents(minute: 1)
             )
             events[eventName] = event
         }
@@ -825,7 +864,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         return df.string(from: date)
     }
     
-    // Минимальная структура для декодирования групп щитов
+    // Минимальная структура для декодирования групп щитов (legacy full payload)
     private struct ShieldGroupDataForMonitor: Decodable {
         let id: String
         let name: String
@@ -850,6 +889,41 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             else { return false }
             return (settings.minuteTariffEnabled ?? false) || (settings.familyControlsModeEnabled ?? false)
         }
+    }
+
+    // Lite config from main app: minimal payload for extension (id, name, selection base64, active)
+    private struct LiteShieldConfigDecoded: Decodable {
+        let groups: [LiteShieldGroupDecoded]
+    }
+    private struct LiteShieldGroupDecoded: Decodable {
+        let id: String
+        let name: String
+        let selectionDataBase64: String
+        let active: Bool
+    }
+
+    /// Load ticket groups for extension: prefers liteTicketConfig_v1, then liteShieldConfig_v1, then ticketGroups_v1, then shieldGroups_v1.
+    private func loadTicketGroupsForExtension(defaults: UserDefaults) -> [(id: String, name: String, selectionData: Data?, active: Bool)] {
+        if let liteData = defaults.data(forKey: "liteTicketConfig_v1"),
+           let lite = try? JSONDecoder().decode(LiteShieldConfigDecoded.self, from: liteData) {
+            return lite.groups.map { g in
+                let data = Data(base64Encoded: g.selectionDataBase64)
+                return (g.id, g.name, data, g.active)
+            }
+        }
+        if let liteData = defaults.data(forKey: "liteShieldConfig_v1"),
+           let lite = try? JSONDecoder().decode(LiteShieldConfigDecoded.self, from: liteData) {
+            return lite.groups.map { g in
+                let data = Data(base64Encoded: g.selectionDataBase64)
+                return (g.id, g.name, data, g.active)
+            }
+        }
+        let groupsData = defaults.data(forKey: "ticketGroups_v1") ?? defaults.data(forKey: "shieldGroups_v1")
+        guard let data = groupsData,
+              let groups = try? JSONDecoder().decode([ShieldGroupDataForMonitor].self, from: data) else {
+            return []
+        }
+        return groups.map { g in (g.id, g.name, g.selectionData, g.hasActiveSettings) }
     }
 
 }

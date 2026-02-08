@@ -10,13 +10,7 @@ struct StatusRow: View {
     enum ConnectionStatus {
         case connected, disconnected, warning
         
-        var color: Color {
-            switch self {
-            case .connected: return .green
-            case .disconnected: return .red
-            case .warning: return .orange
-            }
-        }
+        var color: Color { .primary }
         
         var icon: String {
             switch self {
@@ -30,15 +24,15 @@ struct StatusRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundColor(.blue)
+                .foregroundColor(.primary)
                 .font(.title3)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.headline)
+                    .font(AppFonts.headline)
                 Text(description)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.primary)
             }
             
             Spacer()

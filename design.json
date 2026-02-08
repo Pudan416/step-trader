@@ -1,0 +1,570 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "designSystem": {
+    "name": "DOOM CTRL Design System",
+    "project": "Steps4",
+    "platform": "iOS / SwiftUI",
+    "lastUpdated": "2026-02-06",
+    "sourceOfTruthInCode": {
+      "themes": [
+        "StepsTrader/Models/Types.swift (AppTheme)",
+        "StepsTrader/Utilities/ColorConstants.swift (AppColors + themed modifiers + Resistance UI components)"
+      ],
+      "typography": [
+        "StepsTrader/Utilities/Font+Custom.swift (notoSerif, reenie, sticker fonts)"
+      ],
+      "signatureScreens": [
+        "StepsTrader/Views/ChoiceView.swift (Gallery grid cards)",
+        "StepsTrader/Views/AppsPageSimplified.swift (Shields + stickers)",
+        "StepsTrader/Views/PayGateView.swift (PayGate)",
+        "StepsTrader/Views/LoginView.swift (Login / onboarding aesthetic)"
+      ],
+      "reusableComponents": [
+        "ResistanceTag",
+        "\u0050inkUnderline",
+        "ThemedDivider",
+        "EmptyStateView",
+        "ScaleButtonStyle"
+      ]
+    },
+    "creativeDirection": {
+      "oneLine": "Printed experience ledger + rebellious marker accents; calm, factual UI that treats attention as a scarce resource.",
+      "brandPersonality": [
+        "observational, not motivational",
+        "minimal and high-contrast",
+        "anti-gamification (no confetti, no rewards language)",
+        "quietly aggressive about boundaries (bold typography, hard strokes, decisive shapes)",
+        "handmade accents used sparingly (marker underline, scribble cross)"
+      ],
+      "toneOfVoice": {
+        "default": "neutral, factual, slightly dry",
+        "avoid": [
+          "self-improvement sermons",
+          "shame/failure framing",
+          "overly cute microcopy",
+          "over-encouraging gamification"
+        ],
+        "emptyStates": "Empty is allowed. Never panic the user. Offer an option, and always permit doing nothing."
+      },
+      "visualMetaphors": [
+        "daylight mode = paper + ink",
+        "accent = yellow marker / tape highlight",
+        "completion = scribbled cross over an image",
+        "shields = sticker slapped onto a minimal surface"
+      ]
+    },
+    "principles": {
+      "hierarchy": [
+        "One loud element per screen (usually the header or the balance).",
+        "Everything else is quiet, aligned, and thin-stroked."
+      ],
+      "contrast": [
+        "Daylight: text is near-black ink (avoid soft greys for primary content).",
+        "Night: text stays crisp; accents glow but never bloom into neon noise."
+      ],
+      "surfaces": [
+        "Prefer strokes and paper-tone changes over heavy shadows.",
+        "Use shadows only for modal elevation and special screens (Login/PayGate)."
+      ],
+      "motion": [
+        "Fast, short animations (200–400ms).",
+        "Use spring for selection/toggles; easeInOut for overlays/visibility."
+      ],
+      "iconography": [
+        "SF Symbols first.",
+        "Icons are bold/solid for primary actions, lighter/outlined for secondary."
+      ]
+    },
+    "themes": {
+      "implementation": {
+        "environmentKey": "@Environment(\\.appTheme)",
+        "preferredColorScheme": "View.themed(theme)",
+        "backgroundHelpers": [
+          "View.themedBackground(theme)",
+          "View.themedSecondaryBackground(theme)",
+          "View.themedBorder(theme, width: 1)"
+        ],
+        "textHelpers": [
+          "Text.themedPrimary(theme)",
+          "Text.themedSecondary(theme)",
+          "Text.themedAccent(theme)"
+        ]
+      },
+      "variants": {
+        "daylight": {
+          "intent": "Warm paper, ink strokes. Feels printed. No glossy UI.",
+          "background": {
+            "primary": "AppColors.Daylight.background (warm paper)",
+            "secondary": "AppColors.Daylight.backgroundSecondary",
+            "tertiary": "AppColors.Daylight.backgroundTertiary"
+          },
+          "text": {
+            "primary": "AppColors.Daylight.textPrimary (near-black ink)",
+            "secondary": "AppColors.Daylight.textSecondary (kept strong)",
+            "muted": "AppColors.Daylight.textMuted (avoid low contrast)"
+          },
+          "accent": {
+            "primary": "AppColors.brand\u0050ink (yellow marker #FFCC33)",
+            "usage": "Use for counts, tags, underline, key interactive strokes."
+          },
+          "separators": {
+            "stroke": "AppColors.Daylight.stroke with AppTheme.strokeOpacity (default 0.15)",
+            "divider": "ThemedDivider"
+          }
+        },
+        "night": {
+          "intent": "Night + screens. Same accent, darker context. Modals can glow a bit.",
+          "background": {
+            "primary": "AppColors.Night.background",
+            "secondary": "AppColors.Night.backgroundSecondary",
+            "tertiary": "AppColors.Night.backgroundTertiary"
+          },
+          "text": {
+            "primary": "AppColors.Night.textPrimary",
+            "secondary": "AppColors.Night.textSecondary"
+          },
+          "accent": {
+            "primary": "AppColors.brand\u0050ink",
+            "muted": "AppColors.Night.accent\u0050inkMuted (yellow marker @ 0.6)"
+          },
+          "strokes": {
+            "stroke": "AppColors.Night.stroke",
+            "strokeLight": "AppColors.Night.strokeLight"
+          }
+        },
+        "minimal": {
+          "intent": "Monochrome, harsh minimalism. Strokes fully opaque.",
+          "background": {
+            "primary": "AppColors.Minimal.background (#F9F8F6)",
+            "secondary": "AppColors.Minimal.backgroundSecondary"
+          },
+          "text": {
+            "primary": "AppColors.Minimal.textPrimary (black)",
+            "secondary": "AppColors.Minimal.textSecondary (black @ 0.7)"
+          },
+          "accentBehavior": "In minimal theme, accent becomes mono (AppTheme.accentColor returns black).",
+          "strokeOpacity": "1.0 (AppTheme.strokeOpacity)"
+        },
+        "system": {
+          "intent": "Fallback to iOS system materials/colors.",
+          "notes": "Use sparingly; Daylight is the intended editorial aesthetic."
+        }
+      },
+      "specialPalettes": {
+        "shields": {
+          "intent": "Clean minimal page with strong yellow accent, sticker card titles, light shadows.",
+          "accent": "#FDD344 (ShieldsPalette.accent)",
+          "pageBackground": "near-white in light, pure black in dark (ShieldsPalette.pageBackground)",
+          "surface": "white / near-black surface (ShieldsPalette.surface)",
+          "stroke": "subtle hairline stroke (ShieldsPalette.stroke)"
+        },
+        "payGate": {
+          "intent": "Black stage, yellow accent, high-contrast CTA buttons, glow behind icon.",
+          "accent": "#FDD344 (PayGatePalette.accent)",
+          "surface": "Color(white: 0.12)",
+          "text": "white + white@0.6"
+        },
+        "loginOnboarding": {
+          "intent": "Dark gradient with soft colored fog circles; glossy hero badge; crisp typography.",
+          "backgroundGradient": [
+            "#14141F",
+            "#1F1A2E",
+            "#14141F"
+          ],
+          "decor": [
+            "blurred circles (purple@0.15, blue@0.1)"
+          ],
+          "hero": "100x100 rounded square gradient + flame icon"
+        }
+      }
+    },
+    "tokens": {
+      "spacing": {
+        "unit": 4,
+        "scale": {
+          "xs": 4,
+          "sm": 8,
+          "md": 12,
+          "lg": 16,
+          "xl": 20,
+          "2xl": 24,
+          "3xl": 32,
+          "4xl": 40,
+          "6xl": 60,
+          "screenPadding": 16,
+          "modalPadding": 20,
+          "denseRowPadding": 14
+        },
+        "rules": [
+          "Default horizontal padding: 16.",
+          "Default vertical section spacing: 12–20.",
+          "Horizontal carousels: inter-item spacing 8, with 16 edge padding."
+        ]
+      },
+      "radii": {
+        "scale": {
+          "xs": 8,
+          "sm": 10,
+          "md": 12,
+          "lg": 14,
+          "xl": 16,
+          "2xl": 18,
+          "3xl": 20,
+          "4xl": 24,
+          "hero": 28
+        },
+        "rules": [
+          "Interactive cards usually 14–20 radius.",
+          "Small chips and icon tiles: 8–14 radius.",
+          "Use capsules for balance pills and primary ‘Create’ buttons in special palettes."
+        ]
+      },
+      "strokes": {
+        "widths": {
+          "hairline": 1,
+          "emphasis": 2
+        },
+        "opacityGuidance": {
+          "daylightDefault": 0.15,
+          "minimal": 1.0,
+          "shields": 0.08
+        },
+        "rules": [
+          "Daylight separation is a stroke, not a shadow.",
+          "Prefer a single stroke overlay over multiple nested shadows."
+        ]
+      },
+      "shadows": {
+        "default": "Avoid on paper surfaces.",
+        "allowedUseCases": [
+          "modal sheets / floating overlays",
+          "special branded screens (Login/PayGate)"
+        ],
+        "recipes": {
+          "modal": {
+            "color": "black@0.30",
+            "radius": 20,
+            "y": 10
+          },
+          "softCard": {
+            "color": "black@0.10",
+            "radius": 10,
+            "y": -2
+          }
+        }
+      },
+      "materials": {
+        "glass": {
+          "swiftui": ".ultraThinMaterial",
+          "use": [
+            "ShieldRowView glass card",
+            "status/quick tiles",
+            "secondary surfaces that should feel 'system glass' rather than paper"
+          ],
+          "strokeOverlay": "white@0.25 -> white@0.08 gradient stroke, lineWidth 0.5"
+        }
+      },
+      "typography": {
+        "families": {
+          "body": {
+            "name": "System (Font.notoSerif wrapper)",
+            "usage": "Most UI. Crisp, factual. Uses monospacedDigit for numeric emphasis."
+          },
+          "handwrittenHeader": {
+            "name": "Reenie Beanie (Font.reenie)",
+            "usage": "Top-of-screen editorial headers ('today', 'My experience')."
+          },
+          "stickerTitle": {
+            "names": [
+              "BigShouldersStencil",
+              "CarterOne",
+              "Tourney",
+              "UnifrakturCook-Bold",
+              "VastShadow-Regular"
+            ],
+            "usage": "Shield card title only. Loud, graphic, sticker energy."
+          }
+        },
+        "sizes": {
+          "signature": {
+            "screenHeaderHandwritten": {
+              "font": "reenie",
+              "size": 45,
+              "relativeTo": "title/title3",
+              "tracking": "none"
+            },
+            "balanceBigNumber": {
+              "font": "notoSerif",
+              "size": 32,
+              "weight": "bold",
+              "monospacedDigit": true
+            },
+            "galleryCaption": {
+              "font": "notoSerif",
+              "size": 10,
+              "weight": "medium",
+              "lineLimit": 3
+            }
+          },
+          "defaults": {
+            "title": "SwiftUI .title/.title2/.title3",
+            "headline": "SwiftUI .headline",
+            "subheadline": "SwiftUI .subheadline",
+            "caption": "SwiftUI .caption"
+          }
+        },
+        "numericStyle": {
+          "rule": "All balances, costs, timers use .monospacedDigit().",
+          "examples": [
+            "PayGate balance",
+            "StepBalanceCard counts",
+            "timers and remaining time"
+          ]
+        }
+      },
+      "color": {
+        "brandAccent": {
+          "name": "brandYellowMarker (code: AppColors.brand\u0050ink)",
+          "hex": "#FFCC33",
+          "notes": "Treat as highlighter/marker. Never flood entire screens in Daylight."
+        },
+        "shieldsAccent": {
+          "hex": "#FDD344",
+          "notes": "More saturated/cleaner yellow used in shields and paygate palettes."
+        },
+        "semantic": {
+          "success": "green (tiny dot only, not full buttons)",
+          "warning": "orange (timers, remaining unlock)",
+          "danger": "red (block screens)"
+        }
+      }
+    },
+    "layoutAndStructure": {
+      "navigation": {
+        "pattern": "NavigationStack",
+        "titles": "Often hidden or inline; screen uses its own large header (handwritten) instead of big navigation titles."
+      },
+      "tabBar": {
+        "pattern": "TabView",
+        "iconStyle": "SF Symbols, minimal. Avoid decorative icons.",
+        "selection": "Keep content padding so bottom fixed buttons do not clash with tab bar."
+      },
+      "gridsAndLists": {
+        "paperMode": "Use VStack + thin separators; avoid heavy cards.",
+        "shieldsMode": "Stacked list with slight rotation offsets and sticker header.",
+        "forms": "Use List(.insetGrouped) for editors (category edit, custom activity)."
+      }
+    },
+    "motionAndInteraction": {
+      "animations": {
+        "defaultOverlay": {
+          "type": "easeInOut",
+          "duration": 0.2,
+          "use": "breakdown overlays, show/hide modals"
+        },
+        "selection": {
+          "type": "spring",
+          "response": 0.3,
+          "dampingFraction": 0.7,
+          "use": "gallery selection, chips, small state changes"
+        },
+        "modal": {
+          "type": "spring",
+          "response": 0.35,
+          "dampingFraction": 0.85,
+          "use": "shields settings modal"
+        }
+      },
+      "haptics": {
+        "use": [
+          "light impact for expanding a shield",
+          "warning notification for delete"
+        ],
+        "rule": "Haptics only for meaningful state changes; never for passive scrolling."
+      },
+      "buttonBehavior": {
+        "primaryCTA": "Use ScaleButtonStyle for PayGate unlock buttons.",
+        "secondary": "Plain buttonStyle, rely on typography + stroke."
+      }
+    },
+    "components": {
+      "primitives": {
+        "divider": {
+          "name": "ThemedDivider",
+          "appearance": "1pt rectangle using theme stroke opacity; not iOS gray divider.",
+          "use": "Separate paper sections."
+        },
+        "tag": {
+          "name": "ResistanceTag",
+          "shape": "Capsule stroke",
+          "typography": "caption medium",
+          "color": "theme accent"
+        },
+        "underline": {
+          "name": "YellowMarkerUnderline",
+          "implementation": "SwiftUI component: \u0050inkUnderline (uses theme accent color, which is yellow)",
+          "appearance": "slightly imperfect quadratic curve stroke, 2pt (marker-on-paper vibe)",
+          "use": "Rare emphasis under one word/number."
+        },
+        "emptyState": {
+          "name": "EmptyStateView",
+          "layout": "centered VStack, 8pt spacing, vertical padding ~40",
+          "typography": {
+            "message": "subheadline",
+            "subMessage": "caption italic, secondary@0.7"
+          },
+          "tone": "inviting; explicitly non-judgmental"
+        }
+      },
+      "buttons": {
+        "textButton": {
+          "appearance": "plain, small caption/12pt system, secondary color",
+          "use": "Edit links, inline actions"
+        },
+        "primaryPill": {
+          "useCase": "Shields empty state: Create Shield",
+          "shape": "Capsule",
+          "fill": "ShieldsPalette.accent",
+          "text": "black, headline semibold",
+          "padding": "horizontal 24, vertical 12"
+        },
+        "payGateUnlock": {
+          "shape": "RoundedRectangle radius 16",
+          "height": 56,
+          "fill": "accent yellow when enabled; dark surface when disabled",
+          "text": "black when enabled; white@0.6 when disabled",
+          "interaction": "ScaleButtonStyle"
+        }
+      },
+      "cards": {
+        "paperCard": {
+          "intent": "Paper sections that feel printed; low/no shadow.",
+          "shape": "RoundedRectangle radius 12–20",
+          "treatment": "stroke only (theme stroke opacity)",
+          "padding": "16–20"
+        },
+        "glassCard": {
+          "intent": "System-glass look for status rows and shield rows.",
+          "material": ".ultraThinMaterial",
+          "stroke": "subtle gradient stroke 0.5",
+          "shadow": "black@0.04 radius 8 y 3"
+        },
+        "modalCard": {
+          "intent": "Elevated settings surface above dim background.",
+          "shape": "RoundedRectangle radius 20",
+          "shadow": "modal recipe",
+          "maxWidth": 500,
+          "drag": "down to dismiss; indicator bar 40x5"
+        }
+      },
+      "chips": {
+        "categoryChip": {
+          "intent": "Compact, numeric, tap targets for drill-down.",
+          "shape": "RoundedRectangle radius 8",
+          "padding": "vertical 8",
+          "layout": "3 in a row (activity/rest/joys) with 8 spacing",
+          "typography": {
+            "icon": "notoSerif 12 semibold",
+            "value": "notoSerif 16 bold, monospaced"
+          },
+          "fill": "primary@0.1"
+        },
+        "optionChip": {
+          "intent": "Selectable option pill inside DailyEnergyCard grids.",
+          "shape": "RoundedRectangle radius 14",
+          "padding": "horizontal 12, vertical 10",
+          "selected": "filled with category gradient + checkmark; soft shadow",
+          "unselected": "secondarySystemBackground fill"
+        }
+      },
+      "galleryCard": {
+        "name": "GalleryCard",
+        "size": {
+          "width": 140,
+          "height": 180,
+          "imageFrame": "110x110"
+        },
+        "layout": "Large painting-style card. Image area on top, caption below; padding (h:5, v:6). Inter-card spacing 12.",
+        "states": {
+          "default": "full opacity",
+          "disabled": "overall opacity 0.5",
+          "selected": {
+            "captionOpacity": 0.45,
+            "overlay": "solid yellow fill (fully opaque, cornerRadius 8) covering image area + scribble cross in dark ink (black@0.25)"
+          }
+        },
+        "completionMark": {
+          "assets": [
+            "cross1",
+            "cross2",
+            "cross3"
+          ],
+          "color": "black@0.25 on solid yellow background",
+          "frame": "100x100"
+        }
+      },
+      "progress": {
+        "balanceBar": {
+          "intent": "Hard-outlined progress bar with yellow fill + yellow-outline spent segment.",
+          "shape": "RoundedRectangle radius 8 stroke primary 1",
+          "height": 14,
+          "fillSegment": "yellow filled with sharp right edge",
+          "spentSegment": "yellow stroke 2 with sharp left edge",
+          "animation": "spring response ~0.4"
+        },
+        "balancePills": {
+          "intent": "Three-part balance display: current / earnedToday / max.",
+          "current": "yellow filled circle with black number",
+          "earnedToday": "white/clear circle with yellow stroke",
+          "max": "small plain monospaced text"
+        }
+      },
+      "overlays": {
+        "infoOverlay": {
+          "intent": "Small explanatory card over dim background.",
+          "backgroundDim": "black@0.25",
+          "card": "systemBackground fill + shadow black@0.12 radius 10 y 6",
+          "cornerRadius": 16,
+          "padding": "16, top 8",
+          "dismiss": "tap dim background or close button"
+        }
+      }
+    },
+    "doAndDont": {
+      "do": [
+        "Use strokes and paper tones to separate content; reserve shadows for modals.",
+        "Make numbers monospaced; treat balance as the hero datum.",
+        "Keep copy neutral and observational.",
+        "Keep headers handwritten (Reenie) and everything else crisp system type.",
+        "Use the yellow accent as a marker/highlighter, not a wall of color."
+      ],
+      "dont": [
+        "Do not add gamified celebration UI (confetti, streak flames everywhere, trophies).",
+        "Do not introduce low-contrast grey-on-grey in Daylight for primary content.",
+        "Do not mix multiple loud decorative effects on one screen.",
+        "Do not add heavy neumorphic or glassy cards in Daylight mode."
+      ]
+    },
+    "aiImplementationNotes": {
+      "goal": "When adding new screens, choose one visual system and stay consistent across the entire screen.",
+      "screenModeDecision": {
+        "paperInk": "Most core app screens (gallery, stats, settings).",
+        "shieldsSticker": "Shield management flows.",
+        "darkNeon": "Auth/onboarding and PayGate moments."
+      },
+      "defaultRecipeForNewPaperScreen": [
+        "NavigationStack with hidden/inline nav title.",
+        "ZStack background = theme.backgroundColor (daylight paper).",
+        "Top header in .reenie(45) + primary ink.",
+        "Sections separated by ThemedDivider or thin strokes.",
+        "Buttons are plain; use accent for tags/underline and key numbers only."
+      ],
+      "defaultRecipeForNewShieldScreen": [
+        "Page background from ShieldsPalette.pageBackground.",
+        "Accent #FDD344 used for CTAs, highlights, and icon tiles.",
+        "Surfaces are white/near-black with subtle stroke and occasional soft shadow.",
+        "Sticker title fonts are allowed only in header-like sticker elements."
+      ]
+    }
+  }
+}

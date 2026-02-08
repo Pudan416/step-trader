@@ -31,7 +31,7 @@ extension AppModel {
         }
 
         // Проверяем, существует ли группа
-        guard let group = shieldGroups.first(where: { $0.id == groupId }) else {
+        guard let group = ticketGroups.first(where: { $0.id == groupId }) else {
             print("⚠️ PayGate: Group \(groupId) not found")
             return
         }
@@ -49,7 +49,7 @@ extension AppModel {
     
     func openPayGateForBundleId(_ bundleId: String) {
         // Ищем группу, которая содержит это приложение
-        if let group = findShieldGroup(for: bundleId) {
+        if let group = findTicketGroup(for: bundleId) {
             Task { @MainActor in
                 startPayGateSession(for: group.id)
             }
@@ -61,7 +61,7 @@ extension AppModel {
     // MARK: - PayGate Payment Handling
     @MainActor
     func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async {
-        guard let group = shieldGroups.first(where: { $0.id == groupId }) else {
+        guard let group = ticketGroups.first(where: { $0.id == groupId }) else {
             print("⚠️ PayGate: Group \(groupId) not found for payment")
             return
         }
@@ -69,13 +69,13 @@ extension AppModel {
         // Get cost - use override if provided, otherwise use group's cost for the window
         let cost = costOverride ?? group.cost(for: window)
         
-        print("💰 Attempting to pay \(cost) control for group \(group.name)")
+        print("💰 Attempting to pay \(cost) experience for group \(group.name)")
         print("💰 Current balance: \(totalStepsBalance) (base: \(stepsBalance), bonus: \(bonusSteps))")
         
         // Pay the cost
         guard pay(cost: cost) else {
-            message = "Not enough control"
-            print("❌ Payment failed - not enough control")
+            message = "Not enough experience"
+            print("❌ Payment failed - not enough experience")
             return
         }
         
@@ -107,7 +107,7 @@ extension AppModel {
             scheduleUnlockExpiryNotification(groupName: group.name, expiresAt: until)
             
             // Schedule shield rebuild when unlock expires
-            scheduleShieldRebuild(after: remainingSeconds, groupId: groupId)
+            scheduleTicketRebuild(after: remainingSeconds, groupId: groupId)
         }
         
         // Track spent steps for analytics (use group id as identifier)
@@ -134,8 +134,8 @@ extension AppModel {
         dismissPayGate(reason: .programmatic)
     }
     
-    // MARK: - Scheduled Shield Rebuild
-    private func scheduleShieldRebuild(after seconds: Int, groupId: String) {
+    // MARK: - Scheduled Ticket/Block Rebuild
+    private func scheduleTicketRebuild(after seconds: Int, groupId: String) {
         // Cancel any existing rebuild task for this group
         unlockExpiryTasks[groupId]?.cancel()
         
@@ -156,7 +156,7 @@ extension AppModel {
                 let unlockKey = "groupUnlock_\(groupId)"
                 defaults.removeObject(forKey: unlockKey)
                 
-                print("⏰ Unlock expired for group \(groupId), clearing unlock key and rebuilding shield...")
+                print("⏰ Unlock expired for group \(groupId), clearing unlock key and rebuilding block...")
                 
                 // Rebuild shield to restore blocking
                 rebuildFamilyControlsShield()
@@ -165,7 +165,7 @@ extension AppModel {
                 unlockExpiryTasks.removeValue(forKey: groupId)
             } catch {
                 // Task was cancelled
-                print("🚫 Shield rebuild task cancelled for group \(groupId)")
+                print("🚫 Block rebuild task cancelled for group \(groupId)")
                 unlockExpiryTasks.removeValue(forKey: groupId)
             }
         }
@@ -243,7 +243,7 @@ extension AppModel {
         
         if minutesRemaining > 0 {
             content.title = "⏱️ \(groupName)"
-            content.body = "Access ends in \(minutesRemaining) min. Save your work!"
+            content.body = "Access ends in \(minutesRemaining) min. Save my work!"
         } else {
             content.title = "🔒 \(groupName)"
             content.body = "Access ended. Apps are blocked again."
@@ -280,8 +280,8 @@ extension AppModel {
         
         // Pay the cost
         guard pay(cost: cost) else {
-            message = "Not enough control"
-            print("❌ Payment failed - not enough control")
+            message = "Not enough experience"
+            print("❌ Payment failed - not enough experience")
             return
         }
         
@@ -300,6 +300,7 @@ extension AppModel {
         
         addSpentSteps(cost, for: bundleId)
         applyAccessWindow(window, for: bundleId)
+        rebuildFamilyControlsShield()
         
         // Force UI update
         objectWillChange.send()
@@ -329,6 +330,7 @@ extension AppModel {
         }
         g.removeObject(forKey: "shouldShowPayGate")
         g.removeObject(forKey: "payGateTargetGroupId")
+        g.removeObject(forKey: "payGateTargetBundleId_v1")
     }
     
     // MARK: - Payment Transaction Logging

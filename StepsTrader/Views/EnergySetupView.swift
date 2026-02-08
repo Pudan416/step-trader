@@ -56,14 +56,14 @@ struct EnergySetupView: View {
                     NavigationLink {
                         CategorySettingsView(
                             model: model,
-                            category: .recovery,
+                            category: .creativity,
                             appLanguage: appLanguage
                         )
                     } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "moon.zzz.fill")
-                                .foregroundColor(.blue)
-                            Text(loc(appLanguage, "Recovery"))
+                            Image(systemName: "sparkles")
+                                .foregroundColor(.purple)
+                            Text(loc(appLanguage, "Creativity"))
                         }
                     }
                     
@@ -81,7 +81,7 @@ struct EnergySetupView: View {
                         }
                     }
                 } header: {
-                    Text(loc(appLanguage, "Daily choices"))
+                    Text(loc(appLanguage, "Daily gallery"))
                 } footer: {
                     Text(loc(appLanguage, "Set goals and manage cards per category."))
                 }

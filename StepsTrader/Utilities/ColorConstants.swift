@@ -4,27 +4,27 @@ import SwiftUI
 /// Replaces hardcoded Color(red:green:blue:) values throughout the codebase
 enum AppColors {
     // MARK: - Brand Colors
-    // Dusty chalk pink — rebellious but not loud
-    static let brandPink = Color(red: 0.85, green: 0.40, blue: 0.50)  // #D96680
+    // Primary accent (yellow marker)
+    static let brandPink = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255)   // #FFD369
     
     // MARK: - Daylight Theme (Paper)
     // "This is not a light mode. This is a daytime version of resistance."
     // The screen is not your life. This is just a place to notice.
     enum Daylight {
-        static let background = Color(red: 0.96, green: 0.95, blue: 0.93)      // Warm paper
-        static let backgroundSecondary = Color(red: 0.93, green: 0.92, blue: 0.89)
-        static let backgroundTertiary = Color(red: 0.90, green: 0.88, blue: 0.85)
+        static let background = Color(red: 0xEE/255, green: 0xEE/255, blue: 0xEE/255)  // #EEEEEE
+        static let backgroundSecondary = Color(red: 243/255, green: 244/255, blue: 246/255)
+        static let backgroundTertiary = Color(red: 235/255, green: 236/255, blue: 240/255)
         
         static let textPrimary = Color(red: 0.08, green: 0.08, blue: 0.08)      // Near-black ink
-        static let textSecondary = Color(red: 0.25, green: 0.25, blue: 0.25)
-        static let textMuted = Color(red: 0.45, green: 0.44, blue: 0.42)
+        static let textSecondary = textPrimary
+        static let textMuted = textPrimary
         
-        static let accentPink = Color(red: 0.85, green: 0.40, blue: 0.50)       // Dusty chalk pink
+        static let accentPink = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255)   // #FFD369
         static let stroke = Color(red: 0.12, green: 0.12, blue: 0.12)
         
-        static let activity = Color(red: 0.18, green: 0.42, blue: 0.28)
-        static let recovery = Color(red: 0.22, green: 0.36, blue: 0.50)
-        static let joys = Color(red: 0.55, green: 0.38, blue: 0.22)
+        static let activity = textPrimary
+        static let rest = textPrimary
+        static let joys = textPrimary
     }
     
     // MARK: - Minimal Theme (Monochrome)
@@ -40,25 +40,25 @@ enum AppColors {
     }
     
     // MARK: - Night Theme
-    // Night and screens. Same pink, different context.
+    // Night and screens. Same yellow accent, different context.
     enum Night {
-        static let background = Color(red: 0.05, green: 0.05, blue: 0.07)
-        static let backgroundSecondary = Color(red: 0.08, green: 0.08, blue: 0.10)
-        static let backgroundTertiary = Color(red: 0.12, green: 0.12, blue: 0.14)
+        static let background = Color(red: 0x22/255, green: 0x28/255, blue: 0x31/255)  // #222831
+        static let backgroundSecondary = Color(red: 48/255, green: 48/255, blue: 58/255)
+        static let backgroundTertiary = Color(red: 56/255, green: 56/255, blue: 66/255)
         
         static let textPrimary = Color(red: 0.95, green: 0.95, blue: 0.95)
-        static let textSecondary = Color(red: 0.70, green: 0.70, blue: 0.70)
-        static let textMuted = Color(red: 0.45, green: 0.45, blue: 0.45)
+        static let textSecondary = textPrimary
+        static let textMuted = textPrimary
         
-        static let accentPink = Color(red: 0.85, green: 0.40, blue: 0.50)       // Dusty chalk pink
-        static let accentPinkMuted = Color(red: 0.85, green: 0.40, blue: 0.50).opacity(0.6)
+        static let accentPink = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255)   // #FFD369
+        static let accentPinkMuted = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255).opacity(0.6)
         
         static let stroke = Color(red: 0.25, green: 0.25, blue: 0.25)
         static let strokeLight = Color(red: 0.20, green: 0.20, blue: 0.20)
         
-        static let activity = Color(red: 0.30, green: 0.75, blue: 0.45)
-        static let recovery = Color(red: 0.40, green: 0.60, blue: 0.90)
-        static let joys = Color(red: 0.95, green: 0.60, blue: 0.30)
+        static let activity = textPrimary
+        static let rest = textPrimary
+        static let joys = textPrimary
     }
     
     // MARK: - PayGate Background Styles
@@ -191,12 +191,12 @@ extension Text {
 }
 
 // MARK: - Resistance UI Components
-/// Components that embody the Doom Control philosophy:
+/// Components that embody the experience philosophy:
 /// - No gamification. No motivation. No self-improvement tone.
 /// - Observation over instruction
 /// - Invitation over pressure
 /// - Empty states are allowed
-/// - "Losing control" is neutral, never framed as failure
+/// - "Spending experience" is neutral, never framed as failure
 
 struct ResistanceTag: View {
     let text: String

@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(DeviceActivity)
+import DeviceActivity
+#endif
 
 // MARK: - Access Window Management
 extension AppModel {
@@ -12,6 +15,9 @@ extension AppModel {
         g.set(until, forKey: accessBlockKey(for: bundleId))
         let remaining = Int(until.timeIntervalSince(Date()))
         print("⏱️ Access window set for \(bundleId) until \(until) (\(remaining) seconds)")
+        
+        // Schedule background expiry so the block restores without foreground.
+        scheduleAccessWindowExpiryActivity(bundleId: bundleId, expiresInSeconds: remaining)
         // Push notifications on payment/activation removed per request
     }
 
@@ -42,6 +48,50 @@ extension AppModel {
 
     func accessBlockKey(for bundleId: String) -> String {
         "blockUntil_\(bundleId)"
+    }
+
+    // MARK: - Access Window Expiry Scheduling
+    private func scheduleAccessWindowExpiryActivity(bundleId: String, expiresInSeconds: Int) {
+        #if canImport(DeviceActivity)
+        guard expiresInSeconds > 0 else { return }
+        
+        let center = DeviceActivityCenter()
+        let activityName = DeviceActivityName("accessWindowExpiry_\(bundleId)")
+        let calendar = Calendar.current
+        let now = Date()
+        let startComponents = calendar.dateComponents([.hour, .minute, .second], from: now)
+        
+        let schedule: DeviceActivitySchedule
+        if expiresInSeconds >= 900 {
+            let expiryDate = now.addingTimeInterval(TimeInterval(expiresInSeconds))
+            let endComponents = calendar.dateComponents([.hour, .minute, .second], from: expiryDate)
+            schedule = DeviceActivitySchedule(
+                intervalStart: startComponents,
+                intervalEnd: endComponents,
+                repeats: false
+            )
+            print("📅 Scheduled access window expiry for \(bundleId) in \(expiresInSeconds)s (interval end)")
+        } else {
+            let endDate = now.addingTimeInterval(900)
+            let endComponents = calendar.dateComponents([.hour, .minute, .second], from: endDate)
+            let secondsBeforeEnd = 900 - expiresInSeconds
+            let warningTime = DateComponents(second: secondsBeforeEnd)
+            schedule = DeviceActivitySchedule(
+                intervalStart: startComponents,
+                intervalEnd: endComponents,
+                repeats: false,
+                warningTime: warningTime
+            )
+            print("📅 Scheduled access window expiry for \(bundleId) in \(expiresInSeconds)s (warning in \(secondsBeforeEnd)s)")
+        }
+        
+        center.stopMonitoring([activityName])
+        do {
+            try center.startMonitoring(activityName, during: schedule)
+        } catch {
+            print("❌ Failed to schedule access window expiry: \(error)")
+        }
+        #endif
     }
     
     // MARK: - Group Access Window Helpers

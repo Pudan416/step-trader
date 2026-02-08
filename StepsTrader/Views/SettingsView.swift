@@ -7,6 +7,7 @@ struct SettingsView: View {
     @ObservedObject var authService = AuthenticationService.shared
     @ObservedObject var cloudService = CloudKitService.shared
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @Environment(\.appTheme) private var theme
     @State private var showLoginSheet: Bool = false
     @State private var showRestoreAlert: Bool = false
     @State private var showProfileEditor: Bool = false
@@ -169,7 +170,7 @@ struct SettingsView: View {
                 NavigationLink {
                     EnergySetupView(model: model)
                 } label: {
-                    Label(loc(appLanguage, "Daily choices"), systemImage: "sparkles")
+                    Label(loc(appLanguage, "Daily gallery"), systemImage: "sparkles")
                 }
             } header: {
                 Text(loc(appLanguage, "Preferences"))
@@ -192,6 +193,10 @@ struct SettingsView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(theme.backgroundColor)
+        .toolbarBackground(theme.backgroundColor, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .onAppear {
             if appLanguage == "ru" { appLanguage = "en" }
             Task { await authService.checkAuthenticationState() }
@@ -298,11 +303,12 @@ struct SettingsView: View {
     private struct PayGateBackgroundSettingsView: View {
         let appLanguage: String
         @Binding var selectedStyle: String
+        @Environment(\.appTheme) private var theme
         
         var body: some View {
             ScrollView {
                 VStack(spacing: 16) {
-                    Text(loc(appLanguage, "Choose your entry screen style"))
+                    Text(loc(appLanguage, "Choose my entry screen style"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.top, 8)
@@ -325,7 +331,7 @@ struct SettingsView: View {
                 }
                 .padding(.bottom, 20)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(theme.backgroundColor)
         }
     }
     

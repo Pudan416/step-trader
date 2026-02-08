@@ -5,6 +5,8 @@ struct StepBalanceCard: View {
     let totalSteps: Int
     let spentSteps: Int
     let healthKitSteps: Int
+    let outerWorldSteps: Int
+    let grantedSteps: Int
     let dayEndHour: Int
     let dayEndMinute: Int
     let showDetails: Bool
@@ -19,39 +21,30 @@ struct StepBalanceCard: View {
     var onMoveTap: (() -> Void)? = nil
     var onRebootTap: (() -> Void)? = nil
     var onJoyTap: (() -> Void)? = nil
+    var onOuterWorldTap: (() -> Void)? = nil
     
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @Environment(\.colorScheme) private var colorScheme
     
     private let maxEnergy: Int = 100
-    
-    // Max points per category for display
-    private let maxCategoryPointsActivityRecovery: Int = 40
-    private let maxCategoryPointsJoys: Int = 20
-    
-    private var totalEnergy: Int {
-        min(maxEnergy, totalSteps)
-    }
     
     private var currentEnergy: Int {
         // Текущая энергия = оставшийся баланс после трат (remainingSteps уже содержит totalStepsBalance)
         return min(maxEnergy, remainingSteps)
     }
     
-    private var totalProgress: Double {
+    private var progress: Double {
         guard maxEnergy > 0 else { return 0 }
-        return min(1, Double(totalEnergy) / Double(maxEnergy))
+        return min(1, Double(currentEnergy) / Double(maxEnergy))
     }
-    
-    private var remainingProgress: Double {
+
+    private var earnedTodayProgress: Double {
         guard maxEnergy > 0 else { return 0 }
-        return min(totalProgress, Double(currentEnergy) / Double(maxEnergy))
+        return min(1, Double(baseEnergyToday) / Double(maxEnergy))
     }
-    
-    private var progressColor: Color {
-        if currentEnergy > 70 { return .green }
-        if currentEnergy > 40 { return .orange }
-        return .red
-    }
+
+    private var accent: Color { AppColors.brandPink }
+    private var balanceYellow: Color { .yellow }
     
     private var timeUntilReset: String {
         let now = Date()
@@ -68,137 +61,137 @@ struct StepBalanceCard: View {
     }
     
     var body: some View {
-        VStack(spacing: 16) {
-            // Header with balance
-            HStack(alignment: .center, spacing: 12) {
-                // Energy icon
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [progressColor.opacity(0.3), progressColor.opacity(0.1)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 44, height: 44)
-                    
-                    Image(systemName: "bolt.fill")
-                        .font(.title3)
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [progressColor, progressColor.opacity(0.7)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                }
+        VStack(spacing: 10) {
+            // Header row: EXP label + balance numbers + timer
+            HStack(alignment: .center, spacing: 10) {
+                // EXP label
+                Text("EXP")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(accent)
+                    .tracking(0.5)
                 
-                // Balance text
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(loc(appLanguage, "Control Balance"))
-                        .font(.caption)
+                // Balance: current / earned / max
+                HStack(spacing: 4) {
+                    // Current balance — yellow pill
+                    Text("\(currentEnergy)")
+                        .font(.title3.bold())
+                        .foregroundColor(.black)
+                        .monospacedDigit()
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(balanceYellow)
+                        )
+                    
+                    Text("/")
+                        .font(.footnote.weight(.medium))
                         .foregroundColor(.secondary)
                     
-                    HStack(alignment: .lastTextBaseline, spacing: 2) {
-                        Text("\(currentEnergy)")
-                            .font(.title2.bold())
-                            .foregroundColor(AppColors.brandPink)
-                            .monospacedDigit()
-                        Text("/\(totalEnergy)")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(AppColors.brandPink.opacity(0.45))
-                            .monospacedDigit()
-                        Text("/100")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .monospacedDigit()
-                    }
+                    // Today's earned — yellow outlined pill
+                    Text("\(baseEnergyToday)")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.primary)
+                        .monospacedDigit()
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .strokeBorder(balanceYellow, lineWidth: 1.5)
+                        )
+                    
+                    Text("/")
+                        .font(.footnote.weight(.medium))
+                        .foregroundColor(.secondary)
+                    
+                    // Max
+                    Text("\(maxEnergy)")
+                        .font(.footnote.weight(.medium))
+                        .foregroundColor(.secondary)
+                        .monospacedDigit()
                 }
                 
                 Spacer()
                 
-// Reset timer badge with glass
-VStack(spacing: 2) {
-    HStack(spacing: 4) {
-        Image(systemName: "clock.arrow.circlepath")
-            .font(.caption2)
-            .foregroundColor(.orange)
-        Text(timeUntilReset)
-            .font(.caption.weight(.bold))
-            .monospacedDigit()
-    }
-    .foregroundColor(.primary)
-    Text(loc(appLanguage, "reset"))
-        .font(.caption2)
-        .foregroundColor(.secondary)
-}
-.padding(.horizontal, 12)
-.padding(.vertical, 8)
-.background(
-    RoundedRectangle(cornerRadius: 12)
-        .fill(.thinMaterial)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.orange.opacity(0.2), lineWidth: 1)
-        )
-)
-            }
-            
-            // Progress bar - shows current energy out of 100
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    // Background
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(.systemGray5))
-                    
-                    // Total balance for the day (light pink)
-                    if totalProgress > 0 {
-                        let totalWidth = proxy.size.width * totalProgress
-                        
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(AppColors.brandPink.opacity(0.35))
-                            .frame(width: max(8, totalWidth))
-                    }
-                    
-                    // Remaining balance (bright pink)
-                    if remainingProgress > 0 {
-                        let remainingWidth = proxy.size.width * remainingProgress
-                        
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(AppColors.brandPink)
-                            .frame(width: max(8, remainingWidth))
-                            .shadow(color: AppColors.brandPink.opacity(0.35), radius: 4, x: 0, y: 2)
-                    }
+                // Reset timer — inline, no box
+                HStack(spacing: 3) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(timeUntilReset)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(.primary)
+                        .monospacedDigit()
                 }
             }
-            .frame(height: 14)
-            .animation(.spring(response: 0.4), value: remainingProgress)
             
-            // Details section - compact 3-in-a-row category breakdown with N/20 format
+            // Progress bar
+            GeometryReader { proxy in
+                let w = proxy.size.width
+                let inset: CGFloat = 2
+                let innerW = max(0, w - inset * 2)
+                let fillWidth = max(0, innerW * progress)
+                let earnedWidth = max(0, innerW * earnedTodayProgress)
+                let spentSegmentWidth = max(0, earnedWidth - fillWidth)
+
+                HStack(spacing: 0) {
+                    if fillWidth > 0 {
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 5,
+                            bottomLeadingRadius: 5,
+                            bottomTrailingRadius: 0,
+                            topTrailingRadius: 0
+                        )
+                        .fill(balanceYellow)
+                        .frame(width: max(4, fillWidth))
+                    }
+                    if spentSegmentWidth > 0 {
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 0,
+                            bottomLeadingRadius: 0,
+                            bottomTrailingRadius: 5,
+                            topTrailingRadius: 5
+                        )
+                        .stroke(balanceYellow, lineWidth: 1.5)
+                        .frame(width: max(2, spentSegmentWidth))
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(inset)
+                .frame(width: w, height: proxy.size.height, alignment: .leading)
+                .background {
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(Color.primary.opacity(0.3), lineWidth: 1)
+                }
+            }
+            .frame(height: 10)
+            .animation(.spring(response: 0.4), value: progress)
+            .animation(.spring(response: 0.4), value: earnedTodayProgress)
+            
+            // Category breakdown — inline chips
             if showDetails {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     compactCategoryChip(
                         icon: "figure.run",
                         value: movePoints,
-                        maxValue: maxCategoryPointsActivityRecovery,
-                        color: .green,
+                        color: .primary,
+                        accessibilityId: "chip_activity",
                         onTap: { onMoveTap?() }
                     )
                     
                     compactCategoryChip(
-                        icon: "moon.zzz.fill",
+                        icon: "sparkles",
                         value: rebootPoints,
-                        maxValue: maxCategoryPointsActivityRecovery,
-                        color: .blue,
+                        color: .primary,
+                        accessibilityId: "chip_creativity",
                         onTap: { onRebootTap?() }
                     )
                     
                     compactCategoryChip(
                         icon: "heart.fill",
                         value: joyPoints,
-                        maxValue: maxCategoryPointsJoys,
-                        color: .orange,
+                        color: .primary,
+                        accessibilityId: "chip_joys",
                         onTap: { onJoyTap?() }
                     )
                 }
@@ -208,47 +201,39 @@ VStack(spacing: 2) {
                 ))
             }
         }
-        .padding(16)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.primary.opacity(0.2), lineWidth: 1)
         )
         .animation(.spring(response: 0.3), value: showDetails)
     }
 }
 
-// Compact category chip - small icon + N/20 format, 3 in a row
+// Compact category chip
 @ViewBuilder
-private func compactCategoryChip(icon: String, value: Int, maxValue: Int, color: Color, onTap: @escaping () -> Void) -> some View {
+private func compactCategoryChip(icon: String, value: Int, color: Color, accessibilityId: String, onTap: @escaping () -> Void) -> some View {
     Button(action: onTap) {
         HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(color)
+                .font(.caption)
+                .foregroundColor(color.opacity(0.6))
             
-            HStack(spacing: 0) {
-                Text("\(value)")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.primary)
-                Text("/\(maxValue)")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary)
-            }
-            .monospacedDigit()
+            Text("\(value)")
+                .font(.subheadline.bold())
+                .foregroundColor(.primary)
+                .monospacedDigit()
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(color.opacity(0.1))
+                .fill(color.opacity(0.06))
         )
     }
     .buttonStyle(.plain)
+    .accessibilityIdentifier(accessibilityId)
 }
 
 private func formatNumber(_ num: Int) -> String {
@@ -287,6 +272,8 @@ private func formatNumber(_ num: Int) -> String {
             totalSteps: 100,
             spentSteps: 15,
             healthKitSteps: 60,
+            outerWorldSteps: 25,
+            grantedSteps: 0,
             dayEndHour: 0,
             dayEndMinute: 0,
             showDetails: true,
@@ -301,6 +288,8 @@ private func formatNumber(_ num: Int) -> String {
             totalSteps: 100,
             spentSteps: 55,
             healthKitSteps: 40,
+            outerWorldSteps: 5,
+            grantedSteps: 0,
             dayEndHour: 0,
             dayEndMinute: 0,
             showDetails: false,

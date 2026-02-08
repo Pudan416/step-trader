@@ -4,47 +4,86 @@ import FamilyControls
 #endif
 import Foundation
 
-struct ShieldGroupId: Identifiable {
+struct TicketGroupId: Identifiable {
     let id: String
+}
+
+/// Single accent for primary actions (Create Ticket, unlock). Rest uses system colors.
+fileprivate enum TicketsPalette {
+    // Accent yellow: #FFD369
+    static let accent = Color(red: 0xFF/255.0, green: 0xD3/255.0, blue: 0x69/255.0)
+
+    // Theme accents (used on the flipped side for controls).
+    static let themes: [Color] = [
+        Color(red: 0.20, green: 0.45, blue: 0.95), // blue
+        Color(red: 0.62, green: 0.29, blue: 0.98), // purple
+        Color(red: 0.05, green: 0.68, blue: 0.45), // teal/green
+        Color(red: 0.95, green: 0.33, blue: 0.35), // red
+        Color(red: 0.98, green: 0.55, blue: 0.15), // orange
+        Color(red: 0.15, green: 0.75, blue: 0.95)  // cyan
+    ]
+
+    static func themeColor(for index: Int) -> Color {
+        let safe = abs(index)
+        return themes.isEmpty ? .blue : themes[safe % themes.count]
+    }
+
+    // (intentionally no longer used for back surface; back surface follows day/night theme)
 }
 
 struct AppsPageSimplified: View {
     @ObservedObject var model: AppModel
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appTheme) private var theme
     @State private var selection = FamilyActivitySelection()
     @State private var showPicker = false
-    @State private var selectedGroupId: ShieldGroupId? = nil
+    @State private var selectedGroupId: TicketGroupId? = nil
     @State private var showTemplatePicker = false
     @State private var showDifficultyPicker = false
     @State private var pendingGroupIdForDifficulty: String? = nil
     @AppStorage("appLanguage") private var appLanguage: String = "en"
-    
+    @State private var expandedSheetGroupId: TicketGroupId? = nil
+    @State private var flippedTicketId: String? = nil
+
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Background
-                backgroundGradient
-                    .ignoresSafeArea()
-                
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 20) {
-                        headerSection
-                        shieldsSection
+        NavigationStack {
+            Group {
+                if model.ticketGroups.isEmpty {
+                    emptyTicketsContent
+                } else {
+                    ScrollView {
+                        ticketStack
+                            .padding(.horizontal, 20)
+                            .padding(.top, 4)
+                            .padding(.bottom, 16)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 100)
+                    .frame(maxHeight: .infinity)
                 }
-                .scrollBounceBehavior(.basedOnSize, axes: .vertical)
             }
+            .background(theme.backgroundColor)
+            .navigationTitle(loc(appLanguage, "My Tickets"))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(theme.backgroundColor, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showTemplatePicker = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(item: $expandedSheetGroupId) { groupId in
+                if let index = model.ticketGroups.firstIndex(where: { $0.id == groupId.id }) {
+                    ticketSettingsSheet(group: $model.ticketGroups[index], onDismiss: { expandedSheetGroupId = nil })
+                }
+            }
             .sheet(isPresented: $showPicker, onDismiss: {
-                // If picker was dismissed without adding apps, remove empty group
                 if let groupId = selectedGroupId {
-                    if let group = model.shieldGroups.first(where: { $0.id == groupId.id }) {
+                    if let group = model.ticketGroups.first(where: { $0.id == groupId.id }) {
                         let hasApps = !group.selection.applicationTokens.isEmpty || !group.selection.categoryTokens.isEmpty
-                        if !hasApps {
-                            model.deleteShieldGroup(groupId.id)
-                        }
+                        if !hasApps { model.deleteTicketGroup(groupId.id) }
                     }
                     selectedGroupId = nil
                 }
@@ -53,313 +92,644 @@ struct AppsPageSimplified: View {
                 AppSelectionSheet(
                     selection: $selection,
                     appLanguage: appLanguage,
-                    templateApp: selectedGroupId.flatMap { groupId in
-                        model.shieldGroups.first(where: { $0.id == groupId.id })?.templateApp
-                    },
+                    templateApp: selectedGroupId.flatMap { gid in model.ticketGroups.first(where: { $0.id == gid.id })?.templateApp },
                     onDone: {
                         if let groupId = selectedGroupId {
                             let hasApps = !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
                             if hasApps {
                                 model.addAppsToGroup(groupId.id, selection: selection)
-                                // Check if this is a template shield and show difficulty picker
-                                if let group = model.shieldGroups.first(where: { $0.id == groupId.id }),
-                                   group.templateApp != nil {
+                                if let group = model.ticketGroups.first(where: { $0.id == groupId.id }), group.templateApp != nil {
                                     pendingGroupIdForDifficulty = groupId.id
                                     showPicker = false
                                     showDifficultyPicker = true
                                 } else {
-                                    showPicker = false
-                                    selectedGroupId = nil
+                                    showPicker = false; selectedGroupId = nil
                                 }
                             } else {
-                                // Remove group if no apps were added
-                                model.deleteShieldGroup(groupId.id)
-                                showPicker = false
-                                selectedGroupId = nil
+                                model.deleteTicketGroup(groupId.id)
+                                showPicker = false; selectedGroupId = nil
                             }
                         } else {
                             model.syncFamilyControlsCards(from: selection)
-                            showPicker = false
-                            selectedGroupId = nil
+                            showPicker = false; selectedGroupId = nil
                         }
                     }
                 )
                 #else
-                Text("Family Controls not available")
-                    .padding()
+                Text("Family Controls not available").padding()
                 #endif
             }
             .sheet(isPresented: $showDifficultyPicker) {
                 if let groupId = pendingGroupIdForDifficulty,
-                   let group = model.shieldGroups.first(where: { $0.id == groupId }) {
-                    DifficultyPickerView(
-                        model: model,
-                        group: group,
-                        appLanguage: appLanguage,
-                        onDone: {
-                            showDifficultyPicker = false
-                            pendingGroupIdForDifficulty = nil
-                            selectedGroupId = nil
-                        }
-                    )
+                   let group = model.ticketGroups.first(where: { $0.id == groupId }) {
+                    DifficultyPickerView(model: model, group: group, appLanguage: appLanguage, onDone: {
+                        showDifficultyPicker = false; pendingGroupIdForDifficulty = nil; selectedGroupId = nil
+                    })
                 }
             }
             .sheet(isPresented: $showTemplatePicker) {
-                ShieldTemplatePickerView(
-                    model: model,
-                    appLanguage: appLanguage,
+                TicketTemplatePickerView(
+                    model: model, appLanguage: appLanguage,
                     onTemplateSelected: { templateApp in
                         showTemplatePicker = false
-                        // Create group with template, then open app picker
                         let displayName = TargetResolver.displayName(for: templateApp)
-                        let group = model.createShieldGroup(name: displayName, templateApp: templateApp)
-                        // Set selection to current selection and open picker
+                        let group = model.createTicketGroup(name: displayName, templateApp: templateApp, stickerThemeIndex: 0)
                         selection = FamilyActivitySelection()
-                        selectedGroupId = ShieldGroupId(id: group.id)
+                        selectedGroupId = TicketGroupId(id: group.id)
                         showPicker = true
                     },
                     onCustomSelected: {
                         showTemplatePicker = false
-                        // Create group without template, then open app picker
-                        let group = model.createShieldGroup(name: loc(appLanguage, "New Shield"))
+                        let group = model.createTicketGroup(name: loc(appLanguage, "New Ticket"), stickerThemeIndex: 0)
                         selection = FamilyActivitySelection()
-                        selectedGroupId = ShieldGroupId(id: group.id)
+                        selectedGroupId = TicketGroupId(id: group.id)
                         showPicker = true
                     }
                 )
             }
-            .sheet(item: $selectedGroupId) { groupIdWrapper in
-                if let group = model.shieldGroups.first(where: { $0.id == groupIdWrapper.id }) {
-                    ShieldGroupSettingsView(
-                        model: model,
-                        group: group,
-                        appLanguage: appLanguage
-                    )
-                } else {
-                    Text("Error: Shield group not found")
-                        .foregroundColor(.red)
-                        .padding()
-                }
-            }
-            .onAppear {
-                selection = model.appSelection
-            }
+            .onAppear { selection = model.appSelection }
         }
     }
-    
-    // MARK: - Header Section
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(loc(appLanguage, "Shields"))
-                .font(.title.weight(.bold))
-            
-            Text(loc(appLanguage, "Manage your app protection"))
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 8)
-    }
-    
-    // MARK: - Shields Section
-    @ViewBuilder
-    private var shieldsSection: some View {
-        if model.shieldGroups.isEmpty {
-            emptyShieldsPlaceholder
-        } else {
-            shieldsGrid
-        }
-    }
-    
-    private var emptyShieldsPlaceholder: some View {
-        VStack(spacing: 24) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [AppColors.brandPink.opacity(0.2), AppColors.brandPink.opacity(0.05)],
-                            center: .center,
-                            startRadius: 20,
-                            endRadius: 60
-                        )
-                    )
-                    .frame(width: 100, height: 100)
-                
-                Image(systemName: "shield.checkered")
-                    .font(.system(size: 44, weight: .medium))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [AppColors.brandPink, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-            
-            VStack(spacing: 8) {
-                Text(loc(appLanguage, "No shields yet"))
-                    .font(.title3.weight(.semibold))
-                
-                Text(loc(appLanguage, "Create your first shield to protect apps from yourself"))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
-            }
-            
-            // Create button
-            Button {
-                showTemplatePicker = true
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.headline)
-                    Text(loc(appLanguage, "Create Shield"))
-                        .font(.headline.weight(.semibold))
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 32)
-                .padding(.vertical, 14)
-                .background(
-                    LinearGradient(
-                        colors: [AppColors.brandPink, .purple],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .clipShape(Capsule())
-                .shadow(color: AppColors.brandPink.opacity(0.4), radius: 12, x: 0, y: 6)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.vertical, 60)
-        .frame(maxWidth: .infinity)
-        .background(glassCard)
-    }
-    
-    @ViewBuilder
-    private var shieldsGrid: some View {
-        VStack(spacing: 10) {
-            ForEach(model.shieldGroups.filter { group in
-                // Only show groups that have apps added
-                group.selection.applicationTokens.count > 0 || group.selection.categoryTokens.count > 0
-            }) { group in
-                ShieldCardView(
+
+    // MARK: - Ticket Stack
+
+    private var ticketStack: some View {
+        VStack(spacing: -6) {  // negative spacing = overlap
+            ForEach(Array(visibleGroupIndices.enumerated()), id: \.element) { offset, index in
+                let group = model.ticketGroups[index]
+                let isFlipped = flippedTicketId == group.id
+                let stackAngle = Angle.degrees(Double(offset % 2 == 0 ? -0.6 : 0.6))
+
+                PaperTicketView(
                     model: model,
                     group: group,
                     appLanguage: appLanguage,
-                    onEdit: {
-                        selectedGroupId = ShieldGroupId(id: group.id)
+                    colorScheme: colorScheme,
+                    isFlipped: isFlipped,
+                    onSettings: {
+                        expandedSheetGroupId = TicketGroupId(id: group.id)
+                    },
+                    onFlip: {
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                            if isFlipped {
+                                flippedTicketId = nil
+                            } else {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                flippedTicketId = group.id
+                            }
+                        }
                     }
                 )
-            }
-            
-            // Add new shield card
-            addShieldCard
-        }
-    }
-    
-    private var addShieldCard: some View {
-        Button {
-            showTemplatePicker = true
-        } label: {
-            HStack(spacing: 12) {
-                // Plus icon in circle
-                ZStack {
-                    Circle()
-                        .fill(AppColors.brandPink.opacity(0.12))
-                        .frame(width: 48, height: 48)
-                    
-                    Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(AppColors.brandPink)
+                .rotation3DEffect(
+                    Angle.degrees(isFlipped ? 180 : 0),
+                    axis: (x: 0, y: 1, z: 0),
+                    perspective: 0.5
+                )
+                .rotationEffect(isFlipped ? .zero : stackAngle)
+                .zIndex(isFlipped ? 100 : Double(visibleGroupIndices.count - offset))
+                .contextMenu {
+                    Button {
+                        expandedSheetGroupId = TicketGroupId(id: group.id)
+                    } label: {
+                        Label(loc(appLanguage, "Settings"), systemImage: "gearshape")
+                    }
+                    Button(role: .destructive) {
+                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                        model.deleteTicketGroup(group.id)
+                    } label: {
+                        Label(loc(appLanguage, "Delete"), systemImage: "trash")
+                    }
                 }
-                
-                Text(loc(appLanguage, "New Shield"))
-                    .font(.subheadline.weight(.medium))
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary.opacity(0.5))
+                .padding(.horizontal, offset % 2 == 0 ? 0 : 4) // slight stagger
             }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(
-                                style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
-                            )
-                            .foregroundColor(AppColors.brandPink.opacity(0.3))
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-    }
-    
-    // MARK: - Background
-    private var backgroundGradient: some View {
-        ZStack {
-            Color(.systemGroupedBackground)
-            
-            // Accent gradient orbs
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [AppColors.brandPink.opacity(0.08), Color.clear],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 200
-                    )
-                )
-                .frame(width: 400, height: 400)
-                .offset(x: -100, y: -200)
-            
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.purple.opacity(0.06), Color.clear],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 180
-                    )
-                )
-                .frame(width: 360, height: 360)
-                .offset(x: 150, y: 100)
         }
     }
-    
-    // MARK: - Glass Card Style
-    private var glassCard: some View {
-        RoundedRectangle(cornerRadius: 20)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.25), Color.white.opacity(0.08)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 0.5
-                    )
-            )
-            .shadow(color: Color.black.opacity(0.04), radius: 12, x: 0, y: 4)
+
+    // MARK: - Empty state
+    private var emptyTicketsContent: some View {
+        VStack(spacing: 28) {
+            Spacer()
+            Image(systemName: "ticket")
+                .font(.system(size: 52, weight: .thin))
+                .foregroundStyle(.secondary)
+            VStack(spacing: 8) {
+                Text(loc(appLanguage, "No tickets yet"))
+                    .font(.title3.weight(.semibold))
+                Text(loc(appLanguage, "Create your first ticket to collect experience"))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+            Button {
+                showTemplatePicker = true
+            } label: {
+                Label(loc(appLanguage, "New Ticket"), systemImage: "plus")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(TicketsPalette.accent)
+            .padding(.horizontal, 40)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Sheet for full ticket settings
+    private func ticketSettingsSheet(group: Binding<TicketGroup>, onDismiss: @escaping () -> Void) -> some View {
+        NavigationStack {
+            ScrollView {
+                InlineTicketSettingsView(
+                    model: model, group: group, appLanguage: appLanguage,
+                    onEditApps: {
+                        selectedGroupId = TicketGroupId(id: group.wrappedValue.id)
+                        selection = group.wrappedValue.selection
+                        expandedSheetGroupId = nil
+                        showPicker = true
+                    },
+                    onAfterDelete: onDismiss
+                )
+                .padding()
+            }
+            .background(theme.backgroundColor)
+            .navigationTitle(group.wrappedValue.name.isEmpty ? loc(appLanguage, "Ticket") : group.wrappedValue.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(theme.backgroundColor, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(loc(appLanguage, "Done")) { onDismiss() }
+                }
+            }
+            .onDisappear(perform: onDismiss)
+        }
+    }
+
+    private var visibleGroupIndices: [Int] {
+        model.ticketGroups.indices.filter { idx in
+            let g = model.ticketGroups[idx]
+            return g.selection.applicationTokens.count > 0 || g.selection.categoryTokens.count > 0
+        }
     }
 }
 
-// MARK: - Shield Template Picker
-struct ShieldTemplatePickerView: View {
+// MARK: - Paper Ticket View (museum-style)
+
+/// A ticket that looks like a simplified paper museum ticket.
+/// Left stub (icon) | dashed perforation | main body (title, status, apps count)
+/// Back side shows unlock buttons + settings gear when flipped.
+fileprivate struct PaperTicketView: View {
+    @ObservedObject var model: AppModel
+    let group: TicketGroup
+    let appLanguage: String
+    let colorScheme: ColorScheme
+    let isFlipped: Bool
+    var onSettings: () -> Void = {}
+    var onFlip: () -> Void = {}
+
+    @State private var isUnlocking = false
+
+    private var frontFill: Color { TicketsPalette.accent }
+    // Always light back: warm paper tone regardless of dark mode
+    private var backSurface: Color {
+        Color(red: 0xF5/255.0, green: 0xF0/255.0, blue: 0xE8/255.0) // #F5F0E8 warm paper
+    }
+    private var backIsDark: Bool { false } // back is always light
+
+    private var frontInk: Color { Color.black.opacity(0.86) }
+    private var frontSecondaryInk: Color { Color.black.opacity(0.58) }
+    private var backInk: Color { Color.black.opacity(0.86) }
+    private var backSecondaryInk: Color { Color.black.opacity(0.58) }
+
+    private var frontPerf: Color { frontInk.opacity(0.18) }
+    private var backPerf: Color { backInk.opacity(0.22) }
+
+    private var isUnlocked: Bool { model.isGroupUnlocked(group.id) }
+    private var appsCount: Int {
+        group.selection.applicationTokens.count + group.selection.categoryTokens.count
+    }
+    private let intervals: [AccessWindow] = [.minutes10, .minutes30, .hour1]
+
+    private var spentToday: Int {
+        model.appStepsSpentToday["group_\(group.id)"] ?? 0
+    }
+    private var spentLifetime: Int {
+        model.totalStepsSpent(for: "group_\(group.id)")
+    }
+
+    var body: some View {
+        ZStack {
+            if isFlipped {
+                backSide
+                    .scaleEffect(x: -1, y: 1) // counteract parent's 180° Y flip so text reads LTR
+            } else {
+                frontSide
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: isFlipped)
+    }
+
+    // MARK: - Front: museum ticket
+
+    private var frontSide: some View {
+        HStack(spacing: 0) {
+            // Left stub
+            VStack(spacing: 6) {
+                ticketIcon
+                    .frame(width: 36, height: 36)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .frame(width: 64)
+            .frame(maxHeight: .infinity)
+
+            // Dashed perforation line
+            PerforationLine(color: frontPerf)
+                .frame(width: 1)
+
+            // Main body
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(ticketTitle)
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundStyle(frontInk)
+                        .lineLimit(1)
+                    Spacer()
+                    statusPill
+                }
+                HStack(spacing: 12) {
+                    Label("\(appsCount) \(appsCount == 1 ? "app" : "apps")", systemImage: "app.fill")
+                        .font(.caption)
+                        .foregroundStyle(frontSecondaryInk)
+                    if group.difficultyLevel > 1 {
+                        difficultyDots
+                    }
+                }
+
+                // Experience spent stats
+                HStack(spacing: 16) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 9))
+                        Text("\(spentToday)")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Text(loc(appLanguage, "today"))
+                            .font(.system(size: 10, design: .rounded))
+                    }
+                    .foregroundStyle(frontSecondaryInk)
+
+                    HStack(spacing: 3) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 9))
+                        Text("\(spentLifetime)")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Text(loc(appLanguage, "total"))
+                            .font(.system(size: 10, design: .rounded))
+                    }
+                    .foregroundStyle(frontSecondaryInk.opacity(0.7))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(height: 116)
+        .background(
+            TicketShape()
+                .fill(frontFill)
+        )
+        .clipShape(TicketShape())
+        .overlay(TicketShape().stroke(frontInk.opacity(0.12), lineWidth: 0.75))
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.14), radius: 8, x: 0, y: 4)
+        .contentShape(TicketShape())
+        .onTapGesture { onFlip() }
+    }
+
+    // MARK: - Back: unlock actions + settings (stub on right)
+
+    private var backSide: some View {
+        HStack(spacing: 0) {
+            // Main body: unlock buttons or "unlocked" status
+            VStack(alignment: .leading, spacing: 6) {
+                if isUnlocked {
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.open.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(backInk)
+                        if let remaining = model.remainingUnlockTime(for: group.id), remaining > 0 {
+                            Text("\(formatTime(remaining)) " + loc(appLanguage, "left"))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(backInk)
+                        } else {
+                            Text(loc(appLanguage, "Open"))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(backInk)
+                        }
+                        Spacer()
+                    }
+                } else {
+                    Text(loc(appLanguage, "Trade exp. for time"))
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(backSecondaryInk)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+
+                    let enabledIntervals = intervals.filter { group.enabledIntervals.contains($0) }
+                    HStack(spacing: 6) {
+                        ForEach(enabledIntervals, id: \.self) { interval in
+                            unlockPill(interval: interval)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture { onFlip() }
+
+            // Perforation + stub on the RIGHT
+            PerforationLine(color: backPerf)
+                .frame(width: 1)
+
+            VStack(spacing: 6) {
+                Button {
+                    onSettings()
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.title3)
+                        .foregroundStyle(backInk)
+                        .frame(width: 64, height: 116)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(width: 64)
+            .frame(maxHeight: .infinity)
+        }
+        .frame(height: 116)
+        .background(
+            TicketShape(stubOnRight: true)
+                .fill(backSurface)
+        )
+        .clipShape(TicketShape(stubOnRight: true))
+        .overlay(TicketShape(stubOnRight: true).stroke(backInk.opacity(0.18), lineWidth: 0.75))
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.14), radius: 8, x: 0, y: 4)
+    }
+
+    // MARK: - Unlock pill button
+
+    private func unlockPill(interval: AccessWindow) -> some View {
+        let cost = group.cost(for: interval)
+        let canAfford = model.totalStepsBalance >= cost
+        let label = shortTimeLabel(interval)
+
+        return Button {
+            guard canAfford, !isUnlocking else { return }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Task {
+                isUnlocking = true
+                await model.handlePayGatePaymentForGroup(groupId: group.id, window: interval, costOverride: cost)
+                isUnlocking = false
+            }
+        } label: {
+            VStack(spacing: 3) {
+                Text(label)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                HStack(spacing: 2) {
+                    Text(loc(appLanguage, "for"))
+                        .font(.system(size: 9, design: .rounded))
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 8))
+                    Text("\(cost)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                }
+                .opacity(0.75)
+            }
+            .foregroundStyle(canAfford ? Color.black.opacity(0.88) : backInk.opacity(0.45))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(canAfford ? TicketsPalette.accent : Color.black.opacity(0.08))
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!canAfford || isUnlocking)
+    }
+
+    private func shortTimeLabel(_ interval: AccessWindow) -> String {
+        switch interval {
+        case .minutes10: return "10m"
+        case .minutes30: return "30m"
+        case .hour1: return "1h"
+        }
+    }
+
+    // MARK: - Sub-views
+
+    @ViewBuilder
+    private var ticketIcon: some View {
+        if let templateApp = group.templateApp,
+           let imageName = TargetResolver.imageName(for: templateApp),
+           let uiImage = UIImage(named: imageName) ?? UIImage(named: imageName.lowercased()) ?? UIImage(named: imageName.capitalized) {
+            Image(uiImage: uiImage)
+                .resizable().scaledToFill()
+        } else {
+            #if canImport(FamilyControls)
+            if let firstToken = group.selection.applicationTokens.first {
+                AppIconView(token: firstToken)
+            } else if let firstCat = group.selection.categoryTokens.first {
+                CategoryIconView(token: firstCat)
+            } else {
+                Image(systemName: "app.fill")
+                    .font(.title3).foregroundStyle(frontSecondaryInk)
+            }
+            #else
+            Image(systemName: "app.fill")
+                .font(.title3).foregroundStyle(frontSecondaryInk)
+            #endif
+        }
+    }
+
+    private var statusPill: some View {
+        Group {
+            if isUnlocked {
+                if let remaining = model.remainingUnlockTime(for: group.id), remaining > 0 {
+                    Text(formatTime(remaining))
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(frontInk)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.white.opacity(0.55)))
+                } else {
+                    Text(loc(appLanguage, "Open"))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(frontInk)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.white.opacity(0.55)))
+                }
+            } else {
+                HStack(spacing: 3) {
+                    Image(systemName: "lock.fill").font(.system(size: 8))
+                    Text(loc(appLanguage, "Active"))
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(frontSecondaryInk)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Color.black.opacity(0.08)))
+            }
+        }
+    }
+
+    private var difficultyDots: some View {
+        HStack(spacing: 2) {
+            ForEach(1...5, id: \.self) { i in
+                Circle()
+                    .fill(i <= group.difficultyLevel ? difficultyColor(for: group.difficultyLevel) : Color.primary.opacity(0.1))
+                    .frame(width: 4, height: 4)
+            }
+        }
+    }
+
+    private var ticketTitle: String {
+        if let templateApp = group.templateApp {
+            return TargetResolver.displayName(for: templateApp)
+        }
+        #if canImport(FamilyControls)
+        let defaults = UserDefaults(suiteName: "group.personal-project.StepsTrader") ?? .standard
+        if appsCount == 1, let firstToken = group.selection.applicationTokens.first,
+           let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: firstToken, requiringSecureCoding: true) {
+            let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
+            if let name = defaults.string(forKey: tokenKey) { return name }
+        }
+        #endif
+        if appsCount == 0 { return loc(appLanguage, "Empty Ticket") }
+        return group.name.isEmpty ? "\(appsCount) \(appsCount == 1 ? "app" : "apps")" : group.name
+    }
+
+    private func formatTime(_ t: TimeInterval) -> String {
+        let m = Int(t) / 60; let s = Int(t) % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
+    private func difficultyColor(for level: Int) -> Color {
+        switch level {
+        case 1: return .green; case 2: return .blue; case 3: return .orange
+        case 4: return .red; case 5: return .purple; default: return .gray
+        }
+    }
+
+    private func difficultyLabel(for level: Int) -> String {
+        switch level {
+        case 1: return "Rookie"; case 2: return "Rebel"; case 3: return "Fighter"
+        case 4: return "Warrior"; case 5: return "Legend"; default: return "–"
+        }
+    }
+}
+
+// MARK: - Ticket Shape (notched edges like a real ticket)
+
+/// Custom shape: rounded rectangle with two semicircular notches where the stub meets the body.
+/// `stubOnRight` flips the notch position for the back side of a flipped ticket.
+fileprivate struct TicketShape: Shape {
+    var stubOnRight = false
+
+    func path(in rect: CGRect) -> Path {
+        let cr: CGFloat = 10 // corner radius
+        let nr: CGFloat = 8  // notch radius
+        let stubW: CGFloat = 64
+        let nx: CGFloat = stubOnRight ? rect.width - stubW : stubW
+
+        var p = Path()
+
+        p.move(to: CGPoint(x: cr, y: 0))
+
+        if !stubOnRight {
+            // Top edge: notch on the left side
+            p.addLine(to: CGPoint(x: nx - nr, y: 0))
+            p.addArc(center: CGPoint(x: nx, y: 0), radius: nr,
+                      startAngle: .degrees(180), endAngle: .degrees(0), clockwise: true)
+        }
+        p.addLine(to: CGPoint(x: stubOnRight ? nx - nr : rect.width - cr, y: 0))
+        if stubOnRight {
+            // Top edge: notch on the right side
+            p.addArc(center: CGPoint(x: nx, y: 0), radius: nr,
+                      startAngle: .degrees(180), endAngle: .degrees(0), clockwise: true)
+            p.addLine(to: CGPoint(x: rect.width - cr, y: 0))
+        }
+
+        // Top-right corner
+        p.addArc(center: CGPoint(x: rect.width - cr, y: cr), radius: cr,
+                  startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+        // Right edge
+        p.addLine(to: CGPoint(x: rect.width, y: rect.height - cr))
+        // Bottom-right corner
+        p.addArc(center: CGPoint(x: rect.width - cr, y: rect.height - cr), radius: cr,
+                  startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+
+        if stubOnRight {
+            // Bottom edge: notch on the right side
+            p.addLine(to: CGPoint(x: nx + nr, y: rect.height))
+            p.addArc(center: CGPoint(x: nx, y: rect.height), radius: nr,
+                      startAngle: .degrees(0), endAngle: .degrees(180), clockwise: true)
+        }
+        p.addLine(to: CGPoint(x: stubOnRight ? cr : nx + nr, y: rect.height))
+        if !stubOnRight {
+            // Bottom edge: notch on the left side
+            p.addArc(center: CGPoint(x: nx, y: rect.height), radius: nr,
+                      startAngle: .degrees(0), endAngle: .degrees(180), clockwise: true)
+            p.addLine(to: CGPoint(x: cr, y: rect.height))
+        }
+
+        // Bottom-left corner
+        p.addArc(center: CGPoint(x: cr, y: rect.height - cr), radius: cr,
+                  startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+        // Left edge
+        p.addLine(to: CGPoint(x: 0, y: cr))
+        // Top-left corner
+        p.addArc(center: CGPoint(x: cr, y: cr), radius: cr,
+                  startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+
+        p.closeSubpath()
+        return p
+    }
+}
+
+// MARK: - Perforation dashed line
+
+fileprivate struct PerforationLine: View {
+    let color: Color
+    var body: some View {
+        GeometryReader { geo in
+            Path { p in
+                var y: CGFloat = 4
+                while y < geo.size.height - 4 {
+                    p.move(to: CGPoint(x: 0, y: y))
+                    p.addLine(to: CGPoint(x: 0, y: y + 4))
+                    y += 8
+                }
+            }
+            .stroke(color, lineWidth: 1)
+        }
+    }
+}
+
+// MARK: - Ticket Template Picker
+struct TicketTemplatePickerView: View {
     @ObservedObject var model: AppModel
     let appLanguage: String
     let onTemplateSelected: (String) -> Void
     let onCustomSelected: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     
     private struct Template {
         let bundleId: String
@@ -367,32 +737,31 @@ struct ShieldTemplatePickerView: View {
         let imageName: String
     }
     
-    private let allTemplates: [Template] = [
-        Template(bundleId: "com.burbn.instagram", name: "Instagram", imageName: "instagram"),
-        Template(bundleId: "com.zhiliaoapp.musically", name: "TikTok", imageName: "tiktok"),
-        Template(bundleId: "com.google.ios.youtube", name: "YouTube", imageName: "youtube"),
-        Template(bundleId: "com.toyopagroup.picaboo", name: "Snapchat", imageName: "snapchat"),
-        Template(bundleId: "com.reddit.Reddit", name: "Reddit", imageName: "reddit"),
-        Template(bundleId: "com.atebits.Tweetie2", name: "X", imageName: "x"),
-        Template(bundleId: "com.duolingo.DuolingoMobile", name: "Duolingo", imageName: "duolingo"),
-        Template(bundleId: "com.facebook.Facebook", name: "Facebook", imageName: "facebook"),
-        Template(bundleId: "com.linkedin.LinkedIn", name: "LinkedIn", imageName: "linkedin"),
-        Template(bundleId: "com.pinterest", name: "Pinterest", imageName: "pinterest"),
-        Template(bundleId: "ph.telegra.Telegraph", name: "Telegram", imageName: "telegram"),
-        Template(bundleId: "net.whatsapp.WhatsApp", name: "WhatsApp", imageName: "whatsapp")
-    ]
+    private static let allTemplates: [Template] = {
+        let bundleIds = [
+            "com.burbn.instagram", "com.zhiliaoapp.musically", "com.google.ios.youtube",
+            "com.toyopagroup.picaboo", "com.reddit.Reddit", "com.atebits.Tweetie2",
+            "com.duolingo.DuolingoMobile", "com.facebook.Facebook", "com.linkedin.LinkedIn",
+            "com.pinterest", "ph.telegra.Telegraph", "net.whatsapp.WhatsApp"
+        ]
+        return bundleIds.compactMap { bid in
+            TargetResolver.imageName(for: bid).map { imageName in
+                Template(bundleId: bid, name: TargetResolver.displayName(for: bid), imageName: imageName)
+            }
+        }
+    }()
     
     // Filter out templates that are already used
     private var availableTemplates: [Template] {
-        let usedTemplateApps = Set(model.shieldGroups.compactMap { $0.templateApp })
-        return allTemplates.filter { !usedTemplateApps.contains($0.bundleId) }
+        let usedTemplateApps = Set(model.ticketGroups.compactMap { $0.templateApp })
+        return Self.allTemplates.filter { !usedTemplateApps.contains($0.bundleId) }
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Custom shield option
+                    // Custom ticket option
                     Button {
                         onCustomSelected()
                     } label: {
@@ -409,12 +778,12 @@ struct ShieldTemplatePickerView: View {
                                     .frame(width: 56, height: 56)
                                 
                                 Image(systemName: "plus")
-                                    .font(.system(size: 24, weight: .semibold))
+                                    .font(.title2.weight(.semibold))
                                     .foregroundColor(AppColors.brandPink)
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(loc(appLanguage, "Custom Shield"))
+                                Text(loc(appLanguage, "Custom Ticket"))
                                     .font(.headline)
                                     .foregroundColor(.primary)
                                 Text(loc(appLanguage, "Choose your own apps"))
@@ -430,7 +799,7 @@ struct ShieldTemplatePickerView: View {
                         .padding()
                         .background(
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(.systemBackground))
+                                .fill(theme.backgroundSecondary)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 16)
                                         .stroke(AppColors.brandPink.opacity(0.3), lineWidth: 1.5)
@@ -466,9 +835,11 @@ struct ShieldTemplatePickerView: View {
                 }
                 .padding()
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle(loc(appLanguage, "New Shield"))
+            .background(theme.backgroundColor)
+            .navigationTitle(loc(appLanguage, "New Ticket"))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(theme.backgroundColor, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(loc(appLanguage, "Cancel")) {
@@ -484,8 +855,11 @@ struct ShieldTemplatePickerView: View {
             onTemplateSelected(template.bundleId)
         } label: {
             VStack(spacing: 8) {
-                // Large app icon
-                if let uiImage = UIImage(named: template.imageName) {
+                // Large app icon (try exact, lowercase, capitalized so Assets names match)
+                let uiImage = UIImage(named: template.imageName)
+                    ?? UIImage(named: template.imageName.lowercased())
+                    ?? UIImage(named: template.imageName.capitalized)
+                if let uiImage = uiImage {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
@@ -498,7 +872,7 @@ struct ShieldTemplatePickerView: View {
                         .frame(width: 48, height: 48)
                         .overlay(
                             Image(systemName: "app.fill")
-                                .font(.system(size: 20))
+                                .font(.title3)
                                 .foregroundColor(.secondary)
                         )
                 }
@@ -513,7 +887,7 @@ struct ShieldTemplatePickerView: View {
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.systemBackground))
+                    .fill(theme.backgroundSecondary)
                     .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
             )
         }
@@ -521,314 +895,235 @@ struct ShieldTemplatePickerView: View {
     }
 }
 
-// MARK: - Shield Card View
-struct ShieldCardView: View {
+// MARK: - Inline Ticket Settings (Expandable)
+struct InlineTicketSettingsView: View {
     @ObservedObject var model: AppModel
-    let group: AppModel.ShieldGroup
+    @Binding var group: TicketGroup
     let appLanguage: String
-    let onEdit: () -> Void
-    @State private var remainingTime: TimeInterval? = nil
-    @State private var timer: Timer? = nil
+    let onEditApps: () -> Void
+    var onAfterDelete: (() -> Void)? = nil
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isUnlocking = false
+    @State private var difficultyUpdateTask: Task<Void, Never>? = nil
+    @State private var showEditSettings = false
+    
+    private let intervals: [AccessWindow] = [.minutes10, .minutes30, .hour1]
+    
+    private var surface: Color { Color(.secondarySystemGroupedBackground) }
+    private var separator: Color { Color(.separator) }
+    private var accent: Color { TicketsPalette.accent }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Spend experience buttons - main content
+            unlockButtonsSection
+            
+            Divider()
+                .background(separator)
+            
+            // Edit settings - reveals difficulty + time intervals
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    showEditSettings.toggle()
+                }
+            } label: {
+                rowButtonLabel(icon: "gearshape.fill", title: loc(appLanguage, "Edit settings"), showChevron: true, expanded: showEditSettings, surface: surface, separator: separator)
+            }
+            .buttonStyle(.plain)
+            
+            if showEditSettings {
+                VStack(alignment: .leading, spacing: 16) {
+                    Divider()
+                        .background(separator)
+                    inlineDifficultySection
+                    inlineIntervalsSection
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            
+            // Edit Apps
+            Button {
+                onEditApps()
+            } label: {
+                rowButtonLabel(icon: "square.grid.2x2", title: loc(appLanguage, "Edit Apps"), showChevron: true, expanded: false, surface: surface, separator: separator)
+            }
+            .buttonStyle(.plain)
+            
+            // Delete
+            Button {
+                model.deleteTicketGroup(group.id)
+                onAfterDelete?()
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "trash")
+                        .font(.body)
+                        .foregroundColor(.red)
+                        .frame(width: 24)
+                    Text(loc(appLanguage, "Delete"))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(.red)
+                    Spacer()
+                }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(surface)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(separator.opacity(0.5), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.top, 8)
+    }
+    
+    private func rowButtonLabel(icon: String, title: String, showChevron: Bool, expanded: Bool, surface: Color, separator: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .frame(width: 24)
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary)
+            Spacer()
+            if showChevron {
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(expanded ? 180 : 0))
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(separator.opacity(0.5), lineWidth: 1)
+                )
+        )
+    }
     
     private var appsCount: Int {
         group.selection.applicationTokens.count + group.selection.categoryTokens.count
     }
     
-    private var isActive: Bool {
-        group.settings.familyControlsModeEnabled || group.settings.minuteTariffEnabled
-    }
-    
-    private var isUnlocked: Bool {
-        model.isGroupUnlocked(group.id)
-    }
-    
-    private var dynamicCardColor: Color {
-        // If unlocked, calculate color based on remaining time
-        if isUnlocked, let remaining = remainingTime {
-            // Use remaining time in seconds to determine color
-            // Green for > 30 min, yellow for 5-30 min, red for < 5 min
-            let remainingMinutes = remaining / 60.0
-            
-            if remainingMinutes > 30 {
-                // Green - plenty of time
-                return .green
-            } else if remainingMinutes > 5 {
-                // Yellow to orange - moderate time
-                let factor = (remainingMinutes - 5) / 25.0 // 0 to 1
-                return Color(
-                    red: 1.0,
-                    green: 0.5 + (factor * 0.5),
-                    blue: 0
-                )
-            } else {
-                // Orange to red - low time
-                let factor = remainingMinutes / 5.0 // 0 to 1
-                return Color(
-                    red: 1.0,
-                    green: factor * 0.5,
-                    blue: 0
-                )
-            }
-        }
-        
-        // If active but not unlocked, use neutral gray
-        if isActive { return .gray }
-        return .gray
-    }
-    
-    var body: some View {
-        Button {
-            onEdit()
-        } label: {
-            HStack(spacing: 12) {
-                // Left: App icon
-                appIconsStack
-                    .frame(width: 52, height: 52)
-                
-                // Center: Title + Status
-                VStack(alignment: .leading, spacing: 4) {
-                    // Title
-                    Text(shieldTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                    
-                    // Apps count (only if > 1)
-                    if appsCount > 1 {
-                        HStack(spacing: 3) {
-                            Image(systemName: "app.fill")
-                                .font(.caption2)
-                            Text("\(appsCount) apps")
-                                .font(.caption)
-                        }
-                        .foregroundColor(.secondary)
-                    }
-                    
-                    // Status: "under control" or "open for ##:##"
-                    statusLabel
-                }
-                
+    // MARK: - Difficulty
+    private var inlineDifficultySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "dial.high.fill")
+                    .foregroundColor(inlineDifficultyColor(for: group.difficultyLevel))
+                Text(loc(appLanguage, "Difficulty"))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
                 Spacer()
-                
-                // Right: Difficulty + Chevron
-                VStack(alignment: .trailing, spacing: 8) {
-                    difficultyBadge
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.secondary.opacity(0.5))
+                Text(difficultyLabel)
+                    .font(.caption.weight(.medium))
+                    .foregroundColor(inlineDifficultyColor(for: group.difficultyLevel))
+            }
+            
+            Slider(
+                value: Binding(
+                    get: { Double(group.difficultyLevel) },
+                    set: { newValue in
+                        let newLevel = Int(newValue.rounded())
+                        group.difficultyLevel = newLevel
+                        difficultyUpdateTask?.cancel()
+                        difficultyUpdateTask = Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            guard !Task.isCancelled else { return }
+                            model.updateTicketGroup(group)
+                        }
+                    }
+                ),
+                in: 1...5,
+                step: 1
+            )
+            .tint(inlineDifficultyColor(for: group.difficultyLevel))
+            
+            HStack(spacing: 8) {
+                ForEach(intervals, id: \.self) { interval in
+                    if group.enabledIntervals.contains(interval) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "bolt.fill")
+                                .font(.caption2)
+                            Text("\(group.cost(for: interval))")
+                                .font(.caption.weight(.semibold))
+                                .monospacedDigit()
+                        }
+                        .foregroundColor(inlineDifficultyColor(for: group.difficultyLevel))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(inlineDifficultyColor(for: group.difficultyLevel).opacity(0.15))
+                        )
+                    }
                 }
             }
-            .padding(12)
-            .background(cardBackground)
         }
-        .buttonStyle(.plain)
-        .onAppear {
-            updateRemainingTime()
-            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                updateRemainingTime()
-            }
-        }
-        .onDisappear {
-            timer?.invalidate()
-            timer = nil
-        }
-    }
-    
-    private var statusLabel: some View {
-        Group {
-            if isUnlocked, let remaining = remainingTime {
-                // Open state with timer
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(dynamicCardColor)
-                        .frame(width: 6, height: 6)
-                    Text("open for \(formatRemainingTimeShort(remaining))")
-                        .font(.caption.weight(.medium))
-                        .monospacedDigit()
-                }
-                .foregroundColor(dynamicCardColor)
-            } else {
-                // Locked state
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 6, height: 6)
-                    Text("under control")
-                        .font(.caption.weight(.medium))
-                }
-                .foregroundColor(.green)
-            }
-        }
-    }
-    
-    private func formatRemainingTimeShort(_ timeInterval: TimeInterval) -> String {
-        let totalSeconds = Int(timeInterval)
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        let seconds = totalSeconds % 60
-        
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        } else {
-            return String(format: "%02d:%02d", minutes, seconds)
-        }
-    }
-    
-    private var shieldTitle: String {
-        // If template app is set, use its display name
-        if let templateApp = group.templateApp {
-            return TargetResolver.displayName(for: templateApp)
-        }
-        
-        #if canImport(FamilyControls)
-        let defaults = UserDefaults(suiteName: "group.personal-project.StepsTrader") ?? .standard
-        
-        if appsCount == 1 {
-            if let firstToken = group.selection.applicationTokens.first,
-               let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: firstToken, requiringSecureCoding: true) {
-                let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-                if let name = defaults.string(forKey: tokenKey) {
-                    return name
-                }
-            }
-            if !group.selection.categoryTokens.isEmpty {
-                return "Category"
-            }
-        }
-        #endif
-        
-        if appsCount == 0 {
-            return loc(appLanguage, "Empty Shield")
-        }
-        return "\(appsCount) \(appsCount == 1 ? "app" : "apps")"
-    }
-    
-    private var difficultyBadge: some View {
-        let color = difficultyColor(for: group.difficultyLevel)
-        let label = difficultyLabelShort(for: group.difficultyLevel)
-        
-        return HStack(spacing: 3) {
-            Circle()
-                .fill(color)
-                .frame(width: 6, height: 6)
-            Text(label)
-                .font(.caption2.weight(.semibold))
-        }
-        .foregroundColor(color)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(14)
         .background(
-            Capsule()
-                .fill(color.opacity(0.12))
+            RoundedRectangle(cornerRadius: 12)
+                .fill(surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(separator.opacity(0.5), lineWidth: 1)
+                )
         )
     }
     
-    private var appIconsStack: some View {
-        ZStack {
-            // Template app - show icon from assets
-            if let templateApp = group.templateApp {
-                if let imageName = templateImageName(for: templateApp),
-                   let uiImage = UIImage(named: imageName) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 48, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
-                } else {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: 48, height: 48)
-                        .overlay(
-                            Image(systemName: "app.fill")
-                                .foregroundColor(.secondary)
-                        )
+    // MARK: - Time intervals (tariffs)
+    private var inlineIntervalsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(loc(appLanguage, "Time options"))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+            
+            ForEach(intervals, id: \.self) { interval in
+                HStack {
+                    Text(unlockOptionLabel(interval))
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { group.enabledIntervals.contains(interval) },
+                        set: { enabled in
+                            if enabled {
+                                group.enabledIntervals.insert(interval)
+                            } else if group.enabledIntervals.count > 1 {
+                                group.enabledIntervals.remove(interval)
+                            }
+                            model.updateTicketGroup(group)
+                        }
+                    ))
+                    .tint(accent)
                 }
-            } else {
-                #if canImport(FamilyControls)
-                let appTokens = Array(group.selection.applicationTokens.prefix(1))
-                let categoryTokens = Array(group.selection.categoryTokens.prefix(appTokens.isEmpty ? 1 : 0))
-                
-                if appTokens.isEmpty && categoryTokens.isEmpty {
-                    // Empty state
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.tertiarySystemBackground))
-                        .frame(width: 48, height: 48)
-                        .overlay(
-                            Image(systemName: "app.dashed")
-                                .font(.system(size: 20))
-                                .foregroundColor(.secondary.opacity(0.5))
-                        )
-                } else if let firstToken = appTokens.first {
-                    // Single app icon
-                    AppIconView(token: firstToken)
-                        .frame(width: 48, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
-                } else if let firstCategory = categoryTokens.first {
-                    // Category icon
-                    CategoryIconView(token: firstCategory)
-                        .frame(width: 48, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
-                }
-                #endif
+                .padding(.vertical, 6)
             }
         }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(separator.opacity(0.5), lineWidth: 1)
+                )
+        )
     }
     
-    private func templateImageName(for bundleId: String) -> String? {
-        switch bundleId {
-        case "com.burbn.instagram": return "instagram"
-        case "com.zhiliaoapp.musically": return "tiktok"
-        case "com.google.ios.youtube": return "youtube"
-        case "com.toyopagroup.picaboo": return "snapchat"
-        case "com.reddit.Reddit": return "reddit"
-        case "com.atebits.Tweetie2": return "x"
-        case "com.duolingo.DuolingoMobile": return "duolingo"
-        case "com.facebook.Facebook": return "facebook"
-        case "com.linkedin.LinkedIn": return "linkedin"
-        case "com.pinterest": return "pinterest"
-        case "ph.telegra.Telegraph": return "telegram"
-        case "net.whatsapp.WhatsApp": return "whatsapp"
-        default: return nil
-        }
-    }
-    
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 16)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(
-                        isUnlocked ? dynamicCardColor.opacity(0.5) : Color.primary.opacity(0.08),
-                        lineWidth: isUnlocked ? 2 : 1
-                    )
-            )
-            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
-    }
-    
-    private func updateRemainingTime() {
-        remainingTime = model.remainingUnlockTime(for: group.id)
-    }
-    
-    private func formatRemainingTime(_ timeInterval: TimeInterval) -> String {
-        let totalSeconds = Int(timeInterval)
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        let seconds = totalSeconds % 60
-        
-        if hours > 0 {
-            return "\(hours)h \(minutes)m"
-        } else if minutes > 0 {
-            return "\(minutes)m \(seconds)s"
-        } else {
-            return "\(seconds)s"
-        }
-    }
-    
-    private func difficultyColor(for level: Int) -> Color {
+    private func inlineDifficultyColor(for level: Int) -> Color {
         switch level {
         case 1: return .green
         case 2: return .blue
@@ -839,8 +1134,114 @@ struct ShieldCardView: View {
         }
     }
     
-    private func difficultyLabelShort(for level: Int) -> String {
-        switch level {
+    @ViewBuilder
+    private var unlockButtonsSection: some View {
+        if model.isGroupUnlocked(group.id) {
+            // Currently unlocked - show remaining time
+            if let remaining = model.remainingUnlockTime(for: group.id) {
+                HStack(spacing: 12) {
+                    Image(systemName: "lock.open.fill")
+                        .font(.title2)
+                        .foregroundColor(accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(loc(appLanguage, "Open"))
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Text("\(formatRemaining(remaining)) " + loc(appLanguage, "left"))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 16)
+                .padding(.horizontal, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(accent.opacity(0.12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(accent.opacity(0.3), lineWidth: 2)
+                        )
+                )
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(loc(appLanguage, "Spend experience on"))
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+                
+                ForEach(intervals, id: \.self) { interval in
+                    if group.enabledIntervals.contains(interval) {
+                        quickUnlockButton(interval: interval)
+                    }
+                }
+            }
+        }
+    }
+    
+    private func quickUnlockButton(interval: AccessWindow) -> some View {
+        let cost = group.cost(for: interval)
+        let canAfford = model.totalStepsBalance >= cost
+        let timeLabel = unlockOptionLabel(interval)
+        
+        return Button {
+            guard canAfford, !isUnlocking else { return }
+            // Haptic feedback
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            
+            Task {
+                isUnlocking = true
+                await model.handlePayGatePaymentForGroup(groupId: group.id, window: interval, costOverride: cost)
+                isUnlocking = false
+            }
+        } label: {
+            HStack(spacing: 12) {
+                // Time label - prominent
+                Text(timeLabel)
+                    .font(.headline)
+                    .foregroundStyle(canAfford ? Color.primary : Color.primary.opacity(0.5))
+                
+                Spacer()
+                
+                // Cost - with icon
+                HStack(spacing: 4) {
+                    Image(systemName: "bolt.fill")
+                        .font(.body)
+                    Text("\(cost)")
+                        .font(.headline)
+                        .monospacedDigit()
+                }
+                .foregroundStyle(canAfford ? Color.primary : Color.primary.opacity(0.5))
+            }
+            .padding(.vertical, 16)
+            .padding(.horizontal, 18)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(canAfford ? accent : surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(canAfford ? Color.clear : separator.opacity(0.5), lineWidth: 1)
+                    )
+            )
+            .shadow(color: canAfford ? accent.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
+        }
+        .disabled(!canAfford || isUnlocking)
+        .buttonStyle(.plain)
+        .opacity(canAfford ? 1.0 : 0.6)
+        .scaleEffect(isUnlocking ? 0.95 : 1.0)
+        .animation(.easeInOut(duration: 0.15), value: isUnlocking)
+    }
+    
+    private func formatRemaining(_ sec: TimeInterval) -> String {
+        let m = Int(sec) / 60
+        let s = Int(sec) % 60
+        if m >= 60 { return "\(m / 60)h \(m % 60)m" }
+        return "\(m):\(String(format: "%02d", s))"
+    }
+    
+    private var difficultyLabel: String {
+        switch group.difficultyLevel {
         case 1: return "Rookie"
         case 2: return "Rebel"
         case 3: return "Fighter"
@@ -849,18 +1250,27 @@ struct ShieldCardView: View {
         default: return "Fighter"
         }
     }
+    
+    private func unlockOptionLabel(_ interval: AccessWindow) -> String {
+        switch interval {
+        case .minutes10: return loc(appLanguage, "a bit (10 min)")
+        case .minutes30: return loc(appLanguage, "quite a bit (30 min)")
+        case .hour1: return loc(appLanguage, "some time (1 hour)")
+        }
+    }
 }
 
 // MARK: - Difficulty Picker View
 struct DifficultyPickerView: View {
     @ObservedObject var model: AppModel
-    @State var group: AppModel.ShieldGroup
+    @State var group: TicketGroup
     let appLanguage: String
     let onDone: () -> Void
+    @Environment(\.appTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
                     // Header
@@ -890,12 +1300,14 @@ struct DifficultyPickerView: View {
                 }
                 .padding(.bottom, 40)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(theme.backgroundColor)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(theme.backgroundColor, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(loc(appLanguage, "Done")) {
-                        model.updateShieldGroup(group)
+                        model.updateTicketGroup(group)
                         onDone()
                     }
                     .fontWeight(.semibold)
@@ -923,11 +1335,11 @@ struct DifficultyPickerView: View {
                     
                     if isSelected {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.title3.weight(.bold))
                             .foregroundColor(.white)
                     } else {
                         Text("\(level)")
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(.title3.weight(.semibold))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -947,7 +1359,7 @@ struct DifficultyPickerView: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(isSelected ? color.opacity(0.1) : Color(.systemBackground))
+                    .fill(isSelected ? color.opacity(0.1) : theme.backgroundSecondary)
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
                             .stroke(isSelected ? color : Color.clear, lineWidth: 2)
@@ -967,7 +1379,7 @@ struct DifficultyPickerView: View {
                 GridItem(.flexible()),
                 GridItem(.flexible())
             ], spacing: 12) {
-                ForEach([AccessWindow.minutes5, .minutes30, .hour1], id: \.self) { interval in
+                ForEach([AccessWindow.minutes10, .minutes30, .hour1], id: \.self) { interval in
                     VStack(spacing: 4) {
                         Text(interval.displayName)
                             .font(.caption)
@@ -992,7 +1404,7 @@ struct DifficultyPickerView: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
+                .fill(theme.backgroundSecondary)
         )
     }
     
@@ -1030,70 +1442,3 @@ struct DifficultyPickerView: View {
     }
 }
 
-// MARK: - Legacy Views (kept for compatibility)
-
-struct ShieldGroupCardView: View {
-    @ObservedObject var model: AppModel
-    let group: AppModel.ShieldGroup
-    let appLanguage: String
-    let span: Int
-    let onEdit: () -> Void
-    
-    private var appsCount: Int {
-        group.selection.applicationTokens.count + group.selection.categoryTokens.count
-    }
-    
-    var body: some View {
-        Button {
-            onEdit()
-        } label: {
-            VStack(spacing: 8) {
-                Text(group.name)
-                    .font(.subheadline.weight(.semibold))
-                Text("\(appsCount) apps")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color(.systemBackground))
-            .cornerRadius(16)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-struct LegacyShieldCardView: View {
-    @ObservedObject var model: AppModel
-    let cardId: String
-    let settings: AppModel.AppUnlockSettings
-    let appLanguage: String
-
-    private var selection: FamilyActivitySelection {
-        model.timeAccessSelection(for: cardId)
-    }
-
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: "shield.fill")
-                .font(.title2)
-                .foregroundColor(.blue)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(model.appDisplayName(for: cardId))
-                    .font(.headline)
-                Text("Shield")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            Image(systemName: "chevron.right")
-                .foregroundColor(.secondary)
-        }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(16)
-    }
-}

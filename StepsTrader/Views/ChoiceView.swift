@@ -1,81 +1,157 @@
 import SwiftUI
 
-// MARK: - CHOICES tab: today's choices with stats header
-struct ChoiceView: View {
+// MARK: - GALLERY tab: today's gallery with stats header
+struct GalleryView: View {
     @ObservedObject var model: AppModel
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+    @Binding var breakdownCategory: EnergyCategory?
     
-    private var todayFormatted: String {
-        let f = DateFormatter()
-        f.dateFormat = "EEEE, d MMMM"
-        f.locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
-        return f.string(from: Date())
+    private var pageBackground: Color {
+        theme.backgroundColor
     }
-
+    
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 20) {
-                // Date + stats header
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(todayFormatted)
-                        .font(.title2.weight(.bold))
-                        .foregroundColor(.primary)
-                    
-                    HStack(spacing: 24) {
-                        // Steps
-                        HStack(spacing: 6) {
-                            Image(systemName: "figure.walk")
-                                .foregroundColor(theme.activityColor)
-                            Text("\(formatSteps(model.stepsToday))")
-                                .font(.subheadline.weight(.medium))
-                            Text("+\(model.stepsPointsToday)")
-                                .font(.caption)
-                                .foregroundColor(theme.activityColor)
-                        }
-                        
-                        // Sleep
-                        HStack(spacing: 6) {
-                            Image(systemName: "moon.fill")
-                                .foregroundColor(theme.recoveryColor)
-                            Text(formatSleep(model.dailySleepHours))
-                                .font(.subheadline.weight(.medium))
-                            Text("+\(model.sleepPointsToday)")
-                                .font(.caption)
-                                .foregroundColor(theme.recoveryColor)
-                        }
+        ZStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 6) {
+                        // Category rows
+                        CategoryCardsRow(
+                            model: model,
+                            category: .activity,
+                            appLanguage: appLanguage
+                        )
+                        CategoryCardsRow(
+                            model: model,
+                            category: .creativity,
+                            appLanguage: appLanguage
+                        )
+                        CategoryCardsRow(
+                            model: model,
+                            category: .joys,
+                            appLanguage: appLanguage
+                        )
                     }
+                    .padding(.bottom, 140)
                 }
-                .padding(.horizontal, 16)
-                
-                // Category rows
-                CategoryCardsRow(
-                    model: model,
-                    category: .activity,
-                    appLanguage: appLanguage
-                )
-                CategoryCardsRow(
-                    model: model,
-                    category: .recovery,
-                    appLanguage: appLanguage
-                )
-                CategoryCardsRow(
-                    model: model,
-                    category: .joys,
-                    appLanguage: appLanguage
-                )
             }
-            .padding(.vertical, 12)
+            .background(pageBackground)
+            .navigationBarHidden(true)
+            
+            if let category = breakdownCategory {
+                breakdownOverlay(category: category)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
         }
-        .background(theme.backgroundColor)
-        .navigationBarHidden(true)
+        .animation(.easeInOut(duration: 0.2), value: breakdownCategory != nil)
     }
     
-    private func formatSteps(_ steps: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = " "
-        return formatter.string(from: NSNumber(value: Int(steps))) ?? "\(Int(steps))"
+    private func breakdownOverlay(category: EnergyCategory) -> some View {
+        ZStack(alignment: .top) {
+            Color.black.opacity(0.25)
+                .ignoresSafeArea()
+                .onTapGesture { breakdownCategory = nil }
+            
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(breakdownTitle(for: category))
+                        .font(.headline)
+                    Spacer()
+                    Button {
+                        breakdownCategory = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Text(breakdownText(for: category))
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(theme.backgroundSecondary)
+                    .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 6)
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+        }
+    }
+    
+    private func breakdownTitle(for category: EnergyCategory) -> String {
+        switch category {
+        case .activity:
+            return appLanguage == "ru" ? "Активность" : "Activity"
+        case .creativity:
+            return appLanguage == "ru" ? "Творчество" : "Creativity"
+        case .joys:
+            return appLanguage == "ru" ? "Удовольствия" : "Joys"
+        }
+    }
+    
+    private func breakdownText(for category: EnergyCategory) -> String {
+        switch category {
+        case .activity:
+            let steps = Int(model.stepsToday)
+            let extras = selectionTitles(for: .activity)
+            let extraText = extras.isEmpty ? "" : (appLanguage == "ru" ? " и еще занялся \(extras.joined(separator: ", "))" : ". As an activity, I was \(extras.joined(separator: ", "))")
+            let total = model.activityPointsToday
+            if appLanguage == "ru" {
+                return "Сегодня я сделал \(steps) шагов\(extraText), что в сумме принесло мне \(total) баллов опыта."
+            }
+            return "Today I made \(steps) steps\(extraText). All of these brought me \(total) experience points in total."
+        case .creativity:
+            let extras = selectionTitles(for: .creativity)
+            let total = model.creativityPointsToday
+            if extras.isEmpty {
+                if appLanguage == "ru" {
+                    return "Сегодня я не выбирал творчество, что принесло мне \(total) баллов опыта."
+                }
+                return "Today I didn't choose any creativity, which brought me \(total) experience points."
+            } else {
+                let extraText = extras.joined(separator: ", ")
+                if appLanguage == "ru" {
+                    return "Сегодня я выбрал \(extraText), что принесло мне \(total) баллов опыта."
+                }
+                return "Today I chose \(extraText), which brought me \(total) experience points."
+            }
+        case .joys:
+            let sleep = formatSleep(model.dailySleepHours)
+            let extras = selectionTitles(for: .joys)
+            let total = model.joysCategoryPointsToday
+            if extras.isEmpty {
+                if appLanguage == "ru" {
+                    return "Сегодня я поспал \(sleep), и не выбирал удовольствия, что принесло мне \(total) баллов опыта."
+                }
+                return "Today I slept \(sleep) and didn't choose any joys, which brought me \(total) experience points."
+            } else {
+                let extraText = extras.joined(separator: ", ")
+                if appLanguage == "ru" {
+                    return "Сегодня я поспал \(sleep) и выбрал \(extraText), что принесло мне \(total) баллов опыта."
+                }
+                return "Today I slept \(sleep) and chose \(extraText), which brought me \(total) experience points."
+            }
+        }
+    }
+    
+    private func selectionTitles(for category: EnergyCategory) -> [String] {
+        let ids: [String]
+        switch category {
+        case .activity: ids = model.dailyActivitySelections
+        case .creativity: ids = model.dailyRestSelections
+        case .joys: ids = model.dailyJoysSelections
+        }
+        return ids.map { id in
+            EnergyDefaults.options.first(where: { $0.id == id })?.title(for: appLanguage)
+                ?? model.customOptionTitle(for: id, lang: appLanguage)
+                ?? id
+        }
     }
     
     private func formatSleep(_ hours: Double) -> String {
@@ -97,7 +173,7 @@ struct MemoriesSection: View {
     private static let calendar = Calendar.current
     
     private var dayKeysOrdered: [String] {
-        let today = Self.calendar.startOfDay(for: Date())
+        let today = AppModel.currentDayStartForDefaults(Date())
         return (0...60).reversed().compactMap { offset -> String? in
             guard let d = Self.calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
             return AppModel.dayKey(for: d)
@@ -170,7 +246,7 @@ struct MemoryDayCard: View {
                 .overlay(
                     VStack(spacing: 2) {
                         Text(dayNum)
-                            .font(.system(size: 17, weight: .semibold))
+                            .font(.notoSerif(17, weight: .semibold))
                             .foregroundColor(theme == .minimal ? theme.textPrimary : (isToday ? .white : .primary))
                         if hasData {
                             Circle()
@@ -200,55 +276,57 @@ struct CategoryCardsRow: View {
     
     private var categoryTitle: String {
         switch category {
-        case .activity: return loc(appLanguage, "Activity")
-        case .recovery: return loc(appLanguage, "Recovery")
-        case .joys: return loc(appLanguage, "Joys")
+        case .activity: return loc(appLanguage, "My activities")
+        case .creativity: return loc(appLanguage, "My creativity")
+        case .joys: return loc(appLanguage, "My joys")
         }
     }
     
-    private var categoryColor: Color {
-        switch category {
-        case .activity: return theme.activityColor
-        case .recovery: return theme.recoveryColor
-        case .joys: return theme.joysColor
-        }
-    }
+    private var categoryColor: Color { .primary }
     
     private var selectedCount: Int {
         model.dailySelectionsCount(for: category)
     }
     
-    /// Сначала выбранные, потом остальные
+    /// Сначала выбранные, потом остальные; без "Something else" / "Other"
     private var orderedOptions: [EnergyOption] {
         let allOptions = model.orderedOptions(for: category)
-        
-        // Разделяем на выбранные и невыбранные
+            .filter { !EnergyDefaults.otherOptionIds.contains($0.id) }
         let selected = allOptions.filter { model.isDailySelected($0.id, category: category) }
         let notSelected = allOptions.filter { !model.isDailySelected($0.id, category: category) }
-        
         return selected + notSelected
     }
     
+    @State private var showCategoryEditSheet = false
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
                 Text(categoryTitle)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundColor(categoryColor)
-                Text(loc(appLanguage, "+5 control each"))
-                    .font(.caption)
+                Text(loc(appLanguage, "+5 exp. each"))
+                    .font(.system(size: 10))
                     .foregroundColor(.secondary)
                 Spacer()
+                Button {
+                    showCategoryEditSheet = true
+                } label: {
+                    Text(loc(appLanguage, "Edit"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
                 Text("\(selectedCount)/4")
-                    .font(.caption.monospacedDigit())
+                    .font(.system(size: 11).monospacedDigit())
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal, 16)
             
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
+                HStack(spacing: 4) {
                     ForEach(orderedOptions) { option in
-                        ChoiceCard(
+                        GalleryCard(
                             model: model,
                             option: option,
                             category: category,
@@ -258,14 +336,14 @@ struct CategoryCardsRow: View {
                                 pendingOptionId = optionId
                                 showConfirmation = true
                             },
-                            onOtherTap: EnergyDefaults.otherOptionIds.contains(option.id) ? { showCustomActivitySheet = true } : nil
+                            onOtherTap: nil
                         )
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 8)
             }
         }
-        .alert(loc(appLanguage, "Confirm choice"), isPresented: $showConfirmation) {
+        .alert(loc(appLanguage, "Confirm selection"), isPresented: $showConfirmation) {
             Button(loc(appLanguage, "Cancel"), role: .cancel) {
                 pendingOptionId = nil
             }
@@ -278,22 +356,15 @@ struct CategoryCardsRow: View {
                 pendingOptionId = nil
             }
         } message: {
-            Text(loc(appLanguage, "This choice cannot be undone today."))
+            Text(loc(appLanguage, "This selection cannot be undone today."))
         }
-        .sheet(isPresented: $showCustomActivitySheet) {
-            CustomActivitySheet(
+        .sheet(isPresented: $showCategoryEditSheet) {
+            CategoryEditSheet(
                 model: model,
                 category: category,
                 appLanguage: appLanguage,
-                onSave: {
-                    showCustomActivitySheet = false
-                },
-                onCancel: {
-                    showCustomActivitySheet = false
-                }
+                onDismiss: { showCategoryEditSheet = false }
             )
-            .presentationDetents([.medium])
-            .presentationBackground(.ultraThinMaterial)
         }
     }
 }
@@ -320,7 +391,7 @@ struct CustomActivitySheet: View {
     private var categoryColor: Color {
         switch category {
         case .activity: return theme.activityColor
-        case .recovery: return theme.recoveryColor
+        case .creativity: return theme.restColor
         case .joys: return theme.joysColor
         }
     }
@@ -403,42 +474,42 @@ struct CustomActivitySheet: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(.secondarySystemBackground))
-                    .frame(width: 96, height: 112)
+                    .frame(width: 84, height: 100)
                 
                 // Icon background
                 Image(systemName: selectedIcon.isEmpty ? "questionmark" : selectedIcon)
-                    .font(.system(size: 32, weight: .light))
+                    .font(.notoSerif(28, weight: .light))
                     .foregroundColor(categoryColor.opacity(0.2))
                 
                 // Title
                 VStack {
                     Spacer()
                     Text(activityTitle.isEmpty ? loc(appLanguage, "Preview") : activityTitle)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.notoSerif(10, weight: .medium))
                         .foregroundColor(.primary)
                         .lineLimit(3)
                         .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.75)
                         .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 6)
-                        .padding(.bottom, 8)
+                        .padding(.horizontal, 5)
+                        .padding(.bottom, 6)
                 }
             }
-            .frame(width: 96, height: 112)
+            .frame(width: 84, height: 100)
             
             Spacer()
         }
-        .padding(.vertical, 16)
+        .padding(.vertical, 12)
     }
     
     // MARK: - Icon Grid
     private var iconGrid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 5), spacing: 12) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 5), spacing: 10) {
             ForEach(availableIcons, id: \.self) { icon in
                 iconButton(icon)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
     }
     
     private func iconButton(_ icon: String) -> some View {
@@ -450,10 +521,10 @@ struct CustomActivitySheet: View {
             ZStack {
                 Circle()
                     .fill(selectedIcon == icon ? categoryColor : Color(.tertiarySystemFill))
-                    .frame(width: 48, height: 48)
+                    .frame(width: 42, height: 42)
                 
                 Image(systemName: icon)
-                    .font(.system(size: 20))
+                    .font(.notoSerif(18))
                     .foregroundColor(selectedIcon == icon ? .white : .primary)
             }
             .overlay(
@@ -487,8 +558,8 @@ struct CustomActivitySheet: View {
     }
 }
 
-// MARK: - Choice card: tap to select (with confirmation), no deselection until end of day
-struct ChoiceCard: View {
+// MARK: - Gallery card: tap to select (with confirmation), no deselection until end of day
+struct GalleryCard: View {
     @ObservedObject var model: AppModel
     let option: EnergyOption
     let category: EnergyCategory
@@ -497,6 +568,7 @@ struct ChoiceCard: View {
     var onSelect: ((String) -> Void)? = nil
     var onOtherTap: (() -> Void)? = nil
     @Environment(\.appTheme) private var theme
+    @State private var showUndoPrompt = false
     
     private var isOther: Bool {
         EnergyDefaults.otherOptionIds.contains(option.id)
@@ -509,11 +581,46 @@ struct ChoiceCard: View {
     private var canSelect: Bool {
         !isSelected && model.dailySelectionsCount(for: category) < EnergyDefaults.maxSelectionsPerCategory
     }
+
+    private let referenceImages = ["refpic1", "refpic2", "refpic3", "refpic4", "refpic5", "refpic6", "refpic7"]
+    private let crossImages = ["cross1", "cross2", "cross3"]
+    private let frameImages = ["frame-1", "frame-2", "frame-3", "frame-4"]
+    
+    /// Stable per-option frame so the same card always gets the same frame.
+    private var frameImageName: String {
+        let sum = option.id.unicodeScalars.reduce(0) { $0 + Int($1.value) }
+        return frameImages[sum % frameImages.count]
+    }
+    
+    /// Picture scale so it fills the frame opening (minimal mat visible).
+    private static let pictureInsetScale: CGFloat = 0.836  // 0.88 * 0.95 (5% smaller)
+    
+    /// Asset name for card image: same logic as settings — option.id or option.icon if in Assets, else fallback.
+    private var cardAssetName: String? {
+        if UIImage(named: option.id) != nil { return option.id }
+        if UIImage(named: option.icon) != nil { return option.icon }
+        return nil
+    }
+    
+    /// Fallback image name when no asset (refpic for rest/joys, refpic by hash for consistency).
+    private var fallbackReferenceImageName: String {
+        if category == .activity { return option.id }
+        let sum = option.id.unicodeScalars.reduce(0) { $0 + Int($1.value) }
+        return referenceImages[sum % referenceImages.count]
+    }
+    
+    private var crossImageName: String {
+        let sum = option.id.unicodeScalars.reduce(0) { $0 + Int($1.value) }
+        let idx = sum % crossImages.count
+        return crossImages[idx]
+    }
     
     var body: some View {
         Button {
             if isOther {
                 onOtherTap?()
+            } else if isSelected {
+                showUndoPrompt = true
             } else if canSelect {
                 // Вызываем callback для подтверждения
                 onSelect?(option.id)
@@ -524,60 +631,246 @@ struct ChoiceCard: View {
         }
         .buttonStyle(.plain)
         .opacity(isSelected ? 1.0 : (canSelect ? 1.0 : 0.5))
+        .alert(loc(appLanguage, "Undo this action?"), isPresented: $showUndoPrompt) {
+            Button(loc(appLanguage, "Cancel"), role: .cancel) {}
+            Button(loc(appLanguage, "Undo")) {
+                model.toggleDailySelection(optionId: option.id, category: category)
+            }
+        } message: {
+            Text(loc(appLanguage, "This will remove the completion mark."))
+        }
     }
     
     private var cardContent: some View {
         ZStack {
-            // Background
-            RoundedRectangle(cornerRadius: 12)
-                .fill(theme == .minimal ? theme.backgroundSecondary : (isSelected ? categoryColor : Color(.secondarySystemBackground)))
-            
-            // Icon as background (centered, behind text)
-            Image(systemName: option.icon)
-                .font(.system(size: 32, weight: .light))
-                .foregroundColor(theme == .minimal ? theme.textSecondary.opacity(0.3) : (isSelected ? .white.opacity(0.3) : categoryColor.opacity(0.2)))
-            
-            // Content overlay
-            VStack(spacing: 4) {
-                Spacer()
+            VStack(spacing: 5) {
+                cardMainImage
                 
-                // Title at bottom — up to 3 lines; scales down if needed to fit
                 Text(option.title(for: appLanguage))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(theme == .minimal ? theme.textPrimary : (isSelected ? .white : .primary))
-                    .strikethrough(isSelected, color: theme == .minimal ? theme.textPrimary : (isSelected ? .white : categoryColor))
+                    .font(.notoSerif(12, weight: .medium))
+                    .foregroundColor(theme.textPrimary.opacity(isSelected ? 0.45 : 1.0))
                     .lineLimit(3)
                     .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.75)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.7)
                     .frame(maxWidth: .infinity)
             }
-            .padding(8)
+            .padding(.horizontal, 2)
+            .padding(.vertical, 6)
             
-            // Checkmark overlay
             if isSelected {
-                VStack {
-                    HStack {
-                        Spacer()
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(theme == .minimal ? theme.textPrimary : .white)
-                    }
-                    Spacer()
-                }
-                .padding(6)
+                Image(crossImageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 100, height: 100)
             }
         }
-        .frame(width: 96, height: 112)
+        .frame(width: 118, height: 180)
         .opacity(canSelect ? 1 : 0.5)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(theme == .minimal ? theme.stroke : Color.clear, lineWidth: 1)
-        )
+    }
+    
+    @ViewBuilder
+    private var cardMainImage: some View {
+        let imageSize: CGFloat = 110
+        let innerSize = imageSize * Self.pictureInsetScale
+        ZStack {
+            Group {
+                if let name = cardAssetName, let uiImage = UIImage(named: name) ?? UIImage(named: name.lowercased()) ?? UIImage(named: name.capitalized) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFit()
+                } else if category == .activity {
+                    Image(systemName: option.icon)
+                        .font(.system(size: 44, weight: .medium))
+                        .foregroundColor(theme.textPrimary)
+                } else {
+                    Image(fallbackReferenceImageName)
+                        .resizable()
+                        .scaledToFit()
+                }
+            }
+            .frame(width: innerSize, height: innerSize)
+            Image(frameImageName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: imageSize, height: imageSize)
+        }
+        .frame(width: imageSize, height: imageSize)
+    }
+}
+
+/// Represents which option is being edited (base or custom)
+private struct CategoryEditTarget: Identifiable {
+    let option: EnergyOption
+    var id: String { option.id }
+}
+
+// MARK: - Category Edit Sheet (create, delete, edit items)
+struct CategoryEditSheet: View {
+    @ObservedObject var model: AppModel
+    let category: EnergyCategory
+    let appLanguage: String
+    let onDismiss: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
+    
+    @State private var optionToDelete: String? = nil
+    @State private var editTarget: CategoryEditTarget? = nil
+    @State private var showAddEditor = false
+    
+    private var categoryTitle: String {
+        switch category {
+        case .activity: return loc(appLanguage, "My activities")
+        case .creativity: return loc(appLanguage, "My creativity")
+        case .joys: return loc(appLanguage, "My joys")
+        }
+    }
+    
+    private var categoryColor: Color {
+        switch category {
+        case .activity: return theme.activityColor
+        case .creativity: return theme.restColor
+        case .joys: return theme.joysColor
+        }
+    }
+    
+    private var options: [EnergyOption] {
+        model.orderedOptions(for: category)
+            .filter { !EnergyDefaults.otherOptionIds.contains($0.id) }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(options) { option in
+                    optionRow(option: option)
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle(categoryTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(loc(appLanguage, "Done")) {
+                        onDismiss()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button(loc(appLanguage, "Add")) {
+                        showAddEditor = true
+                    }
+                }
+            }
+            .sheet(isPresented: $showAddEditor) {
+                CustomActivityEditorView(
+                    category: category,
+                    appLanguage: appLanguage,
+                    initialTitle: nil,
+                    initialIcon: nil,
+                    isEditing: false
+                ) { title, icon in
+                    _ = model.addCustomOption(category: category, titleEn: title, titleRu: title, icon: icon)
+                    showAddEditor = false
+                }
+            }
+            .sheet(item: $editTarget) { target in
+                CustomActivityEditorView(
+                    category: category,
+                    appLanguage: appLanguage,
+                    initialTitle: target.option.title(for: appLanguage),
+                    initialIcon: target.option.icon,
+                    isEditing: true
+                ) { title, icon in
+                    if target.option.id.hasPrefix("custom_") {
+                        model.updateCustomOption(optionId: target.option.id, titleEn: title, titleRu: title, icon: icon)
+                    } else {
+                        model.replaceOptionWithCustom(optionId: target.option.id, category: category, titleEn: title, titleRu: title, icon: icon)
+                    }
+                    editTarget = nil
+                }
+            }
+            .alert(loc(appLanguage, "Delete item?"), isPresented: Binding(
+                get: { optionToDelete != nil },
+                set: { if !$0 { optionToDelete = nil } }
+            )) {
+                Button(loc(appLanguage, "Cancel"), role: .cancel) {
+                    optionToDelete = nil
+                }
+                Button(loc(appLanguage, "Delete"), role: .destructive) {
+                    if let id = optionToDelete {
+                        model.deleteOption(optionId: id)
+                    }
+                    optionToDelete = nil
+                }
+            } message: {
+                Text(loc(appLanguage, "This cannot be undone."))
+            }
+        }
+    }
+    
+    private func optionRow(option: EnergyOption) -> some View {
+        HStack(spacing: 12) {
+            optionThumbnail(option: option)
+            
+            Text(option.title(for: appLanguage))
+                .font(.body)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            Button {
+                editTarget = CategoryEditTarget(option: option)
+            } label: {
+                Image(systemName: "pencil")
+                    .font(.body)
+                    .foregroundColor(categoryColor)
+            }
+            .buttonStyle(.plain)
+            
+            Button {
+                optionToDelete = option.id
+            } label: {
+                Image(systemName: "trash")
+                    .font(.body)
+                    .foregroundColor(.red)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 4)
+    }
+    
+    /// Shows image from Assets (option.id or option.icon) when available, otherwise SF Symbol
+    private func optionThumbnail(option: EnergyOption) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(categoryColor.opacity(0.15))
+                .frame(width: 44, height: 44)
+            
+            if let name = assetImageName(for: option),
+               let uiImage = UIImage(named: name) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            } else {
+                Image(systemName: option.icon)
+                    .font(.title3)
+                    .foregroundColor(categoryColor)
+            }
+        }
+    }
+    
+    private func assetImageName(for option: EnergyOption) -> String? {
+        if UIImage(named: option.id) != nil { return option.id }
+        if UIImage(named: option.icon) != nil { return option.icon }
+        return nil
     }
 }
 
 // MARK: - Day detail sheet
-struct ChoiceDayDetailSheet: View {
+struct GalleryDayDetailSheet: View {
     @ObservedObject var model: AppModel
     let dayKey: String
     let snapshot: PastDaySnapshot?
@@ -633,8 +926,8 @@ struct ChoiceDayDetailSheet: View {
                             )
                         }
                         
-                        // Choices
-                        choicesSection(s)
+                        // Gallery
+                        gallerySection(s)
                     } else {
                         Text(loc(appLanguage, "No data for this day."))
                             .font(.subheadline)
@@ -645,7 +938,7 @@ struct ChoiceDayDetailSheet: View {
                 }
                 .padding(16)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(theme.backgroundColor)
             .navigationTitle(dayLabel)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -657,15 +950,15 @@ struct ChoiceDayDetailSheet: View {
         .presentationDetents([.medium])
     }
     
-    private func choicesSection(_ s: PastDaySnapshot) -> some View {
+    private func gallerySection(_ s: PastDaySnapshot) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            choiceRow(title: loc(appLanguage, "Activity"), ids: s.activityIds, color: theme.activityColor)
-            choiceRow(title: loc(appLanguage, "Recovery"), ids: s.recoveryIds, color: theme.recoveryColor)
-            choiceRow(title: loc(appLanguage, "Joys"), ids: s.joysIds, color: theme.joysColor)
+            galleryRow(title: loc(appLanguage, "Activity"), ids: s.activityIds, color: theme.activityColor)
+            galleryRow(title: loc(appLanguage, "Creativity"), ids: s.creativityIds, color: theme.restColor)
+            galleryRow(title: loc(appLanguage, "Joys"), ids: s.joysIds, color: theme.joysColor)
         }
     }
     
-    private func choiceRow(title: String, ids: [String], color: Color) -> some View {
+    private func galleryRow(title: String, ids: [String], color: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption.weight(.semibold))
@@ -757,6 +1050,6 @@ struct FlowLayout: Layout {
 
 #Preview {
     NavigationStack {
-        ChoiceView(model: DIContainer.shared.makeAppModel())
+        GalleryView(model: DIContainer.shared.makeAppModel(), breakdownCategory: .constant(nil))
     }
 }

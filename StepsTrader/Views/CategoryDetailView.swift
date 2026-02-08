@@ -2,19 +2,26 @@ import SwiftUI
 
 struct CategoryDetailView: View {
     @ObservedObject var model: AppModel
-    let category: EnergyCategory
+    let category: EnergyCategory?
+    let outerWorldSteps: Int
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     @State private var showSettings = false
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 LazyVStack(spacing: 24) {
                     // Header with points
                     headerSection
                     
-                    categoryContent(category: category)
+                    // Content based on category
+                    if let category = category {
+                        categoryContent(category: category)
+                    } else {
+                        outerWorldContent
+                    }
                     
                     // Edit button at bottom
                     editButton
@@ -22,27 +29,37 @@ struct CategoryDetailView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 20)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(theme.backgroundColor)
             .navigationTitle(categoryTitle)
             .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showSettings) {
-                CategorySettingsView(model: model, category: category, appLanguage: appLanguage)
-                    .onAppear {
-                        print("🟡 CategoryDetailView: Showing CategorySettingsView for category: \(category.rawValue)")
-                    }
+                if let category = category {
+                    CategorySettingsView(model: model, category: category, appLanguage: appLanguage)
+                        .onAppear {
+                            print("🟡 CategoryDetailView: Showing CategorySettingsView for category: \(category.rawValue)")
+                        }
+                } else {
+                    Text("Error: No category selected")
+                        .foregroundColor(.red)
+                        .padding()
+                        .onAppear {
+                            print("🔴 CategoryDetailView: category is nil, cannot show settings")
+                        }
+                }
             }
         }
-        .navigationViewStyle(.stack)
+        // .navigationViewStyle(.stack) - NavigationStack is stack by default
         .onAppear {
-            print("🟢 CategoryDetailView body appeared, category: \(category.rawValue)")
+            print("🟢 CategoryDetailView body appeared, category: \(category?.rawValue ?? "nil"), outerWorldSteps: \(outerWorldSteps)")
         }
     }
     
     private var categoryTitle: String {
         switch category {
         case .activity: return loc(appLanguage, "Activity")
-        case .recovery: return loc(appLanguage, "Recovery")
+        case .creativity: return loc(appLanguage, "Creativity")
         case .joys: return loc(appLanguage, "Joys")
+        case nil: return loc(appLanguage, "Outer World")
         }
     }
     
@@ -55,7 +72,7 @@ struct CategoryDetailView: View {
                     .frame(width: 80, height: 80)
                 
                 Image(systemName: categoryIcon)
-                    .font(.system(size: 36, weight: .semibold))
+                    .font(.notoSerif(36, weight: .semibold))
                     .foregroundColor(categoryColor)
             }
             
@@ -63,7 +80,7 @@ struct CategoryDetailView: View {
             VStack(spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text("\(currentPoints)")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .font(.notoSerif(48, weight: .bold))
                         .foregroundColor(.primary)
                         .monospacedDigit()
                     Text("/\(maxPoints)")
@@ -85,12 +102,27 @@ struct CategoryDetailView: View {
             // Steps/Sleep info
             if category == .activity {
                 stepsInfoSection
-            } else if category == .recovery {
+            } else if category == .joys {
                 sleepInfoSection
             }
             
             // Options list
             optionsSection(category: category)
+        }
+    }
+    
+    private var outerWorldContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text(loc(appLanguage, "Collect energy drops from the map by exploring the Outer World"))
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .padding()
+                .background(Color(.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            
+            Text(loc(appLanguage, "Daily cap: 50 energy"))
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
     
@@ -197,7 +229,7 @@ struct CategoryDetailView: View {
                     
                     if isSelected {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.notoSerif(12, weight: .bold))
                             .foregroundColor(.white)
                     }
                 }
@@ -255,6 +287,7 @@ struct CategoryDetailView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .shadow(color: categoryColor.opacity(0.3), radius: 8, x: 0, y: 4)
         }
+        .accessibilityIdentifier("category_edit_button")
         .padding(.top, 20)
     }
     
@@ -262,32 +295,36 @@ struct CategoryDetailView: View {
     private var categoryColor: Color {
         switch category {
         case .activity: return .green
-        case .recovery: return .blue
+        case .creativity: return .purple
         case .joys: return .orange
+        case nil: return .cyan
         }
     }
     
     private var categoryIcon: String {
         switch category {
         case .activity: return "figure.run"
-        case .recovery: return "moon.zzz.fill"
+        case .creativity: return "sparkles"
         case .joys: return "heart.fill"
+        case nil: return "battery.100.bolt"
         }
     }
     
     private var currentPoints: Int {
         switch category {
         case .activity: return model.activityPointsToday
-        case .recovery: return model.recoveryPointsToday
+        case .creativity: return model.creativityPointsToday
         case .joys: return model.joysCategoryPointsToday
+        case nil: return outerWorldSteps
         }
     }
     
     private var maxPoints: Int {
         switch category {
         case .activity: return 40
-        case .recovery: return 40
-        case .joys: return 20
+        case .creativity: return 20
+        case .joys: return 40
+        case nil: return 50
         }
     }
     

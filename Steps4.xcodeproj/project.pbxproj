@@ -12,7 +12,14 @@
 		200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A52F16DA3F0018004E /* AuthenticationService.swift */; };
 		200AC5A82F16DA570018004E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A72F16DA570018004E /* LoginView.swift */; };
 		200AC5AA2F16E8370018004E /* CloudKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A92F16E8370018004E /* CloudKitService.swift */; };
+		201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816112F33C8C10006B350 /* CustomActivityTests.swift */; };
+		201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816132F33C8CC0006B350 /* DayBoundaryTests.swift */; };
+		201816162F33C8D80006B350 /* CustomActivityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816152F33C8D80006B350 /* CustomActivityUITests.swift */; };
 		201A0FBC2F2CDEE8001BB105 /* SupabaseSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201A0FBB2F2CDEE8001BB105 /* SupabaseSyncService.swift */; };
+		201DF6D72F377E28007D716B /* LiteTicketConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201DF6D62F377E28007D716B /* LiteTicketConfig.swift */; };
+		201DF6D92F377E3B007D716B /* TicketGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201DF6D82F377E3B007D716B /* TicketGroup.swift */; };
+		201DF6F92F377E57007D716B /* AppModel+TicketGroups.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201DF6F82F377E57007D716B /* AppModel+TicketGroups.swift */; };
+		201DF6FB2F377E5E007D716B /* AppModel+TicketManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201DF6FA2F377E5E007D716B /* AppModel+TicketManagement.swift */; };
 		2035D7582E7D9CF90011B21D /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
 		2061EB4D2F23FA84009FEC24 /* BlockScreenNew.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB4C2F23FA84009FEC24 /* BlockScreenNew.swift */; };
 		2061EB532F23FD14009FEC24 /* ManagedSettings.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 200AC4892F1402CF0018004E /* ManagedSettings.framework */; };
@@ -25,8 +32,6 @@
 		2061EB782F2542A8009FEC24 /* EnergySetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB772F2542A8009FEC24 /* EnergySetupView.swift */; };
 		2061EB7A2F26593A009FEC24 /* CategoryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB792F26593A009FEC24 /* CategoryDetailView.swift */; };
 		2061EB7C2F26594D009FEC24 /* CategorySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB7B2F26594D009FEC24 /* CategorySettingsView.swift */; };
-		30A1D1B12F3C000100000003 /* DayEndSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */; };
-		30A1D1B22F3C000100000004 /* CustomActivityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A22F3C000100000002 /* CustomActivityEditorView.swift */; };
 		2061EB822F269C99009FEC24 /* QuickStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB812F269C99009FEC24 /* QuickStatusView.swift */; };
 		2061EB832F269C99009FEC24 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB7E2F269C99009FEC24 /* MainTabView.swift */; };
 		2061EB842F269C99009FEC24 /* PayGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB802F269C99009FEC24 /* PayGateView.swift */; };
@@ -46,17 +51,22 @@
 		2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */; };
 		2061EBC12F269D20009FEC24 /* RatingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBC02F269D20009FEC24 /* RatingView.swift */; };
 		2061EBD02F269D30009FEC24 /* ChoiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBD12F269D30009FEC24 /* ChoiceView.swift */; };
-		2061EBE12F269D40009FEC24 /* ResistanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBE02F269D40009FEC24 /* ResistanceView.swift */; };
 		2061EBF02F269C99009FEC25 /* IntroImagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBF12F269C99009FEC25 /* IntroImagesView.swift */; };
 		2061EBF32F269D50009FEC24 /* MeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBF22F269D50009FEC24 /* MeView.swift */; };
 		2061ECE92F276FE8009FEC24 /* TimeAccessPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECE82F276FE8009FEC24 /* TimeAccessPickerSheet.swift */; };
 		2061ECEA2F277000009FEC24 /* StatusViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */; };
 		2061ECEC2F277000009FEC24 /* StatusViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECED2F277000009FEC24 /* StatusViewModels.swift */; };
 		2061ECEE2F277010009FEC24 /* AppUnlockSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */; };
-		2061ECF02F277010009FEC24 /* ShieldGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECF12F277010009FEC24 /* ShieldGroup.swift */; };
 		2061ECF42F277010009FEC24 /* MinuteChargeLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECF52F277010009FEC24 /* MinuteChargeLog.swift */; };
 		2061ECF82F277010009FEC24 /* PayGateSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECF92F277010009FEC24 /* PayGateSession.swift */; };
+		2061ECF82F277010009FEC25 /* StepsTrader/Stores/HealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECF92F277010009FEC25 /* StepsTrader/Stores/HealthStore.swift */; };
+		2061ECFA2F277010009FEC25 /* StepsTrader/Stores/BlockingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECFB2F277010009FEC25 /* StepsTrader/Stores/BlockingStore.swift */; };
+		2061ECFC2F277010009FEC25 /* StepsTrader/Stores/UserEconomyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECFD2F277010009FEC25 /* StepsTrader/Stores/UserEconomyStore.swift */; };
+		2061ECFE2F277010009FEC25 /* StepsTrader/Services/PersistenceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECFF2F277010009FEC25 /* StepsTrader/Services/PersistenceManager.swift */; };
+		2061ED002F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ED012F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift */; };
+		2061ED052F277020009FEC24 /* ChoiceImageCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ED042F277020009FEC24 /* ChoiceImageCatalog.swift */; };
 		2061F00A2F2803AC009FEC24 /* AppModel+AppSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061F0092F2803AC009FEC24 /* AppModel+AppSelection.swift */; };
+		207AE91B2F32293A00925680 /* DayBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207AE91A2F32293A00925680 /* DayBoundary.swift */; };
 		2089F0BC2E71A18F00ABF5FA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */; };
 		2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */; };
 		2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E12E71AE3400ABF5FA /* BudgetEngine.swift */; };
@@ -74,14 +84,13 @@
 		209424C92E85952D00904A0A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424C62E85952D00904A0A /* AppModel.swift */; };
 		209424CA2E85952D00904A0A /* DIContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424C72E85952D00904A0A /* DIContainer.swift */; };
 		209424CC2E85952D00904A0A /* AppModel+DailyEnergy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424CB2E85952D00904A0A /* AppModel+DailyEnergy.swift */; };
-		209424CD2E85952D00904A0A /* AppModel+ShieldManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424CE2E85952D00904A0A /* AppModel+ShieldManagement.swift */; };
 		209424CF2E85952D00904A0A /* AppModel+BudgetTracking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424D02E85952D00904A0A /* AppModel+BudgetTracking.swift */; };
-		209424D12E85952D00904A0B /* AppModel+ShieldGroups.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424D22E85952D00904A0B /* AppModel+ShieldGroups.swift */; };
 		209424D52E85952D00904A0D /* AppModel+HealthKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424D62E85952D00904A0D /* AppModel+HealthKit.swift */; };
 		209424D72E85952D00904A0E /* AppModel+AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424D82E85952D00904A0E /* AppModel+AppSettings.swift */; };
 		20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */; };
 		20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */; };
 		20DE0E652F2B78970016EEAE /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DE0E642F2B78970016EEAE /* AppLogger.swift */; };
+		20F0NT022FFF040000000002 /* Font+Custom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F0NT012FFF040000000001 /* Font+Custom.swift */; };
 		20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0012FFF000100000001 /* AutomationUIModels.swift */; };
 		20F5A0042FFF000100000004 /* AppsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0022FFF000100000002 /* AppsPage.swift */; };
 		20F5A0052FFF000100000005 /* AppsPageSimplified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0062FFF000100000006 /* AppsPageSimplified.swift */; };
@@ -89,8 +98,11 @@
 		20F5A0112FFF030000000002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0122FFF030000000003 /* Localization.swift */; };
 		20F5A0132FFF030000000004 /* ColorConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0142FFF030000000005 /* ColorConstants.swift */; };
 		27AD90C5198349049E4EC714 /* AppModel+CloudKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E0A6EF05154A91AA51F820 /* AppModel+CloudKit.swift */; };
+		30A1D1B12F3C000100000003 /* DayEndSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */; };
+		30A1D1B22F3C000100000004 /* CustomActivityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A22F3C000100000002 /* CustomActivityEditorView.swift */; };
 		31E56CC97BFC4B2EB6CAA2A8 /* AppModel+PayGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E8B78AD65E54737AA7CA90F /* AppModel+PayGate.swift */; };
 		7006BD0F3FCF41D192D99AB8 /* ManagedSettings.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 200AC4892F1402CF0018004E /* ManagedSettings.framework */; };
+		70DB3A6D3B5C4A1A9E0F0001 /* NetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */; };
 		7C1A1D2E3F4A5B6C7D8E9F02 /* OnboardingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1A1D2E3F4A5B6C7D8E9F01 /* OnboardingFlowView.swift */; };
 		B59E9C524161418AB1CE7C33 /* DeviceActivityMonitor.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BA2C944BDF2E4A9FAF9E3D81 /* AppModel+Payment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A0EFF57C944F958DDA1052 /* AppModel+Payment.swift */; };
@@ -165,7 +177,14 @@
 		200AC5A52F16DA3F0018004E /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
 		200AC5A72F16DA570018004E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		200AC5A92F16E8370018004E /* CloudKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitService.swift; sourceTree = "<group>"; };
+		201816112F33C8C10006B350 /* CustomActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityTests.swift; sourceTree = "<group>"; };
+		201816132F33C8CC0006B350 /* DayBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBoundaryTests.swift; sourceTree = "<group>"; };
+		201816152F33C8D80006B350 /* CustomActivityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityUITests.swift; sourceTree = "<group>"; };
 		201A0FBB2F2CDEE8001BB105 /* SupabaseSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseSyncService.swift; sourceTree = "<group>"; };
+		201DF6D62F377E28007D716B /* LiteTicketConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteTicketConfig.swift; sourceTree = "<group>"; };
+		201DF6D82F377E3B007D716B /* TicketGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketGroup.swift; sourceTree = "<group>"; };
+		201DF6F82F377E57007D716B /* AppModel+TicketGroups.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+TicketGroups.swift"; sourceTree = "<group>"; };
+		201DF6FA2F377E5E007D716B /* AppModel+TicketManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+TicketManagement.swift"; sourceTree = "<group>"; };
 		2061EB4C2F23FA84009FEC24 /* BlockScreenNew.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockScreenNew.swift; sourceTree = "<group>"; };
 		2061EB522F23FD14009FEC24 /* ShieldConfiguration.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShieldConfiguration.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2061EB652F250A0B009FEC24 /* ShieldAction.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShieldAction.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -174,8 +193,6 @@
 		2061EB772F2542A8009FEC24 /* EnergySetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergySetupView.swift; sourceTree = "<group>"; };
 		2061EB792F26593A009FEC24 /* CategoryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryDetailView.swift; sourceTree = "<group>"; };
 		2061EB7B2F26594D009FEC24 /* CategorySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategorySettingsView.swift; sourceTree = "<group>"; };
-		30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayEndSettingsView.swift; sourceTree = "<group>"; };
-		30A1D1A22F3C000100000002 /* CustomActivityEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityEditorView.swift; sourceTree = "<group>"; };
 		2061EB7D2F269C99009FEC24 /* HandoffProtectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffProtectionView.swift; sourceTree = "<group>"; };
 		2061EB7E2F269C99009FEC24 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		2061EB7F2F269C99009FEC24 /* OnboardingStoriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStoriesView.swift; sourceTree = "<group>"; };
@@ -195,17 +212,22 @@
 		2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSelectionComponents.swift; sourceTree = "<group>"; };
 		2061EBC02F269D20009FEC24 /* RatingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingView.swift; sourceTree = "<group>"; };
 		2061EBD12F269D30009FEC24 /* ChoiceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoiceView.swift; sourceTree = "<group>"; };
-		2061EBE02F269D40009FEC24 /* ResistanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResistanceView.swift; sourceTree = "<group>"; };
 		2061EBF12F269C99009FEC25 /* IntroImagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroImagesView.swift; sourceTree = "<group>"; };
 		2061EBF22F269D50009FEC24 /* MeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeView.swift; sourceTree = "<group>"; };
 		2061ECE82F276FE8009FEC24 /* TimeAccessPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAccessPickerSheet.swift; sourceTree = "<group>"; };
 		2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViewHelpers.swift; sourceTree = "<group>"; };
 		2061ECED2F277000009FEC24 /* StatusViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViewModels.swift; sourceTree = "<group>"; };
 		2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUnlockSettings.swift; sourceTree = "<group>"; };
-		2061ECF12F277010009FEC24 /* ShieldGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldGroup.swift; sourceTree = "<group>"; };
 		2061ECF52F277010009FEC24 /* MinuteChargeLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteChargeLog.swift; sourceTree = "<group>"; };
 		2061ECF92F277010009FEC24 /* PayGateSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayGateSession.swift; sourceTree = "<group>"; };
+		2061ECF92F277010009FEC25 /* StepsTrader/Stores/HealthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepsTrader/Stores/HealthStore.swift; sourceTree = SOURCE_ROOT; };
+		2061ECFB2F277010009FEC25 /* StepsTrader/Stores/BlockingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepsTrader/Stores/BlockingStore.swift; sourceTree = SOURCE_ROOT; };
+		2061ECFD2F277010009FEC25 /* StepsTrader/Stores/UserEconomyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepsTrader/Stores/UserEconomyStore.swift; sourceTree = SOURCE_ROOT; };
+		2061ECFF2F277010009FEC25 /* StepsTrader/Services/PersistenceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepsTrader/Services/PersistenceManager.swift; sourceTree = SOURCE_ROOT; };
+		2061ED012F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepsTrader/Services/ErrorManager.swift; sourceTree = SOURCE_ROOT; };
+		2061ED042F277020009FEC24 /* ChoiceImageCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoiceImageCatalog.swift; sourceTree = "<group>"; };
 		2061F0092F2803AC009FEC24 /* AppModel+AppSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+AppSelection.swift"; sourceTree = "<group>"; };
+		207AE91A2F32293A00925680 /* DayBoundary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBoundary.swift; sourceTree = "<group>"; };
 		2089F0B42E71A18E00ABF5FA /* DOOM_CTRL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DOOM_CTRL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2089F0BB2E71A18F00ABF5FA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2089F0BE2E71A18F00ABF5FA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -228,9 +250,7 @@
 		209424C62E85952D00904A0A /* AppModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		209424C72E85952D00904A0A /* DIContainer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DIContainer.swift; sourceTree = "<group>"; };
 		209424CB2E85952D00904A0A /* AppModel+DailyEnergy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+DailyEnergy.swift"; sourceTree = "<group>"; };
-		209424CE2E85952D00904A0A /* AppModel+ShieldManagement.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+ShieldManagement.swift"; sourceTree = "<group>"; };
 		209424D02E85952D00904A0A /* AppModel+BudgetTracking.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+BudgetTracking.swift"; sourceTree = "<group>"; };
-		209424D22E85952D00904A0B /* AppModel+ShieldGroups.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+ShieldGroups.swift"; sourceTree = "<group>"; };
 		209424D62E85952D00904A0D /* AppModel+HealthKit.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+HealthKit.swift"; sourceTree = "<group>"; };
 		209424D82E85952D00904A0E /* AppModel+AppSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+AppSettings.swift"; sourceTree = "<group>"; };
 		20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StepsTrader.swift"; sourceTree = "<group>"; };
@@ -241,13 +261,17 @@
 		20DE0E622F2B62230016EEAE /* Secrets.xcconfig.template */ = {isa = PBXFileReference; lastKnownFileType = text; path = Secrets.xcconfig.template; sourceTree = "<group>"; };
 		20DE0E642F2B78970016EEAE /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
+		20F0NT012FFF040000000001 /* Font+Custom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Font+Custom.swift"; sourceTree = "<group>"; };
 		20F5A0012FFF000100000001 /* AutomationUIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationUIModels.swift; sourceTree = "<group>"; };
 		20F5A0022FFF000100000002 /* AppsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsPage.swift; sourceTree = "<group>"; };
 		20F5A0062FFF000100000006 /* AppsPageSimplified.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsPageSimplified.swift; sourceTree = "<group>"; };
 		20F5A00F2FFF020000000000 /* StepBalanceCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepBalanceCard.swift; sourceTree = "<group>"; };
 		20F5A0122FFF030000000003 /* Localization.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		20F5A0142FFF030000000005 /* ColorConstants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ColorConstants.swift; sourceTree = "<group>"; };
+		30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayEndSettingsView.swift; sourceTree = "<group>"; };
+		30A1D1A22F3C000100000002 /* CustomActivityEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityEditorView.swift; sourceTree = "<group>"; };
 		554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeviceActivityMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkClient.swift; sourceTree = "<group>"; };
 		7C1A1D2E3F4A5B6C7D8E9F01 /* OnboardingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowView.swift; sourceTree = "<group>"; };
 		A9E0A6EF05154A91AA51F820 /* AppModel+CloudKit.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+CloudKit.swift"; sourceTree = "<group>"; };
 		D4A0EFF57C944F958DDA1052 /* AppModel+Payment.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+Payment.swift"; sourceTree = "<group>"; };
@@ -394,9 +418,16 @@
 				2089F0E22E71AE3400ABF5FA /* Types.swift */,
 				2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */,
 				2061EB732F253EBD009FEC24 /* DailyEnergy.swift */,
+				201DF6D82F377E3B007D716B /* TicketGroup.swift */,
+				2061ED042F277020009FEC24 /* ChoiceImageCatalog.swift */,
+				201DF6D62F377E28007D716B /* LiteTicketConfig.swift */,
 				2061ECED2F277000009FEC24 /* StatusViewModels.swift */,
 				2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */,
-				2061ECF12F277010009FEC24 /* ShieldGroup.swift */,
+				2061ECFF2F277010009FEC25 /* StepsTrader/Services/PersistenceManager.swift */,
+				2061ED012F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift */,
+				2061ECF92F277010009FEC25 /* StepsTrader/Stores/HealthStore.swift */,
+				2061ECFB2F277010009FEC25 /* StepsTrader/Stores/BlockingStore.swift */,
+				2061ECFD2F277010009FEC25 /* StepsTrader/Stores/UserEconomyStore.swift */,
 				2061ECF52F277010009FEC24 /* MinuteChargeLog.swift */,
 				2061ECF92F277010009FEC24 /* PayGateSession.swift */,
 				20F5A0012FFF000100000001 /* AutomationUIModels.swift */,
@@ -412,6 +443,7 @@
 				200AC5A92F16E8370018004E /* CloudKitService.swift */,
 				2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */,
 				201A0FBB2F2CDEE8001BB105 /* SupabaseSyncService.swift */,
+				70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */,
 				2061EB872F269CC7009FEC24 /* LocationPermissionRequester.swift */,
 				2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */,
 				2061EB942F269CE6009FEC24 /* ProfileLocationManager.swift */,
@@ -422,6 +454,8 @@
 		2089F0E82E71AE3400ABF5FA /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				20F0NT012FFF040000000001 /* Font+Custom.swift */,
+				207AE91A2F32293A00925680 /* DayBoundary.swift */,
 				20DE0E642F2B78970016EEAE /* AppLogger.swift */,
 				20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */,
 				20F5A0122FFF030000000003 /* Localization.swift */,
@@ -439,16 +473,17 @@
 				2089F0E62E71AE3400ABF5FA /* Services */,
 				209424BE2E8593DA00904A0A /* Views */,
 				2089F0E82E71AE3400ABF5FA /* Utilities */,
+				20F0NT032FFF040000000003 /* Fonts */,
 				2089F0E92E71AE3400ABF5FA /* StepsTraderApp.swift */,
 				200AC47A2F0C795D0018004E /* TargetResolver.swift */,
 				20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */,
 				209424C62E85952D00904A0A /* AppModel.swift */,
 				209424CB2E85952D00904A0A /* AppModel+DailyEnergy.swift */,
-				209424CE2E85952D00904A0A /* AppModel+ShieldManagement.swift */,
 				209424D02E85952D00904A0A /* AppModel+BudgetTracking.swift */,
-				209424D22E85952D00904A0B /* AppModel+ShieldGroups.swift */,
 				209424D62E85952D00904A0D /* AppModel+HealthKit.swift */,
 				2061F0092F2803AC009FEC24 /* AppModel+AppSelection.swift */,
+				201DF6F82F377E57007D716B /* AppModel+TicketGroups.swift */,
+				201DF6FA2F377E5E007D716B /* AppModel+TicketManagement.swift */,
 				209424D82E85952D00904A0E /* AppModel+AppSettings.swift */,
 				D4A0EFF57C944F958DDA1052 /* AppModel+Payment.swift */,
 				1E8B78AD65E54737AA7CA90F /* AppModel+PayGate.swift */,
@@ -486,7 +521,6 @@
 				2061EB4C2F23FA84009FEC24 /* BlockScreenNew.swift */,
 				2061EBC02F269D20009FEC24 /* RatingView.swift */,
 				2061EBD12F269D30009FEC24 /* ChoiceView.swift */,
-				2061EBE02F269D40009FEC24 /* ResistanceView.swift */,
 				2061EBF22F269D50009FEC24 /* MeView.swift */,
 				2061EB792F26593A009FEC24 /* CategoryDetailView.swift */,
 				2061EB7B2F26594D009FEC24 /* CategorySettingsView.swift */,
@@ -534,11 +568,20 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		20F0NT032FFF040000000003 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
 				T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */,
 				T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */,
+				201816132F33C8CC0006B350 /* DayBoundaryTests.swift */,
+				201816112F33C8C10006B350 /* CustomActivityTests.swift */,
 				T1E5T5D12E71A18F00ABF5FA /* MinuteChargeLogicTests.swift */,
 			);
 			path = Steps4Tests;
@@ -548,6 +591,7 @@
 			isa = PBXGroup;
 			children = (
 				T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
+				201816152F33C8D80006B350 /* CustomActivityUITests.swift */,
 			);
 			path = Steps4UITests;
 			sourceTree = "<group>";
@@ -805,12 +849,15 @@
 				209424C82E85952D00904A0A /* NotificationManager.swift in Sources */,
 				2061EB7A2F26593A009FEC24 /* CategoryDetailView.swift in Sources */,
 				2061EB742F253EBD009FEC24 /* DailyEnergy.swift in Sources */,
+				2061ED052F277020009FEC24 /* ChoiceImageCatalog.swift in Sources */,
 				209424C02E8593DA00904A0A /* StatusRow.swift in Sources */,
 				2061EB822F269C99009FEC24 /* QuickStatusView.swift in Sources */,
 				2061EB832F269C99009FEC24 /* MainTabView.swift in Sources */,
 				2061EB842F269C99009FEC24 /* PayGateView.swift in Sources */,
 				201A0FBC2F2CDEE8001BB105 /* SupabaseSyncService.swift in Sources */,
+				70DB3A6D3B5C4A1A9E0F0001 /* NetworkClient.swift in Sources */,
 				2061EB852F269C99009FEC24 /* HandoffProtectionView.swift in Sources */,
+				201DF6FB2F377E5E007D716B /* AppModel+TicketManagement.swift in Sources */,
 				2061EB862F269C99009FEC24 /* OnboardingStoriesView.swift in Sources */,
 				2061EBF02F269C99009FEC25 /* IntroImagesView.swift in Sources */,
 				7C1A1D2E3F4A5B6C7D8E9F02 /* OnboardingFlowView.swift in Sources */,
@@ -835,15 +882,17 @@
 				2061EB8A2F269CC7009FEC24 /* NotificationDelegate.swift in Sources */,
 				2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */,
 				2089F0EF2E71AE3400ABF5FA /* Date+Today.swift in Sources */,
+				20F0NT022FFF040000000002 /* Font+Custom.swift in Sources */,
+				201DF6F92F377E57007D716B /* AppModel+TicketGroups.swift in Sources */,
 				209424C12E8593DA00904A0A /* TariffOptionView.swift in Sources */,
 				200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */,
 				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
 				200AC47D2F0C825C0018004E /* AccessWindow.swift in Sources */,
 				2061EBC12F269D20009FEC24 /* RatingView.swift in Sources */,
 				2061EBD02F269D30009FEC24 /* ChoiceView.swift in Sources */,
-				2061EBE12F269D40009FEC24 /* ResistanceView.swift in Sources */,
 				2061EBF32F269D50009FEC24 /* MeView.swift in Sources */,
 				20F5A0112FFF030000000002 /* Localization.swift in Sources */,
+				207AE91B2F32293A00925680 /* DayBoundary.swift in Sources */,
 				20F5A0132FFF030000000004 /* ColorConstants.swift in Sources */,
 				20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */,
 				209424C32E8593DA00904A0A /* SettingsView.swift in Sources */,
@@ -859,16 +908,20 @@
 				2061ECEA2F277000009FEC24 /* StatusViewHelpers.swift in Sources */,
 				2061ECEC2F277000009FEC24 /* StatusViewModels.swift in Sources */,
 				2061ECEE2F277010009FEC24 /* AppUnlockSettings.swift in Sources */,
-				2061ECF02F277010009FEC24 /* ShieldGroup.swift in Sources */,
+				2061ECFE2F277010009FEC25 /* StepsTrader/Services/PersistenceManager.swift in Sources */,
+				2061ED002F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift in Sources */,
+				2061ECF82F277010009FEC25 /* StepsTrader/Stores/HealthStore.swift in Sources */,
+				2061ECFA2F277010009FEC25 /* StepsTrader/Stores/BlockingStore.swift in Sources */,
+				2061ECFC2F277010009FEC25 /* StepsTrader/Stores/UserEconomyStore.swift in Sources */,
 				2061ECF42F277010009FEC24 /* MinuteChargeLog.swift in Sources */,
 				2061ECF82F277010009FEC24 /* PayGateSession.swift in Sources */,
 				209424C92E85952D00904A0A /* AppModel.swift in Sources */,
 				209424CC2E85952D00904A0A /* AppModel+DailyEnergy.swift in Sources */,
-				209424CD2E85952D00904A0A /* AppModel+ShieldManagement.swift in Sources */,
 				209424CF2E85952D00904A0A /* AppModel+BudgetTracking.swift in Sources */,
-				209424D12E85952D00904A0B /* AppModel+ShieldGroups.swift in Sources */,
+				201DF6D72F377E28007D716B /* LiteTicketConfig.swift in Sources */,
 				209424D52E85952D00904A0D /* AppModel+HealthKit.swift in Sources */,
 				209424D72E85952D00904A0E /* AppModel+AppSettings.swift in Sources */,
+				201DF6D92F377E3B007D716B /* TicketGroup.swift in Sources */,
 				BA2C944BDF2E4A9FAF9E3D81 /* AppModel+Payment.swift in Sources */,
 				31E56CC97BFC4B2EB6CAA2A8 /* AppModel+PayGate.swift in Sources */,
 				C5D6E7F8A9B0C1D2E3F4A5B6 /* AppModel+AccessWindow.swift in Sources */,
@@ -884,9 +937,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */,
 				T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */,
 				T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */,
 				T1E5T5D22E71A18F00ABF5FA /* MinuteChargeLogicTests.swift in Sources */,
+				201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -895,6 +950,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */,
+				201816162F33C8D80006B350 /* CustomActivityUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -938,6 +994,7 @@
 /* Begin XCBuildConfiguration section */
 		00EA17931620479BB15D9633 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E5F2F2B62230016EEAE /* Debug.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DeviceActivityMonitor/DeviceActivityMonitor.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -967,6 +1024,7 @@
 		};
 		2061EB5F2F23FD14009FEC24 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E5F2F2B62230016EEAE /* Debug.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShieldConfiguration/ShieldConfiguration.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -999,10 +1057,10 @@
 		};
 		2061EB602F23FD14009FEC24 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E602F2B62230016EEAE /* Release.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShieldConfiguration/ShieldConfiguration.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 39V44D64DY;
@@ -1019,6 +1077,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -1031,6 +1090,7 @@
 		};
 		2061EB712F250A0B009FEC24 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E5F2F2B62230016EEAE /* Debug.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShieldAction/ShieldAction.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -1063,6 +1123,7 @@
 		};
 		2061EB722F250A0B009FEC24 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E602F2B62230016EEAE /* Release.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShieldAction/ShieldAction.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -1220,6 +1281,7 @@
 		};
 		2089F0D92E71A18F00ABF5FA /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E5F2F2B62230016EEAE /* Debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -1259,6 +1321,7 @@
 		};
 		2089F0DA2E71A18F00ABF5FA /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E602F2B62230016EEAE /* Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -1298,6 +1361,7 @@
 		};
 		2089F0DC2E71A18F00ABF5FA /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E5F2F2B62230016EEAE /* Debug.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -1316,6 +1380,7 @@
 		};
 		2089F0DD2E71A18F00ABF5FA /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E602F2B62230016EEAE /* Release.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -1334,6 +1399,7 @@
 		};
 		2089F0DF2E71A18F00ABF5FA /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E5F2F2B62230016EEAE /* Debug.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -1351,6 +1417,7 @@
 		};
 		2089F0E02E71A18F00ABF5FA /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E602F2B62230016EEAE /* Release.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -1368,6 +1435,7 @@
 		};
 		60EDB3F536974F0FAD029C65 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 20DE0E602F2B62230016EEAE /* Release.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DeviceActivityMonitor/DeviceActivityMonitor.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";

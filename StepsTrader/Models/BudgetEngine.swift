@@ -32,21 +32,30 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         
         // Читаем из App Group, fallback на стандартные ключи для обратной совместимости
         let g = UserDefaults.stepsTrader()
-        let savedHour = (g.object(forKey: "dayEndHour_v1") as? Int) ?? (UserDefaults.standard.object(forKey: "dayEndHour_v1") as? Int) ?? 0
-        let savedMinute = (g.object(forKey: "dayEndMinute_v1") as? Int) ?? (UserDefaults.standard.object(forKey: "dayEndMinute_v1") as? Int) ?? 0
-        self.dayEndHour = max(0, min(23, savedHour))
-        self.dayEndMinute = max(0, min(59, savedMinute))
+        let savedHour = (g.object(forKey: "dayEndHour_v1") as? Int)
+            ?? (UserDefaults.standard.object(forKey: "dayEndHour_v1") as? Int)
+            ?? 0
+        let savedMinute = (g.object(forKey: "dayEndMinute_v1") as? Int)
+            ?? (UserDefaults.standard.object(forKey: "dayEndMinute_v1") as? Int)
+            ?? 0
+        let dayEndHourValue = max(0, min(23, savedHour))
+        let dayEndMinuteValue = max(0, min(59, savedMinute))
         
         let savedAnchor = (g.object(forKey: "todayAnchor") as? Date)
             ?? (UserDefaults.standard.object(forKey: "todayAnchor") as? Date)
+        let resolvedAnchor = savedAnchor
+            ?? DayBoundary.currentDayStart(for: Date(), dayEndHour: dayEndHourValue, dayEndMinute: dayEndMinuteValue)
         
         let savedDaily = (g.object(forKey: "dailyBudgetMinutes") as? Int)
-        ?? g.integer(forKey: "dailyBudgetMinutes")
+            ?? g.integer(forKey: "dailyBudgetMinutes")
         let savedRemaining = (g.object(forKey: "remainingMinutes") as? Int)
-        ?? g.integer(forKey: "remainingMinutes")
+            ?? g.integer(forKey: "remainingMinutes")
+        
+        self.dayEndHour = dayEndHourValue
+        self.dayEndMinute = dayEndMinuteValue
         self.dailyBudgetMinutes = savedDaily
         self.remainingMinutes = savedRemaining
-        self.todayAnchor = savedAnchor ?? Calendar.current.startOfDay(for: Date())
+        self.todayAnchor = resolvedAnchor
         
         print("💰 BudgetEngine initialized with tariff: \(tariff.displayName)")
     }

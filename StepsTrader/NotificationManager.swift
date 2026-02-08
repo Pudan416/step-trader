@@ -40,7 +40,7 @@ final class NotificationManager: NotificationServiceProtocol {
         let content = UNMutableNotificationContent()
         content.title = "⏰ DOOM CTRL"
         if remainingMinutes > 0 {
-            content.body = "Energy empty. You had \(remainingMinutes) min. Earn more to unlock."
+            content.body = "Energy empty. I had \(remainingMinutes) min. Earn more to unlock."
         } else {
             content.body = "Energy empty. Earn more to unlock."
         }

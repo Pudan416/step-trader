@@ -47,6 +47,12 @@ final class HealthKitService: HealthKitServiceProtocol {
         guard let stepType = stepType else { return .notDetermined }
         return store.authorizationStatus(for: stepType)
     }
+    
+    @MainActor
+    func sleepAuthorizationStatus() -> HKAuthorizationStatus {
+        guard let sleepType = sleepType else { return .notDetermined }
+        return store.authorizationStatus(for: sleepType)
+    }
 
     @MainActor
     func requestAuthorization() async throws {
@@ -138,7 +144,7 @@ final class HealthKitService: HealthKitServiceProtocol {
             }
         }
         
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
         
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(
@@ -152,35 +158,36 @@ final class HealthKitService: HealthKitServiceProtocol {
                     return
                 }
                 
-                // Суммируем все интервалы сна
+                // Суммируем только фазы реального сна (asleep*). inBed не считаем — он перекрывается с asleep
+                // и даёт двойной учёт: inBed 22:00–07:00 (9ч) + asleep 22:30–06:30 (8ч) = 17ч вместо 8ч.
                 var totalSleepHours: Double = 0
                 if let samples = samples as? [HKCategorySample] {
+                    log.debug("fetchSleep: samples=\(samples.count)")
                     for sample in samples {
-                        // Учитываем все типы сна: asleep, inBed, awake
-                        // Обычно учитываем только asleep для точности, но можно включить и inBed
                         let sleepValue = sample.value
                         var shouldCount = false
-                        
                         if #available(iOS 16.0, *) {
-                            // Учитываем все типы сна в iOS 16+
                             shouldCount = sleepValue == HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue ||
                                          sleepValue == HKCategoryValueSleepAnalysis.asleepCore.rawValue ||
                                          sleepValue == HKCategoryValueSleepAnalysis.asleepDeep.rawValue ||
-                                         sleepValue == HKCategoryValueSleepAnalysis.asleepREM.rawValue ||
-                                         sleepValue == HKCategoryValueSleepAnalysis.inBed.rawValue
+                                         sleepValue == HKCategoryValueSleepAnalysis.asleepREM.rawValue
+                            // inBed намеренно не учитываем — это интервал «лёг–встал», внутри него уже есть asleep*
                         } else {
-                            // Fallback для iOS < 16
-                            shouldCount = sleepValue == HKCategoryValueSleepAnalysis.asleep.rawValue ||
-                                         sleepValue == HKCategoryValueSleepAnalysis.inBed.rawValue
+                            shouldCount = sleepValue == HKCategoryValueSleepAnalysis.asleep.rawValue
                         }
-                        
                         if shouldCount {
-                            let duration = sample.endDate.timeIntervalSince(sample.startDate)
-                            totalSleepHours += duration / 3600.0 // Конвертируем секунды в часы
+                            // Count only the overlap with [start, end]
+                            let overlapStart = max(sample.startDate, start)
+                            let overlapEnd = min(sample.endDate, end)
+                            let duration = overlapEnd.timeIntervalSince(overlapStart)
+                            if duration > 0 {
+                                totalSleepHours += duration / 3600.0
+                            }
                         }
                     }
                 }
                 
+                log.debug("fetchSleep: totalHours=\(totalSleepHours)")
                 continuation.resume(returning: totalSleepHours)
             }
             store.execute(query)

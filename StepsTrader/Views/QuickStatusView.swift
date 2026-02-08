@@ -14,13 +14,13 @@ struct QuickStatusView: View {
             VStack(spacing: 30) {
                 VStack(spacing: 16) {
                     Text("📊")
-                        .font(.system(size: 60))
+                        .font(.notoSerif(60))
 
                     Text("Quick Status")
                         .font(.largeTitle)
                         .fontWeight(.bold)
 
-                    Text("Your progress overview")
+                    Text("My progress overview")
                         .font(.title3)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)

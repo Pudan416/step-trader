@@ -18,15 +18,15 @@ struct BlockScreen: View {
                 // Icon and title
                 VStack(spacing: 16) {
                     Text("⏰")
-                        .font(.system(size: 80))
+                        .font(.notoSerif(80))
                     
                     Text("Time's up")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .foregroundColor(.red)
                     
-                    Text("Your call")
-                        .font(.title2)
+                    Text("My call")
+                        .font(AppFonts.title2)
                         .multilineTextAlignment(.center)
                         .foregroundColor(.secondary)
                 }
@@ -41,7 +41,7 @@ struct BlockScreen: View {
                     }
                     
                     HStack {
-                        Text("Control spent")
+                        Text("Experience spent")
                         Spacer()
                         Text("\(model.spentSteps)")
                             .fontWeight(.semibold)
@@ -50,7 +50,7 @@ struct BlockScreen: View {
                     Divider()
                     
                     HStack {
-                        Text("Control today")
+                        Text("Experience today")
                         Spacer()
                         Text("\(model.baseEnergyToday)")
                         .fontWeight(.semibold)
@@ -62,16 +62,16 @@ struct BlockScreen: View {
                 
                 // Action buttons
                 VStack(spacing: 12) {
-                    Text("Do whatever you want")
-                        .font(.headline)
+                    Text("Do whatever I want")
+                        .font(AppFonts.headline)
                         .multilineTextAlignment(.center)
                     
-                    Text("Get more control")
+                    Text("Get more experience")
                         .font(.title3)
                         .fontWeight(.medium)
                         .foregroundColor(.blue)
                     
-                    Text("\(Int(model.spentTariff.stepsPerMinute)) control = 1 minute")
+                    Text("\(Int(model.spentTariff.stepsPerMinute)) experience = 1 minute")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -82,16 +82,12 @@ struct BlockScreen: View {
                 VStack(spacing: 12) {
                     Button("Refresh") {
                         Task {
-                            do {
-                                try await model.recalc()
-                                if model.remainingMinutes > 0 {
-                                    model.isBlocked = false
-                                    model.message = "Available: \(model.remainingMinutes) min"
-                                } else {
-                                    model.message = "Not enough control"
-                                }
-                            } catch {
-                                model.message = "Refresh failed"
+                            await model.recalcSilently()
+                            if model.remainingMinutes > 0 {
+                                model.isBlocked = false
+                                model.message = "Available: \(model.remainingMinutes) min"
+                            } else {
+                                model.message = "Not enough experience"
                             }
                         }
                     }
