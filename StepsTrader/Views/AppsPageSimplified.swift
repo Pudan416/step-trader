@@ -55,9 +55,20 @@ struct AppsPageSimplified: View {
                         ticketStack
                             .padding(.horizontal, 20)
                             .padding(.top, 4)
-                            .padding(.bottom, 16)
+                            .padding(.bottom, 80)
                     }
                     .frame(maxHeight: .infinity)
+                    .mask(
+                        VStack(spacing: 0) {
+                            LinearGradient(colors: [.clear, .black],
+                                           startPoint: .top, endPoint: .bottom)
+                                .frame(height: 20)
+                            Rectangle().fill(Color.black)
+                            LinearGradient(colors: [.black, .clear],
+                                           startPoint: .top, endPoint: .bottom)
+                                .frame(height: 40)
+                        }
+                    )
                 }
             }
             .background(theme.backgroundColor)
@@ -431,7 +442,7 @@ fileprivate struct PaperTicketView: View {
                         Spacer()
                     }
                 } else {
-                    Text(loc(appLanguage, "Trade exp. for time"))
+                    Text(loc(appLanguage, "Trade exp for time"))
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundStyle(backSecondaryInk)
                         .textCase(.uppercase)
