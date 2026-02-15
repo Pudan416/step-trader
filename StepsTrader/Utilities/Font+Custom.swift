@@ -45,16 +45,16 @@ extension Font {
     }
 }
 
-/// AppFonts — алиасы для единообразия в коде.
+/// AppFonts — aliases for consistent typography across the codebase.
 enum AppFonts {
-    // MARK: - Заголовки
+    // MARK: - Headlines
     static let largeTitle = Font.largeTitle
     static let title = Font.title
     static let title2 = Font.title2
     static let title3 = Font.title3
     static let headline = Font.headline
 
-    // MARK: - Основной текст
+    // MARK: - Body text
     static let body = Font.body
     static let subheadline = Font.subheadline
     static let caption = Font.caption

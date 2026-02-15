@@ -3,7 +3,7 @@ import SwiftUI
 struct CategorySettingsView: View {
     @ObservedObject var model: AppModel
     let category: EnergyCategory
-    let appLanguage: String
+    let appLanguage: String = "en"
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
     
@@ -18,9 +18,9 @@ struct CategorySettingsView: View {
             ScrollView {
                 LazyVStack(spacing: 24) {
                     // Category-specific settings
-                    if category == .activity {
+                    if category == .body {
                         stepsTargetSection
-                    } else if category == .joys {
+                    } else if category == .heart {
                         sleepTargetSection
                     }
                     
@@ -31,16 +31,16 @@ struct CategorySettingsView: View {
                 .padding(.vertical, 20)
             }
             .background(theme.backgroundColor)
-            .navigationTitle(loc(appLanguage, "Settings"))
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Cancel")) {
+                    Button("Cancel") {
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(loc(appLanguage, "Save")) {
+                    Button("Save") {
                         saveSettings()
                         dismiss()
                     }
@@ -49,7 +49,7 @@ struct CategorySettingsView: View {
             }
             .task {
                 print("🟡 CategorySettingsView: Loading settings for category: \(category.rawValue)")
-                // Загружаем настройки асинхронно
+                // Load settings asynchronously
                 await loadSettingsAsync()
                 print("🟡 CategorySettingsView: Settings loaded")
             }
@@ -62,14 +62,14 @@ struct CategorySettingsView: View {
     
     private var stepsTargetSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(loc(appLanguage, "Daily Steps Goal"))
+            Text("Daily Steps Goal")
                 .font(.headline)
             
             VStack(spacing: 8) {
                 HStack {
                     Text("\(formatNumber(Int(stepsTarget)))")
                         .font(.title2.bold())
-                    Text(loc(appLanguage, "steps"))
+                    Text("steps")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Spacer()
@@ -96,14 +96,14 @@ struct CategorySettingsView: View {
     
     private var sleepTargetSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(loc(appLanguage, "Daily Sleep Goal"))
+            Text("Daily Sleep Goal")
                 .font(.headline)
             
             VStack(spacing: 8) {
                 HStack {
                     Text(String(format: "%.1fh", sleepTarget))
                         .font(.title2.bold())
-                    Text(loc(appLanguage, "hours"))
+                    Text("hours")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Spacer()
@@ -132,15 +132,15 @@ struct CategorySettingsView: View {
         let allOptions = model.orderedOptions(for: category)
         
         return VStack(alignment: .leading, spacing: 16) {
-            Text(loc(appLanguage, "Select Activities"))
+            Text("Select Activities")
                 .font(.headline)
             
-            Text(loc(appLanguage, "Choose up to 4 activities I want to track daily"))
+            Text("Choose up to 4 activities I want to track daily")
                 .font(.caption)
                 .foregroundColor(.secondary)
             
             if allOptions.isEmpty {
-                Text(loc(appLanguage, "No options available for this category"))
+                Text("No options available for this category")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .padding()
@@ -156,16 +156,16 @@ struct CategorySettingsView: View {
             print("🟡 CategorySettingsView: optionsSelectionSection appeared for \(category.rawValue), allOptions count: \(allOptions.count), selectedOptions count: \(selectedOptions.count)")
         }
         .alert(
-            loc(appLanguage, "Delete activity?"),
+            "Delete activity?",
             isPresented: Binding(
                 get: { deleteOptionId != nil },
                 set: { if !$0 { deleteOptionId = nil } }
             )
         ) {
-            Button(loc(appLanguage, "Cancel"), role: .cancel) {
+            Button("Cancel", role: .cancel) {
                 deleteOptionId = nil
             }
-            Button(loc(appLanguage, "Delete"), role: .destructive) {
+            Button("Delete", role: .destructive) {
                 if let id = deleteOptionId {
                     model.deleteOption(optionId: id)
                     selectedOptions.remove(id)
@@ -173,7 +173,7 @@ struct CategorySettingsView: View {
                 deleteOptionId = nil
             }
         } message: {
-            Text(loc(appLanguage, "This action cannot be undone."))
+            Text("This action cannot be undone.")
         }
     }
     
@@ -203,13 +203,14 @@ struct CategorySettingsView: View {
             }
             
             // Title
-            Text(option.title(for: appLanguage))
+            Text(option.title(for: "en"))
                 .font(.body)
                 .foregroundColor(.primary)
             
             Spacer()
             
-            if !EnergyDefaults.otherOptionIds.contains(option.id) {
+            // Only allow deleting custom options, not built-in ones
+            if option.id.hasPrefix("custom_") {
                 Button {
                     deleteOptionId = option.id
                 } label: {
@@ -239,29 +240,29 @@ struct CategorySettingsView: View {
     
     private var categoryColor: Color {
         switch category {
-        case .activity: return .green
-        case .creativity: return .purple
-        case .joys: return .orange
+        case .body: return .green
+        case .mind: return .purple
+        case .heart: return .orange
         }
     }
     
     private func loadSettings() {
-        // Загружаем настройки синхронно, но быстро
+        // Load settings synchronously (fast path)
         let preferred = model.preferredOptions(for: category)
         selectedOptions = Set(preferred.map { $0.id })
         
         // Load targets from UserDefaults or use defaults from EnergyDefaults
         let defaults = UserDefaults.stepsTrader()
-        if category == .activity {
+        if category == .body {
             stepsTarget = defaults.object(forKey: "userStepsTarget") as? Double ?? EnergyDefaults.stepsTarget
-        } else if category == .joys {
+        } else if category == .heart {
             sleepTarget = defaults.object(forKey: "userSleepTarget") as? Double ?? EnergyDefaults.sleepTargetHours
         }
     }
     
     @MainActor
     private func loadSettingsAsync() async {
-        // Загружаем настройки асинхронно
+        // Load settings asynchronously
         loadSettings()
     }
     
@@ -271,11 +272,11 @@ struct CategorySettingsView: View {
         
         // Save targets to UserDefaults - these are used in calculations
         let defaults = UserDefaults.stepsTrader()
-        if category == .activity {
+        if category == .body {
             defaults.set(stepsTarget, forKey: "userStepsTarget")
             // Trigger recalculation
             model.recalculateDailyEnergy()
-        } else if category == .joys {
+        } else if category == .heart {
             defaults.set(sleepTarget, forKey: "userSleepTarget")
             // Trigger recalculation
             model.recalculateDailyEnergy()

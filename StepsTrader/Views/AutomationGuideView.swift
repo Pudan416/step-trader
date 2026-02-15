@@ -4,7 +4,7 @@ import FamilyControls
 #endif
 import UIKit
 
-
+#if DEBUG
 struct AutomationGuideView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -18,7 +18,7 @@ struct AutomationGuideView: View {
     @State private var timeAccessSelection = FamilyActivitySelection()
     @State private var showEntrySettings = false
     @State private var showConnectionRequired = false
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
+    // appLanguage removed — English only for v1
     
     private var accent: Color { Color(red: 0.88, green: 0.51, blue: 0.85) }
     private var timeAccessEnabled: Bool { model.isTimeAccessEnabled(for: app.bundleId) }
@@ -92,32 +92,31 @@ struct AutomationGuideView: View {
             }) {
                 TimeAccessPickerSheet(
                     selection: $timeAccessSelection,
-                    appName: app.name,
-                    appLanguage: appLanguage
+                    appName: app.name
                 )
             }
-            .alert(loc(appLanguage, "Deactivate ticket"), isPresented: $showDeactivateAlert) {
-                Button(loc(appLanguage, "Open Shortcuts")) {
+            .alert("Deactivate ticket", isPresented: $showDeactivateAlert) {
+                Button("Open Shortcuts") {
                     if let url = URL(string: "shortcuts://automation") ?? URL(string: "shortcuts://") {
                         openURL(url)
                     }
                     deleteModule(app.bundleId)
                     dismiss()
                 }
-                Button(loc(appLanguage, "Cancel"), role: .cancel) { showDeactivateAlert = false }
+                Button("Cancel", role: .cancel) { showDeactivateAlert = false }
             } message: {
-                Text(loc(appLanguage, "Remove the automation from Shortcuts app to fully deactivate."))
+                Text("Remove the automation from Shortcuts app to fully deactivate.")
             }
-            .alert(loc(appLanguage, "Connection required"), isPresented: $showConnectionRequired) {
-                Button(loc(appLanguage, "Connect")) {
+            .alert("Connection required", isPresented: $showConnectionRequired) {
+                Button("Connect") {
                     Task {
                         try? await model.familyControlsService.requestAuthorization()
                         showTimeAccessPicker = true
                     }
                 }
-                Button(loc(appLanguage, "Cancel"), role: .cancel) { }
+                Button("Cancel", role: .cancel) { }
             } message: {
-                Text(loc(appLanguage, "To use minute mode, connect the app via Family Controls. This allows tracking real usage time."))
+                Text("To use minute mode, connect the app via Family Controls. This allows tracking real usage time.")
             }
         }
     }
@@ -157,9 +156,9 @@ struct AutomationGuideView: View {
     
     private var statusText: String {
         switch app.status {
-        case .configured: return loc(appLanguage, "Active")
-        case .pending: return loc(appLanguage, "Pending")
-        case .none: return loc(appLanguage, "Not connected")
+        case .configured: return "Active"
+        case .pending: return "Pending"
+        case .none: return "Not connected"
         }
     }
     
@@ -208,10 +207,10 @@ struct AutomationGuideView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(loc(appLanguage, "App Connection"))
+                    Text("App Connection")
                         .font(AppFonts.subheadline)
                         .foregroundColor(.primary)
-                    Text(timeAccessEnabled ? loc(appLanguage, "Connected") : loc(appLanguage, "Tap to connect"))
+                    Text(timeAccessEnabled ? "Connected" : "Tap to connect")
                         .font(AppFonts.caption)
                         .foregroundColor(timeAccessEnabled ? .green : .secondary)
                 }
@@ -238,8 +237,8 @@ struct AutomationGuideView: View {
                 // Entry mode
                 modeButton(
                     icon: "door.left.hand.open",
-                    title: loc(appLanguage, "Entry"),
-                    subtitle: loc(appLanguage, "Pay once per session"),
+                    title: "Entry",
+                    subtitle: "Pay once per session",
                     isSelected: !minuteModeEnabled,
                     isEnabled: true
                 ) {
@@ -249,8 +248,8 @@ struct AutomationGuideView: View {
                 // Minute mode
                 modeButton(
                     icon: "clock.fill",
-                    title: loc(appLanguage, "Minute"),
-                    subtitle: loc(appLanguage, "Pay per minute used"),
+                    title: "Minute",
+                    subtitle: "Pay per minute used",
                     isSelected: minuteModeEnabled,
                     isEnabled: timeAccessEnabled
                 ) {
@@ -268,8 +267,8 @@ struct AutomationGuideView: View {
                     .font(AppFonts.caption)
                     .foregroundColor(.secondary)
                 Text(minuteModeEnabled 
-                    ? loc(appLanguage, "Experience is deducted for each minute I spend in the app")
-                    : loc(appLanguage, "Choose a time window (5min, 1h, day) and pay once for unlimited access"))
+                    ? "Exp is deducted for each minute I spend in the app"
+                    : "Choose a time window (5min, 1h, day) and pay once for unlimited access")
                     .font(AppFonts.caption)
                     .foregroundColor(.secondary)
                 Spacer()
@@ -338,7 +337,7 @@ struct AutomationGuideView: View {
                     Image(systemName: "slider.horizontal.3")
                         .font(AppFonts.body)
                         .foregroundColor(.secondary)
-                    Text(loc(appLanguage, "Entry settings"))
+                    Text("Entry settings")
                         .font(AppFonts.subheadline)
                     Spacer()
                     Image(systemName: showEntrySettings ? "chevron.up" : "chevron.down")
@@ -355,9 +354,9 @@ struct AutomationGuideView: View {
                     .padding(.horizontal, 14)
                 
                 VStack(spacing: 0) {
-                    windowRow(title: loc(appLanguage, "some time (60 min)"), window: .hour1, cost: windowCost(for: .hour1), isLast: false)
-                    windowRow(title: loc(appLanguage, "quite a bit (30 min)"), window: .minutes30, cost: windowCost(for: .minutes30), isLast: false)
-                    windowRow(title: loc(appLanguage, "a bit (10 min)"), window: .minutes10, cost: windowCost(for: .minutes10), isLast: true)
+                    windowRow(title: "1 hour", window: .hour1, cost: windowCost(for: .hour1), isLast: false)
+                    windowRow(title: "30 min", window: .minutes30, cost: windowCost(for: .minutes30), isLast: false)
+                    windowRow(title: "10 min", window: .minutes10, cost: windowCost(for: .minutes10), isLast: true)
                 }
             }
         }
@@ -405,19 +404,19 @@ struct AutomationGuideView: View {
                 Image(systemName: "list.number")
                     .font(AppFonts.body)
                     .foregroundColor(.blue)
-                Text(app.status == .pending ? loc(appLanguage, "Finish setup") : loc(appLanguage, "How to set up"))
+                Text(app.status == .pending ? "Finish setup" : "How to set up")
                     .font(AppFonts.subheadline)
             }
             
             VStack(alignment: .leading, spacing: 10) {
                 if app.status == .pending {
-                    setupStep(num: 1, text: loc(appLanguage, "Shortcuts → Automation → +"))
-                    setupStep(num: 2, text: loc(appLanguage, "App → \(app.name) → Is Opened"))
-                    setupStep(num: 3, text: loc(appLanguage, "Run Immediately → select shortcut"))
+                    setupStep(num: 1, text: "Shortcuts → Automation → +")
+                    setupStep(num: 2, text: "App → \(app.name) → Is Opened")
+                    setupStep(num: 3, text: "Run Immediately → select shortcut")
                 } else {
-                    setupStep(num: 1, text: loc(appLanguage, "Tap \"Get ticket\" below"))
-                    setupStep(num: 2, text: loc(appLanguage, "Add shortcut to library"))
-                    setupStep(num: 3, text: loc(appLanguage, "Create automation"))
+                    setupStep(num: 1, text: "Tap \"Get ticket\" below")
+                    setupStep(num: 2, text: "Add shortcut to library")
+                    setupStep(num: 3, text: "Create automation")
                 }
             }
         }
@@ -453,7 +452,7 @@ struct AutomationGuideView: View {
                 HStack(spacing: 8) {
                     Image(systemName: app.status == .configured ? "arrow.triangle.2.circlepath" : "arrow.down.circle.fill")
                         .font(AppFonts.body)
-                    Text(app.status == .configured ? loc(appLanguage, "Update") : loc(appLanguage, "Get ticket"))
+                    Text(app.status == .configured ? "Update" : "Get ticket")
                         .font(AppFonts.subheadline)
                     Spacer()
                     Image(systemName: "arrow.up.right")
@@ -486,7 +485,7 @@ struct AutomationGuideView: View {
                 dismiss()
             }
         } label: {
-            Text(loc(appLanguage, "Deactivate"))
+            Text("Deactivate")
                 .font(AppFonts.caption)
                 .foregroundColor(.red.opacity(0.8))
                 .frame(maxWidth: .infinity)
@@ -524,3 +523,4 @@ struct AutomationGuideView: View {
         return "\(Int((Double(absValue) / 1_000_000.0).rounded()))M"
     }
 }
+#endif

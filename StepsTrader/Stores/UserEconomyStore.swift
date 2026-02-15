@@ -30,7 +30,9 @@ final class UserEconomyStore: ObservableObject {
     @Published var serverGrantedSteps: Int = 0
     @Published var totalStepsBalance: Int = 0
     
-    @Published var spentSteps: Int = 0
+    @Published var spentSteps: Int = 0 {
+        didSet { UserDefaults.stepsTrader().set(spentSteps, forKey: SharedKeys.spentStepsToday) }
+    }
     @Published var spentMinutes: Int = 0
     @Published var spentTariff: Tariff = .easy
     
@@ -59,22 +61,37 @@ final class UserEconomyStore: ObservableObject {
     }
     
     // MARK: - Persistence & Loading
-    func loadSpentStepsBalance() {
+    
+    /// Internal only — AppModel+Payment.loadSpentStepsBalance() is the canonical entry point.
+    /// This exists for potential standalone store testing. Not called externally.
+    private func loadSpentStepsBalance() {
         let g = UserDefaults.stepsTrader()
-        spentSteps = g.integer(forKey: "spentStepsToday")
+        spentSteps = g.integer(forKey: SharedKeys.spentStepsToday)
         stepsBalance = g.integer(forKey: "stepsBalance")
         bonusSteps = g.integer(forKey: "debugStepsBonus_v1")
         
-        // Check anchor
+        // Use custom day boundary (dayEndHour/Minute) to match the rest of the app.
+        // Calendar.current.isDateInToday uses midnight which causes premature resets
+        // for users with a custom day-end time (e.g. 2 AM).
+        let now = Date()
+        let s = UserDefaults.standard
+        let dayEndHour = (g.object(forKey: "dayEndHour_v1") as? Int)
+            ?? (s.object(forKey: "dayEndHour_v1") as? Int)
+            ?? 0
+        let dayEndMinute = (g.object(forKey: "dayEndMinute_v1") as? Int)
+            ?? (s.object(forKey: "dayEndMinute_v1") as? Int)
+            ?? 0
+        let currentDayStart = DayBoundary.currentDayStart(for: now, dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
+        
         if let anchor = g.object(forKey: "stepsBalanceAnchor") as? Date {
-            if !Calendar.current.isDateInToday(anchor) {
-                // New day - reset spent steps, keep balance
-                spentSteps = 0
-                g.set(0, forKey: "spentStepsToday")
-                g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
+            let anchorDayStart = DayBoundary.currentDayStart(for: anchor, dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
+            if anchorDayStart != currentDayStart {
+                // New custom day - reset spent steps
+                spentSteps = 0 // didSet persists to SharedKeys.spentStepsToday
+                g.set(currentDayStart, forKey: "stepsBalanceAnchor")
             }
         } else {
-            g.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
+            g.set(currentDayStart, forKey: "stepsBalanceAnchor")
         }
     }
     
@@ -108,15 +125,26 @@ final class UserEconomyStore: ObservableObject {
     }
     
     func loadMinuteChargeLogs() async {
-        if let loaded: [MinuteChargeLog] = await loadFromPersistenceOrDefaults(
+        // Single source of truth: shared file (app + extension). Fall back to legacy storage for migration.
+        if let url = SharedKeys.minuteChargeLogsFileURL(),
+           (try? url.checkResourceIsReachable()) == true,
+           let data = try? Data(contentsOf: url),
+           let loaded = try? JSONDecoder().decode([MinuteChargeLog].self, from: data) {
+            minuteChargeLogs = loaded
+        } else if let loaded: [MinuteChargeLog] = await loadFromPersistenceOrDefaults(
             filename: minuteChargeLogsKey,
             defaultsKey: udMinuteChargeLogsKey
         ) {
             minuteChargeLogs = loaded
+            if let u = SharedKeys.minuteChargeLogsFileURL(), let d = try? JSONEncoder().encode(loaded) {
+                try? d.write(to: u, options: .atomic)
+            }
+            let g = UserDefaults.stepsTrader()
+            g.removeObject(forKey: udMinuteChargeLogsKey)
         } else {
             minuteChargeLogs = []
         }
-        
+
         if let loadedTime: [String: [String: Int]] = await loadFromPersistenceOrDefaults(
             filename: minuteTimeByDayKey,
             defaultsKey: udMinuteTimeByDayKey
@@ -147,7 +175,9 @@ final class UserEconomyStore: ObservableObject {
     
     func persistMinuteChargeLogs() {
         Task {
-            try? await persistence.save(minuteChargeLogs, to: minuteChargeLogsKey)
+            if let url = SharedKeys.minuteChargeLogsFileURL(), let data = try? JSONEncoder().encode(minuteChargeLogs) {
+                try? data.write(to: url, options: .atomic)
+            }
             try? await persistence.save(minuteTimeByDay, to: minuteTimeByDayKey)
         }
     }
@@ -175,7 +205,7 @@ final class UserEconomyStore: ObservableObject {
             // Migrate to file
             try? await persistence.save(decoded, to: filename)
             g.removeObject(forKey: defaultsKey)
-            print("📦 Migrated \(defaultsKey) from AppGroup to \(filename)")
+            AppLogger.app.debug("📦 Migrated \(defaultsKey) from AppGroup to \(filename)")
             return decoded
         }
         
@@ -186,7 +216,7 @@ final class UserEconomyStore: ObservableObject {
             // Migrate to file
             try? await persistence.save(decoded, to: filename)
             s.removeObject(forKey: defaultsKey)
-            print("📦 Migrated \(defaultsKey) from Standard to \(filename)")
+            AppLogger.app.debug("📦 Migrated \(defaultsKey) from Standard to \(filename)")
             return decoded
         }
         

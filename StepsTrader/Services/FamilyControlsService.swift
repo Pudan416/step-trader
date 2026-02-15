@@ -43,7 +43,7 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
 
     func updateMinuteModeMonitoring() {
         #if canImport(FamilyControls)
-        // Выполняем асинхронно, чтобы не блокировать главный поток
+        // Run async to avoid blocking main thread
         Task { @MainActor in
             let events = buildMinuteEvents()
             if events.isEmpty {

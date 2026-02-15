@@ -2,6 +2,7 @@ import XCTest
 import HealthKit
 @testable import Steps4
 
+@MainActor
 final class CustomActivityTests: XCTestCase {
     private var defaults: UserDefaults!
 
@@ -87,6 +88,7 @@ private final class MockHealthKitService: HealthKitServiceProtocol {
     func fetchSleep(from: Date, to: Date) async throws -> Double { 0 }
     @MainActor func requestAuthorization() async throws {}
     @MainActor func authorizationStatus() -> HKAuthorizationStatus { .sharingAuthorized }
+    @MainActor func sleepAuthorizationStatus() -> HKAuthorizationStatus { .sharingAuthorized }
     func fetchTodaySteps() async throws -> Double { 0 }
     func fetchSteps(from: Date, to: Date) async throws -> Double { 0 }
     func startObservingSteps(updateHandler: @escaping (Double) -> Void) {}

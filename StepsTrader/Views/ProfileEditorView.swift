@@ -5,8 +5,6 @@ struct ProfileEditorView: View {
     @ObservedObject var authService: AuthenticationService
     @StateObject private var locationManager = ProfileLocationManager()
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
-    
     @State private var nickname: String = ""
     @State private var selectedCountryCode: String = ""
     @State private var showCountryPicker: Bool = false
@@ -20,7 +18,7 @@ struct ProfileEditorView: View {
     // All countries sorted by localized name
     private var countries: [(code: String, name: String)] {
         let codes = Locale.Region.isoRegions.map { $0.identifier }
-        let locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
+        let locale = Locale(identifier: "en_US")
         return codes.compactMap { code -> (String, String)? in
             guard let name = locale.localizedString(forRegionCode: code), !name.isEmpty else { return nil }
             return (code, name)
@@ -29,7 +27,7 @@ struct ProfileEditorView: View {
     
     private var selectedCountryName: String {
         if selectedCountryCode.isEmpty { return "" }
-        let locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
+        let locale = Locale(identifier: "en_US")
         return locale.localizedString(forRegionCode: selectedCountryCode) ?? selectedCountryCode
     }
     
@@ -88,7 +86,7 @@ struct ProfileEditorView: View {
                         } label: {
                             HStack {
                                 Spacer()
-                                Text(loc(appLanguage, "Remove Photo"))
+                                Text("Remove Photo")
                                 Spacer()
                             }
                         }
@@ -101,14 +99,14 @@ struct ProfileEditorView: View {
                         Image(systemName: "at")
                             .foregroundColor(.secondary)
                             .frame(width: 24)
-                        TextField(loc(appLanguage, "Nickname"), text: $nickname)
+                        TextField("Nickname", text: $nickname)
                             .autocapitalization(.none)
                             .autocorrectionDisabled()
                     }
                 } header: {
-                    Text(loc(appLanguage, "Nickname"))
+                    Text("Nickname")
                 } footer: {
-                    Text(loc(appLanguage, "This name will be displayed instead of my real name"))
+                    Text("This name will be displayed instead of my real name")
                 }
                 
                 // Location section
@@ -122,7 +120,7 @@ struct ProfileEditorView: View {
                         HStack {
                             Image(systemName: "location.fill")
                                 .foregroundColor(.blue)
-                            Text(loc(appLanguage, "Detect my country"))
+                            Text("Detect my country")
                                 .foregroundColor(.blue)
                             Spacer()
                             if locationManager.isLoading {
@@ -140,14 +138,14 @@ struct ProfileEditorView: View {
                             Image(systemName: "globe")
                                 .foregroundColor(.secondary)
                                 .frame(width: 24)
-                            Text(loc(appLanguage, "Country"))
+                            Text("Country")
                                 .foregroundColor(.primary)
                             Spacer()
                             if !selectedCountryCode.isEmpty {
                                 Text(selectedCountryName)
                                     .foregroundColor(.secondary)
                             } else {
-                                Text(loc(appLanguage, "Select"))
+                                Text("Select")
                                     .foregroundColor(.secondary)
                             }
                             Image(systemName: "chevron.right")
@@ -156,7 +154,7 @@ struct ProfileEditorView: View {
                         }
                     }
                 } header: {
-                    Text(loc(appLanguage, "Location"))
+                    Text("Location")
                 } footer: {
                     if let error = locationManager.errorMessage {
                         Text(error)
@@ -177,15 +175,15 @@ struct ProfileEditorView: View {
                     } header: {
                         Text("Email")
                     } footer: {
-                        Text(loc(appLanguage, "Email is managed by Apple ID"))
+                        Text("Email is managed by Apple ID")
                     }
                 }
             }
-            .navigationTitle(loc(appLanguage, "Edit Profile"))
+            .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Cancel")) {
+                    Button("Cancel") {
                         dismiss()
                     }
                     .disabled(isSaving)
@@ -194,7 +192,7 @@ struct ProfileEditorView: View {
                     if isSaving {
                         ProgressView()
                     } else {
-                        Button(loc(appLanguage, "Save")) {
+                        Button("Save") {
                             Task {
                                 await saveProfileAsync()
                             }
@@ -206,28 +204,28 @@ struct ProfileEditorView: View {
             .onAppear {
                 loadCurrentProfile()
             }
-            .alert(loc(appLanguage, "Error"), isPresented: .init(
+            .alert("Error", isPresented: .init(
                 get: { saveError != nil },
                 set: { if !$0 { saveError = nil } }
             )) {
-                Button(loc(appLanguage, "OK")) { saveError = nil }
+                Button("OK") { saveError = nil }
             } message: {
                 Text(saveError ?? "")
             }
             .confirmationDialog(
-                loc(appLanguage, "Choose Photo"),
+                "Choose Photo",
                 isPresented: $showImageSourcePicker,
                 titleVisibility: .visible
             ) {
-                Button(loc(appLanguage, "Camera")) {
+                Button("Camera") {
                     imageSourceType = .camera
                     showImagePicker = true
                 }
-                Button(loc(appLanguage, "Photo Library")) {
+                Button("Photo Library") {
                     imageSourceType = .photoLibrary
                     showImagePicker = true
                 }
-                Button(loc(appLanguage, "Cancel"), role: .cancel) { }
+                Button("Cancel", role: .cancel) { }
             }
             .sheet(isPresented: $showImagePicker) {
                 ImagePicker(image: $avatarImage, sourceType: imageSourceType)
@@ -235,8 +233,7 @@ struct ProfileEditorView: View {
             .sheet(isPresented: $showCountryPicker) {
                 CountryPickerView(
                     selectedCountryCode: $selectedCountryCode,
-                    countries: countries,
-                    appLanguage: appLanguage
+                    countries: countries
                 )
             }
         }

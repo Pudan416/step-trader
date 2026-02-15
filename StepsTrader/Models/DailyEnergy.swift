@@ -2,60 +2,113 @@ import Foundation
 
 // MARK: - Gallery tab: past day snapshot (for history)
 struct PastDaySnapshot: Codable, Equatable {
-    var controlGained: Int
-    var controlSpent: Int
-    var activityIds: [String]
-    var creativityIds: [String]
-    var joysIds: [String]
+    var experienceEarned: Int
+    var experienceSpent: Int
+    var bodyIds: [String]
+    var mindIds: [String]
+    var heartIds: [String]
     var steps: Int
     var sleepHours: Double
+    var stepsTarget: Double
+    var sleepTargetHours: Double
 
     enum CodingKeys: String, CodingKey {
-        case controlGained, controlSpent, activityIds, creativityIds, joysIds, steps, sleepHours
+        case experienceEarned
+        case experienceSpent
+        // Encode with new names, decode with backward compat
+        case bodyIds
+        case mindIds
+        case heartIds
+        case steps
+        case sleepHours
+        case stepsTarget
+        case sleepTargetHours
         // Backward-compat keys (historical)
+        case controlGained
+        case controlSpent
+        case activityIds
+        case creativityIds
         case recoveryIds
         case restIds
+        case joysIds
     }
 
-    // Backward compatibility - old snapshots won't have steps/sleep
-    init(controlGained: Int, controlSpent: Int, activityIds: [String], creativityIds: [String], joysIds: [String], steps: Int = 0, sleepHours: Double = 0) {
-        self.controlGained = controlGained
-        self.controlSpent = controlSpent
-        self.activityIds = activityIds
-        self.creativityIds = creativityIds
-        self.joysIds = joysIds
+    // Backward compatibility - old snapshots won't have steps/sleep/targets
+    init(
+        experienceEarned: Int,
+        experienceSpent: Int,
+        bodyIds: [String],
+        mindIds: [String],
+        heartIds: [String],
+        steps: Int = 0,
+        sleepHours: Double = 0,
+        stepsTarget: Double = EnergyDefaults.stepsTarget,
+        sleepTargetHours: Double = EnergyDefaults.sleepTargetHours
+    ) {
+        self.experienceEarned = experienceEarned
+        self.experienceSpent = experienceSpent
+        self.bodyIds = bodyIds
+        self.mindIds = mindIds
+        self.heartIds = heartIds
         self.steps = steps
         self.sleepHours = sleepHours
+        self.stepsTarget = stepsTarget
+        self.sleepTargetHours = sleepTargetHours
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        controlGained = try container.decode(Int.self, forKey: .controlGained)
-        controlSpent = try container.decode(Int.self, forKey: .controlSpent)
-        activityIds = try container.decode([String].self, forKey: .activityIds)
-        if let v = try container.decodeIfPresent([String].self, forKey: .creativityIds) {
-            creativityIds = v
-        } else if let v = try container.decodeIfPresent([String].self, forKey: .recoveryIds) {
-            creativityIds = v
-        } else if let v = try container.decodeIfPresent([String].self, forKey: .restIds) {
-            creativityIds = v
+        if let earned = try container.decodeIfPresent(Int.self, forKey: .experienceEarned) {
+            experienceEarned = earned
         } else {
-            creativityIds = []
+            experienceEarned = try container.decode(Int.self, forKey: .controlGained)
         }
-        joysIds = try container.decode([String].self, forKey: .joysIds)
+        if let spent = try container.decodeIfPresent(Int.self, forKey: .experienceSpent) {
+            experienceSpent = spent
+        } else {
+            experienceSpent = try container.decode(Int.self, forKey: .controlSpent)
+        }
+        // bodyIds: try new key first, then legacy "activityIds"
+        if let v = try container.decodeIfPresent([String].self, forKey: .bodyIds) {
+            bodyIds = v
+        } else {
+            bodyIds = (try? container.decode([String].self, forKey: .activityIds)) ?? []
+        }
+        // mindIds: try new key first, then legacy "creativityIds", "recoveryIds", "restIds"
+        if let v = try container.decodeIfPresent([String].self, forKey: .mindIds) {
+            mindIds = v
+        } else if let v = try container.decodeIfPresent([String].self, forKey: .creativityIds) {
+            mindIds = v
+        } else if let v = try container.decodeIfPresent([String].self, forKey: .recoveryIds) {
+            mindIds = v
+        } else if let v = try container.decodeIfPresent([String].self, forKey: .restIds) {
+            mindIds = v
+        } else {
+            mindIds = []
+        }
+        // heartIds: try new key first, then legacy "joysIds"
+        if let v = try container.decodeIfPresent([String].self, forKey: .heartIds) {
+            heartIds = v
+        } else {
+            heartIds = (try? container.decode([String].self, forKey: .joysIds)) ?? []
+        }
         steps = try container.decodeIfPresent(Int.self, forKey: .steps) ?? 0
         sleepHours = try container.decodeIfPresent(Double.self, forKey: .sleepHours) ?? 0
+        stepsTarget = try container.decodeIfPresent(Double.self, forKey: .stepsTarget) ?? EnergyDefaults.stepsTarget
+        sleepTargetHours = try container.decodeIfPresent(Double.self, forKey: .sleepTargetHours) ?? EnergyDefaults.sleepTargetHours
     }
-    
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(controlGained, forKey: .controlGained)
-        try container.encode(controlSpent, forKey: .controlSpent)
-        try container.encode(activityIds, forKey: .activityIds)
-        try container.encode(creativityIds, forKey: .creativityIds)
-        try container.encode(joysIds, forKey: .joysIds)
+        try container.encode(experienceEarned, forKey: .experienceEarned)
+        try container.encode(experienceSpent, forKey: .experienceSpent)
+        try container.encode(bodyIds, forKey: .bodyIds)
+        try container.encode(mindIds, forKey: .mindIds)
+        try container.encode(heartIds, forKey: .heartIds)
         try container.encode(steps, forKey: .steps)
         try container.encode(sleepHours, forKey: .sleepHours)
+        try container.encode(stepsTarget, forKey: .stepsTarget)
+        try container.encode(sleepTargetHours, forKey: .sleepTargetHours)
     }
 }
 
@@ -66,21 +119,26 @@ struct DayGallerySlot: Codable, Equatable {
 }
 
 enum EnergyCategory: String, CaseIterable, Codable, Identifiable {
-    case activity  // Activity (steps + movement activities)
-    case creativity  // Creativity (choices)
-    case joys      // Joys (gallery)
+    case body      // Body (steps + movement activities)
+    case mind      // Mind (attention + creativity)
+    case heart     // Heart (feelings + connection)
 
     var id: String { rawValue }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let raw = try container.decode(String.self)
-        if raw == "recovery" || raw == "rest" {
-            self = .creativity
-        } else if let value = EnergyCategory(rawValue: raw) {
-            self = value
-        } else {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown EnergyCategory: \(raw)")
+        // Backward compatibility: old raw values → new cases
+        switch raw {
+        case "activity":                self = .body
+        case "creativity", "recovery", "rest": self = .mind
+        case "joys":                    self = .heart
+        default:
+            if let value = EnergyCategory(rawValue: raw) {
+                self = value
+            } else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown EnergyCategory: \(raw)")
+            }
         }
     }
 }
@@ -97,6 +155,17 @@ struct EnergyOption: Identifiable, Codable, Equatable {
     }
 }
 
+// MARK: - Option Entry (user's daily log for an activity)
+struct OptionEntry: Identifiable, Codable, Equatable {
+    let id: String // matches optionId
+    let dayKey: String
+    let optionId: String
+    let category: EnergyCategory
+    var colorHex: String
+    var text: String
+    var timestamp: Date
+}
+
 enum EnergyDefaults {
     static let maxBaseEnergy: Int = 100
     static let maxBonusEnergy: Int = 50
@@ -110,44 +179,81 @@ enum EnergyDefaults {
     static let selectionPoints: Int = 5
     
     static let options: [EnergyOption] = [
-        // Activity (Assets: activity_*)
-        EnergyOption(id: "activity_dancing", titleEn: "Dancing", titleRu: "Танцы", category: .activity, icon: "figure.dance"),
-        EnergyOption(id: "activity_meal", titleEn: "Meal", titleRu: "Еда", category: .activity, icon: "fork.knife"),
-        EnergyOption(id: "activity_overcome", titleEn: "Overcome", titleRu: "Преодолеть", category: .activity, icon: "bolt.fill"),
-        EnergyOption(id: "activity_risk", titleEn: "Risk", titleRu: "Риск", category: .activity, icon: "exclamationmark.triangle.fill"),
-        EnergyOption(id: "activity_sex", titleEn: "Sex", titleRu: "Секс", category: .activity, icon: "heart.fill"),
-        EnergyOption(id: "activity_sport", titleEn: "Sport", titleRu: "Спорт", category: .activity, icon: "sportscourt.fill"),
-        EnergyOption(id: "activity_strong", titleEn: "Strong", titleRu: "Сила", category: .activity, icon: "dumbbell.fill"),
-        EnergyOption(id: "activity_other", titleEn: "Other", titleRu: "Другое", category: .activity, icon: "plus.circle.fill"),
+        // BODY - Ways your body was truly present today
+        EnergyOption(id: "body_walking", titleEn: "Walking", titleRu: "Ходьба", category: .body, icon: "figure.walk"),
+        EnergyOption(id: "body_physical_effort", titleEn: "Physical Effort", titleRu: "Физическое усилие", category: .body, icon: "dumbbell.fill"),
+        EnergyOption(id: "body_stretching", titleEn: "Stretching", titleRu: "Растяжка", category: .body, icon: "figure.flexibility"),
+        EnergyOption(id: "body_resting", titleEn: "Resting", titleRu: "Отдых", category: .body, icon: "bed.double.fill"),
+        EnergyOption(id: "body_breathing", titleEn: "Breathing", titleRu: "Дыхание", category: .body, icon: "wind"),
+        EnergyOption(id: "body_touch", titleEn: "Touch", titleRu: "Прикосновение", category: .body, icon: "hand.raised.fill"),
+        EnergyOption(id: "body_balance", titleEn: "Balance", titleRu: "Баланс", category: .body, icon: "figure.yoga"),
+        EnergyOption(id: "body_repetition", titleEn: "Repetition", titleRu: "Повторение", category: .body, icon: "arrow.clockwise"),
+        EnergyOption(id: "body_warming", titleEn: "Warming", titleRu: "Согревание", category: .body, icon: "sun.max.fill"),
+        EnergyOption(id: "body_stillness", titleEn: "Stillness", titleRu: "Неподвижность", category: .body, icon: "figure.stand"),
 
-        // Creativity (Assets: creativity_* — all 7 pictures in gallery)
-        EnergyOption(id: "creativity_curiosity", titleEn: "Curiosity", titleRu: "Любопытство", category: .creativity, icon: "sparkles"),
-        EnergyOption(id: "creativity_doing_cash", titleEn: "Cash doing", titleRu: "Делать деньги", category: .creativity, icon: "banknote"),
-        EnergyOption(id: "creativity_fantasizing", titleEn: "Fantasizing", titleRu: "Фантазии", category: .creativity, icon: "cloud.fill"),
-        EnergyOption(id: "creativity_general", titleEn: "General", titleRu: "Общее", category: .creativity, icon: "sparkles"),
-        EnergyOption(id: "creativity_invisible", titleEn: "Invisible", titleRu: "Невидимое", category: .creativity, icon: "eye.slash.fill"),
-        EnergyOption(id: "creativity_museum", titleEn: "Museum", titleRu: "Музей", category: .creativity, icon: "building.columns.fill"),
-        EnergyOption(id: "creativity_observe", titleEn: "Observe", titleRu: "Наблюдать", category: .creativity, icon: "eye.fill"),
-        EnergyOption(id: "creativity_other", titleEn: "Other", titleRu: "Другое", category: .creativity, icon: "plus.circle.fill"),
+        // MIND - Ways your attention shaped the day
+        EnergyOption(id: "mind_focusing", titleEn: "Focusing", titleRu: "Фокусировка", category: .mind, icon: "eye.fill"),
+        EnergyOption(id: "mind_learning", titleEn: "Learning", titleRu: "Обучение", category: .mind, icon: "book.fill"),
+        EnergyOption(id: "mind_thinking", titleEn: "Thinking", titleRu: "Размышление", category: .mind, icon: "brain.head.profile"),
+        EnergyOption(id: "mind_planning", titleEn: "Planning", titleRu: "Планирование", category: .mind, icon: "calendar"),
+        EnergyOption(id: "mind_writing", titleEn: "Writing", titleRu: "Письмо", category: .mind, icon: "pencil.line"),
+        EnergyOption(id: "mind_observing", titleEn: "Observing", titleRu: "Наблюдение", category: .mind, icon: "binoculars.fill"),
+        EnergyOption(id: "mind_questioning", titleEn: "Questioning", titleRu: "Вопрошание", category: .mind, icon: "questionmark.circle.fill"),
+        EnergyOption(id: "mind_ordering", titleEn: "Ordering", titleRu: "Упорядочивание", category: .mind, icon: "square.grid.2x2.fill"),
+        EnergyOption(id: "mind_remembering", titleEn: "Remembering", titleRu: "Воспоминание", category: .mind, icon: "clock.arrow.circlepath"),
+        EnergyOption(id: "mind_letting_go", titleEn: "Letting Go", titleRu: "Отпускание", category: .mind, icon: "leaf.fill"),
 
-        // Joys (Assets: joys_*)
-        EnergyOption(id: "joys_cringe", titleEn: "Cringe", titleRu: "Кринж", category: .joys, icon: "face.dashed"),
-        EnergyOption(id: "joys_embrase", titleEn: "Embrace", titleRu: "Обнять", category: .joys, icon: "heart.circle.fill"),
-        EnergyOption(id: "joys_emotional", titleEn: "Emotional", titleRu: "Эмоции", category: .joys, icon: "theatermasks.fill"),
-        EnergyOption(id: "joys_friends", titleEn: "Friends", titleRu: "Друзья", category: .joys, icon: "person.2.fill"),
-        EnergyOption(id: "joys_happy_tears", titleEn: "Happy tears", titleRu: "Счастье", category: .joys, icon: "drop.circle.fill"),
-        EnergyOption(id: "joys_in_love", titleEn: "In love", titleRu: "Влюблённость", category: .joys, icon: "heart.fill"),
-        EnergyOption(id: "joys_kiss", titleEn: "Kiss", titleRu: "Поцелуй", category: .joys, icon: "mouth.fill"),
-        EnergyOption(id: "joys_love_myself", titleEn: "Love myself", titleRu: "Любить себя", category: .joys, icon: "person.fill.checkmark"),
-        EnergyOption(id: "joys_money", titleEn: "Money", titleRu: "Деньги", category: .joys, icon: "dollarsign.circle.fill"),
-        EnergyOption(id: "joys_range", titleEn: "Range", titleRu: "Размах", category: .joys, icon: "arrow.left.and.right.circle.fill"),
-        EnergyOption(id: "joys_rebel", titleEn: "Rebel", titleRu: "Бунт", category: .joys, icon: "flame.fill"),
-        EnergyOption(id: "joysl_junkfood", titleEn: "Junk food", titleRu: "Фастфуд", category: .joys, icon: "takeoutbag.and.cup.and.straw.fill"),
-        EnergyOption(id: "joys_other", titleEn: "Other", titleRu: "Другое", category: .joys, icon: "plus.circle.fill")
+        // HEART - Ways you felt and connected today
+        EnergyOption(id: "heart_joy", titleEn: "Joy", titleRu: "Радость", category: .heart, icon: "face.smiling.fill"),
+        EnergyOption(id: "heart_calm", titleEn: "Calm", titleRu: "Спокойствие", category: .heart, icon: "moon.zzz.fill"),
+        EnergyOption(id: "heart_gratitude", titleEn: "Gratitude", titleRu: "Благодарность", category: .heart, icon: "hands.sparkles.fill"),
+        EnergyOption(id: "heart_connection", titleEn: "Connection", titleRu: "Связь", category: .heart, icon: "person.2.fill"),
+        EnergyOption(id: "heart_care", titleEn: "Care", titleRu: "Забота", category: .heart, icon: "heart.circle.fill"),
+        EnergyOption(id: "heart_wonder", titleEn: "Wonder", titleRu: "Удивление", category: .heart, icon: "sparkles"),
+        EnergyOption(id: "heart_trust", titleEn: "Trust", titleRu: "Доверие", category: .heart, icon: "lock.open.fill"),
+        EnergyOption(id: "heart_vulnerability", titleEn: "Vulnerability", titleRu: "Уязвимость", category: .heart, icon: "heart.slash.fill"),
+        EnergyOption(id: "heart_belonging", titleEn: "Belonging", titleRu: "Принадлежность", category: .heart, icon: "house.fill"),
+        EnergyOption(id: "heart_peace", titleEn: "Peace", titleRu: "Мир", category: .heart, icon: "infinity")
     ]
     
-    /// IDs of options that open "Add custom activity" sheet
-    static let otherOptionIds: Set<String> = ["activity_other", "creativity_other", "joys_other"]
+    /// Option descriptions and examples
+    static let optionDescriptions: [String: (description: String, examples: String)] = [
+        // BODY
+        "body_walking": ("Moving forward with your body in the world.", "city walk, nature walk, walking without a goal"),
+        "body_physical_effort": ("Using strength and resistance.", "gym, home workout, carrying, manual work"),
+        "body_stretching": ("Opening and releasing tension.", "stretching, yoga, mobility, slow warm-up"),
+        "body_resting": ("Allowing the body to recover.", "good sleep, lying down, intentional break"),
+        "body_breathing": ("Returning to your physical rhythm.", "breathing pause, calming breath, mindful inhale"),
+        "body_touch": ("Feeling the world through contact.", "water, grass, sunlight, physical grounding"),
+        "body_balance": ("Holding yourself steady and aware.", "slow movement, posture work, standing still"),
+        "body_repetition": ("Doing simple physical actions with presence.", "cleaning, tidying, daily routines"),
+        "body_warming": ("Feeling heat and comfort in the body.", "hot shower, sun exposure, warm drink"),
+        "body_stillness": ("Being completely motionless for a moment.", "sitting quietly, body scan, silent pause"),
+        
+        // MIND
+        "mind_focusing": ("Holding attention on one thing.", "reading, deep work, careful listening"),
+        "mind_learning": ("Taking something new into the mind.", "studying, educational content, skill practice"),
+        "mind_thinking": ("Actively processing ideas or situations.", "reflecting, problem-solving, mental exploration"),
+        "mind_planning": ("Organising what comes next.", "structuring tasks, setting priorities"),
+        "mind_writing": ("Turning thoughts into form.", "journaling, notes, drafting ideas"),
+        "mind_observing": ("Noticing without interfering.", "watching people, noticing patterns, awareness"),
+        "mind_questioning": ("Challenging assumptions.", "asking why, rethinking, curiosity moments"),
+        "mind_ordering": ("Creating clarity and structure.", "organising files, simplifying, arranging ideas"),
+        "mind_remembering": ("Returning to past experience consciously.", "reviewing the day, recalling a memory"),
+        "mind_letting_go": ("Releasing mental tension.", "closing tasks, stopping overthinking, pause"),
+        
+        // HEART
+        "heart_joy": ("Feeling lightness and warmth.", "laughter, playful moments, spontaneous happiness"),
+        "heart_calm": ("Feeling settled and safe inside.", "quiet time, relaxation, emotional ease"),
+        "heart_gratitude": ("Recognising something as valuable.", "appreciating a moment, feeling thankful"),
+        "heart_connection": ("Feeling close to someone.", "meaningful talk, shared silence"),
+        "heart_care": ("Giving attention and warmth.", "helping, supporting, caring for yourself"),
+        "heart_wonder": ("Feeling awe or curiosity.", "noticing beauty, surprise, inspiration"),
+        "heart_trust": ("Allowing openness without tension.", "relying on someone, emotional safety"),
+        "heart_vulnerability": ("Allowing yourself to feel honestly.", "emotional openness, sincere sharing"),
+        "heart_belonging": ("Feeling part of something.", "community, shared identity, feeling at home"),
+        "heart_peace": ("Deep inner quiet.", "acceptance, emotional stillness")
+    ]
 }
 
 // MARK: - Custom (user-added) activity option, persisted in UserDefaults
@@ -177,34 +283,34 @@ struct CustomEnergyOption: Identifiable, Codable, Equatable, Hashable {
 
 // MARK: - Available icons for custom activities
 enum CustomActivityIcons {
-    static let activity: [String] = [
+    static let body: [String] = [
         "figure.run", "figure.walk", "figure.hiking", "figure.outdoor.cycle",
         "figure.pool.swim", "figure.yoga", "figure.dance", "figure.basketball",
         "figure.tennis", "figure.golf", "figure.skiing.downhill", "figure.climbing",
         "sportscourt.fill", "dumbbell.fill", "bicycle", "skateboard.fill",
         "soccerball", "football.fill", "baseball.fill", "volleyball.fill"
     ]
-    
-    static let creativity: [String] = [
+
+    static let mind: [String] = [
         "moon.zzz.fill", "bed.double.fill", "cup.and.saucer.fill", "leaf.fill",
         "drop.fill", "wind", "sparkles", "cloud.fill",
         "sun.max.fill", "umbrella.fill", "flame.fill", "snowflake",
         "bubble.left.and.bubble.right.fill", "heart.fill", "brain.head.profile", "eye.fill"
     ]
-    
-    static let joys: [String] = [
+
+    static let heart: [String] = [
         "paintbrush.fill", "music.note", "book.fill", "gamecontroller.fill",
         "film.fill", "tv.fill", "headphones", "guitars.fill",
         "camera.fill", "photo.fill", "heart.fill", "star.fill",
         "gift.fill", "balloon.fill", "party.popper.fill", "birthday.cake.fill",
         "face.smiling.fill", "hands.clap.fill", "hand.thumbsup.fill", "pawprint.fill"
     ]
-    
+
     static func icons(for category: EnergyCategory) -> [String] {
         switch category {
-        case .activity: return activity
-        case .creativity: return creativity
-        case .joys: return joys
+        case .body: return body
+        case .mind: return mind
+        case .heart: return heart
         }
     }
 }

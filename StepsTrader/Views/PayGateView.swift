@@ -6,7 +6,7 @@ import UIKit
 import FamilyControls
 #endif
 
-/// Палитра PayGate: черный фон, желтый акцент.
+/// PayGate palette: black background, yellow accent.
 fileprivate enum PayGatePalette {
     static let background = Color.black
     static let accent = Color(red: 0xFF/255.0, green: 0xD3/255.0, blue: 0x69/255.0) // #FFD369
@@ -17,16 +17,15 @@ fileprivate enum PayGatePalette {
 
 struct PayGateView: View {
     @ObservedObject var model: AppModel
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @State private var didForfeitSessions: Set<String> = []
     @State private var showTransitionCircle: Bool = false
     @State private var transitionScale: CGFloat = 0.01
     
     private var activeSession: PayGateSession? {
-        if let id = model.currentPayGateSessionId, let session = model.payGateSessions[id] {
+        if let id = model.userEconomyStore.currentPayGateSessionId, let session = model.userEconomyStore.payGateSessions[id] {
             return session
         }
-        if let id = model.payGateTargetGroupId, let session = model.payGateSessions[id] {
+        if let id = model.userEconomyStore.payGateTargetGroupId, let session = model.userEconomyStore.payGateSessions[id] {
             return session
         }
         return nil
@@ -34,7 +33,7 @@ struct PayGateView: View {
     
     private var activeGroup: TicketGroup? {
         guard let groupId = activeSession?.groupId else { return nil }
-        return model.ticketGroups.first(where: { $0.id == groupId })
+        return model.blockingStore.ticketGroups.first(where: { $0.id == groupId })
     }
     
     var body: some View {
@@ -77,30 +76,24 @@ struct PayGateView: View {
         }
     }
     
-    // MARK: - Header
+    // MARK: - Header (no bolt — strategy: just show number)
     private var headerSection: some View {
         HStack {
             Spacer()
-            HStack(spacing: 8) {
-                Image(systemName: "bolt.fill")
-                    .font(.title2)
-                    .foregroundColor(PayGatePalette.accent)
-                
-                Text("\(model.totalStepsBalance)")
-                    .font(.notoSerif(32, weight: .bold))
-                    .foregroundColor(PayGatePalette.textPrimary)
-                    .monospacedDigit()
-            }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 20)
-            .background(
-                Capsule()
-                    .fill(PayGatePalette.surface)
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
-            )
+            Text("\(model.userEconomyStore.totalStepsBalance)")
+                .font(.notoSerif(32, weight: .bold))
+                .foregroundColor(PayGatePalette.textPrimary)
+                .monospacedDigit()
+                .padding(.vertical, 12)
+                .padding(.horizontal, 20)
+                .background(
+                    Capsule()
+                        .fill(PayGatePalette.surface)
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        )
+                )
             Spacer()
         }
     }
@@ -114,7 +107,7 @@ struct PayGateView: View {
             
             // Text
             VStack(spacing: 8) {
-                Text(loc(appLanguage, "Spend experience"))
+                Text("spend exp")
                     .font(.notoSerif(28, weight: .bold))
                     .foregroundColor(PayGatePalette.textPrimary)
                     .multilineTextAlignment(.center)
@@ -201,7 +194,7 @@ struct PayGateView: View {
                     sendAppToBackground()
                 }
             } label: {
-                Text(loc(appLanguage, "Keep it locked"))
+                Text("keep it closed")
                     .font(.subheadline.weight(.medium))
                     .foregroundColor(PayGatePalette.textSecondary)
                     .padding(.vertical, 12)
@@ -214,7 +207,7 @@ struct PayGateView: View {
     @ViewBuilder
     private func unlockButton(window: AccessWindow, group: TicketGroup, isForfeited: Bool) -> some View {
         let cost = group.cost(for: window)
-        let canPay = model.totalStepsBalance >= cost
+        let canPay = model.userEconomyStore.totalStepsBalance >= cost
         let isDisabled = !canPay || isForfeited
         
         Button {
@@ -233,14 +226,10 @@ struct PayGateView: View {
                 
                 Spacer()
                 
-                HStack(spacing: 4) {
-                    Image(systemName: "bolt.fill")
-                        .font(.subheadline)
-                    Text("\(cost)")
-                        .font(.headline.weight(.bold))
-                        .monospacedDigit()
-                }
-                .foregroundColor(isDisabled ? PayGatePalette.textSecondary.opacity(0.5) : .black)
+                Text("· \(cost) exp")
+                    .font(.headline.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundColor(isDisabled ? PayGatePalette.textSecondary.opacity(0.5) : .black)
             }
             .padding()
             .frame(height: 56)
@@ -259,9 +248,9 @@ struct PayGateView: View {
     
     private func unlockLabel(_ window: AccessWindow) -> String {
         switch window {
-        case .minutes10: return loc(appLanguage, "a bit (10 min)")
-        case .minutes30: return loc(appLanguage, "quite a bit (30 min)")
-        case .hour1: return loc(appLanguage, "some time (1 hour)")
+        case .minutes10: return "10 min"
+        case .minutes30: return "30 min"
+        case .hour1: return "1 hour"
         }
     }
     

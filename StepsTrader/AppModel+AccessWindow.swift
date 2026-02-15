@@ -14,7 +14,7 @@ extension AppModel {
         }
         g.set(until, forKey: accessBlockKey(for: bundleId))
         let remaining = Int(until.timeIntervalSince(Date()))
-        print("⏱️ Access window set for \(bundleId) until \(until) (\(remaining) seconds)")
+        AppLogger.app.debug("⏱️ Access window set for \(bundleId) until \(until) (\(remaining) seconds)")
         
         // Schedule background expiry so the block restores without foreground.
         scheduleAccessWindowExpiryActivity(bundleId: bundleId, expiresInSeconds: remaining)
@@ -31,7 +31,7 @@ extension AppModel {
             return false
         }
         let remaining = Int(until.timeIntervalSince(Date()))
-        print("⏱️ Access window active for \(bundleId), remaining \(remaining) seconds")
+        AppLogger.app.debug("⏱️ Access window active for \(bundleId), remaining \(remaining) seconds")
         return true
     }
 
@@ -70,7 +70,7 @@ extension AppModel {
                 intervalEnd: endComponents,
                 repeats: false
             )
-            print("📅 Scheduled access window expiry for \(bundleId) in \(expiresInSeconds)s (interval end)")
+            AppLogger.app.debug("📅 Scheduled access window expiry for \(bundleId) in \(expiresInSeconds)s (interval end)")
         } else {
             let endDate = now.addingTimeInterval(900)
             let endComponents = calendar.dateComponents([.hour, .minute, .second], from: endDate)
@@ -82,14 +82,14 @@ extension AppModel {
                 repeats: false,
                 warningTime: warningTime
             )
-            print("📅 Scheduled access window expiry for \(bundleId) in \(expiresInSeconds)s (warning in \(secondsBeforeEnd)s)")
+            AppLogger.app.debug("📅 Scheduled access window expiry for \(bundleId) in \(expiresInSeconds)s (warning in \(secondsBeforeEnd)s)")
         }
         
         center.stopMonitoring([activityName])
         do {
             try center.startMonitoring(activityName, during: schedule)
         } catch {
-            print("❌ Failed to schedule access window expiry: \(error)")
+            AppLogger.app.debug("Failed to schedule access window expiry: \(error.localizedDescription)")
         }
         #endif
     }
@@ -124,7 +124,7 @@ extension AppModel {
             if let until = g.object(forKey: key) as? Date {
                 if now >= until {
                     g.removeObject(forKey: key)
-                    print("🧹 Purged expired access window: \(key)")
+                    AppLogger.app.debug("🧹 Purged expired access window: \(key)")
                 }
             } else {
                 g.removeObject(forKey: key)
@@ -138,7 +138,7 @@ extension AppModel {
                 if now >= until {
                     g.removeObject(forKey: key)
                     let groupId = String(key.dropFirst("groupUnlock_".count))
-                    print("🧹 Purged expired group unlock: \(groupId)")
+                    AppLogger.app.debug("🧹 Purged expired group unlock: \(groupId)")
                 }
             } else {
                 g.removeObject(forKey: key)

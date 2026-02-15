@@ -3,7 +3,6 @@ import SwiftUI
 struct EnergySetupView: View {
     @ObservedObject var model: AppModel
     var onDone: (() -> Void)? = nil
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
     @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
     @Environment(\.dismiss) private var dismiss
@@ -26,71 +25,68 @@ struct EnergySetupView: View {
                         DayEndSettingsView(model: model)
                     } label: {
                         HStack {
-                            Text(loc(appLanguage, "End of day"))
+                            Text("End of day")
                             Spacer()
                             Text(dayEndTimeLabel)
                                 .foregroundColor(.secondary)
                         }
                     }
                 } header: {
-                    Text(loc(appLanguage, "Daily reset time"))
+                    Text("Daily reset time")
                 } footer: {
-                    Text(loc(appLanguage, "Points reset at this time every day."))
+                    Text("Points reset at this time every day.")
                 }
                 
                 Section {
                     NavigationLink {
                         CategorySettingsView(
                             model: model,
-                            category: .activity,
-                            appLanguage: appLanguage
+                            category: .body
                         )
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "figure.run")
                                 .foregroundColor(.green)
-                            Text(loc(appLanguage, "Activity"))
+                            Text("Activity")
                         }
                     }
                     
                     NavigationLink {
                         CategorySettingsView(
                             model: model,
-                            category: .creativity,
-                            appLanguage: appLanguage
+                            category: .mind
                         )
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "sparkles")
                                 .foregroundColor(.purple)
-                            Text(loc(appLanguage, "Creativity"))
+                            Text("Creativity")
                         }
                     }
                     
                     NavigationLink {
                         CategorySettingsView(
                             model: model,
-                            category: .joys,
-                            appLanguage: appLanguage
+                            category: .heart
                         )
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "heart.fill")
                                 .foregroundColor(.orange)
-                            Text(loc(appLanguage, "Joys"))
+                            Text("Joys")
                         }
                     }
                 } header: {
-                    Text(loc(appLanguage, "Daily gallery"))
+                    Text("Daily gallery")
                 } footer: {
-                    Text(loc(appLanguage, "Set goals and manage cards per category."))
+                    Text("Set goals and manage cards per category.")
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle(loc(appLanguage, "Daily setup"))
+            .navigationTitle("Daily setup")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(loc(appLanguage, "Done")) {
+                    Button("Done") {
                         onDone?()
                         dismiss()
                     }

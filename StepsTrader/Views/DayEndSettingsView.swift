@@ -2,7 +2,6 @@ import SwiftUI
 
 struct DayEndSettingsView: View {
     @ObservedObject var model: AppModel
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
     @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
     
@@ -24,7 +23,7 @@ struct DayEndSettingsView: View {
     var body: some View {
         List {
             Section {
-                Picker(loc(appLanguage, "End of day"), selection: $selectedMinutes) {
+                Picker("End of day", selection: $selectedMinutes) {
                     ForEach(allowedMinutes, id: \.self) { minutes in
                         Text(formatTime(minutes))
                             .tag(minutes)
@@ -32,13 +31,13 @@ struct DayEndSettingsView: View {
                 }
                 .pickerStyle(.wheel)
             } header: {
-                Text(loc(appLanguage, "Daily reset time"))
+                Text("Daily reset time")
             } footer: {
-                Text(loc(appLanguage, "Choose a time between 21:00 and 03:00."))
+                Text("Choose a time between 21:00 and 03:00.")
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(loc(appLanguage, "End of day"))
+        .navigationTitle("End of day")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             let current = dayEndHourSetting * 60 + dayEndMinuteSetting

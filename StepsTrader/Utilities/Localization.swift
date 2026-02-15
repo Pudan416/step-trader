@@ -1,9 +1,3 @@
+// Localization.swift — intentionally empty.
+// All loc() wrappers have been stripped (S21). English-only for v1.
 import Foundation
-
-func loc(_ text: String) -> String {
-    text
-}
-
-func loc(_ lang: String, _ text: String) -> String {
-    text
-}

@@ -42,7 +42,7 @@ extension AppModel {
             appUnlockSettings[bundleId] = settings
         }
         persistAppUnlockSettings()
-        print("☁️ Restored \(cloudSettings.count) ticket settings from cloud")
+        AppLogger.network.debug("☁️ Restored \(cloudSettings.count) ticket settings from cloud")
     }
     
     func restoreStepsSpentFromCloud(_ cloudSteps: [String: [String: Int]]) async {
@@ -51,12 +51,12 @@ extension AppModel {
             g.set(data, forKey: "appStepsSpentByDay_v1")
         }
         self.loadAppStepsSpentToday()
-        print("☁️ Restored steps spent data from cloud")
+        AppLogger.network.debug("☁️ Restored steps spent data from cloud")
     }
     
     func restoreDayPassesFromCloud(_ cloudDayPasses: [String: Date]) async {
         dayPassGrants = cloudDayPasses
         persistDayPassGrants()
-        print("☁️ Restored \(cloudDayPasses.count) day passes from cloud")
+        AppLogger.network.debug("☁️ Restored \(cloudDayPasses.count) day passes from cloud")
     }
 }

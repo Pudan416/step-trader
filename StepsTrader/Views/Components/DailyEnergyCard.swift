@@ -2,7 +2,6 @@ import SwiftUI
 
 struct DailyEnergyCard: View {
     @ObservedObject var model: AppModel
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("userStepsTarget") private var userStepsTarget: Double = 10_000
     @AppStorage("userSleepTarget") private var userSleepTarget: Double = 8.0
     @State private var showMoveSettings = false
@@ -11,7 +10,7 @@ struct DailyEnergyCard: View {
     
     private var sleepBinding: Binding<Double> {
         Binding(
-            get: { model.dailySleepHours },
+            get: { model.healthStore.dailySleepHours },
             set: { model.setDailySleepHours($0) }
         )
     }
@@ -26,13 +25,13 @@ struct DailyEnergyCard: View {
         .padding(20)
         .background(glassCard)
         .sheet(isPresented: $showMoveSettings) {
-            CategorySettingsView(model: model, category: .activity, appLanguage: appLanguage)
+            CategorySettingsView(model: model, category: .body)
         }
         .sheet(isPresented: $showCreativitySettings) {
-            CategorySettingsView(model: model, category: .creativity, appLanguage: appLanguage)
+            CategorySettingsView(model: model, category: .mind)
         }
         .sheet(isPresented: $showJoySettings) {
-            CategorySettingsView(model: model, category: .joys, appLanguage: appLanguage)
+            CategorySettingsView(model: model, category: .heart)
         }
     }
     
@@ -45,15 +44,15 @@ struct DailyEnergyCard: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 6) {
-                Text(loc(appLanguage, "Daily Experience"))
+                Text("Daily Exp")
                     .font(.title3.weight(.bold))
-                Text(loc(appLanguage, "Build 100 points from activity, creativity, and joys"))
+                Text("Build 100 points from activity, creativity, and joys")
                     .font(.caption)
                     .foregroundColor(.primary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(model.baseEnergyToday)")
+                Text("\(model.healthStore.baseEnergyToday)")
                     .font(.notoSerif(32, weight: .bold))
                     .foregroundColor(.primary)
                     .monospacedDigit()
@@ -67,30 +66,15 @@ struct DailyEnergyCard: View {
     private var activitySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
-                title: loc(appLanguage, "Activity"),
+                title: "Body",
                 points: model.activityPointsToday,
-                maxPoints: 40,
-                category: .activity
+                maxPoints: 20,
+                category: .body
             )
             
-            // Steps
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(loc(appLanguage, "Steps"))
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Text("\(model.stepsPointsToday)/\(EnergyDefaults.stepsMaxPoints)")
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(.primary)
-                }
-                Text("\(formatNumber(Int(model.stepsToday)))/\(formatNumber(Int(userStepsTarget)))")
-                    .font(.caption)
-                    .foregroundColor(.primary)
-            }
-            
             optionGrid(
-                options: model.preferredOptions(for: .activity),
-                category: .activity
+                options: model.preferredOptions(for: .body),
+                category: .body
             )
         }
     }
@@ -98,15 +82,15 @@ struct DailyEnergyCard: View {
     private var creativitySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
-                title: loc(appLanguage, "Creativity"),
+                title: "Mind",
                 points: model.creativityPointsToday,
                 maxPoints: 20,
-                category: .creativity
+                category: .mind
             )
             
             optionGrid(
-                options: model.preferredOptions(for: .creativity),
-                category: .creativity
+                options: model.preferredOptions(for: .mind),
+                category: .mind
             )
         }
     }
@@ -114,34 +98,15 @@ struct DailyEnergyCard: View {
     private var joysSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
-                title: loc(appLanguage, "Joys"),
+                title: "Heart",
                 points: model.joysCategoryPointsToday,
-                maxPoints: 40,
-                category: .joys
+                maxPoints: 20,
+                category: .heart
             )
             
-            // Sleep (counts toward Joys)
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(loc(appLanguage, "Sleep"))
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Text("\(model.sleepPointsToday)/\(EnergyDefaults.sleepMaxPoints)")
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(.primary)
-                }
-                HStack(spacing: 12) {
-                    Slider(value: sleepBinding, in: 0...12, step: 0.5)
-                    Text(String(format: "%.1fh", model.dailySleepHours))
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.primary)
-                        .frame(width: 44, alignment: .trailing)
-                }
-            }
-            
             optionGrid(
-                options: model.preferredOptions(for: .joys),
-                category: .joys
+                options: model.preferredOptions(for: .heart),
+                category: .heart
             )
         }
     }
@@ -156,11 +121,11 @@ struct DailyEnergyCard: View {
                         .foregroundColor(.primary)
             
             Button {
-                if category == .activity {
+                if category == .body {
                     showMoveSettings = true
-                } else if category == .creativity {
+                } else if category == .mind {
                     showCreativitySettings = true
-                } else if category == .joys {
+                } else if category == .heart {
                     showJoySettings = true
                 }
             } label: {
@@ -174,7 +139,7 @@ struct DailyEnergyCard: View {
     @ViewBuilder
     private func optionGrid(options: [EnergyOption], category: EnergyCategory) -> some View {
         if options.isEmpty {
-            Text(loc(appLanguage, "No options selected"))
+            Text("No options selected")
                 .font(.caption)
                     .foregroundColor(.primary)
         } else {
@@ -190,9 +155,9 @@ struct DailyEnergyCard: View {
         let isSelected = model.isDailySelected(option.id, category: category)
         let chipColor: Color = {
             switch category {
-            case .activity: return .green
-            case .creativity: return .purple
-            case .joys: return .orange
+            case .body: return .green
+            case .mind: return .purple
+            case .heart: return .orange
             }
         }()
         
@@ -208,7 +173,7 @@ struct DailyEnergyCard: View {
                     .foregroundColor(isSelected ? .white : chipColor)
                     .frame(width: 20)
                 
-                Text(option.title(for: appLanguage))
+                Text(option.title(for: "en"))
                     .font(.caption.weight(.semibold))
                     .foregroundColor(isSelected ? .white : .primary)
                     .multilineTextAlignment(.leading)

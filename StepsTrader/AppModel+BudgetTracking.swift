@@ -1,9 +1,11 @@
 import Foundation
-import Combine
 import AudioToolbox
 
 // MARK: - Budget & Time Tracking Management
 extension AppModel {
+    /// v1 strategy: minute mode disabled in UI. Set to true to re-enable.
+    static let minuteModeEnabled = false
+
     func updateDayEnd(hour: Int, minute: Int) {
         dayEndHour = max(0, min(23, hour))
         dayEndMinute = max(0, min(59, minute))
@@ -29,10 +31,12 @@ extension AppModel {
     
     // MARK: - Minute Tariff Functions
     func isMinuteTariffEnabled(for bundleId: String) -> Bool {
-        unlockSettings(for: bundleId).minuteTariffEnabled
+        guard Self.minuteModeEnabled else { return false }
+        return unlockSettings(for: bundleId).minuteTariffEnabled
     }
 
     func setMinuteTariffEnabled(_ enabled: Bool, for bundleId: String) {
+        guard Self.minuteModeEnabled else { return }
         var settings = unlockSettings(for: bundleId)
         settings.minuteTariffEnabled = enabled
         appUnlockSettings[bundleId] = settings
@@ -41,6 +45,7 @@ extension AppModel {
     }
 
     func minutesAvailable(for bundleId: String) -> Int {
+        guard Self.minuteModeEnabled else { return 0 }
         let costPerMinute = unlockSettings(for: bundleId).entryCostSteps
         guard costPerMinute > 0 else { return Int.max }
         return max(0, totalStepsBalance / costPerMinute)
@@ -160,43 +165,43 @@ extension AppModel {
     }
     
     func updateSpentTime(minutes: Int) {
-        // Ограничиваем потраченное время максимальным доступным бюджетом
+        // Clamp spent time to maximum available budget
         let maxSpentMinutes = budgetEngine.dailyBudgetMinutes
         spentMinutes = min(minutes, maxSpentMinutes)
         spentSteps = spentMinutes * Int(spentTariff.stepsPerMinute)
         saveSpentTime()
         syncBudgetProperties()  // Sync budget properties for UI updates
-        print(
-            "🕐 Updated spent time: \(spentMinutes) minutes (\(spentSteps) steps) (max: \(maxSpentMinutes))"
+        AppLogger.energy.debug(
+            "🕐 Updated spent time: \(self.spentMinutes) minutes (\(self.spentSteps) steps) (max: \(maxSpentMinutes))"
         )
     }
 
     func consumeMinutes(_ minutes: Int) {
         budgetEngine.consume(mins: minutes)
 
-        // Устанавливаем тариф, по которому тратятся минуты
+        // Set the tariff rate for minute spending
         spentTariff = budgetEngine.tariff
 
-        // Обновляем потраченное время с учетом ограничений
+        // Update spent time with constraints
         updateSpentTime(minutes: spentMinutes + minutes)
 
         syncBudgetProperties()  // Sync budget properties for UI updates
-        print("⏱️ Consumed \(minutes) minutes, remaining: \(remainingMinutes)")
+        AppLogger.energy.debug("⏱️ Consumed \(minutes) minutes, remaining: \(self.remainingMinutes)")
     }
     
     // MARK: - Time Tracking
     func startTracking() {
-        print("🎯 === START TRACKING BEGIN ===")
+        AppLogger.energy.debug("🎯 === START TRACKING BEGIN ===")
 
-        // Пересчитываем бюджет с текущим тарифом перед запуском отслеживания
+        // Recalculate budget with current tariff before starting tracking
         Task {
             await recalcSilently()
             await MainActor.run {
-                print("💰 Budget recalculated: \(budgetEngine.remainingMinutes) minutes")
+                AppLogger.energy.debug("💰 Budget recalculated: \(self.budgetEngine.remainingMinutes) minutes")
 
-                guard budgetEngine.remainingMinutes > 0 else {
-                    print("❌ No remaining time - aborting")
-                    message = "DOOM CTRL: No time left! Walk more steps."
+                guard self.budgetEngine.remainingMinutes > 0 else {
+                    AppLogger.energy.debug("❌ No remaining time - aborting")
+                    message = "No time left. Open Proof to earn exp."
                     return
                 }
 
@@ -206,99 +211,98 @@ extension AppModel {
     }
 
     func continueStartTracking() {
-        print("🎯 === START TRACKING CONTINUE ===")
-        print("💰 Checking budget: \(budgetEngine.remainingMinutes) minutes")
+        AppLogger.energy.debug("🎯 === START TRACKING CONTINUE ===")
+        AppLogger.energy.debug("💰 Checking budget: \(self.budgetEngine.remainingMinutes) minutes")
 
-        print(
-            "📱 Checking selection: \(appSelection.applicationTokens.count) apps, \(appSelection.categoryTokens.count) categories"
+        AppLogger.energy.debug(
+            "📱 Checking selection: \(self.appSelection.applicationTokens.count) apps, \(self.appSelection.categoryTokens.count) categories"
         )
-        guard !appSelection.applicationTokens.isEmpty || !appSelection.categoryTokens.isEmpty else {
-            print("❌ No applications selected - aborting")
+        guard !self.appSelection.applicationTokens.isEmpty || !self.appSelection.categoryTokens.isEmpty else {
+            AppLogger.energy.debug("❌ No applications selected - aborting")
             message = "❌ Choose an app to track"
             return
         }
 
-        print("✅ Checks passed, starting tracking")
+        AppLogger.energy.debug("✅ Checks passed, starting tracking")
         isTrackingTime = true
         startTime = Date()
         currentSessionElapsed = 0
-        print("⏱️ Tracking flags set: isTrackingTime=true, startTime=\(Date())")
+        AppLogger.energy.debug("⏱️ Tracking flags set: isTrackingTime=true, startTime=\(Date())")
 
-        let appCount = appSelection.applicationTokens.count
-        print("🚀 Started tracking for \(appCount) selected applications")
-        print("⏱️ Available time: \(budgetEngine.remainingMinutes) minutes")
-        print("🎯 Using DeviceActivity for real-time usage monitoring")
+        let appCount = self.appSelection.applicationTokens.count
+        AppLogger.energy.debug("🚀 Started tracking for \(appCount) selected applications")
+        AppLogger.energy.debug("⏱️ Available time: \(self.budgetEngine.remainingMinutes) minutes")
+        AppLogger.energy.debug("🎯 Using DeviceActivity for real-time usage monitoring")
 
-        // Запускаем DeviceActivity мониторинг для реального отслеживания времени
+        // Start DeviceActivity monitoring for real-time tracking
         if let familyService = familyControlsService as? FamilyControlsService {
-            print("🔧 DEBUG: Starting monitoring with:")
-            print("   - Selected apps: \(appSelection.applicationTokens.count)")
-            print("   - Selected categories: \(appSelection.categoryTokens.count)")
-            print("   - Budget minutes: \(budgetEngine.remainingMinutes)")
+            AppLogger.energy.debug("🔧 DEBUG: Starting monitoring with:")
+            AppLogger.energy.debug("   - Selected apps: \(self.appSelection.applicationTokens.count)")
+            AppLogger.energy.debug("   - Selected categories: \(self.appSelection.categoryTokens.count)")
+            AppLogger.energy.debug("   - Budget minutes: \(self.budgetEngine.remainingMinutes)")
 
-            // Запускаем мониторинг с таймаутом
+            // Start monitoring with timeout
             Task { [weak self] in
-                print("🔄 Created task to start monitoring with a 10s timeout")
+                AppLogger.energy.debug("🔄 Created task to start monitoring with a 10s timeout")
                 await self?.withTimeout(seconds: 10) {
-                    print("⏰ Calling startMonitoring in FamilyControlsService")
-                    await MainActor.run {
-                        familyService.startMonitoring(
-                            budgetMinutes: self?.budgetEngine.remainingMinutes ?? 0)
-                    }
-                    print("✅ startMonitoring finished")
+                    AppLogger.energy.debug("⏰ Calling startMonitoring in FamilyControlsService")
+                    familyService.startMonitoring(
+                        budgetMinutes: self?.budgetEngine.remainingMinutes ?? 0
+                    )
+                    AppLogger.energy.debug("✅ startMonitoring finished")
                 }
 
-                print("🔍 Running DeviceActivity diagnostics")
+                AppLogger.energy.debug("🔍 Running DeviceActivity diagnostics")
                 // Run diagnostic after starting monitoring
                 familyService.checkDeviceActivityStatus()
-                print("✅ Diagnostics finished")
+                AppLogger.energy.debug("✅ Diagnostics finished")
             }
         } else {
-            print("❌ Failed to cast familyControlsService to FamilyControlsService")
+            AppLogger.energy.debug("❌ Failed to cast familyControlsService to FamilyControlsService")
         }
 
-        // Проверяем, работает ли DeviceActivity
+        // Check if DeviceActivity is running
         #if targetEnvironment(simulator)
-            // В симуляторе используем таймер как fallback
-            print("⚠️ Using timer-based tracking (Simulator - DeviceActivity not available)")
+            // Use timer as fallback in simulator
+            AppLogger.energy.debug("⚠️ Using timer-based tracking (Simulator - DeviceActivity not available)")
             startTimerFallback()
         #else
-            // На реальном устройстве проверяем наличие DeviceActivity
+            // On real device check for DeviceActivity
             if familyControlsService.isAuthorized {
-                print("✅ Using DeviceActivity for real background tracking")
-                print("✅ Real tracking enabled. Time counts in the background.")
+                AppLogger.energy.debug("✅ Using DeviceActivity for real background tracking")
+                AppLogger.energy.debug("✅ Real tracking enabled. Time counts in the background.")
             } else {
-                print("⚠️ Using timer-based tracking (Family Controls not authorized)")
+                AppLogger.energy.debug("⚠️ Using timer-based tracking (Family Controls not authorized)")
                 startTimerFallback()
             }
         #endif
     }
 
     private func startTimerFallback() {
-        // Таймер каждые 60 секунд симулирует 1 минуту использования (1:1 соответствие)
+        // Timer fires every 60 seconds simulating 1 minute of usage (1:1 ratio)
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.simulateAppUsage()
             }
         }
 
-        print("⚠️ Demo mode: time decreases every real minute (in-app only)")
+        AppLogger.energy.debug("⚠️ Demo mode: time decreases every real minute (in-app only)")
     }
 
     func stopTracking() {
         isTrackingTime = false
-        isBlocked = false  // Снимаем блокировку
+        isBlocked = false  // Remove block
         timer?.invalidate()
         timer = nil
         startTime = nil
         currentSessionElapsed = nil
 
-        // Останавливаем DeviceActivity мониторинг
+        // Stop DeviceActivity monitoring
         if let familyService = familyControlsService as? FamilyControlsService {
             familyService.stopMonitoring()
         }
 
-        print("🛑 Tracking stopped - DeviceActivity monitoring disabled")
+        AppLogger.energy.debug("🛑 Tracking stopped - DeviceActivity monitoring disabled")
     }
     
     // MARK: - Minute Tariff Session Management
@@ -348,15 +352,15 @@ extension AppModel {
     // MARK: - Timer-based tracking (fallback without DeviceActivity entitlement)
     private func simulateAppUsage() {
         guard isTrackingTime else { return }
-        print("⏱️ DEMO: Simulating 1 minute of app usage")
+        AppLogger.energy.debug("⏱️ DEMO: Simulating 1 minute of app usage")
 
-        // Увеличиваем время использования приложения на 1 минуту
+        // Increment app usage time by 1 minute
         updateSpentTime(minutes: spentMinutes + 1)
 
-        // Списываем из бюджета
+        // Deduct from budget
         consumeMinutes(1)
 
-        print("⏱️ Spent: \(spentMinutes) min, Remaining: \(remainingMinutes) min")
+        AppLogger.energy.debug("⏱️ Spent: \(self.spentMinutes) min, Remaining: \(self.remainingMinutes) min")
 
         if remainingMinutes <= 0 {
             stopTracking()

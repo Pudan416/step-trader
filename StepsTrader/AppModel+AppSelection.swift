@@ -9,15 +9,15 @@ extension AppModel {
     func saveAppSelection() {
         let userDefaults = UserDefaults.stepsTrader()
         
-        // Новая схема: сохраняем весь FamilyActivitySelection целиком (appSelection_v1),
-        // чтобы его можно было восстановить и в основном приложении, и в экстеншенах.
+        // Save the full FamilyActivitySelection (appSelection_v1)
+        // so it can be restored in both the main app and extensions.
         do {
             let data = try JSONEncoder().encode(appSelection)
             userDefaults.set(data, forKey: "appSelection_v1")
             userDefaults.set(Date(), forKey: "appSelectionSavedDate")
-            print("💾 Saved app selection (appSelection_v1): \(appSelection.applicationTokens.count) apps, \(appSelection.categoryTokens.count) categories")
+            AppLogger.familyControls.debug("💾 Saved app selection (appSelection_v1): \(self.appSelection.applicationTokens.count) apps, \(self.appSelection.categoryTokens.count) categories")
         } catch {
-            print("❌ Failed to save app selection (appSelection_v1): \(error)")
+            AppLogger.familyControls.debug("Failed to save app selection (appSelection_v1): \(error.localizedDescription)")
         }
     }
 
@@ -26,18 +26,18 @@ extension AppModel {
         var hasSelection = false
         var newSelection = FamilyActivitySelection()
 
-        // Сначала пробуем новую схему хранения (appSelection_v1).
+        // Try the new storage scheme first (appSelection_v1).
         if let data = userDefaults.data(forKey: "appSelection_v1"),
            let decoded = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data),
            !decoded.applicationTokens.isEmpty || !decoded.categoryTokens.isEmpty {
             newSelection = decoded
             hasSelection = true
-            print("📱 Restored app selection from appSelection_v1: \(decoded.applicationTokens.count) apps, \(decoded.categoryTokens.count) categories")
+            AppLogger.familyControls.debug("📱 Restored app selection from appSelection_v1: \(decoded.applicationTokens.count) apps, \(decoded.categoryTokens.count) categories")
         }
 
-        // Далее — fallback на старую схему с persistentApplicationTokens/persistentCategoryTokens
-        // (оставляем на случай, если у пользователя есть данные старого формата).
-        // Восстанавливаем ApplicationTokens
+        // Fallback to legacy storage (persistentApplicationTokens/persistentCategoryTokens)
+        // in case user has data in the old format.
+        // Restore ApplicationTokens
         if !hasSelection, let tokensData = userDefaults.data(forKey: "persistentApplicationTokens") {
             do {
                 let obj = try NSKeyedUnarchiver.unarchivedObject(
@@ -45,14 +45,14 @@ extension AppModel {
                 if let applicationTokens = obj as? Set<ApplicationToken> {
                     newSelection.applicationTokens = applicationTokens
                     hasSelection = true
-                    print("📱 Restored app selection: \(applicationTokens.count) apps")
+                    AppLogger.familyControls.debug("📱 Restored app selection: \(applicationTokens.count) apps")
                 }
             } catch {
-                print("❌ Failed to restore app selection: \(error)")
+                AppLogger.familyControls.debug("Failed to restore app selection: \(error.localizedDescription)")
             }
         }
 
-        // Восстанавливаем CategoryTokens
+        // Restore CategoryTokens
         if !hasSelection, let categoriesData = userDefaults.data(forKey: "persistentCategoryTokens") {
             do {
                 let obj = try NSKeyedUnarchiver.unarchivedObject(
@@ -60,30 +60,30 @@ extension AppModel {
                 if let categoryTokens = obj as? Set<ActivityCategoryToken> {
                     newSelection.categoryTokens = categoryTokens
                     hasSelection = true
-                    print("📱 Restored category selection: \(categoryTokens.count) categories")
+                    AppLogger.familyControls.debug("📱 Restored category selection: \(categoryTokens.count) categories")
                 }
             } catch {
-                print("❌ Failed to restore category selection: \(error)")
+                AppLogger.familyControls.debug("Failed to restore category selection: \(error.localizedDescription)")
             }
         }
 
         if hasSelection {
-            // Обновляем выбор без вызова didSet (чтобы избежать повторного сохранения)
+            // Update selection without triggering didSet (to avoid re-saving)
             self.appSelection = newSelection
-            print("✅ App selection restored successfully")
+            AppLogger.familyControls.debug("✅ App selection restored successfully")
             
             // Apply shield immediately after loading
             rebuildFamilyControlsShield()
 
-            // Проверяем дату сохранения
+            // Check save date
             if let savedDate = userDefaults.object(forKey: "appSelectionSavedDate") as? Date {
                 let formatter = DateFormatter()
                 formatter.dateStyle = .medium
                 formatter.timeStyle = .short
-                print("📅 App selection was saved on: \(formatter.string(from: savedDate))")
+                AppLogger.familyControls.debug("📅 App selection was saved on: \(formatter.string(from: savedDate))")
             }
         } else {
-            print("📱 No saved app selection found")
+            AppLogger.familyControls.debug("📱 No saved app selection found")
             // Still apply shield in case there are per-app selections
             rebuildFamilyControlsShield()
         }
@@ -95,10 +95,10 @@ extension AppModel {
         let newAppTokens = selection.applicationTokens
         let newCategoryTokens = selection.categoryTokens
         
-        // Копия настроек, которую будем мутировать.
+        // Mutable copy of current settings.
         var updatedUnlock = appUnlockSettings
         
-        // Построим карту token -> cardId для уже существующих карточек.
+        // Build token → cardId map for existing cards.
         var appTokenToCard: [ApplicationToken: String] = [:]
         var categoryTokenToCard: [ActivityCategoryToken: String] = [:]
         
@@ -112,7 +112,7 @@ extension AppModel {
             }
         }
         
-        // Отключаем карточки, чьи токены больше не выбраны.
+        // Disable cards whose tokens are no longer selected.
         for (cardId, var settings) in updatedUnlock {
             let sel = timeAccessSelection(for: cardId)
             var stillSelected = false
@@ -131,7 +131,7 @@ extension AppModel {
             }
         }
         
-        // Для каждого выбранного приложения гарантируем существование и включённость карточки.
+        // Ensure each selected app has an enabled card.
         for token in newAppTokens {
             if let cardId = appTokenToCard[token] {
                 var settings = updatedUnlock[cardId] ?? unlockSettings(for: cardId)
@@ -154,7 +154,7 @@ extension AppModel {
             }
         }
         
-        // То же для категорий (групп приложений).
+        // Same for categories (app groups).
         for cat in newCategoryTokens {
             if let cardId = categoryTokenToCard[cat] {
                 var settings = updatedUnlock[cardId] ?? unlockSettings(for: cardId)
@@ -177,14 +177,14 @@ extension AppModel {
             }
         }
         
-        // Сохраняем обновлённые настройки карточек.
+        // Persist updated card settings.
         appUnlockSettings = updatedUnlock
         persistAppUnlockSettings()
         
-        // Обновляем глобальный selection для UI и shield.
+        // Update global selection for UI and shield.
         appSelection = selection
         
-        // Пересобираем shield на основе карточек.
+        // Rebuild shield based on cards.
         rebuildFamilyControlsShield()
         #else
         _ = selection

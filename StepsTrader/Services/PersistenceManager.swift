@@ -13,7 +13,7 @@ actor PersistenceManager {
             do {
                 try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             } catch {
-                print("❌ PersistenceManager: Failed to create storage directory: \(error)")
+                AppLogger.app.error("PersistenceManager: Failed to create storage directory: \(error)")
             }
         }
     }
@@ -63,5 +63,25 @@ actor PersistenceManager {
     func exists(_ filename: String) -> Bool {
         let url = storageDirectory.appendingPathComponent(filename)
         return fileManager.fileExists(atPath: url.path)
+    }
+
+    /// Ensure the storage directory exists (synchronous, safe to call repeatedly).
+    private static func ensureStorageDirectoryExists() {
+        let dir = storageDirectory
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+    }
+
+    /// URL for payment transactions file (sync read/write from AppModel+PayGate). Same directory as other persisted data.
+    static var paymentTransactionsFileURL: URL {
+        ensureStorageDirectoryExists()
+        return storageDirectory.appendingPathComponent("paymentTransactions.json")
+    }
+
+    /// URL for past day snapshots file (sync read/write from AppModel+DailyEnergy). Same directory as other persisted data.
+    static var pastDaySnapshotsFileURL: URL {
+        ensureStorageDirectoryExists()
+        return storageDirectory.appendingPathComponent("pastDaySnapshots.json")
     }
 }

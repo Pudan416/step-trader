@@ -27,14 +27,15 @@ final class CustomActivityUITests: XCTestCase {
         XCTAssertTrue(editButton.waitForExistence(timeout: 5))
         editButton.tap()
 
-        let customTitle = "UITest Custom Activity"
-        if !app.staticTexts[customTitle].waitForExistence(timeout: 3) {
-            let scrollView = app.scrollViews.firstMatch
-            for _ in 0..<5 where !app.staticTexts[customTitle].exists {
-                scrollView.swipeUp()
+        let customOption = app.descendants(matching: .any).matching(identifier: "category_option_custom_activity_uitest").firstMatch
+        if !customOption.waitForExistence(timeout: 3) {
+            let list = app.tables.firstMatch.exists ? app.tables.firstMatch :
+                (app.collectionViews.firstMatch.exists ? app.collectionViews.firstMatch : app.scrollViews.firstMatch)
+            for _ in 0..<6 where !customOption.exists {
+                list.swipeUp()
             }
         }
-        XCTAssertTrue(app.staticTexts["UITest Custom Activity"].exists)
+        XCTAssertTrue(customOption.exists)
     }
 
     private func seedDefaults() {

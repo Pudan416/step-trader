@@ -1,10 +1,66 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "designSystem": {
-    "name": "DOOM CTRL Design System",
-    "project": "Steps4",
+    "name": "Proof Design System",
+    "project": "Proof (working title: Steps4)",
     "platform": "iOS / SwiftUI",
-    "lastUpdated": "2026-02-06",
+    "lastUpdated": "2026-02-09",
+    "appName": {
+      "primary": "Proof",
+      "alternates": ["Daylight", "Vigil"],
+      "tagline": "Prove you lived today — then scroll.",
+      "altTaglines": [
+        "Your real life opens your phone.",
+        "Walk. Sleep. Choose. Then the screen unlocks.",
+        "Everything you do earns screen time. Not just steps."
+      ],
+      "nameRationale": "An artist's proof (épreuve d'artiste) is the print the artist keeps. Not for sale. Not for display. Just evidence the work is real. Each gallery card the user marks is their own proof — proof they lived."
+    },
+    "coreMetaphor": {
+      "oneLine": "Your life is a daily exhibition. You curate it with every choice. Screen time is what you trade to leave your own gallery and enter someone else's.",
+      "earning": "Adding pieces to your exhibition — body pieces, mind pieces, heart pieces.",
+      "theNumber": "How rich your exhibition is today.",
+      "threeRooms": "body (how you moved), mind (how you created), heart (how you felt).",
+      "spending": "Leaving your gallery for the screen.",
+      "history": "Your archive of past exhibitions.",
+      "tickets": "Admission passes to specific digital spaces."
+    },
+    "vocabulary": {
+      "rules": "One concept = one word. Never introduce a synonym. Grep the codebase quarterly.",
+      "terms": {
+        "experience": {
+          "meaning": "What your life produces. Both the number AND the philosophical concept. You have experience because you experienced things.",
+          "replaces": ["balance", "energy", "control", "steps", "points", "EXP"]
+        },
+        "pieces": {
+          "meaning": "What you do each day. Gallery language. Each choice is a piece in today's exhibition.",
+          "replaces": ["choices", "selections", "activities", "options"]
+        },
+        "tickets": {
+          "meaning": "App groups. Admission tickets — you buy admission to digital spaces. Gallery/cinema language.",
+          "replaces": ["shields", "groups", "bundles"]
+        },
+        "spend": {
+          "meaning": "The exchange. Clear, honest, no euphemism. You spend experience.",
+          "replaces": ["pay", "deduct", "use", "consume", "trade"]
+        },
+        "todaysExhibition": {
+          "meaning": "The daily total. What you've curated today.",
+          "replaces": ["daily energy", "balance", "daily control"]
+        },
+        "archive": {
+          "meaning": "History. Museum term. Your personal archive.",
+          "replaces": ["memories", "history", "past days"]
+        },
+        "rooms": {
+          "meaning": "The three categories: body, mind, heart. Three rooms of the gallery.",
+          "body": "The body in the world — how you moved. Aristotle's energeia: being at work.",
+          "mind": "The mind creating — how you thought and created. Arendt's work: the capacity to create.",
+          "heart": "The heart feeling — how you felt and connected. Epicurus's hedone: cultivation of genuine pleasure.",
+          "replaces": ["categories", "buckets", "sections", "move", "create", "feel", "activity", "rest", "joys"]
+        }
+      }
+    },
     "sourceOfTruthInCode": {
       "themes": [
         "StepsTrader/Models/Types.swift (AppTheme)",
@@ -14,49 +70,103 @@
         "StepsTrader/Utilities/Font+Custom.swift (notoSerif, reenie, sticker fonts)"
       ],
       "signatureScreens": [
-        "StepsTrader/Views/ChoiceView.swift (Gallery grid cards)",
-        "StepsTrader/Views/AppsPageSimplified.swift (Shields + stickers)",
-        "StepsTrader/Views/PayGateView.swift (PayGate)",
-        "StepsTrader/Views/LoginView.swift (Login / onboarding aesthetic)"
+        "StepsTrader/Views/ChoiceView.swift (Gallery grid — the soul of the product)",
+        "StepsTrader/Views/AppsPageSimplified.swift (Tickets + stickers)",
+        "StepsTrader/Views/PayGateView.swift (PayGate — the threshold between real and spectacle)",
+        "StepsTrader/Views/LoginView.swift (Login / onboarding)"
       ],
       "reusableComponents": [
         "ResistanceTag",
-        "\u0050inkUnderline",
+        "PinkUnderline",
         "ThemedDivider",
         "EmptyStateView",
         "ScaleButtonStyle"
       ]
     },
     "creativeDirection": {
-      "oneLine": "Printed experience ledger + rebellious marker accents; calm, factual UI that treats attention as a scarce resource.",
+      "oneLine": "A daily gallery of lived experience — paper, ink, and curator's marks — where real life earns the right to digital access.",
       "brandPersonality": [
-        "observational, not motivational",
-        "minimal and high-contrast",
-        "anti-gamification (no confetti, no rewards language)",
-        "quietly aggressive about boundaries (bold typography, hard strokes, decisive shapes)",
-        "handmade accents used sparingly (marker underline, scribble cross)"
+        "observational, not motivational — gallery wall text, not a life coach",
+        "minimal and high-contrast — paper and ink, not glossy UI",
+        "anti-gamification (no confetti, no rewards language, no streak flames)",
+        "quietly confident about boundaries (bold typography, hard strokes, decisive shapes — firm but never aggressive)",
+        "handmade accents used sparingly (marker underline, scribble cross) — these are the artist's proof marks",
+        "treats attention as sacred, not scarce — the gallery metaphor, not a budget metaphor"
       ],
       "toneOfVoice": {
-        "default": "neutral, factual, slightly dry",
+        "model": "Gallery wall text. In a museum, the text next to a painting is: calm, brief, factual, trusting the viewer to have their own experience. It doesn't say 'WOW, ISN'T THIS AMAZING?' It says: 'Oil on canvas, 1889.' And you feel everything.",
+        "traits": {
+          "observational": {
+            "sounds": "Today: 6,200 steps. 7h sleep. 3 pieces.",
+            "antiPattern": "Great job! You're crushing it!"
+          },
+          "respectful": {
+            "sounds": "You chose this. Change it anytime.",
+            "antiPattern": "Don't give up! Stay strong!"
+          },
+          "dry": {
+            "sounds": "Nothing here yet. That's fine.",
+            "antiPattern": "Oops! Looks like you haven't started!"
+          },
+          "economical": {
+            "sounds": "10 min · 4 experience",
+            "antiPattern": "Unlock for 10 minutes at a cost of 4 experience"
+          },
+          "galleryToned": {
+            "sounds": "Your archive. 60 days of exhibitions.",
+            "antiPattern": "Check out your amazing progress!"
+          },
+          "honestAboutTheTrade": {
+            "sounds": "You're spending 10 experience on YouTube.",
+            "antiPattern": "Enjoy your well-deserved break!"
+          }
+        },
         "avoid": [
           "self-improvement sermons",
           "shame/failure framing",
           "overly cute microcopy",
-          "over-encouraging gamification"
+          "over-encouraging gamification",
+          "motivational language of any kind",
+          "punishing language (blocked, locked, restricted)"
         ],
-        "emptyStates": "Empty is allowed. Never panic the user. Offer an option, and always permit doing nothing."
+        "emptyStates": "Empty states are gallery silence. Not panic. Template: '[What's absent]. [Neutral observation]. [Action]. Or not.'",
+        "shieldCopy": "The firmest the voice gets. '[App] is closed. Open Proof to spend experience.' No shouting. No emojis. No lightning bolts.",
+        "guidesCopy": "Poetry, not advice. Short lines. No imperatives. Observations that end with an open question."
       },
+      "voiceRules": [
+        "One concept = one word. Experience. Pieces. Tickets. Spend. Archive. Never introduce a synonym.",
+        "No exclamation marks in UI. Ever. Notifications can have one, maximum.",
+        "Empty states are gallery silence — not panic.",
+        "The experience number is the loudest thing on screen. When in doubt, make the number bigger and everything else quieter.",
+        "Shield copy is the firmest the voice gets. Never shouting.",
+        "Guides tab copy is poetry, not advice.",
+        "English only. No localization in v1. Remove all loc() calls and RU strings."
+      ],
       "visualMetaphors": [
-        "daylight mode = paper + ink",
-        "accent = yellow marker / tape highlight",
-        "completion = scribbled cross over an image",
-        "shields = sticker slapped onto a minimal surface"
-      ]
+        "paper + ink = the gallery wall. Daylight theme is not 'light mode' — it's the exhibition space.",
+        "yellow marker = the curator's hand. The accent marks what matters. Sparse, decisive.",
+        "scribbled cross = the artist's proof mark. 'This one happened. I was here.'",
+        "hand-drawn frames = the exhibition frames. Each card is mounted, presented. Your choices deserve framing.",
+        "sticker-style ticket cards = admission passes. Bright, graphic, stuck onto the minimal surface — like a concert ticket in a journal."
+      ],
+      "philosophicalFoundation": {
+        "note": "These aren't pretensions — they're the actual ideas already embedded in the product.",
+        "references": {
+          "dewey": "Art as Experience (1934): Art is not the object — it's the experience of the viewer. The gallery card for 'Dancing' isn't a card — it's proof that you danced.",
+          "debord": "Society of the Spectacle (1967): Before you enter the world of representations, you must prove you lived directly. The PayGate is a threshold between the real and the spectacle.",
+          "benjamin": "The Work of Art in Mechanical Reproduction (1935): Your lived day has an aura. Your feed does not. Hand-drawn frames and scribbled crosses signal authenticity, not polish.",
+          "wabiSabi": "Beauty in imperfection, transience, incompleteness. The paper-and-ink design system IS wabi-sabi. The scribbled crosses ARE ichigo ichie — this day will never recur.",
+          "bergson": "Creative Evolution (1907): Steps are clock-time (temps). Choosing 'Curiosity' or 'Embrace' is lived-time (durée). The daily selection cards acknowledge durée.",
+          "kundera": "Unbearable Lightness of Being (1984): By making daily choices matter (they earn experience), the app gives weight to moments that would otherwise evaporate.",
+          "marcusAurelius": "Meditations: 'When you arise in the morning, think of what a privilege it is to be alive.' This is the Guides tab energy."
+        }
+      }
     },
     "principles": {
       "hierarchy": [
-        "One loud element per screen (usually the header or the balance).",
-        "Everything else is quiet, aligned, and thin-stroked."
+        "One loud element per screen (usually the experience number or the header).",
+        "Everything else is quiet, aligned, and thin-stroked.",
+        "The experience number is the loudest thing on screen — always."
       ],
       "contrast": [
         "Daylight: text is near-black ink (avoid soft greys for primary content).",
@@ -92,7 +202,7 @@
       },
       "variants": {
         "daylight": {
-          "intent": "Warm paper, ink strokes. Feels printed. No glossy UI.",
+          "intent": "The exhibition space. Warm paper, ink strokes. Feels printed. This is not 'light mode' — it's the gallery wall.",
           "background": {
             "primary": "AppColors.Daylight.background (warm paper)",
             "secondary": "AppColors.Daylight.backgroundSecondary",
@@ -104,8 +214,8 @@
             "muted": "AppColors.Daylight.textMuted (avoid low contrast)"
           },
           "accent": {
-            "primary": "AppColors.brand\u0050ink (yellow marker #FFCC33)",
-            "usage": "Use for counts, tags, underline, key interactive strokes."
+            "primary": "AppColors.brandPink (yellow marker #FFCC33)",
+            "usage": "The curator's hand. Use for experience numbers, tags, underline, key interactive strokes. Sparse, decisive."
           },
           "separators": {
             "stroke": "AppColors.Daylight.stroke with AppTheme.strokeOpacity (default 0.15)",
@@ -113,7 +223,7 @@
           }
         },
         "night": {
-          "intent": "Night + screens. Same accent, darker context. Modals can glow a bit.",
+          "intent": "Night exhibition. Same accent, darker context. Modals can glow a bit.",
           "background": {
             "primary": "AppColors.Night.background",
             "secondary": "AppColors.Night.backgroundSecondary",
@@ -124,8 +234,8 @@
             "secondary": "AppColors.Night.textSecondary"
           },
           "accent": {
-            "primary": "AppColors.brand\u0050ink",
-            "muted": "AppColors.Night.accent\u0050inkMuted (yellow marker @ 0.6)"
+            "primary": "AppColors.brandPink",
+            "muted": "AppColors.Night.accentPinkMuted (yellow marker @ 0.6)"
           },
           "strokes": {
             "stroke": "AppColors.Night.stroke",
@@ -133,7 +243,7 @@
           }
         },
         "minimal": {
-          "intent": "Monochrome, harsh minimalism. Strokes fully opaque.",
+          "intent": "Monochrome, harsh minimalism. Strokes fully opaque. The purest paper-and-ink.",
           "background": {
             "primary": "AppColors.Minimal.background (#F9F8F6)",
             "secondary": "AppColors.Minimal.backgroundSecondary"
@@ -147,25 +257,25 @@
         },
         "system": {
           "intent": "Fallback to iOS system materials/colors.",
-          "notes": "Use sparingly; Daylight is the intended editorial aesthetic."
+          "notes": "Use sparingly; Daylight is the intended editorial aesthetic — the gallery wall."
         }
       },
       "specialPalettes": {
-        "shields": {
-          "intent": "Clean minimal page with strong yellow accent, sticker card titles, light shadows.",
+        "tickets": {
+          "intent": "Clean minimal page with strong yellow accent, sticker card titles, light shadows. Admission passes to digital spaces.",
           "accent": "#FDD344 (ShieldsPalette.accent)",
           "pageBackground": "near-white in light, pure black in dark (ShieldsPalette.pageBackground)",
           "surface": "white / near-black surface (ShieldsPalette.surface)",
           "stroke": "subtle hairline stroke (ShieldsPalette.stroke)"
         },
         "payGate": {
-          "intent": "Black stage, yellow accent, high-contrast CTA buttons, glow behind icon.",
+          "intent": "The threshold between the real and the spectacle. Black stage, yellow accent, high-contrast CTA buttons, glow behind icon.",
           "accent": "#FDD344 (PayGatePalette.accent)",
           "surface": "Color(white: 0.12)",
           "text": "white + white@0.6"
         },
         "loginOnboarding": {
-          "intent": "Dark gradient with soft colored fog circles; glossy hero badge; crisp typography.",
+          "intent": "Dark gradient with soft colored fog circles; glossy hero badge; crisp typography. Gallery-concept-first.",
           "backgroundGradient": [
             "#14141F",
             "#1F1A2E",
@@ -216,7 +326,7 @@
         "rules": [
           "Interactive cards usually 14–20 radius.",
           "Small chips and icon tiles: 8–14 radius.",
-          "Use capsules for balance pills and primary ‘Create’ buttons in special palettes."
+          "Use capsules for experience pills and primary 'Create' buttons in special palettes."
         ]
       },
       "strokes": {
@@ -227,7 +337,7 @@
         "opacityGuidance": {
           "daylightDefault": 0.15,
           "minimal": 1.0,
-          "shields": 0.08
+          "tickets": 0.08
         },
         "rules": [
           "Daylight separation is a stroke, not a shadow.",
@@ -257,7 +367,7 @@
         "glass": {
           "swiftui": ".ultraThinMaterial",
           "use": [
-            "ShieldRowView glass card",
+            "Ticket row glass card",
             "status/quick tiles",
             "secondary surfaces that should feel 'system glass' rather than paper"
           ],
@@ -272,7 +382,7 @@
           },
           "handwrittenHeader": {
             "name": "Reenie Beanie (Font.reenie)",
-            "usage": "Top-of-screen editorial headers ('today', 'My experience')."
+            "usage": "Top-of-screen editorial headers ('today', 'my experience', 'my body', 'my mind', 'my heart')."
           },
           "stickerTitle": {
             "names": [
@@ -282,7 +392,7 @@
               "UnifrakturCook-Bold",
               "VastShadow-Regular"
             ],
-            "usage": "Shield card title only. Loud, graphic, sticker energy."
+            "usage": "Ticket card title only. Loud, graphic, sticker energy — like a concert ticket in a journal."
           }
         },
         "sizes": {
@@ -293,11 +403,12 @@
               "relativeTo": "title/title3",
               "tracking": "none"
             },
-            "balanceBigNumber": {
+            "experienceBigNumber": {
               "font": "notoSerif",
               "size": 32,
               "weight": "bold",
-              "monospacedDigit": true
+              "monospacedDigit": true,
+              "note": "The loudest element on screen. The experience number. When in doubt, make it bigger."
             },
             "galleryCaption": {
               "font": "notoSerif",
@@ -314,28 +425,28 @@
           }
         },
         "numericStyle": {
-          "rule": "All balances, costs, timers use .monospacedDigit().",
+          "rule": "All experience numbers, costs, timers use .monospacedDigit().",
           "examples": [
-            "PayGate balance",
-            "StepBalanceCard counts",
+            "PayGate experience balance",
+            "Experience card counts",
             "timers and remaining time"
           ]
         }
       },
       "color": {
         "brandAccent": {
-          "name": "brandYellowMarker (code: AppColors.brand\u0050ink)",
+          "name": "brandYellowMarker (code: AppColors.brandPink)",
           "hex": "#FFCC33",
-          "notes": "Treat as highlighter/marker. Never flood entire screens in Daylight."
+          "notes": "The curator's hand. Treat as highlighter/marker. Never flood entire screens in Daylight."
         },
-        "shieldsAccent": {
+        "ticketsAccent": {
           "hex": "#FDD344",
-          "notes": "More saturated/cleaner yellow used in shields and paygate palettes."
+          "notes": "More saturated/cleaner yellow used in ticket and paygate palettes."
         },
         "semantic": {
           "success": "green (tiny dot only, not full buttons)",
           "warning": "orange (timers, remaining unlock)",
-          "danger": "red (block screens)"
+          "danger": "red (closed-state screens)"
         }
       }
     },
@@ -345,13 +456,34 @@
         "titles": "Often hidden or inline; screen uses its own large header (handwritten) instead of big navigation titles."
       },
       "tabBar": {
-        "pattern": "TabView",
+        "tabs": [
+          {
+            "name": "Gallery",
+            "icon": "SF Symbol",
+            "content": "Daily exhibition — three rooms of pieces (body, mind, heart)"
+          },
+          {
+            "name": "Me",
+            "icon": "SF Symbol",
+            "content": "Profile + 60-day archive of past exhibitions"
+          },
+          {
+            "name": "Guides",
+            "icon": "SF Symbol",
+            "content": "Philosophy wall texts — 5–7 short entries like gallery wall text"
+          },
+          {
+            "name": "Settings",
+            "icon": "SF Symbol",
+            "content": "Preferences, theme, ticket management"
+          }
+        ],
         "iconStyle": "SF Symbols, minimal. Avoid decorative icons.",
         "selection": "Keep content padding so bottom fixed buttons do not clash with tab bar."
       },
       "gridsAndLists": {
         "paperMode": "Use VStack + thin separators; avoid heavy cards.",
-        "shieldsMode": "Stacked list with slight rotation offsets and sticker header.",
+        "ticketsMode": "Stacked list with slight rotation offsets and sticker header.",
         "forms": "Use List(.insetGrouped) for editors (category edit, custom activity)."
       }
     },
@@ -366,18 +498,18 @@
           "type": "spring",
           "response": 0.3,
           "dampingFraction": 0.7,
-          "use": "gallery selection, chips, small state changes"
+          "use": "gallery piece selection, chips, small state changes"
         },
         "modal": {
           "type": "spring",
           "response": 0.35,
           "dampingFraction": 0.85,
-          "use": "shields settings modal"
+          "use": "ticket settings modal"
         }
       },
       "haptics": {
         "use": [
-          "light impact for expanding a shield",
+          "light impact for expanding a ticket",
           "warning notification for delete"
         ],
         "rule": "Haptics only for meaningful state changes; never for passive scrolling."
@@ -402,8 +534,8 @@
         },
         "underline": {
           "name": "YellowMarkerUnderline",
-          "implementation": "SwiftUI component: \u0050inkUnderline (uses theme accent color, which is yellow)",
-          "appearance": "slightly imperfect quadratic curve stroke, 2pt (marker-on-paper vibe)",
+          "implementation": "SwiftUI component: PinkUnderline (uses theme accent color, which is yellow)",
+          "appearance": "slightly imperfect quadratic curve stroke, 2pt (marker-on-paper vibe — the curator's hand)",
           "use": "Rare emphasis under one word/number."
         },
         "emptyState": {
@@ -413,7 +545,12 @@
             "message": "subheadline",
             "subMessage": "caption italic, secondary@0.7"
           },
-          "tone": "inviting; explicitly non-judgmental"
+          "tone": "Gallery silence. Never panic. Template: '[What's absent]. [Neutral observation]. [Action]. Or not.'",
+          "examples": [
+            "Nothing here yet. That's fine.",
+            "No pieces chosen today. The gallery is quiet.",
+            "Your archive is empty. It starts tomorrow."
+          ]
         }
       },
       "buttons": {
@@ -422,7 +559,7 @@
           "use": "Edit links, inline actions"
         },
         "primaryPill": {
-          "useCase": "Shields empty state: Create Shield",
+          "useCase": "Tickets empty state: Create Ticket",
           "shape": "Capsule",
           "fill": "ShieldsPalette.accent",
           "text": "black, headline semibold",
@@ -433,18 +570,23 @@
           "height": 56,
           "fill": "accent yellow when enabled; dark surface when disabled",
           "text": "black when enabled; white@0.6 when disabled",
-          "interaction": "ScaleButtonStyle"
+          "interaction": "ScaleButtonStyle",
+          "label": "spend experience"
+        },
+        "payGateClose": {
+          "label": "keep it closed",
+          "note": "Not 'keep it locked' — 'locked' implies punishment; 'closed' implies choice."
         }
       },
       "cards": {
         "paperCard": {
-          "intent": "Paper sections that feel printed; low/no shadow.",
+          "intent": "Paper sections that feel printed; low/no shadow. The gallery wall.",
           "shape": "RoundedRectangle radius 12–20",
           "treatment": "stroke only (theme stroke opacity)",
           "padding": "16–20"
         },
         "glassCard": {
-          "intent": "System-glass look for status rows and shield rows.",
+          "intent": "System-glass look for status rows and ticket rows.",
           "material": ".ultraThinMaterial",
           "stroke": "subtle gradient stroke 0.5",
           "shadow": "black@0.04 radius 8 y 3"
@@ -457,34 +599,41 @@
           "drag": "down to dismiss; indicator bar 40x5"
         }
       },
-      "chips": {
-        "categoryChip": {
-          "intent": "Compact, numeric, tap targets for drill-down.",
+      "experienceCard": {
+        "name": "ExperienceCard (was: StepBalanceCard)",
+        "intent": "The hero element — shows today's total experience and the three rooms.",
+        "header": {
+          "label": "experience",
+          "note": "Lowercase. Not 'EXP'. Not 'Balance'. The word 'experience'."
+        },
+        "bigNumber": {
+          "font": "notoSerif 32 bold monospacedDigit",
+          "note": "The loudest element on any screen."
+        },
+        "roomChips": {
+          "layout": "3 in a row with 8 spacing",
+          "labels": ["body", "mind", "heart"],
+          "note": "Not 'Move/Reboot/Joy'. Not 'activity/rest/joys'. Always: body · mind · heart.",
           "shape": "RoundedRectangle radius 8",
           "padding": "vertical 8",
-          "layout": "3 in a row (activity/rest/joys) with 8 spacing",
           "typography": {
             "icon": "notoSerif 12 semibold",
             "value": "notoSerif 16 bold, monospaced"
           },
           "fill": "primary@0.1"
         },
-        "optionChip": {
-          "intent": "Selectable option pill inside DailyEnergyCard grids.",
-          "shape": "RoundedRectangle radius 14",
-          "padding": "horizontal 12, vertical 10",
-          "selected": "filled with category gradient + checkmark; soft shadow",
-          "unselected": "secondarySystemBackground fill"
-        }
+        "breakdownFormat": "85 / 60 / 100 → experience value / earned today / max"
       },
       "galleryCard": {
         "name": "GalleryCard",
+        "intent": "Each card is a piece in today's exhibition. Mounted, framed. The artist's proof mark when completed.",
         "size": {
           "width": 140,
           "height": 180,
           "imageFrame": "110x110"
         },
         "layout": "Large painting-style card. Image area on top, caption below; padding (h:5, v:6). Inter-card spacing 12.",
+        "captionStyle": "Action phrases, not nouns. 'dancing it out' not 'Dance'. 'following my curiosity' not 'Curiosity'.",
         "states": {
           "default": "full opacity",
           "disabled": "overall opacity 0.5",
@@ -494,6 +643,7 @@
           }
         },
         "completionMark": {
+          "meaning": "The artist's proof mark. 'This one happened. I was here.' Not a checkmark. Not a gold star. Just a hand-drawn line that says: this one counts.",
           "assets": [
             "cross1",
             "cross2",
@@ -501,10 +651,65 @@
           ],
           "color": "black@0.25 on solid yellow background",
           "frame": "100x100"
+        },
+        "handDrawnFrames": {
+          "meaning": "Exhibition frames. Each card is mounted, presented. Your choices deserve framing.",
+          "assets": ["frame-1", "frame-2", "frame-3", "frame-4"]
+        }
+      },
+      "galleryTabs": {
+        "intent": "Three rooms of the gallery. Each room header is two words.",
+        "headers": ["my body", "my mind", "my heart"],
+        "note": "Not 'My activities / My creativity / My joys'. Always: my body / my mind / my heart.",
+        "rooms": {
+          "body": {
+            "philosophicalLineage": "Aristotle's energeia — being at work in the world.",
+            "covers": "The body in the world: moving, testing limits, taking risks.",
+            "examplePieces": [
+              "dancing it out",
+              "eating a real meal",
+              "overcoming something hard",
+              "taking a real risk",
+              "making love",
+              "pushing my limits",
+              "feeling my strength"
+            ]
+          },
+          "mind": {
+            "philosophicalLineage": "Hannah Arendt's work — the capacity to create something that outlasts the moment.",
+            "covers": "The mind creating, observing, earning.",
+            "examplePieces": [
+              "following my curiosity",
+              "making money happen",
+              "letting my mind wander",
+              "creating something new",
+              "noticing the invisible",
+              "visiting a real place",
+              "watching the world closely",
+              "earning what I deserve"
+            ]
+          },
+          "heart": {
+            "philosophicalLineage": "Epicurus's hedone — cultivation of genuine pleasure as essential to life.",
+            "covers": "The heart feeling, connecting, rebelling.",
+            "examplePieces": [
+              "embracing the cringe",
+              "holding someone close",
+              "feeling deeply today",
+              "being with my people",
+              "crying from joy",
+              "feeling in love",
+              "kissing someone",
+              "choosing myself today",
+              "going all out",
+              "breaking my rules",
+              "guilty pleasures"
+            ]
+          }
         }
       },
       "progress": {
-        "balanceBar": {
+        "experienceBar": {
           "intent": "Hard-outlined progress bar with yellow fill + yellow-outline spent segment.",
           "shape": "RoundedRectangle radius 8 stroke primary 1",
           "height": 14,
@@ -512,8 +717,8 @@
           "spentSegment": "yellow stroke 2 with sharp left edge",
           "animation": "spring response ~0.4"
         },
-        "balancePills": {
-          "intent": "Three-part balance display: current / earnedToday / max.",
+        "experiencePills": {
+          "intent": "Three-part display: current / earnedToday / max.",
           "current": "yellow filled circle with black number",
           "earnedToday": "white/clear circle with yellow stroke",
           "max": "small plain monospaced text"
@@ -528,42 +733,179 @@
           "padding": "16, top 8",
           "dismiss": "tap dim background or close button"
         }
+      },
+      "weeklyReflection": {
+        "intent": "The mirror. Shows the trade-off honestly. Gallery wall text voice.",
+        "layout": "Paper card, standard stroke, 16–20 padding",
+        "content": {
+          "header": "this week's exhibition",
+          "metrics": [
+            "{total} experience earned. {spent} spent.",
+            "Most visited room: {room}.",
+            "Richest day: {day}.",
+            "Least time on screen: {day}."
+          ]
+        },
+        "tone": "Factual. No judgment. Just the numbers and the observation."
+      },
+      "lockScreenWidget": {
+        "intent": "Show today's experience. Biggest retention driver available in iOS.",
+        "display": "Experience number, prominent. Minimal supporting text.",
+        "style": "Matches Daylight paper-and-ink aesthetic"
+      },
+      "guidesTab": {
+        "intent": "The philosophy lives here. Short, beautiful texts — like gallery wall text. Not self-help. Not motivation. Observation.",
+        "entryFormat": {
+          "maxWords": 200,
+          "style": "Short lines. No imperatives. Observations that end with an open question.",
+          "typography": "notoSerif body, generous line spacing"
+        },
+        "plannedEntries": [
+          {
+            "title": "on proof",
+            "theme": "What it means to prove you were alive today. (Benjamin + printmaking)"
+          },
+          {
+            "title": "on the three rooms",
+            "theme": "body, mind, heart: a complete life in three rooms. (Aristotle + Arendt + Epicurus)"
+          },
+          {
+            "title": "on the spectacle",
+            "theme": "Why scrolling feels like doing something but isn't. (Debord)"
+          },
+          {
+            "title": "on imperfection",
+            "theme": "Why the scribbled cross is more beautiful than a checkmark. (Wabi-sabi)"
+          },
+          {
+            "title": "on the threshold",
+            "theme": "What happens at the PayGate. The moment you decide. (Debord + Bergson)"
+          }
+        ]
+      },
+      "shieldScreen": {
+        "intent": "A closed gallery door, not a prison gate. Firm but not angry.",
+        "copy": {
+          "primary": "[app] is closed.",
+          "secondary": "Open Proof to spend experience.",
+          "action": "Open",
+          "note": "No lightning bolt. No 'BLOCKED' in caps. No emojis. The shield is firm but quiet."
+        }
+      },
+      "payGateScreen": {
+        "intent": "The threshold between the real and the spectacle. The moment you decide.",
+        "copy": {
+          "header": "spend experience",
+          "appDisplay": "[icon] [App Name]",
+          "optionFormat": "10 min · 4 experience",
+          "closeButton": "keep it closed",
+          "note": "Not 'keep it locked'. 'Closed' implies choice. 'Locked' implies punishment."
+        }
       }
+    },
+    "onboarding": {
+      "intent": "Gallery-concept-first. 7 slides, not 13. Start with the idea, end with permissions.",
+      "slides": [
+        {
+          "number": 1,
+          "copy": "Your life is an exhibition. Every day, you decide what goes in.",
+          "type": "text"
+        },
+        {
+          "number": 2,
+          "copy": "How many steps make a good day? [slider] This is your baseline. Not a minimum.",
+          "type": "steps setup"
+        },
+        {
+          "number": 3,
+          "copy": "How much sleep? [slider] Rest is part of the exhibition.",
+          "type": "sleep setup"
+        },
+        {
+          "number": 4,
+          "copy": "Choose up to 4 ways your body lived today.",
+          "type": "body room selection"
+        },
+        {
+          "number": 5,
+          "copy": "Choose up to 4 ways your mind was alive.",
+          "type": "mind room selection"
+        },
+        {
+          "number": 6,
+          "copy": "Choose up to 4 things your heart felt.",
+          "type": "heart room selection"
+        },
+        {
+          "number": 7,
+          "copy": "Almost ready. We need a few permissions to make this work. [HealthKit] [FamilyControls] [Notifications]",
+          "type": "combined permissions"
+        }
+      ],
+      "style": "loginOnboarding palette. Dark gradient, crisp typography, gallery-concept language."
+    },
+    "restDayOverride": {
+      "intent": "Some days you can't walk. Grace without guilt.",
+      "baseExperience": 30,
+      "copy": "Some days the exhibition is quiet.",
+      "note": "Grants base experience with no steps requirement."
     },
     "doAndDont": {
       "do": [
         "Use strokes and paper tones to separate content; reserve shadows for modals.",
-        "Make numbers monospaced; treat balance as the hero datum.",
-        "Keep copy neutral and observational.",
+        "Make numbers monospaced; treat the experience number as the hero datum.",
+        "Keep copy neutral, observational, gallery-wall-text tone.",
         "Keep headers handwritten (Reenie) and everything else crisp system type.",
-        "Use the yellow accent as a marker/highlighter, not a wall of color."
+        "Use the yellow accent as the curator's marker/highlighter, not a wall of color.",
+        "Use unified vocabulary: experience, pieces, tickets, spend, archive, rooms (body/mind/heart).",
+        "Write empty states as gallery silence: calm, inviting, explicitly non-judgmental.",
+        "Use action phrases for pieces: 'dancing it out', not 'Dance'.",
+        "Label the three rooms consistently: body · mind · heart."
       ],
       "dont": [
-        "Do not add gamified celebration UI (confetti, streak flames everywhere, trophies).",
+        "Do not add gamified celebration UI (confetti, streak flames, trophies).",
         "Do not introduce low-contrast grey-on-grey in Daylight for primary content.",
         "Do not mix multiple loud decorative effects on one screen.",
-        "Do not add heavy neumorphic or glassy cards in Daylight mode."
+        "Do not add heavy neumorphic or glassy cards in Daylight mode.",
+        "Do not use exclamation marks in UI copy. Ever.",
+        "Do not use motivational language ('Great job!', 'Keep going!', 'You crushed it!').",
+        "Do not use punishment language ('BLOCKED', 'RESTRICTED', 'LOCKED').",
+        "Do not use 'balance', 'energy', 'EXP', 'control' — use 'experience'.",
+        "Do not use 'activities', 'selections', 'options' — use 'pieces'.",
+        "Do not use 'shields', 'bundles' — use 'tickets'.",
+        "Do not use 'Move / Reboot / Joy' — use 'body / mind / heart'.",
+        "Do not use lightning bolt emojis or aggressive iconography in shield/block screens."
       ]
     },
     "aiImplementationNotes": {
-      "goal": "When adding new screens, choose one visual system and stay consistent across the entire screen.",
+      "goal": "When adding new screens, choose one visual system and stay consistent across the entire screen. Use the unified vocabulary everywhere.",
+      "vocabularyCheck": "Before writing any user-facing string, consult the vocabulary section. One concept = one word.",
       "screenModeDecision": {
-        "paperInk": "Most core app screens (gallery, stats, settings).",
-        "shieldsSticker": "Shield management flows.",
-        "darkNeon": "Auth/onboarding and PayGate moments."
+        "paperInk": "Most core app screens (gallery, experience card, me/archive, guides, settings).",
+        "ticketsSticker": "Ticket management flows.",
+        "darkThreshold": "Auth/onboarding and PayGate moments (the threshold)."
       },
       "defaultRecipeForNewPaperScreen": [
         "NavigationStack with hidden/inline nav title.",
-        "ZStack background = theme.backgroundColor (daylight paper).",
+        "ZStack background = theme.backgroundColor (daylight paper — the gallery wall).",
         "Top header in .reenie(45) + primary ink.",
         "Sections separated by ThemedDivider or thin strokes.",
-        "Buttons are plain; use accent for tags/underline and key numbers only."
+        "Buttons are plain; use accent for tags/underline and experience numbers only.",
+        "Copy is gallery wall text: observational, brief, no exclamation marks."
       ],
-      "defaultRecipeForNewShieldScreen": [
+      "defaultRecipeForNewTicketScreen": [
         "Page background from ShieldsPalette.pageBackground.",
         "Accent #FDD344 used for CTAs, highlights, and icon tiles.",
         "Surfaces are white/near-black with subtle stroke and occasional soft shadow.",
         "Sticker title fonts are allowed only in header-like sticker elements."
+      ],
+      "copyGuidelines": [
+        "Voice: gallery wall text. Observational. Brief. Trusting. Dry where appropriate.",
+        "Empty states: '[What's absent]. [Neutral observation]. [Action]. Or not.'",
+        "Shield: '[app] is closed. Open Proof to spend experience.'",
+        "PayGate: 'spend experience' / '10 min · 4 experience' / 'keep it closed'",
+        "No exclamation marks. No motivational language. No punishment language.",
+        "English only. No localization in v1."
       ]
     }
   }

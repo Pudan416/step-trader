@@ -14,46 +14,46 @@ extension AppModel {
         )
         guard let bundleId else { return fallback }
         
-        // Сначала проверяем группы щитов
-        // Ищем группу, которая содержит это приложение
+        // Check ticket groups first
+        // Find the group containing this app
         #if canImport(FamilyControls)
         let defaults = UserDefaults.stepsTrader()
         
-        // Проходим по всем группам и ищем приложение
+        // Search groups for this app
+        let bundleIdLower = bundleId.lowercased()
         for group in ticketGroups {
-            // Проверяем все ApplicationToken в группе
             for token in group.selection.applicationTokens {
-                if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-                    let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-                    
-                    // Сохраняем маппинг token -> groupId для быстрого поиска в будущем
-                    let groupIdKey = "fc_groupId_" + tokenData.base64EncodedString()
-                    defaults.set(group.id, forKey: groupIdKey)
-                    
-                    // Проверяем сохраненное имя приложения
-                    if let storedName = defaults.string(forKey: tokenKey) {
-                        // Сравниваем bundleId с именем приложения (может совпадать или содержать)
-                        let bundleIdLower = bundleId.lowercased()
-                        let storedNameLower = storedName.lowercased()
-                        
-                        // Если имена совпадают или bundleId содержит имя (или наоборот)
-                        if bundleIdLower == storedNameLower || 
-                           bundleIdLower.contains(storedNameLower) ||
-                           storedNameLower.contains(bundleIdLower) {
-                            // Нашли группу, возвращаем её настройки
-                            var settings = group.settings
-                            if settings.allowedWindows.isEmpty {
-                                settings.allowedWindows = [.minutes10, .minutes30, .hour1]
-                            }
-                            return settings
+                guard let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) else { continue }
+                let base64 = tokenData.base64EncodedString()
+                
+                // Cache token → groupId mapping
+                defaults.set(group.id, forKey: "fc_groupId_" + base64)
+                
+                // Prefer exact bundleId match (avoids "Mail" matching "Gmail")
+                if let storedBundleId = defaults.string(forKey: "fc_bundleId_" + base64) {
+                    if bundleIdLower == storedBundleId.lowercased() {
+                        var settings = group.settings
+                        if settings.allowedWindows.isEmpty {
+                            settings.allowedWindows = [.minutes10, .minutes30, .hour1]
                         }
+                        return settings
                     }
+                    continue
+                }
+                // Legacy: exact match on stored name only (no substring)
+                if let storedName = defaults.string(forKey: "fc_appName_" + base64),
+                   bundleIdLower == storedName.lowercased() {
+                    var settings = group.settings
+                    if settings.allowedWindows.isEmpty {
+                        settings.allowedWindows = [.minutes10, .minutes30, .hour1]
+                    }
+                    return settings
                 }
             }
         }
         #endif
         
-        // Если не нашли в группах, используем старые настройки
+        // If not found in groups, use legacy settings
         var settings = appUnlockSettings[bundleId] ?? fallback
         if settings.allowedWindows.isEmpty {
             settings.allowedWindows = [.minutes10, .minutes30, .hour1]
@@ -79,7 +79,7 @@ extension AppModel {
     }
 
     func allowedAccessWindows(for bundleId: String?) -> Set<AccessWindow> {
-        // Сначала проверяем группы
+        // Check groups first
         if let group = findTicketGroup(for: bundleId) {
             return group.enabledIntervals
         }

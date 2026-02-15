@@ -1,5 +1,6 @@
 import Foundation
 
+#if DEBUG
 struct DailyOpen: Identifiable {
     let id = UUID()
     let day: Date
@@ -16,3 +17,4 @@ struct AppUsageToday: Identifiable {
     let opens: Int
     let steps: Int
 }
+#endif

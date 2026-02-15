@@ -6,11 +6,11 @@ struct SettingsView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var authService = AuthenticationService.shared
     @ObservedObject var cloudService = CloudKitService.shared
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @Environment(\.appTheme) private var theme
     @State private var showLoginSheet: Bool = false
     @State private var showRestoreAlert: Bool = false
     @State private var showProfileEditor: Bool = false
+    @State private var restDayOverrideEnabled: Bool = false
     /// When true (e.g. presented from Me tab), navigation bar is visible so user can tap Done
     var showNavigationBar: Bool = false
     @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
@@ -125,26 +125,26 @@ struct SettingsView: View {
                     Button(role: .destructive) {
                         authService.signOut()
                     } label: {
-                        Label(loc(appLanguage, "Sign out"), systemImage: "rectangle.portrait.and.arrow.right")
+                        Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                 } else {
                     Button { showLoginSheet = true } label: {
-                        Label(loc(appLanguage, "Sign in with Apple"), systemImage: "apple.logo")
+                        Label("Sign in with Apple", systemImage: "apple.logo")
                     }
                 }
             } header: {
-                Text(loc(appLanguage, "Account"))
+                Text("Account")
             }
             
             // Preferences
             Section {
                 NavigationLink {
-                    ThemeSettingsView(appLanguage: appLanguage, selectedTheme: $appThemeRaw)
-                        .navigationTitle(loc(appLanguage, "Appearance"))
+                    ThemeSettingsView(selectedTheme: $appThemeRaw)
+                        .navigationTitle("Appearance")
                         .navigationBarTitleDisplayMode(.inline)
                 } label: {
                     HStack {
-                        Label(loc(appLanguage, "Appearance"), systemImage: "circle.lefthalf.filled")
+                        Label("Appearance", systemImage: "circle.lefthalf.filled")
                         Spacer()
                         Text(themeDisplayName(AppTheme.normalized(rawValue: appThemeRaw)))
                             .foregroundColor(.secondary)
@@ -153,14 +153,13 @@ struct SettingsView: View {
                 
                 NavigationLink {
                     PayGateBackgroundSettingsView(
-                        appLanguage: appLanguage,
                         selectedStyle: $payGateBackgroundStyle
                     )
-                    .navigationTitle(loc(appLanguage, "Unlock screen"))
+                    .navigationTitle("Unlock screen")
                     .navigationBarTitleDisplayMode(.inline)
                 } label: {
                     HStack {
-                        Label(loc(appLanguage, "Unlock screen"), systemImage: "sparkles.rectangle.stack")
+                        Label("Unlock screen", systemImage: "sparkles.rectangle.stack")
                         Spacer()
                         Text(payGateStyleDisplayName)
                             .foregroundColor(.secondary)
@@ -170,10 +169,19 @@ struct SettingsView: View {
                 NavigationLink {
                     EnergySetupView(model: model)
                 } label: {
-                    Label(loc(appLanguage, "Daily gallery"), systemImage: "sparkles")
+                    Label("Daily gallery", systemImage: "sparkles")
+                }
+                
+                Toggle(isOn: $restDayOverrideEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Rest day override")
+                        Text("Guarantee at least 30 experience today.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             } header: {
-                Text(loc(appLanguage, "Preferences"))
+                Text("Preferences")
             }
             
             // About
@@ -185,9 +193,9 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
             } header: {
-                Text(loc(appLanguage, "About"))
+                Text("About")
             } footer: {
-                Text(loc(appLanguage, "Less scrolling. More living."))
+                Text("Less scrolling. More living.")
                     .frame(maxWidth: .infinity)
                     .padding(.top, 8)
             }
@@ -198,8 +206,11 @@ struct SettingsView: View {
         .toolbarBackground(theme.backgroundColor, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .onAppear {
-            if appLanguage == "ru" { appLanguage = "en" }
             Task { await authService.checkAuthenticationState() }
+            restDayOverrideEnabled = model.isRestDayOverrideEnabled
+        }
+        .onChange(of: restDayOverrideEnabled) { _, isEnabled in
+            model.setRestDayOverrideEnabled(isEnabled)
         }
         .sheet(isPresented: $showLoginSheet) {
             LoginView(authService: authService)
@@ -207,13 +218,13 @@ struct SettingsView: View {
         .sheet(isPresented: $showProfileEditor) {
             ProfileEditorView(authService: authService)
         }
-        .alert(loc(appLanguage, "Restore"), isPresented: $showRestoreAlert) {
-            Button(loc(appLanguage, "Cancel"), role: .cancel) { }
-            Button(loc(appLanguage, "Restore"), role: .destructive) {
+        .alert("Restore", isPresented: $showRestoreAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Restore", role: .destructive) {
                 Task { await cloudService.restoreFromCloud(model: model) }
             }
         } message: {
-            Text(loc(appLanguage, "Replace current data with iCloud backup?"))
+            Text("Replace current data with iCloud backup?")
         }
     }
     
@@ -242,7 +253,7 @@ struct SettingsView: View {
     
     private var payGateStyleDisplayName: String {
         let style = PayGateBackgroundStyle(rawValue: payGateBackgroundStyle) ?? .midnight
-        return appLanguage == "ru" ? style.displayNameRU : style.displayName
+        return style.displayName
     }
     
     private var dayEndDateBinding: Binding<Date> {
@@ -273,25 +284,24 @@ struct SettingsView: View {
         let cal = Calendar.current
         let date = cal.date(from: comps) ?? Date()
         let df = DateFormatter()
-        df.locale = Locale(identifier: appLanguage == "ru" ? "ru_RU" : "en_US")
+        df.locale = Locale(identifier: "en_US")
         df.dateFormat = "HH:mm"
         return df.string(from: date)
     }
     
     private func themeDisplayName(_ theme: AppTheme) -> String {
-        appLanguage == "ru" ? theme.displayNameRu : theme.displayNameEn
+        theme.displayNameEn
     }
 
     // MARK: - Nested detail views
     private struct ThemeSettingsView: View {
-        let appLanguage: String
         @Binding var selectedTheme: String
         
         var body: some View {
             Form {
-                Picker(loc(appLanguage, "Theme"), selection: $selectedTheme) {
+                Picker("Theme", selection: $selectedTheme) {
                     ForEach(AppTheme.selectableThemes, id: \.rawValue) { theme in
-                        Text(appLanguage == "ru" ? theme.displayNameRu : theme.displayNameEn)
+                        Text(theme.displayNameEn)
                             .tag(theme.rawValue)
                     }
                 }
@@ -301,14 +311,13 @@ struct SettingsView: View {
     }
     
     private struct PayGateBackgroundSettingsView: View {
-        let appLanguage: String
         @Binding var selectedStyle: String
         @Environment(\.appTheme) private var theme
         
         var body: some View {
             ScrollView {
                 VStack(spacing: 16) {
-                    Text(loc(appLanguage, "Choose my entry screen style"))
+                    Text("Choose my entry screen style")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.top, 8)
@@ -317,8 +326,7 @@ struct SettingsView: View {
                         ForEach(PayGateBackgroundStyle.allCases) { style in
                             PayGateStyleCard(
                                 style: style,
-                                isSelected: selectedStyle == style.rawValue,
-                                appLanguage: appLanguage
+                                isSelected: selectedStyle == style.rawValue
                             ) {
                                 withAnimation(.spring(response: 0.3)) {
                                     selectedStyle = style.rawValue
@@ -338,7 +346,6 @@ struct SettingsView: View {
     private struct PayGateStyleCard: View {
         let style: PayGateBackgroundStyle
         let isSelected: Bool
-        let appLanguage: String
         let onTap: () -> Void
         
         var body: some View {
@@ -402,7 +409,7 @@ struct SettingsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     
                     // Label
-                    Text(appLanguage == "ru" ? style.displayNameRU : style.displayName)
+                    Text(style.displayName)
                         .font(.caption.weight(.medium))
                         .foregroundColor(.primary)
                         .padding(.vertical, 8)
@@ -421,13 +428,12 @@ struct SettingsView: View {
     }
     
     private struct DayEndSettingsView: View {
-        let appLanguage: String
         let dayEndDateBinding: Binding<Date>
         
         var body: some View {
             Form {
                 DatePicker(
-                    loc(appLanguage, "End of day"),
+                    "End of day",
                     selection: dayEndDateBinding,
                     displayedComponents: .hourAndMinute
                 )

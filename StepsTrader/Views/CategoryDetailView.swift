@@ -4,210 +4,111 @@ struct CategoryDetailView: View {
     @ObservedObject var model: AppModel
     let category: EnergyCategory?
     let outerWorldSteps: Int
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
-    @State private var showSettings = false
+    @State private var selectedOption: EnergyOption? = nil
+    @State private var selectedOptionEntry: OptionEntry? = nil
+    
+    // Optional callback for canvas integration
+    var onActivityConfirmed: ((String, EnergyCategory, String) -> Void)? = nil
+    var onActivityUndo: ((String, EnergyCategory) -> Void)? = nil
     
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(spacing: 24) {
-                    // Header with points
+                VStack(spacing: 20) {
+                    // Header: category asset + points
                     headerSection
-                    
-                    // Content based on category
+
+                    // Activity list
                     if let category = category {
-                        categoryContent(category: category)
+                        optionsSection(category: category)
                     } else {
                         outerWorldContent
                     }
-                    
-                    // Edit button at bottom
-                    editButton
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 20)
+                .padding(.vertical, 16)
             }
-            .background(theme.backgroundColor)
+            .scrollContentBackground(.hidden)
+            .background(.ultraThinMaterial)
             .navigationTitle(categoryTitle)
             .navigationBarTitleDisplayMode(.large)
-            .sheet(isPresented: $showSettings) {
+            .sheet(item: $selectedOption) { option in
                 if let category = category {
-                    CategorySettingsView(model: model, category: category, appLanguage: appLanguage)
-                        .onAppear {
-                            print("🟡 CategoryDetailView: Showing CategorySettingsView for category: \(category.rawValue)")
+                    OptionEntrySheet(
+                        option: option,
+                        category: category,
+                        entry: $selectedOptionEntry,
+                        onSave: { entry in
+                            saveEntry(entry, for: option)
                         }
-                } else {
-                    Text("Error: No category selected")
-                        .foregroundColor(.red)
-                        .padding()
-                        .onAppear {
-                            print("🔴 CategoryDetailView: category is nil, cannot show settings")
-                        }
+                    )
                 }
             }
         }
-        // .navigationViewStyle(.stack) - NavigationStack is stack by default
-        .onAppear {
-            print("🟢 CategoryDetailView body appeared, category: \(category?.rawValue ?? "nil"), outerWorldSteps: \(outerWorldSteps)")
-        }
     }
+    
+    // MARK: - Title
     
     private var categoryTitle: String {
         switch category {
-        case .activity: return loc(appLanguage, "Activity")
-        case .creativity: return loc(appLanguage, "Creativity")
-        case .joys: return loc(appLanguage, "Joys")
-        case nil: return loc(appLanguage, "Outer World")
+        case .body: return "Body"
+        case .mind: return "Mind"
+        case .heart: return "Heart"
+        case nil: return "Outer World"
         }
     }
     
+    // MARK: - Header
+
     private var headerSection: some View {
-        VStack(spacing: 12) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(categoryColor.opacity(0.2))
-                    .frame(width: 80, height: 80)
-                
-                Image(systemName: categoryIcon)
-                    .font(.notoSerif(36, weight: .semibold))
-                    .foregroundColor(categoryColor)
-            }
+        VStack(spacing: 10) {
+            // Category asset image (tinted) instead of SF Symbol
+            categoryAssetImage
+                .frame(width: 80, height: 80)
             
-            // Points
-            VStack(spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("\(currentPoints)")
-                        .font(.notoSerif(48, weight: .bold))
-                        .foregroundColor(.primary)
-                        .monospacedDigit()
-                    Text("/\(maxPoints)")
-                        .font(.title3)
-                        .foregroundColor(.secondary)
-                        .monospacedDigit()
-                }
-                Text(loc(appLanguage, "points"))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+            // Points — compact
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text("\(currentPoints)")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(theme.textPrimary)
+                    .monospacedDigit()
+                Text("/\(maxPoints)")
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .foregroundStyle(theme.textSecondary)
+                    .monospacedDigit()
             }
         }
-        .padding(.vertical, 20)
+        .padding(.top, 8)
     }
     
     @ViewBuilder
-    private func categoryContent(category: EnergyCategory) -> some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Steps/Sleep info
-            if category == .activity {
-                stepsInfoSection
-            } else if category == .joys {
-                sleepInfoSection
-            }
-            
-            // Options list
-            optionsSection(category: category)
+    private var categoryAssetImage: some View {
+        let assetName = categoryAssetName
+        if let uiImage = UIImage(named: assetName) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .renderingMode(.template)
+                .foregroundStyle(categoryColor.opacity(0.6))
+                .aspectRatio(contentMode: .fit)
+        } else {
+            // Fallback to SF Symbol
+            Image(systemName: categoryIcon)
+                .font(.system(size: 36, weight: .medium))
+                .foregroundStyle(categoryColor.opacity(0.6))
         }
     }
     
-    private var outerWorldContent: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text(loc(appLanguage, "Collect energy drops from the map by exploring the Outer World"))
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .padding()
-                .background(Color(.secondarySystemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            
-            Text(loc(appLanguage, "Daily cap: 50 energy"))
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-    
-    private var stepsInfoSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(loc(appLanguage, "Steps"))
-                .font(.headline)
-            
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(formatNumber(Int(model.stepsToday)))")
-                        .font(.title2.bold())
-                    Text(loc(appLanguage, "steps today"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("\(model.stepsPointsToday)/\(EnergyDefaults.stepsMaxPoints)")
-                        .font(.title3.bold())
-                    Text(loc(appLanguage, "points"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding()
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-    }
-    
-    private var sleepInfoSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(loc(appLanguage, "Sleep"))
-                .font(.headline)
-            
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(String(format: "%.1fh", model.dailySleepHours))
-                        .font(.title2.bold())
-                    Text(loc(appLanguage, "hours slept"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("\(model.sleepPointsToday)/\(EnergyDefaults.sleepMaxPoints)")
-                        .font(.title3.bold())
-                    Text(loc(appLanguage, "points"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding()
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-    }
+    // MARK: - Activity List
     
     @ViewBuilder
     private func optionsSection(category: EnergyCategory) -> some View {
-        let options = model.preferredOptions(for: category)
+        let options = EnergyDefaults.options.filter { $0.category == category }
         
-        VStack(alignment: .leading, spacing: 16) {
-            Text(loc(appLanguage, "Activities"))
-                .font(.headline)
-            
-            if options.isEmpty {
-                Text(loc(appLanguage, "No activities selected. Tap Edit to add activities."))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            } else {
-                LazyVStack(spacing: 12) {
-                    ForEach(options) { option in
-                        optionRow(option: option, category: category)
-                    }
-                }
+        VStack(spacing: 6) {
+            ForEach(options) { option in
+                optionRow(option: option, category: category)
             }
         }
     }
@@ -216,119 +117,146 @@ struct CategoryDetailView: View {
         let isSelected = model.isDailySelected(option.id, category: category)
         
         return Button {
-            withAnimation(.spring(response: 0.3)) {
-                model.toggleDailySelection(optionId: option.id, category: category)
+            if isSelected {
+                withAnimation(.spring(response: 0.3)) {
+                    model.toggleDailySelection(optionId: option.id, category: category)
+                    deleteEntry(for: option.id)
+                    onActivityUndo?(option.id, category)
+                }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            } else {
+                selectedOptionEntry = loadEntry(for: option.id)
+                selectedOption = option
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
             }
         } label: {
-            HStack(spacing: 12) {
-                // Checkbox
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? categoryColor : Color(.systemGray5))
-                        .frame(width: 24, height: 24)
-                    
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.notoSerif(12, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                }
+            HStack(spacing: 10) {
+                // Small icon
+                Image(systemName: option.icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(isSelected ? .white : theme.textSecondary)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        Circle()
+                            .fill(isSelected ? getEntryColor(for: option.id) : theme.textPrimary.opacity(0.06))
+                    )
                 
-                // Title
-                Text(option.title(for: appLanguage))
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
+                // Title only — no description
+                Text(option.title(for: "en"))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(theme.textPrimary)
                 
                 Spacer()
                 
-                // Points badge
-                Text("+\(EnergyDefaults.selectionPoints)")
-                    .font(.caption.weight(.bold))
-                    .foregroundColor(isSelected ? categoryColor : .secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(isSelected ? categoryColor.opacity(0.15) : Color(.systemGray5))
-                    )
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(getEntryColor(for: option.id))
+                } else {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(theme.textSecondary.opacity(0.4))
+                }
             }
-            .padding()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? categoryColor.opacity(0.1) : Color(.secondarySystemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(isSelected ? categoryColor.opacity(0.3) : Color.clear, lineWidth: 1)
-                    )
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? getEntryColor(for: option.id).opacity(0.08) : theme.textPrimary.opacity(0.04))
             )
         }
         .buttonStyle(.plain)
     }
     
-    private var editButton: some View {
-        Button {
-            showSettings = true
-        } label: {
-            HStack {
-                Image(systemName: "gearshape.fill")
-                Text(loc(appLanguage, "Edit"))
-            }
-            .font(.headline)
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(
-                LinearGradient(
-                    colors: [categoryColor, categoryColor.opacity(0.8)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: categoryColor.opacity(0.3), radius: 8, x: 0, y: 4)
+    private var outerWorldContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Collect energy drops by exploring the Outer World")
+                .font(.system(size: 13))
+                .foregroundStyle(theme.textSecondary)
         }
-        .accessibilityIdentifier("category_edit_button")
-        .padding(.top, 20)
     }
     
-    // Computed properties
+    // MARK: - Helpers
+    
     private var categoryColor: Color {
         switch category {
-        case .activity: return .green
-        case .creativity: return .purple
-        case .joys: return .orange
+        case .body: return .green
+        case .mind: return .purple
+        case .heart: return .orange
         case nil: return .cyan
         }
     }
     
     private var categoryIcon: String {
         switch category {
-        case .activity: return "figure.run"
-        case .creativity: return "sparkles"
-        case .joys: return "heart.fill"
+        case .body: return "figure.run"
+        case .mind: return "sparkles"
+        case .heart: return "heart.fill"
         case nil: return "battery.100.bolt"
+        }
+    }
+    
+    /// Returns the first asset name for this category (used as header icon)
+    private var categoryAssetName: String {
+        switch category {
+        case .body: return "body 1"
+        case .mind: return "mind 1"
+        case .heart: return "heart 1"
+        case nil: return ""
         }
     }
     
     private var currentPoints: Int {
         switch category {
-        case .activity: return model.activityPointsToday
-        case .creativity: return model.creativityPointsToday
-        case .joys: return model.joysCategoryPointsToday
+        case .body: return model.activityPointsToday
+        case .mind: return model.creativityPointsToday
+        case .heart: return model.joysCategoryPointsToday
         case nil: return outerWorldSteps
         }
     }
     
     private var maxPoints: Int {
         switch category {
-        case .activity: return 40
-        case .creativity: return 20
-        case .joys: return 40
+        case .body: return 20
+        case .mind: return 20
+        case .heart: return 20
         case nil: return 50
         }
     }
     
-    private func formatNumber(_ value: Int) -> String {
-        value < 1000 ? "\(value)" : "\(value / 1000)k"
+    // MARK: - Entry Management
+    
+    private func loadEntry(for optionId: String) -> OptionEntry? {
+        let dayKey = AppModel.dayKey(for: Date())
+        let entryId = "\(optionId)_\(dayKey)"
+        guard let data = UserDefaults.standard.data(forKey: "option_entry_\(entryId)"),
+              let entry = try? JSONDecoder().decode(OptionEntry.self, from: data) else {
+            return nil
+        }
+        return entry
+    }
+    
+    private func saveEntry(_ entry: OptionEntry, for option: EnergyOption) {
+        guard let category = category else { return }
+        if let data = try? JSONEncoder().encode(entry) {
+            UserDefaults.standard.set(data, forKey: "option_entry_\(entry.id)")
+        }
+        if !model.isDailySelected(option.id, category: category) {
+            model.toggleDailySelection(optionId: option.id, category: category)
+        }
+        onActivityConfirmed?(option.id, category, entry.colorHex)
+    }
+    
+    private func deleteEntry(for optionId: String) {
+        let dayKey = AppModel.dayKey(for: Date())
+        let entryId = "\(optionId)_\(dayKey)"
+        UserDefaults.standard.removeObject(forKey: "option_entry_\(entryId)")
+    }
+    
+    private func getEntryColor(for optionId: String) -> Color {
+        if let entry = loadEntry(for: optionId) {
+            return Color(hex: entry.colorHex)
+        }
+        return categoryColor
     }
 }

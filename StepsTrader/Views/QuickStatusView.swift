@@ -1,5 +1,6 @@
 import SwiftUI
 
+#if DEBUG
 struct QuickStatusView: View {
     @ObservedObject var model: AppModel
 
@@ -27,7 +28,7 @@ struct QuickStatusView: View {
                 }
 
                 VStack(spacing: 20) {
-                    // Шаги сегодня
+                    // Steps today
                     HStack {
                         Text("Steps today:")
                             .font(.title2)
@@ -40,7 +41,7 @@ struct QuickStatusView: View {
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
 
-                    // Бюджет времени
+                    // Time budget
                     HStack {
                         Text("Time budget:")
                             .font(.title2)
@@ -53,7 +54,7 @@ struct QuickStatusView: View {
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
 
-                    // Потрачено времени
+                    // Time spent
                     HStack {
                         Text("Spent time:")
                             .font(.title2)
@@ -66,16 +67,16 @@ struct QuickStatusView: View {
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
 
-                    // Баланс шагов для входа
+                    // Step balance for entry
                     HStack {
                         Text("Entry balance:")
                             .font(.title2)
                         Spacer()
-                        Text("\(model.totalStepsBalance) steps")
+                        Text("\(model.userEconomyStore.totalStepsBalance) steps")
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(
-                                model.totalStepsBalance >= model.entryCostSteps ? .green : .red)
+                                model.userEconomyStore.totalStepsBalance >= model.userEconomyStore.entryCostSteps ? .green : .red)
                     }
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
@@ -97,3 +98,4 @@ struct QuickStatusView: View {
         }
     }
 }
+#endif

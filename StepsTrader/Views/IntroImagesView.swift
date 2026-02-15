@@ -3,7 +3,7 @@ import SwiftUI
 /// 8 full-screen onboarding images (onboarding1...onboarding8). Slide 8 has a "YES" button to continue.
 struct IntroImagesView: View {
     let onYes: () -> Void
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
+
 
     private static let imageNames = (1...8).map { "onboarding\($0)" }
     @State private var index: Int = 0

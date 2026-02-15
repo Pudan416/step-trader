@@ -1,0 +1,5 @@
+[mcp_servers.figma]
+command = "npx"
+args = ["figma-mcp@latest"]
+# Set FIGMA_PERSONAL_ACCESS_TOKEN in your environment; do not commit real tokens
+env = { FIGMA_PERSONAL_ACCESS_TOKEN = "" }

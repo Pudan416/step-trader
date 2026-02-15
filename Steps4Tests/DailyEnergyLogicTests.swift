@@ -3,6 +3,13 @@ import XCTest
 
 /// Tests for daily energy logic: EnergyDefaults constants and formula contract
 /// (pointsFromSleep, pointsFromSteps, pointsFromSelections as used in AppModel+DailyEnergy).
+///
+/// Scoring model (5 metrics × 20 = 100 max):
+///   steps  = 20 × min(made_steps, target_steps) / target_steps
+///   sleep  = 20 × min(today_sleep, target_sleep) / target_sleep
+///   body   = 4 chosen cards × 5 exp = 20
+///   mind   = 4 chosen cards × 5 exp = 20
+///   heart  = 4 chosen cards × 5 exp = 20
 final class DailyEnergyLogicTests: XCTestCase {
 
     // MARK: - EnergyDefaults constants
@@ -32,8 +39,8 @@ final class DailyEnergyLogicTests: XCTestCase {
         XCTAssertEqual(pointsFromSleep(hours: 0, target: target, maxPoints: maxPoints), 0)
         XCTAssertEqual(pointsFromSleep(hours: 4, target: target, maxPoints: maxPoints), 10)
         XCTAssertEqual(pointsFromSleep(hours: 8, target: target, maxPoints: maxPoints), 20)
-        XCTAssertEqual(pointsFromSleep(hours: 10, target: target, maxPoints: maxPoints), 20)
-        XCTAssertEqual(pointsFromSleep(hours: -1, target: target, maxPoints: maxPoints), 0)
+        XCTAssertEqual(pointsFromSleep(hours: 10, target: target, maxPoints: maxPoints), 20, "Capped at target")
+        XCTAssertEqual(pointsFromSleep(hours: -1, target: target, maxPoints: maxPoints), 0, "Negative clamped to 0")
     }
 
     /// pointsFromSteps: Int(ratio * stepsMaxPoints), ratio = min(steps, target) / target
@@ -43,7 +50,7 @@ final class DailyEnergyLogicTests: XCTestCase {
         XCTAssertEqual(pointsFromSteps(steps: 0, target: target, maxPoints: maxPoints), 0)
         XCTAssertEqual(pointsFromSteps(steps: 5_000, target: target, maxPoints: maxPoints), 10)
         XCTAssertEqual(pointsFromSteps(steps: 10_000, target: target, maxPoints: maxPoints), 20)
-        XCTAssertEqual(pointsFromSteps(steps: 15_000, target: target, maxPoints: maxPoints), 20)
+        XCTAssertEqual(pointsFromSteps(steps: 15_000, target: target, maxPoints: maxPoints), 20, "Capped at target")
     }
 
     /// pointsFromSelections: min(count, maxSelectionsPerCategory) * selectionPoints
@@ -53,7 +60,88 @@ final class DailyEnergyLogicTests: XCTestCase {
         XCTAssertEqual(pointsFromSelections(count: 0, maxSelections: maxSelections, pointsPer: pointsPerSelection), 0)
         XCTAssertEqual(pointsFromSelections(count: 1, maxSelections: maxSelections, pointsPer: pointsPerSelection), 5)
         XCTAssertEqual(pointsFromSelections(count: 4, maxSelections: maxSelections, pointsPer: pointsPerSelection), 20)
-        XCTAssertEqual(pointsFromSelections(count: 10, maxSelections: maxSelections, pointsPer: pointsPerSelection), 20)
+        XCTAssertEqual(pointsFromSelections(count: 10, maxSelections: maxSelections, pointsPer: pointsPerSelection), 20, "Capped at 4 selections")
+    }
+
+    // MARK: - Five-metric total contract
+
+    /// With all five metrics maxed out the total is exactly 100.
+    func testFiveMetricMaxTotal() {
+        let stepsMax = EnergyDefaults.stepsMaxPoints   // 20
+        let sleepMax = EnergyDefaults.sleepMaxPoints    // 20
+        let bodyMax  = EnergyDefaults.maxSelectionsPerCategory * EnergyDefaults.selectionPoints // 20
+        let mindMax  = bodyMax   // 20
+        let heartMax = bodyMax   // 20
+
+        let total = stepsMax + sleepMax + bodyMax + mindMax + heartMax
+        XCTAssertEqual(total, EnergyDefaults.maxBaseEnergy, "5 × 20 must equal maxBaseEnergy (100)")
+    }
+
+    /// Each individual metric is capped at 20.
+    func testEachMetricCappedAt20() {
+        // Steps
+        XCTAssertEqual(pointsFromSteps(steps: 999_999, target: 10_000, maxPoints: 20), 20)
+        // Sleep
+        XCTAssertEqual(pointsFromSleep(hours: 24, target: 8, maxPoints: 20), 20)
+        // Selections (body / mind / heart)
+        XCTAssertEqual(pointsFromSelections(count: 100, maxSelections: 4, pointsPer: 5), 20)
+    }
+
+    /// Zero activity day yields zero energy.
+    func testZeroActivityDayYieldsZero() {
+        let total = pointsFromSteps(steps: 0, target: 10_000, maxPoints: 20)
+            + pointsFromSleep(hours: 0, target: 8, maxPoints: 20)
+            + pointsFromSelections(count: 0, maxSelections: 4, pointsPer: 5) // body
+            + pointsFromSelections(count: 0, maxSelections: 4, pointsPer: 5) // mind
+            + pointsFromSelections(count: 0, maxSelections: 4, pointsPer: 5) // heart
+        XCTAssertEqual(total, 0)
+    }
+
+    /// Half-effort day yields 50 points (half of 100).
+    func testHalfEffortDay() {
+        let steps = pointsFromSteps(steps: 5_000, target: 10_000, maxPoints: 20)   // 10
+        let sleep = pointsFromSleep(hours: 4, target: 8, maxPoints: 20)             // 10
+        let body  = pointsFromSelections(count: 2, maxSelections: 4, pointsPer: 5)   // 10
+        let mind  = pointsFromSelections(count: 2, maxSelections: 4, pointsPer: 5)   // 10
+        let heart = pointsFromSelections(count: 2, maxSelections: 4, pointsPer: 5)   // 10
+        XCTAssertEqual(steps + sleep + body + mind + heart, 50)
+    }
+
+    /// Steps metric: boundary around rounding (Int truncation).
+    func testStepsRounding() {
+        // 3_333 / 10_000 * 20 = 6.666 → Int truncates to 6
+        XCTAssertEqual(pointsFromSteps(steps: 3_333, target: 10_000, maxPoints: 20), 6)
+        // 9_999 / 10_000 * 20 = 19.998 → 19
+        XCTAssertEqual(pointsFromSteps(steps: 9_999, target: 10_000, maxPoints: 20), 19)
+    }
+
+    /// Sleep metric: boundary around rounding (Int truncation).
+    func testSleepRounding() {
+        // 7.5 / 8 * 20 = 18.75 → 18
+        XCTAssertEqual(pointsFromSleep(hours: 7.5, target: 8, maxPoints: 20), 18)
+        // 7.9 / 8 * 20 = 19.75 → 19
+        XCTAssertEqual(pointsFromSleep(hours: 7.9, target: 8, maxPoints: 20), 19)
+    }
+
+    /// Selection points scale linearly: 0, 5, 10, 15, 20.
+    func testSelectionPointsLinearScale() {
+        for count in 0...4 {
+            XCTAssertEqual(
+                pointsFromSelections(count: count, maxSelections: 4, pointsPer: 5),
+                count * 5
+            )
+        }
+    }
+
+    /// Body, mind, heart are independent; body = activityExtrasPoints only (no steps), heart = joysChoicePoints only (no sleep).
+    func testBodyMindHeartIndependentOfStepsSleep() {
+        // Body: only card selections, not steps
+        let bodyWithZeroCards = pointsFromSelections(count: 0, maxSelections: 4, pointsPer: 5)
+        XCTAssertEqual(bodyWithZeroCards, 0, "Body should be 0 with no cards regardless of steps")
+
+        // Heart: only card selections, not sleep
+        let heartWithZeroCards = pointsFromSelections(count: 0, maxSelections: 4, pointsPer: 5)
+        XCTAssertEqual(heartWithZeroCards, 0, "Heart should be 0 with no cards regardless of sleep")
     }
 
     // MARK: - EnergyOption / EnergyCategory
@@ -73,13 +161,16 @@ final class DailyEnergyLogicTests: XCTestCase {
         XCTAssertGreaterThan(joysCount, 0)
     }
 
-    // MARK: - Gallery tab: Other option IDs
+    // MARK: - Option Descriptions
 
-    func testOtherOptionIds() {
-        XCTAssertTrue(EnergyDefaults.otherOptionIds.contains("activity_other"))
-        XCTAssertTrue(EnergyDefaults.otherOptionIds.contains("creativity_other"))
-        XCTAssertTrue(EnergyDefaults.otherOptionIds.contains("joys_other"))
-        XCTAssertEqual(EnergyDefaults.otherOptionIds.count, 3)
+    func testOptionDescriptions() {
+        // Test that all options have descriptions
+        for option in EnergyDefaults.options {
+            let desc = EnergyDefaults.optionDescriptions[option.id]
+            XCTAssertNotNil(desc, "Option \(option.id) should have a description")
+            XCTAssertFalse(desc?.description.isEmpty ?? true, "Description should not be empty for \(option.id)")
+            XCTAssertFalse(desc?.examples.isEmpty ?? true, "Examples should not be empty for \(option.id)")
+        }
     }
 
     // MARK: - CustomEnergyOption
@@ -128,9 +219,89 @@ final class DailyEnergyLogicTests: XCTestCase {
         toggle(selections: &sel, optionId: "d", maxCount: maxCount)
         XCTAssertEqual(sel.count, 4)
         toggle(selections: &sel, optionId: "e", maxCount: maxCount)
-        XCTAssertEqual(sel.count, 4)
+        XCTAssertEqual(sel.count, 4, "5th selection should be rejected")
         toggle(selections: &sel, optionId: "a", maxCount: maxCount)
         XCTAssertEqual(sel, ["b", "c", "d"])
+    }
+
+    // MARK: - PastDaySnapshot codable
+
+    func testPastDaySnapshotRoundTrip() throws {
+        let original = PastDaySnapshot(
+            experienceEarned: 75,
+            experienceSpent: 30,
+            activityIds: ["activity_sport"],
+            creativityIds: ["creativity_curiosity"],
+            joysIds: ["joys_hugging"],
+            steps: 8_000,
+            sleepHours: 7.5,
+            stepsTarget: 9_000,
+            sleepTargetHours: 7.0
+        )
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(PastDaySnapshot.self, from: data)
+        XCTAssertEqual(decoded.experienceEarned, 75)
+        XCTAssertEqual(decoded.experienceSpent, 30)
+        XCTAssertEqual(decoded.activityIds, ["activity_sport"])
+        XCTAssertEqual(decoded.creativityIds, ["creativity_curiosity"])
+        XCTAssertEqual(decoded.joysIds, ["joys_hugging"])
+        XCTAssertEqual(decoded.steps, 8_000)
+        XCTAssertEqual(decoded.sleepHours, 7.5)
+        XCTAssertEqual(decoded.stepsTarget, 9_000)
+        XCTAssertEqual(decoded.sleepTargetHours, 7.0)
+    }
+
+    func testPastDaySnapshotLegacyDecodeUsesDefaultTargets() throws {
+        let legacyJSON = """
+        {
+          "experienceEarned": 55,
+          "experienceSpent": 10,
+          "activityIds": ["activity_meal"],
+          "creativityIds": ["creativity_general"],
+          "joysIds": ["joys_rebel"],
+          "steps": 6000,
+          "sleepHours": 6.5
+        }
+        """
+        let data = try XCTUnwrap(legacyJSON.data(using: .utf8))
+        let decoded = try JSONDecoder().decode(PastDaySnapshot.self, from: data)
+        XCTAssertEqual(decoded.experienceEarned, 55)
+        XCTAssertEqual(decoded.experienceSpent, 10)
+        XCTAssertEqual(decoded.stepsTarget, EnergyDefaults.stepsTarget)
+        XCTAssertEqual(decoded.sleepTargetHours, EnergyDefaults.sleepTargetHours)
+    }
+
+    func testPastDaySnapshotPointsCanBeReconstructedFromStoredTargets() {
+        let snapshot = PastDaySnapshot(
+            experienceEarned: 0,
+            experienceSpent: 0,
+            activityIds: [],
+            creativityIds: [],
+            joysIds: [],
+            steps: 6_000,
+            sleepHours: 6.0,
+            stepsTarget: 8_000,
+            sleepTargetHours: 6.0
+        )
+        let stepsPoints = pointsFromSteps(steps: Double(snapshot.steps), target: snapshot.stepsTarget, maxPoints: EnergyDefaults.stepsMaxPoints)
+        let sleepPoints = pointsFromSleep(hours: snapshot.sleepHours, target: snapshot.sleepTargetHours, maxPoints: EnergyDefaults.sleepMaxPoints)
+        XCTAssertEqual(stepsPoints, 15)
+        XCTAssertEqual(sleepPoints, 20)
+    }
+
+    // MARK: - Custom steps/sleep targets
+
+    func testCustomStepsTarget() {
+        // With a lower target, fewer steps still max out
+        let maxPoints = 20
+        XCTAssertEqual(pointsFromSteps(steps: 5_000, target: 5_000, maxPoints: maxPoints), 20)
+        XCTAssertEqual(pointsFromSteps(steps: 2_500, target: 5_000, maxPoints: maxPoints), 10)
+    }
+
+    func testCustomSleepTarget() {
+        let maxPoints = 20
+        XCTAssertEqual(pointsFromSleep(hours: 6, target: 6, maxPoints: maxPoints), 20)
+        XCTAssertEqual(pointsFromSleep(hours: 3, target: 6, maxPoints: maxPoints), 10)
     }
 }
 

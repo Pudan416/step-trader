@@ -19,7 +19,7 @@ struct TariffOptionView: View {
     var body: some View {
         Button(action: isDisabled ? {} : action) {
             HStack(spacing: 16) {
-                // Иконка тарифа
+                // Tariff icon
                 Text(tariffIcon)
                     .font(.title2)
                     .opacity(isDisabled ? 0.5 : 1.0)
@@ -36,7 +36,7 @@ struct TariffOptionView: View {
                 
                 Spacer()
                 
-                // Индикатор выбора или блокировки
+                // Selection or lock indicator
                 if isDisabled {
                     Image(systemName: "lock.fill")
                         .foregroundColor(.red)
@@ -71,7 +71,7 @@ struct TariffOptionView: View {
     }
     
     private var minutesFromSteps: Int {
-        // Рассчитываем минуты на основе всех шагов за день, а не оставшихся
+        // Calculate minutes based on all daily steps, not just remaining
         return max(0, Int(stepsToday / tariff.stepsPerMinute))
     }
 }

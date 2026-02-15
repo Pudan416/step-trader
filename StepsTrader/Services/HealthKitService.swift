@@ -42,8 +42,8 @@ final class HealthKitService: HealthKitServiceProtocol {
 
     @MainActor
     func authorizationStatus() -> HKAuthorizationStatus {
-        // Возвращаем статус для шагов (основной тип)
-        // Для сна проверяем отдельно, если нужно
+        // Return status for steps (primary type)
+        // Sleep checked separately if needed
         guard let stepType = stepType else { return .notDetermined }
         return store.authorizationStatus(for: stepType)
     }
@@ -158,8 +158,8 @@ final class HealthKitService: HealthKitServiceProtocol {
                     return
                 }
                 
-                // Суммируем только фазы реального сна (asleep*). inBed не считаем — он перекрывается с asleep
-                // и даёт двойной учёт: inBed 22:00–07:00 (9ч) + asleep 22:30–06:30 (8ч) = 17ч вместо 8ч.
+                // Only sum actual sleep phases (asleep*). inBed overlaps with asleep
+                // causing double-counting: inBed 22:00–07:00 (9h) + asleep 22:30–06:30 (8h) = 17h instead of 8h.
                 var totalSleepHours: Double = 0
                 if let samples = samples as? [HKCategorySample] {
                     log.debug("fetchSleep: samples=\(samples.count)")
@@ -171,7 +171,7 @@ final class HealthKitService: HealthKitServiceProtocol {
                                          sleepValue == HKCategoryValueSleepAnalysis.asleepCore.rawValue ||
                                          sleepValue == HKCategoryValueSleepAnalysis.asleepDeep.rawValue ||
                                          sleepValue == HKCategoryValueSleepAnalysis.asleepREM.rawValue
-                            // inBed намеренно не учитываем — это интервал «лёг–встал», внутри него уже есть asleep*
+                            // inBed intentionally excluded — it's the "went to bed–got up" interval, already contains asleep*
                         } else {
                             shouldCount = sleepValue == HKCategoryValueSleepAnalysis.asleep.rawValue
                         }

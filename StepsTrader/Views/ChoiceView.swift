@@ -1,880 +1,498 @@
 import SwiftUI
 
-// MARK: - GALLERY tab: today's gallery with stats header
+// MARK: - Metric overlay kind (covers all 5 top-bar chips)
+
+enum MetricOverlayKind: Identifiable, Equatable {
+    case steps
+    case sleep
+    case category(EnergyCategory)
+
+    var id: String {
+        switch self {
+        case .steps: return "steps"
+        case .sleep: return "sleep"
+        case .category(let c): return c.rawValue
+        }
+    }
+}
+
+// MARK: - GALLERY tab: generative canvas
+
 struct GalleryView: View {
     @ObservedObject var model: AppModel
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @Environment(\.appTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
-    @Binding var breakdownCategory: EnergyCategory?
-    
-    private var pageBackground: Color {
-        theme.backgroundColor
+    @Binding var metricOverlay: MetricOverlayKind?
+
+    @AppStorage("userStepsTarget") private var userStepsTarget: Double = 10_000
+    @AppStorage("userSleepTarget") private var userSleepTarget: Double = 8.0
+    @AppStorage("gallery_sleep_color") private var sleepColorHex: String = "#000000"
+    @AppStorage("gallery_steps_color") private var stepsColorHex: String = "#FED415"
+
+    @State private var dayCanvas: DayCanvas = DayCanvas(dayKey: AppModel.dayKey(for: Date()))
+    @State private var pickerCategory: EnergyCategory? = nil
+    @State private var showShareSheet = false
+    @State private var shareImage: UIImage? = nil
+    private var canvasBackground: Color { theme.backgroundColor }
+    private var labelColor: Color { theme.textPrimary }
+    private var todayKey: String { AppModel.dayKey(for: Date()) }
+
+    private var isCanvasEmpty: Bool { dayCanvas.elements.isEmpty }
+
+    private var decayNorm: Double {
+        guard dayCanvas.experienceEarned > 0 else { return 0 }
+        return min(1.0, Double(dayCanvas.experienceSpent) / Double(dayCanvas.experienceEarned))
     }
-    
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Body
+    // ═══════════════════════════════════════════════════════════
+
     var body: some View {
-        ZStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 6) {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 6) {
-                        // Category rows
-                        CategoryCardsRow(
-                            model: model,
-                            category: .activity,
-                            appLanguage: appLanguage
-                        )
-                        CategoryCardsRow(
-                            model: model,
-                            category: .creativity,
-                            appLanguage: appLanguage
-                        )
-                        CategoryCardsRow(
-                            model: model,
-                            category: .joys,
-                            appLanguage: appLanguage
-                        )
-                    }
-                    .padding(.bottom, 140)
-                }
-            }
-            .background(pageBackground)
-            .navigationBarHidden(true)
-            
-            if let category = breakdownCategory {
-                breakdownOverlay(category: category)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+        ZStack {
+            EnergyGradientBackground(
+                sleepPoints: model.sleepPointsToday,
+                stepsPoints: model.stepsPointsToday
+            )
+            .allowsHitTesting(false)
+
+            // Layer 0: Gallery-only activity assets on top of shared app background
+            GenerativeCanvasView(
+                elements: dayCanvas.elements,
+                sleepPoints: model.sleepPointsToday,
+                stepsPoints: model.stepsPointsToday,
+                sleepColor: Color(hex: sleepColorHex),
+                stepsColor: Color(hex: stepsColorHex),
+                decayNorm: decayNorm,
+                backgroundColor: .clear,
+                labelColor: labelColor,
+                showLabelsOnCanvas: false,
+                showsBackgroundGradient: false
+            )
+            .ignoresSafeArea()
+
+            // Layer 1: Interactive controls (respect safe area — stay above tab bar)
+            canvasControls
+
+            // Layer 2: Metric popover
+            if let kind = metricOverlay {
+                metricPopover(kind: kind)
+                    .transition(.opacity.combined(with: .scale(scale: 0.92)))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: breakdownCategory != nil)
+        .navigationBarHidden(true)
+        .animation(.easeInOut(duration: 0.2), value: metricOverlay != nil)
+        .animation(.easeInOut(duration: 0.35), value: isCanvasEmpty)
+        .onAppear {
+            loadCanvas()
+            let dayKey = AppModel.dayKey(for: Date())
+            Task {
+                await SupabaseSyncService.shared.trackAnalyticsEvent(
+                    name: "gallery_viewed",
+                    properties: ["day_key": dayKey, "surface": "gallery_tab"],
+                    dedupeKey: "gallery_viewed_\(dayKey)"
+                )
+            }
+        }
+        .onReceive(model.objectWillChange) { _ in
+            syncCanvasWithModel()
+        }
+        .sheet(item: $pickerCategory) { category in
+            CategoryDetailView(
+                model: model,
+                category: category,
+                outerWorldSteps: 0,
+                onActivityConfirmed: { optionId, cat, hexColor in
+                    spawnElement(optionId: optionId, category: cat, color: hexColor)
+                },
+                onActivityUndo: { optionId, cat in
+                    removeElement(optionId: optionId, category: cat)
+                }
+            )
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let image = shareImage {
+                GalleryShareSheet(items: [image])
+            }
+        }
     }
-    
-    private func breakdownOverlay(category: EnergyCategory) -> some View {
-        ZStack(alignment: .top) {
-            Color.black.opacity(0.25)
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Canvas Controls (respects safe area)
+    // ═══════════════════════════════════════════════════════════
+
+    /// All interactive overlays: date, share, empty state, category pills, + button.
+    /// + is centered horizontally at the bottom (above tab bar); pills in bottom bar.
+    /// Gradients are confined to top/bottom strips so the canvas stays visible in the center.
+    private var canvasControls: some View {
+        ZStack {
+            // Center: empty state when needed (transparent, canvas shows through)
+            if isCanvasEmpty {
+                emptyStateView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+
+            // Bottom section: + button centered, share button on the right
+            VStack {
+                Spacer(minLength: 0)
+                HStack(alignment: .center) {
+                    Spacer()
+                    RadialHoldMenu(
+                        labelColor: labelColor,
+                        onCategorySelected: { category in pickerCategory = category }
+                    )
+                    Spacer()
+                }
+                .overlay(alignment: .trailing) {
+                    shareButton
+                        .padding(.trailing, 24)
+                }
+                .padding(.bottom, 96)
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Date Label
+    // ═══════════════════════════════════════════════════════════
+
+    private var dateLabel: some View {
+        Text(todayDateString)
+            .font(.system(size: 12, weight: .medium, design: .rounded))
+            .foregroundStyle(labelColor.opacity(0.4))
+    }
+
+    private var todayDateString: String {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f.string(from: Date())
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Share Button
+    // ═══════════════════════════════════════════════════════════
+
+    private var shareButton: some View {
+        Button {
+            exportCanvas()
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(labelColor.opacity(0.4))
+                .frame(width: 28, height: 28)
+        }
+        .buttonStyle(.plain)
+        .opacity(isCanvasEmpty ? 0.3 : 1.0)
+        .disabled(isCanvasEmpty)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Empty State
+    // ═══════════════════════════════════════════════════════════
+
+    private var emptyStateView: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "plus")
+                .font(.system(size: 20, weight: .ultraLight))
+                .foregroundStyle(labelColor.opacity(0.25))
+
+            Text("Hold + to begin")
+                .font(.system(size: 13, weight: .regular, design: .rounded))
+                .foregroundStyle(labelColor.opacity(0.3))
+        }
+        .multilineTextAlignment(.center)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Canvas State Management
+    // ═══════════════════════════════════════════════════════════
+
+    private func loadCanvas() {
+        let dayKey = AppModel.dayKey(for: Date())
+        let local = CanvasStorageService.shared.loadCanvas(for: dayKey)
+        if let local {
+            dayCanvas = local
+            syncCanvasWithModel()
+        } else {
+            // No local data — try restoring from Supabase, fall back to empty canvas
+            dayCanvas = DayCanvas(dayKey: dayKey)
+            syncCanvasWithModel()
+            Task {
+                if let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey) {
+                    await MainActor.run {
+                        dayCanvas = remote
+                        CanvasStorageService.shared.saveCanvas(remote)
+                        syncCanvasWithModel()
+                    }
+                }
+            }
+        }
+    }
+
+    private func syncCanvasWithModel() {
+        // Update canvas metrics from model (sleep, steps, energy)
+        let newSleep = model.sleepPointsToday
+        let newSteps = model.stepsPointsToday
+        let newEarned = model.baseEnergyToday
+        let newSpent = model.spentStepsToday
+
+        guard dayCanvas.sleepPoints != newSleep
+           || dayCanvas.stepsPoints != newSteps
+           || dayCanvas.experienceEarned != newEarned
+           || dayCanvas.experienceSpent != newSpent
+        else { return }
+
+        dayCanvas.sleepPoints = newSleep
+        dayCanvas.stepsPoints = newSteps
+        dayCanvas.experienceEarned = newEarned
+        dayCanvas.experienceSpent = newSpent
+        dayCanvas.sleepColorHex = sleepColorHex
+        dayCanvas.stepsColorHex = stepsColorHex
+        dayCanvas.lastModified = Date()
+        saveCanvasLocally()
+    }
+
+    /// Save locally + sync to Supabase (debounced)
+    private func saveCanvasLocally() {
+        CanvasStorageService.shared.saveCanvas(dayCanvas)
+        Task { await SupabaseSyncService.shared.syncDayCanvas(dayCanvas) }
+    }
+
+    private func optionTitle(for optionId: String) -> String {
+        EnergyDefaults.options.first(where: { $0.id == optionId })?.title(for: "en")
+            ?? model.customOptionTitle(for: optionId, lang: "en")
+            ?? optionId
+    }
+
+    private func spawnElement(optionId: String, category: EnergyCategory, color: String) {
+        let label = optionTitle(for: optionId)
+        let element = CanvasElement.spawn(
+            optionId: optionId,
+            category: category,
+            color: color,
+            label: label,
+            existingElements: dayCanvas.elements
+        )
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            dayCanvas.elements.append(element)
+        }
+        dayCanvas.lastModified = Date()
+        saveCanvasLocally()
+    }
+
+    private func removeElement(optionId: String, category: EnergyCategory) {
+        guard let index = dayCanvas.elements.lastIndex(where: { $0.optionId == optionId && $0.category == category }) else { return }
+        var updated = dayCanvas
+        updated.elements.remove(at: index)
+        updated.lastModified = Date()
+        dayCanvas = updated
+        saveCanvasLocally()
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Export Canvas
+    // ═══════════════════════════════════════════════════════════
+
+    private func exportCanvas() {
+        let view = GenerativeCanvasView(
+            elements: dayCanvas.elements,
+            sleepPoints: model.sleepPointsToday,
+            stepsPoints: model.stepsPointsToday,
+            sleepColor: Color(hex: sleepColorHex),
+            stepsColor: Color(hex: stepsColorHex),
+            decayNorm: decayNorm,
+            backgroundColor: canvasBackground,
+            labelColor: labelColor
+        )
+        .frame(width: 390, height: 500)
+
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 3.0
+        if let image = renderer.uiImage {
+            shareImage = image
+            showShareSheet = true
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Metric Popover Overlay
+    // ═══════════════════════════════════════════════════════════
+
+    private func metricPopover(kind: MetricOverlayKind) -> some View {
+        ZStack {
+            Color.black.opacity(0.4)
                 .ignoresSafeArea()
-                .onTapGesture { breakdownCategory = nil }
-            
+                .onTapGesture { metricOverlay = nil }
+
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text(breakdownTitle(for: category))
+                    Text(overlayTitle(for: kind))
                         .font(.headline)
                     Spacer()
-                    Button {
-                        breakdownCategory = nil
-                    } label: {
+                    Button { metricOverlay = nil } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title3)
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
                 }
-                
-                Text(breakdownText(for: category))
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
+                overlayContent(for: kind)
             }
             .padding(16)
+            .frame(maxWidth: 320)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(theme.backgroundSecondary)
-                    .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 6)
+                    .fill(theme.backgroundSecondary.opacity(0.98))
+                    .shadow(color: Color.black.opacity(0.2), radius: 16, x: 0, y: 8)
             )
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
+            .padding(.horizontal, 24)
         }
     }
-    
-    private func breakdownTitle(for category: EnergyCategory) -> String {
-        switch category {
-        case .activity:
-            return appLanguage == "ru" ? "Активность" : "Activity"
-        case .creativity:
-            return appLanguage == "ru" ? "Творчество" : "Creativity"
-        case .joys:
-            return appLanguage == "ru" ? "Удовольствия" : "Joys"
-        }
-    }
-    
-    private func breakdownText(for category: EnergyCategory) -> String {
-        switch category {
-        case .activity:
-            let steps = Int(model.stepsToday)
-            let extras = selectionTitles(for: .activity)
-            let extraText = extras.isEmpty ? "" : (appLanguage == "ru" ? " и еще занялся \(extras.joined(separator: ", "))" : ". As an activity, I was \(extras.joined(separator: ", "))")
-            let total = model.activityPointsToday
-            if appLanguage == "ru" {
-                return "Сегодня я сделал \(steps) шагов\(extraText), что в сумме принесло мне \(total) баллов опыта."
+
+    private func overlayTitle(for kind: MetricOverlayKind) -> String {
+        switch kind {
+        case .steps: return "Steps"
+        case .sleep: return "Sleep"
+        case .category(let c):
+            switch c {
+            case .body: return "Body"
+            case .mind: return "Mind"
+            case .heart: return "Heart"
             }
-            return "Today I made \(steps) steps\(extraText). All of these brought me \(total) experience points in total."
-        case .creativity:
-            let extras = selectionTitles(for: .creativity)
+        }
+    }
+
+    @ViewBuilder
+    private func overlayContent(for kind: MetricOverlayKind) -> some View {
+        switch kind {
+        case .steps:
+            stepsOverlayBody
+        case .sleep:
+            sleepOverlayBody
+        case .category(let c):
+            Text(breakdownText(for: c))
+                .font(.subheadline)
+                .foregroundColor(.primary)
+        }
+    }
+
+    private var stepsOverlayBody: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(formatSteps(Int(model.healthStore.stepsToday)))
+                        .font(.title2.bold())
+                    Text("steps today")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(model.stepsPointsToday)/\(EnergyDefaults.stepsMaxPoints)")
+                        .font(.title3.bold())
+                    Text("exp")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            Text("Target: \(formatSteps(Int(userStepsTarget))) steps")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var sleepOverlayBody: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(format: "%.1fh", model.healthStore.dailySleepHours))
+                        .font(.title2.bold())
+                    Text("hours slept")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(model.sleepPointsToday)/\(EnergyDefaults.sleepMaxPoints)")
+                        .font(.title3.bold())
+                    Text("exp")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            Text("Target: \(String(format: "%.1f", userSleepTarget))h")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private func formatSteps(_ n: Int) -> String {
+        if n >= 1000 { return String(format: "%.1fK", Double(n) / 1000) }
+        return "\(n)"
+    }
+
+    private func breakdownText(for category: EnergyCategory) -> String {
+        let maxPts = EnergyDefaults.maxSelectionsPerCategory * EnergyDefaults.selectionPoints
+        switch category {
+        case .body:
+            let extras = selectionTitles(for: .body)
+            let total = model.activityPointsToday
+            if extras.isEmpty {
+                return "Body tracks physical activities you choose. Pick up to 4 cards for \(maxPts) exp (\(total) exp today)."
+            }
+            return "Body tracks physical activities. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) exp for my body."
+        case .mind:
+            let extras = selectionTitles(for: .mind)
             let total = model.creativityPointsToday
             if extras.isEmpty {
-                if appLanguage == "ru" {
-                    return "Сегодня я не выбирал творчество, что принесло мне \(total) баллов опыта."
-                }
-                return "Today I didn't choose any creativity, which brought me \(total) experience points."
-            } else {
-                let extraText = extras.joined(separator: ", ")
-                if appLanguage == "ru" {
-                    return "Сегодня я выбрал \(extraText), что принесло мне \(total) баллов опыта."
-                }
-                return "Today I chose \(extraText), which brought me \(total) experience points."
+                return "Mind tracks creativity and rest. Pick up to 4 cards for \(maxPts) exp (\(total) exp today)."
             }
-        case .joys:
-            let sleep = formatSleep(model.dailySleepHours)
-            let extras = selectionTitles(for: .joys)
+            return "Mind tracks creativity and rest. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) exp for my mind."
+        case .heart:
+            let extras = selectionTitles(for: .heart)
             let total = model.joysCategoryPointsToday
             if extras.isEmpty {
-                if appLanguage == "ru" {
-                    return "Сегодня я поспал \(sleep), и не выбирал удовольствия, что принесло мне \(total) баллов опыта."
-                }
-                return "Today I slept \(sleep) and didn't choose any joys, which brought me \(total) experience points."
-            } else {
-                let extraText = extras.joined(separator: ", ")
-                if appLanguage == "ru" {
-                    return "Сегодня я поспал \(sleep) и выбрал \(extraText), что принесло мне \(total) баллов опыта."
-                }
-                return "Today I slept \(sleep) and chose \(extraText), which brought me \(total) experience points."
+                return "Heart tracks joys and things that make you feel alive. Pick up to 4 cards for \(maxPts) exp (\(total) exp today)."
             }
+            return "Heart tracks joys and what makes you feel alive. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) exp for my heart."
         }
     }
-    
+
     private func selectionTitles(for category: EnergyCategory) -> [String] {
         let ids: [String]
         switch category {
-        case .activity: ids = model.dailyActivitySelections
-        case .creativity: ids = model.dailyRestSelections
-        case .joys: ids = model.dailyJoysSelections
+        case .body: ids = model.dailyActivitySelections
+        case .mind: ids = model.dailyRestSelections
+        case .heart: ids = model.dailyJoysSelections
         }
         return ids.map { id in
-            EnergyDefaults.options.first(where: { $0.id == id })?.title(for: appLanguage)
-                ?? model.customOptionTitle(for: id, lang: appLanguage)
+            EnergyDefaults.options.first(where: { $0.id == id })?.title(for: "en")
+                ?? model.customOptionTitle(for: id, lang: "en")
                 ?? id
         }
     }
-    
-    private func formatSleep(_ hours: Double) -> String {
-        let h = Int(hours)
-        let m = Int((hours - Double(h)) * 60)
-        if m > 0 {
-            return "\(h)h \(m)m"
-        }
-        return "\(h)h"
-    }
 }
 
-// MARK: - Memories: horizontal scroll of past days
-struct MemoriesSection: View {
-    let pastDays: [String: PastDaySnapshot]
-    @Binding var selectedDayKey: String?
-    let appLanguage: String
-    
-    private static let calendar = Calendar.current
-    
-    private var dayKeysOrdered: [String] {
-        let today = AppModel.currentDayStartForDefaults(Date())
-        return (0...60).reversed().compactMap { offset -> String? in
-            guard let d = Self.calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
-            return AppModel.dayKey(for: d)
-        }
-    }
-    
-    private var todayKey: String {
-        AppModel.dayKey(for: Date())
+// MARK: - Share Sheet (UIActivityViewController wrapper)
+
+struct GalleryShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(dayKeysOrdered, id: \.self) { dayKey in
-                            MemoryDayCard(
-                                dayKey: dayKey,
-                                isToday: dayKey == todayKey,
-                                hasData: pastDays[dayKey] != nil,
-                                isSelected: selectedDayKey == dayKey
-                            ) {
-                                selectedDayKey = dayKey
-                            }
-                            .id(dayKey)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                }
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        withAnimation(.none) {
-                            proxy.scrollTo(todayKey, anchor: .trailing)
-                        }
-                    }
-                }
-            }
-        }
-    }
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-// MARK: - Memory day card
-struct MemoryDayCard: View {
-    let dayKey: String
-    let isToday: Bool
-    let hasData: Bool
-    let isSelected: Bool
-    let onTap: () -> Void
-    @Environment(\.appTheme) private var theme
-    
-    private var dayNum: String {
-        guard let d = date(from: dayKey) else { return "" }
-        let f = DateFormatter()
-        f.dateFormat = "d"
-        return f.string(from: d)
-    }
-    
-    private func date(from key: String) -> Date? {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f.date(from: key)
-    }
-    
-    var body: some View {
-        Button(action: onTap) {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(theme == .minimal ? theme.backgroundSecondary : (isToday ? theme.accentColor : Color(.secondarySystemBackground)))
-                .frame(width: 44, height: 56)
-                .overlay(
-                    VStack(spacing: 2) {
-                        Text(dayNum)
-                            .font(.notoSerif(17, weight: .semibold))
-                            .foregroundColor(theme == .minimal ? theme.textPrimary : (isToday ? .white : .primary))
-                        if hasData {
-                            Circle()
-                                .fill(theme == .minimal ? theme.textPrimary.opacity(0.6) : (isToday ? Color.white.opacity(0.6) : Color.accentColor))
-                                .frame(width: 5, height: 5)
-                        }
-                    }
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(isSelected && !isToday ? theme.accentColor : (theme == .minimal ? theme.stroke : Color.clear), lineWidth: 2)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-}
+// MARK: - Day detail sheet (used by MeView)
 
-// MARK: - Category cards row with horizontal scroll
-struct CategoryCardsRow: View {
-    @ObservedObject var model: AppModel
-    let category: EnergyCategory
-    let appLanguage: String
-    @State private var showCustomActivitySheet = false
-    @State private var pendingOptionId: String? = nil
-    @State private var showConfirmation = false
-    @Environment(\.appTheme) private var theme
-    
-    private var categoryTitle: String {
-        switch category {
-        case .activity: return loc(appLanguage, "My activities")
-        case .creativity: return loc(appLanguage, "My creativity")
-        case .joys: return loc(appLanguage, "My joys")
-        }
-    }
-    
-    private var categoryColor: Color { .primary }
-    
-    private var selectedCount: Int {
-        model.dailySelectionsCount(for: category)
-    }
-    
-    /// Сначала выбранные, потом остальные; без "Something else" / "Other"
-    private var orderedOptions: [EnergyOption] {
-        let allOptions = model.orderedOptions(for: category)
-            .filter { !EnergyDefaults.otherOptionIds.contains($0.id) }
-        let selected = allOptions.filter { model.isDailySelected($0.id, category: category) }
-        let notSelected = allOptions.filter { !model.isDailySelected($0.id, category: category) }
-        return selected + notSelected
-    }
-    
-    @State private var showCategoryEditSheet = false
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(categoryTitle)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(categoryColor)
-                Text(loc(appLanguage, "+5 exp. each"))
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                Spacer()
-                Button {
-                    showCategoryEditSheet = true
-                } label: {
-                    Text(loc(appLanguage, "Edit"))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-                Text("\(selectedCount)/4")
-                    .font(.system(size: 11).monospacedDigit())
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 16)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(orderedOptions) { option in
-                        GalleryCard(
-                            model: model,
-                            option: option,
-                            category: category,
-                            categoryColor: categoryColor,
-                            appLanguage: appLanguage,
-                            onSelect: { optionId in
-                                pendingOptionId = optionId
-                                showConfirmation = true
-                            },
-                            onOtherTap: nil
-                        )
-                    }
-                }
-                .padding(.horizontal, 8)
-            }
-        }
-        .alert(loc(appLanguage, "Confirm selection"), isPresented: $showConfirmation) {
-            Button(loc(appLanguage, "Cancel"), role: .cancel) {
-                pendingOptionId = nil
-            }
-            Button(loc(appLanguage, "Confirm")) {
-                if let optionId = pendingOptionId {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        model.toggleDailySelection(optionId: optionId, category: category)
-                    }
-                }
-                pendingOptionId = nil
-            }
-        } message: {
-            Text(loc(appLanguage, "This selection cannot be undone today."))
-        }
-        .sheet(isPresented: $showCategoryEditSheet) {
-            CategoryEditSheet(
-                model: model,
-                category: category,
-                appLanguage: appLanguage,
-                onDismiss: { showCategoryEditSheet = false }
-            )
-        }
-    }
-}
-
-// MARK: - Custom Activity Sheet (redesigned)
-struct CustomActivitySheet: View {
-    @ObservedObject var model: AppModel
-    let category: EnergyCategory
-    let appLanguage: String
-    let onSave: () -> Void
-    let onCancel: () -> Void
-    @Environment(\.appTheme) private var theme
-    
-    private let maxCharacters = 30
-    
-    @State private var activityTitle: String = ""
-    @State private var selectedIcon: String = ""
-    @FocusState private var isFieldFocused: Bool
-    
-    private var availableIcons: [String] {
-        CustomActivityIcons.icons(for: category)
-    }
-    
-    private var categoryColor: Color {
-        switch category {
-        case .activity: return theme.activityColor
-        case .creativity: return theme.restColor
-        case .joys: return theme.joysColor
-        }
-    }
-    
-    private var isValid: Bool {
-        let trimmed = activityTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && !selectedIcon.isEmpty
-    }
-    
-    var body: some View {
-        NavigationStack {
-            List {
-                // Preview Section
-                Section {
-                    previewCard
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                }
-                
-                // Name Input Section
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField(loc(appLanguage, "Activity name"), text: $activityTitle)
-                            .focused($isFieldFocused)
-                            .onChange(of: activityTitle) { _, newValue in
-                                if newValue.count > maxCharacters {
-                                    activityTitle = String(newValue.prefix(maxCharacters))
-                                }
-                            }
-                        
-                        HStack {
-                            Spacer()
-                            Text("\(activityTitle.count)/\(maxCharacters)")
-                                .font(.caption)
-                                .foregroundStyle(activityTitle.count >= maxCharacters ? .orange : .secondary)
-                        }
-                    }
-                } header: {
-                    Text(loc(appLanguage, "Name"))
-                } footer: {
-                    Text(loc(appLanguage, "Keep it short and meaningful."))
-                }
-                
-                // Icon Picker Section
-                Section {
-                    iconGrid
-                } header: {
-                    Text(loc(appLanguage, "Icon"))
-                }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle(loc(appLanguage, "Add activity"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Cancel")) { onCancel() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(loc(appLanguage, "Add")) {
-                        saveActivity()
-                    }
-                    .fontWeight(.semibold)
-                    .disabled(!isValid)
-                }
-            }
-            .onAppear {
-                selectedIcon = availableIcons.first ?? "pencil"
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    isFieldFocused = true
-                }
-            }
-        }
-    }
-    
-    // MARK: - Preview Card
-    private var previewCard: some View {
-        HStack {
-            Spacer()
-            
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.secondarySystemBackground))
-                    .frame(width: 84, height: 100)
-                
-                // Icon background
-                Image(systemName: selectedIcon.isEmpty ? "questionmark" : selectedIcon)
-                    .font(.notoSerif(28, weight: .light))
-                    .foregroundColor(categoryColor.opacity(0.2))
-                
-                // Title
-                VStack {
-                    Spacer()
-                    Text(activityTitle.isEmpty ? loc(appLanguage, "Preview") : activityTitle)
-                        .font(.notoSerif(10, weight: .medium))
-                        .foregroundColor(.primary)
-                        .lineLimit(3)
-                        .multilineTextAlignment(.center)
-                        .minimumScaleFactor(0.75)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 5)
-                        .padding(.bottom, 6)
-                }
-            }
-            .frame(width: 84, height: 100)
-            
-            Spacer()
-        }
-        .padding(.vertical, 12)
-    }
-    
-    // MARK: - Icon Grid
-    private var iconGrid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 5), spacing: 10) {
-            ForEach(availableIcons, id: \.self) { icon in
-                iconButton(icon)
-            }
-        }
-        .padding(.vertical, 6)
-    }
-    
-    private func iconButton(_ icon: String) -> some View {
-        Button {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                selectedIcon = icon
-            }
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(selectedIcon == icon ? categoryColor : Color(.tertiarySystemFill))
-                    .frame(width: 42, height: 42)
-                
-                Image(systemName: icon)
-                    .font(.notoSerif(18))
-                    .foregroundColor(selectedIcon == icon ? .white : .primary)
-            }
-            .overlay(
-                Circle()
-                    .stroke(selectedIcon == icon ? categoryColor : Color.clear, lineWidth: 2)
-                    .scaleEffect(1.1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-    
-    // MARK: - Save
-    private func saveActivity() {
-        let trimmed = activityTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !selectedIcon.isEmpty else { return }
-        
-        let id = model.addCustomOption(
-            category: category,
-            titleEn: trimmed,
-            titleRu: trimmed,
-            icon: selectedIcon
-        )
-        
-        if !id.isEmpty, model.dailySelectionsCount(for: category) < EnergyDefaults.maxSelectionsPerCategory {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                model.toggleDailySelection(optionId: id, category: category)
-            }
-        }
-        
-        onSave()
-    }
-}
-
-// MARK: - Gallery card: tap to select (with confirmation), no deselection until end of day
-struct GalleryCard: View {
-    @ObservedObject var model: AppModel
-    let option: EnergyOption
-    let category: EnergyCategory
-    let categoryColor: Color
-    let appLanguage: String
-    var onSelect: ((String) -> Void)? = nil
-    var onOtherTap: (() -> Void)? = nil
-    @Environment(\.appTheme) private var theme
-    @State private var showUndoPrompt = false
-    
-    private var isOther: Bool {
-        EnergyDefaults.otherOptionIds.contains(option.id)
-    }
-    
-    private var isSelected: Bool {
-        model.isDailySelected(option.id, category: category)
-    }
-    
-    private var canSelect: Bool {
-        !isSelected && model.dailySelectionsCount(for: category) < EnergyDefaults.maxSelectionsPerCategory
-    }
-
-    private let referenceImages = ["refpic1", "refpic2", "refpic3", "refpic4", "refpic5", "refpic6", "refpic7"]
-    private let crossImages = ["cross1", "cross2", "cross3"]
-    private let frameImages = ["frame-1", "frame-2", "frame-3", "frame-4"]
-    
-    /// Stable per-option frame so the same card always gets the same frame.
-    private var frameImageName: String {
-        let sum = option.id.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-        return frameImages[sum % frameImages.count]
-    }
-    
-    /// Picture scale so it fills the frame opening (minimal mat visible).
-    private static let pictureInsetScale: CGFloat = 0.836  // 0.88 * 0.95 (5% smaller)
-    
-    /// Asset name for card image: same logic as settings — option.id or option.icon if in Assets, else fallback.
-    private var cardAssetName: String? {
-        if UIImage(named: option.id) != nil { return option.id }
-        if UIImage(named: option.icon) != nil { return option.icon }
-        return nil
-    }
-    
-    /// Fallback image name when no asset (refpic for rest/joys, refpic by hash for consistency).
-    private var fallbackReferenceImageName: String {
-        if category == .activity { return option.id }
-        let sum = option.id.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-        return referenceImages[sum % referenceImages.count]
-    }
-    
-    private var crossImageName: String {
-        let sum = option.id.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-        let idx = sum % crossImages.count
-        return crossImages[idx]
-    }
-    
-    var body: some View {
-        Button {
-            if isOther {
-                onOtherTap?()
-            } else if isSelected {
-                showUndoPrompt = true
-            } else if canSelect {
-                // Вызываем callback для подтверждения
-                onSelect?(option.id)
-            }
-            // Если уже выбрано - ничего не делаем (нельзя снять до конца дня)
-        } label: {
-            cardContent
-        }
-        .buttonStyle(.plain)
-        .opacity(isSelected ? 1.0 : (canSelect ? 1.0 : 0.5))
-        .alert(loc(appLanguage, "Undo this action?"), isPresented: $showUndoPrompt) {
-            Button(loc(appLanguage, "Cancel"), role: .cancel) {}
-            Button(loc(appLanguage, "Undo")) {
-                model.toggleDailySelection(optionId: option.id, category: category)
-            }
-        } message: {
-            Text(loc(appLanguage, "This will remove the completion mark."))
-        }
-    }
-    
-    private var cardContent: some View {
-        ZStack {
-            VStack(spacing: 5) {
-                cardMainImage
-                
-                Text(option.title(for: appLanguage))
-                    .font(.notoSerif(12, weight: .medium))
-                    .foregroundColor(theme.textPrimary.opacity(isSelected ? 0.45 : 1.0))
-                    .lineLimit(3)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity)
-            }
-            .padding(.horizontal, 2)
-            .padding(.vertical, 6)
-            
-            if isSelected {
-                Image(crossImageName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 100, height: 100)
-            }
-        }
-        .frame(width: 118, height: 180)
-        .opacity(canSelect ? 1 : 0.5)
-    }
-    
-    @ViewBuilder
-    private var cardMainImage: some View {
-        let imageSize: CGFloat = 110
-        let innerSize = imageSize * Self.pictureInsetScale
-        ZStack {
-            Group {
-                if let name = cardAssetName, let uiImage = UIImage(named: name) ?? UIImage(named: name.lowercased()) ?? UIImage(named: name.capitalized) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                } else if category == .activity {
-                    Image(systemName: option.icon)
-                        .font(.system(size: 44, weight: .medium))
-                        .foregroundColor(theme.textPrimary)
-                } else {
-                    Image(fallbackReferenceImageName)
-                        .resizable()
-                        .scaledToFit()
-                }
-            }
-            .frame(width: innerSize, height: innerSize)
-            Image(frameImageName)
-                .resizable()
-                .scaledToFit()
-                .frame(width: imageSize, height: imageSize)
-        }
-        .frame(width: imageSize, height: imageSize)
-    }
-}
-
-/// Represents which option is being edited (base or custom)
-private struct CategoryEditTarget: Identifiable {
-    let option: EnergyOption
-    var id: String { option.id }
-}
-
-// MARK: - Category Edit Sheet (create, delete, edit items)
-struct CategoryEditSheet: View {
-    @ObservedObject var model: AppModel
-    let category: EnergyCategory
-    let appLanguage: String
-    let onDismiss: () -> Void
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.appTheme) private var theme
-    
-    @State private var optionToDelete: String? = nil
-    @State private var editTarget: CategoryEditTarget? = nil
-    @State private var showAddEditor = false
-    
-    private var categoryTitle: String {
-        switch category {
-        case .activity: return loc(appLanguage, "My activities")
-        case .creativity: return loc(appLanguage, "My creativity")
-        case .joys: return loc(appLanguage, "My joys")
-        }
-    }
-    
-    private var categoryColor: Color {
-        switch category {
-        case .activity: return theme.activityColor
-        case .creativity: return theme.restColor
-        case .joys: return theme.joysColor
-        }
-    }
-    
-    private var options: [EnergyOption] {
-        model.orderedOptions(for: category)
-            .filter { !EnergyDefaults.otherOptionIds.contains($0.id) }
-    }
-    
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(options) { option in
-                    optionRow(option: option)
-                }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle(categoryTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Done")) {
-                        onDismiss()
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button(loc(appLanguage, "Add")) {
-                        showAddEditor = true
-                    }
-                }
-            }
-            .sheet(isPresented: $showAddEditor) {
-                CustomActivityEditorView(
-                    category: category,
-                    appLanguage: appLanguage,
-                    initialTitle: nil,
-                    initialIcon: nil,
-                    isEditing: false
-                ) { title, icon in
-                    _ = model.addCustomOption(category: category, titleEn: title, titleRu: title, icon: icon)
-                    showAddEditor = false
-                }
-            }
-            .sheet(item: $editTarget) { target in
-                CustomActivityEditorView(
-                    category: category,
-                    appLanguage: appLanguage,
-                    initialTitle: target.option.title(for: appLanguage),
-                    initialIcon: target.option.icon,
-                    isEditing: true
-                ) { title, icon in
-                    if target.option.id.hasPrefix("custom_") {
-                        model.updateCustomOption(optionId: target.option.id, titleEn: title, titleRu: title, icon: icon)
-                    } else {
-                        model.replaceOptionWithCustom(optionId: target.option.id, category: category, titleEn: title, titleRu: title, icon: icon)
-                    }
-                    editTarget = nil
-                }
-            }
-            .alert(loc(appLanguage, "Delete item?"), isPresented: Binding(
-                get: { optionToDelete != nil },
-                set: { if !$0 { optionToDelete = nil } }
-            )) {
-                Button(loc(appLanguage, "Cancel"), role: .cancel) {
-                    optionToDelete = nil
-                }
-                Button(loc(appLanguage, "Delete"), role: .destructive) {
-                    if let id = optionToDelete {
-                        model.deleteOption(optionId: id)
-                    }
-                    optionToDelete = nil
-                }
-            } message: {
-                Text(loc(appLanguage, "This cannot be undone."))
-            }
-        }
-    }
-    
-    private func optionRow(option: EnergyOption) -> some View {
-        HStack(spacing: 12) {
-            optionThumbnail(option: option)
-            
-            Text(option.title(for: appLanguage))
-                .font(.body)
-                .foregroundColor(.primary)
-            
-            Spacer()
-            
-            Button {
-                editTarget = CategoryEditTarget(option: option)
-            } label: {
-                Image(systemName: "pencil")
-                    .font(.body)
-                    .foregroundColor(categoryColor)
-            }
-            .buttonStyle(.plain)
-            
-            Button {
-                optionToDelete = option.id
-            } label: {
-                Image(systemName: "trash")
-                    .font(.body)
-                    .foregroundColor(.red)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.vertical, 4)
-    }
-    
-    /// Shows image from Assets (option.id or option.icon) when available, otherwise SF Symbol
-    private func optionThumbnail(option: EnergyOption) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(categoryColor.opacity(0.15))
-                .frame(width: 44, height: 44)
-            
-            if let name = assetImageName(for: option),
-               let uiImage = UIImage(named: name) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 44, height: 44)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-            } else {
-                Image(systemName: option.icon)
-                    .font(.title3)
-                    .foregroundColor(categoryColor)
-            }
-        }
-    }
-    
-    private func assetImageName(for option: EnergyOption) -> String? {
-        if UIImage(named: option.id) != nil { return option.id }
-        if UIImage(named: option.icon) != nil { return option.icon }
-        return nil
-    }
-}
-
-// MARK: - Day detail sheet
 struct GalleryDayDetailSheet: View {
     @ObservedObject var model: AppModel
     let dayKey: String
     let snapshot: PastDaySnapshot?
-    let appLanguage: String
+    let appLanguage: String = "en"
     let onDismiss: () -> Void
     @Environment(\.appTheme) private var theme
 
@@ -898,38 +516,15 @@ struct GalleryDayDetailSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if let s = snapshot {
-                        // Stats grid
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            statCard(
-                                icon: "figure.walk",
-                                value: "\(s.steps)",
-                                label: loc(appLanguage, "Steps"),
-                                color: .green
-                            )
-                            statCard(
-                                icon: "bed.double.fill",
-                                value: String(format: "%.1f", s.sleepHours),
-                                label: loc(appLanguage, "Sleep hours"),
-                                color: .indigo
-                            )
-                            statCard(
-                                icon: "plus.circle.fill",
-                                value: "\(s.controlGained)",
-                                label: loc(appLanguage, "Gained"),
-                                color: .blue
-                            )
-                            statCard(
-                                icon: "minus.circle.fill",
-                                value: "\(s.controlSpent)",
-                                label: loc(appLanguage, "Spent"),
-                                color: .orange
-                            )
+                            statCard(icon: "figure.walk", value: "\(s.steps)", label: "Steps", color: .green)
+                            statCard(icon: "bed.double.fill", value: String(format: "%.1f", s.sleepHours), label: "Sleep hours", color: .indigo)
+                            statCard(icon: "plus.circle.fill", value: "\(s.experienceEarned)", label: "Gained", color: .blue)
+                            statCard(icon: "minus.circle.fill", value: "\(s.experienceSpent)", label: "Spent", color: .orange)
                         }
-                        
-                        // Gallery
                         gallerySection(s)
                     } else {
-                        Text(loc(appLanguage, "No data for this day."))
+                        Text("No data for this day.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -943,21 +538,21 @@ struct GalleryDayDetailSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(loc(appLanguage, "Done")) { onDismiss() }
+                    Button("Done") { onDismiss() }
                 }
             }
         }
         .presentationDetents([.medium])
     }
-    
+
     private func gallerySection(_ s: PastDaySnapshot) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            galleryRow(title: loc(appLanguage, "Activity"), ids: s.activityIds, color: theme.activityColor)
-            galleryRow(title: loc(appLanguage, "Creativity"), ids: s.creativityIds, color: theme.restColor)
-            galleryRow(title: loc(appLanguage, "Joys"), ids: s.joysIds, color: theme.joysColor)
+            galleryRow(title: "Body", ids: s.bodyIds, color: theme.bodyColor)
+            galleryRow(title: "Mind", ids: s.mindIds, color: theme.mindColor)
+            galleryRow(title: "Heart", ids: s.heartIds, color: theme.heartColor)
         }
     }
-    
+
     private func galleryRow(title: String, ids: [String], color: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
@@ -981,19 +576,18 @@ struct GalleryDayDetailSheet: View {
             }
         }
     }
-    
+
     private func optionTitle(for id: String) -> String {
-        EnergyDefaults.options.first(where: { $0.id == id })?.title(for: appLanguage)
-            ?? model.customOptionTitle(for: id, lang: appLanguage)
+        EnergyDefaults.options.first(where: { $0.id == id })?.title(for: "en")
+            ?? model.customOptionTitle(for: id, lang: "en")
             ?? id
     }
-    
+
     private func statCard(icon: String, value: String, label: String, color: Color) -> some View {
-        let displayColor = theme == .minimal ? theme.textPrimary : color
-        return HStack(spacing: 12) {
+        HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.title2)
-                .foregroundColor(displayColor)
+                .foregroundColor(color)
                 .frame(width: 32)
             VStack(alignment: .leading, spacing: 2) {
                 Text(value)
@@ -1005,25 +599,26 @@ struct GalleryDayDetailSheet: View {
             Spacer()
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(theme == .minimal ? theme.backgroundSecondary : Color(.secondarySystemGroupedBackground)))
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
     }
 }
 
 // MARK: - Flow Layout
+
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
-    
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         arrangeSubviews(proposal: proposal, subviews: subviews).size
     }
-    
+
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let result = arrangeSubviews(proposal: proposal, subviews: subviews)
         for (index, position) in result.positions.enumerated() {
             subviews[index].place(at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y), proposal: .unspecified)
         }
     }
-    
+
     private func arrangeSubviews(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
         let maxWidth = proposal.width ?? .infinity
         var positions: [CGPoint] = []
@@ -1031,7 +626,7 @@ struct FlowLayout: Layout {
         var currentY: CGFloat = 0
         var lineHeight: CGFloat = 0
         var totalHeight: CGFloat = 0
-        
+
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
             if currentX + size.width > maxWidth && currentX > 0 {
@@ -1048,8 +643,10 @@ struct FlowLayout: Layout {
     }
 }
 
+// MARK: - Preview
+
 #Preview {
     NavigationStack {
-        GalleryView(model: DIContainer.shared.makeAppModel(), breakdownCategory: .constant(nil))
+        GalleryView(model: DIContainer.shared.makeAppModel(), metricOverlay: .constant(nil))
     }
 }

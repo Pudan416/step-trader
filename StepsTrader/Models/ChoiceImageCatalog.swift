@@ -3,54 +3,43 @@ import Foundation
 import UIKit
 #endif
 
-/// Каталог имён картинок из Assets для категорий дневной энергии.
-/// Один список — одна сетка выбора в редакторе. Добавляй имя Image Set сюда при добавлении картинки в Assets.
+/// Catalog of image names from Assets for daily energy categories.
+/// One list per selection grid in the editor. Add the Image Set name here when adding a new image to Assets.
 enum GalleryImageCatalog {
-    
-    static let activity: [String] = [
-        "activity_dancing",
-        "activity_meal",
-        "activity_overcome",
-        "activity_risk",
-        "activity_sex",
-        "activity_sport",
-        "activity_strong"
+
+    static let body: [String] = [
+        "body 1",
+        "body 2",
+        "body 3"
     ]
-    
-    static let creativity: [String] = [
-        "creativity_curiosity",
-        "creativity_doing_cash",
-        "creativity_fantasizing",
-        "creativity_general",
-        "creativity_invisible",
-        "creativity_museum",
-        "creativity_observe"
+
+    static let mind: [String] = [
+        "mind 1"
     ]
-    
-    static let joys: [String] = [
-        "joys_cringe",
-        "joys_embrase",
-        "joys_emotional",
-        "joys_friends",
-        "joys_happy_tears",
-        "joys_in_love",
-        "joys_kiss",
-        "joys_love_myself",
-        "joys_money",
-        "joys_range",
-        "joys_rebel",
-        "joysl_junkfood"
+
+    static let heart: [String] = [
+        "heart_cringe",
+        "heart_embrase",
+        "heart_emotional",
+        "heart_friends",
+        "heart_happy_tears",
+        "heart_in_love",
+        "heart_kiss",
+        "heart_love_myself",
+        "heart_range",
+        "heart_rebel",
+        "heart_junkfood"
     ]
-    
+
     static func imageNames(for category: EnergyCategory) -> [String] {
         switch category {
-        case .activity: return activity
-        case .creativity: return creativity
-        case .joys: return joys
+        case .body: return body
+        case .mind: return mind
+        case .heart: return heart
         }
     }
-    
-    /// Проверка: есть ли в бандле картинка с таким именем (пробует exact, lowercase, capitalized).
+
+    /// Check if bundle contains an image with this name (tries exact, lowercase, capitalized).
     static func hasImage(named name: String) -> Bool {
         #if canImport(UIKit)
         return UIImage(named: name) != nil

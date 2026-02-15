@@ -1,7 +1,6 @@
 import SwiftUI
 import Combine
 import UIKit
-import CoreLocation
 import UserNotifications
 
 @main
@@ -10,12 +9,12 @@ struct StepsTraderApp: App {
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var authService = AuthenticationService.shared
     @StateObject private var locationPermissionRequester = LocationPermissionRequester()
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     @AppStorage("hasSeenIntro_v3") private var hasSeenIntro: Bool = false
     @AppStorage("hasSeenEnergySetup_v1") private var hasSeenEnergySetup: Bool = false
     @AppStorage("hasCompletedOnboarding_v1") private var hasCompletedOnboarding: Bool = false
     @AppStorage("hasMigratedOnboarding_v1") private var hasMigratedOnboarding: Bool = false
+    private let cleanupTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
 
     init() {
@@ -23,25 +22,43 @@ struct StepsTraderApp: App {
         // Install notification delegate as early as possible so taps that *launch* the app
         // are routed through our handler (onAppear can be too late).
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+
+        // Make NavigationStack backgrounds transparent so the shared energy gradient
+        // shows through on every tab.
+        let navAppearance = UINavigationBarAppearance()
+        navAppearance.configureWithTransparentBackground()
+        UINavigationBar.appearance().standardAppearance = navAppearance
+        UINavigationBar.appearance().scrollEdgeAppearance = navAppearance
+        UINavigationBar.appearance().compactAppearance = navAppearance
+
+        // Also make TabBar transparent (we use a custom tab bar)
+        let tabAppearance = UITabBarAppearance()
+        tabAppearance.configureWithTransparentBackground()
+        UITabBar.appearance().standardAppearance = tabAppearance
+        UITabBar.appearance().scrollEdgeAppearance = tabAppearance
     }
 
     var body: some Scene {
-        WindowGroup { 
+        WindowGroup {
             ZStack {
-                if hasCompletedOnboarding {
-                    if model.showPayGate {
+                if hasCompletedOnboarding || isUITest {
+                    if !isUITest && model.userEconomyStore.showPayGate {
                         PayGateView(model: model)
                             .onAppear {
-                                print("🎯 PayGateView appeared - target group: \(model.payGateTargetGroupId ?? "nil")")
+                                AppLogger.app.debug("🎯 PayGateView appeared - target group: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")")
                             }
-                    } else if model.showQuickStatusPage {
+                    } else if !isUITest && model.showQuickStatusPage {
+                        #if DEBUG
                         QuickStatusView(model: model)
+                        #else
+                        MainTabView(model: model, theme: currentTheme)
+                        #endif
                     } else {
                         MainTabView(model: model, theme: currentTheme)
                     }
 
-                    // Handoff protection screen (disabled for Instagram flow)
-                    if model.showHandoffProtection, let token = model.handoffToken {
+                    // Handoff protection screen (disabled for Instagram flow and UI tests)
+                    if !isUITest, model.showHandoffProtection, let token = model.handoffToken {
                         // Only show handoff protection for non-Instagram targets
                         if token.targetBundleId != "com.burbn.instagram" {
                             HandoffProtectionView(model: model, token: token) {
@@ -68,10 +85,11 @@ struct StepsTraderApp: App {
                     .transition(.opacity)
                     .zIndex(3)
                 }
+
             }
             .themed(currentTheme)
             .tint(currentTheme.accentColor)
-            .grayscale(currentTheme == .minimal ? 1.0 : 0.0)
+            .grayscale(0)
             .alert(isPresented: $errorManager.showErrorAlert, error: errorManager.currentError) { _ in
                 Button("OK", role: .cancel) {
                     errorManager.dismiss()
@@ -80,41 +98,42 @@ struct StepsTraderApp: App {
                 Text(error.recoverySuggestion ?? "")
             }
             .onAppear {
-                // Language selection was removed; keep the UI in English if an old value was persisted.
-                if appLanguage == "ru" { appLanguage = "en" }
+                // Language selection was removed — English only for v1.
 
                 if !hasMigratedOnboarding && hasSeenIntro && hasSeenEnergySetup {
                     hasCompletedOnboarding = true
                     hasMigratedOnboarding = true
                 }
 
-                // Ensure bootstrap runs once; defer permission prompts to onboarding flow if needed
+                // Setup notification handling ASAP so model is set for delegate callbacks
+                setupNotificationHandling()
+
+                // Ensure bootstrap runs once; defer permission prompts to onboarding flow if needed.
+                // IMPORTANT: checkForPayGateFlags runs AFTER bootstrap so ticket groups are loaded.
                 if hasCompletedOnboarding {
-                    Task { await model.bootstrap(requestPermissions: !isUITest) }
+                    Task {
+                        await model.bootstrap(requestPermissions: !isUITest)
+                        checkForPayGateFlags()
+                    }
                 } else {
                     Task { await model.bootstrap(requestPermissions: false) }
                 }
-                print(
-                    "🎭 StepsTraderApp appeared - showPayGate: \(model.showPayGate), showQuickStatusPage: \(model.showQuickStatusPage)"
+                AppLogger.app.debug(
+                    "🎭 StepsTraderApp appeared - showPayGate: \(model.userEconomyStore.showPayGate), showQuickStatusPage: \(model.showQuickStatusPage)"
                 )
-                print(
+                AppLogger.app.debug(
                     "🎭 App state - showHandoffProtection: \(model.showHandoffProtection), handoffToken: \(model.handoffToken?.targetAppName ?? "nil")"
                 )
-
-                
-                // Setup notification handling
-                setupNotificationHandling()
-                print(
-                    "🎭 PayGate state - showPayGate: \(model.showPayGate), targetGroupId: \(model.payGateTargetGroupId ?? "nil")"
+                AppLogger.app.debug(
+                    "🎭 PayGate state - showPayGate: \(model.userEconomyStore.showPayGate), targetGroupId: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")"
                 )
                 checkForHandoffToken()
-                checkForPayGateFlags()
             }
             .onOpenURL { url in
-                print("🔗 App received URL: \(url)")
-                print("🔗 URL scheme: \(url.scheme ?? "nil")")
-                print("🔗 URL host: \(url.host ?? "nil")")
-                print("🔗 URL path: \(url.path)")
+                AppLogger.app.debug("🔗 App received URL: \(url)")
+                AppLogger.app.debug("🔗 URL scheme: \(url.scheme ?? "nil")")
+                AppLogger.app.debug("🔗 URL host: \(url.host ?? "nil")")
+                AppLogger.app.debug("🔗 URL path: \(url.path)")
                 model.handleIncomingURL(url)
             }
             .onReceive(
@@ -127,15 +146,10 @@ struct StepsTraderApp: App {
                 if hasCompletedOnboarding && !isUITest {
                     await model.ensureHealthAuthorizationAndRefresh()
                 }
-                
-                // Периодическая проверка истёкших разблокировок (каждые 30 сек)
-                while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 секунд
-                    await MainActor.run {
-                        model.cleanupExpiredUnlocks()
-                        model.checkDayBoundary()
-                    }
-                }
+            }
+            .onReceive(cleanupTimer) { _ in
+                model.cleanupExpiredUnlocks()
+                model.checkDayBoundary()
             }
             .onReceive(
                 NotificationCenter.default.publisher(
@@ -149,7 +163,7 @@ struct StepsTraderApp: App {
                 NotificationCenter.default.publisher(
                     for: UIApplication.significantTimeChangeNotification)
             ) { _ in
-                print("🕛 Significant time change detected (day changed)")
+                AppLogger.app.debug("🕛 Significant time change detected (day changed)")
                 Task {
                     await MainActor.run {
                         model.checkDayBoundary()
@@ -167,7 +181,7 @@ struct StepsTraderApp: App {
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.paygate")))
             { notification in
-                print("📱 App received PayGate notification")
+                AppLogger.app.debug("📱 App received PayGate notification")
                 if let userInfo = notification.userInfo,
                    let target = userInfo["target"] as? String,
                    let bundleId = userInfo["bundleId"] as? String {
@@ -175,17 +189,17 @@ struct StepsTraderApp: App {
                     if let until = g.object(forKey: "payGateDismissedUntil_v1") as? Date,
                        Date() < until
                     {
-                        print("🚫 PayGate notification suppressed after dismiss")
+                        AppLogger.app.debug("🚫 PayGate notification suppressed after dismiss")
                         return
                     }
                     if model.isAccessBlocked(for: bundleId) {
-                        print("🚫 PayGate notification ignored: access window active for \(bundleId)")
+                        AppLogger.app.debug("🚫 PayGate notification ignored: access window active for \(bundleId)")
                         model.dismissPayGate(reason: .programmatic)
                         clearPayGateFlags(UserDefaults.stepsTrader())
                         reopenTargetIfPossible(bundleId: bundleId)
                         return
                     }
-                    print("📱 PayGate notification - target: \(target), bundleId: \(bundleId)")
+                    AppLogger.app.debug("📱 PayGate notification - target: \(target), bundleId: \(bundleId)")
                     Task { @MainActor in
                         model.openPayGateForBundleId(bundleId)
                     }
@@ -193,7 +207,7 @@ struct StepsTraderApp: App {
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.local.paygate")))
             { notification in
-                print("📱 App received local notification")
+                AppLogger.app.debug("📱 App received local notification")
                 if let userInfo = notification.userInfo,
                    let action = userInfo["action"] as? String,
                    action == "paygate",
@@ -203,12 +217,12 @@ struct StepsTraderApp: App {
                     if let until = g.object(forKey: "payGateDismissedUntil_v1") as? Date,
                        Date() < until
                     {
-                        print("🚫 PayGate local notification suppressed after dismiss")
+                        AppLogger.app.debug("🚫 PayGate local notification suppressed after dismiss")
                         return
                     }
                     let lastOpen = g.object(forKey: "lastAppOpenedFromStepsTrader_\(bundleId)") as? Date
                     if model.isAccessBlocked(for: bundleId) {
-                        print("🚫 PayGate local ignored: access window active for \(bundleId)")
+                        AppLogger.app.debug("🚫 PayGate local ignored: access window active for \(bundleId)")
                         model.dismissPayGate(reason: .programmatic)
                         clearPayGateFlags(UserDefaults.stepsTrader())
                         reopenTargetIfPossible(bundleId: bundleId)
@@ -217,15 +231,14 @@ struct StepsTraderApp: App {
                     if let lastOpen {
                         let elapsed = Date().timeIntervalSince(lastOpen)
                         if elapsed < 10 {
-                            let msg = String(format: "🚫 PayGate local ignored for %@ to avoid loop (%.1fs since last open)", bundleId, elapsed)
-                            print(msg)
+                                AppLogger.app.debug("PayGate local ignored for \(bundleId) to avoid loop (\(elapsed, format: .fixed(precision: 1))s since last open)")
                             return
                         }
                     }
-                    print("📱 Local notification PayGate - target: \(target), bundleId: \(bundleId)")
+                    AppLogger.app.debug("📱 Local notification PayGate - target: \(target), bundleId: \(bundleId)")
                     Task { @MainActor in
                         model.startPayGateSession(for: bundleId)
-                        print("📱 PayGate state after setting - showPayGate: \(model.showPayGate), targetGroupId: \(model.payGateTargetGroupId ?? "nil")")
+                AppLogger.app.debug("📱 PayGate state after setting - showPayGate: \(model.userEconomyStore.showPayGate), targetGroupId: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")")
                     }
                 }
             }
@@ -238,92 +251,86 @@ struct StepsTraderApp: App {
     private func checkForHandoffToken() {
         let userDefaults = UserDefaults.stepsTrader()
 
-        print("🔍 Checking for handoff token...")
-        print(
-            "🔍 Current app state - showPayGate: \(model.showPayGate), showHandoffProtection: \(model.showHandoffProtection)"
+        AppLogger.app.debug("🔍 Checking for handoff token...")
+        AppLogger.app.debug(
+            "🔍 Current app state - showPayGate: \(model.userEconomyStore.showPayGate), showHandoffProtection: \(model.showHandoffProtection)"
         )
 
-        // Проверяем handoff-токен
+        // Check for handoff token
         if let tokenData = userDefaults.data(forKey: "handoffToken") {
-            print("🎫 Found handoff token data, decoding...")
+            AppLogger.app.debug("🎫 Found handoff token data, decoding...")
             do {
                 let token = try JSONDecoder().decode(HandoffToken.self, from: tokenData)
-                print("✅ Token decoded: \(token.targetAppName) (ID: \(token.tokenId))")
+                AppLogger.app.debug("✅ Token decoded: \(token.targetAppName) (ID: \(token.tokenId))")
 
-                // Проверяем, не истек ли токен
+                // Check if token has expired
                 if token.isExpired {
-                    print("⏰ Handoff token expired, removing")
+                    AppLogger.app.debug("⏰ Handoff token expired, removing")
                     userDefaults.removeObject(forKey: "handoffToken")
                     return
                 }
 
-                // Показываем защитный экран
-                print("🛡️ Setting handoff protection for \(token.targetAppName)")
-                print(
+                // Show handoff protection screen
+                AppLogger.app.debug("🛡️ Setting handoff protection for \(token.targetAppName)")
+                AppLogger.app.debug(
                     "🛡️ Before setting - showHandoffProtection: \(model.showHandoffProtection), handoffToken: \(model.handoffToken?.targetAppName ?? "nil")"
                 )
                 model.handoffToken = token
                 model.showHandoffProtection = true
-                print(
+                AppLogger.app.debug(
                     "🛡️ After setting - showHandoffProtection: \(model.showHandoffProtection), handoffToken: \(model.handoffToken?.targetAppName ?? "nil")"
                 )
-                print("🛡️ Handoff protection screen should now be visible!")
+                AppLogger.app.debug("🛡️ Handoff protection screen should now be visible!")
 
             } catch {
-                print("❌ Failed to decode handoff token: \(error)")
+                AppLogger.app.debug("Failed to decode handoff token: \(error.localizedDescription)")
                 userDefaults.removeObject(forKey: "handoffToken")
             }
         } else {
-            print("ℹ️ No handoff token found")
+            AppLogger.app.debug("ℹ️ No handoff token found")
         }
 
     }
     
     private func checkForPayGateFlags() {
         let userDefaults = UserDefaults.stepsTrader()
-
-
-        if let until = userDefaults.object(forKey: "payGateDismissedUntil_v1") as? Date,
-           Date() < until
-        {
-            print("🚫 PayGate suppressed after dismiss, skipping PayGate")
+        
+        // Check if flags set to show PayGate (only set by notification intent)
+        let shouldShowPayGate = userDefaults.bool(forKey: "shouldShowPayGate")
+        
+        guard shouldShowPayGate else {
             clearPayGateFlags(userDefaults)
             return
         }
         
-        // Check if flags set to show PayGate
-        let shouldShowPayGate = userDefaults.bool(forKey: "shouldShowPayGate")
+        // User explicitly tapped a notification → override any dismiss cooldown.
+        // The 10s cooldown exists to prevent re-open loops after manual dismiss,
+        // but it must not block an intentional notification tap.
+        userDefaults.removeObject(forKey: "payGateDismissedUntil_v1")
         
-        if shouldShowPayGate {
-            let targetGroupId = userDefaults.string(forKey: "payGateTargetGroupId")
-            let targetBundleId = userDefaults.string(forKey: "payGateTargetBundleId_v1")
-            
-            if let groupId = targetGroupId {
-                if !model.showPayGate, isRecentPayGateOpen(groupId: groupId, userDefaults: userDefaults) {
-                    print("🚫 PayGate flags ignored: recent PayGate open for group \(groupId)")
-                    clearPayGateFlags(userDefaults)
-                    return
-                }
-                Task { @MainActor in
-                    model.openPayGate(for: groupId)
-                }
-            } else if let bundleId = targetBundleId {
-                Task { @MainActor in
-                    model.openPayGateForBundleId(bundleId)
-                }
-            } else {
-                // Last-resort fallback: open the first shield group if present.
-                if let first = model.ticketGroups.first {
-                    Task { @MainActor in
-                        model.openPayGate(for: first.id)
-                    }
-                }
+        let targetGroupId = userDefaults.string(forKey: "payGateTargetGroupId")
+        let targetBundleId = userDefaults.string(forKey: "payGateTargetBundleId_v1")
+        
+        if let groupId = targetGroupId {
+            if !model.userEconomyStore.showPayGate, isRecentPayGateOpen(groupId: groupId, userDefaults: userDefaults) {
+                AppLogger.app.debug("🚫 PayGate flags ignored: recent PayGate open for group \(groupId)")
+                clearPayGateFlags(userDefaults)
+                return
             }
-            
-            clearPayGateFlags(userDefaults)
+            AppLogger.app.debug("📲 checkForPayGateFlags: opening PayGate for group \(groupId)")
+            model.openPayGate(for: groupId)
+        } else if let bundleId = targetBundleId {
+            AppLogger.app.debug("📲 checkForPayGateFlags: opening PayGate for bundleId \(bundleId)")
+            model.openPayGateForBundleId(bundleId)
         } else {
-            clearPayGateFlags(userDefaults)
+            // Last-resort fallback: open the first ticket group if present.
+            if let first = model.blockingStore.ticketGroups.first {
+                AppLogger.app.debug("📲 checkForPayGateFlags: fallback to first group \(first.name)")
+                model.openPayGate(for: first.id)
+            }
         }
+        
+        clearPayGateFlags(userDefaults)
     }
     
     private func clearPayGateFlags(_ userDefaults: UserDefaults) {
@@ -367,18 +374,18 @@ private extension StepsTraderApp {
 
 // MARK: - Helper Functions
 private func getAppDisplayName(_ bundleId: String) -> String {
-    // 1) Старые преднастроенные приложения (Instagram, TikTok и т.п.)
+    // 1) Legacy pre-configured apps (Instagram, TikTok, etc.)
     if let name = SettingsView.automationAppsStatic.first(where: { $0.bundleId == bundleId })?.name {
         return name
     }
     
-    // 2) Новые карточки FamilyControls: пробуем взять имя из selection по токену.
+    // 2) FamilyControls cards: try to get name from selection via token.
     let defaults = UserDefaults.stepsTrader()
     let key = "timeAccessSelection_v1_\(bundleId)"
     if let data = defaults.data(forKey: key),
        let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data),
        let token = sel.applicationTokens.first {
-        // Ключ для имени по токену, который пишет экстеншен ShieldConfiguration.
+        // Token-to-name key, written by ShieldConfiguration extension.
         if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
             let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
             if let storedName = defaults.string(forKey: tokenKey) {
@@ -387,7 +394,7 @@ private func getAppDisplayName(_ bundleId: String) -> String {
         }
     }
     
-    // 3) Fallback: не светим внутренний id, показываем общее имя.
+    // 3) Fallback: don't expose internal ID, show generic name.
     return "Selected app"
 }
 

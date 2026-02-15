@@ -6,7 +6,7 @@ import FamilyControls
 struct TicketGroupSettingsView: View {
     @ObservedObject var model: AppModel
     @State var group: TicketGroup
-    let appLanguage: String
+    let appLanguage: String = "en"
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
     @State private var showAppPicker = false
@@ -121,7 +121,6 @@ struct TicketGroupSettingsView: View {
                 #if canImport(FamilyControls)
                 AppSelectionSheet(
                     selection: $pickerSelection,
-                    appLanguage: appLanguage,
                     templateApp: group.templateApp,
                     onDone: {
                         group.selection.applicationTokens.formUnion(pickerSelection.applicationTokens)
@@ -149,7 +148,7 @@ struct TicketGroupSettingsView: View {
             HStack {
                 Image(systemName: "lock.open.fill")
                     .foregroundColor(.green)
-                Text(loc(appLanguage, "I want to spend experience on"))
+                Text("I want to spend exp on")
                     .font(.headline)
                 Spacer()
                 
@@ -190,12 +189,12 @@ struct TicketGroupSettingsView: View {
     
     private func unlockButton(for interval: AccessWindow) -> some View {
         let cost = group.cost(for: interval)
-        let canAfford = model.totalStepsBalance >= cost
+        let canAfford = model.userEconomyStore.totalStepsBalance >= cost
         
         return Button {
             Task {
                 isUnlocking = true
-                let balanceBefore = model.totalStepsBalance
+                let balanceBefore = model.userEconomyStore.totalStepsBalance
                 
                 await model.handlePayGatePaymentForGroup(
                     groupId: group.id,
@@ -203,7 +202,7 @@ struct TicketGroupSettingsView: View {
                     costOverride: cost
                 )
                 
-                let balanceAfter = model.totalStepsBalance
+                let balanceAfter = model.userEconomyStore.totalStepsBalance
                 print("🔓 Ticket settings unlock: \(balanceBefore) → \(balanceAfter)")
                 
                 // Small delay to let UI update before dismissing
@@ -407,14 +406,8 @@ struct TicketGroupSettingsView: View {
     }
     
     private var difficultyLabel: String {
-        switch group.difficultyLevel {
-        case 1: return "Rookie"
-        case 2: return "Rebel"
-        case 3: return "Fighter"
-        case 4: return "Warrior"
-        case 5: return "Legend"
-        default: return "Fighter"
-        }
+        let safeLevel = min(max(group.difficultyLevel, 1), 5)
+        return "Level \(safeLevel)"
     }
     
     private var costPreviewGrid: some View {
@@ -573,9 +566,9 @@ struct TicketGroupSettingsView: View {
     
     private func unlockOptionLabel(_ interval: AccessWindow) -> String {
         switch interval {
-        case .minutes10: return loc(appLanguage, "a bit (10 min)")
-        case .minutes30: return loc(appLanguage, "quite a bit (30 min)")
-        case .hour1: return loc(appLanguage, "some time (1 hour)")
+        case .minutes10: return "10 min"
+        case .minutes30: return "30 min"
+        case .hour1: return "1 hour"
         }
     }
     

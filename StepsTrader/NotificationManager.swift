@@ -16,8 +16,8 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendTimeExpiredNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "⏰ DOOM CTRL"
-        content.body = "Energy empty. Earn more to unlock."
+        content.title = "Proof"
+        content.body = "An app is closed. Open Proof to spend exp."
         content.sound = .default
         content.badge = nil
         
@@ -38,12 +38,8 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendTimeExpiredNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
-        content.title = "⏰ DOOM CTRL"
-        if remainingMinutes > 0 {
-            content.body = "Energy empty. I had \(remainingMinutes) min. Earn more to unlock."
-        } else {
-            content.body = "Energy empty. Earn more to unlock."
-        }
+        content.title = "Proof"
+        content.body = "An app is closed. Open Proof to spend exp."
         content.sound = .default
         content.badge = nil
         
@@ -64,8 +60,8 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendUnblockNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
-        content.title = "🎉 DOOM CTRL"
-        content.body = "Energy restored: \(remainingMinutes) min."
+        content.title = "Proof"
+        content.body = "Exp restored. \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
         
@@ -86,8 +82,8 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendRemainingTimeNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
-        content.title = "⏱️ DOOM CTRL"
-        content.body = "Energy left: \(remainingMinutes) min."
+        content.title = "Proof"
+        content.body = "Exp left: \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
         
@@ -114,11 +110,11 @@ final class NotificationManager: NotificationServiceProtocol {
         content.title = "⏱️ \(displayName)"
         
         if minutesUsed > 0 && stepsCharged > 0 {
-            content.body = "Used: \(minutesUsed) min • Charged: \(stepsCharged) energy."
+            content.body = "Used: \(minutesUsed) min · Charged: \(stepsCharged) exp."
         } else if minutesUsed > 0 {
             content.body = "Used: \(minutesUsed) min."
         } else {
-            content.body = "Charged: \(stepsCharged) energy."
+            content.body = "Charged: \(stepsCharged) exp."
         }
         
         content.sound = .default
@@ -141,8 +137,8 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendTestNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "🧪 DOOM CTRL Test"
-        content.body = "Test notification to confirm the system works."
+        content.title = "Proof"
+        content.body = "Test notification."
         content.sound = .default
         content.badge = nil
         
@@ -192,15 +188,15 @@ final class NotificationManager: NotificationServiceProtocol {
     func scheduleAccessWindowStatus(remainingSeconds: Int, bundleId: String) {
         guard remainingSeconds > 10 else { return }
         
-        // Стоп-листы для разных окон: 5 минут, 1 час, день
+        // Reminder schedules for different windows: 5 min, 1 hour, day
         let patterns: [[Int]]
         switch remainingSeconds {
-        case ..<360: // ~5 минут
-            patterns = [[60], [240]] // через 1 и 4 минуты
-        case ..<4000: // ~1 час
-            patterns = [[60], [1800], [3300]] // через 1, 30 и 55 минут
-        default: // день и больше
-            patterns = [[max(0, remainingSeconds - 3600)]] // за час до окончания
+        case ..<360: // ~5 minutes
+            patterns = [[60], [240]] // at 1 and 4 minutes
+        case ..<4000: // ~1 hour
+            patterns = [[60], [1800], [3300]] // at 1, 30, and 55 minutes
+        default: // day or longer
+            patterns = [[max(0, remainingSeconds - 3600)]] // 1 hour before expiry
         }
         
         for offsets in patterns {

@@ -1,19 +1,18 @@
 import SwiftUI
 
-/// Экран рейтинга пользователей (на месте таба «Outer World» / карты).
+/// User rating screen (placeholder for Outer World / map tab).
 struct RatingView: View {
     @ObservedObject var model: AppModel
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @Environment(\.appTheme) private var theme
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text(loc(appLanguage, "User rating"))
+                    Text("User rating")
                         .font(AppFonts.headline)
                         .foregroundStyle(.secondary)
-                    Text(loc(appLanguage, "Rating will be available soon."))
+                    Text("Rating will be available soon.")
                         .font(AppFonts.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -21,7 +20,7 @@ struct RatingView: View {
                 .padding()
             }
             .background(theme.backgroundColor)
-            .navigationTitle(loc(appLanguage, "Rating"))
+            .navigationTitle("Rating")
             .navigationBarTitleDisplayMode(.large)
         }
     }

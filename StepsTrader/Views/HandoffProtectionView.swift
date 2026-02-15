@@ -32,7 +32,7 @@ struct HandoffProtectionView: View {
                 VStack(spacing: 20) {
                     let totalSteps = Int(model.effectiveStepsToday)
                     let spent = model.spentStepsToday
-                    let cost = model.entryCostSteps
+                    let cost = model.userEconomyStore.entryCostSteps
                     let available = max(0, totalSteps - spent)
                     let opensLeftText: String = {
                         if cost == 0 { return "Unlimited" }

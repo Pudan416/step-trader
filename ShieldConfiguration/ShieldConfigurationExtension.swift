@@ -14,9 +14,6 @@ import UIKit
 // Make sure that your class name matches the NSExtensionPrincipalClass in your Info.plist.
 class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     
-    private let appGroupId = "group.personal-project.StepsTrader"
-    private let shieldStateKey = "doomShieldState_v1"
-    
     private enum ShieldState: Int {
         case blocked = 0        // Initial state: just blocked
         case waitingPush = 1    // After user taps "Unlock" – show "check notifications"
@@ -24,15 +21,15 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     
     /// Shared UserDefaults from App Group
     private func sharedDefaults() -> UserDefaults {
-        if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) != nil,
-           let appGroup = UserDefaults(suiteName: appGroupId) {
+        if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId) != nil,
+           let appGroup = UserDefaults(suiteName: SharedKeys.appGroupId) {
             return appGroup
         }
         return .standard
     }
     
     private func currentState() -> ShieldState {
-        let raw = sharedDefaults().integer(forKey: shieldStateKey)
+        let raw = sharedDefaults().integer(forKey: SharedKeys.shieldState)
         return ShieldState(rawValue: raw) ?? .blocked
     }
     
@@ -57,7 +54,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         secondaryButtonText: String? = nil
     ) -> ShieldConfiguration {
         // Try to load app icon from extension assets
-        let appIcon = UIImage(named: "AppIcon") ?? UIImage(named: "paygate") ?? UIImage(systemName: "bolt.shield.fill")
+        let appIcon = UIImage(named: "AppIcon") ?? UIImage(named: "paygate") ?? UIImage(systemName: "shield.fill")
         
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,
@@ -74,35 +71,30 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     override func configuration(shielding application: Application) -> ShieldConfiguration {
         let appName = getAppName(for: application)
         
-        // Save human-readable name for token so PayGate can display it
+        // Save human-readable name and bundleId for token so PayGate/findTicketGroup can resolve
         if let token = application.token,
            let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-            let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-            sharedDefaults().set(appName, forKey: tokenKey)
+            let base64 = tokenData.base64EncodedString()
+            let defaults = sharedDefaults()
+            defaults.set(appName, forKey: "fc_appName_" + base64)
+            if let bid = application.bundleIdentifier {
+                defaults.set(bid, forKey: "fc_bundleId_" + base64)
+            }
         }
         
         switch currentState() {
         case .blocked:
-            // Screen 1: Bold, punk blocking message
             return baseConfiguration(
-                title: "⚡ BLOCKED",
-                subtitle: "\(appName) is under control.\nYou set the rules. Now follow them.",
-                primaryButtonText: "Pay to unlock"
+                title: "\(appName) is closed.",
+                subtitle: "Open Proof to spend exp.",
+                primaryButtonText: "Open"
             )
             
         case .waitingPush:
-            // Screen 2: Arrow pointing up + instructions
             return baseConfiguration(
-                title: "👆 CHECK ABOVE",
-                subtitle: """
-                    ↑ ↑ ↑
-                    Swipe down for notification.
-                    Choose your unlock time there.
-                    
-                    No push? Open DOOM CTRL app
-                    → find this shield → unlock manually.
-                    """,
-                primaryButtonText: "Still nothing"
+                title: "Check your notifications.",
+                subtitle: "A notification is waiting.\nOr open Proof directly.",
+                primaryButtonText: "Open Proof"
             )
         }
     }
@@ -117,22 +109,16 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         switch currentState() {
         case .blocked:
             return baseConfiguration(
-                title: "⚡ BLOCKED",
-                subtitle: "\(domain) is off limits.\nFocus on what matters.",
-                primaryButtonText: "Pay to unlock"
+                title: "\(domain) is closed.",
+                subtitle: "Open Proof to spend exp.",
+                primaryButtonText: "Open"
             )
             
         case .waitingPush:
             return baseConfiguration(
-                title: "👆 CHECK ABOVE",
-                subtitle: """
-                    ↑ ↑ ↑
-                    Swipe down for notification.
-                    
-                    No push? Open DOOM CTRL app
-                    → find this shield → unlock.
-                    """,
-                primaryButtonText: "Still nothing"
+                title: "Check your notifications.",
+                subtitle: "A notification is waiting.\nOr open Proof directly.",
+                primaryButtonText: "Open Proof"
             )
         }
     }

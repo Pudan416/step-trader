@@ -27,18 +27,6 @@ enum AppColors {
         static let joys = textPrimary
     }
     
-    // MARK: - Minimal Theme (Monochrome)
-    enum Minimal {
-        static let background = Color(red: 249 / 255, green: 248 / 255, blue: 246 / 255) // #F9F8F6
-        static let backgroundSecondary = Color(red: 245 / 255, green: 244 / 255, blue: 242 / 255)
-        
-        static let textPrimary = Color.black
-        static let textSecondary = Color.black.opacity(0.7)
-        
-        static let stroke = Color.black
-        static let mono = Color.black
-    }
-    
     // MARK: - Night Theme
     // Night and screens. Same yellow accent, different context.
     enum Night {
@@ -191,12 +179,12 @@ extension Text {
 }
 
 // MARK: - Resistance UI Components
-/// Components that embody the experience philosophy:
+/// Components that embody the exp philosophy:
 /// - No gamification. No motivation. No self-improvement tone.
 /// - Observation over instruction
 /// - Invitation over pressure
 /// - Empty states are allowed
-/// - "Spending experience" is neutral, never framed as failure
+/// - "Spending exp" is neutral, never framed as failure
 
 struct ResistanceTag: View {
     let text: String

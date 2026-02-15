@@ -17,18 +17,18 @@ extension AppModel {
 
         let userDefaults = UserDefaults.stepsTrader()
 
-        // Скрываем защитный экран
+        // Hide protection screen
         showHandoffProtection = false
         handoffToken = nil
         print(
             "🚀 After - showHandoffProtection: \(showHandoffProtection), handoffToken: \(handoffToken?.targetAppName ?? "nil")"
         )
 
-        // Удаляем токен
+        // Remove token
         userDefaults.removeObject(forKey: "handoffToken")
         print("🚀 Removed handoff token from UserDefaults")
 
-        // Открываем целевое приложение
+        // Open target app
         print("🚀 Opening target app: \(token.targetBundleId)")
         openTargetApp(bundleId: token.targetBundleId)
     }
@@ -36,11 +36,11 @@ extension AppModel {
     func handleHandoffCancel() {
         print("❌ User cancelled handoff")
 
-        // Скрываем защитный экран
+        // Hide protection screen
         showHandoffProtection = false
         handoffToken = nil
 
-        // Удаляем токен
+        // Remove token
         let userDefaults = UserDefaults.stepsTrader()
         userDefaults.removeObject(forKey: "handoffToken")
     }

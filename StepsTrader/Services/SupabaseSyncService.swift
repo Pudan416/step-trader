@@ -1,5 +1,15 @@
 import Foundation
 
+/// Loads persisted analytics queue from UserDefaults. Used from actor property default (nonisolated).
+private func loadAnalyticsQueueFromDefaults() -> [AnalyticsEventPayload] {
+    let g = UserDefaults.stepsTrader()
+    guard let data = g.data(forKey: SharedKeys.analyticsEventsQueue),
+          let decoded = try? JSONDecoder().decode([AnalyticsEventPayload].self, from: data) else {
+        return []
+    }
+    return decoded
+}
+
 // MARK: - Supabase Sync Service
 /// Handles syncing user activity data to Supabase
 actor SupabaseSyncService {
@@ -14,6 +24,9 @@ actor SupabaseSyncService {
     private var dailyStatsSyncTask: Task<Void, Never>?
     private var dailySpentSyncTask: Task<Void, Never>?
     private var activityStatsSyncTask: Task<Void, Never>?
+    private var ticketGroupsSyncTask: Task<Void, Never>?
+    private var analyticsFlushTask: Task<Void, Never>?
+    private var dayCanvasSyncTask: Task<Void, Never>?
     
     // Debounce windows (nanoseconds)
     private let selectionsDebounceNs: UInt64 = 1_500_000_000 // 1.5 sec
@@ -77,13 +90,29 @@ actor SupabaseSyncService {
         let spentByApp: [String: Int]
     }
     
+    private struct DayCanvasSyncPayload: Equatable {
+        let dayKey: String
+        let canvasJsonData: Data // Pre-encoded DayCanvas JSON
+        let lastModified: Date
+        
+        static func == (lhs: DayCanvasSyncPayload, rhs: DayCanvasSyncPayload) -> Bool {
+            lhs.dayKey == rhs.dayKey && lhs.canvasJsonData == rhs.canvasJsonData
+        }
+    }
+    
     private var pendingDailySelections: DailySelectionsPayload?
     private var pendingDailyStats: DailyStatsPayload?
     private var pendingDailySpent: DailySpentPayload?
+    private var pendingDayCanvas: DayCanvasSyncPayload?
     
     private var lastSentDailySelections: DailySelectionsPayload?
     private var lastSentDailyStats: DailyStatsPayload?
     private var lastSentDailySpent: DailySpentPayload?
+    private var lastSentDayCanvas: DayCanvasSyncPayload?
+    private var pendingTicketGroupsPayload: [TicketGroupSyncRow] = []
+    private var lastSentTicketGroupsPayload: [TicketGroupSyncRow] = []
+    private var pendingAnalyticsEvents: [AnalyticsEventPayload] = loadAnalyticsQueueFromDefaults()
+    private var analyticsDedupeKeys: Set<String> = []
     
     // Track which activities we've already counted for this user today
     private var countedActivitiesToday: Set<String> = []
@@ -197,6 +226,107 @@ actor SupabaseSyncService {
             await performDailySpentSync(payload: latest)
         }
     }
+
+    /// Sync full DayCanvas to Supabase `user_day_canvases` table.
+    /// Stores the entire canvas JSON (elements, colors, experience) keyed by day.
+    func syncDayCanvas(_ canvas: DayCanvas) {
+        guard let jsonData = try? JSONEncoder().encode(canvas) else {
+            print("📡 syncDayCanvas: failed to encode canvas for \(canvas.dayKey)")
+            return
+        }
+        let payload = DayCanvasSyncPayload(
+            dayKey: canvas.dayKey,
+            canvasJsonData: jsonData,
+            lastModified: canvas.lastModified
+        )
+        
+        if payload == pendingDayCanvas { return }
+        if payload == lastSentDayCanvas {
+            pendingDayCanvas = nil
+            dayCanvasSyncTask?.cancel()
+            return
+        }
+        
+        pendingDayCanvas = payload
+        dayCanvasSyncTask?.cancel()
+        dayCanvasSyncTask = Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 sec debounce
+            guard !Task.isCancelled else { return }
+            guard let latest = pendingDayCanvas else { return }
+            await performDayCanvasSync(payload: latest)
+        }
+    }
+    
+    /// Fetch canvas from Supabase for a given day. Returns nil if not found or not authenticated.
+    func fetchDayCanvas(for dayKey: String) async -> DayCanvas? {
+        await AuthenticationService.shared.waitForInitialization()
+        
+        let token = await AuthenticationService.shared.accessToken
+        let userId = await AuthenticationService.shared.currentUser?.id
+        guard let token, let userId else { return nil }
+        
+        do {
+            let cfg = try SupabaseConfig.load()
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_day_canvases")
+            guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return nil }
+            comps.queryItems = [
+                URLQueryItem(name: "user_id", value: "eq.\(userId)"),
+                URLQueryItem(name: "day_key", value: "eq.\(dayKey)"),
+                URLQueryItem(name: "select", value: "canvas_json"),
+                URLQueryItem(name: "limit", value: "1")
+            ]
+            guard let url = comps.url else { return nil }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+            request.setValue("application/json", forHTTPHeaderField: "accept")
+            
+            let (data, response) = try await network.data(for: request)
+            guard response.statusCode < 400 else {
+                print("📡 fetchDayCanvas failed: HTTP \(response.statusCode)")
+                return nil
+            }
+            
+            // Response is [{ "canvas_json": { ... } }]
+            let rows = try JSONDecoder().decode([DayCanvasReadRow].self, from: data)
+            guard let row = rows.first else { return nil }
+            
+            // canvas_json is already a DayCanvas JSON object — re-encode and decode
+            let canvasData = try JSONSerialization.data(withJSONObject: row.canvasJson)
+            let canvas = try JSONDecoder().decode(DayCanvas.self, from: canvasData)
+            print("📡 fetchDayCanvas: restored canvas for \(dayKey) with \(canvas.elements.count) elements")
+            return canvas
+        } catch {
+            print("📡 fetchDayCanvas error: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Sync ticket groups to Supabase `shields` table.
+    /// Stores each ticket group as a synthetic `bundle_id` (`group:<groupId>`) row.
+    func syncTicketGroups(_ groups: [TicketGroup]) {
+        let rows = groups
+            .map { TicketGroupSyncRow.from(group: $0) }
+            .sorted { $0.bundleId < $1.bundleId }
+
+        if rows == pendingTicketGroupsPayload { return }
+        if rows == lastSentTicketGroupsPayload {
+            pendingTicketGroupsPayload = []
+            ticketGroupsSyncTask?.cancel()
+            return
+        }
+
+        pendingTicketGroupsPayload = rows
+        ticketGroupsSyncTask?.cancel()
+        ticketGroupsSyncTask = Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5s debounce
+            guard !Task.isCancelled else { return }
+            let latest = pendingTicketGroupsPayload
+            await performTicketGroupsSync(rows: latest)
+        }
+    }
     
     /// Track activity selection in global stats
     /// Only increments count once per user per day per activity
@@ -242,6 +372,30 @@ actor SupabaseSyncService {
         }
     }
     
+    /// Queue analytics event for KPI tracking.
+    /// Uses best-effort delivery to `user_analytics_events` with local queue fallback.
+    func trackAnalyticsEvent(name: String, properties: [String: String] = [:], dedupeKey: String? = nil) {
+        if let dedupeKey {
+            if analyticsDedupeKeys.contains(dedupeKey) { return }
+            analyticsDedupeKeys.insert(dedupeKey)
+        }
+        
+        let payload = AnalyticsEventPayload(
+            id: UUID().uuidString,
+            eventName: name,
+            dayKey: AppModel.dayKey(for: Date()),
+            properties: properties,
+            occurredAt: Date()
+        )
+        
+        pendingAnalyticsEvents.append(payload)
+        if pendingAnalyticsEvents.count > 250 {
+            pendingAnalyticsEvents = Array(pendingAnalyticsEvents.suffix(250))
+        }
+        persistAnalyticsQueueToDefaults()
+        scheduleAnalyticsFlush()
+    }
+    
     /// Full sync - call on app launch or after login
     func performFullSync(model: AppModel) async {
         print("📡 performFullSync called, waiting for auth initialization...")
@@ -269,12 +423,12 @@ actor SupabaseSyncService {
                 dailyActivitySelections: model.dailyActivitySelections,
                 dailyRestSelections: model.dailyRestSelections,
                 dailyJoysSelections: model.dailyJoysSelections,
-                stepsToday: model.stepsToday,
-                dailySleepHours: model.dailySleepHours,
-                baseEnergyToday: model.baseEnergyToday,
-                bonusSteps: model.bonusSteps,
-                totalStepsBalance: model.totalStepsBalance,
-                appStepsSpentByDay: model.appStepsSpentByDay
+                stepsToday: model.healthStore.stepsToday,
+                dailySleepHours: model.healthStore.dailySleepHours,
+                baseEnergyToday: model.healthStore.baseEnergyToday,
+                bonusSteps: model.userEconomyStore.bonusSteps,
+                totalStepsBalance: model.userEconomyStore.totalStepsBalance,
+                appStepsSpentByDay: model.userEconomyStore.appStepsSpentByDay
             )
         }
         
@@ -315,6 +469,50 @@ actor SupabaseSyncService {
         )
         
         print("📡 Full sync completed")
+    }
+
+    /// Delete a single ticket/shield row for current user and bundle id.
+    func deleteTicket(bundleId: String) async {
+        await AuthenticationService.shared.waitForInitialization()
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
+            print("📡 Ticket delete skipped: no auth")
+            return
+        }
+
+        do {
+            let cfg = try SupabaseConfig.load()
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/shields")
+            guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+                print("📡 Ticket delete failed: invalid endpoint")
+                return
+            }
+            comps.queryItems = [
+                URLQueryItem(name: "user_id", value: "eq.\(userId)"),
+                URLQueryItem(name: "bundle_id", value: "eq.\(bundleId)")
+            ]
+
+            guard let url = comps.url else {
+                print("📡 Ticket delete failed: invalid URL components")
+                return
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "DELETE"
+            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+            request.setValue("return=minimal", forHTTPHeaderField: "prefer")
+
+            let (data, response) = try await network.data(for: request)
+            if response.statusCode < 400 {
+                print("📡 Ticket deleted for bundleId=\(bundleId)")
+            } else {
+                let body = String(data: data, encoding: .utf8) ?? "no body"
+                print("📡 Ticket delete failed for bundleId=\(bundleId): HTTP \(response.statusCode) - \(body)")
+            }
+        } catch {
+            print("📡 Ticket delete error for bundleId=\(bundleId): \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Private Sync Implementations
@@ -416,6 +614,82 @@ actor SupabaseSyncService {
             }
         } catch {
             print("📡 Custom activities sync error: \(error.localizedDescription)")
+        }
+    }
+
+    private func performTicketGroupsSync(rows: [TicketGroupSyncRow]) async {
+        defer {
+            if pendingTicketGroupsPayload == rows {
+                pendingTicketGroupsPayload = []
+            }
+        }
+
+        await AuthenticationService.shared.waitForInitialization()
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
+            print("📡 Ticket groups sync skipped: no auth")
+            return
+        }
+
+        do {
+            let cfg = try SupabaseConfig.load()
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/shields")
+
+            // Step 1: delete existing synthetic ticket-group rows for current user.
+            guard var deleteComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return }
+            deleteComps.queryItems = [
+                URLQueryItem(name: "user_id", value: "eq.\(userId)"),
+                URLQueryItem(name: "bundle_id", value: "like.group:%")
+            ]
+            guard let deleteURL = deleteComps.url else { return }
+
+            var deleteRequest = URLRequest(url: deleteURL)
+            deleteRequest.httpMethod = "DELETE"
+            deleteRequest.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            deleteRequest.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+            deleteRequest.setValue("return=minimal", forHTTPHeaderField: "prefer")
+
+            let (deleteData, deleteResponse) = try await network.data(for: deleteRequest)
+            guard deleteResponse.statusCode < 400 else {
+                let body = String(data: deleteData, encoding: .utf8) ?? "no body"
+                print("📡 Ticket groups delete-before-insert failed: HTTP \(deleteResponse.statusCode) - \(body)")
+                return
+            }
+
+            // Step 2: insert current rows.
+            if rows.isEmpty {
+                lastSentTicketGroupsPayload = []
+                print("📡 Ticket groups synced: cleared")
+                return
+            }
+
+            let payload = rows.map { row in
+                TicketGroupSyncInsertRow(
+                    userId: userId,
+                    bundleId: row.bundleId,
+                    mode: row.mode,
+                    level: row.level
+                )
+            }
+
+            var insertRequest = URLRequest(url: endpoint)
+            insertRequest.httpMethod = "POST"
+            insertRequest.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            insertRequest.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+            insertRequest.setValue("application/json", forHTTPHeaderField: "content-type")
+            insertRequest.setValue("return=minimal", forHTTPHeaderField: "prefer")
+            insertRequest.httpBody = try JSONEncoder().encode(payload)
+
+            let (insertData, insertResponse) = try await network.data(for: insertRequest)
+            if insertResponse.statusCode < 400 {
+                lastSentTicketGroupsPayload = rows
+                print("📡 Ticket groups synced: \(rows.count) rows")
+            } else {
+                let body = String(data: insertData, encoding: .utf8) ?? "no body"
+                print("📡 Ticket groups insert failed: HTTP \(insertResponse.statusCode) - \(body)")
+            }
+        } catch {
+            print("📡 Ticket groups sync error: \(error.localizedDescription)")
         }
     }
     
@@ -629,6 +903,67 @@ actor SupabaseSyncService {
         }
     }
     
+    private func performDayCanvasSync(payload: DayCanvasSyncPayload) async {
+        if payload == lastSentDayCanvas { return }
+        
+        defer {
+            if pendingDayCanvas == payload {
+                pendingDayCanvas = nil
+            }
+        }
+        
+        await AuthenticationService.shared.waitForInitialization()
+        if Task.isCancelled { return }
+        
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
+            print("📡 Day canvas sync skipped: no auth")
+            return
+        }
+        
+        do {
+            let cfg = try SupabaseConfig.load()
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_day_canvases")
+            guard var urlComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+                print("📡 Error: Failed to create URLComponents for day canvas")
+                return
+            }
+            urlComps.queryItems = [URLQueryItem(name: "on_conflict", value: "user_id,day_key")]
+            guard let url = urlComps.url else { return }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+            request.setValue("application/json", forHTTPHeaderField: "content-type")
+            request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "prefer")
+            
+            // Build the row: canvas_json is the raw JSON object (not a string)
+            let canvasJsonObject = try JSONSerialization.jsonObject(with: payload.canvasJsonData)
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let row: [String: Any] = [
+                "user_id": userId,
+                "day_key": payload.dayKey,
+                "canvas_json": canvasJsonObject,
+                "last_modified": iso.string(from: payload.lastModified)
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: row)
+            
+            let (data, response) = try await network.data(for: request)
+            if Task.isCancelled { return }
+            if response.statusCode < 400 {
+                lastSentDayCanvas = payload
+                print("📡 Day canvas synced for \(payload.dayKey)")
+            } else {
+                let body = String(data: data, encoding: .utf8) ?? "no body"
+                print("📡 Day canvas sync failed for \(payload.dayKey): HTTP \(response.statusCode) - \(body)")
+            }
+        } catch {
+            print("📡 Day canvas sync error: \(error.localizedDescription)")
+        }
+    }
+    
     private func performActivityStatsIncrement(activityId: String, category: String, titleEn: String, titleRu: String, icon: String, isCustom: Bool) async {
         print("📡 performActivityStatsIncrement called for \(activityId)")
         
@@ -673,6 +1008,75 @@ actor SupabaseSyncService {
         } catch {
             print("📡 Activity stat sync error: \(error.localizedDescription)")
         }
+    }
+    
+    // MARK: - Analytics Events
+    
+    private func scheduleAnalyticsFlush() {
+        analyticsFlushTask?.cancel()
+        analyticsFlushTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1s debounce
+            guard !Task.isCancelled else { return }
+            await flushAnalyticsEvents()
+        }
+    }
+    
+    private func flushAnalyticsEvents() async {
+        guard !pendingAnalyticsEvents.isEmpty else { return }
+        
+        await AuthenticationService.shared.waitForInitialization()
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
+            return
+        }
+        
+        do {
+            let cfg = try SupabaseConfig.load()
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_analytics_events")
+            let rows = pendingAnalyticsEvents.map {
+                AnalyticsEventInsertRow(
+                    userId: userId,
+                    eventName: $0.eventName,
+                    dayKey: $0.dayKey,
+                    properties: $0.properties,
+                    eventId: $0.id,
+                    occurredAt: iso8601String($0.occurredAt)
+                )
+            }
+            
+            var request = URLRequest(url: endpoint)
+            request.httpMethod = "POST"
+            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+            request.setValue("application/json", forHTTPHeaderField: "content-type")
+            request.setValue("return=minimal,resolution=ignore-duplicates", forHTTPHeaderField: "prefer")
+            request.httpBody = try JSONEncoder().encode(rows)
+            
+            let (_, response) = try await network.data(for: request, policy: NetworkClient.RetryPolicy.none)
+            guard response.statusCode < 400 else {
+                print("📡 Analytics flush failed: HTTP \(response.statusCode)")
+                return
+            }
+            
+            pendingAnalyticsEvents.removeAll()
+            persistAnalyticsQueueToDefaults()
+            print("📡 Analytics flushed: \(rows.count) events")
+        } catch {
+            print("📡 Analytics flush error: \(error.localizedDescription)")
+        }
+    }
+    
+    private func persistAnalyticsQueueToDefaults() {
+        let g = UserDefaults.stepsTrader()
+        if let data = try? JSONEncoder().encode(pendingAnalyticsEvents) {
+            g.set(data, forKey: SharedKeys.analyticsEventsQueue)
+        }
+    }
+    
+    private func iso8601String(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
     }
     
     // MARK: - Restore from Supabase
@@ -1018,11 +1422,11 @@ actor SupabaseSyncService {
             let sp = spent[dayKey]
             
             let snapshot = PastDaySnapshot(
-                controlGained: stat?.baseEnergy ?? 0,
-                controlSpent: sp?.totalSpent ?? 0,
-                activityIds: sel?.activityIds ?? [],
-                creativityIds: sel?.restIds ?? [],
-                joysIds: sel?.joysIds ?? [],
+                experienceEarned: stat?.baseEnergy ?? 0,
+                experienceSpent: sp?.totalSpent ?? 0,
+                bodyIds: sel?.activityIds ?? [],
+                mindIds: sel?.restIds ?? [],
+                heartIds: sel?.joysIds ?? [],
                 steps: stat?.stepsCount ?? 0,
                 sleepHours: stat?.sleepHours ?? 0
             )
@@ -1338,5 +1742,100 @@ private struct ActivityStatRpcParams: Codable {
         case pTitleRu = "p_title_ru"
         case pIcon = "p_icon"
         case pIsCustom = "p_is_custom"
+    }
+}
+
+private struct AnalyticsEventPayload: Codable, Equatable {
+    let id: String
+    let eventName: String
+    let dayKey: String
+    let properties: [String: String]
+    let occurredAt: Date
+}
+
+private struct AnalyticsEventInsertRow: Codable {
+    let userId: String
+    let eventName: String
+    let dayKey: String
+    let properties: [String: String]
+    let eventId: String
+    let occurredAt: String
+    
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case eventName = "event_name"
+        case dayKey = "day_key"
+        case properties
+        case eventId = "event_id"
+        case occurredAt = "occurred_at"
+    }
+}
+
+private struct TicketGroupSyncRow: Equatable {
+    let bundleId: String
+    let mode: String
+    let level: Int
+
+    static func from(group: TicketGroup) -> TicketGroupSyncRow {
+        let mode = group.settings.minuteTariffEnabled ? "minute" : "ticket"
+        return TicketGroupSyncRow(
+            bundleId: "group:\(group.id)",
+            mode: mode,
+            level: max(1, group.difficultyLevel)
+        )
+    }
+}
+
+private struct TicketGroupSyncInsertRow: Codable {
+    let userId: String
+    let bundleId: String
+    let mode: String
+    let level: Int
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case bundleId = "bundle_id"
+        case mode
+        case level
+    }
+}
+
+/// Row returned when reading canvas from Supabase. canvas_json is raw JSON (Any).
+private struct DayCanvasReadRow: Decodable {
+    let canvasJson: Any
+    
+    enum CodingKeys: String, CodingKey {
+        case canvasJson = "canvas_json"
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Decode as raw JSON via JSONSerialization
+        let rawJSON = try container.decode(AnyCodable.self, forKey: .canvasJson)
+        canvasJson = rawJSON.value
+    }
+}
+
+/// Wrapper to decode arbitrary JSON from Supabase JSONB columns.
+private struct AnyCodable: Decodable {
+    let value: Any
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let dict = try? container.decode([String: AnyCodable].self) {
+            value = dict.mapValues { $0.value }
+        } else if let arr = try? container.decode([AnyCodable].self) {
+            value = arr.map { $0.value }
+        } else if let s = try? container.decode(String.self) {
+            value = s
+        } else if let d = try? container.decode(Double.self) {
+            value = d
+        } else if let b = try? container.decode(Bool.self) {
+            value = b
+        } else if container.decodeNil() {
+            value = NSNull()
+        } else {
+            value = NSNull()
+        }
     }
 }

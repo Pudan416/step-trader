@@ -7,12 +7,11 @@ struct TimeAccessPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var selection: FamilyActivitySelection
     let appName: String
-    let appLanguage: String
 
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 12) {
-                Text(Steps4.loc(appLanguage, "Choose app for \(appName)"))
+                Text("Choose app for \(appName)")
                     .font(.headline)
                     .padding(.horizontal)
 
@@ -27,7 +26,7 @@ struct TimeAccessPickerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(Steps4.loc(appLanguage, "Done")) {
+                    Button("Done") {
                         dismiss()
                     }
                 }

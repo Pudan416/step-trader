@@ -26,11 +26,11 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     private var sharedDefaults: UserDefaults { UserDefaults.stepsTrader() }
 
     init() {
-        // Загружаем сохраненный тариф или используем medium по умолчанию
+        // Load saved tariff or use medium as default
         let savedTariffString = UserDefaults.standard.string(forKey: "selectedTariff") ?? Tariff.medium.rawValue
         self.tariff = Tariff(rawValue: savedTariffString) ?? .medium
         
-        // Читаем из App Group, fallback на стандартные ключи для обратной совместимости
+        // Read from App Group, fallback to standard keys for backward compatibility
         let g = UserDefaults.stepsTrader()
         let savedHour = (g.object(forKey: "dayEndHour_v1") as? Int)
             ?? (UserDefaults.standard.object(forKey: "dayEndHour_v1") as? Int)
@@ -98,7 +98,7 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     }
     
     private func persist() {
-        // Пишем в App Group, а также дублируем в стандартные для обратной совместимости
+        // Write to App Group and duplicate to standard for backward compatibility
         let g = sharedDefaults
         g.set(todayAnchor, forKey: "todayAnchor")
         g.set(dailyBudgetMinutes, forKey: "dailyBudgetMinutes")
@@ -114,7 +114,7 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         d.set(dayEndMinute, forKey: "dayEndMinute_v1")
     }
 
-    // Принудительно перечитать значения из App Group (для синхронизации со сниппетом/интентом)
+    // Force re-read values from App Group (for syncing with snippet/intent)
     func reloadFromStorage() {
         let g = UserDefaults.stepsTrader()
         if let anchor = g.object(forKey: "todayAnchor") as? Date {

@@ -97,4 +97,39 @@ enum TargetResolver {
     static func urlScheme(forBundleId bundleId: String) -> String? {
         bundleToScheme[bundleId]
     }
+
+    /// Primary and fallback URL schemes to try when opening an app by bundle id (e.g. redirect from block screen).
+    static func primaryAndFallbackSchemes(for bundleId: String) -> [String] {
+        switch bundleId {
+        case "com.burbn.instagram":
+            return ["instagram://app", "instagram://", "instagram://feed", "instagram://camera"]
+        case "com.zhiliaoapp.musically":
+            return ["tiktok://"]
+        case "com.google.ios.youtube":
+            return ["youtube://"]
+        case "ph.telegra.Telegraph":
+            return ["tg://", "telegram://"]
+        case "net.whatsapp.WhatsApp":
+            return ["whatsapp://"]
+        case "com.toyopagroup.picaboo":
+            return ["snapchat://"]
+        case "com.facebook.Facebook":
+            return ["fb://", "facebook://"]
+        case "com.linkedin.LinkedIn":
+            return ["linkedin://"]
+        case "com.atebits.Tweetie2":
+            return ["twitter://", "x://"]
+        case "com.reddit.Reddit":
+            return ["reddit://"]
+        case "com.pinterest":
+            return ["pinterest://"]
+        case "com.duolingo.DuolingoMobile":
+            return ["duolingo://"]
+        default:
+            if let scheme = bundleToScheme[bundleId] {
+                return [scheme]
+            }
+            return ["instagram://"]
+        }
+    }
 }

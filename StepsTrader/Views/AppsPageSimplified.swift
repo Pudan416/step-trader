@@ -35,64 +35,93 @@ struct AppsPageSimplified: View {
     @ObservedObject var model: AppModel
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appTheme) private var theme
+    @Environment(\.topCardHeight) private var topCardHeight
     @State private var selection = FamilyActivitySelection()
     @State private var showPicker = false
     @State private var selectedGroupId: TicketGroupId? = nil
     @State private var showTemplatePicker = false
     @State private var showDifficultyPicker = false
     @State private var pendingGroupIdForDifficulty: String? = nil
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
+    // appLanguage removed — English only for v1
+    private let appLanguage = "en"
     @State private var expandedSheetGroupId: TicketGroupId? = nil
     @State private var flippedTicketId: String? = nil
 
     var body: some View {
         NavigationStack {
-            Group {
-                if model.ticketGroups.isEmpty {
-                    emptyTicketsContent
-                } else {
-                    ScrollView {
-                        ticketStack
-                            .padding(.horizontal, 20)
-                            .padding(.top, 4)
-                            .padding(.bottom, 80)
-                    }
-                    .frame(maxHeight: .infinity)
-                    .mask(
-                        VStack(spacing: 0) {
-                            LinearGradient(colors: [.clear, .black],
-                                           startPoint: .top, endPoint: .bottom)
-                                .frame(height: 20)
-                            Rectangle().fill(Color.black)
-                            LinearGradient(colors: [.black, .clear],
-                                           startPoint: .top, endPoint: .bottom)
-                                .frame(height: 40)
-                        }
-                    )
-                }
-            }
-            .background(theme.backgroundColor)
-            .navigationTitle(loc(appLanguage, "My Tickets"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(theme.backgroundColor, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+            ZStack {
+                EnergyGradientBackground(
+                    sleepPoints: model.sleepPointsToday,
+                    stepsPoints: model.stepsPointsToday
+                )
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+                VStack(spacing: 0) {
+                    // Custom inline header (replaces navigation title)
+                    HStack {
+                        Text("My Tickets")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        Spacer()
                     Button {
                         showTemplatePicker = true
                     } label: {
-                        Image(systemName: "plus")
+                        ZStack {
+                            Circle()
+                                .strokeBorder(Color.primary.opacity(0.15), lineWidth: 1)
+                                .frame(width: 36, height: 36)
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .ultraLight))
+                                .foregroundStyle(Color.primary.opacity(0.7))
+                        }
+                    }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+
+                    if model.blockingStore.ticketGroups.isEmpty {
+                        emptyTicketsContent
+                    } else {
+                        ScrollView {
+                            ticketStack
+                                .padding(.horizontal, 16)
+                                .padding(.top, 8)
+                                .padding(.bottom, 96)
+                        }
+                        .frame(maxHeight: .infinity)
                     }
                 }
+                .zIndex(0)
+
+                Image("grain 1")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .opacity(0.28)
+                    .blendMode(.overlay)
+                    .zIndex(10)
             }
+            .background(Color.clear)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: topCardHeight)
+            }
+            .navigationBarHidden(true)
             .sheet(item: $expandedSheetGroupId) { groupId in
-                if let index = model.ticketGroups.firstIndex(where: { $0.id == groupId.id }) {
-                    ticketSettingsSheet(group: $model.ticketGroups[index], onDismiss: { expandedSheetGroupId = nil })
+                if let index = model.blockingStore.ticketGroups.firstIndex(where: { $0.id == groupId.id }) {
+                    let groupBinding = Binding<TicketGroup>(
+                        get: { model.blockingStore.ticketGroups[index] },
+                        set: { updated in model.updateTicketGroup(updated) }
+                    )
+                    ticketSettingsSheet(group: groupBinding, onDismiss: { expandedSheetGroupId = nil })
                 }
             }
             .sheet(isPresented: $showPicker, onDismiss: {
                 if let groupId = selectedGroupId {
-                    if let group = model.ticketGroups.first(where: { $0.id == groupId.id }) {
+                    if let group = model.blockingStore.ticketGroups.first(where: { $0.id == groupId.id }) {
                         let hasApps = !group.selection.applicationTokens.isEmpty || !group.selection.categoryTokens.isEmpty
                         if !hasApps { model.deleteTicketGroup(groupId.id) }
                     }
@@ -102,14 +131,13 @@ struct AppsPageSimplified: View {
                 #if canImport(FamilyControls)
                 AppSelectionSheet(
                     selection: $selection,
-                    appLanguage: appLanguage,
-                    templateApp: selectedGroupId.flatMap { gid in model.ticketGroups.first(where: { $0.id == gid.id })?.templateApp },
+                    templateApp: selectedGroupId.flatMap { gid in model.blockingStore.ticketGroups.first(where: { $0.id == gid.id })?.templateApp },
                     onDone: {
                         if let groupId = selectedGroupId {
                             let hasApps = !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
                             if hasApps {
                                 model.addAppsToGroup(groupId.id, selection: selection)
-                                if let group = model.ticketGroups.first(where: { $0.id == groupId.id }), group.templateApp != nil {
+                                if let group = model.blockingStore.ticketGroups.first(where: { $0.id == groupId.id }), group.templateApp != nil {
                                     pendingGroupIdForDifficulty = groupId.id
                                     showPicker = false
                                     showDifficultyPicker = true
@@ -132,15 +160,15 @@ struct AppsPageSimplified: View {
             }
             .sheet(isPresented: $showDifficultyPicker) {
                 if let groupId = pendingGroupIdForDifficulty,
-                   let group = model.ticketGroups.first(where: { $0.id == groupId }) {
-                    DifficultyPickerView(model: model, group: group, appLanguage: appLanguage, onDone: {
+                   let group = model.blockingStore.ticketGroups.first(where: { $0.id == groupId }) {
+                    DifficultyPickerView(model: model, group: group, onDone: {
                         showDifficultyPicker = false; pendingGroupIdForDifficulty = nil; selectedGroupId = nil
                     })
                 }
             }
             .sheet(isPresented: $showTemplatePicker) {
                 TicketTemplatePickerView(
-                    model: model, appLanguage: appLanguage,
+                    model: model,
                     onTemplateSelected: { templateApp in
                         showTemplatePicker = false
                         let displayName = TargetResolver.displayName(for: templateApp)
@@ -151,7 +179,7 @@ struct AppsPageSimplified: View {
                     },
                     onCustomSelected: {
                         showTemplatePicker = false
-                        let group = model.createTicketGroup(name: loc(appLanguage, "New Ticket"), stickerThemeIndex: 0)
+                        let group = model.createTicketGroup(name: "New Ticket", stickerThemeIndex: 0)
                         selection = FamilyActivitySelection()
                         selectedGroupId = TicketGroupId(id: group.id)
                         showPicker = true
@@ -165,16 +193,14 @@ struct AppsPageSimplified: View {
     // MARK: - Ticket Stack
 
     private var ticketStack: some View {
-        VStack(spacing: -6) {  // negative spacing = overlap
-            ForEach(Array(visibleGroupIndices.enumerated()), id: \.element) { offset, index in
-                let group = model.ticketGroups[index]
+        LazyVStack(spacing: 14) {
+            ForEach(visibleGroupIndices, id: \.self) { index in
+                let group = model.blockingStore.ticketGroups[index]
                 let isFlipped = flippedTicketId == group.id
-                let stackAngle = Angle.degrees(Double(offset % 2 == 0 ? -0.6 : 0.6))
 
                 PaperTicketView(
                     model: model,
                     group: group,
-                    appLanguage: appLanguage,
                     colorScheme: colorScheme,
                     isFlipped: isFlipped,
                     onSettings: {
@@ -191,27 +217,20 @@ struct AppsPageSimplified: View {
                         }
                     }
                 )
-                .rotation3DEffect(
-                    Angle.degrees(isFlipped ? 180 : 0),
-                    axis: (x: 0, y: 1, z: 0),
-                    perspective: 0.5
-                )
-                .rotationEffect(isFlipped ? .zero : stackAngle)
-                .zIndex(isFlipped ? 100 : Double(visibleGroupIndices.count - offset))
+                .zIndex(isFlipped ? 10 : 0)
                 .contextMenu {
                     Button {
                         expandedSheetGroupId = TicketGroupId(id: group.id)
                     } label: {
-                        Label(loc(appLanguage, "Settings"), systemImage: "gearshape")
+                        Label("Settings", systemImage: "gearshape")
                     }
                     Button(role: .destructive) {
                         UINotificationFeedbackGenerator().notificationOccurred(.warning)
                         model.deleteTicketGroup(group.id)
                     } label: {
-                        Label(loc(appLanguage, "Delete"), systemImage: "trash")
+                        Label("Delete", systemImage: "trash")
                     }
                 }
-                .padding(.horizontal, offset % 2 == 0 ? 0 : 4) // slight stagger
             }
         }
     }
@@ -224,9 +243,9 @@ struct AppsPageSimplified: View {
                 .font(.system(size: 52, weight: .thin))
                 .foregroundStyle(.secondary)
             VStack(spacing: 8) {
-                Text(loc(appLanguage, "No tickets yet"))
+                Text("No tickets yet")
                     .font(.title3.weight(.semibold))
-                Text(loc(appLanguage, "Create your first ticket to collect experience"))
+                Text("No tickets yet. Create one when you're ready.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -235,7 +254,7 @@ struct AppsPageSimplified: View {
             Button {
                 showTemplatePicker = true
             } label: {
-                Label(loc(appLanguage, "New Ticket"), systemImage: "plus")
+                Label("New Ticket", systemImage: "plus")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
@@ -253,7 +272,7 @@ struct AppsPageSimplified: View {
         NavigationStack {
             ScrollView {
                 InlineTicketSettingsView(
-                    model: model, group: group, appLanguage: appLanguage,
+                    model: model, group: group,
                     onEditApps: {
                         selectedGroupId = TicketGroupId(id: group.wrappedValue.id)
                         selection = group.wrappedValue.selection
@@ -265,13 +284,13 @@ struct AppsPageSimplified: View {
                 .padding()
             }
             .background(theme.backgroundColor)
-            .navigationTitle(group.wrappedValue.name.isEmpty ? loc(appLanguage, "Ticket") : group.wrappedValue.name)
+            .navigationTitle(group.wrappedValue.name.isEmpty ? "Ticket" : group.wrappedValue.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(theme.backgroundColor, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Done")) { onDismiss() }
+                    Button("Done") { onDismiss() }
                 }
             }
             .onDisappear(perform: onDismiss)
@@ -279,8 +298,8 @@ struct AppsPageSimplified: View {
     }
 
     private var visibleGroupIndices: [Int] {
-        model.ticketGroups.indices.filter { idx in
-            let g = model.ticketGroups[idx]
+        model.blockingStore.ticketGroups.indices.filter { idx in
+            let g = model.blockingStore.ticketGroups[idx]
             return g.selection.applicationTokens.count > 0 || g.selection.categoryTokens.count > 0
         }
     }
@@ -294,7 +313,7 @@ struct AppsPageSimplified: View {
 fileprivate struct PaperTicketView: View {
     @ObservedObject var model: AppModel
     let group: TicketGroup
-    let appLanguage: String
+    let appLanguage: String = "en"
     let colorScheme: ColorScheme
     let isFlipped: Bool
     var onSettings: () -> Void = {}
@@ -302,20 +321,14 @@ fileprivate struct PaperTicketView: View {
 
     @State private var isUnlocking = false
 
-    private var frontFill: Color { TicketsPalette.accent }
-    // Always light back: warm paper tone regardless of dark mode
-    private var backSurface: Color {
-        Color(red: 0xF5/255.0, green: 0xF0/255.0, blue: 0xE8/255.0) // #F5F0E8 warm paper
-    }
+    private var frontFill: Color { Color(red: 0.95, green: 0.86, blue: 0.28) }
+    private var backSurface: Color { .white }
     private var backIsDark: Bool { false } // back is always light
 
-    private var frontInk: Color { Color.black.opacity(0.86) }
-    private var frontSecondaryInk: Color { Color.black.opacity(0.58) }
-    private var backInk: Color { Color.black.opacity(0.86) }
-    private var backSecondaryInk: Color { Color.black.opacity(0.58) }
-
-    private var frontPerf: Color { frontInk.opacity(0.18) }
-    private var backPerf: Color { backInk.opacity(0.22) }
+    private var frontInk: Color { .black }
+    private var frontSecondaryInk: Color { .black }
+    private var backInk: Color { .black }
+    private var backSecondaryInk: Color { .black }
 
     private var isUnlocked: Bool { model.isGroupUnlocked(group.id) }
     private var appsCount: Int {
@@ -331,172 +344,174 @@ fileprivate struct PaperTicketView: View {
     }
 
     var body: some View {
-        ZStack {
+        Group {
             if isFlipped {
-                backSide
-                    .scaleEffect(x: -1, y: 1) // counteract parent's 180° Y flip so text reads LTR
+                backRayCard
             } else {
-                frontSide
+                frontRayCard
             }
         }
         .animation(.easeInOut(duration: 0.3), value: isFlipped)
     }
 
-    // MARK: - Front: museum ticket
+    // MARK: - Front/back ray cards
 
-    private var frontSide: some View {
-        HStack(spacing: 0) {
-            // Left stub
-            VStack(spacing: 6) {
-                ticketIcon
-                    .frame(width: 36, height: 36)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+    private var frontRayCard: some View {
+        ZStack {
+            RayCapsuleSurface(baseColor: frontFill, direction: .left)
+
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.black)
+                    ticketIcon
+                        .frame(width: 18, height: 18)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                }
+                .frame(width: 38, height: 38)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(ticketTitle)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.black)
+                            .lineLimit(1)
+                        Spacer()
+                        Text(isUnlocked ? "open" : "active")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(Color.black)
+                    }
+
+                    Text("\(appsCount) \(appsCount == 1 ? "app" : "apps")")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.black)
+
+                    Text("\(spentToday) exp today   \(spentLifetime) exp total")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.black)
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(width: 64)
-            .frame(maxHeight: .infinity)
-
-            // Dashed perforation line
-            PerforationLine(color: frontPerf)
-                .frame(width: 1)
-
-            // Main body
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(ticketTitle)
-                        .font(.system(.headline, design: .rounded))
-                        .foregroundStyle(frontInk)
-                        .lineLimit(1)
-                    Spacer()
-                    statusPill
-                }
-                HStack(spacing: 12) {
-                    Label("\(appsCount) \(appsCount == 1 ? "app" : "apps")", systemImage: "app.fill")
-                        .font(.caption)
-                        .foregroundStyle(frontSecondaryInk)
-                    if group.difficultyLevel > 1 {
-                        difficultyDots
-                    }
-                }
-
-                // Experience spent stats
-                HStack(spacing: 16) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 9))
-                        Text("\(spentToday)")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                        Text(loc(appLanguage, "today"))
-                            .font(.system(size: 10, design: .rounded))
-                    }
-                    .foregroundStyle(frontSecondaryInk)
-
-                    HStack(spacing: 3) {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 9))
-                        Text("\(spentLifetime)")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                        Text(loc(appLanguage, "total"))
-                            .font(.system(size: 10, design: .rounded))
-                    }
-                    .foregroundStyle(frontSecondaryInk.opacity(0.7))
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 14)
+            .padding(.trailing, 16)
+            .padding(.vertical, 10)
         }
-        .frame(height: 116)
-        .background(
-            TicketShape()
-                .fill(frontFill)
-        )
-        .clipShape(TicketShape())
-        .overlay(TicketShape().stroke(frontInk.opacity(0.12), lineWidth: 0.75))
-        .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.14), radius: 8, x: 0, y: 4)
-        .contentShape(TicketShape())
+        .frame(height: 90)
+        .contentShape(Rectangle())
         .onTapGesture { onFlip() }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    if abs(value.translation.width) > 50 {
+                        onFlip()
+                    }
+                }
+        )
     }
 
-    // MARK: - Back: unlock actions + settings (stub on right)
+    private var backRayCard: some View {
+        ZStack {
+            RayCapsuleSurface(baseColor: backSurface, direction: .right)
 
-    private var backSide: some View {
-        HStack(spacing: 0) {
-            // Main body: unlock buttons or "unlocked" status
-            VStack(alignment: .leading, spacing: 6) {
-                if isUnlocked {
-                    HStack(spacing: 8) {
-                        Image(systemName: "lock.open.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(backInk)
-                        if let remaining = model.remainingUnlockTime(for: group.id), remaining > 0 {
-                            Text("\(formatTime(remaining)) " + loc(appLanguage, "left"))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(backInk)
-                        } else {
-                            Text(loc(appLanguage, "Open"))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(backInk)
-                        }
-                        Spacer()
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Button {
+                        onFlip()
+                    } label: {
+                        Label("Tap to return", systemImage: "arrow.uturn.backward.circle")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.black)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(Color.white.opacity(0.72))
+                                    .overlay(
+                                        Capsule().stroke(Color.black.opacity(0.10), lineWidth: 0.7)
+                                    )
+                            )
                     }
-                } else {
-                    Text(loc(appLanguage, "Trade exp for time"))
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(backSecondaryInk)
-                        .textCase(.uppercase)
-                        .tracking(0.5)
+                    .buttonStyle(.plain)
 
-                    let enabledIntervals = intervals.filter { group.enabledIntervals.contains($0) }
-                    HStack(spacing: 6) {
-                        ForEach(enabledIntervals, id: \.self) { interval in
-                            unlockPill(interval: interval)
+                    if isUnlocked {
+                        HStack(spacing: 5) {
+                            Image(systemName: "lock.open")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.black)
+                            if let remaining = model.remainingUnlockTime(for: group.id), remaining > 0 {
+                                Text("\(formatTime(remaining)) left")
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(Color.black)
+                            } else {
+                                Text("Unlocked")
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(Color.black)
+                            }
+                            Spacer()
                         }
-                        Spacer(minLength: 0)
+                        Text("Adjust settings on the right")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(Color.black.opacity(0.62))
+                    } else {
+                        Text("Unlock for time")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.black)
+
+                        let enabledIntervals = intervals.filter { group.enabledIntervals.contains($0) }
+                        HStack(spacing: 4) {
+                            ForEach(enabledIntervals, id: \.self) { interval in
+                                unlockPill(interval: interval)
+                            }
+                            Spacer(minLength: 0)
+                        }
                     }
                 }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .onTapGesture { onFlip() }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Perforation + stub on the RIGHT
-            PerforationLine(color: backPerf)
-                .frame(width: 1)
+                Rectangle()
+                    .fill(Color.black.opacity(0.10))
+                    .frame(width: 1)
+                    .padding(.vertical, 9)
 
-            VStack(spacing: 6) {
                 Button {
                     onSettings()
                 } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.title3)
-                        .foregroundStyle(backInk)
-                        .frame(width: 64, height: 116)
-                        .contentShape(Rectangle())
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.45))
+                            .overlay(Circle().stroke(Color.black.opacity(0.08), lineWidth: 0.8))
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(Color.black)
+                    }
+                    .frame(width: 40, height: 40)
+                    .frame(width: 58, height: 90)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
-            .frame(width: 64)
-            .frame(maxHeight: .infinity)
         }
-        .frame(height: 116)
-        .background(
-            TicketShape(stubOnRight: true)
-                .fill(backSurface)
+        .frame(height: 90)
+        .contentShape(Rectangle())
+        .onTapGesture { onFlip() }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    if abs(value.translation.width) > 50 {
+                        onFlip()
+                    }
+                }
         )
-        .clipShape(TicketShape(stubOnRight: true))
-        .overlay(TicketShape(stubOnRight: true).stroke(backInk.opacity(0.18), lineWidth: 0.75))
-        .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.14), radius: 8, x: 0, y: 4)
     }
 
     // MARK: - Unlock pill button
 
     private func unlockPill(interval: AccessWindow) -> some View {
         let cost = group.cost(for: interval)
-        let canAfford = model.totalStepsBalance >= cost
+        let canAfford = model.userEconomyStore.totalStepsBalance >= cost
         let label = shortTimeLabel(interval)
 
         return Button {
@@ -508,29 +523,24 @@ fileprivate struct PaperTicketView: View {
                 isUnlocking = false
             }
         } label: {
-            VStack(spacing: 3) {
-                Text(label)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                HStack(spacing: 2) {
-                    Text(loc(appLanguage, "for"))
-                        .font(.system(size: 9, design: .rounded))
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 8))
-                    Text("\(cost)")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                }
-                .opacity(0.75)
-            }
-            .foregroundStyle(canAfford ? Color.black.opacity(0.88) : backInk.opacity(0.45))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            Text("\(label) · \(cost) exp")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+            .foregroundStyle(Color.black)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
             .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(canAfford ? TicketsPalette.accent : Color.black.opacity(0.08))
+                Capsule()
+                    .fill(Color.white.opacity(0.92))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.black.opacity(0.12), lineWidth: 0.7)
+                    )
             )
         }
         .buttonStyle(.plain)
+        .opacity(canAfford ? 1.0 : 0.45)
         .disabled(!canAfford || isUnlocking)
     }
 
@@ -579,7 +589,7 @@ fileprivate struct PaperTicketView: View {
                         .padding(.vertical, 3)
                         .background(Capsule().fill(Color.white.opacity(0.55)))
                 } else {
-                    Text(loc(appLanguage, "Open"))
+                    Text("Open")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(frontInk)
                         .padding(.horizontal, 8)
@@ -589,7 +599,7 @@ fileprivate struct PaperTicketView: View {
             } else {
                 HStack(spacing: 3) {
                     Image(systemName: "lock.fill").font(.system(size: 8))
-                    Text(loc(appLanguage, "Active"))
+                    Text("Active")
                 }
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(frontSecondaryInk)
@@ -622,7 +632,7 @@ fileprivate struct PaperTicketView: View {
             if let name = defaults.string(forKey: tokenKey) { return name }
         }
         #endif
-        if appsCount == 0 { return loc(appLanguage, "Empty Ticket") }
+        if appsCount == 0 { return "Empty Ticket" }
         return group.name.isEmpty ? "\(appsCount) \(appsCount == 1 ? "app" : "apps")" : group.name
     }
 
@@ -639,9 +649,90 @@ fileprivate struct PaperTicketView: View {
     }
 
     private func difficultyLabel(for level: Int) -> String {
-        switch level {
-        case 1: return "Rookie"; case 2: return "Rebel"; case 3: return "Fighter"
-        case 4: return "Warrior"; case 5: return "Legend"; default: return "–"
+        guard (1...5).contains(level) else { return "Level -" }
+        return "Level \(level)"
+    }
+
+}
+
+fileprivate enum RayDirection {
+    case left
+    case right
+}
+
+/// Native SwiftUI recreation of ray SVG surfaces:
+/// - `ray 1`: radial shade anchored on the left
+/// - `ray 2`: radial shade anchored on the right
+fileprivate struct RayCapsuleSurface: View {
+    let baseColor: Color
+    let direction: RayDirection
+
+    // Extracted from ray1/ray2 SVGs: 341x65 with radial stop at 0.889432.
+    private let gradientStop: CGFloat = 0.889432
+    private let radiusScale: CGFloat = 310.5 / 341.0
+
+    private var center: UnitPoint {
+        switch direction {
+        case .left:
+            return UnitPoint(x: 26.0 / 341.0, y: 32.5 / 65.0)
+        case .right:
+            return UnitPoint(x: 315.0 / 341.0, y: 32.5 / 65.0)
+        }
+    }
+
+    private var alphaGradient: LinearGradient {
+        switch direction {
+        case .left:
+            // Front side: bright left -> transparent right.
+            return LinearGradient(
+                stops: [
+                    .init(color: .white, location: 0.00),
+                    .init(color: .white.opacity(0.75), location: 0.20),
+                    .init(color: .white.opacity(0.50), location: 0.35),
+                    .init(color: .white.opacity(0.20), location: 0.50),
+                    .init(color: .clear, location: 0.75)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        case .right:
+            // Back side: bright right -> transparent left.
+            return LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.25),
+                    .init(color: .white.opacity(0.20), location: 0.50),
+                    .init(color: .white.opacity(0.50), location: 0.65),
+                    .init(color: .white.opacity(0.75), location: 0.80),
+                    .init(color: .white, location: 1.00)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            Capsule()
+                .fill(baseColor)
+                .overlay(
+                    Capsule().fill(
+                        RadialGradient(
+                            stops: [
+                                .init(color: .black.opacity(0.12), location: 0),
+                                .init(color: .clear, location: gradientStop)
+                            ],
+                            center: center,
+                            startRadius: 0,
+                            endRadius: width * radiusScale
+                        )
+                    )
+                )
+                .mask(
+                    Capsule()
+                        .fill(alphaGradient)
+                )
         }
     }
 }
@@ -736,7 +827,7 @@ fileprivate struct PerforationLine: View {
 // MARK: - Ticket Template Picker
 struct TicketTemplatePickerView: View {
     @ObservedObject var model: AppModel
-    let appLanguage: String
+    let appLanguage: String = "en"
     let onTemplateSelected: (String) -> Void
     let onCustomSelected: () -> Void
     @Environment(\.dismiss) private var dismiss
@@ -764,7 +855,7 @@ struct TicketTemplatePickerView: View {
     
     // Filter out templates that are already used
     private var availableTemplates: [Template] {
-        let usedTemplateApps = Set(model.ticketGroups.compactMap { $0.templateApp })
+        let usedTemplateApps = Set(model.blockingStore.ticketGroups.compactMap { $0.templateApp })
         return Self.allTemplates.filter { !usedTemplateApps.contains($0.bundleId) }
     }
     
@@ -794,10 +885,10 @@ struct TicketTemplatePickerView: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(loc(appLanguage, "Custom Ticket"))
+                                Text("Custom Ticket")
                                     .font(.headline)
                                     .foregroundColor(.primary)
-                                Text(loc(appLanguage, "Choose your own apps"))
+                                Text("Choose your own apps")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -821,13 +912,13 @@ struct TicketTemplatePickerView: View {
                     
                     // Templates section
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(loc(appLanguage, "Templates"))
+                        Text("Templates")
                             .font(.headline)
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 4)
                         
                         if availableTemplates.isEmpty {
-                            Text(loc(appLanguage, "All templates are already in use"))
+                            Text("All templates are already in use")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .padding(.vertical, 20)
@@ -847,13 +938,13 @@ struct TicketTemplatePickerView: View {
                 .padding()
             }
             .background(theme.backgroundColor)
-            .navigationTitle(loc(appLanguage, "New Ticket"))
+            .navigationTitle("New Ticket")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(theme.backgroundColor, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Cancel")) {
+                    Button("Cancel") {
                         dismiss()
                     }
                 }
@@ -910,7 +1001,7 @@ struct TicketTemplatePickerView: View {
 struct InlineTicketSettingsView: View {
     @ObservedObject var model: AppModel
     @Binding var group: TicketGroup
-    let appLanguage: String
+    let appLanguage: String = "en"
     let onEditApps: () -> Void
     var onAfterDelete: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
@@ -926,7 +1017,7 @@ struct InlineTicketSettingsView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Spend experience buttons - main content
+            // Spend exp buttons - main content
             unlockButtonsSection
             
             Divider()
@@ -938,7 +1029,7 @@ struct InlineTicketSettingsView: View {
                     showEditSettings.toggle()
                 }
             } label: {
-                rowButtonLabel(icon: "gearshape.fill", title: loc(appLanguage, "Edit settings"), showChevron: true, expanded: showEditSettings, surface: surface, separator: separator)
+                rowButtonLabel(icon: "gearshape.fill", title: "Edit settings", showChevron: true, expanded: showEditSettings, surface: surface, separator: separator)
             }
             .buttonStyle(.plain)
             
@@ -956,7 +1047,7 @@ struct InlineTicketSettingsView: View {
             Button {
                 onEditApps()
             } label: {
-                rowButtonLabel(icon: "square.grid.2x2", title: loc(appLanguage, "Edit Apps"), showChevron: true, expanded: false, surface: surface, separator: separator)
+                rowButtonLabel(icon: "square.grid.2x2", title: "Edit Apps", showChevron: true, expanded: false, surface: surface, separator: separator)
             }
             .buttonStyle(.plain)
             
@@ -970,7 +1061,7 @@ struct InlineTicketSettingsView: View {
                         .font(.body)
                         .foregroundColor(.red)
                         .frame(width: 24)
-                    Text(loc(appLanguage, "Delete"))
+                    Text("Delete")
                         .font(.subheadline.weight(.medium))
                         .foregroundColor(.red)
                     Spacer()
@@ -1034,7 +1125,7 @@ struct InlineTicketSettingsView: View {
             HStack {
                 Image(systemName: "dial.high.fill")
                     .foregroundColor(inlineDifficultyColor(for: group.difficultyLevel))
-                Text(loc(appLanguage, "Difficulty"))
+                Text("Difficulty")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                 Spacer()
@@ -1066,11 +1157,11 @@ struct InlineTicketSettingsView: View {
                 ForEach(intervals, id: \.self) { interval in
                     if group.enabledIntervals.contains(interval) {
                         HStack(spacing: 4) {
-                            Image(systemName: "bolt.fill")
-                                .font(.caption2)
                             Text("\(group.cost(for: interval))")
                                 .font(.caption.weight(.semibold))
                                 .monospacedDigit()
+                            Text("experience")
+                                .font(.caption2)
                         }
                         .foregroundColor(inlineDifficultyColor(for: group.difficultyLevel))
                         .padding(.horizontal, 8)
@@ -1097,7 +1188,7 @@ struct InlineTicketSettingsView: View {
     // MARK: - Time intervals (tariffs)
     private var inlineIntervalsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(loc(appLanguage, "Time options"))
+            Text("Time options")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
             
@@ -1155,10 +1246,10 @@ struct InlineTicketSettingsView: View {
                         .font(.title2)
                         .foregroundColor(accent)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(loc(appLanguage, "Open"))
+                        Text("Open")
                             .font(.headline)
                             .foregroundStyle(.primary)
-                        Text("\(formatRemaining(remaining)) " + loc(appLanguage, "left"))
+                        Text("\(formatRemaining(remaining)) left")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -1177,7 +1268,7 @@ struct InlineTicketSettingsView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Text(loc(appLanguage, "Spend experience on"))
+                Text("Spend exp on")
                     .font(.caption.weight(.semibold))
                     .foregroundColor(.secondary)
                 
@@ -1192,7 +1283,7 @@ struct InlineTicketSettingsView: View {
     
     private func quickUnlockButton(interval: AccessWindow) -> some View {
         let cost = group.cost(for: interval)
-        let canAfford = model.totalStepsBalance >= cost
+        let canAfford = model.userEconomyStore.totalStepsBalance >= cost
         let timeLabel = unlockOptionLabel(interval)
         
         return Button {
@@ -1217,11 +1308,11 @@ struct InlineTicketSettingsView: View {
                 
                 // Cost - with icon
                 HStack(spacing: 4) {
-                    Image(systemName: "bolt.fill")
-                        .font(.body)
                     Text("\(cost)")
                         .font(.headline)
                         .monospacedDigit()
+                    Text("experience")
+                        .font(.subheadline)
                 }
                 .foregroundStyle(canAfford ? Color.primary : Color.primary.opacity(0.5))
             }
@@ -1252,21 +1343,15 @@ struct InlineTicketSettingsView: View {
     }
     
     private var difficultyLabel: String {
-        switch group.difficultyLevel {
-        case 1: return "Rookie"
-        case 2: return "Rebel"
-        case 3: return "Fighter"
-        case 4: return "Warrior"
-        case 5: return "Legend"
-        default: return "Fighter"
-        }
+        let safeLevel = min(max(group.difficultyLevel, 1), 5)
+        return "Level \(safeLevel)"
     }
     
     private func unlockOptionLabel(_ interval: AccessWindow) -> String {
         switch interval {
-        case .minutes10: return loc(appLanguage, "a bit (10 min)")
-        case .minutes30: return loc(appLanguage, "quite a bit (30 min)")
-        case .hour1: return loc(appLanguage, "some time (1 hour)")
+        case .minutes10: return "10 min"
+        case .minutes30: return "30 min"
+        case .hour1: return "1 hour"
         }
     }
 }
@@ -1275,7 +1360,7 @@ struct InlineTicketSettingsView: View {
 struct DifficultyPickerView: View {
     @ObservedObject var model: AppModel
     @State var group: TicketGroup
-    let appLanguage: String
+    let appLanguage: String = "en"
     let onDone: () -> Void
     @Environment(\.appTheme) private var theme
     @Environment(\.dismiss) private var dismiss
@@ -1286,9 +1371,9 @@ struct DifficultyPickerView: View {
                 VStack(spacing: 24) {
                     // Header
                     VStack(spacing: 8) {
-                        Text(loc(appLanguage, "Choose Difficulty Level"))
+                        Text("Choose Difficulty Level")
                             .font(.title2.weight(.bold))
-                        Text(loc(appLanguage, "Higher difficulty means higher energy cost"))
+                        Text("Higher difficulty means higher energy cost")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -1317,7 +1402,7 @@ struct DifficultyPickerView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(loc(appLanguage, "Done")) {
+                    Button("Done") {
                         model.updateTicketGroup(group)
                         onDone()
                     }
@@ -1382,7 +1467,7 @@ struct DifficultyPickerView: View {
     
     private var costPreviewSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(loc(appLanguage, "Energy Cost Preview"))
+            Text("Energy Cost Preview")
                 .font(.headline)
             
             LazyVGrid(columns: [
@@ -1396,10 +1481,10 @@ struct DifficultyPickerView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         HStack(spacing: 2) {
-                            Image(systemName: "bolt.fill")
-                                .font(.caption2)
                             Text("\(group.cost(for: interval))")
                                 .font(.subheadline.weight(.semibold))
+                            Text("experience")
+                                .font(.caption2)
                         }
                         .foregroundColor(difficultyColor(for: group.difficultyLevel))
                     }
@@ -1431,25 +1516,18 @@ struct DifficultyPickerView: View {
     }
     
     private func difficultyLabel(for level: Int) -> String {
-        switch level {
-        case 1: return loc(appLanguage, "Rookie")
-        case 2: return loc(appLanguage, "Rebel")
-        case 3: return loc(appLanguage, "Fighter")
-        case 4: return loc(appLanguage, "Warrior")
-        case 5: return loc(appLanguage, "Legend")
-        default: return loc(appLanguage, "Fighter")
-        }
+        let safeLevel = min(max(level, 1), 5)
+        return "Level \(safeLevel)"
     }
     
     private func difficultyDescription(for level: Int) -> String {
         switch level {
-        case 1: return loc(appLanguage, "Lowest energy cost")
-        case 2: return loc(appLanguage, "Low energy cost")
-        case 3: return loc(appLanguage, "Moderate energy cost")
-        case 4: return loc(appLanguage, "High energy cost")
-        case 5: return loc(appLanguage, "Highest energy cost")
+        case 1: return "Lowest energy cost"
+        case 2: return "Low energy cost"
+        case 3: return "Moderate energy cost"
+        case 4: return "High energy cost"
+        case 5: return "Highest energy cost"
         default: return ""
         }
     }
 }
-

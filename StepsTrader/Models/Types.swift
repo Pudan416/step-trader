@@ -18,7 +18,7 @@ struct HandoffToken: Codable {
     let tokenId: String
     
     var isExpired: Bool {
-        Date().timeIntervalSince(createdAt) > 60 // Токен действителен 1 минуту
+        Date().timeIntervalSince(createdAt) > 60 // Token valid for 1 minute
     }
 }
 
@@ -102,7 +102,7 @@ enum Tariff: String, CaseIterable {
         }
     }
     
-    // Стоимость одного входа (шаги за вход)
+    // Cost per entry (steps per entry)
     var entryCostSteps: Int {
         switch self {
         case .free: return 0
@@ -170,23 +170,20 @@ enum AppTheme: String, CaseIterable {
     case system
     case daylight   // Daytime resistance — warm paper
     case night      // Night and screens
-    case minimal    // Monochrome, max minimalism
     
     var displayNameEn: String {
         switch self {
         case .system: return "System"
         case .daylight: return "Daylight"
         case .night: return "Night"
-        case .minimal: return "Minimal"
         }
     }
     
     var displayNameRu: String {
         switch self {
-        case .system: return "Системная"
-        case .daylight: return "Дневная"
-        case .night: return "Ночная"
-        case .minimal: return "Минимализм"
+        case .system: return "System"
+        case .daylight: return "Daylight"
+        case .night: return "Night"
         }
     }
     
@@ -195,7 +192,6 @@ enum AppTheme: String, CaseIterable {
         case .system: return nil
         case .daylight: return .light
         case .night: return .dark
-        case .minimal: return .light
         }
     }
     
@@ -203,17 +199,13 @@ enum AppTheme: String, CaseIterable {
         switch self {
         case .daylight: return true
         case .night: return false
-        case .minimal: return true
         case .system: return true
         }
     }
     
     // Dusty chalk pink — same across all themes
     var accentColor: Color {
-        switch self {
-        case .minimal: return AppColors.Minimal.mono
-        default: return AppColors.brandPink
-        }
+        AppColors.brandPink
     }
     
     var backgroundColor: Color {
@@ -230,7 +222,6 @@ enum AppTheme: String, CaseIterable {
 #endif
         case .daylight: return AppColors.Daylight.background
         case .night: return AppColors.Night.background
-        case .minimal: return AppColors.Minimal.background
         }
     }
     
@@ -239,7 +230,6 @@ enum AppTheme: String, CaseIterable {
         case .system: return Color(.secondarySystemBackground)
         case .daylight: return AppColors.Daylight.backgroundSecondary
         case .night: return AppColors.Night.backgroundSecondary
-        case .minimal: return AppColors.Minimal.backgroundSecondary
         }
     }
     
@@ -248,7 +238,6 @@ enum AppTheme: String, CaseIterable {
         case .system: return Color(.label)
         case .daylight: return AppColors.Daylight.textPrimary
         case .night: return AppColors.Night.textPrimary
-        case .minimal: return AppColors.Minimal.textPrimary
         }
     }
     
@@ -257,7 +246,6 @@ enum AppTheme: String, CaseIterable {
         case .system: return Color(.secondaryLabel)
         case .daylight: return AppColors.Daylight.textSecondary
         case .night: return AppColors.Night.textSecondary
-        case .minimal: return AppColors.Minimal.textSecondary
         }
     }
     
@@ -266,52 +254,46 @@ enum AppTheme: String, CaseIterable {
         case .system: return Color(.separator)
         case .daylight: return AppColors.Daylight.stroke
         case .night: return AppColors.Night.stroke
-        case .minimal: return AppColors.Minimal.stroke
         }
     }
     
     var strokeOpacity: Double {
-        switch self {
-        case .minimal: return 1.0
-        default: return 0.15
-        }
+        0.15
     }
     
-    var activityColor: Color {
+    var bodyColor: Color {
         switch self {
         case .system: return .green
         case .daylight: return AppColors.Daylight.activity
         case .night: return AppColors.Night.activity
-        case .minimal: return AppColors.Minimal.mono
         }
     }
-    
-    var restColor: Color {
+
+    var mindColor: Color {
         switch self {
         case .system: return .blue
         case .daylight: return AppColors.Daylight.rest
         case .night: return AppColors.Night.rest
-        case .minimal: return AppColors.Minimal.mono
         }
     }
-    
-    var joysColor: Color {
+
+    var heartColor: Color {
         switch self {
         case .system: return .orange
         case .daylight: return AppColors.Daylight.joys
         case .night: return AppColors.Night.joys
-        case .minimal: return AppColors.Minimal.mono
         }
     }
     
     static var selectableThemes: [AppTheme] {
-        [.system, .daylight, .night, .minimal]
+        [.system, .daylight, .night]
     }
     
     static func normalized(rawValue: String) -> AppTheme {
         switch rawValue {
         case "light": return .daylight
         case "dark": return .night
+        case "minimal": return .system
         default: return AppTheme(rawValue: rawValue) ?? .system
         }
     }

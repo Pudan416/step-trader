@@ -4,8 +4,8 @@ import SwiftUI
 struct MeView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var authService = AuthenticationService.shared
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @Environment(\.appTheme) private var theme
+    @Environment(\.topCardHeight) private var topCardHeight
     @State private var pastDays: [String: PastDaySnapshot] = [:]
     @State private var selectedDayKey: String? = nil
     @State private var showLogin = false
@@ -13,33 +13,46 @@ struct MeView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Profile header - centered, large avatar
-                profileHeaderSection
-                    .padding(.top, 12)
-                
-                Divider()
-                    .padding(.vertical, 10)
-                
-                // Main content (no scroll)
-                VStack(spacing: 16) {
-                    // Last 7 days horizontal with yellow fill
-                    compactJourneySection
+            ZStack {
+                EnergyGradientBackground(
+                    sleepPoints: model.sleepPointsToday,
+                    stepsPoints: model.stepsPointsToday
+                )
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+                VStack(spacing: 0) {
+                    // Profile header - centered, large avatar
+                    profileHeaderSection
+                        .padding(.top, 12)
                     
-                    // Top gallery - large like on gallery screen
-                    largeTopGallerySection
+                    Divider()
+                        .padding(.vertical, 10)
                     
-                    Spacer()
-                    
-                    // Stats grid - small at bottom
-                    smallStatsSection
-                        .padding(.bottom, 80)
+                    // Main content (no scroll)
+                    VStack(spacing: 16) {
+                        // Last 7 days horizontal with yellow fill
+                        compactJourneySection
+                        
+                        // Weekly reflection card
+                        weeklyReflectionSection
+                        
+                        // Top gallery - large like on gallery screen
+                        largeTopGallerySection
+                        
+                        Spacer()
+                        
+                        // Stats grid - small at bottom
+                        smallStatsSection
+                            .padding(.bottom, 80)
+                    }
+                    .padding(.horizontal, 16)
                 }
-                .padding(.horizontal, 16)
             }
-            .background(theme.backgroundColor)
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: topCardHeight)
+            }
+            .navigationBarHidden(true)
             .onAppear {
                 loadAllSnapshots()
             }
@@ -57,7 +70,6 @@ struct MeView: View {
                     model: model,
                     dayKey: wrapper.key,
                     snapshot: pastDays[wrapper.key],
-                    appLanguage: appLanguage,
                     onDismiss: { selectedDayKey = nil }
                 )
             }
@@ -127,7 +139,7 @@ struct MeView: View {
                             .font(.system(size: 28))
                             .foregroundColor(.secondary)
                     }
-                    Text(loc(appLanguage, "Sign in"))
+                    Text("Sign in")
                         .font(.subheadline.weight(.medium))
                         .foregroundColor(.primary)
                 }
@@ -173,7 +185,7 @@ struct MeView: View {
     // MARK: - Compact Journey (last 7 days horizontal)
     private var compactJourneySection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(loc(appLanguage, "Last 7 days"))
+            Text("Last 7 days")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.secondary)
             
@@ -190,6 +202,12 @@ struct MeView: View {
         }
     }
     
+    private var weeklyReflectionSection: some View {
+        let snapshots = last7DayKeys.compactMap { pastDays[$0] }
+        let reflection = buildWeeklyReflection(from: snapshots)
+        return WeeklyReflectionCard(reflection: reflection)
+    }
+    
     private func compactDayCircle(dayKey: String) -> some View {
         Button {
             selectedDayKey = dayKey
@@ -203,10 +221,10 @@ struct MeView: View {
                         .stroke(Color.primary, lineWidth: 1)
                         .frame(width: 36, height: 36)
                     
-                    // Yellow fill based on experience balance
+                    // Yellow fill based on exp balance
                     if let snap = snapshot {
-                        let gained = snap.controlGained
-                        let spent = snap.controlSpent
+                        let gained = snap.experienceEarned
+                        let spent = snap.experienceSpent
                         let remaining = max(0, gained - spent)
                         
                         // Assume max energy = 100 for percentage
@@ -256,7 +274,7 @@ struct MeView: View {
         guard let date = formatter.date(from: dayKey) else { return "" }
         
         formatter.dateFormat = "EEE"
-        formatter.locale = Locale(identifier: appLanguage == "ru" ? "ru" : "en")
+        formatter.locale = Locale(identifier: "en")
         return String(formatter.string(from: date).prefix(3))
     }
 
@@ -265,14 +283,64 @@ struct MeView: View {
         let keys = pastDays.keys.sorted(by: <)
         return Array(keys.suffix(7))
     }
+    
+    private func buildWeeklyReflection(from snapshots: [PastDaySnapshot]) -> WeeklyReflectionData {
+        guard !snapshots.isEmpty else {
+            return WeeklyReflectionData(
+                periodLabel: "Last 7 days",
+                headline: "No reflection yet",
+                subheadline: "Use a ticket and come back tomorrow.",
+                gained: 0,
+                spent: 0,
+                kept: 0,
+                strongestRoom: "—"
+            )
+        }
+        
+        let gained = snapshots.reduce(0) { $0 + $1.experienceEarned }
+        let spent = snapshots.reduce(0) { $0 + $1.experienceSpent }
+        let kept = max(0, gained - spent)
+        
+        let activityCount = snapshots.reduce(0) { $0 + $1.bodyIds.count }
+        let creativityCount = snapshots.reduce(0) { $0 + $1.mindIds.count }
+        let joysCount = snapshots.reduce(0) { $0 + $1.heartIds.count }
+        let roomCounts: [(String, Int)] = [
+            ("Activity", activityCount),
+            ("Creativity", creativityCount),
+            ("Joys", joysCount)
+        ]
+        let strongestRoom = roomCounts.max(by: { $0.1 < $1.1 })?.0 ?? "—"
+        
+        let keepRate = gained > 0 ? Int((Double(kept) / Double(gained)) * 100.0) : 0
+        let headline: String
+        if keepRate >= 70 {
+            headline = "Strong week"
+        } else if keepRate >= 40 {
+            headline = "Balanced week"
+        } else {
+            headline = "Expensive week"
+        }
+        
+        let subheadline = "You kept \(keepRate)% of earned experience."
+        
+        return WeeklyReflectionData(
+            periodLabel: "Last 7 days",
+            headline: headline,
+            subheadline: subheadline,
+            gained: gained,
+            spent: spent,
+            kept: kept,
+            strongestRoom: strongestRoom
+        )
+    }
 
     private func topOptionId(for category: EnergyCategory, from snapshots: [PastDaySnapshot]) -> String? {
         var counts: [String: Int] = [:]
         for s in snapshots {
             let ids: [String] = switch category {
-            case .activity: s.activityIds
-            case .creativity: s.creativityIds
-            case .joys: s.joysIds
+            case .body: s.bodyIds
+            case .mind: s.mindIds
+            case .heart: s.heartIds
             }
             for id in ids {
                 counts[id, default: 0] += 1
@@ -284,12 +352,12 @@ struct MeView: View {
     private func optionTitle(for optionId: String) -> String {
         if optionId.hasPrefix("custom_") {
             if let custom = model.customEnergyOptions.first(where: { $0.id == optionId }) {
-                return appLanguage == "ru" ? custom.titleRu : custom.titleEn
+                return custom.titleEn
             }
             return optionId
         }
         if let opt = EnergyDefaults.options.first(where: { $0.id == optionId }) {
-            return opt.title(for: appLanguage)
+            return opt.title(for: "en")
         }
         return optionId
     }
@@ -310,28 +378,28 @@ struct MeView: View {
     // MARK: - Large Top Gallery (like on gallery screen)
     private var largeTopGallerySection: some View {
         let snapshots = last7DayKeys.compactMap { pastDays[$0] }
-        let topActivity = topOptionId(for: .activity, from: snapshots)
-        let topCreativity = topOptionId(for: .creativity, from: snapshots)
-        let topJoy = topOptionId(for: .joys, from: snapshots)
+        let topActivity = topOptionId(for: .body, from: snapshots)
+        let topCreativity = topOptionId(for: .mind, from: snapshots)
+        let topJoy = topOptionId(for: .heart, from: snapshots)
 
         return VStack(alignment: .leading, spacing: 8) {
-            Text(loc(appLanguage, "Frequent activities"))
+            Text("Frequent activities")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.secondary)
 
             HStack(spacing: 12) {
                 largeTopGalleryCard(
-                    category: loc(appLanguage, "Activity"),
+                    category: "Activity",
                     optionId: topActivity,
                     icon: "figure.run"
                 )
                 largeTopGalleryCard(
-                    category: loc(appLanguage, "Creativity"),
+                    category: "Creativity",
                     optionId: topCreativity,
                     icon: "sparkles"
                 )
                 largeTopGalleryCard(
-                    category: loc(appLanguage, "Joy"),
+                    category: "Joy",
                     optionId: topJoy,
                     icon: "heart.fill"
                 )
@@ -388,14 +456,14 @@ struct MeView: View {
 
     // MARK: - Small Stats (at bottom)
     private var smallStatsSection: some View {
-        let totalGained = pastDays.values.reduce(0) { $0 + $1.controlGained }
-        let totalLost = pastDays.values.reduce(0) { $0 + $1.controlSpent }
+        let totalGained = pastDays.values.reduce(0) { $0 + $1.experienceEarned }
+        let totalLost = pastDays.values.reduce(0) { $0 + $1.experienceSpent }
         let daysCount = pastDays.count
 
         return HStack(spacing: 12) {
             smallStatItem(
                 value: "\(daysCount)",
-                label: loc(appLanguage, "Days")
+                label: "Days"
             )
             
             Divider()
@@ -403,7 +471,7 @@ struct MeView: View {
             
             smallStatItem(
                 value: "\(totalGained)",
-                label: loc(appLanguage, "Gained")
+                label: "Gained"
             )
             
             Divider()
@@ -411,7 +479,7 @@ struct MeView: View {
             
             smallStatItem(
                 value: "\(totalLost)",
-                label: loc(appLanguage, "Spent")
+                label: "Spent"
             )
         }
         .padding(.vertical, 6)
@@ -434,6 +502,59 @@ struct MeView: View {
     }
 }
 
+private struct WeeklyReflectionData {
+    let periodLabel: String
+    let headline: String
+    let subheadline: String
+    let gained: Int
+    let spent: Int
+    let kept: Int
+    let strongestRoom: String
+}
+
+private struct WeeklyReflectionCard: View {
+    let reflection: WeeklyReflectionData
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(reflection.periodLabel)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.secondary)
+            
+            Text(reflection.headline)
+                .font(.headline.weight(.semibold))
+            
+            Text(reflection.subheadline)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            HStack(spacing: 10) {
+                reflectionMetric(value: "\(reflection.gained)", label: "Earned")
+                reflectionMetric(value: "\(reflection.spent)", label: "Spent")
+                reflectionMetric(value: "\(reflection.kept)", label: "Kept")
+                reflectionMetric(value: reflection.strongestRoom, label: "Room")
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+    
+    private func reflectionMetric(value: String, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
 private struct MeDayKeyWrapper: Identifiable {
     let key: String
     var id: String { key }
@@ -442,7 +563,7 @@ private struct MeDayKeyWrapper: Identifiable {
 // MARK: - Settings Sheet (minimal, clean; can be embedded in tab or presented as sheet)
 struct SettingsSheet: View {
     @ObservedObject var model: AppModel
-    let appLanguage: String
+    let appLanguage: String = "en"
     var onDone: (() -> Void)? = nil
     /// When true, shown as a tab root — no Done button.
     var embeddedInTab: Bool = false
@@ -450,91 +571,117 @@ struct SettingsSheet: View {
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     @AppStorage("payGateBackgroundStyle") private var payGateBackgroundStyle: String = "midnight"
     @Environment(\.appTheme) private var theme
+    @Environment(\.topCardHeight) private var topCardHeight
     @State private var showLogin = false
     
     var body: some View {
         NavigationStack {
-            List {
-                // Account
-                Section {
-                    if authService.isAuthenticated, let user = authService.currentUser {
-                        HStack(spacing: 12) {
-                            avatarSmall(user: user)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(user.displayName)
-                                    .font(.subheadline.weight(.medium))
-                                if let email = user.email {
-                                    Text(email)
-                                        .font(.caption)
+            ZStack {
+                EnergyGradientBackground(
+                    sleepPoints: model.sleepPointsToday,
+                    stepsPoints: model.stepsPointsToday
+                )
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+                VStack(spacing: 0) {
+                    // Custom inline header when embedded in tab
+                    if embeddedInTab {
+                        HStack {
+                            Text("Settings")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                    }
+
+                    List {
+                        // Account
+                        Section {
+                            if authService.isAuthenticated, let user = authService.currentUser {
+                                HStack(spacing: 12) {
+                                    avatarSmall(user: user)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(user.displayName)
+                                            .font(.subheadline.weight(.medium))
+                                        if let email = user.email {
+                                            Text(email)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                }
+                                
+                                Button(role: .destructive) {
+                                    authService.signOut()
+                                } label: {
+                                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                                }
+                            } else {
+                                Button { showLogin = true } label: {
+                                    Label("Sign in with Apple", systemImage: "apple.logo")
+                                }
+                            }
+                        } header: {
+                            Text("Account")
+                        }
+                        
+                        // Preferences
+                        Section {
+                            NavigationLink {
+                                ThemePicker(selected: $appThemeRaw)
+                            } label: {
+                                HStack {
+                                    Label("Appearance", systemImage: "circle.lefthalf.filled")
+                                    Spacer()
+                                    Text(themeLabel)
                                         .foregroundColor(.secondary)
                                 }
                             }
-                            Spacer()
+                            
+                            NavigationLink {
+                                EnergySetupView(model: model)
+                            } label: {
+                                Label("Daily gallery", systemImage: "sparkles")
+                            }
+                        } header: {
+                            Text("Preferences")
                         }
                         
-                        Button(role: .destructive) {
-                            authService.signOut()
-                        } label: {
-                            Label(loc(appLanguage, "Sign out"), systemImage: "rectangle.portrait.and.arrow.right")
-                        }
-                    } else {
-                        Button { showLogin = true } label: {
-                            Label(loc(appLanguage, "Sign in with Apple"), systemImage: "apple.logo")
-                        }
-                    }
-                } header: {
-                    Text(loc(appLanguage, "Account"))
-                }
-                
-                // Preferences
-                Section {
-                    NavigationLink {
-                        ThemePicker(appLanguage: appLanguage, selected: $appThemeRaw)
-                    } label: {
-                        HStack {
-                            Label(loc(appLanguage, "Appearance"), systemImage: "circle.lefthalf.filled")
-                            Spacer()
-                            Text(themeLabel)
-                                .foregroundColor(.secondary)
+                        // About
+                        Section {
+                            HStack {
+                                Text("Version")
+                                Spacer()
+                                Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+                                    .foregroundColor(.secondary)
+                            }
+                        } header: {
+                            Text("About")
+                        } footer: {
+                            Text("Less scrolling. More living.")
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 8)
                         }
                     }
-                    
-                    NavigationLink {
-                        EnergySetupView(model: model)
-                    } label: {
-                        Label(loc(appLanguage, "Daily gallery"), systemImage: "sparkles")
-                    }
-                } header: {
-                    Text(loc(appLanguage, "Preferences"))
-                }
-                
-                // About
-                Section {
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
-                            .foregroundColor(.secondary)
-                    }
-                } header: {
-                    Text(loc(appLanguage, "About"))
-                } footer: {
-                    Text(loc(appLanguage, "Less scrolling. More living."))
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 8)
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
                 }
             }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .background(theme.backgroundColor)
-            .navigationTitle(loc(appLanguage, "Settings"))
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: embeddedInTab ? topCardHeight : 0)
+            }
+            .navigationTitle(embeddedInTab ? "" : "Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(theme.backgroundColor, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .navigationBarHidden(embeddedInTab)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 if !embeddedInTab, let onDone = onDone {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button(loc(appLanguage, "Done")) { onDone() }
+                        Button("Done") { onDone() }
                     }
                 }
             }
@@ -546,7 +693,7 @@ struct SettingsSheet: View {
     
     private var themeLabel: String {
         let theme = AppTheme.normalized(rawValue: appThemeRaw)
-        return appLanguage == "ru" ? theme.displayNameRu : theme.displayNameEn
+        return theme.displayNameEn
     }
     
     @ViewBuilder
@@ -572,7 +719,6 @@ struct SettingsSheet: View {
 
 // MARK: - Theme Picker
 private struct ThemePicker: View {
-    let appLanguage: String
     @Binding var selected: String
     
     var body: some View {
@@ -582,7 +728,7 @@ private struct ThemePicker: View {
                     selected = theme.rawValue
                 } label: {
                     HStack {
-                        Text(appLanguage == "ru" ? theme.displayNameRu : theme.displayNameEn)
+                        Text(theme.displayNameEn)
                             .foregroundColor(.primary)
                         Spacer()
                         if selected == theme.rawValue {
@@ -593,7 +739,7 @@ private struct ThemePicker: View {
                 }
             }
         }
-        .navigationTitle(loc(appLanguage, "Appearance"))
+        .navigationTitle("Appearance")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

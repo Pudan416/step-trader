@@ -4,14 +4,14 @@ import UserNotifications
 import FamilyControls
 #endif
 
-// Локальная копия минимальных настроек для декодинга appUnlockSettings_v1
+// Minimal settings copy for decoding appUnlockSettings_v1
 private struct StoredUnlockSettingsForNotification: Codable {
     let entryCostSteps: Int?
     let minuteTariffEnabled: Bool?
     let familyControlsModeEnabled: Bool?
 }
 
-// Минимальная структура для декодинга групп щитов
+// Minimal structure for decoding ticket groups
 private struct ShieldGroupDataForNotification: Codable {
     let id: String
     let name: String
@@ -66,7 +66,11 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         if let action = userInfo["action"] as? String, action == "unlock" {
             let defaults = UserDefaults.stepsTrader()
             
-            // ПРИОРИТЕТ 1: Если есть groupId в уведомлении - открываем напрямую по группе
+            // User explicitly tapped a notification → clear any dismiss cooldown
+            // so startPayGateSession won't suppress this intentional action.
+            defaults.removeObject(forKey: "payGateDismissedUntil_v1")
+            
+            // PRIORITY 1: If groupId present in notification, open directly by group
             if let directGroupId = userInfo["groupId"] as? String {
                 print("📲 Push notification: opening PayGate for group \(directGroupId)")
                 persistPayGateIntent(groupId: directGroupId)
@@ -77,12 +81,12 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                 return
             }
             
-            // ПРИОРИТЕТ 2: Используем bundleId из уведомления или saved state
+            // PRIORITY 2: Use bundleId from notification or saved state
             let directBundleId = userInfo["bundleId"] as? String
             let sharedBundleId = defaults.string(forKey: "lastBlockedAppBundleId")
             let sharedGroupId = defaults.string(forKey: "lastBlockedGroupId")
             
-            // Если есть сохранённый groupId - используем его напрямую
+            // If saved groupId exists, use it directly
             if let groupId = sharedGroupId, directBundleId == nil {
                 print("📲 Push notification: using saved groupId \(groupId)")
                 persistPayGateIntent(groupId: groupId)
@@ -100,7 +104,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                 print("   - directBundleId: \(directBundleId ?? "nil")")
                 print("   - sharedBundleId: \(sharedBundleId ?? "nil")")
                 
-                // Open paygate - ищем группу по bundleId
+                // Open paygate — find group by bundleId
                 persistPayGateIntent(bundleId: bundleId)
                 Task { @MainActor in
                     self.model?.openPayGateForBundleId(bundleId)
@@ -108,7 +112,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             } else {
                 print("⚠️ Push notification tapped for unlock, but bundleId not found")
                 
-                // Последний fallback: открываем первую группу щитов
+                // Last fallback: open the first ticket group
                 persistPayGateIntent(groupId: nil, bundleId: nil)
                 Task { @MainActor in
                     guard let model = self.model else { 
@@ -116,7 +120,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                         return 
                     }
                     
-                    if let firstGroup = model.ticketGroups.first {
+                    if let firstGroup = model.blockingStore.ticketGroups.first {
                         print("🔄 Fallback: Using first shield group: \(firstGroup.name) (id: \(firstGroup.id))")
                         model.openPayGate(for: firstGroup.id)
                     } else {

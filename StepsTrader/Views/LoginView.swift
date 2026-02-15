@@ -8,8 +8,6 @@ struct LoginView: View {
     var useLogin1Background: Bool = false
     var onAuthenticated: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
-    
     @State private var showError: Bool = false
     
     var body: some View {
@@ -116,10 +114,10 @@ struct LoginView: View {
                                 .foregroundColor(.white)
                         }
                         VStack(spacing: 8) {
-                            Text("DOOM CTRL")
+                            Text("Proof")
                                 .font(.notoSerif(32, weight: .black))
                                 .foregroundColor(.white)
-                            Text(loc(appLanguage, "Trade steps for screen time"))
+                            Text("Trade steps for screen time")
                                 .font(.subheadline)
                                 .foregroundColor(.white.opacity(0.6))
                         }
@@ -128,17 +126,17 @@ struct LoginView: View {
                     VStack(spacing: 16) {
                         featureRow(
                             icon: "figure.walk",
-                            title: loc(appLanguage, "Earn energy by walking"),
+                            title: "Earn energy by walking",
                             color: .green
                         )
                         featureRow(
                             icon: "app.badge.checkmark",
-                            title: loc(appLanguage, "Manage app access with experience"),
+                            title: "Manage app access with exp",
                             color: .blue
                         )
                         featureRow(
                             icon: "chart.line.uptrend.xyaxis",
-                            title: loc(appLanguage, "Track my progress"),
+                            title: "Track my progress",
                             color: .orange
                         )
                     }
@@ -163,7 +161,7 @@ struct LoginView: View {
                         .cornerRadius(12)
                         .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
                         .disabled(authService.isLoading || authService.isAuthenticated)
-                        Text(loc(appLanguage, "Account syncs across devices"))
+                        Text("Account syncs across devices")
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.4))
                     }
@@ -177,10 +175,10 @@ struct LoginView: View {
                 }
             }
         }
-        .alert(loc(appLanguage, "Error"), isPresented: $showError) {
+        .alert("Error", isPresented: $showError) {
             Button("OK") { showError = false }
         } message: {
-            Text(authService.error ?? loc(appLanguage, "Something went wrong"))
+            Text(authService.error ?? "Something went wrong")
         }
         .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
             if isAuthenticated {

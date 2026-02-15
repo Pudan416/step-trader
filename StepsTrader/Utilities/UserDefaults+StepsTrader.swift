@@ -1,12 +1,12 @@
 import Foundation
 
-// MARK: - UserDefaults Extension for DOOM CTRL
+// MARK: - UserDefaults Extension for Proof
 extension UserDefaults {
     private static var hasLoggedFallback = false
     private static var hasLoggedGroupInfo = false
     
     static func stepsTrader() -> UserDefaults {
-        let groupId = "group.personal-project.StepsTrader"
+        let groupId = SharedKeys.appGroupId
         #if DEBUG
         if !hasLoggedGroupInfo {
             print("bundle:", Bundle.main.bundleIdentifier ?? "nil")
@@ -15,7 +15,7 @@ extension UserDefaults {
         }
         #endif
         
-        // Проверяем, доступен ли контейнер App Group (иначе suiteName может вернуть предупреждение).
+        // Check if App Group container is available (otherwise suiteName may return a warning).
         if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId) != nil,
            let appGroup = UserDefaults(suiteName: groupId) {
             return appGroup
@@ -23,7 +23,7 @@ extension UserDefaults {
 
         if !hasLoggedFallback {
             hasLoggedFallback = true
-            print("⚠️ App Group container unavailable, using standard UserDefaults")
+            AppLogger.app.error("App Group container unavailable, using standard UserDefaults")
         }
         return .standard
     }

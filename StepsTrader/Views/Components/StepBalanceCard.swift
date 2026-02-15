@@ -11,26 +11,29 @@ struct StepBalanceCard: View {
     let dayEndMinute: Int
     let showDetails: Bool
     
-    // New parameters for category breakdown
-    let movePoints: Int
-    let rebootPoints: Int
-    let joyPoints: Int
+    // Category points
+    let stepsPoints: Int
+    let sleepPoints: Int
+    let bodyPoints: Int
+    let mindPoints: Int
+    let heartPoints: Int
     let baseEnergyToday: Int
     
     // Navigation handlers
+    var onStepsTap: (() -> Void)? = nil
+    var onSleepTap: (() -> Void)? = nil
     var onMoveTap: (() -> Void)? = nil
     var onRebootTap: (() -> Void)? = nil
     var onJoyTap: (() -> Void)? = nil
     var onOuterWorldTap: (() -> Void)? = nil
     
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isExpanded = false
     
     private let maxEnergy: Int = 100
     
     private var currentEnergy: Int {
-        // Текущая энергия = оставшийся баланс после трат (remainingSteps уже содержит totalStepsBalance)
-        return min(maxEnergy, remainingSteps)
+        min(maxEnergy, remainingSteps)
     }
     
     private var progress: Double {
@@ -56,21 +59,21 @@ struct StepBalanceCard: View {
         let diff = max(0, nextReset.timeIntervalSince(now))
         let hours = Int(diff) / 3600
         let minutes = (Int(diff) % 3600) / 60
-        
         return String(format: "%dh %02dm", hours, minutes)
     }
     
     var body: some View {
         VStack(spacing: 10) {
-            // Header row: EXP label + balance numbers + timer
+            // ── Header: TODAY EXP + balance + timer ──
             HStack(alignment: .center, spacing: 10) {
-                // EXP label
-                Text("EXP")
-                    .font(.caption.weight(.bold))
-                    .foregroundColor(accent)
-                    .tracking(0.5)
+                VStack(alignment: .leading, spacing: -2) {
+                    Text("TODAY")
+                        .font(.caption2.weight(.heavy))
+                    Text("EXP")
+                        .font(.title3.weight(.black))
+                }
+                .foregroundColor(colorScheme == .dark ? balanceYellow : .black)
                 
-                // Balance: current / earned / max
                 HStack(spacing: 4) {
                     // Current balance — yellow pill
                     Text("\(currentEnergy)")
@@ -79,32 +82,25 @@ struct StepBalanceCard: View {
                         .monospacedDigit()
                         .padding(.horizontal, 10)
                         .padding(.vertical, 3)
-                        .background(
-                            Capsule()
-                                .fill(balanceYellow)
-                        )
+                        .background(Capsule().fill(balanceYellow))
                     
                     Text("/")
                         .font(.footnote.weight(.medium))
                         .foregroundColor(.secondary)
                     
-                    // Today's earned — yellow outlined pill
+                    // Today's earned — outlined pill
                     Text("\(baseEnergyToday)")
                         .font(.footnote.weight(.semibold))
                         .foregroundColor(.primary)
                         .monospacedDigit()
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(
-                            Capsule()
-                                .strokeBorder(balanceYellow, lineWidth: 1.5)
-                        )
+                        .background(Capsule().strokeBorder(balanceYellow, lineWidth: 1.5))
                     
                     Text("/")
                         .font(.footnote.weight(.medium))
                         .foregroundColor(.secondary)
                     
-                    // Max
                     Text("\(maxEnergy)")
                         .font(.footnote.weight(.medium))
                         .foregroundColor(.secondary)
@@ -113,7 +109,6 @@ struct StepBalanceCard: View {
                 
                 Spacer()
                 
-                // Reset timer — inline, no box
                 HStack(spacing: 3) {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.caption2)
@@ -125,7 +120,7 @@ struct StepBalanceCard: View {
                 }
             }
             
-            // Progress bar
+            // ── Progress bar ──
             GeometryReader { proxy in
                 let w = proxy.size.width
                 let inset: CGFloat = 2
@@ -137,20 +132,16 @@ struct StepBalanceCard: View {
                 HStack(spacing: 0) {
                     if fillWidth > 0 {
                         UnevenRoundedRectangle(
-                            topLeadingRadius: 5,
-                            bottomLeadingRadius: 5,
-                            bottomTrailingRadius: 0,
-                            topTrailingRadius: 0
+                            topLeadingRadius: 5, bottomLeadingRadius: 5,
+                            bottomTrailingRadius: 0, topTrailingRadius: 0
                         )
                         .fill(balanceYellow)
                         .frame(width: max(4, fillWidth))
                     }
                     if spentSegmentWidth > 0 {
                         UnevenRoundedRectangle(
-                            topLeadingRadius: 0,
-                            bottomLeadingRadius: 0,
-                            bottomTrailingRadius: 5,
-                            topTrailingRadius: 5
+                            topLeadingRadius: 0, bottomLeadingRadius: 0,
+                            bottomTrailingRadius: 5, topTrailingRadius: 5
                         )
                         .stroke(balanceYellow, lineWidth: 1.5)
                         .frame(width: max(2, spentSegmentWidth))
@@ -168,32 +159,69 @@ struct StepBalanceCard: View {
             .animation(.spring(response: 0.4), value: progress)
             .animation(.spring(response: 0.4), value: earnedTodayProgress)
             
-            // Category breakdown — inline chips
+            // ── Expand / Collapse toggle ──
             if showDetails {
-                HStack(spacing: 6) {
-                    compactCategoryChip(
-                        icon: "figure.run",
-                        value: movePoints,
-                        color: .primary,
-                        accessibilityId: "chip_activity",
-                        onTap: { onMoveTap?() }
-                    )
+                Button {
+                    withAnimation(.spring(response: 0.3)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isExpanded ? "Collapse categories" : "Expand categories")
+            }
+            
+            // ── Metric chips (two rows, icons only) ──
+            if showDetails && isExpanded {
+                VStack(spacing: 6) {
+                    // Row 1: HealthKit auto-tracked
+                    HStack(spacing: 8) {
+                        metricChip(
+                            icon: "figure.walk",
+                            value: stepsPoints,
+                            max: EnergyDefaults.stepsMaxPoints,
+                            accessibilityId: "chip_steps",
+                            onTap: { onStepsTap?() }
+                        )
+                        metricChip(
+                            icon: "bed.double.fill",
+                            value: sleepPoints,
+                            max: EnergyDefaults.sleepMaxPoints,
+                            accessibilityId: "chip_sleep",
+                            onTap: { onSleepTap?() }
+                        )
+                    }
                     
-                    compactCategoryChip(
-                        icon: "sparkles",
-                        value: rebootPoints,
-                        color: .primary,
-                        accessibilityId: "chip_creativity",
-                        onTap: { onRebootTap?() }
-                    )
-                    
-                    compactCategoryChip(
-                        icon: "heart.fill",
-                        value: joyPoints,
-                        color: .primary,
-                        accessibilityId: "chip_joys",
-                        onTap: { onJoyTap?() }
-                    )
+                    // Row 2: Card-based categories
+                    HStack(spacing: 8) {
+                        metricChip(
+                            icon: "figure.run",
+                            value: bodyPoints,
+                            max: 20,
+                            accessibilityId: "chip_body",
+                            onTap: { onMoveTap?() }
+                        )
+                        metricChip(
+                            icon: "sparkles",
+                            value: mindPoints,
+                            max: 20,
+                            accessibilityId: "chip_mind",
+                            onTap: { onRebootTap?() }
+                        )
+                        metricChip(
+                            icon: "heart.fill",
+                            value: heartPoints,
+                            max: 20,
+                            accessibilityId: "chip_heart",
+                            onTap: { onJoyTap?() }
+                        )
+                    }
                 }
                 .transition(.asymmetric(
                     insertion: .move(edge: .top).combined(with: .opacity),
@@ -203,66 +231,96 @@ struct StepBalanceCard: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.primary.opacity(0.2), lineWidth: 1)
-        )
+        .modifier(StepBalanceCardBackgroundModifier())
         .animation(.spring(response: 0.3), value: showDetails)
+        .animation(.spring(response: 0.3), value: isExpanded)
     }
 }
 
-// Compact category chip
+// MARK: - Background modifier (Liquid Glass on iOS 26+, dark on older)
+
+private struct StepBalanceCardBackgroundModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            // Glass as background only so buttons stay on top for hit testing
+            content
+                .background {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(.clear)
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16))
+                        .allowsHitTesting(false)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+        } else {
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(white: 0.10))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        }
+    }
+}
+
+// MARK: - Metric chip
+
 @ViewBuilder
-private func compactCategoryChip(icon: String, value: Int, color: Color, accessibilityId: String, onTap: @escaping () -> Void) -> some View {
+private func metricChip(icon: String, value: Int, max: Int, accessibilityId: String, onTap: @escaping () -> Void) -> some View {
     Button(action: onTap) {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             Image(systemName: icon)
-                .font(.caption)
-                .foregroundColor(color.opacity(0.6))
-            
-            Text("\(value)")
-                .font(.subheadline.bold())
+                .font(.caption2)
+                .foregroundColor(.primary.opacity(0.6))
+            Spacer(minLength: 0)
+            Text("\(value)/\(max)")
+                .font(.caption.weight(.bold))
                 .foregroundColor(.primary)
                 .monospacedDigit()
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(color.opacity(0.06))
+                .fill(Color.primary.opacity(0.05))
         )
     }
     .buttonStyle(.plain)
     .accessibilityIdentifier(accessibilityId)
 }
 
+// MARK: - Helpers
+
 private func formatNumber(_ num: Int) -> String {
-        let absValue = abs(num)
-        let sign = num < 0 ? "-" : ""
-        
-        func trimTrailingZero(_ s: String) -> String {
-            s.hasSuffix(".0") ? String(s.dropLast(2)) : s
-        }
-        
-        if absValue < 1000 { return "\(num)" }
-        
-        if absValue < 10_000 {
-            let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
-            return sign + trimTrailingZero(String(format: "%.1f", v)) + "K"
-        }
-        
-        if absValue < 1_000_000 {
-            let v = Int((Double(absValue) / 1000.0).rounded())
-            return sign + "\(v)K"
-        }
-        
-        if absValue < 10_000_000 {
-            let v = (Double(absValue) / 1_000_000.0 * 10).rounded() / 10
-            return sign + trimTrailingZero(String(format: "%.1f", v)) + "M"
-        }
-        
-        let v = Int((Double(absValue) / 1_000_000.0).rounded())
-        return sign + "\(v)M"
+    let absValue = abs(num)
+    let sign = num < 0 ? "-" : ""
+    
+    func trimTrailingZero(_ s: String) -> String {
+        s.hasSuffix(".0") ? String(s.dropLast(2)) : s
+    }
+    
+    if absValue < 1000 { return "\(num)" }
+    
+    if absValue < 10_000 {
+        let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
+        return sign + trimTrailingZero(String(format: "%.1f", v)) + "K"
+    }
+    
+    if absValue < 1_000_000 {
+        let v = Int((Double(absValue) / 1000.0).rounded())
+        return sign + "\(v)K"
+    }
+    
+    if absValue < 10_000_000 {
+        let v = (Double(absValue) / 1_000_000.0 * 10).rounded() / 10
+        return sign + trimTrailingZero(String(format: "%.1f", v)) + "M"
+    }
+    
+    let v = Int((Double(absValue) / 1_000_000.0).rounded())
+    return sign + "\(v)M"
 }
 
 #Preview {
@@ -277,10 +335,12 @@ private func formatNumber(_ num: Int) -> String {
             dayEndHour: 0,
             dayEndMinute: 0,
             showDetails: true,
-            movePoints: 30,
-            rebootPoints: 25,
-            joyPoints: 15,
-            baseEnergyToday: 60
+            stepsPoints: 14,
+            sleepPoints: 16,
+            bodyPoints: 20,
+            mindPoints: 15,
+            heartPoints: 10,
+            baseEnergyToday: 75
         )
         
         StepBalanceCard(
@@ -293,9 +353,11 @@ private func formatNumber(_ num: Int) -> String {
             dayEndHour: 0,
             dayEndMinute: 0,
             showDetails: false,
-            movePoints: 20,
-            rebootPoints: 15,
-            joyPoints: 10,
+            stepsPoints: 10,
+            sleepPoints: 8,
+            bodyPoints: 20,
+            mindPoints: 15,
+            heartPoints: 10,
             baseEnergyToday: 40
         )
     }

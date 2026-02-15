@@ -21,7 +21,7 @@ enum AccessWindow: String, CaseIterable, Sendable, Codable {
         }
     }
     
-    /// Label for "spend experience" options: friendly name + time note
+    /// Label for "spend exp" options: friendly name + time note
     var spendExperienceLabel: String {
         switch self {
         case .minutes10: return "a bit (10 min)"

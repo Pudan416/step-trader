@@ -5,7 +5,6 @@ import UIKit
 
 struct CustomActivityEditorView: View {
     let category: EnergyCategory
-    let appLanguage: String
     let initialTitle: String?
     let initialIcon: String?
     let isEditing: Bool
@@ -28,9 +27,9 @@ struct CustomActivityEditorView: View {
     
     private var categoryColor: Color {
         switch category {
-        case .activity: return .green
-        case .creativity: return .purple
-        case .joys: return .orange
+        case .body: return .green
+        case .mind: return .purple
+        case .heart: return .orange
         }
     }
     
@@ -39,7 +38,7 @@ struct CustomActivityEditorView: View {
         return !trimmed.isEmpty && !selectedIcon.isEmpty
     }
     
-    /// Показывать картинку из Assets (true) или SF Symbol (false)
+    /// Show image from Assets (true) or SF Symbol (false)
     private var selectedIsAssetImage: Bool {
         #if canImport(UIKit)
         return loadCatalogImage(named: selectedIcon) != nil
@@ -59,7 +58,7 @@ struct CustomActivityEditorView: View {
                 
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
-                        TextField(loc(appLanguage, "Activity name"), text: $title)
+                        TextField("Activity name", text: $title)
                             .focused($isFieldFocused)
                             .onChange(of: title) { _, newValue in
                                 if newValue.count > maxCharacters {
@@ -75,32 +74,32 @@ struct CustomActivityEditorView: View {
                         }
                     }
                 } header: {
-                    Text(loc(appLanguage, "Name"))
+                    Text("Name")
                 }
                 
                 Section {
                     catalogImageGrid
                 } header: {
-                    Text(loc(appLanguage, "Image"))
+                    Text("Image")
                 } footer: {
-                    Text(loc(appLanguage, "Add image sets to Assets with these names to see them here."))
+                    Text("Add image sets to Assets with these names to see them here.")
                 }
                 
                 Section {
                     iconGrid
                 } header: {
-                    Text(loc(appLanguage, "Icon (fallback)"))
+                    Text("Icon (fallback)")
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle(isEditing ? loc(appLanguage, "Edit activity") : loc(appLanguage, "Add activity"))
+            .navigationTitle(isEditing ? "Edit activity" : "Add activity")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Cancel")) { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(loc(appLanguage, "Save")) {
+                    Button("Save") {
                         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         onSave(trimmed, selectedIcon)
                         dismiss()
@@ -141,7 +140,7 @@ struct CustomActivityEditorView: View {
                 
                 VStack {
                     Spacer()
-                    Text(title.isEmpty ? loc(appLanguage, "Preview") : title)
+                    Text(title.isEmpty ? "Preview" : title)
                         .font(.notoSerif(11, weight: .medium))
                         .foregroundColor(.primary)
                         .lineLimit(3)

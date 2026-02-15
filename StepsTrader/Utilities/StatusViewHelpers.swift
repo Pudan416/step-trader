@@ -1,5 +1,6 @@
 import SwiftUI
 
+#if DEBUG
 enum StatusViewHelpers {
     static func colorForBundle(_ bundleId: String) -> Color {
         switch bundleId {
@@ -19,14 +20,14 @@ enum StatusViewHelpers {
         }
     }
     
-    static func formatMinutes(_ minutes: Int, appLanguage: String) -> String {
+    static func formatMinutes(_ minutes: Int, appLanguage: String = "en") -> String {
         let clamped = max(0, minutes)
         let hours = clamped / 60
         let mins = clamped % 60
         if hours > 0 {
-            return loc(appLanguage, "\(hours)h \(mins)m")
+            return "\(hours)h \(mins)m"
         }
-        return loc(appLanguage, "\(mins) min")
+        return "\(mins) min"
     }
     
     static func formatNumber(_ num: Int) -> String {
@@ -52,3 +53,4 @@ enum StatusViewHelpers {
         return sign + trimTrailingZero(s) + "M"
     }
 }
+#endif

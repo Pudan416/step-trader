@@ -35,7 +35,10 @@ final class HealthStore: ObservableObject {
     }
     
     func refreshStepsIfAuthorized() async {
-        guard healthKitService.authorizationStatus() == .sharingAuthorized else { return }
+        // Always attempt to fetch steps. authorizationStatus() reports WRITE permission,
+        // not READ. Read access may be granted even when write status is .notDetermined
+        // or .sharingDenied, so guarding on .sharingAuthorized silently blocks step fetching
+        // for most users.
         do {
             stepsToday = try await fetchStepsForCurrentDay()
             cacheStepsToday()

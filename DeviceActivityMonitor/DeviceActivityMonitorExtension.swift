@@ -57,10 +57,10 @@ private enum MonitorLogger {
     }
     
     private static func storeErrorLog(function: String, message: String, context: [String: String]?) {
-        let defaults = stepsTraderDefaults()
+        let defaults = SharedKeys.appGroupDefaults()
         var logs: [MonitorErrorLog] = []
         
-        if let data = defaults.data(forKey: "monitorErrorLogs_v1"),
+        if let data = defaults.data(forKey: SharedKeys.monitorErrorLogs),
            let decoded = try? JSONDecoder().decode([MonitorErrorLog].self, from: data) {
             logs = decoded
         }
@@ -68,40 +68,31 @@ private enum MonitorLogger {
         let entry = MonitorErrorLog(function: function, message: message, context: context)
         logs.append(entry)
         
-        // Keep only last 50 errors to avoid bloat
-        if logs.count > 50 {
-            logs = Array(logs.suffix(50))
+        // Keep only last 30 errors to avoid bloat (extension memory ~6MB)
+        if logs.count > 30 {
+            logs = Array(logs.suffix(30))
         }
         
         if let data = try? JSONEncoder().encode(logs) {
-            defaults.set(data, forKey: "monitorErrorLogs_v1")
+            defaults.set(data, forKey: SharedKeys.monitorErrorLogs)
         }
         
         // Also increment error counter for quick health check
-        let errorCount = defaults.integer(forKey: "monitorErrorCount_v1") + 1
-        defaults.set(errorCount, forKey: "monitorErrorCount_v1")
-        defaults.set(Date(), forKey: "monitorLastErrorAt_v1")
+        let errorCount = defaults.integer(forKey: SharedKeys.monitorErrorCount) + 1
+        defaults.set(errorCount, forKey: SharedKeys.monitorErrorCount)
+        defaults.set(Date(), forKey: SharedKeys.monitorLastErrorAt)
     }
-}
-
-fileprivate func stepsTraderDefaults() -> UserDefaults {
-    let groupId = "group.personal-project.StepsTrader"
-    guard let defaults = UserDefaults(suiteName: groupId) else {
-        MonitorLogger.error("Failed to create UserDefaults with suite: \(groupId)", context: ["groupId": groupId])
-        return .standard
-    }
-    return defaults
 }
 
 private func appendMonitorLog(_ message: String) {
-    let defaults = stepsTraderDefaults()
+    let defaults = SharedKeys.appGroupDefaults()
     let now = ISO8601DateFormatter().string(from: Date())
-    var logs = defaults.stringArray(forKey: "monitorLogs_v1") ?? []
+    var logs = defaults.stringArray(forKey: SharedKeys.monitorLogs) ?? []
     logs.append("[\(now)] \(message)")
-    if logs.count > 200 {
-        logs = Array(logs.suffix(200))
+    if logs.count > 30 {
+        logs = Array(logs.suffix(30))
     }
-    defaults.set(logs, forKey: "monitorLogs_v1")
+    defaults.set(logs, forKey: SharedKeys.monitorLogs)
 }
 
 private struct StoredUnlockSettings: Codable {
@@ -139,7 +130,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         if activityRaw.hasPrefix("unlockExpiry_") {
             let groupId = String(activityRaw.dropFirst("unlockExpiry_".count))
             MonitorLogger.info("Unlock expiry warning for group \(groupId) - clearing and rebuilding shield")
-            let defaults = stepsTraderDefaults()
+            let defaults = SharedKeys.appGroupDefaults()
             let unlockKey = "groupUnlock_\(groupId)"
             defaults.removeObject(forKey: unlockKey)
             rebuildBlockFromExtension()
@@ -148,7 +139,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         if activityRaw.hasPrefix("accessWindowExpiry_") {
             let bundleId = String(activityRaw.dropFirst("accessWindowExpiry_".count))
             MonitorLogger.info("Access window expiry warning for bundleId \(bundleId) - clearing and rebuilding shield")
-            let defaults = stepsTraderDefaults()
+            let defaults = SharedKeys.appGroupDefaults()
             let blockKey = "blockUntil_\(bundleId)"
             defaults.removeObject(forKey: blockKey)
             rebuildBlockFromExtension()
@@ -167,7 +158,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             MonitorLogger.info("Unlock expiry interval ended for group \(groupId)")
             
             // Clear the unlock and rebuild shield
-            let defaults = stepsTraderDefaults()
+            let defaults = SharedKeys.appGroupDefaults()
             let unlockKey = "groupUnlock_\(groupId)"
             defaults.removeObject(forKey: unlockKey)
             
@@ -178,7 +169,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             let bundleId = String(activityRaw.dropFirst("accessWindowExpiry_".count))
             MonitorLogger.info("Access window expiry interval ended for bundleId \(bundleId)")
             
-            let defaults = stepsTraderDefaults()
+            let defaults = SharedKeys.appGroupDefaults()
             let blockKey = "blockUntil_\(bundleId)"
             defaults.removeObject(forKey: blockKey)
             
@@ -213,7 +204,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     // MARK: - Expired Unlocks Check
     /// Called from extension to check and clear any expired group unlocks, then rebuild shield
     private func checkAndClearExpiredUnlocks() {
-        let defaults = stepsTraderDefaults()
+        let defaults = SharedKeys.appGroupDefaults()
         let now = Date()
         var hasExpired = false
         
@@ -255,7 +246,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     /// Rebuild block from extension - similar to setupBlockForMinuteMode but for all active groups
     private func rebuildBlockFromExtension() {
         #if canImport(ManagedSettings)
-        let defaults = stepsTraderDefaults()
+        let defaults = SharedKeys.appGroupDefaults()
         var allApps: Set<ApplicationToken> = []
         var allCategories: Set<ActivityCategoryToken> = []
         let now = Date()
@@ -341,14 +332,14 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     
     #if canImport(ManagedSettings)
     private func setupBlockForMinuteMode() {
-        let defaults = stepsTraderDefaults()
+        let defaults = SharedKeys.appGroupDefaults()
         var allApps: Set<ApplicationToken> = []
         var allCategories: Set<ActivityCategoryToken> = []
         
         MonitorLogger.info("Setting up shield for minute mode")
         
-        // Каждый раз, когда мы включаем щит, сбрасываем его состояние
-        // (первый экран "App Blocked" → потом уже по действиям ShieldActionExtension).
+        // Every time we enable the shield, reset its state
+        // (first screen "App Blocked" → then driven by ShieldActionExtension actions).
         defaults.set(0, forKey: "doomShieldState_v1")
         
         let groups = loadTicketGroupsForExtension(defaults: defaults)
@@ -433,7 +424,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                 }
             }
             
-            // 2) Если не нашли в группах, проверяем старые настройки
+            // 2) If not found in groups, check legacy settings
             if foundBundleId == nil {
                 if let globalSelectionData = defaults.data(forKey: "appSelection_v1") {
                     do {
@@ -535,7 +526,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         guard raw.hasPrefix(prefix) else { return }
         let bundleId = String(raw.dropFirst(prefix.count))
 
-        let g = stepsTraderDefaults()
+        let g = SharedKeys.appGroupDefaults()
         let settings = unlockSettings(for: bundleId, defaults: g)
         let shouldCharge = (settings?.familyControlsModeEnabled ?? false)
             || (settings?.minuteTariffEnabled ?? false)
@@ -686,15 +677,19 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     }
     
     private func logMinuteCharge(bundleId: String, cost: Int, balanceAfter: Int, defaults: UserDefaults) {
+        guard let url = SharedKeys.minuteChargeLogsFileURL() else {
+            MonitorLogger.error("No App Group URL for minuteChargeLogs", context: ["bundleId": bundleId])
+            return
+        }
         var logs: [MinuteChargeLog] = []
-        if let data = defaults.data(forKey: "minuteChargeLogs_v1") {
+        if (try? url.checkResourceIsReachable()) == true, let data = try? Data(contentsOf: url) {
             do {
                 logs = try JSONDecoder().decode([MinuteChargeLog].self, from: data)
             } catch {
-                MonitorLogger.warning("Failed to decode minuteChargeLogs_v1, starting fresh: \(error.localizedDescription)")
+                MonitorLogger.warning("Failed to decode minuteChargeLogs file, starting fresh: \(error.localizedDescription)")
             }
         }
-        
+
         let entry = MinuteChargeLog(
             bundleId: bundleId,
             timestamp: Date(),
@@ -702,23 +697,21 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             balanceAfter: balanceAfter
         )
         logs.append(entry)
-        
-        // Keep only last 100 entries to avoid bloat
+
         if logs.count > 100 {
             logs = Array(logs.suffix(100))
         }
-        
+
         do {
             let data = try JSONEncoder().encode(logs)
-            defaults.set(data, forKey: "minuteChargeLogs_v1")
+            try data.write(to: url, options: .atomic)
         } catch {
-            MonitorLogger.error("Failed to encode minuteChargeLogs_v1: \(error.localizedDescription)", context: [
+            MonitorLogger.error("Failed to write minuteChargeLogs: \(error.localizedDescription)", context: [
                 "bundleId": bundleId,
                 "error": error.localizedDescription
             ])
         }
-        
-        // Also update cumulative time per app per day
+
         updateMinuteTimeLog(bundleId: bundleId, defaults: defaults)
     }
     
@@ -864,7 +857,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         return df.string(from: date)
     }
     
-    // Минимальная структура для декодирования групп щитов (legacy full payload)
+    // Minimal structure for decoding ticket groups (legacy full payload)
     private struct ShieldGroupDataForMonitor: Decodable {
         let id: String
         let name: String

@@ -1,26 +1,28 @@
-# DOOM CTRL (iOS, SwiftUI)
+# Proof (iOS, SwiftUI)
 
-An iOS app that turns daily activity into “control” points and spends them to unlock access to selected apps or app groups.
+An iOS app that turns daily real-world activity into experience and spends that experience to open access windows for selected apps or app groups ("tickets").
 
 ## Core mechanics
-- **Daily Control (0–100)** is built from:
+- **Daily experience** is built from:
   - steps (HealthKit)
   - sleep hours
-  - daily choices across Activity / Recovery / Joys
-- **Bonus control** can be granted by the backend and is capped by the daily max.
-- **Spending control** happens when you unlock access windows for selected apps/groups (PayGate) or buy a day pass.
-- **Minute mode** optionally tracks real app usage via DeviceActivity and consumes a minute budget derived from steps and the selected tariff.
+  - daily selections across body / mind / heart rooms
+- **Bonus experience** can be granted and is added to the same spendable balance.
+- **Spending experience** happens in PayGate when opening a ticket for a selected interval.
+- **Minute mode** can track app usage via DeviceActivity and charge per-minute based on ticket settings.
 
 ## Targets
-- **`Steps4`** — main iOS app (display name: **DOOM CTRL**)
-- **`DeviceActivityMonitor`** — extension (`com.apple.deviceactivity.monitor`) that receives DeviceActivity events for usage tracking
+- **`Steps4`** — main iOS app (display name: **Proof**)
+- **`DeviceActivityMonitor`** — extension (`com.apple.deviceactivity.monitor`) for interval/events and shield rebuilds
+- **`ShieldConfiguration`** — extension that renders custom shield UI
+- **`ShieldAction`** — extension handling shield actions and unlock flow
 
 ## Capabilities / Permissions
-- **HealthKit (Read)** — read step count and sleep hours
-- **Family Controls + Device Activity** — app selection + usage tracking
- - **App Group** — `group.personal-project.StepsTrader` (shared storage between app and extension)
+- **HealthKit (Read)** — step count and sleep hours
+- **Family Controls + Device Activity + ManagedSettings** — app selection, monitoring, and shielding
+- **App Group** — `group.personal-project.StepsTrader` (shared state between app + extensions)
 
-Important: **ManagedSettings “shield blocking” was removed**. The app does not block apps via Screen Time shielding.
+Important: **ManagedSettings shielding is active**. Blocking and unblocking flow is implemented through ticket settings, DeviceActivity, and custom shield extensions.
 
 ## Deep links
 Schemes registered in `Steps4/Info.plist`:
@@ -29,7 +31,7 @@ Schemes registered in `Steps4/Info.plist`:
 
 Examples (see `StepsTrader/AppModel.swift`):
 - `steps-trader://pay?target=<bundleId|alias>`
-- `steps-trader://guard?target=<bundleId|alias>` (guard no longer enables shielding; it’s kept only as a UX/deeplink trigger)
+- `steps-trader://guard?target=<bundleId|alias>`
 
 ## Supabase
 Keys used in `Steps4/Info.plist`:
@@ -56,4 +58,4 @@ xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS S
 ```
 
 ## Notes
-- This repo **does not include** any web admin panels: `admin-panel/` and `doomctrl-tg-admin/` were removed as unused by the iOS app.
+- The repo includes an `admin-panel/` workspace used for operational tooling.

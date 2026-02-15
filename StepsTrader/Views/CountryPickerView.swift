@@ -4,7 +4,6 @@ import SwiftUI
 struct CountryPickerView: View {
     @Binding var selectedCountryCode: String
     let countries: [(code: String, name: String)]
-    let appLanguage: String
     @Environment(\.dismiss) private var dismiss
     @State private var searchText: String = ""
     
@@ -35,12 +34,12 @@ struct CountryPickerView: View {
                     }
                 }
             }
-            .searchable(text: $searchText, prompt: loc(appLanguage, "Search country"))
-            .navigationTitle(loc(appLanguage, "Select Country"))
+            .searchable(text: $searchText, prompt: "Search country")
+            .navigationTitle("Select Country")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(loc(appLanguage, "Cancel")) {
+                    Button("Cancel") {
                         dismiss()
                     }
                 }

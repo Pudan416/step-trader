@@ -6,7 +6,6 @@ import FamilyControls
 struct TicketRowView: View {
     @ObservedObject var model: AppModel
     let group: TicketGroup
-    let appLanguage: String
     let onEdit: () -> Void
     @State private var remainingTime: TimeInterval? = nil
     @State private var timer: Timer? = nil
@@ -16,7 +15,7 @@ struct TicketRowView: View {
     }
     
     private var isActive: Bool {
-        group.settings.familyControlsModeEnabled || group.settings.minuteTariffEnabled
+        group.settings.familyControlsModeEnabled || (AppModel.minuteModeEnabled && group.settings.minuteTariffEnabled)
     }
     
     private var isUnlocked: Bool {
@@ -34,7 +33,7 @@ struct TicketRowView: View {
                 // Info
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
-                        Text(group.name.isEmpty ? Steps4.loc(appLanguage, "Ticket") : group.name)
+                        Text(group.name.isEmpty ? "Ticket" : group.name)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                         
@@ -56,7 +55,7 @@ struct TicketRowView: View {
                             Image(systemName: "chart.bar.fill")
                                 .font(.caption2)
                                 .foregroundColor(difficultyColor(for: group.difficultyLevel))
-                            Text("\(Steps4.loc(appLanguage, "Level")) \(group.difficultyLevel)")
+                            Text("Level \(group.difficultyLevel)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -97,7 +96,7 @@ struct TicketRowView: View {
         .buttonStyle(.plain)
         .onAppear {
             updateRemainingTime()
-            // Обновляем время каждую секунду
+            // Update remaining time every second
             timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
                 updateRemainingTime()
             }
@@ -136,7 +135,7 @@ struct TicketRowView: View {
             let categoryTokens = Array(group.selection.categoryTokens.prefix(remainingSlots))
             let hasMore = appsCount > 3
             
-            // Показываем иконки приложений
+            // App icons
             ForEach(Array(appTokens.enumerated()), id: \.offset) { index, token in
                 AppIconView(token: token)
                     .frame(width: iconSize(for: index), height: iconSize(for: index))
@@ -150,7 +149,7 @@ struct TicketRowView: View {
                     .zIndex(Double(3 - index))
             }
             
-            // Показываем иконки категорий, если остались слоты
+            // Category icons if slots remain
             ForEach(Array(categoryTokens.enumerated()), id: \.offset) { offset, token in
                 let index = appTokens.count + offset
                 CategoryIconView(token: token)

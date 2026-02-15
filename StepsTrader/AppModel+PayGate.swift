@@ -14,9 +14,7 @@ extension AppModel {
     
     // MARK: - PayGate Opening
     func openPayGate(for groupId: String) {
-        Task { @MainActor in
-            startPayGateSession(for: groupId)
-        }
+        startPayGateSession(for: groupId)
     }
     
     @MainActor
@@ -26,35 +24,33 @@ extension AppModel {
            let until = g.object(forKey: payGateDismissedUntilKey) as? Date,
            Date() < until
         {
-            print("🚫 PayGate suppressed after dismiss (\(String(format: "%.1f", until.timeIntervalSinceNow))s left), ignoring start for group \(groupId)")
+            AppLogger.shield.debug("🚫 PayGate suppressed after dismiss (\(String(format: "%.1f", until.timeIntervalSinceNow))s left), ignoring start for group \(groupId)")
             return
         }
 
-        // Проверяем, существует ли группа
+        // Verify the group exists
         guard let group = ticketGroups.first(where: { $0.id == groupId }) else {
-            print("⚠️ PayGate: Group \(groupId) not found")
+            AppLogger.shield.debug("⚠️ PayGate: Group \(groupId) not found")
             return
         }
         
         payGateTargetGroupId = groupId
         showPayGate = true
         
-        // Создаем сессию
+        // Create session
         let session = PayGateSession(id: groupId, groupId: groupId, startedAt: Date())
         payGateSessions[groupId] = session
         currentPayGateSessionId = groupId
         
-        print("🎯 PayGate session started for group: \(group.name) (\(groupId))")
+        AppLogger.shield.debug("🎯 PayGate session started for group: \(group.name) (\(groupId))")
     }
     
     func openPayGateForBundleId(_ bundleId: String) {
-        // Ищем группу, которая содержит это приложение
+        // Find the group containing this app
         if let group = findTicketGroup(for: bundleId) {
-            Task { @MainActor in
-                startPayGateSession(for: group.id)
-            }
+            startPayGateSession(for: group.id)
         } else {
-            print("⚠️ PayGate: Could not find group for bundleId \(bundleId)")
+            AppLogger.shield.debug("⚠️ PayGate: Could not find group for bundleId \(bundleId)")
         }
     }
     
@@ -62,44 +58,31 @@ extension AppModel {
     @MainActor
     func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async {
         guard let group = ticketGroups.first(where: { $0.id == groupId }) else {
-            print("⚠️ PayGate: Group \(groupId) not found for payment")
+            AppLogger.shield.debug("⚠️ PayGate: Group \(groupId) not found for payment")
             return
         }
         
         // Get cost - use override if provided, otherwise use group's cost for the window
         let cost = costOverride ?? group.cost(for: window)
         
-        print("💰 Attempting to pay \(cost) experience for group \(group.name)")
-        print("💰 Current balance: \(totalStepsBalance) (base: \(stepsBalance), bonus: \(bonusSteps))")
+        AppLogger.shield.debug("💰 Attempting to pay \(cost) exp for group \(group.name)")
+        AppLogger.shield.debug("💰 Current balance: \(self.totalStepsBalance) (base: \(self.stepsBalance), bonus: \(self.bonusSteps))")
         
         // Pay the cost
         guard pay(cost: cost) else {
-            message = "Not enough experience"
-            print("❌ Payment failed - not enough experience")
+            message = "Not enough exp"
+            AppLogger.shield.debug("❌ Payment failed - not enough exp")
             return
         }
         
-        print("✅ Payment successful! New balance: \(totalStepsBalance) (base: \(stepsBalance), bonus: \(bonusSteps))")
-        
-        // Force UI update immediately - trigger on next run loop
-        await MainActor.run {
-            objectWillChange.send()
-        }
-        
-        // Small delay to let SwiftUI process the state change
-        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
-        
-        // Force another update after delay
-        await MainActor.run {
-            objectWillChange.send()
-        }
+        AppLogger.shield.debug("✅ Payment successful! New balance: \(self.totalStepsBalance) (base: \(self.stepsBalance), bonus: \(self.bonusSteps))")
         
         // Set group-level unlock timestamp
         let defaults = UserDefaults.stepsTrader()
         let now = Date()
         if let until = accessWindowExpiration(window, now: now) {
             defaults.set(until, forKey: "groupUnlock_\(groupId)")
-            print("🔓 Group \(group.name) unlocked until \(until)")
+            AppLogger.shield.debug("🔓 Group \(group.name) unlocked until \(until)")
             
             let remainingSeconds = Int(until.timeIntervalSince(now))
             
@@ -114,22 +97,19 @@ extension AppModel {
         addSpentSteps(cost, for: "group_\(groupId)")
         
         // Log payment transaction for history (capture balance before payment)
-        let balanceBeforePayment = totalStepsBalance + cost
+        let balanceBeforePayment = self.totalStepsBalance + cost
         logPaymentTransaction(
             amount: cost,
             target: "group_\(groupId)",
             targetName: group.name,
             window: window,
             balanceBefore: balanceBeforePayment,
-            balanceAfter: totalStepsBalance
+            balanceAfter: self.totalStepsBalance
         )
         
         // CRITICAL: Rebuild shield to actually remove the block from all apps in the group
         rebuildFamilyControlsShield()
-        
-        // Another small delay before dismissing to ensure UI has updated
-        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
-        
+
         // Dismiss pay gate
         dismissPayGate(reason: .programmatic)
     }
@@ -156,7 +136,7 @@ extension AppModel {
                 let unlockKey = "groupUnlock_\(groupId)"
                 defaults.removeObject(forKey: unlockKey)
                 
-                print("⏰ Unlock expired for group \(groupId), clearing unlock key and rebuilding block...")
+                AppLogger.shield.debug("⏰ Unlock expired for group \(groupId), clearing unlock key and rebuilding block...")
                 
                 // Rebuild shield to restore blocking
                 rebuildFamilyControlsShield()
@@ -165,7 +145,7 @@ extension AppModel {
                 unlockExpiryTasks.removeValue(forKey: groupId)
             } catch {
                 // Task was cancelled
-                print("🚫 Block rebuild task cancelled for group \(groupId)")
+                AppLogger.shield.debug("🚫 Block rebuild task cancelled for group \(groupId)")
                 unlockExpiryTasks.removeValue(forKey: groupId)
             }
         }
@@ -194,7 +174,7 @@ extension AppModel {
                 intervalEnd: endComponents,
                 repeats: false
             )
-            print("📅 Scheduled unlock expiry activity for group \(groupId) in \(expiresInSeconds)s (interval end)")
+            AppLogger.shield.debug("📅 Scheduled unlock expiry activity for group \(groupId) in \(expiresInSeconds)s (interval end)")
         } else {
             // Short unlock: 15-min minimum interval; warningTime so extension gets intervalWillEndWarning at expiry
             let endDate = now.addingTimeInterval(900)
@@ -207,14 +187,14 @@ extension AppModel {
                 repeats: false,
                 warningTime: warningTime
             )
-            print("📅 Scheduled unlock expiry activity for group \(groupId) in \(expiresInSeconds)s (warning in \(secondsBeforeEnd)s)")
+            AppLogger.shield.debug("📅 Scheduled unlock expiry activity for group \(groupId) in \(expiresInSeconds)s (warning in \(secondsBeforeEnd)s)")
         }
         
         center.stopMonitoring([activityName])
         do {
             try center.startMonitoring(activityName, during: schedule)
         } catch {
-            print("❌ Failed to schedule unlock expiry activity: \(error)")
+            AppLogger.shield.debug("Failed to schedule unlock expiry activity: \(error.localizedDescription)")
         }
         #endif
     }
@@ -264,9 +244,9 @@ extension AppModel {
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to schedule expiry notification: \(error)")
+                AppLogger.shield.debug("Failed to schedule expiry notification: \(error.localizedDescription)")
             } else {
-                print("📤 Scheduled \(groupName) expiry notification in \(fireInSeconds)s")
+                AppLogger.shield.debug("📤 Scheduled \(groupName) expiry notification in \(fireInSeconds)s")
             }
         }
     }
@@ -275,27 +255,27 @@ extension AppModel {
     func handlePayGatePayment(for bundleId: String, window: AccessWindow) async {
         let cost = unlockSettings(for: bundleId).entryCostSteps
         
-        print("💰 handlePayGatePayment for \(bundleId), cost: \(cost)")
-        print("💰 Current balance: \(totalStepsBalance) (base: \(stepsBalance), bonus: \(bonusSteps))")
+        AppLogger.shield.debug("💰 handlePayGatePayment for \(bundleId), cost: \(cost)")
+        AppLogger.shield.debug("💰 Current balance: \(self.totalStepsBalance) (base: \(self.stepsBalance), bonus: \(self.bonusSteps))")
         
         // Pay the cost
         guard pay(cost: cost) else {
-            message = "Not enough experience"
-            print("❌ Payment failed - not enough experience")
+            message = "Not enough exp"
+            AppLogger.shield.debug("❌ Payment failed - not enough exp")
             return
         }
         
-        print("✅ Payment successful! New balance: \(totalStepsBalance) (base: \(stepsBalance), bonus: \(bonusSteps))")
+        AppLogger.shield.debug("✅ Payment successful! New balance: \(self.totalStepsBalance) (base: \(self.stepsBalance), bonus: \(self.bonusSteps))")
         
         // Log payment transaction for history
-        let balanceBeforePayment = totalStepsBalance + cost
+        let balanceBeforePayment = self.totalStepsBalance + cost
         logPaymentTransaction(
             amount: cost,
             target: bundleId,
             targetName: nil,
             window: window,
             balanceBefore: balanceBeforePayment,
-            balanceAfter: totalStepsBalance
+            balanceAfter: self.totalStepsBalance
         )
         
         addSpentSteps(cost, for: bundleId)
@@ -356,29 +336,33 @@ extension AppModel {
             balanceBefore: balanceBefore,
             balanceAfter: balanceAfter
         )
-        
-        let defaults = UserDefaults.stepsTrader()
+
+        let url = PersistenceManager.paymentTransactionsFileURL
         var transactions: [PaymentTransaction] = []
-        
-        // Load existing transactions
-        if let data = defaults.data(forKey: "paymentTransactions_v1"),
+
+        if (try? url.checkResourceIsReachable()) == true, let data = try? Data(contentsOf: url),
            let decoded = try? JSONDecoder().decode([PaymentTransaction].self, from: data) {
             transactions = decoded
+        } else {
+            let defaults = UserDefaults.stepsTrader()
+            if let data = defaults.data(forKey: "paymentTransactions_v1"),
+               let decoded = try? JSONDecoder().decode([PaymentTransaction].self, from: data) {
+                transactions = decoded
+                if let fileData = try? JSONEncoder().encode(decoded) {
+                    try? fileData.write(to: url, options: .atomic)
+                }
+                defaults.removeObject(forKey: "paymentTransactions_v1")
+            }
         }
-        
-        // Add new transaction
+
         transactions.append(transaction)
-        
-        // Keep only last 1000 transactions to prevent storage bloat
         if transactions.count > 1000 {
             transactions = Array(transactions.suffix(1000))
         }
-        
-        // Save transactions
+
         if let data = try? JSONEncoder().encode(transactions) {
-            defaults.set(data, forKey: "paymentTransactions_v1")
-            defaults.synchronize()
-            print("📝 Logged payment transaction: \(amount) for \(target) (balance: \(balanceBefore) → \(balanceAfter))")
+            try? data.write(to: url, options: .atomic)
+            AppLogger.shield.debug("📝 Logged payment transaction: \(amount) for \(target) (balance: \(balanceBefore) → \(balanceAfter))")
         }
     }
     
