@@ -1,9 +1,12 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseEnv } from "./env";
 
-export function supabaseAdmin() {
+let _client: SupabaseClient | null = null;
+
+export function supabaseAdmin(): SupabaseClient {
+  if (_client) return _client;
   const { url, serviceRoleKey } = getSupabaseEnv();
-  return createClient(url, serviceRoleKey, {
+  _client = createClient(url, serviceRoleKey, {
     db: {
       schema: "public",
     },
@@ -13,5 +16,6 @@ export function supabaseAdmin() {
       detectSessionInUrl: false,
     },
   });
+  return _client;
 }
 

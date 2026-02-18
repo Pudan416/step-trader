@@ -11,13 +11,13 @@ final class NotificationManager: NotificationServiceProtocol {
             throw NotificationError.permissionDenied
         }
         
-        print("📲 Notification permissions granted")
+        AppLogger.notifications.debug("📲 Notification permissions granted")
     }
     
     func sendTimeExpiredNotification() {
         let content = UNMutableNotificationContent()
         content.title = "Proof"
-        content.body = "An app is closed. Open Proof to spend exp."
+        content.body = "An app is closed. Open Proof to spend ink."
         content.sound = .default
         content.badge = nil
         
@@ -29,31 +29,9 @@ final class NotificationManager: NotificationServiceProtocol {
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to send time expired notification: \(error)")
+                AppLogger.notifications.error("❌ Failed to send time expired notification: \(error.localizedDescription)")
             } else {
-                print("📤 Sent time expired notification")
-            }
-        }
-    }
-    
-    func sendTimeExpiredNotification(remainingMinutes: Int) {
-        let content = UNMutableNotificationContent()
-        content.title = "Proof"
-        content.body = "An app is closed. Open Proof to spend exp."
-        content.sound = .default
-        content.badge = nil
-        
-        let request = UNNotificationRequest(
-            identifier: "timeExpired-\(UUID().uuidString)",
-            content: content,
-            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-        )
-        
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ Failed to send time expired notification: \(error)")
-            } else {
-                print("📤 Sent time expired notification with \(remainingMinutes) minutes")
+                AppLogger.notifications.debug("📤 Sent time expired notification")
             }
         }
     }
@@ -61,7 +39,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendUnblockNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
         content.title = "Proof"
-        content.body = "Exp restored. \(remainingMinutes) min."
+        content.body = "Ink restored. \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
         
@@ -73,9 +51,9 @@ final class NotificationManager: NotificationServiceProtocol {
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to send unblock notification: \(error)")
+                AppLogger.notifications.error("❌ Failed to send unblock notification: \(error.localizedDescription)")
             } else {
-                print("📤 Sent unblock notification with \(remainingMinutes) minutes")
+                AppLogger.notifications.debug("📤 Sent unblock notification with \(remainingMinutes) minutes")
             }
         }
     }
@@ -83,7 +61,7 @@ final class NotificationManager: NotificationServiceProtocol {
     func sendRemainingTimeNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
         content.title = "Proof"
-        content.body = "Exp left: \(remainingMinutes) min."
+        content.body = "Ink left: \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
         
@@ -95,9 +73,9 @@ final class NotificationManager: NotificationServiceProtocol {
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to send remaining time notification: \(error)")
+                AppLogger.notifications.error("❌ Failed to send remaining time notification: \(error.localizedDescription)")
             } else {
-                print("📤 Sent remaining time notification: \(remainingMinutes) minutes")
+                AppLogger.notifications.debug("📤 Sent remaining time notification: \(remainingMinutes) minutes")
             }
         }
     }
@@ -110,11 +88,11 @@ final class NotificationManager: NotificationServiceProtocol {
         content.title = "⏱️ \(displayName)"
         
         if minutesUsed > 0 && stepsCharged > 0 {
-            content.body = "Used: \(minutesUsed) min · Charged: \(stepsCharged) exp."
+            content.body = "Used: \(minutesUsed) min · Charged: \(stepsCharged) ink."
         } else if minutesUsed > 0 {
             content.body = "Used: \(minutesUsed) min."
         } else {
-            content.body = "Charged: \(stepsCharged) exp."
+            content.body = "Charged: \(stepsCharged) ink."
         }
         
         content.sound = .default
@@ -128,9 +106,9 @@ final class NotificationManager: NotificationServiceProtocol {
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to send minute mode summary notification: \(error)")
+                AppLogger.notifications.error("❌ Failed to send minute mode summary notification: \(error.localizedDescription)")
             } else {
-                print("📤 Sent minute mode summary for \(bundleId): \(minutesUsed)m, \(stepsCharged) fuel")
+                AppLogger.notifications.debug("📤 Sent minute mode summary for \(bundleId): \(minutesUsed)m, \(stepsCharged) fuel")
             }
         }
     }
@@ -150,9 +128,9 @@ final class NotificationManager: NotificationServiceProtocol {
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to send test notification: \(error)")
+                AppLogger.notifications.error("❌ Failed to send test notification: \(error.localizedDescription)")
             } else {
-                print("📤 Sent test notification")
+                AppLogger.notifications.debug("📤 Sent test notification")
             }
         }
     }
@@ -178,9 +156,9 @@ final class NotificationManager: NotificationServiceProtocol {
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to send access window reminder: \(error)")
+                AppLogger.notifications.error("❌ Failed to send access window reminder: \(error.localizedDescription)")
             } else {
-                print("📤 Sent access window reminder for \(bundleId)")
+                AppLogger.notifications.debug("📤 Sent access window reminder for \(bundleId)")
             }
         }
     }
@@ -223,9 +201,9 @@ final class NotificationManager: NotificationServiceProtocol {
             
             UNUserNotificationCenter.current().add(request) { error in
                 if let error = error {
-                    print("❌ Failed to schedule access window status: \(error)")
+                    AppLogger.notifications.error("❌ Failed to schedule access window status: \(error.localizedDescription)")
                 } else {
-                    print("📤 Scheduled access window status for \(bundleId) in \(fireIn)s")
+                    AppLogger.notifications.debug("📤 Scheduled access window status for \(bundleId) in \(fireIn)s")
                 }
             }
         }

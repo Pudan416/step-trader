@@ -42,7 +42,7 @@ class ErrorManager: ObservableObject {
         showErrorAlert = true
         
         // Log error (can be extended to send to crash reporting service)
-        print("❌ ErrorManager caught: \(error.localizedDescription)")
+        AppLogger.app.error("❌ ErrorManager caught: \(error.localizedDescription)")
     }
     
     func dismiss() {

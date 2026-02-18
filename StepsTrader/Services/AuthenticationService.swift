@@ -31,16 +31,10 @@ struct AppUser: Codable {
         return locale.localizedString(forRegionCode: countryCode) ?? countryCode
     }
     
-    var countryFlag: String? {
+    var countryFlagEmoji: String? {
         guard let countryCode = country, !countryCode.isEmpty else { return nil }
-        let base: UInt32 = 127397
-        var flag = ""
-        for scalar in countryCode.uppercased().unicodeScalars {
-            if let unicode = UnicodeScalar(base + scalar.value) {
-                flag.append(String(unicode))
-            }
-        }
-        return flag.isEmpty ? nil : flag
+        let result = countryFlag(countryCode)
+        return result.isEmpty ? nil : result
     }
     
     init(id: String, email: String?, nickname: String? = nil, country: String? = nil, avatarData: Data? = nil, avatarURL: String? = nil, createdAt: Date, energySpentLifetime: Int = 0) {
@@ -75,7 +69,7 @@ class AuthenticationService: NSObject, ObservableObject {
     var accessToken: String? {
         guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else { return nil }
         // Try both decoders for backward compatibility
-        if let session = try? supabaseJSONDecoder().decode(SupabaseSessionResponse.self, from: data) {
+        if let session = try? supabaseDecoder.decode(SupabaseSessionResponse.self, from: data) {
             return session.accessToken
         }
         if let session = try? JSONDecoder().decode(SupabaseSessionResponse.self, from: data) {
@@ -87,32 +81,34 @@ class AuthenticationService: NSObject, ObservableObject {
     private let userDefaultsKey = "supabaseSession_v1"
     private let avatarDefaultsPrefix = "userAvatarData_v1_"
     private var currentNonce: String?
-    private var initializationContinuation: CheckedContinuation<Void, Never>?
+    private var pendingContinuations: [CheckedContinuation<Void, Never>] = []
     
     override init() {
         super.init()
         Task { @MainActor in
             await loadStoredSessionAndRefreshUser()
             isInitialized = true
-            print("🔐 AuthenticationService initialized: isAuthenticated=\(isAuthenticated)")
+            AppLogger.auth.debug("AuthenticationService initialized: isAuthenticated=\(self.isAuthenticated)")
+            for continuation in pendingContinuations {
+                continuation.resume()
+            }
+            pendingContinuations.removeAll()
         }
     }
     
     /// Wait for the initial session restore to complete
     func waitForInitialization() async {
         if isInitialized { return }
-        // Poll until initialized (simple approach)
-        while !isInitialized {
-            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        await withCheckedContinuation { continuation in
+            if isInitialized {
+                continuation.resume()
+            } else {
+                pendingContinuations.append(continuation)
+            }
         }
     }
     
     // MARK: - Public Methods
-    
-    func signInWithApple() async throws {
-        // Prefer using SignInWithAppleButton in SwiftUI (nonce must be attached to the request).
-        throw AuthError.unknown
-    }
     
     func signOut() {
         clearStoredSession()
@@ -177,7 +173,7 @@ class AuthenticationService: NSObject, ObservableObject {
                 updatedUser.energySpentLifetime = energy
                 currentUser = updatedUser
             } catch {
-                print("❌ Stats sync failed: \(error.localizedDescription)")
+                AppLogger.auth.error("❌ Stats sync failed: \(error.localizedDescription)")
             }
         }
     }
@@ -204,7 +200,7 @@ class AuthenticationService: NSObject, ObservableObject {
                 var avatarUrl: String? = nil
                 if let data = avatarData, !data.isEmpty {
                     avatarUrl = try await uploadAvatarToStorage(session: session, userId: user.id, imageData: data)
-                    print("📸 Avatar uploaded: \(avatarUrl ?? "nil")")
+                    AppLogger.auth.debug("📸 Avatar uploaded: \(avatarUrl ?? "nil")")
                 } else if avatarData == nil {
                     // Avatar was removed - delete from storage
                     try? await deleteAvatarFromStorage(session: session, userId: user.id)
@@ -216,7 +212,7 @@ class AuthenticationService: NSObject, ObservableObject {
                 try await loadCurrentUserFromSupabase(session: session)
             } catch {
                 self.error = error.localizedDescription
-                print("❌ Profile update failed: \(error.localizedDescription)")
+                AppLogger.auth.error("❌ Profile update failed: \(error.localizedDescription)")
             }
         }
     }
@@ -280,7 +276,7 @@ class AuthenticationService: NSObject, ObservableObject {
         guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else { return nil }
         // Backward-compatible: older builds may have encoded Date as numeric timestamps (default JSONEncoder),
         // while we currently decode ISO8601 from Supabase responses.
-        if let s = try? supabaseJSONDecoder().decode(SupabaseSessionResponse.self, from: data) {
+        if let s = try? supabaseDecoder.decode(SupabaseSessionResponse.self, from: data) {
             return s
         }
         if let s = try? JSONDecoder().decode(SupabaseSessionResponse.self, from: data) {
@@ -290,7 +286,7 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     private func storeSession(_ session: SupabaseSessionResponse) {
-        guard let data = try? supabaseJSONEncoder().encode(session) else { return }
+        guard let data = try? supabaseEncoder.encode(session) else { return }
         UserDefaults.standard.set(data, forKey: userDefaultsKey)
     }
     
@@ -298,33 +294,29 @@ class AuthenticationService: NSObject, ObservableObject {
         UserDefaults.standard.removeObject(forKey: userDefaultsKey)
     }
 
-    /// Expose current Supabase access token for other app subsystems (e.g. syncing user state).
-    /// This is safe because it's already stored on-device; do not send it to your own backend.
-    var currentSupabaseAccessToken: String? { loadStoredSession()?.accessToken }
-    
     private func loadStoredSessionAndRefreshUser() async {
-        print("🔐 loadStoredSessionAndRefreshUser called")
+        AppLogger.auth.debug("🔐 loadStoredSessionAndRefreshUser called")
         guard let session = loadStoredSession() else {
-            print("🔐 No stored session found in UserDefaults")
+            AppLogger.auth.debug("🔐 No stored session found in UserDefaults")
             currentUser = nil
             isAuthenticated = false
             return
         }
         
-        print("🔐 Found stored session, user: \(session.user.id), expires: \(session.expiresAt)")
+        AppLogger.auth.debug("🔐 Found stored session, user: \(session.user.id), expires: \(session.expiresAt)")
         
         do {
             let validSession = try await ensureValidSession(session)
-            print("🔐 Session validated/refreshed successfully")
+            AppLogger.auth.debug("🔐 Session validated/refreshed successfully")
             if validSession.accessToken != session.accessToken {
-                print("🔐 Token was refreshed, storing new session")
+                AppLogger.auth.debug("🔐 Token was refreshed, storing new session")
                 storeSession(validSession)
             }
             try await loadCurrentUserFromSupabase(session: validSession)
             isAuthenticated = (currentUser != nil)
-            print("🔐 Final state: isAuthenticated=\(isAuthenticated), user=\(currentUser?.id ?? "nil")")
+            AppLogger.auth.debug("🔐 Final state: isAuthenticated=\(self.isAuthenticated), user=\(self.currentUser?.id ?? "nil")")
         } catch {
-            print("🔐 Session restore failed: \(error.localizedDescription)")
+            AppLogger.auth.error("🔐 Session restore failed: \(error.localizedDescription)")
             // Session likely invalid/revoked
             clearStoredSession()
             currentUser = nil
@@ -333,34 +325,19 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     // MARK: - Supabase REST
+    // SupabaseConfig is now defined in NetworkClient.swift
     
-    private struct SupabaseConfig {
-        let baseURL: URL
-        let anonKey: String
-        
-        static func load() throws -> SupabaseConfig {
-            guard let urlString = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String,
-                  let anonKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String,
-                  let url = URL(string: urlString),
-                  !anonKey.isEmpty
-            else {
-                throw AuthError.misconfiguredSupabase
-            }
-            return SupabaseConfig(baseURL: url, anonKey: anonKey)
-        }
-    }
-    
-    private func supabaseJSONDecoder() -> JSONDecoder {
+    private lazy var supabaseDecoder: JSONDecoder = {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601
         return d
-    }
+    }()
 
-    private func supabaseJSONEncoder() -> JSONEncoder {
+    private lazy var supabaseEncoder: JSONEncoder = {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .iso8601
         return e
-    }
+    }()
     
     private func makeJSONRequest(
         url: URL,
@@ -406,7 +383,7 @@ class AuthenticationService: NSObject, ObservableObject {
             throw AuthError.supabaseError(msg)
         }
         
-        return try supabaseJSONDecoder().decode(SupabaseSessionResponse.self, from: data)
+        return try supabaseDecoder.decode(SupabaseSessionResponse.self, from: data)
     }
     
     private func ensureValidSession(_ session: SupabaseSessionResponse) async throws -> SupabaseSessionResponse {
@@ -438,7 +415,7 @@ class AuthenticationService: NSObject, ObservableObject {
             throw AuthError.supabaseError(msg)
         }
         
-        return try supabaseJSONDecoder().decode(SupabaseSessionResponse.self, from: data)
+        return try supabaseDecoder.decode(SupabaseSessionResponse.self, from: data)
     }
     
     private func loadCurrentUserFromSupabase(session: SupabaseSessionResponse) async throws {
@@ -475,7 +452,7 @@ class AuthenticationService: NSObject, ObservableObject {
             throw AuthError.supabaseError(msg)
         }
         
-        let rows = try supabaseJSONDecoder().decode([SupabasePublicUserRow].self, from: data)
+        let rows = try supabaseDecoder.decode([SupabasePublicUserRow].self, from: data)
         guard let row = rows.first else {
             // Trigger might not have created the row yet; fallback to auth user
             // Generate a unique nickname for new users
@@ -591,7 +568,7 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     private func applyEnergySpentToLocal(_ total: Int) {
-        print("📊 Applying server energy to local: \(total)")
+        AppLogger.auth.debug("📊 Applying server energy to local: \(total)")
         
         // Load existing data
         let defaults = UserDefaults.stepsTrader()
@@ -608,7 +585,7 @@ class AuthenticationService: NSObject, ObservableObject {
         if total > currentTotal {
             let diff = total - currentTotal
             dict["_restored", default: 0] += diff
-            print("📊 Restored \(diff) energy from server (total now: \(total))")
+            AppLogger.auth.debug("📊 Restored \(diff) energy from server (total now: \(total))")
             
             if let encoded = try? JSONEncoder().encode(dict) {
                 defaults.set(encoded, forKey: "appStepsSpentLifetime_v1")
@@ -644,7 +621,7 @@ class AuthenticationService: NSObject, ObservableObject {
         )
         
         if http.statusCode < 400 {
-            print("✅ Stats synced to Supabase: energy=\(energy)")
+            AppLogger.auth.debug("✅ Stats synced to Supabase: energy=\(energy)")
         }
     }
     
@@ -655,23 +632,23 @@ class AuthenticationService: NSObject, ObservableObject {
         guard isAuthenticated,
               let userId = currentUser?.id,
               let session = loadStoredSession() else {
-            print("📊 Energy log skipped: not authenticated or no session")
+            AppLogger.auth.debug("📊 Energy log skipped: not authenticated or no session")
             return
         }
         
-        print("📊 Logging energy spent: \(energySpent)")
+        AppLogger.auth.debug("📊 Logging energy spent: \(energySpent)")
         
         do {
             let cfg = try SupabaseConfig.load()
             let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
             guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
-                print("❌ Invalid users URL")
+                AppLogger.auth.error("❌ Invalid users URL")
                 return
             }
             comps.queryItems = [URLQueryItem(name: "id", value: "eq.\(userId)")]
             
             guard let finalURL = comps.url else {
-                print("❌ Failed to construct energy log URL")
+                AppLogger.auth.error("❌ Failed to construct energy log URL")
                 return
             }
             
@@ -693,13 +670,13 @@ class AuthenticationService: NSObject, ObservableObject {
             )
             
             if http.statusCode < 400 {
-                print("✅ Energy state logged successfully")
+                AppLogger.auth.debug("✅ Energy state logged successfully")
             } else {
                 let responseBody = String(data: data, encoding: .utf8) ?? "empty"
-                print("❌ Energy state log failed: HTTP \(http.statusCode), body: \(responseBody)")
+                AppLogger.auth.error("❌ Energy state log failed: HTTP \(http.statusCode), body: \(responseBody)")
             }
         } catch {
-            print("❌ Energy state log error: \(error.localizedDescription)")
+            AppLogger.auth.error("❌ Energy state log error: \(error.localizedDescription)")
         }
     }
     
@@ -778,7 +755,7 @@ class AuthenticationService: NSObject, ObservableObject {
             
             return true
         } catch {
-            print("⚠️ Nickname check failed: \(error.localizedDescription)")
+            AppLogger.auth.error("⚠️ Nickname check failed: \(error.localizedDescription)")
             return true // Assume available on error
         }
     }
@@ -798,8 +775,8 @@ class AuthenticationService: NSObject, ObservableObject {
         let patch = SupabasePublicUserPatch(nickname: nickname, country: country, avatarUrl: avatarUrl)
         let body = try JSONEncoder().encode(patch)
         
-        print("🔄 PATCH profile: userId=\(userId), nickname=\(nickname ?? "nil"), country=\(country ?? "nil"), avatarUrl=\(avatarUrl ?? "nil")")
-        print("🔄 PATCH URL: \(finalURL.absoluteString)")
+        AppLogger.auth.debug("🔄 PATCH profile: userId=\(userId), nickname=\(nickname ?? "nil"), country=\(country ?? "nil"), avatarUrl=\(avatarUrl ?? "nil")")
+        AppLogger.auth.debug("🔄 PATCH URL: \(finalURL.absoluteString)")
         
         let (data, http) = try await makeJSONRequest(
             url: finalURL,
@@ -814,7 +791,7 @@ class AuthenticationService: NSObject, ObservableObject {
         )
         
         let responseString = String(data: data, encoding: .utf8) ?? "(empty)"
-        print("🔄 PATCH response: status=\(http.statusCode), body=\(responseString)")
+        AppLogger.auth.debug("🔄 PATCH response: status=\(http.statusCode), body=\(responseString)")
         
         if http.statusCode >= 400 {
             let msg = String(data: data, encoding: .utf8) ?? "Failed to update profile"
@@ -823,7 +800,7 @@ class AuthenticationService: NSObject, ObservableObject {
         
         // Check if any rows were updated (empty array means RLS blocked or row doesn't exist)
         if responseString == "[]" {
-            print("⚠️ PATCH returned empty array - check RLS policies or if user row exists")
+            AppLogger.auth.debug("⚠️ PATCH returned empty array - check RLS policies or if user row exists")
             throw AuthError.supabaseError("Profile update failed. User row may not exist or access denied.")
         }
     }
@@ -840,7 +817,7 @@ class AuthenticationService: NSObject, ObservableObject {
             .appendingPathComponent("storage/v1/object/avatars")
             .appendingPathComponent(fileName)
         
-        print("📸 Uploading avatar to: \(storageURL.absoluteString)")
+        AppLogger.auth.debug("📸 Uploading avatar to: \(storageURL.absoluteString)")
         
         var request = URLRequest(url: storageURL)
         request.httpMethod = "POST"
@@ -853,7 +830,7 @@ class AuthenticationService: NSObject, ObservableObject {
         let (data, http) = try await network.data(for: request)
         
         let responseString = String(data: data, encoding: .utf8) ?? "(empty)"
-        print("📸 Upload response: status=\(http.statusCode), body=\(responseString)")
+        AppLogger.auth.debug("📸 Upload response: status=\(http.statusCode), body=\(responseString)")
         
         if http.statusCode >= 400 {
             throw AuthError.supabaseError("Avatar upload failed: \(responseString)")
@@ -885,7 +862,7 @@ class AuthenticationService: NSObject, ObservableObject {
         
         // 404 is OK - file might not exist
         if http.statusCode >= 400 && http.statusCode != 404 {
-            print("⚠️ Avatar delete failed with status: \(http.statusCode)")
+            AppLogger.auth.error("⚠️ Avatar delete failed with status: \(http.statusCode)")
         }
     }
     
@@ -934,7 +911,7 @@ class AuthenticationService: NSObject, ObservableObject {
             throw AuthError.supabaseError("Failed to fetch users")
         }
         
-        let rows = try supabaseJSONDecoder().decode([ResistanceUserRow].self, from: data)
+        let rows = try supabaseDecoder.decode([ResistanceUserRow].self, from: data)
         return rows.shuffled().compactMap { row in
             guard let nick = row.nickname, !nick.isEmpty else { return nil }
             return ResistanceUser(id: row.id, nickname: nick, energySpentLifetime: row.energySpentLifetime ?? 0)
@@ -1132,6 +1109,6 @@ private struct SupabasePublicUserPatch: Codable {
         self.country = country
         self.avatarUrl = avatarUrl
         self.energySpentLifetime = energySpentLifetime
-        self.lastSyncAt = ISO8601DateFormatter().string(from: Date())
+        self.lastSyncAt = CachedFormatters.iso8601Basic.string(from: Date())
     }
 }

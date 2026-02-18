@@ -105,9 +105,6 @@ extension AppModel {
         g.set(self.stepsBalance, forKey: "stepsBalance")
         g.set(currentDayStart(for: Date()), forKey: "stepsBalanceAnchor")
         
-        // Explicitly update totalStepsBalance
-        updateTotalStepsBalance()
-        
         // CRITICAL: Force sync bonus steps to UserDefaults to ensure persistence
         syncAndPersistBonusBreakdown()
         
@@ -140,20 +137,16 @@ extension AppModel {
         }
         
         let todaysBaseEnergy = self.baseEnergyToday
-        if todaysBaseEnergy > 0, self.spentStepsToday > todaysBaseEnergy {
-            self.spentStepsToday = todaysBaseEnergy
-        }
+        // NOTE: Do NOT cap spentStepsToday to baseEnergyToday.
+        // If the user reset the canvas, baseEnergy drops temporarily while spent stays.
+        // Capping here would permanently erase the spent amount, creating free EXP
+        // when activities are re-added. max(0, ...) on balance handles it correctly.
         
-        self.stepsBalance = g.integer(forKey: "stepsBalance")
-        
-        if self.stepsBalance == 0, todaysBaseEnergy > 0 {
-            self.stepsBalance = max(0, todaysBaseEnergy - self.spentStepsToday)
-        }
+        self.stepsBalance = max(0, todaysBaseEnergy - self.spentStepsToday)
         
         self.serverGrantedSteps = g.integer(forKey: "serverGrantedSteps_v1")
         
         syncAndPersistBonusBreakdown()
-        updateTotalStepsBalance()
     }
 
     @MainActor
@@ -167,20 +160,6 @@ extension AppModel {
         g.set(self.bonusSteps, forKey: "debugStepsBonus_v1")
         g.removeObject(forKey: "debugStepsBonus_outerworld_v1")
         g.removeObject(forKey: "debugStepsBonus_debug_v1")
-        
-        updateTotalStepsBalance()
-    }
-
-    // MARK: - Entry Cost Management
-    func loadEntryCost() {
-        let g = UserDefaults.stepsTrader()
-        let raw = g.string(forKey: "entryCostTariff")
-        if let raw, let t = Tariff(rawValue: raw) {
-            entryCostSteps = t.entryCostSteps
-        } else {
-            // Fallback to current tariff's entry cost
-            entryCostSteps = budgetEngine.tariff.entryCostSteps
-        }
     }
 
     // MARK: - Spent Steps Tracking
@@ -234,10 +213,13 @@ extension AppModel {
     // MARK: - Day Pass Management
     func hasDayPass(for bundleId: String?) -> Bool {
         guard let bundleId, let date = dayPassGrants[bundleId] else { return false }
-        if isSameCustomDay(date, Date()) { return true }
+        return isSameCustomDay(date, Date())
+    }
+
+    func cleanupExpiredDayPass(for bundleId: String) {
+        guard let date = dayPassGrants[bundleId], !isSameCustomDay(date, Date()) else { return }
         dayPassGrants.removeValue(forKey: bundleId)
         persistDayPassGrants()
-        return false
     }
     
     func clearExpiredDayPasses() {

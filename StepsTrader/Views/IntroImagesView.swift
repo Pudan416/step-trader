@@ -36,7 +36,7 @@ struct IntroImagesView: View {
                     if index > 0 {
                         Button(action: { index -= 1 }) {
                             Text("Back")
-                                .font(.notoSerif(16, weight: .semibold))
+                                .font(.systemSerif(16, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 12)
@@ -54,7 +54,7 @@ struct IntroImagesView: View {
                         }
                     }) {
                         Text(index == 7 ? "YES" : "Next")
-                            .font(.notoSerif(16, weight: .semibold))
+                            .font(.systemSerif(16, weight: .semibold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 12)
@@ -76,7 +76,7 @@ struct IntroImagesView: View {
         HStack(spacing: 4) {
             ForEach(0..<Self.imageNames.count, id: \.self) { i in
                 Capsule()
-                    .fill(i == index ? AppColors.brandPink : AppColors.brandPink.opacity(0.3))
+                    .fill(i == index ? AppColors.brandAccent : AppColors.brandAccent.opacity(0.3))
                     .frame(height: 4)
                     .frame(maxWidth: .infinity)
             }

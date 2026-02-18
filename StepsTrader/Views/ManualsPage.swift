@@ -9,8 +9,10 @@ struct ManualsPage: View {
         NavigationStack {
             ZStack {
                 EnergyGradientBackground(
+                    stepsPoints: model.stepsPointsToday,
                     sleepPoints: model.sleepPointsToday,
-                    stepsPoints: model.stepsPointsToday
+                    hasStepsData: model.hasStepsData,
+                    hasSleepData: model.hasSleepData
                 )
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
@@ -81,14 +83,14 @@ struct ManualsPage: View {
             ),
             GuideEntry(
                 title: "on the threshold",
-                body: "Tickets are thresholds, not punishments. You pause. You decide if the screen is worth the experience."
+                body: "Tickets are thresholds, not punishments. You pause. You decide if the screen is worth the ink."
             )
         ]
     }
 }
 
 private struct GuideEntry: Identifiable {
-    let id = UUID()
+    var id: String { title }
     let title: String
     let body: String
 }

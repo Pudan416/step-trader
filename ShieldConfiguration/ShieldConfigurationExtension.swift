@@ -86,7 +86,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         case .blocked:
             return baseConfiguration(
                 title: "\(appName) is closed.",
-                subtitle: "Open Proof to spend exp.",
+                subtitle: "Open Proof to spend ink.",
                 primaryButtonText: "Open"
             )
             
@@ -110,7 +110,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         case .blocked:
             return baseConfiguration(
                 title: "\(domain) is closed.",
-                subtitle: "Open Proof to spend exp.",
+                subtitle: "Open Proof to spend ink.",
                 primaryButtonText: "Open"
             )
             

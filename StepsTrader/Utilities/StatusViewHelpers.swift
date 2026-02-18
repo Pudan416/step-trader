@@ -13,7 +13,6 @@ enum StatusViewHelpers {
         case "com.toyopagroup.picaboo": return .yellow
         case "net.whatsapp.WhatsApp": return .green
         case "ph.telegra.Telegraph": return .cyan
-        case "com.duolingo.DuolingoMobile": return Color(red: 0.35, green: 0.8, blue: 0.2)
         case "com.pinterest": return .red
         case "com.reddit.Reddit": return .orange
         default: return .purple

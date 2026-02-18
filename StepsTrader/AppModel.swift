@@ -27,6 +27,8 @@ final class AppModel: ObservableObject {
     let userEconomyStore: UserEconomyStore
     
     private var cancellables = Set<AnyCancellable>()
+    private var returnNotificationTask: Task<Void, Never>?
+    private var periodicNotificationTask: Task<Void, Never>?
 
     nonisolated static func dayKey(for date: Date) -> String {
         let g = UserDefaults.stepsTrader()
@@ -50,7 +52,6 @@ final class AppModel: ObservableObject {
         return DayBoundary.currentDayStart(for: date, dayEndHour: hour, dayEndMinute: minute)
     }
 
-    private let serverGrantedStepsKey = "serverGrantedSteps_v1"
     private var lastSupabaseSyncAt: Date = .distantPast
     
     // MARK: - Performance optimization
@@ -71,6 +72,11 @@ final class AppModel: ObservableObject {
         get { healthStore.baseEnergyToday }
         set { healthStore.baseEnergyToday = newValue }
     }
+    /// Whether HealthKit has returned step data today.
+    var hasStepsData: Bool { healthStore.hasStepsData }
+    /// Whether HealthKit has returned sleep data today.
+    var hasSleepData: Bool { healthStore.hasSleepData }
+
     var healthAuthorizationStatus: HKAuthorizationStatus {
         get { healthStore.authorizationStatus }
         set { healthStore.authorizationStatus = newValue }
@@ -176,11 +182,6 @@ final class AppModel: ObservableObject {
         set { userEconomyStore.dayPassGrants = newValue }
     }
     
-    // Proxy methods for compatibility
-    func updateTotalStepsBalance() {
-        // Handled internally by UserEconomyStore
-    }
-
     func isFamilyControlsModeEnabled(for bundleId: String) -> Bool {
         unlockSettings(for: bundleId).familyControlsModeEnabled
     }
@@ -256,7 +257,7 @@ final class AppModel: ObservableObject {
             // Prevent recursion
             guard !isUpdatingInstagramSelection else { return }
 
-            UserDefaults.standard.set(isInstagramSelected, forKey: "isInstagramSelected")
+            UserDefaults.stepsTrader().set(isInstagramSelected, forKey: "isInstagramSelected")
             if isInstagramSelected {
                 // For Instagram specifically, we use the existing selection mechanism
                 // but we don't call setAppAsTarget which triggers applyFamilyControlsSelection
@@ -283,21 +284,11 @@ final class AppModel: ObservableObject {
         blockingStore.updateAppSelectionFromService(selection)
     }
     
-    private func setAppAsTarget(bundleId: String) {
-        // For Instagram specifically, we use the existing selection mechanism
-        if bundleId == "com.burbn.instagram" {
-            // Apply the existing time access selection for this bundle ID
-            applyFamilyControlsSelection(for: bundleId)
-        } else {
-            // For other apps, apply their selection
-            applyFamilyControlsSelection(for: bundleId)
-        }
-    }
-    
     private func clearAppSelection() {
         blockingStore.clearAppSelection()
     }
 
+    // Internal (mutated from AppModel+BudgetTracking extension)
     var startTime: Date?
     var timer: Timer?
     var dayBoundaryTimer: Timer?
@@ -325,7 +316,7 @@ final class AppModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
         
-        // Recalc exp total when steps or sleep update (so total = activity + creativity + joys)
+        // Recalc ink total when steps or sleep update (so total = activity + creativity + joys)
         Publishers.CombineLatest(healthStore.$stepsToday, healthStore.$dailySleepHours)
             .dropFirst()
             .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
@@ -652,15 +643,18 @@ final class AppModel: ObservableObject {
     }
 
     func sendReturnToAppNotification() {
-        // Send first notification 30 seconds after blocking
-        Task { [weak self] in
+        returnNotificationTask?.cancel()
+        periodicNotificationTask?.cancel()
+
+        returnNotificationTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 30 * 1_000_000_000)
+            guard !Task.isCancelled else { return }
             self?.scheduleReturnNotification()
         }
 
-        // Periodic reminders every 5 minutes
-        Task { [weak self] in
+        periodicNotificationTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 300 * 1_000_000_000)
+            guard !Task.isCancelled else { return }
             self?.schedulePeriodicNotifications()
         }
     }
@@ -709,21 +703,19 @@ final class AppModel: ObservableObject {
 
         let content = UNMutableNotificationContent()
         content.title = "Proof"
-        content.body = "You have exp to earn."
+        content.body = "You have ink to earn."
         content.sound = .default
 
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ["periodicReminder"])
+
         let request = UNNotificationRequest(
-            identifier: "periodicReminder-\(UUID().uuidString)",
+            identifier: "periodicReminder",
             content: content,
-            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 300, repeats: true)  // every 5 minutes
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 300, repeats: true)
         )
 
-        UNUserNotificationCenter.current().add(request)
-
-        // Repeat after 5 minutes if still blocked
-        DispatchQueue.main.asyncAfter(deadline: .now() + 300) { [weak self] in
-            self?.schedulePeriodicNotifications()
-        }
+        center.add(request)
     }
 
     func withTimeout(seconds: TimeInterval, operation: @escaping () async throws -> Void) async rethrows {
@@ -751,7 +743,6 @@ final class AppModel: ObservableObject {
                 stepsToday = fallbackCachedSteps()
             #endif
         }
-        cacheStepsToday()
         let mins = budgetEngine.minutes(from: stepsToday)
         budgetEngine.setBudget(minutes: mins)
         if spentMinutes > mins {
@@ -762,19 +753,21 @@ final class AppModel: ObservableObject {
         AppLogger.app.debug("🔄 Silent budget recalculation: \(mins) minutes from \(Int(self.stepsToday)) steps")
     }
     
-    func handleIncomingURL(_ url: URL) {
-        AppLogger.app.debug("🔗 Handling incoming URL: \(url)")
-    }
-    
-    func handleAppDidEnterBackground() {
-        AppLogger.app.debug("📱 App entered background")
-    }
-    
     func handleAppWillEnterForeground() {
         AppLogger.app.debug("📱 App will enter foreground")
+        // Refresh Family Controls auth status in case user revoked in Settings (audit fix #15)
+        if let service = familyControlsService as? FamilyControlsService {
+            service.refreshAuthorizationStatus()
+        }
         checkDayBoundary()
         scheduleDayBoundaryTimer()
         cleanupExpiredUnlocks()
+        purgeExpiredAccessWindows()
+        // Always rebuild shield on foreground to guarantee consistency.
+        // The DeviceActivity extension's expiry callback may not have fired
+        // (system constraints, DateComponents issues), so the main app must
+        // re-apply the correct shield state every time it resumes.
+        rebuildFamilyControlsShield()
         Task {
             await refreshStepsBalance()
             await refreshSleepIfAuthorized()
@@ -799,10 +792,11 @@ final class AppModel: ObservableObject {
         loadMinuteChargeLogs()
         blockingStore.loadTicketGroups()
         
-        // 1.5 Restore daily energy state and spent balance so exp counts persist across restarts
+        // 1.5 Restore daily energy state and spent balance so ink counts persist across restarts
         loadEnergyPreferences()
         loadDailyEnergyState()
         loadSpentStepsBalance()
+        loadDailyTariffSelections()
         
         // 1.6 If authenticated but local selections are empty, attempt to restore from Supabase.
         // This covers fresh installs, device switches, and UserDefaults data loss.
@@ -845,6 +839,9 @@ final class AppModel: ObservableObject {
         
         isBootstrapping = false
         AppLogger.app.debug("✅ AppModel bootstrap complete")
+        
+        // Drain any offline sync requests that failed previously
+        Task { await SupabaseSyncService.shared.drainRetryQueue() }
     }
     
     deinit {
@@ -858,13 +855,6 @@ final class AppModel: ObservableObject {
             nil,
             nil
         )
-    }
-}
-
-@MainActor
-private func requestNotificationPermissionIfNeeded() async {
-    do { try await DIContainer.shared.makeNotificationService().requestPermission() } catch {
-        AppLogger.app.debug("Notification permission failed: \(error.localizedDescription)")
     }
 }
 

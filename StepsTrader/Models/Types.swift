@@ -28,15 +28,17 @@ struct HandoffToken: Codable {
 // MARK: - HealthKit Service Protocol
 @preconcurrency
 protocol HealthKitServiceProtocol {
-    func fetchTodaySleep() async throws -> Double
     func fetchSleep(from: Date, to: Date) async throws -> Double
     @MainActor
     func requestAuthorization() async throws
+    /// Returns the WRITE authorization status for steps. Note: this does NOT reflect
+    /// read permission — HealthKit never reveals whether read access was granted.
+    /// For read-only apps, `.sharingDenied` is expected and does not mean reads will fail.
     @MainActor
     func authorizationStatus() -> HKAuthorizationStatus
+    /// Returns the WRITE authorization status for sleep (same caveat as above).
     @MainActor
     func sleepAuthorizationStatus() -> HKAuthorizationStatus
-    func fetchTodaySteps() async throws -> Double
     func fetchSteps(from: Date, to: Date) async throws -> Double
     func startObservingSteps(updateHandler: @escaping (Double) -> Void)
     func stopObservingSteps()
@@ -59,7 +61,6 @@ protocol FamilyControlsServiceProtocol {
 protocol NotificationServiceProtocol {
     func requestPermission() async throws
     func sendTimeExpiredNotification()
-    func sendTimeExpiredNotification(remainingMinutes: Int)
     func sendUnblockNotification(remainingMinutes: Int)
     func sendRemainingTimeNotification(remainingMinutes: Int)
     func sendMinuteModeSummary(bundleId: String, minutesUsed: Int, stepsCharged: Int)
@@ -82,16 +83,25 @@ protocol BudgetEngineProtocol: ObservableObject {
     func updateTariff(_ newTariff: Tariff)
     func updateDayEnd(hour: Int, minute: Int)
     func reloadFromStorage()
-    
-    // Backward compatibility
-    var difficultyLevel: DifficultyLevel { get set }
 }
 
-enum Tariff: String, CaseIterable {
+enum Tariff: String, CaseIterable, Codable {
     case hard = "hard"     // 1000 steps = 1 minute
     case medium = "medium" // 500 steps = 1 minute
-    case easy = "lite"     // 100 steps = 1 minute
+    case easy = "easy"     // 100 steps = 1 minute
     case free = "free"     // 0 steps = 1 minute (free entry tracking only)
+
+    /// Backward-compatible decoding: accept legacy "lite" raw value.
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        if raw == "lite" {
+            self = .easy
+        } else if let value = Tariff(rawValue: raw) {
+            self = value
+        } else {
+            self = .easy
+        }
+    }
     
     var stepsPerMinute: Double {
         switch self {
@@ -106,18 +116,18 @@ enum Tariff: String, CaseIterable {
     var entryCostSteps: Int {
         switch self {
         case .free: return 0
-        case .easy: return 10   // Level III
-        case .medium: return 50 // Level II
-        case .hard: return 100  // Level I
+        case .easy: return 10
+        case .medium: return 50
+        case .hard: return 100
         }
     }
     
     var displayName: String {
         switch self {
-        case .hard: return "I"
-        case .medium: return "II"
-        case .easy: return "III"
-        case .free: return "IV"
+        case .free: return "Free"
+        case .easy: return "Easy"
+        case .medium: return "Medium"
+        case .hard: return "Hard"
         }
     }
     
@@ -131,8 +141,6 @@ enum Tariff: String, CaseIterable {
     }
 }
 
-// Backward compatibility
-typealias DifficultyLevel = Tariff
 
 // MARK: - FamilyControls placeholders / aliases
 #if canImport(FamilyControls)
@@ -163,6 +171,23 @@ final class ActivityCategoryToken: NSObject, NSSecureCoding {
 }
 #endif
 
+// MARK: - Gradient style
+enum GradientStyle: String, CaseIterable {
+    case radial
+    case linear
+    case radialReversed
+    case linearReversed
+
+    var displayName: String {
+        switch self {
+        case .radial: return "Radial"
+        case .linear: return "Linear"
+        case .radialReversed: return "Radial Reversed"
+        case .linearReversed: return "Linear Reversed"
+        }
+    }
+}
+
 // MARK: - App theme
 // "Dark theme feels like night and screens. Daylight theme feels like day and the world outside."
 // Both communicate the same idea: The screen is not your life. This is just a place to notice.
@@ -172,14 +197,6 @@ enum AppTheme: String, CaseIterable {
     case night      // Night and screens
     
     var displayNameEn: String {
-        switch self {
-        case .system: return "System"
-        case .daylight: return "Daylight"
-        case .night: return "Night"
-        }
-    }
-    
-    var displayNameRu: String {
         switch self {
         case .system: return "System"
         case .daylight: return "Daylight"
@@ -199,13 +216,18 @@ enum AppTheme: String, CaseIterable {
         switch self {
         case .daylight: return true
         case .night: return false
-        case .system: return true
+        case .system:
+#if canImport(UIKit)
+            return UITraitCollection.current.userInterfaceStyle != .dark
+#else
+            return true
+#endif
         }
     }
     
     // Dusty chalk pink — same across all themes
     var accentColor: Color {
-        AppColors.brandPink
+        AppColors.brandAccent
     }
     
     var backgroundColor: Color {
@@ -215,7 +237,7 @@ enum AppTheme: String, CaseIterable {
             return Color(uiColor: UIColor { traits in
                 traits.userInterfaceStyle == .dark
                     ? UIColor(red: 0x22/255.0, green: 0x28/255.0, blue: 0x31/255.0, alpha: 1) // #222831
-                    : UIColor(red: 0xEE/255.0, green: 0xEE/255.0, blue: 0xEE/255.0, alpha: 1) // #EEEEEE
+                    : UIColor(red: 0xF2/255.0, green: 0xF2/255.0, blue: 0xF2/255.0, alpha: 1) // #F2F2F2
             })
 #else
             return Color(.systemBackground)

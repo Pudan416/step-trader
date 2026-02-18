@@ -171,7 +171,7 @@ struct AutomationGuideView: View {
                 .scaledToFit()
         } else {
             Text(app.icon)
-                .font(.notoSerif(28))
+                .font(.systemSerif(28))
         }
     }
     
@@ -267,7 +267,7 @@ struct AutomationGuideView: View {
                     .font(AppFonts.caption)
                     .foregroundColor(.secondary)
                 Text(minuteModeEnabled 
-                    ? "Exp is deducted for each minute I spend in the app"
+                    ? "Ink is deducted for each minute I spend in the app"
                     : "Choose a time window (5min, 1h, day) and pay once for unlimited access")
                     .font(AppFonts.caption)
                     .foregroundColor(.secondary)
@@ -507,20 +507,6 @@ struct AutomationGuideView: View {
             .frame(height: 70)
             .allowsHitTesting(false)
         )
-    }
-    
-    // MARK: - Helpers
-    private func formatSteps(_ value: Int) -> String {
-        let absValue = abs(value)
-        if absValue < 1000 { return "\(value)" }
-        if absValue < 10_000 {
-            let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
-            return String(format: "%.1fK", v).replacingOccurrences(of: ".0K", with: "K")
-        }
-        if absValue < 1_000_000 {
-            return "\(Int((Double(absValue) / 1000.0).rounded()))K"
-        }
-        return "\(Int((Double(absValue) / 1_000_000.0).rounded()))M"
     }
 }
 #endif

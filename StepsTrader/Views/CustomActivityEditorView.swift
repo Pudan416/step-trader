@@ -25,14 +25,6 @@ struct CustomActivityEditorView: View {
         CustomActivityIcons.icons(for: category)
     }
     
-    private var categoryColor: Color {
-        switch category {
-        case .body: return .green
-        case .mind: return .purple
-        case .heart: return .orange
-        }
-    }
-    
     private var isValid: Bool {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         return !trimmed.isEmpty && !selectedIcon.isEmpty
@@ -134,14 +126,14 @@ struct CustomActivityEditorView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 } else {
                     Image(systemName: selectedIcon.isEmpty ? "questionmark" : selectedIcon)
-                        .font(.notoSerif(32, weight: .light))
-                        .foregroundColor(categoryColor.opacity(0.2))
+                        .font(.systemSerif(32, weight: .light))
+                        .foregroundColor(category.color.opacity(0.2))
                 }
                 
                 VStack {
                     Spacer()
                     Text(title.isEmpty ? "Preview" : title)
-                        .font(.notoSerif(11, weight: .medium))
+                        .font(.systemSerif(11, weight: .medium))
                         .foregroundColor(.primary)
                         .lineLimit(3)
                         .multilineTextAlignment(.center)
@@ -177,7 +169,7 @@ struct CustomActivityEditorView: View {
         } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? categoryColor.opacity(0.3) : Color(.tertiarySystemFill))
+                    .fill(isSelected ? category.color.opacity(0.3) : Color(.tertiarySystemFill))
                     .frame(width: 64, height: 64)
                 
                 if let uiImage = uiImage {
@@ -194,7 +186,7 @@ struct CustomActivityEditorView: View {
             }
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? categoryColor : Color.clear, lineWidth: 3)
+                    .stroke(isSelected ? category.color : Color.clear, lineWidth: 3)
             )
         }
         .buttonStyle(.plain)
@@ -222,16 +214,16 @@ struct CustomActivityEditorView: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(selectedIcon == icon ? categoryColor : Color(.tertiarySystemFill))
+                    .fill(selectedIcon == icon ? category.color : Color(.tertiarySystemFill))
                     .frame(width: 48, height: 48)
                 
                 Image(systemName: icon)
-                    .font(.notoSerif(20))
+                    .font(.systemSerif(20))
                     .foregroundColor(selectedIcon == icon ? .white : .primary)
             }
             .overlay(
                 Circle()
-                    .stroke(selectedIcon == icon ? categoryColor : Color.clear, lineWidth: 2)
+                    .stroke(selectedIcon == icon ? category.color : Color.clear, lineWidth: 2)
                     .scaleEffect(1.1)
             )
         }

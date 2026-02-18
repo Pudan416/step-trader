@@ -44,7 +44,7 @@ struct DailyEnergyCard: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Daily Exp")
+                Text("Daily Ink")
                     .font(.title3.weight(.bold))
                 Text("Build 100 points from activity, creativity, and joys")
                     .font(.caption)
@@ -53,7 +53,7 @@ struct DailyEnergyCard: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(model.healthStore.baseEnergyToday)")
-                    .font(.notoSerif(32, weight: .bold))
+                    .font(.systemSerif(32, weight: .bold))
                     .foregroundColor(.primary)
                     .monospacedDigit()
                 Text("/\(EnergyDefaults.maxBaseEnergy)")
@@ -201,9 +201,5 @@ struct DailyEnergyCard: View {
             .shadow(color: isSelected ? chipColor.opacity(0.2) : Color.clear, radius: 4, x: 0, y: 2)
         }
         .buttonStyle(.plain)
-    }
-    
-    private func formatNumber(_ value: Int) -> String {
-        value < 1000 ? "\(value)" : "\(value / 1000)k"
     }
 }

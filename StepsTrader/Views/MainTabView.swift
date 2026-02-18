@@ -15,23 +15,24 @@ extension EnvironmentValues {
 
 struct MainTabView: View {
     @ObservedObject var model: AppModel
-    @State private var selection: Int = Tab.gallery.rawValue
+    @State private var selection: Int = Tab.canvas.rawValue
     var theme: AppTheme = .system
     @State private var selectedCategory: EnergyCategory? = nil
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
+    @State private var isLabelMode: Bool = false
 
     private enum Tab: Int, CaseIterable {
-        case gallery = 0
-        case tickets = 1
+        case canvas = 0
+        case feeds = 1
         case me = 2
         case guides = 3
         case settings = 4
 
         var icon: String {
             switch self {
-            case .tickets: return "square.grid.2x2"
-            case .gallery: return "hand.point.up.left.fill"
+            case .feeds: return "square.grid.2x2"
+            case .canvas: return "hand.point.up.left.fill"
             case .me: return "person.circle"
             case .guides: return "questionmark.circle"
             case .settings: return "gearshape"
@@ -40,8 +41,8 @@ struct MainTabView: View {
 
         var title: String {
             switch self {
-            case .tickets: return "My Tickets"
-            case .gallery: return "My Gallery"
+            case .feeds: return "Feeds"
+            case .canvas: return "Canvas"
             case .me: return "Me"
             case .guides: return "Guides"
             case .settings: return "Settings"
@@ -50,8 +51,8 @@ struct MainTabView: View {
         
         var shortTitle: String {
             switch self {
-            case .tickets: return "Tickets"
-            case .gallery: return "Gallery"
+            case .feeds: return "Feeds"
+            case .canvas: return "Canvas"
             case .me: return "Me"
             case .guides: return "Guides"
             case .settings: return "Settings"
@@ -60,8 +61,8 @@ struct MainTabView: View {
         
         var accessibilityId: String {
             switch self {
-            case .tickets: return "tab_tickets"
-            case .gallery: return "tab_gallery"
+            case .feeds: return "tab_feeds"
+            case .canvas: return "tab_canvas"
             case .me: return "tab_me"
             case .guides: return "tab_guides"
             case .settings: return "tab_settings"
@@ -80,20 +81,20 @@ struct MainTabView: View {
     var body: some View {
         ZStack {
             TabView(selection: $selection) {
-                // 0: My Gallery (default) — canvas goes full-bleed behind card
+                // 0: My Canvas (default) — canvas goes full-bleed behind card
                 NavigationStack {
-                    GalleryView(model: model, metricOverlay: $metricOverlay)
+                    GalleryView(model: model, metricOverlay: $metricOverlay, isLabelMode: $isLabelMode)
                 }
                 .safeAreaInset(edge: .top, spacing: 0) {
                     Color.clear.frame(height: topCardHeight)
                 }
                 .toolbar(.hidden, for: .tabBar)
-                .tag(Tab.gallery.rawValue)
+                .tag(Tab.canvas.rawValue)
 
-                // 1: My Tickets
+                // 1: My Feeds
                 AppsPageSimplified(model: model)
                     .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.tickets.rawValue)
+                    .tag(Tab.feeds.rawValue)
 
                 // 2: Me
                 MeView(model: model)
@@ -113,8 +114,12 @@ struct MainTabView: View {
             .environment(\.topCardHeight, topCardHeight)
             .animation(.easeInOut(duration: 0.2), value: selection)
             .safeAreaInset(edge: .bottom) {
-                customTabBar
+                if !isLabelMode {
+                    customTabBar
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
+            .animation(.easeInOut(duration: 0.25), value: isLabelMode)
             .background(Color.clear)
             .onAppear {
                 model.recalculateDailyEnergy()
@@ -122,12 +127,13 @@ struct MainTabView: View {
             .sheet(item: $selectedCategory) { category in
                 CategoryDetailView(model: model, category: category, outerWorldSteps: 0)
                 .onAppear {
-                    print("🟢 MainTabView: Showing CategoryDetailView for category: \(category.rawValue)")
-                    print("🟢 CategoryDetailView appeared for category: \(category.rawValue)")
+                    AppLogger.ui.debug("🟢 MainTabView: Showing CategoryDetailView for category: \(category.rawValue)")
+                    AppLogger.ui.debug("🟢 CategoryDetailView appeared for category: \(category.rawValue)")
                 }
             }
         }
         .overlay(alignment: .top) {
+            if !isLabelMode {
             StepBalanceCard(
                 remainingSteps: model.userEconomyStore.totalStepsBalance,
                 totalSteps: model.healthStore.baseEnergyToday + model.userEconomyStore.bonusSteps,
@@ -137,7 +143,7 @@ struct MainTabView: View {
                 grantedSteps: model.userEconomyStore.bonusSteps,
                 dayEndHour: model.dayEndHour,
                 dayEndMinute: model.dayEndMinute,
-                showDetails: selection == Tab.gallery.rawValue,
+                showDetails: selection == Tab.canvas.rawValue,
                 stepsPoints: model.stepsPointsToday,
                 sleepPoints: model.sleepPointsToday,
                 bodyPoints: model.activityPointsToday,
@@ -145,31 +151,31 @@ struct MainTabView: View {
                 heartPoints: model.joysCategoryPointsToday,
                 baseEnergyToday: model.healthStore.baseEnergyToday,
                 onStepsTap: {
-                    if selection == Tab.gallery.rawValue {
+                    if selection == Tab.canvas.rawValue {
                         metricOverlay = .steps
                     }
                 },
                 onSleepTap: {
-                    if selection == Tab.gallery.rawValue {
+                    if selection == Tab.canvas.rawValue {
                         metricOverlay = .sleep
                     }
                 },
                 onMoveTap: {
-                    if selection == Tab.gallery.rawValue {
+                    if selection == Tab.canvas.rawValue {
                         metricOverlay = .category(.body)
                     } else {
                         selectedCategory = .body
                     }
                 },
                 onRebootTap: {
-                    if selection == Tab.gallery.rawValue {
+                    if selection == Tab.canvas.rawValue {
                         metricOverlay = .category(.mind)
                     } else {
                         selectedCategory = .mind
                     }
                 },
                 onJoyTap: {
-                    if selection == Tab.gallery.rawValue {
+                    if selection == Tab.canvas.rawValue {
                         metricOverlay = .category(.heart)
                     } else {
                         selectedCategory = .heart
@@ -185,25 +191,27 @@ struct MainTabView: View {
                         .preference(key: TopCardHeightPreferenceKey.self, value: geo.size.height)
                 }
             )
+            .transition(.move(edge: .top).combined(with: .opacity))
+            }
         }
         .onPreferenceChange(TopCardHeightPreferenceKey.self) { topCardHeight = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in
-            selection = Tab.tickets.rawValue
+            selection = Tab.feeds.rawValue
         }
         .onChange(of: selection) { _, newValue in
-            if newValue != Tab.gallery.rawValue {
+            if newValue != Tab.canvas.rawValue {
                 metricOverlay = nil
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("OpenTicketSettings"))) { notification in
-            print("🔧 Received OpenTicketSettings notification")
-            // Navigate to tickets tab.
-            selection = Tab.tickets.rawValue
+            AppLogger.ui.debug("🔧 Received OpenTicketSettings notification")
+            // Navigate to feeds tab.
+            selection = Tab.feeds.rawValue
             if let bundleId = notification.userInfo?["bundleId"] as? String {
-                print("🔧 Will open ticket for bundleId: \(bundleId)")
+                AppLogger.ui.debug("🔧 Will open ticket for bundleId: \(bundleId)")
                 // Post delayed notification to open specific ticket
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    print("🔧 Posting OpenTicketForBundle notification")
+                    AppLogger.ui.debug("🔧 Posting OpenTicketForBundle notification")
                     NotificationCenter.default.post(
                         name: .init("OpenTicketForBundle"),
                         object: nil,
@@ -220,12 +228,12 @@ struct MainTabView: View {
                 liquidGlassTabBar
                     .background(.clear)
                     .onAppear {
-                        print("🔵 Using Liquid Glass tab bar (iOS 26+)")
+                        AppLogger.ui.debug("🔵 Using Liquid Glass tab bar (iOS 26+)")
                     }
             } else {
                 legacyTabBar
                     .onAppear {
-                        print("🟠 Using legacy tab bar (iOS < 26)")
+                        AppLogger.ui.debug("🟠 Using legacy tab bar (iOS < 26)")
                     }
             }
         }
@@ -300,99 +308,7 @@ struct MainTabView: View {
         .padding(.horizontal, 12)
         .padding(.bottom, 4)
     }
-    
-    private var remainingStepsToday: Int {
-        max(0, Int(model.effectiveStepsToday) - model.spentStepsToday)
-    }
 }
 
-// MARK: - Shared energy gradient + grain background (used by every tab)
-
-struct EnergyGradientBackground: View {
-    let sleepPoints: Int
-    let stepsPoints: Int
-
-    var body: some View {
-        Canvas { context, size in
-            drawUnifiedGradient(context: &context, size: size)
-        }
-        .ignoresSafeArea()
-        .overlay {
-            Image("grain 1")
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-                .opacity(0.4)
-                .blendMode(.overlay)
-        }
-    }
-
-    private func drawUnifiedGradient(context: inout GraphicsContext, size: CGSize) {
-        let w = Double(size.width)
-        let h = Double(size.height)
-        let dim = min(w, h)
-
-        let stepsNorm = Double(min(max(stepsPoints, 0), 20)) / 20.0
-        let sleepNorm = Double(min(max(sleepPoints, 0), 20)) / 20.0
-
-        let gold = Color(hex: "#FFBF65")
-        let coral = Color(hex: "#FD8973")
-        let navy = Color(hex: "#003A6C")
-        let night = Color(hex: "#13181B")
-
-        let goldOpacity = 0.35 + stepsNorm * 0.55
-        let coralOpacity = 0.3 + stepsNorm * 0.4
-        let navyOpacity = 0.3 + sleepNorm * 0.5
-        let nightOpacity = 0.5 + sleepNorm * 0.5
-
-        let center = CGPoint(x: w * 0.5, y: h * 0.5)
-        let gradient = Gradient(stops: [
-            .init(color: gold.opacity(goldOpacity), location: 0.0),
-            .init(color: coral.opacity(coralOpacity), location: 0.25),
-            .init(color: navy.opacity(navyOpacity), location: 0.55),
-            .init(color: night.opacity(nightOpacity), location: 0.85),
-            .init(color: night.opacity(nightOpacity), location: 1.0)
-        ])
-
-        let canvasRect = CGRect(x: 0, y: 0, width: w, height: h)
-        let maxReach = max(w, h)
-        context.fill(
-            Path(canvasRect),
-            with: .radialGradient(
-                gradient,
-                center: center,
-                startRadius: 0,
-                endRadius: maxReach * 0.7
-            )
-        )
-
-        let secondaryGrad = Gradient(colors: [
-            gold.opacity(goldOpacity * 0.2),
-            coral.opacity(coralOpacity * 0.08),
-            .clear
-        ])
-        let glowRadius = dim * 0.4
-        let shading = GraphicsContext.Shading.radialGradient(
-            secondaryGrad,
-            center: center,
-            startRadius: 0,
-            endRadius: glowRadius
-        )
-        context.drawLayer { ctx in
-            ctx.opacity = 0.5
-            ctx.fill(
-                Ellipse().path(in: CGRect(
-                    x: center.x - glowRadius,
-                    y: center.y - glowRadius,
-                    width: glowRadius * 2,
-                    height: glowRadius * 2
-                )),
-                with: shading
-            )
-        }
-    }
-}
+// EnergyGradientBackground is now in Components/EnergyGradientBackground.swift
 

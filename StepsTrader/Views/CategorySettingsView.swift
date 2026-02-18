@@ -8,8 +8,12 @@ struct CategorySettingsView: View {
     @Environment(\.appTheme) private var theme
     
     // Settings state
-    @AppStorage("userStepsTarget") private var stepsTarget: Double = 10_000
-    @AppStorage("userSleepTarget") private var sleepTarget: Double = 8.0
+    // Use the app group suite so @AppStorage and loadSettings/saveSettings
+    // read/write the same UserDefaults (audit fix #44)
+    @AppStorage("userStepsTarget", store: UserDefaults(suiteName: SharedKeys.appGroupId))
+    private var stepsTarget: Double = 10_000
+    @AppStorage("userSleepTarget", store: UserDefaults(suiteName: SharedKeys.appGroupId))
+    private var sleepTarget: Double = 8.0
     @State private var selectedOptions: Set<String> = []
     @State private var deleteOptionId: String? = nil
     
@@ -48,15 +52,15 @@ struct CategorySettingsView: View {
                 }
             }
             .task {
-                print("🟡 CategorySettingsView: Loading settings for category: \(category.rawValue)")
+                AppLogger.energy.debug("🟡 CategorySettingsView: Loading settings for category: \(category.rawValue)")
                 // Load settings asynchronously
                 await loadSettingsAsync()
-                print("🟡 CategorySettingsView: Settings loaded")
+                AppLogger.energy.debug("🟡 CategorySettingsView: Settings loaded")
             }
         }
         .navigationViewStyle(.stack)
         .onAppear {
-            print("🟢 CategorySettingsView body appeared, category: \(category.rawValue), appLanguage: \(appLanguage)")
+            AppLogger.energy.debug("🟢 CategorySettingsView body appeared, category: \(category.rawValue), appLanguage: \(appLanguage)")
         }
     }
     
@@ -67,7 +71,7 @@ struct CategorySettingsView: View {
             
             VStack(spacing: 8) {
                 HStack {
-                    Text("\(formatNumber(Int(stepsTarget)))")
+                    Text("\(formatGroupedNumber(Int(stepsTarget)))")
                         .font(.title2.bold())
                     Text("steps")
                         .font(.subheadline)
@@ -86,7 +90,7 @@ struct CategorySettingsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                    .tint(categoryColor)
+                    .tint(category.color)
             }
             .padding()
             .background(Color(.secondarySystemBackground))
@@ -120,7 +124,7 @@ struct CategorySettingsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                    .tint(categoryColor)
+                    .tint(category.color)
             }
             .padding()
             .background(Color(.secondarySystemBackground))
@@ -153,7 +157,7 @@ struct CategorySettingsView: View {
             }
         }
         .onAppear {
-            print("🟡 CategorySettingsView: optionsSelectionSection appeared for \(category.rawValue), allOptions count: \(allOptions.count), selectedOptions count: \(selectedOptions.count)")
+            AppLogger.energy.debug("🟡 CategorySettingsView: optionsSelectionSection appeared for \(category.rawValue), allOptions count: \(allOptions.count), selectedOptions count: \(selectedOptions.count)")
         }
         .alert(
             "Delete activity?",
@@ -194,12 +198,12 @@ struct CategorySettingsView: View {
             // Icon
             ZStack {
                 Circle()
-                    .fill(categoryColor.opacity(isSelected ? 0.2 : 0.1))
+                    .fill(category.color.opacity(isSelected ? 0.2 : 0.1))
                     .frame(width: 44, height: 44)
                 
                 Image(systemName: option.icon)
-                    .font(.notoSerif(18, weight: .semibold))
-                    .foregroundColor(isSelected ? categoryColor : .secondary)
+                    .font(.systemSerif(18, weight: .semibold))
+                    .foregroundColor(isSelected ? category.color : .secondary)
             }
             
             // Title
@@ -225,7 +229,7 @@ struct CategorySettingsView: View {
             // Checkmark
             if isSelected {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(categoryColor)
+                    .foregroundColor(category.color)
                     .font(.title3)
             } else {
                 Image(systemName: "circle")
@@ -236,14 +240,6 @@ struct CategorySettingsView: View {
         .padding(.vertical, 8)
         .contentShape(Rectangle())
         .onTapGesture(perform: toggleSelection)
-    }
-    
-    private var categoryColor: Color {
-        switch category {
-        case .body: return .green
-        case .mind: return .purple
-        case .heart: return .orange
-        }
     }
     
     private func loadSettings() {
@@ -281,12 +277,5 @@ struct CategorySettingsView: View {
             // Trigger recalculation
             model.recalculateDailyEnergy()
         }
-    }
-    
-    private func formatNumber(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = ","
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 }

@@ -12,6 +12,7 @@ extension AppModel {
         budgetEngine.updateDayEnd(hour: hour, minute: minute)
         checkDayBoundary()
         scheduleDayBoundaryTimer()
+        syncUserPreferencesToSupabase()
     }
     // MARK: - Budget & Time Tracking Keys
     private var minuteTariffBundleKey: String { "minuteTariffBundleId_v1" }
@@ -58,10 +59,6 @@ extension AppModel {
         }
     }
     
-    func refreshMinuteChargeLogs() {
-        loadMinuteChargeLogs()
-    }
-    
     func clearMinuteChargeLogs() {
         userEconomyStore.clearMinuteChargeLogs()
     }
@@ -78,7 +75,7 @@ extension AppModel {
     }
     
     // MARK: - Daily Tariff Selections
-    private func loadDailyTariffSelections() {
+    func loadDailyTariffSelections() {
         let g = UserDefaults.stepsTrader()
         let anchor = g.object(forKey: "dailyTariffSelectionsAnchor") as? Date ?? .distantPast
         if !isSameCustomDay(anchor, Date()) {
@@ -138,12 +135,6 @@ extension AppModel {
     }
     
     // MARK: - Budget & Spent Time Management
-    private func syncEntryCostWithTariff() {
-        if entryCostSteps <= 0 {
-            entryCostSteps = 5
-        }
-    }
-
     func syncBudgetProperties() {
         // Sync budget properties from BudgetEngine to published properties for UI updates
         dailyBudgetMinutes = budgetEngine.dailyBudgetMinutes
@@ -201,7 +192,7 @@ extension AppModel {
 
                 guard self.budgetEngine.remainingMinutes > 0 else {
                     AppLogger.energy.debug("❌ No remaining time - aborting")
-                    message = "No time left. Open Proof to earn exp."
+                    message = "No time left. Open Proof to earn ink."
                     return
                 }
 
@@ -354,10 +345,8 @@ extension AppModel {
         guard isTrackingTime else { return }
         AppLogger.energy.debug("⏱️ DEMO: Simulating 1 minute of app usage")
 
-        // Increment app usage time by 1 minute
-        updateSpentTime(minutes: spentMinutes + 1)
-
-        // Deduct from budget
+        // consumeMinutes already calls updateSpentTime internally,
+        // so only call it once to avoid double-counting (audit fix #12)
         consumeMinutes(1)
 
         AppLogger.energy.debug("⏱️ Spent: \(self.spentMinutes) min, Remaining: \(self.remainingMinutes) min")

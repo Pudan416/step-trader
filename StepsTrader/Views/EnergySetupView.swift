@@ -8,13 +8,11 @@ struct EnergySetupView: View {
     @Environment(\.dismiss) private var dismiss
     
     private var dayEndTimeLabel: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
         var comps = DateComponents()
         comps.hour = dayEndHourSetting
         comps.minute = dayEndMinuteSetting
         let date = Calendar.current.date(from: comps) ?? Date()
-        return formatter.string(from: date)
+        return CachedFormatters.hourMinute.string(from: date)
     }
     
     var body: some View {

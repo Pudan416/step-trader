@@ -62,39 +62,6 @@ final class UserEconomyStore: ObservableObject {
     
     // MARK: - Persistence & Loading
     
-    /// Internal only — AppModel+Payment.loadSpentStepsBalance() is the canonical entry point.
-    /// This exists for potential standalone store testing. Not called externally.
-    private func loadSpentStepsBalance() {
-        let g = UserDefaults.stepsTrader()
-        spentSteps = g.integer(forKey: SharedKeys.spentStepsToday)
-        stepsBalance = g.integer(forKey: "stepsBalance")
-        bonusSteps = g.integer(forKey: "debugStepsBonus_v1")
-        
-        // Use custom day boundary (dayEndHour/Minute) to match the rest of the app.
-        // Calendar.current.isDateInToday uses midnight which causes premature resets
-        // for users with a custom day-end time (e.g. 2 AM).
-        let now = Date()
-        let s = UserDefaults.standard
-        let dayEndHour = (g.object(forKey: "dayEndHour_v1") as? Int)
-            ?? (s.object(forKey: "dayEndHour_v1") as? Int)
-            ?? 0
-        let dayEndMinute = (g.object(forKey: "dayEndMinute_v1") as? Int)
-            ?? (s.object(forKey: "dayEndMinute_v1") as? Int)
-            ?? 0
-        let currentDayStart = DayBoundary.currentDayStart(for: now, dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
-        
-        if let anchor = g.object(forKey: "stepsBalanceAnchor") as? Date {
-            let anchorDayStart = DayBoundary.currentDayStart(for: anchor, dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
-            if anchorDayStart != currentDayStart {
-                // New custom day - reset spent steps
-                spentSteps = 0 // didSet persists to SharedKeys.spentStepsToday
-                g.set(currentDayStart, forKey: "stepsBalanceAnchor")
-            }
-        } else {
-            g.set(currentDayStart, forKey: "stepsBalanceAnchor")
-        }
-    }
-    
     func loadAppStepsSpentToday() async {
         if let loaded: [String: [String: Int]] = await loadFromPersistenceOrDefaults(
             filename: appStepsSpentByDayKey,
@@ -234,11 +201,14 @@ final class UserEconomyStore: ObservableObject {
     
     private func clearExpiredDayPasses() {
         let now = Date()
-        let dayStart = Calendar.current.startOfDay(for: now)
+        let g = UserDefaults.stepsTrader()
+        let hour = (g.object(forKey: "dayEndHour_v1") as? Int) ?? 0
+        let minute = (g.object(forKey: "dayEndMinute_v1") as? Int) ?? 0
+        let dayStart = DayBoundary.currentDayStart(for: now, dayEndHour: hour, dayEndMinute: minute)
         
         var changed = false
         for (id, date) in dayPassGrants {
-            if date < dayStart { // Expired yesterday
+            if date < dayStart {
                 dayPassGrants.removeValue(forKey: id)
                 changed = true
             }

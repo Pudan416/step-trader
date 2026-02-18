@@ -75,7 +75,7 @@ extension AppModel {
             let endDate = now.addingTimeInterval(900)
             let endComponents = calendar.dateComponents([.hour, .minute, .second], from: endDate)
             let secondsBeforeEnd = 900 - expiresInSeconds
-            let warningTime = DateComponents(second: secondsBeforeEnd)
+            let warningTime = DateComponents(minute: secondsBeforeEnd / 60, second: secondsBeforeEnd % 60)
             schedule = DeviceActivitySchedule(
                 intervalStart: startComponents,
                 intervalEnd: endComponents,

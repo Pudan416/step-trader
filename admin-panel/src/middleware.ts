@@ -1,16 +1,15 @@
-import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { COOKIE_NAME, verifySessionToken } from "./lib/adminAuth";
 
-const COOKIE_NAME = "admin_session_v1";
-
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (pathname.startsWith("/login")) return NextResponse.next();
   if (pathname.startsWith("/_next")) return NextResponse.next();
   if (pathname.startsWith("/favicon")) return NextResponse.next();
 
-  const authed = req.cookies.get(COOKIE_NAME)?.value === "1";
-  if (!authed) {
+  const token = req.cookies.get(COOKIE_NAME)?.value;
+  if (!token || !(await verifySessionToken(token))) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
@@ -22,4 +21,3 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: ["/((?!api/health).*)"],
 };
-

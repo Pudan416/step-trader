@@ -28,11 +28,14 @@ struct GalleryView: View {
     @AppStorage("userSleepTarget") private var userSleepTarget: Double = 8.0
     @AppStorage("gallery_sleep_color") private var sleepColorHex: String = "#000000"
     @AppStorage("gallery_steps_color") private var stepsColorHex: String = "#FED415"
+    @AppStorage("wallpaperShortcutDismissed") private var wallpaperShortcutDismissed: Bool = false
 
     @State private var dayCanvas: DayCanvas = DayCanvas(dayKey: AppModel.dayKey(for: Date()))
+    @State private var canvasLoaded = false
     @State private var pickerCategory: EnergyCategory? = nil
     @State private var showShareSheet = false
     @State private var shareImage: UIImage? = nil
+    @State private var showResetConfirmation = false
     private var canvasBackground: Color { theme.backgroundColor }
     private var labelColor: Color { theme.textPrimary }
     private var todayKey: String { AppModel.dayKey(for: Date()) }
@@ -40,8 +43,8 @@ struct GalleryView: View {
     private var isCanvasEmpty: Bool { dayCanvas.elements.isEmpty }
 
     private var decayNorm: Double {
-        guard dayCanvas.experienceEarned > 0 else { return 0 }
-        return min(1.0, Double(dayCanvas.experienceSpent) / Double(dayCanvas.experienceEarned))
+        guard dayCanvas.inkEarned > 0 else { return 0 }
+        return min(1.0, Double(dayCanvas.inkSpent) / Double(dayCanvas.inkEarned))
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -50,13 +53,17 @@ struct GalleryView: View {
 
     var body: some View {
         ZStack {
+            // Layer 0: Live animated gradient background
             EnergyGradientBackground(
+                stepsPoints: model.stepsPointsToday,
                 sleepPoints: model.sleepPointsToday,
-                stepsPoints: model.stepsPointsToday
+                hasStepsData: model.hasStepsData,
+                hasSleepData: model.hasSleepData
             )
+            .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            // Layer 0: Gallery-only activity assets on top of shared app background
+            // Layer 1: Live animated generative canvas elements
             GenerativeCanvasView(
                 elements: dayCanvas.elements,
                 sleepPoints: model.sleepPointsToday,
@@ -64,17 +71,36 @@ struct GalleryView: View {
                 sleepColor: Color(hex: sleepColorHex),
                 stepsColor: Color(hex: stepsColorHex),
                 decayNorm: decayNorm,
-                backgroundColor: .clear,
+                backgroundColor: canvasBackground,
                 labelColor: labelColor,
                 showLabelsOnCanvas: false,
-                showsBackgroundGradient: false
+                showsBackgroundGradient: false,
+                hasStepsData: model.hasStepsData,
+                hasSleepData: model.hasSleepData
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+
+            // Layer 2: Transparent Metal overlay — snapshots canvas on touch,
+            // applies smudge distortion, then fades back to transparent.
+            SmudgeOverlayView(
+                elements: dayCanvas.elements,
+                sleepPoints: model.sleepPointsToday,
+                stepsPoints: model.stepsPointsToday,
+                sleepColor: Color(hex: sleepColorHex),
+                stepsColor: Color(hex: stepsColorHex),
+                decayNorm: decayNorm,
+                backgroundColor: canvasBackground,
+                labelColor: labelColor,
+                hasStepsData: model.hasStepsData,
+                hasSleepData: model.hasSleepData
             )
             .ignoresSafeArea()
 
-            // Layer 1: Interactive controls (respect safe area — stay above tab bar)
+            // Layer 3: Interactive controls (respect safe area — stay above tab bar)
             canvasControls
 
-            // Layer 2: Metric popover
+            // Layer 4: Metric popover
             if let kind = metricOverlay {
                 metricPopover(kind: kind)
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
@@ -102,8 +128,8 @@ struct GalleryView: View {
                 model: model,
                 category: category,
                 outerWorldSteps: 0,
-                onActivityConfirmed: { optionId, cat, hexColor in
-                    spawnElement(optionId: optionId, category: cat, color: hexColor)
+                onActivityConfirmed: { optionId, cat, hexColor, variant in
+                    spawnElement(optionId: optionId, category: cat, color: hexColor, assetVariant: variant)
                 },
                 onActivityUndo: { optionId, cat in
                     removeElement(optionId: optionId, category: cat)
@@ -113,6 +139,18 @@ struct GalleryView: View {
         .sheet(isPresented: $showShareSheet) {
             if let image = shareImage {
                 GalleryShareSheet(items: [image])
+            }
+        }
+        .alert("Reset canvas?", isPresented: $showResetConfirmation) {
+            Button("Reset", role: .destructive) {
+                resetCanvas()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            if model.spentStepsToday > 0 {
+                Text("This removes all assets and choices. Spent ink (\(model.spentStepsToday)) stays spent — you'll re-earn from new activities. Steps and sleep are unaffected.")
+            } else {
+                Text("This removes all assets and choices. Steps and sleep are unaffected.")
             }
         }
     }
@@ -135,6 +173,14 @@ struct GalleryView: View {
 
             // Bottom section: + button centered, share button on the right
             VStack {
+                // Top: wallpaper shortcut banner
+                if !wallpaperShortcutDismissed {
+                    wallpaperShortcutBanner
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 Spacer(minLength: 0)
                 HStack(alignment: .center) {
                     Spacer()
@@ -143,6 +189,10 @@ struct GalleryView: View {
                         onCategorySelected: { category in pickerCategory = category }
                     )
                     Spacer()
+                }
+                .overlay(alignment: .leading) {
+                    resetCanvasButton
+                        .padding(.leading, 24)
                 }
                 .overlay(alignment: .trailing) {
                     shareButton
@@ -154,22 +204,6 @@ struct GalleryView: View {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Date Label
-    // ═══════════════════════════════════════════════════════════
-
-    private var dateLabel: some View {
-        Text(todayDateString)
-            .font(.system(size: 12, weight: .medium, design: .rounded))
-            .foregroundStyle(labelColor.opacity(0.4))
-    }
-
-    private var todayDateString: String {
-        let f = DateFormatter()
-        f.dateFormat = "MMM d"
-        return f.string(from: Date())
-    }
-
-    // ═══════════════════════════════════════════════════════════
     // MARK: - Share Button
     // ═══════════════════════════════════════════════════════════
 
@@ -178,13 +212,116 @@ struct GalleryView: View {
             exportCanvas()
         } label: {
             Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(labelColor.opacity(0.4))
-                .frame(width: 28, height: 28)
+                .font(.system(size: 22, weight: .ultraLight))
+                .foregroundStyle(AppColors.brandAccent)
+                .frame(width: 56, height: 56)
+                .overlay(
+                    Circle()
+                        .stroke(AppColors.brandAccent.opacity(0.3), lineWidth: 1)
+                )
+                .contentShape(Circle().size(width: 72, height: 72))
         }
         .buttonStyle(.plain)
-        .opacity(isCanvasEmpty ? 0.3 : 1.0)
+        .opacity(isCanvasEmpty ? 0.35 : 1.0)
         .disabled(isCanvasEmpty)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Reset Canvas Button
+    // ═══════════════════════════════════════════════════════════
+
+    private var resetCanvasButton: some View {
+        Button {
+            showResetConfirmation = true
+        } label: {
+            Image(systemName: "arrow.counterclockwise")
+                .font(.system(size: 22, weight: .ultraLight))
+                .foregroundStyle(AppColors.brandAccent)
+                .frame(width: 56, height: 56)
+                .overlay(
+                    Circle()
+                        .stroke(AppColors.brandAccent.opacity(0.3), lineWidth: 1)
+                )
+                .contentShape(Circle().size(width: 72, height: 72))
+        }
+        .buttonStyle(.plain)
+        .opacity(isCanvasEmpty ? 0.35 : 1.0)
+        .disabled(isCanvasEmpty)
+    }
+
+    // MARK: - Wallpaper Shortcut Banner
+
+    private let wallpaperShortcutURL = URL(string: "https://www.icloud.com/shortcuts/5217e7d304f749beac8d4932ec68f535")!
+
+    private var wallpaperShortcutBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "photo.artframe")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(theme.accentColor)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Set canvas as wallpaper")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(theme.textPrimary)
+                Text("Auto-update your Lock Screen")
+                    .font(.caption2)
+                    .foregroundStyle(theme.textPrimary.opacity(0.6))
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                UIApplication.shared.open(wallpaperShortcutURL)
+            } label: {
+                Text("Get")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(theme.accentColor)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    wallpaperShortcutDismissed = true
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(theme.textPrimary.opacity(0.4))
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+    }
+
+    private func resetCanvas() {
+        withAnimation(.easeInOut(duration: 0.35)) {
+            // 1. Clear all canvas elements
+            dayCanvas.elements = []
+            dayCanvas.lastModified = Date()
+        }
+
+        // 2. Clear daily category selections on the model
+        model.dailyActivitySelections = []
+        model.dailyRestSelections = []
+        model.dailyJoysSelections = []
+        model.dailyGallerySlots = (0..<4).map { _ in DayGallerySlot(category: nil, optionId: nil) }
+
+        // 3. Recalculate energy (drops body/mind/heart to 0, keeps steps + sleep)
+        model.recalculateDailyEnergy()
+        model.persistDailyEnergyState()
+
+        // 4. Save canvas locally + sync
+        saveCanvasLocally()
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -213,10 +350,12 @@ struct GalleryView: View {
         let local = CanvasStorageService.shared.loadCanvas(for: dayKey)
         if let local {
             dayCanvas = local
+            canvasLoaded = true
             syncCanvasWithModel()
         } else {
             // No local data — try restoring from Supabase, fall back to empty canvas
             dayCanvas = DayCanvas(dayKey: dayKey)
+            canvasLoaded = true
             syncCanvasWithModel()
             Task {
                 if let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey) {
@@ -231,24 +370,47 @@ struct GalleryView: View {
     }
 
     private func syncCanvasWithModel() {
-        // Update canvas metrics from model (sleep, steps, energy)
+        guard canvasLoaded else { return }
+        var didChange = false
+
+        // 1. Reconcile canvas elements ↔ daily selections.
+        //    Remove any element whose optionId is no longer in the model's selections
+        //    (e.g. option deleted, preference changed, Supabase restore mismatch).
+        //    SKIP during bootstrap: selections haven't loaded from UserDefaults yet,
+        //    so activeIds would be empty and wipe the entire canvas.
+        if !model.isBootstrapping {
+            let activeIds: Set<String> = Set(
+                model.dailyActivitySelections
+                + model.dailyRestSelections
+                + model.dailyJoysSelections
+            )
+            let before = dayCanvas.elements.count
+            dayCanvas.elements.removeAll { !activeIds.contains($0.optionId) }
+            if dayCanvas.elements.count != before {
+                didChange = true
+            }
+        }
+
+        // 2. Update canvas metrics from model (sleep, steps, energy)
         let newSleep = model.sleepPointsToday
         let newSteps = model.stepsPointsToday
         let newEarned = model.baseEnergyToday
         let newSpent = model.spentStepsToday
 
-        guard dayCanvas.sleepPoints != newSleep
+        if dayCanvas.sleepPoints != newSleep
            || dayCanvas.stepsPoints != newSteps
-           || dayCanvas.experienceEarned != newEarned
-           || dayCanvas.experienceSpent != newSpent
-        else { return }
+           || dayCanvas.inkEarned != newEarned
+           || dayCanvas.inkSpent != newSpent {
+            dayCanvas.sleepPoints = newSleep
+            dayCanvas.stepsPoints = newSteps
+            dayCanvas.inkEarned = newEarned
+            dayCanvas.inkSpent = newSpent
+            dayCanvas.sleepColorHex = sleepColorHex
+            dayCanvas.stepsColorHex = stepsColorHex
+            didChange = true
+        }
 
-        dayCanvas.sleepPoints = newSleep
-        dayCanvas.stepsPoints = newSteps
-        dayCanvas.experienceEarned = newEarned
-        dayCanvas.experienceSpent = newSpent
-        dayCanvas.sleepColorHex = sleepColorHex
-        dayCanvas.stepsColorHex = stepsColorHex
+        guard didChange else { return }
         dayCanvas.lastModified = Date()
         saveCanvasLocally()
     }
@@ -259,20 +421,15 @@ struct GalleryView: View {
         Task { await SupabaseSyncService.shared.syncDayCanvas(dayCanvas) }
     }
 
-    private func optionTitle(for optionId: String) -> String {
-        EnergyDefaults.options.first(where: { $0.id == optionId })?.title(for: "en")
-            ?? model.customOptionTitle(for: optionId, lang: "en")
-            ?? optionId
-    }
-
-    private func spawnElement(optionId: String, category: EnergyCategory, color: String) {
-        let label = optionTitle(for: optionId)
+    private func spawnElement(optionId: String, category: EnergyCategory, color: String, assetVariant: Int? = nil) {
+        let label = model.resolveOptionTitle(for: optionId)
         let element = CanvasElement.spawn(
             optionId: optionId,
             category: category,
             color: color,
             label: label,
-            existingElements: dayCanvas.elements
+            existingElements: dayCanvas.elements,
+            forcedVariant: assetVariant
         )
         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
             dayCanvas.elements.append(element)
@@ -303,7 +460,11 @@ struct GalleryView: View {
             stepsColor: Color(hex: stepsColorHex),
             decayNorm: decayNorm,
             backgroundColor: canvasBackground,
-            labelColor: labelColor
+            labelColor: labelColor,
+            showLabelsOnCanvas: true,
+            showsOutlinedLabels: false,
+            hasStepsData: model.hasStepsData,
+            hasSleepData: model.hasSleepData
         )
         .frame(width: 390, height: 500)
 
@@ -381,7 +542,7 @@ struct GalleryView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(formatSteps(Int(model.healthStore.stepsToday)))
+                    Text(formatCompactNumber(Int(model.healthStore.stepsToday)))
                         .font(.title2.bold())
                     Text("steps today")
                         .font(.caption)
@@ -391,12 +552,12 @@ struct GalleryView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(model.stepsPointsToday)/\(EnergyDefaults.stepsMaxPoints)")
                         .font(.title3.bold())
-                    Text("exp")
+                    Text("ink")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-            Text("Target: \(formatSteps(Int(userStepsTarget))) steps")
+            Text("Target: \(formatCompactNumber(Int(userStepsTarget))) steps")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -416,7 +577,7 @@ struct GalleryView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(model.sleepPointsToday)/\(EnergyDefaults.sleepMaxPoints)")
                         .font(.title3.bold())
-                    Text("exp")
+                    Text("ink")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -427,11 +588,6 @@ struct GalleryView: View {
         }
     }
 
-    private func formatSteps(_ n: Int) -> String {
-        if n >= 1000 { return String(format: "%.1fK", Double(n) / 1000) }
-        return "\(n)"
-    }
-
     private func breakdownText(for category: EnergyCategory) -> String {
         let maxPts = EnergyDefaults.maxSelectionsPerCategory * EnergyDefaults.selectionPoints
         switch category {
@@ -439,23 +595,23 @@ struct GalleryView: View {
             let extras = selectionTitles(for: .body)
             let total = model.activityPointsToday
             if extras.isEmpty {
-                return "Body tracks physical activities you choose. Pick up to 4 cards for \(maxPts) exp (\(total) exp today)."
+                return "Body tracks physical activities you choose. Pick up to 4 cards for \(maxPts) ink (\(total) ink today)."
             }
-            return "Body tracks physical activities. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) exp for my body."
+            return "Body tracks physical activities. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) ink for my body."
         case .mind:
             let extras = selectionTitles(for: .mind)
             let total = model.creativityPointsToday
             if extras.isEmpty {
-                return "Mind tracks creativity and rest. Pick up to 4 cards for \(maxPts) exp (\(total) exp today)."
+                return "Mind tracks creativity and rest. Pick up to 4 cards for \(maxPts) ink (\(total) ink today)."
             }
-            return "Mind tracks creativity and rest. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) exp for my mind."
+            return "Mind tracks creativity and rest. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) ink for my mind."
         case .heart:
             let extras = selectionTitles(for: .heart)
             let total = model.joysCategoryPointsToday
             if extras.isEmpty {
-                return "Heart tracks joys and things that make you feel alive. Pick up to 4 cards for \(maxPts) exp (\(total) exp today)."
+                return "Heart tracks joys and things that make you feel alive. Pick up to 4 cards for \(maxPts) ink (\(total) ink today)."
             }
-            return "Heart tracks joys and what makes you feel alive. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) exp for my heart."
+            return "Heart tracks joys and what makes you feel alive. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) ink for my heart."
         }
     }
 
@@ -498,17 +654,11 @@ struct GalleryDayDetailSheet: View {
 
     private var dayLabel: String {
         guard let d = date(from: dayKey) else { return dayKey }
-        let f = DateFormatter()
-        f.dateStyle = .long
-        f.locale = Locale.current
-        return f.string(from: d)
+        return CachedFormatters.longDate.string(from: d)
     }
 
     private func date(from key: String) -> Date? {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f.date(from: key)
+        CachedFormatters.dayKey.date(from: key)
     }
 
     var body: some View {
@@ -519,8 +669,8 @@ struct GalleryDayDetailSheet: View {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                             statCard(icon: "figure.walk", value: "\(s.steps)", label: "Steps", color: .green)
                             statCard(icon: "bed.double.fill", value: String(format: "%.1f", s.sleepHours), label: "Sleep hours", color: .indigo)
-                            statCard(icon: "plus.circle.fill", value: "\(s.experienceEarned)", label: "Gained", color: .blue)
-                            statCard(icon: "minus.circle.fill", value: "\(s.experienceSpent)", label: "Spent", color: .orange)
+                            statCard(icon: "plus.circle.fill", value: "\(s.inkEarned)", label: "Gained", color: .blue)
+                            statCard(icon: "minus.circle.fill", value: "\(s.inkSpent)", label: "Spent", color: .orange)
                         }
                         gallerySection(s)
                     } else {
@@ -565,7 +715,7 @@ struct GalleryDayDetailSheet: View {
             } else {
                 FlowLayout(spacing: 6) {
                     ForEach(ids, id: \.self) { id in
-                        Text(optionTitle(for: id))
+                        Text(model.resolveOptionTitle(for: id))
                             .font(.caption)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
@@ -575,12 +725,6 @@ struct GalleryDayDetailSheet: View {
                 }
             }
         }
-    }
-
-    private func optionTitle(for id: String) -> String {
-        EnergyDefaults.options.first(where: { $0.id == id })?.title(for: "en")
-            ?? model.customOptionTitle(for: id, lang: "en")
-            ?? id
     }
 
     private func statCard(icon: String, value: String, label: String, color: Color) -> some View {

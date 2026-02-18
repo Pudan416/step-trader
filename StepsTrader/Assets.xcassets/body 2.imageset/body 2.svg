@@ -1,9 +1,13 @@
-<svg width="370" height="370" viewBox="0 0 370 370" fill="none" xmlns="http://www.w3.org/2000/svg">
-<circle cx="185" cy="185" r="185" fill="url(#paint0_radial_60_14779)"/>
+<svg width="631" height="546" viewBox="0 0 631 546" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M629.601 545.5H0.866211L315.233 0.999023L629.601 545.5Z" fill="url(#paint0_radial_198_6)" stroke="url(#paint1_linear_198_6)"/>
 <defs>
-<radialGradient id="paint0_radial_60_14779" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(185 185) rotate(90) scale(185)">
-<stop offset="0.178107"/>
-<stop offset="1" stop-color="white" stop-opacity="0"/>
+<radialGradient id="paint0_radial_198_6" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(315.233 331.5) rotate(145.623) scale(381.661)">
+<stop stop-color="#D9D9D9" stop-opacity="0"/>
+<stop offset="1" stop-opacity="0.16"/>
 </radialGradient>
+<linearGradient id="paint1_linear_198_6" x1="315.233" y1="0" x2="315.233" y2="728" gradientUnits="userSpaceOnUse">
+<stop/>
+<stop offset="1" stop-color="#666666"/>
+</linearGradient>
 </defs>
 </svg>

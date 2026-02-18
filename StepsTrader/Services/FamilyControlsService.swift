@@ -23,8 +23,22 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
     init() {
         #if canImport(FamilyControls)
         isAuthorized = (center.authorizationStatus == .approved)
+        // AuthorizationCenter doesn't reliably notify on revocation (Apple known issue).
+        // Use refreshAuthorizationStatus() on foreground transitions instead (audit fix #15).
         #else
         isAuthorized = false
+        #endif
+    }
+
+    /// Re-check authorization status. Call this when the app enters foreground
+    /// since AuthorizationCenter doesn't reliably push revocation events.
+    func refreshAuthorizationStatus() {
+        #if canImport(FamilyControls)
+        let newStatus = (center.authorizationStatus == .approved)
+        if newStatus != isAuthorized {
+            isAuthorized = newStatus
+            AppLogger.familyControls.info("Authorization status changed to: \(newStatus ? "approved" : "revoked")")
+        }
         #endif
     }
 
@@ -52,8 +66,8 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
             }
 
             let schedule = DeviceActivitySchedule(
-                intervalStart: DateComponents(hour: 0, minute: 0),
-                intervalEnd: DateComponents(hour: 23, minute: 59),
+                intervalStart: DateComponents(hour: 0, minute: 0, second: 0),
+                intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
                 repeats: true
             )
 
@@ -62,7 +76,7 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
                 deviceActivityCenter.stopMonitoring([minuteActivityName])
                 try deviceActivityCenter.startMonitoring(minuteActivityName, during: schedule, events: events)
             } catch {
-                print("❌ Failed to start DeviceActivity monitoring: \(error)")
+                AppLogger.familyControls.error("❌ Failed to start DeviceActivity monitoring: \(error)")
             }
         }
         #endif
@@ -111,10 +125,6 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
         }
 
         return events
-    }
-    
-    private func currentDayKey() -> String {
-        AppModel.dayKey(for: Date())
     }
     #endif
 }

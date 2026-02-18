@@ -15,7 +15,7 @@ struct QuickStatusView: View {
             VStack(spacing: 30) {
                 VStack(spacing: 16) {
                     Text("📊")
-                        .font(.notoSerif(60))
+                        .font(.systemSerif(60))
 
                     Text("Quick Status")
                         .font(.largeTitle)

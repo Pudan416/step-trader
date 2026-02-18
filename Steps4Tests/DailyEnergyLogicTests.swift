@@ -7,9 +7,9 @@ import XCTest
 /// Scoring model (5 metrics × 20 = 100 max):
 ///   steps  = 20 × min(made_steps, target_steps) / target_steps
 ///   sleep  = 20 × min(today_sleep, target_sleep) / target_sleep
-///   body   = 4 chosen cards × 5 exp = 20
-///   mind   = 4 chosen cards × 5 exp = 20
-///   heart  = 4 chosen cards × 5 exp = 20
+///   body   = 4 chosen cards × 5 ink = 20
+///   mind   = 4 chosen cards × 5 ink = 20
+///   heart  = 4 chosen cards × 5 ink = 20
 final class DailyEnergyLogicTests: XCTestCase {
 
     // MARK: - EnergyDefaults constants
@@ -147,15 +147,15 @@ final class DailyEnergyLogicTests: XCTestCase {
     // MARK: - EnergyOption / EnergyCategory
 
     func testEnergyCategoryRawValues() {
-        XCTAssertEqual(EnergyCategory.activity.rawValue, "activity")
-        XCTAssertEqual(EnergyCategory.creativity.rawValue, "creativity")
-        XCTAssertEqual(EnergyCategory.joys.rawValue, "joys")
+        XCTAssertEqual(EnergyCategory.body.rawValue, "body")
+        XCTAssertEqual(EnergyCategory.mind.rawValue, "mind")
+        XCTAssertEqual(EnergyCategory.heart.rawValue, "heart")
     }
 
     func testEnergyDefaultsOptionsCount() {
-        let activityCount = EnergyDefaults.options.filter { $0.category == .activity }.count
-        let creativityCount = EnergyDefaults.options.filter { $0.category == .creativity }.count
-        let joysCount = EnergyDefaults.options.filter { $0.category == .joys }.count
+        let activityCount = EnergyDefaults.options.filter { $0.category == .body }.count
+        let creativityCount = EnergyDefaults.options.filter { $0.category == .mind }.count
+        let joysCount = EnergyDefaults.options.filter { $0.category == .heart }.count
         XCTAssertGreaterThan(activityCount, 0)
         XCTAssertGreaterThan(creativityCount, 0)
         XCTAssertGreaterThan(joysCount, 0)
@@ -176,22 +176,22 @@ final class DailyEnergyLogicTests: XCTestCase {
     // MARK: - CustomEnergyOption
 
     func testCustomEnergyOption_title() {
-        let custom = CustomEnergyOption(id: "custom_activity_abc", titleEn: "Jogging", titleRu: "Бег", category: .activity)
+        let custom = CustomEnergyOption(id: "custom_body_abc", titleEn: "Jogging", titleRu: "Бег", category: .body)
         XCTAssertEqual(custom.title(for: "en"), "Jogging")
         XCTAssertEqual(custom.title(for: "ru"), "Бег")
     }
 
     func testCustomEnergyOption_asEnergyOption() {
-        let custom = CustomEnergyOption(id: "custom_activity_xyz", titleEn: "Yoga", titleRu: "Йога", category: .activity, icon: "figure.yoga")
+        let custom = CustomEnergyOption(id: "custom_body_xyz", titleEn: "Yoga", titleRu: "Йога", category: .body, icon: "figure.yoga")
         let option = custom.asEnergyOption()
         XCTAssertEqual(option.id, custom.id)
         XCTAssertEqual(option.titleEn, custom.titleEn)
-        XCTAssertEqual(option.category, .activity)
+        XCTAssertEqual(option.category, .body)
         XCTAssertEqual(option.icon, "figure.yoga")
     }
 
     func testCustomEnergyOption_codable() throws {
-        let custom = CustomEnergyOption(id: "custom_creativity_1", titleEn: "Idea", titleRu: "Идея", category: .creativity)
+        let custom = CustomEnergyOption(id: "custom_mind_1", titleEn: "Idea", titleRu: "Идея", category: .mind)
         let data = try JSONEncoder().encode(custom)
         let decoded = try JSONDecoder().decode(CustomEnergyOption.self, from: data)
         XCTAssertEqual(decoded.id, custom.id)
@@ -228,11 +228,11 @@ final class DailyEnergyLogicTests: XCTestCase {
 
     func testPastDaySnapshotRoundTrip() throws {
         let original = PastDaySnapshot(
-            experienceEarned: 75,
-            experienceSpent: 30,
-            activityIds: ["activity_sport"],
-            creativityIds: ["creativity_curiosity"],
-            joysIds: ["joys_hugging"],
+            inkEarned: 75,
+            inkSpent: 30,
+            bodyIds: ["body_walking"],
+            mindIds: ["mind_focusing"],
+            heartIds: ["heart_joy"],
             steps: 8_000,
             sleepHours: 7.5,
             stepsTarget: 9_000,
@@ -240,11 +240,11 @@ final class DailyEnergyLogicTests: XCTestCase {
         )
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(PastDaySnapshot.self, from: data)
-        XCTAssertEqual(decoded.experienceEarned, 75)
-        XCTAssertEqual(decoded.experienceSpent, 30)
-        XCTAssertEqual(decoded.activityIds, ["activity_sport"])
-        XCTAssertEqual(decoded.creativityIds, ["creativity_curiosity"])
-        XCTAssertEqual(decoded.joysIds, ["joys_hugging"])
+        XCTAssertEqual(decoded.inkEarned, 75)
+        XCTAssertEqual(decoded.inkSpent, 30)
+        XCTAssertEqual(decoded.bodyIds, ["body_walking"])
+        XCTAssertEqual(decoded.mindIds, ["mind_focusing"])
+        XCTAssertEqual(decoded.heartIds, ["heart_joy"])
         XCTAssertEqual(decoded.steps, 8_000)
         XCTAssertEqual(decoded.sleepHours, 7.5)
         XCTAssertEqual(decoded.stepsTarget, 9_000)
@@ -254,30 +254,30 @@ final class DailyEnergyLogicTests: XCTestCase {
     func testPastDaySnapshotLegacyDecodeUsesDefaultTargets() throws {
         let legacyJSON = """
         {
-          "experienceEarned": 55,
-          "experienceSpent": 10,
-          "activityIds": ["activity_meal"],
-          "creativityIds": ["creativity_general"],
-          "joysIds": ["joys_rebel"],
+          "inkEarned": 55,
+          "inkSpent": 10,
+          "bodyIds": ["body_walking"],
+          "mindIds": ["mind_focusing"],
+          "heartIds": ["heart_joy"],
           "steps": 6000,
           "sleepHours": 6.5
         }
         """
         let data = try XCTUnwrap(legacyJSON.data(using: .utf8))
         let decoded = try JSONDecoder().decode(PastDaySnapshot.self, from: data)
-        XCTAssertEqual(decoded.experienceEarned, 55)
-        XCTAssertEqual(decoded.experienceSpent, 10)
+        XCTAssertEqual(decoded.inkEarned, 55)
+        XCTAssertEqual(decoded.inkSpent, 10)
         XCTAssertEqual(decoded.stepsTarget, EnergyDefaults.stepsTarget)
         XCTAssertEqual(decoded.sleepTargetHours, EnergyDefaults.sleepTargetHours)
     }
 
     func testPastDaySnapshotPointsCanBeReconstructedFromStoredTargets() {
         let snapshot = PastDaySnapshot(
-            experienceEarned: 0,
-            experienceSpent: 0,
-            activityIds: [],
-            creativityIds: [],
-            joysIds: [],
+            inkEarned: 0,
+            inkSpent: 0,
+            bodyIds: [],
+            mindIds: [],
+            heartIds: [],
             steps: 6_000,
             sleepHours: 6.0,
             stepsTarget: 8_000,

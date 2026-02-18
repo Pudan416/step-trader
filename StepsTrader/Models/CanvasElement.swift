@@ -5,7 +5,6 @@ import SwiftUI
 
 enum ElementKind: String, Codable, CaseIterable {
     case circle    // Body → grounded, centered energy
-    case softLine  // Heart → fluid, emotional
     case ray       // Mind → directional, focused
 }
 
@@ -34,13 +33,18 @@ struct CanvasElement: Identifiable, Codable {
     let rotationSpeed: Double      // degrees/sec (rays only)
     let opacity: Double            // 0.3…0.8
 
+    /// Which asset variant to use (0-based index into the category's asset array).
+    /// Assigned at spawn time via round-robin so consecutive elements get different shapes.
+    /// Legacy elements (saved before this field existed) fall back to UUID-based selection.
+    var assetVariant: Int?
+
     // Timestamps
     let createdAt: Date
 
     /// Title to draw on the canvas; falls back to optionId for legacy elements.
     var displayLabel: String { label ?? optionId }
 
-    init(id: UUID, kind: ElementKind, category: EnergyCategory, optionId: String, label: String?, hexColor: String, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date) {
+    init(id: UUID, kind: ElementKind, category: EnergyCategory, optionId: String, label: String?, hexColor: String, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil) {
         self.id = id
         self.kind = kind
         self.category = category
@@ -57,6 +61,7 @@ struct CanvasElement: Identifiable, Codable {
         self.rotationSpeed = rotationSpeed
         self.opacity = opacity
         self.createdAt = createdAt
+        self.assetVariant = assetVariant
     }
 
     // MARK: - Factory
@@ -66,7 +71,8 @@ struct CanvasElement: Identifiable, Codable {
         category: EnergyCategory,
         color: String,
         label: String,
-        existingElements: [CanvasElement]
+        existingElements: [CanvasElement],
+        forcedVariant: Int? = nil
     ) -> CanvasElement {
         let kind: ElementKind = switch category {
             case .body:  .circle   // body: floating circles
@@ -78,9 +84,23 @@ struct CanvasElement: Identifiable, Codable {
             ? findEdgePosition(existing: existingElements)
             : findOpenPosition(existing: existingElements)
 
+        // Asset variant: use user's pick when provided, otherwise round-robin.
+        let assetCount: Int = switch category {
+        case .body:  3   // body 1, body 2, body 3
+        case .mind:  1   // mind 1
+        case .heart: 1   // heart 1
+        }
+        let variant: Int
+        if let forced = forcedVariant, forced >= 0, forced < assetCount {
+            variant = forced
+        } else {
+            let sameCategoryCount = existingElements.filter { $0.category == category }.count
+            variant = sameCategoryCount % assetCount
+        }
+
         // Body: M–L stable pulsing. Mind: S–M wandering. Heart: M rays.
         let size: CGFloat = switch category {
-        case .body:  .random(in: 0.24...0.48)   // M–L
+        case .body:  .random(in: 0.16...0.32)   // M–L (1.5× smaller)
         case .mind:  .random(in: 0.12...0.26)   // S–M
         case .heart: .random(in: 0.20...0.28)   // M
         }
@@ -108,14 +128,15 @@ struct CanvasElement: Identifiable, Codable {
             pulseAmplitude: CGFloat.random(in: 0.01...0.03),
             rotationSpeed: Double.random(in: 3...10),
             opacity: opacity,
-            createdAt: Date()
+            createdAt: Date(),
+            assetVariant: variant
         )
     }
 
     enum CodingKeys: String, CodingKey {
         case id, kind, category, optionId, hexColor, size, basePosition
         case phaseOffset, driftSpeed, driftAmplitude, pulseFrequency, pulseAmplitude, rotationSpeed, opacity, createdAt
-        case label
+        case label, assetVariant
     }
 
     init(from decoder: Decoder) throws {
@@ -136,6 +157,7 @@ struct CanvasElement: Identifiable, Codable {
         rotationSpeed = try c.decode(Double.self, forKey: .rotationSpeed)
         opacity = try c.decode(Double.self, forKey: .opacity)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
+        assetVariant = try c.decodeIfPresent(Int.self, forKey: .assetVariant)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -156,6 +178,7 @@ struct CanvasElement: Identifiable, Codable {
         try c.encode(rotationSpeed, forKey: .rotationSpeed)
         try c.encode(opacity, forKey: .opacity)
         try c.encode(createdAt, forKey: .createdAt)
+        try c.encodeIfPresent(assetVariant, forKey: .assetVariant)
     }
 
     /// Place heart elements along edges / corners, biased toward the frame perimeter.
@@ -234,15 +257,15 @@ struct DayCanvas: Codable {
     var stepsPoints: Int
     var sleepColorHex: String
     var stepsColorHex: String
-    var experienceEarned: Int
-    var experienceSpent: Int
+    var inkEarned: Int
+    var inkSpent: Int
     let createdAt: Date
     var lastModified: Date
 
-    /// 0.0 = pristine (nothing spent), 1.0 = fully degraded (all EXP spent)
+    /// 0.0 = pristine (nothing spent), 1.0 = fully degraded (all ink spent)
     var decayNorm: Double {
-        guard experienceEarned > 0 else { return 0 }
-        return min(1.0, Double(experienceSpent) / Double(experienceEarned))
+        guard inkEarned > 0 else { return 0 }
+        return min(1.0, Double(inkSpent) / Double(inkEarned))
     }
 
     init(dayKey: String) {
@@ -252,8 +275,8 @@ struct DayCanvas: Codable {
         self.stepsPoints = 0
         self.sleepColorHex = "#8B5CF6"
         self.stepsColorHex = "#FED415"
-        self.experienceEarned = 0
-        self.experienceSpent = 0
+        self.inkEarned = 0
+        self.inkSpent = 0
         self.createdAt = Date()
         self.lastModified = Date()
     }
@@ -263,18 +286,11 @@ struct DayCanvas: Codable {
 
 enum CanvasColorPalette {
     /// 16-color activity palette (4×4 grid)
-    static let palette: [Color] = [
-        Color(hex: "#C3143B"), Color(hex: "#9BB6E0"), Color(hex: "#A7BF50"), Color(hex: "#C3D7A3"),
-        Color(hex: "#01B6C4"), Color(hex: "#7652AF"), Color(hex: "#F68D0C"), Color(hex: "#2C2E4D"),
-        Color(hex: "#796C3C"), Color(hex: "#EBDF63"), Color(hex: "#49484D"), Color(hex: "#C7E0D8"),
-        Color(hex: "#0F0D0E"), Color(hex: "#955530"), Color(hex: "#FEAAC2"), Color(hex: "#EBE4D7"),
-    ]
-
     static let paletteHex: [String] = [
         "#C3143B", "#9BB6E0", "#A7BF50", "#C3D7A3",
         "#01B6C4", "#7652AF", "#F68D0C", "#2C2E4D",
-        "#796C3C", "#EBDF63", "#49484D", "#C7E0D8",
-        "#0F0D0E", "#955530", "#FEAAC2", "#EBE4D7",
+        "#796C3C", "#FFD369", "#49484D", "#C7E0D8",
+        "#222831", "#955530", "#FEAAC2", "#EBE4D7",
     ]
 }
 

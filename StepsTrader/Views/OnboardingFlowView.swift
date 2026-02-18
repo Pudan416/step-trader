@@ -20,7 +20,7 @@ struct OnboardingFlowView: View {
             OnboardingStoriesView(
                 isPresented: $onboardingPresented,
                 slides: mainSlides(),
-                accent: AppColors.brandPink,
+                accent: AppColors.brandAccent,
                 skipText: "Skip",
                 nextText: "Next",
                 startText: "Start",

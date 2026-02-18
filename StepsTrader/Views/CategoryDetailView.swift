@@ -9,31 +9,41 @@ struct CategoryDetailView: View {
     @State private var selectedOption: EnergyOption? = nil
     @State private var selectedOptionEntry: OptionEntry? = nil
     
-    // Optional callback for canvas integration
-    var onActivityConfirmed: ((String, EnergyCategory, String) -> Void)? = nil
+    // Optional callback for canvas integration — (optionId, category, hexColor, assetVariant?)
+    var onActivityConfirmed: ((String, EnergyCategory, String, Int?) -> Void)? = nil
     var onActivityUndo: ((String, EnergyCategory) -> Void)? = nil
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Header: category asset + points
-                    headerSection
+            ZStack {
+                EnergyGradientBackground(
+                    stepsPoints: model.stepsPointsToday,
+                    sleepPoints: model.sleepPointsToday,
+                    hasStepsData: model.hasStepsData,
+                    hasSleepData: model.hasSleepData
+                )
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
 
-                    // Activity list
-                    if let category = category {
-                        optionsSection(category: category)
-                    } else {
-                        outerWorldContent
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Header: category asset + points
+                        headerSection
+
+                        // Activity list
+                        if let category = category {
+                            optionsSection(category: category)
+                        } else {
+                            outerWorldContent
+                        }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 16)
             }
-            .scrollContentBackground(.hidden)
-            .background(.ultraThinMaterial)
             .navigationTitle(categoryTitle)
             .navigationBarTitleDisplayMode(.large)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .sheet(item: $selectedOption) { option in
                 if let category = category {
                     OptionEntrySheet(
@@ -47,6 +57,7 @@ struct CategoryDetailView: View {
                 }
             }
         }
+        .presentationBackground(.clear)
     }
     
     // MARK: - Title
@@ -64,7 +75,7 @@ struct CategoryDetailView: View {
 
     private var headerSection: some View {
         VStack(spacing: 10) {
-            // Category asset image (tinted) instead of SF Symbol
+            // Category asset image (tinted)
             categoryAssetImage
                 .frame(width: 80, height: 80)
             
@@ -72,15 +83,17 @@ struct CategoryDetailView: View {
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text("\(currentPoints)")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundStyle(theme.textPrimary)
+                    .foregroundStyle(.primary)
                     .monospacedDigit()
                 Text("/\(maxPoints)")
                     .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundStyle(theme.textSecondary)
+                    .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
         }
-        .padding(.top, 8)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .glassCard()
     }
     
     @ViewBuilder
@@ -90,13 +103,12 @@ struct CategoryDetailView: View {
             Image(uiImage: uiImage)
                 .resizable()
                 .renderingMode(.template)
-                .foregroundStyle(categoryColor.opacity(0.6))
+                .foregroundStyle((category?.color ?? .cyan).opacity(0.6))
                 .aspectRatio(contentMode: .fit)
         } else {
-            // Fallback to SF Symbol
             Image(systemName: categoryIcon)
                 .font(.system(size: 36, weight: .medium))
-                .foregroundStyle(categoryColor.opacity(0.6))
+                .foregroundStyle((category?.color ?? .cyan).opacity(0.6))
         }
     }
     
@@ -106,15 +118,23 @@ struct CategoryDetailView: View {
     private func optionsSection(category: EnergyCategory) -> some View {
         let options = EnergyDefaults.options.filter { $0.category == category }
         
-        VStack(spacing: 6) {
-            ForEach(options) { option in
+        VStack(spacing: 0) {
+            ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
+                if index > 0 {
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.08))
+                        .frame(height: 0.5)
+                        .padding(.leading, 14)
+                }
                 optionRow(option: option, category: category)
             }
         }
+        .glassCard()
     }
     
     private func optionRow(option: EnergyOption, category: EnergyCategory) -> some View {
         let isSelected = model.isDailySelected(option.id, category: category)
+        let isDisabled = !isSelected && model.isDailyLimitReached(for: category)
         
         return Button {
             if isSelected {
@@ -134,17 +154,17 @@ struct CategoryDetailView: View {
                 // Small icon
                 Image(systemName: option.icon)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(isSelected ? .white : theme.textSecondary)
+                    .foregroundStyle(isSelected ? .white : .secondary)
                     .frame(width: 30, height: 30)
                     .background(
                         Circle()
-                            .fill(isSelected ? getEntryColor(for: option.id) : theme.textPrimary.opacity(0.06))
+                            .fill(isSelected ? getEntryColor(for: option.id) : Color.primary.opacity(0.06))
                     )
                 
-                // Title only — no description
+                // Title
                 Text(option.title(for: "en"))
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(theme.textPrimary)
+                    .foregroundStyle(.primary)
                 
                 Spacer()
                 
@@ -155,37 +175,28 @@ struct CategoryDetailView: View {
                 } else {
                     Image(systemName: "plus")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(theme.textSecondary.opacity(0.4))
+                        .foregroundStyle(.secondary.opacity(0.4))
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? getEntryColor(for: option.id).opacity(0.08) : theme.textPrimary.opacity(0.04))
-            )
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.35 : 1.0)
     }
     
     private var outerWorldContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Collect energy drops by exploring the Outer World")
                 .font(.system(size: 13))
-                .foregroundStyle(theme.textSecondary)
+                .foregroundStyle(.secondary)
         }
+        .padding(14)
+        .glassCard()
     }
     
     // MARK: - Helpers
-    
-    private var categoryColor: Color {
-        switch category {
-        case .body: return .green
-        case .mind: return .purple
-        case .heart: return .orange
-        case nil: return .cyan
-        }
-    }
     
     private var categoryIcon: String {
         switch category {
@@ -196,7 +207,6 @@ struct CategoryDetailView: View {
         }
     }
     
-    /// Returns the first asset name for this category (used as header icon)
     private var categoryAssetName: String {
         switch category {
         case .body: return "body 1"
@@ -244,7 +254,7 @@ struct CategoryDetailView: View {
         if !model.isDailySelected(option.id, category: category) {
             model.toggleDailySelection(optionId: option.id, category: category)
         }
-        onActivityConfirmed?(option.id, category, entry.colorHex)
+        onActivityConfirmed?(option.id, category, entry.colorHex, entry.assetVariant)
     }
     
     private func deleteEntry(for optionId: String) {
@@ -257,6 +267,6 @@ struct CategoryDetailView: View {
         if let entry = loadEntry(for: optionId) {
             return Color(hex: entry.colorHex)
         }
-        return categoryColor
+        return category?.color ?? .cyan
     }
 }

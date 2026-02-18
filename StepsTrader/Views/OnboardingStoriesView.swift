@@ -100,7 +100,7 @@ struct OnboardingStoriesView: View {
                 // Bottom button
                 Button(action: next) {
                     Text(primaryButtonTitle)
-                        .font(.notoSerif(18, weight: .bold))
+                        .font(.systemSerif(18, weight: .bold))
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity, minHeight: 56)
                         .background(accent)
@@ -161,7 +161,7 @@ struct OnboardingStoriesView: View {
                     .frame(width: 80, height: 80)
                     .shadow(color: accent.opacity(0.4), radius: 24, x: 0, y: 12)
                 Image(systemName: slide.symbol)
-                    .font(.notoSerif(32, weight: .bold))
+                    .font(.systemSerif(32, weight: .bold))
                     .foregroundColor(.white)
             }
             .padding(.bottom, 40)
@@ -169,7 +169,7 @@ struct OnboardingStoriesView: View {
             VStack(spacing: 8) {
                 ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
                     Text(line)
-                        .font(.notoSerif(26, weight: idx == 0 ? .bold : .medium))
+                        .font(.systemSerif(26, weight: idx == 0 ? .bold : .medium))
                         .foregroundColor(idx == 0 ? .white : .white.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
@@ -194,7 +194,7 @@ struct OnboardingStoriesView: View {
                     .frame(width: 80, height: 80)
                     .shadow(color: accent.opacity(0.4), radius: 24, x: 0, y: 12)
                 Image(systemName: slide.symbol)
-                    .font(.notoSerif(32, weight: .bold))
+                    .font(.systemSerif(32, weight: .bold))
                     .foregroundColor(.white)
             }
             .padding(.bottom, 32)
@@ -202,7 +202,7 @@ struct OnboardingStoriesView: View {
             VStack(spacing: 6) {
                 ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
                     Text(line)
-                        .font(.notoSerif(24, weight: idx == 0 ? .bold : .medium))
+                        .font(.systemSerif(24, weight: idx == 0 ? .bold : .medium))
                         .foregroundColor(idx == 0 ? .white : .white.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
@@ -211,12 +211,12 @@ struct OnboardingStoriesView: View {
             .padding(.bottom, 40)
             
             // Steps value display
-            Text(formatNumber(Int(stepsTarget)))
-                .font(.notoSerif(64, weight: .bold))
+            Text(formatGroupedNumber(Int(stepsTarget)))
+                .font(.systemSerif(64, weight: .bold))
                 .foregroundColor(accent)
             
             Text("steps")
-                .font(.notoSerif(18, weight: .medium))
+                .font(.systemSerif(18, weight: .medium))
                 .foregroundColor(.white.opacity(0.5))
                 .padding(.bottom, 32)
             
@@ -231,7 +231,7 @@ struct OnboardingStoriesView: View {
                     Spacer()
                     Text("15,000")
                 }
-                .font(.notoSerif(14, weight: .medium))
+                .font(.systemSerif(14, weight: .medium))
                 .foregroundColor(.white.opacity(0.4))
                 .padding(.horizontal, 44)
             }
@@ -254,7 +254,7 @@ struct OnboardingStoriesView: View {
                     .frame(width: 80, height: 80)
                     .shadow(color: accent.opacity(0.4), radius: 24, x: 0, y: 12)
                 Image(systemName: slide.symbol)
-                    .font(.notoSerif(32, weight: .bold))
+                    .font(.systemSerif(32, weight: .bold))
                     .foregroundColor(.white)
             }
             .padding(.bottom, 32)
@@ -262,7 +262,7 @@ struct OnboardingStoriesView: View {
             VStack(spacing: 6) {
                 ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
                     Text(line)
-                        .font(.notoSerif(24, weight: idx == 0 ? .bold : .medium))
+                        .font(.systemSerif(24, weight: idx == 0 ? .bold : .medium))
                         .foregroundColor(idx == 0 ? .white : .white.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
@@ -272,11 +272,11 @@ struct OnboardingStoriesView: View {
             
             // Sleep value display
             Text(String(format: "%.1f", sleepTarget))
-                .font(.notoSerif(64, weight: .bold))
+                .font(.systemSerif(64, weight: .bold))
                 .foregroundColor(accent)
             
             Text("hours")
-                .font(.notoSerif(18, weight: .medium))
+                .font(.systemSerif(18, weight: .medium))
                 .foregroundColor(.white.opacity(0.5))
                 .padding(.bottom, 32)
             
@@ -291,7 +291,7 @@ struct OnboardingStoriesView: View {
                     Spacer()
                     Text("10h")
                 }
-                .font(.notoSerif(14, weight: .medium))
+                .font(.systemSerif(14, weight: .medium))
                 .foregroundColor(.white.opacity(0.4))
                 .padding(.horizontal, 44)
             }
@@ -313,7 +313,7 @@ struct OnboardingStoriesView: View {
             VStack(spacing: 6) {
                 ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
                     Text(line)
-                        .font(.notoSerif(idx == 0 ? 22 : 18, weight: idx == 0 ? .bold : .medium))
+                        .font(.systemSerif(idx == 0 ? 22 : 18, weight: idx == 0 ? .bold : .medium))
                         .foregroundColor(idx == 0 ? .white : .white.opacity(0.6))
                         .multilineTextAlignment(.center)
                 }
@@ -324,7 +324,7 @@ struct OnboardingStoriesView: View {
             
             // Selection counter
             Text("\(selectedCount) / 4")
-                .font(.notoSerif(16, weight: .bold))
+                .font(.systemSerif(16, weight: .bold))
                 .foregroundColor(selectedCount == 4 ? accent : .white.opacity(0.5))
                 .padding(.bottom, 16)
             
@@ -354,11 +354,11 @@ struct OnboardingStoriesView: View {
                         .fill(isSelected ? accent.opacity(0.3) : Color.white.opacity(0.08))
                         .frame(width: 50, height: 50)
                     Image(systemName: option.icon)
-                        .font(.notoSerif(22, weight: .semibold))
+                        .font(.systemSerif(22, weight: .semibold))
                         .foregroundColor(isSelected ? accent : .white.opacity(0.6))
                 }
                 Text(option.titleEn)
-                    .font(.notoSerif(13, weight: .medium))
+                    .font(.systemSerif(13, weight: .medium))
                     .foregroundColor(isSelected ? .white : .white.opacity(0.6))
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
@@ -391,7 +391,7 @@ struct OnboardingStoriesView: View {
                     .frame(width: 80, height: 80)
                     .shadow(color: accent.opacity(0.4), radius: 24, x: 0, y: 12)
                 Image(systemName: slide.symbol)
-                    .font(.notoSerif(32, weight: .bold))
+                    .font(.systemSerif(32, weight: .bold))
                     .foregroundColor(.white)
             }
             .padding(.bottom, 32)
@@ -399,7 +399,7 @@ struct OnboardingStoriesView: View {
             VStack(spacing: 6) {
                 ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
                     Text(line)
-                        .font(.notoSerif(24, weight: idx == 0 ? .bold : .medium))
+                        .font(.systemSerif(24, weight: idx == 0 ? .bold : .medium))
                         .foregroundColor(idx == 0 ? .white : .white.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
@@ -409,12 +409,12 @@ struct OnboardingStoriesView: View {
             
             // Name input field
             TextField("", text: $userName)
-                .font(.notoSerif(32, weight: .bold))
+                .font(.systemSerif(32, weight: .bold))
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
                 .placeholder(when: userName.isEmpty) {
                     Text("My name")
-                        .font(.notoSerif(32, weight: .bold))
+                        .font(.systemSerif(32, weight: .bold))
                         .foregroundColor(.white.opacity(0.3))
                 }
                 .padding(.horizontal, 40)
@@ -454,7 +454,7 @@ struct OnboardingStoriesView: View {
             VStack(spacing: 6) {
                 ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
                     Text(line)
-                        .font(.notoSerif(24, weight: idx == 0 ? .bold : .medium))
+                        .font(.systemSerif(24, weight: idx == 0 ? .bold : .medium))
                         .foregroundColor(idx == 0 ? .white : .white.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
@@ -486,7 +486,7 @@ struct OnboardingStoriesView: View {
                                     .stroke(accent.opacity(0.5), lineWidth: 2)
                             )
                         Image(systemName: "person.fill")
-                            .font(.notoSerif(50, weight: .medium))
+                            .font(.systemSerif(50, weight: .medium))
                             .foregroundColor(.white.opacity(0.8))
                     }
                     
@@ -496,7 +496,7 @@ struct OnboardingStoriesView: View {
                         .frame(width: 44, height: 44)
                         .overlay(
                             Image(systemName: "camera.fill")
-                                .font(.notoSerif(20))
+                                .font(.systemSerif(20))
                                 .foregroundColor(.black)
                         )
                         .offset(x: 50, y: 50)
@@ -507,7 +507,7 @@ struct OnboardingStoriesView: View {
             // Skip text
             if avatarImage == nil {
                 Text("Tap to add a photo")
-                    .font(.notoSerif(16, weight: .medium))
+                    .font(.systemSerif(16, weight: .medium))
                     .foregroundColor(.white.opacity(0.5))
                     .padding(.top, 20)
             } else {
@@ -515,7 +515,7 @@ struct OnboardingStoriesView: View {
                     avatarImage = nil
                 } label: {
                     Text("Remove photo")
-                        .font(.notoSerif(16, weight: .medium))
+                        .font(.systemSerif(16, weight: .medium))
                         .foregroundColor(.red.opacity(0.8))
                 }
                 .padding(.top, 20)
@@ -573,7 +573,7 @@ struct OnboardingStoriesView: View {
                         .frame(width: 100, height: 100)
                         .shadow(color: accent.opacity(0.5), radius: 30, x: 0, y: 15)
                     Image(systemName: slide.symbol)
-                        .font(.notoSerif(44, weight: .bold))
+                        .font(.systemSerif(44, weight: .bold))
                         .foregroundColor(.white)
                 }
                 .padding(.bottom, 40)
@@ -582,15 +582,15 @@ struct OnboardingStoriesView: View {
             // Welcome text with name
             VStack(spacing: 12) {
                 Text("Welcome to Doom Control,")
-                    .font(.notoSerif(24, weight: .medium))
+                    .font(.systemSerif(24, weight: .medium))
                     .foregroundColor(.white.opacity(0.8))
                 
                 Text(displayName)
-                    .font(.notoSerif(36, weight: .bold))
+                    .font(.systemSerif(36, weight: .bold))
                     .foregroundColor(accent)
                 
                 Text("My time. My rules.")
-                    .font(.notoSerif(20, weight: .medium))
+                    .font(.systemSerif(20, weight: .medium))
                     .foregroundColor(.white.opacity(0.6))
                     .padding(.top, 8)
             }
@@ -608,13 +608,6 @@ struct OnboardingStoriesView: View {
         if index == lastIndex { return startText }
         if slides[index].action != .none { return allowText }
         return nextText
-    }
-    
-    private func formatNumber(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = ","
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
     private func next() {

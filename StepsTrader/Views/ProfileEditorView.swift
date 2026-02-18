@@ -69,7 +69,7 @@ struct ProfileEditorView: View {
                                     .frame(width: 30, height: 30)
                                     .overlay(
                                         Image(systemName: "camera.fill")
-                                            .font(.notoSerif(14))
+                                            .font(.systemSerif(14))
                                             .foregroundColor(.white)
                                     )
                                     .offset(x: 34, y: 34)
@@ -239,17 +239,6 @@ struct ProfileEditorView: View {
         }
     }
     
-    private func countryFlag(_ countryCode: String) -> String {
-        let base: UInt32 = 127397
-        var flag = ""
-        for scalar in countryCode.uppercased().unicodeScalars {
-            if let unicode = UnicodeScalar(base + scalar.value) {
-                flag.append(String(unicode))
-            }
-        }
-        return flag
-    }
-    
     private func loadCurrentProfile() {
         if let user = authService.currentUser {
             nickname = user.nickname ?? ""
@@ -264,17 +253,6 @@ struct ProfileEditorView: View {
                 avatarImage = nil
             }
         }
-    }
-    
-    private func saveProfile() {
-        let trimmedNickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        let avatarData = avatarImage?.jpegData(compressionQuality: 0.75)
-        
-        authService.updateProfile(
-            nickname: trimmedNickname.isEmpty ? nil : trimmedNickname,
-            country: selectedCountryCode.isEmpty ? nil : selectedCountryCode,
-            avatarData: avatarData
-        )
     }
     
     @MainActor

@@ -65,13 +65,13 @@ extension AppModel {
         // Get cost - use override if provided, otherwise use group's cost for the window
         let cost = costOverride ?? group.cost(for: window)
         
-        AppLogger.shield.debug("💰 Attempting to pay \(cost) exp for group \(group.name)")
+        AppLogger.shield.debug("💰 Attempting to pay \(cost) ink for group \(group.name)")
         AppLogger.shield.debug("💰 Current balance: \(self.totalStepsBalance) (base: \(self.stepsBalance), bonus: \(self.bonusSteps))")
         
         // Pay the cost
         guard pay(cost: cost) else {
-            message = "Not enough exp"
-            AppLogger.shield.debug("❌ Payment failed - not enough exp")
+            message = "Not enough ink"
+            AppLogger.shield.debug("❌ Payment failed - not enough ink")
             return
         }
         
@@ -153,9 +153,10 @@ extension AppModel {
         unlockExpiryTasks[groupId] = task
     }
     
-    /// Schedule a DeviceActivity interval that ends when the unlock expires.
-    /// For intervals >= 15 min: interval ends at expiry → intervalDidEnd in extension.
-    /// For intervals < 15 min: 15-min window with warningTime so intervalWillEndWarning fires at expiry (extension clears unlock and rebuilds shield without app).
+    /// Schedule a DeviceActivity interval whose warningTime fires when the unlock expires.
+    /// Uses a padded window with warningTime for all durations to avoid midnight-crossing
+    /// edge cases with DateComponents-based intervalEnd (audit fix #11).
+    /// The extension's intervalWillEndWarning handler clears the unlock and rebuilds the shield.
     private func scheduleUnlockExpiryActivity(groupId: String, expiresInSeconds: Int) {
         #if canImport(DeviceActivity)
         let center = DeviceActivityCenter()
@@ -163,33 +164,26 @@ extension AppModel {
         let calendar = Calendar.current
         let now = Date()
         let startComponents = calendar.dateComponents([.hour, .minute, .second], from: now)
-        
-        let schedule: DeviceActivitySchedule
-        if expiresInSeconds >= 900 {
-            // Long unlock: interval ends exactly at expiry
-            let expiryDate = now.addingTimeInterval(TimeInterval(expiresInSeconds))
-            let endComponents = calendar.dateComponents([.hour, .minute, .second], from: expiryDate)
-            schedule = DeviceActivitySchedule(
-                intervalStart: startComponents,
-                intervalEnd: endComponents,
-                repeats: false
-            )
-            AppLogger.shield.debug("📅 Scheduled unlock expiry activity for group \(groupId) in \(expiresInSeconds)s (interval end)")
-        } else {
-            // Short unlock: 15-min minimum interval; warningTime so extension gets intervalWillEndWarning at expiry
-            let endDate = now.addingTimeInterval(900)
-            let endComponents = calendar.dateComponents([.hour, .minute, .second], from: endDate)
-            let secondsBeforeEnd = 900 - expiresInSeconds
-            let warningTime = DateComponents(second: secondsBeforeEnd)
-            schedule = DeviceActivitySchedule(
-                intervalStart: startComponents,
-                intervalEnd: endComponents,
-                repeats: false,
-                warningTime: warningTime
-            )
-            AppLogger.shield.debug("📅 Scheduled unlock expiry activity for group \(groupId) in \(expiresInSeconds)s (warning in \(secondsBeforeEnd)s)")
-        }
-        
+
+        // Always use a padded window (at least 15 min + 60s buffer) with warningTime.
+        // warningTime fires the extension's intervalWillEndWarning at the right moment.
+        // This avoids the midnight-crossing problem where DateComponents end < start
+        // could cause the interval to misfire on some OS versions.
+        let windowSeconds = max(expiresInSeconds, 900) + 60
+        let endDate = now.addingTimeInterval(TimeInterval(windowSeconds))
+        let endComponents = calendar.dateComponents([.hour, .minute, .second], from: endDate)
+        let secondsBeforeEnd = windowSeconds - expiresInSeconds
+        let warningTime = DateComponents(minute: secondsBeforeEnd / 60, second: secondsBeforeEnd % 60)
+
+        let schedule = DeviceActivitySchedule(
+            intervalStart: startComponents,
+            intervalEnd: endComponents,
+            repeats: false,
+            warningTime: warningTime
+        )
+
+        AppLogger.shield.debug("📅 Scheduled unlock expiry for group \(groupId) in \(expiresInSeconds)s (window=\(windowSeconds)s, warning=\(secondsBeforeEnd)s before end)")
+
         center.stopMonitoring([activityName])
         do {
             try center.startMonitoring(activityName, during: schedule)
@@ -260,8 +254,8 @@ extension AppModel {
         
         // Pay the cost
         guard pay(cost: cost) else {
-            message = "Not enough exp"
-            AppLogger.shield.debug("❌ Payment failed - not enough exp")
+            message = "Not enough ink"
+            AppLogger.shield.debug("❌ Payment failed - not enough ink")
             return
         }
         
@@ -282,17 +276,11 @@ extension AppModel {
         applyAccessWindow(window, for: bundleId)
         rebuildFamilyControlsShield()
         
-        // Force UI update
-        objectWillChange.send()
-        
-        // Small delay to let SwiftUI process
-        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
-        
-        // Force another update
-        objectWillChange.send()
-        
         // Dismiss pay gate
         dismissPayGate(reason: .programmatic)
+        
+        // Single UI update after all state changes
+        objectWillChange.send()
     }
     
     // MARK: - PayGate Dismissal

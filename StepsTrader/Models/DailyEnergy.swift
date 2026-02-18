@@ -2,8 +2,8 @@ import Foundation
 
 // MARK: - Gallery tab: past day snapshot (for history)
 struct PastDaySnapshot: Codable, Equatable {
-    var experienceEarned: Int
-    var experienceSpent: Int
+    var inkEarned: Int
+    var inkSpent: Int
     var bodyIds: [String]
     var mindIds: [String]
     var heartIds: [String]
@@ -13,6 +13,9 @@ struct PastDaySnapshot: Codable, Equatable {
     var sleepTargetHours: Double
 
     enum CodingKeys: String, CodingKey {
+        case inkEarned
+        case inkSpent
+        // Backward compat for old "experienceEarned"/"experienceSpent" keys
         case experienceEarned
         case experienceSpent
         // Encode with new names, decode with backward compat
@@ -35,8 +38,8 @@ struct PastDaySnapshot: Codable, Equatable {
 
     // Backward compatibility - old snapshots won't have steps/sleep/targets
     init(
-        experienceEarned: Int,
-        experienceSpent: Int,
+        inkEarned: Int,
+        inkSpent: Int,
         bodyIds: [String],
         mindIds: [String],
         heartIds: [String],
@@ -45,8 +48,8 @@ struct PastDaySnapshot: Codable, Equatable {
         stepsTarget: Double = EnergyDefaults.stepsTarget,
         sleepTargetHours: Double = EnergyDefaults.sleepTargetHours
     ) {
-        self.experienceEarned = experienceEarned
-        self.experienceSpent = experienceSpent
+        self.inkEarned = inkEarned
+        self.inkSpent = inkSpent
         self.bodyIds = bodyIds
         self.mindIds = mindIds
         self.heartIds = heartIds
@@ -58,15 +61,19 @@ struct PastDaySnapshot: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if let earned = try container.decodeIfPresent(Int.self, forKey: .experienceEarned) {
-            experienceEarned = earned
+        if let earned = try container.decodeIfPresent(Int.self, forKey: .inkEarned) {
+            inkEarned = earned
+        } else if let earned = try container.decodeIfPresent(Int.self, forKey: .experienceEarned) {
+            inkEarned = earned
         } else {
-            experienceEarned = try container.decode(Int.self, forKey: .controlGained)
+            inkEarned = try container.decode(Int.self, forKey: .controlGained)
         }
-        if let spent = try container.decodeIfPresent(Int.self, forKey: .experienceSpent) {
-            experienceSpent = spent
+        if let spent = try container.decodeIfPresent(Int.self, forKey: .inkSpent) {
+            inkSpent = spent
+        } else if let spent = try container.decodeIfPresent(Int.self, forKey: .experienceSpent) {
+            inkSpent = spent
         } else {
-            experienceSpent = try container.decode(Int.self, forKey: .controlSpent)
+            inkSpent = try container.decode(Int.self, forKey: .controlSpent)
         }
         // bodyIds: try new key first, then legacy "activityIds"
         if let v = try container.decodeIfPresent([String].self, forKey: .bodyIds) {
@@ -100,8 +107,8 @@ struct PastDaySnapshot: Codable, Equatable {
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(experienceEarned, forKey: .experienceEarned)
-        try container.encode(experienceSpent, forKey: .experienceSpent)
+        try container.encode(inkEarned, forKey: .inkEarned)
+        try container.encode(inkSpent, forKey: .inkSpent)
         try container.encode(bodyIds, forKey: .bodyIds)
         try container.encode(mindIds, forKey: .mindIds)
         try container.encode(heartIds, forKey: .heartIds)
@@ -164,6 +171,8 @@ struct OptionEntry: Identifiable, Codable, Equatable {
     var colorHex: String
     var text: String
     var timestamp: Date
+    /// Which body asset variant the user picked (0 = body 1, 1 = body 2, 2 = body 3). Nil for non-body categories.
+    var assetVariant: Int?
 }
 
 enum EnergyDefaults {
@@ -239,7 +248,7 @@ enum EnergyDefaults {
         "mind_observing": ("Noticing without interfering.", "watching people, noticing patterns, awareness"),
         "mind_questioning": ("Challenging assumptions.", "asking why, rethinking, curiosity moments"),
         "mind_ordering": ("Creating clarity and structure.", "organising files, simplifying, arranging ideas"),
-        "mind_remembering": ("Returning to past experience consciously.", "reviewing the day, recalling a memory"),
+        "mind_remembering": ("Returning to a past moment consciously.", "reviewing the day, recalling a memory"),
         "mind_letting_go": ("Releasing mental tension.", "closing tasks, stopping overthinking, pause"),
         
         // HEART

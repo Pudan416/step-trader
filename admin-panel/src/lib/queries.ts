@@ -7,17 +7,33 @@ const HARD_ROW_LIMIT = 200_000;
 export async function listPublicUsers(params: {
   limit?: number;
   offset?: number;
-}): Promise<PublicUserRow[]> {
+  search?: string;
+}): Promise<{ rows: PublicUserRow[]; total: number }> {
   const limit = params.limit ?? 50;
   const offset = params.offset ?? 0;
   const sb = supabaseAdmin();
-  const { data, error } = await sb
+  let q = sb
     .from("users")
-    .select("id,email,nickname,country,created_at,is_banned,ban_reason,ban_until")
+    .select("id,email,nickname,country,created_at,is_banned,ban_reason,ban_until", {
+      count: "exact",
+    })
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
+
+  if (params.search?.trim()) {
+    const raw = params.search.trim();
+    // Escape PostgREST special chars to prevent filter injection
+    const s = raw.replace(/[%_,()\\]/g, (ch) => `\\${ch}`);
+    // Only use UUID-format strings for id.eq to avoid malformed filter
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
+    const filters = [`nickname.ilike.%${s}%`, `email.ilike.%${s}%`];
+    if (isUUID) filters.push(`id.eq.${raw}`);
+    q = q.or(filters.join(","));
+  }
+
+  const { data, error, count } = await q;
   if (error) throw error;
-  return (data ?? []) as PublicUserRow[];
+  return { rows: (data ?? []) as PublicUserRow[], total: count ?? 0 };
 }
 
 export async function getPublicUser(userId: string): Promise<PublicUserRow | null> {
@@ -58,6 +74,16 @@ export async function countShields(userId?: string): Promise<number> {
 
 export async function sumEnergyDelta(userId?: string): Promise<{ total: number; rowsScanned: number }> {
   const sb = supabaseAdmin();
+
+  // Try server-side RPC first (requires migration: sum_energy_delta)
+  const { data: rpcResult, error: rpcError } = await sb.rpc("sum_energy_delta", {
+    p_user_id: userId ?? null,
+  });
+  if (!rpcError && typeof rpcResult === "number") {
+    return { total: rpcResult, rowsScanned: 0 };
+  }
+
+  // Fallback: client-side pagination (remove once RPC is deployed)
   let offset = 0;
   let total = 0;
   let scanned = 0;
@@ -112,5 +138,49 @@ export async function countAuthUsers(): Promise<number> {
     if (page * perPage > HARD_ROW_LIMIT) break;
   }
   return total;
+}
+
+// MARK: - Write Operations
+
+export async function banUser(
+  userId: string,
+  reason: string,
+  banUntil?: string
+): Promise<void> {
+  const sb = supabaseAdmin();
+  const { error } = await sb
+    .from("users")
+    .update({
+      is_banned: true,
+      ban_reason: reason,
+      ban_until: banUntil ?? null,
+    })
+    .eq("id", userId);
+  if (error) throw error;
+}
+
+export async function unbanUser(userId: string): Promise<void> {
+  const sb = supabaseAdmin();
+  const { error } = await sb
+    .from("users")
+    .update({
+      is_banned: false,
+      ban_reason: null,
+      ban_until: null,
+    })
+    .eq("id", userId);
+  if (error) throw error;
+}
+
+export async function grantEnergy(
+  userId: string,
+  delta: number,
+  reason: string
+): Promise<void> {
+  const sb = supabaseAdmin();
+  const { error } = await sb
+    .from("energy_ledger")
+    .insert({ user_id: userId, delta, reason });
+  if (error) throw error;
 }
 

@@ -30,10 +30,8 @@ final class HealthKitService: HealthKitServiceProtocol {
     private let sleepType: HKCategoryType?
     private var observerQuery: HKQuery?
     private var isObserving = false
-    private var stepsAnchor: HKQueryAnchor?
     private var lastStepCount: Double = 0
     private var isRequestingAuthorization = false
-    private var authTimeoutTask: Task<Void, Never>?
     
     init() {
         self.stepType = HKObjectType.quantityType(forIdentifier: .stepCount)
@@ -80,56 +78,23 @@ final class HealthKitService: HealthKitServiceProtocol {
             throw HealthKitServiceError.sleepTypeNotAvailable
         }
         let readTypes: Set<HKObjectType> = [stepType, sleepType]
-        if #available(iOS 15.0, *) {
-            let status = try await store.statusForAuthorizationRequest(toShare: [], read: readTypes)
-            log.info("Request status: \(status.rawValue)")
-        }
+        let status = try await store.statusForAuthorizationRequest(toShare: [], read: readTypes)
+        log.info("Request status: \(status.rawValue)")
         logAuthorizationStatus(context: "requestAuthorization:pre-flight")
-        // Watchdog in case completion never fires
-        authTimeoutTask?.cancel()
-        authTimeoutTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            if self.isRequestingAuthorization {
-                log.warning("requestAuthorization appears stalled (no completion in 5s). Resetting flag.")
-                self.isRequestingAuthorization = false
-            }
-        }
-        let granted: Bool = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
-            store.requestAuthorization(toShare: [], read: readTypes) { success, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: success)
-                }
-            }
-        }
-        log.info("requestAuthorization returned: \(granted)")
-        logAuthorizationStatus(context: "requestAuthorization:post-request")
-        authTimeoutTask?.cancel()
         
-        // Enable background delivery for automatic updates
-        if #available(iOS 12.0, *) {
-            if let stepType = self.stepType {
-                try await store.enableBackgroundDelivery(for: stepType, frequency: .immediate)
-                log.info("Background delivery for step count enabled")
-            }
-            if let sleepType = self.sleepType {
-                try await store.enableBackgroundDelivery(for: sleepType, frequency: .immediate)
-                log.info("Background delivery for sleep data enabled")
-            }
+        // Native async API — no continuation wrapper or timeout watchdog needed
+        try await store.requestAuthorization(toShare: [], read: readTypes)
+        log.info("requestAuthorization completed")
+        logAuthorizationStatus(context: "requestAuthorization:post-request")
+        
+        // Enable background delivery for steps so HKObserverQuery fires when suspended.
+        // Sleep background delivery removed — no observer registered; sleep refreshes on foreground.
+        if let stepType = self.stepType {
+            try await store.enableBackgroundDelivery(for: stepType, frequency: .immediate)
+            log.info("Background delivery for step count enabled")
         }
     }
 
-    func fetchTodaySteps() async throws -> Double {
-        let now = Date()
-        return try await fetchSteps(from: .startOfToday, to: now)
-    }
-    
-    func fetchTodaySleep() async throws -> Double {
-        let now = Date()
-        return try await fetchSleep(from: .startOfToday, to: now)
-    }
-    
     func fetchSleep(from start: Date, to end: Date) async throws -> Double {
         guard let sleepType = sleepType else {
             log.warning("Sleep type not available, returning 0")
@@ -137,14 +102,16 @@ final class HealthKitService: HealthKitServiceProtocol {
         }
         
         // Ensure authorization is determined before querying
-        if #available(iOS 12.0, *) {
-            let status = store.authorizationStatus(for: sleepType)
-            if status == .notDetermined {
-                try await requestAuthorization()
-            }
+        let sleepAuthStatus = store.authorizationStatus(for: sleepType)
+        if sleepAuthStatus == .notDetermined {
+            try await requestAuthorization()
         }
         
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        // P10: Clamp lookback to 24h to avoid ancient samples whose endDate falls in the window
+        let maxLookback: TimeInterval = 24 * 3600
+        let clampedStart = max(start, end.addingTimeInterval(-maxLookback))
+        
+        let predicate = HKQuery.predicateForSamples(withStart: clampedStart, end: end, options: [])
         
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(
@@ -152,7 +119,7 @@ final class HealthKitService: HealthKitServiceProtocol {
                 predicate: predicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
-            ) { _, samples, error in
+            ) { [clampedStart] _, samples, error in
                 if let error = error {
                     continuation.resume(throwing: error)
                     return
@@ -160,7 +127,7 @@ final class HealthKitService: HealthKitServiceProtocol {
                 
                 // Only sum actual sleep phases (asleep*). inBed overlaps with asleep
                 // causing double-counting: inBed 22:00–07:00 (9h) + asleep 22:30–06:30 (8h) = 17h instead of 8h.
-                var totalSleepHours: Double = 0
+                var intervals: [(start: Date, end: Date)] = []
                 if let samples = samples as? [HKCategorySample] {
                     log.debug("fetchSleep: samples=\(samples.count)")
                     for sample in samples {
@@ -171,27 +138,44 @@ final class HealthKitService: HealthKitServiceProtocol {
                                          sleepValue == HKCategoryValueSleepAnalysis.asleepCore.rawValue ||
                                          sleepValue == HKCategoryValueSleepAnalysis.asleepDeep.rawValue ||
                                          sleepValue == HKCategoryValueSleepAnalysis.asleepREM.rawValue
-                            // inBed intentionally excluded — it's the "went to bed–got up" interval, already contains asleep*
                         } else {
                             shouldCount = sleepValue == HKCategoryValueSleepAnalysis.asleep.rawValue
                         }
                         if shouldCount {
-                            // Count only the overlap with [start, end]
-                            let overlapStart = max(sample.startDate, start)
+                            let overlapStart = max(sample.startDate, clampedStart)
                             let overlapEnd = min(sample.endDate, end)
-                            let duration = overlapEnd.timeIntervalSince(overlapStart)
-                            if duration > 0 {
-                                totalSleepHours += duration / 3600.0
+                            if overlapEnd > overlapStart {
+                                intervals.append((start: overlapStart, end: overlapEnd))
                             }
                         }
                     }
                 }
                 
-                log.debug("fetchSleep: totalHours=\(totalSleepHours)")
+                // P8: Merge overlapping intervals to prevent double-counting from multiple sources
+                let totalSleepHours = Self.mergedDuration(of: intervals) / 3600.0
+                
+                log.debug("fetchSleep: totalHours=\(totalSleepHours) (from \(intervals.count) intervals)")
                 continuation.resume(returning: totalSleepHours)
             }
             store.execute(query)
         }
+    }
+    
+    /// Merge overlapping time intervals and return total duration in seconds.
+    /// Handles Watch + Phone recording overlapping sleep sessions.
+    static func mergedDuration(of intervals: [(start: Date, end: Date)]) -> TimeInterval {
+        guard !intervals.isEmpty else { return 0 }
+        let sorted = intervals.sorted { $0.start < $1.start }
+        var merged: [(start: Date, end: Date)] = [sorted[0]]
+        for interval in sorted.dropFirst() {
+            if interval.start <= merged[merged.count - 1].end {
+                // Overlapping or adjacent — extend the current merged interval
+                merged[merged.count - 1].end = max(merged[merged.count - 1].end, interval.end)
+            } else {
+                merged.append(interval)
+            }
+        }
+        return merged.reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) }
     }
     
     func fetchSteps(from start: Date, to end: Date) async throws -> Double {
@@ -201,11 +185,9 @@ final class HealthKitService: HealthKitServiceProtocol {
         }
         
         // Ensure authorization is determined before querying
-        if #available(iOS 12.0, *) {
-            let status = store.authorizationStatus(for: stepType)
-            if status == .notDetermined {
-                try await requestAuthorization()
-            }
+        let stepAuthStatus = store.authorizationStatus(for: stepType)
+        if stepAuthStatus == .notDetermined {
+            try await requestAuthorization()
         }
 
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
@@ -261,20 +243,19 @@ final class HealthKitService: HealthKitServiceProtocol {
         Task { [weak self] in
             guard let self = self else { return }
             // Request authorization if not done yet
-            if #available(iOS 12.0, *) {
-                let status = self.store.authorizationStatus(for: stepType)
-                if status == .notDetermined {
-                    log.warning("Authorization not determined. Requesting before observing.")
-                    do {
-                        try await self.requestAuthorization()
-                    } catch {
-                        log.error("Authorization request failed: \(error.localizedDescription)")
-                    }
+            let observeAuthStatus = self.store.authorizationStatus(for: stepType)
+            if observeAuthStatus == .notDetermined {
+                log.warning("Authorization not determined. Requesting before observing.")
+                do {
+                    try await self.requestAuthorization()
+                } catch {
+                    log.error("Authorization request failed: \(error.localizedDescription)")
                 }
             }
             
-            // Initial fetch so UI has fresh value before anchored updates
-            if let steps = try? await self.fetchTodaySteps() {
+            // Initial fetch so UI has fresh value before observer fires
+            if let steps = try? await self.fetchSteps(from: Date.startOfToday, to: Date()) {
+                self.lastStepCount = steps
                 await MainActor.run { updateHandler(steps) }
             }
             await self.beginObservation(updateHandler: updateHandler)
@@ -306,77 +287,75 @@ final class HealthKitService: HealthKitServiceProtocol {
             options: .strictStartDate
         )
 
-        observerQuery = HKAnchoredObjectQuery(
-            type: stepType,
-            predicate: predicate,
-            anchor: stepsAnchor,
-            limit: HKObjectQueryNoLimit
-        ) { [weak self] _, samples, _, newAnchor, error in
-            guard let self = self else { return }
-            if let error = error {
-                log.error("Anchored query error: \(error.localizedDescription)")
+        // Use HKObserverQuery to detect changes, then re-fetch the accurate cumulative total
+        // via HKStatisticsQuery. This avoids the double-counting risk of accumulating deltas
+        // from HKAnchoredObjectQuery when samples are re-delivered after background wakes.
+        observerQuery = HKObserverQuery(sampleType: stepType, predicate: predicate) { [weak self] _, completionHandler, error in
+            guard let self = self else {
+                completionHandler()
                 return
             }
-            self.stepsAnchor = newAnchor
-            let added = samples?
-                .compactMap { $0 as? HKQuantitySample }
-                .reduce(0.0) { $0 + $1.quantity.doubleValue(for: .count()) } ?? 0
-            if added > 0 {
-                self.lastStepCount += added
+            if let error = error {
+                log.error("Observer query error: \(error.localizedDescription)")
+                completionHandler()
+                return
             }
-            Task { @MainActor in
-                updateHandler(self.lastStepCount)
+            Task {
+                defer { completionHandler() }
+                do {
+                    let steps = try await self.fetchSteps(from: Date.startOfToday, to: Date())
+                    self.lastStepCount = steps
+                    await MainActor.run { updateHandler(steps) }
+                } catch {
+                    log.error("Observer re-fetch failed: \(error.localizedDescription)")
+                }
             }
         }
 
         if let query = observerQuery {
             store.execute(query)
             isObserving = true
-            log.info("Step observation started (anchored)")
+            log.info("Step observation started (observer + statistics re-fetch)")
         }
     }
 
     private func logAuthorizationStatus(context: String) {
-        if #available(iOS 12.0, *) {
-            let stepStatusDescription: String
-            let sleepStatusDescription: String
-            
-            if let stepType = stepType {
-                let stepStatus = store.authorizationStatus(for: stepType)
-                switch stepStatus {
-                case .sharingAuthorized:
-                    stepStatusDescription = "sharing authorized"
-                case .sharingDenied:
-                    stepStatusDescription = "sharing denied"
-                case .notDetermined:
-                    stepStatusDescription = "not determined"
-                @unknown default:
-                    stepStatusDescription = "unknown (\(stepStatus.rawValue))"
-                }
-            } else {
-                stepStatusDescription = "type unavailable"
+        let stepStatusDescription: String
+        let sleepStatusDescription: String
+        
+        if let stepType = stepType {
+            let stepStatus = store.authorizationStatus(for: stepType)
+            switch stepStatus {
+            case .sharingAuthorized:
+                stepStatusDescription = "sharing authorized"
+            case .sharingDenied:
+                stepStatusDescription = "sharing denied"
+            case .notDetermined:
+                stepStatusDescription = "not determined"
+            @unknown default:
+                stepStatusDescription = "unknown (\(stepStatus.rawValue))"
             }
-            
-            if let sleepType = sleepType {
-                let sleepStatus = store.authorizationStatus(for: sleepType)
-                switch sleepStatus {
-                case .sharingAuthorized:
-                    sleepStatusDescription = "sharing authorized"
-                case .sharingDenied:
-                    sleepStatusDescription = "sharing denied"
-                case .notDetermined:
-                    sleepStatusDescription = "not determined"
-                @unknown default:
-                    sleepStatusDescription = "unknown (\(sleepStatus.rawValue))"
-                }
-            } else {
-                sleepStatusDescription = "type unavailable"
-            }
-            
-            log.debug("[\(context)] steps=\(stepStatusDescription), sleep=\(sleepStatusDescription)")
         } else {
-            log.debug("[\(context)] authorization status unavailable (iOS < 12)")
+            stepStatusDescription = "type unavailable"
         }
+        
+        if let sleepType = sleepType {
+            let sleepStatus = store.authorizationStatus(for: sleepType)
+            switch sleepStatus {
+            case .sharingAuthorized:
+                sleepStatusDescription = "sharing authorized"
+            case .sharingDenied:
+                sleepStatusDescription = "sharing denied"
+            case .notDetermined:
+                sleepStatusDescription = "not determined"
+            @unknown default:
+                sleepStatusDescription = "unknown (\(sleepStatus.rawValue))"
+            }
+        } else {
+            sleepStatusDescription = "type unavailable"
+        }
+        
+        log.debug("[\(context)] steps=\(stepStatusDescription), sleep=\(sleepStatusDescription)")
     }
 
     private func logHealthKitEntitlement() {

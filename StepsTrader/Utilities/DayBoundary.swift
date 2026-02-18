@@ -1,6 +1,20 @@
 import Foundation
 
 struct DayBoundary {
+    /// Single source of truth for reading stored day-end hour/minute from UserDefaults.
+    /// Checks app group first, then standard defaults, then falls back to midnight (0, 0).
+    static func storedDayEnd() -> (hour: Int, minute: Int) {
+        let g = UserDefaults.stepsTrader()
+        let s = UserDefaults.standard
+        let hour = (g.object(forKey: "dayEndHour_v1") as? Int)
+            ?? (s.object(forKey: "dayEndHour_v1") as? Int)
+            ?? 0
+        let minute = (g.object(forKey: "dayEndMinute_v1") as? Int)
+            ?? (s.object(forKey: "dayEndMinute_v1") as? Int)
+            ?? 0
+        return (hour, minute)
+    }
+
     static func currentDayStart(
         for date: Date,
         dayEndHour: Int,
@@ -45,11 +59,7 @@ struct DayBoundary {
             dayEndMinute: dayEndMinute,
             calendar: calendar
         )
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "en_US_POSIX")
-        df.calendar = calendar
-        df.dateFormat = "yyyy-MM-dd"
-        return df.string(from: dayStart)
+        return CachedFormatters.dayKey.string(from: dayStart)
     }
 
     static func nextBoundary(

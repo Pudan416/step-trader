@@ -81,7 +81,7 @@ struct PayGateView: View {
         HStack {
             Spacer()
             Text("\(model.userEconomyStore.totalStepsBalance)")
-                .font(.notoSerif(32, weight: .bold))
+                .font(.systemSerif(32, weight: .bold))
                 .foregroundColor(PayGatePalette.textPrimary)
                 .monospacedDigit()
                 .padding(.vertical, 12)
@@ -107,8 +107,8 @@ struct PayGateView: View {
             
             // Text
             VStack(spacing: 8) {
-                Text("spend exp")
-                    .font(.notoSerif(28, weight: .bold))
+                Text("spend ink")
+                    .font(.systemSerif(28, weight: .bold))
                     .foregroundColor(PayGatePalette.textPrimary)
                     .multilineTextAlignment(.center)
                 
@@ -226,7 +226,7 @@ struct PayGateView: View {
                 
                 Spacer()
                 
-                Text("· \(cost) exp")
+                Text("· \(cost) ink")
                     .font(.headline.weight(.bold))
                     .monospacedDigit()
                     .foregroundColor(isDisabled ? PayGatePalette.textSecondary.opacity(0.5) : .black)
@@ -271,9 +271,8 @@ struct PayGateView: View {
     }
     
     private func sendAppToBackground() {
-        DispatchQueue.main.async {
-            UIApplication.shared.perform(#selector(NSXPCConnection.suspend))
-        }
+        // No-op: private API removed (App Store rejection risk).
+        // The user stays in-app after dismissing the pay gate.
     }
     
     @ViewBuilder

@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Network Client
 /// Centralized networking with retries, backoff, jitter, and connectivity handling.
-final class NetworkClient {
+final class NetworkClient: Sendable {
     static let shared = NetworkClient()
     
     struct RetryPolicy: Equatable {
@@ -38,14 +38,6 @@ final class NetworkClient {
                 .dataNotAllowed
             ]
         )
-    }
-    
-    enum FailureKind: Equatable {
-        case retryableHTTP(Int)
-        case nonRetryableHTTP(Int)
-        case retryableTransport(URLError.Code)
-        case nonRetryableTransport(URLError.Code)
-        case invalidResponse
     }
     
     enum NetworkError: Error {
@@ -115,22 +107,6 @@ final class NetworkClient {
         return try await data(for: request, policy: policy)
     }
     
-    func classifyFailure(statusCode: Int?, error: Error?, policy: RetryPolicy = .default) -> FailureKind {
-        if let statusCode {
-            if policy.retryableStatusCodes.contains(statusCode) {
-                return .retryableHTTP(statusCode)
-            }
-            return .nonRetryableHTTP(statusCode)
-        }
-        if let urlError = error as? URLError {
-            if policy.retryableURLErrorCodes.contains(urlError.code) {
-                return .retryableTransport(urlError.code)
-            }
-            return .nonRetryableTransport(urlError.code)
-        }
-        return .invalidResponse
-    }
-    
     // MARK: - Helpers
     private func shouldRetry(statusCode: Int, policy: RetryPolicy) -> Bool {
         policy.retryableStatusCodes.contains(statusCode)
@@ -151,5 +127,25 @@ final class NetworkClient {
     private func sleep(seconds: TimeInterval) async throws {
         let ns = UInt64(seconds * 1_000_000_000)
         try await Task.sleep(nanoseconds: ns)
+    }
+}
+
+// MARK: - Shared Supabase Config
+
+struct SupabaseConfig {
+    let baseURL: URL
+    let anonKey: String
+
+    enum ConfigError: Error { case misconfigured }
+
+    static func load() throws -> SupabaseConfig {
+        let urlString = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String
+        let anonKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String
+
+        guard let urlString, let anonKey, let url = URL(string: urlString), !anonKey.isEmpty else {
+            AppLogger.network.error("SupabaseConfig: url=\(urlString ?? "nil"), anonKey=\(anonKey != nil ? "set" : "nil")")
+            throw ConfigError.misconfigured
+        }
+        return SupabaseConfig(baseURL: url, anonKey: anonKey)
     }
 }

@@ -23,6 +23,10 @@ struct StepsTraderApp: App {
         // are routed through our handler (onAppear can be too late).
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
 
+        // Mirror theme to app-group so the wallpaper Shortcut intent can read it reliably.
+        let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.system.rawValue
+        UserDefaults(suiteName: SharedKeys.appGroupId)?.set(themeRaw, forKey: "appTheme")
+
         // Make NavigationStack backgrounds transparent so the shared energy gradient
         // shows through on every tab.
         let navAppearance = UINavigationBarAppearance()
@@ -129,18 +133,12 @@ struct StepsTraderApp: App {
                 )
                 checkForHandoffToken()
             }
-            .onOpenURL { url in
-                AppLogger.app.debug("🔗 App received URL: \(url)")
-                AppLogger.app.debug("🔗 URL scheme: \(url.scheme ?? "nil")")
-                AppLogger.app.debug("🔗 URL host: \(url.host ?? "nil")")
-                AppLogger.app.debug("🔗 URL path: \(url.path)")
-                model.handleIncomingURL(url)
-            }
             .onReceive(
                 NotificationCenter.default.publisher(
                     for: UIApplication.didEnterBackgroundNotification)
             ) { _ in
-                model.handleAppDidEnterBackground()
+                // Sync theme to app-group so the wallpaper Shortcut can read it.
+                UserDefaults(suiteName: SharedKeys.appGroupId)?.set(appThemeRaw, forKey: "appTheme")
             }
             .task {
                 if hasCompletedOnboarding && !isUITest {
@@ -370,32 +368,6 @@ private extension StepsTraderApp {
     var currentTheme: AppTheme {
         AppTheme.normalized(rawValue: appThemeRaw)
     }
-}
-
-// MARK: - Helper Functions
-private func getAppDisplayName(_ bundleId: String) -> String {
-    // 1) Legacy pre-configured apps (Instagram, TikTok, etc.)
-    if let name = SettingsView.automationAppsStatic.first(where: { $0.bundleId == bundleId })?.name {
-        return name
-    }
-    
-    // 2) FamilyControls cards: try to get name from selection via token.
-    let defaults = UserDefaults.stepsTrader()
-    let key = "timeAccessSelection_v1_\(bundleId)"
-    if let data = defaults.data(forKey: key),
-       let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data),
-       let token = sel.applicationTokens.first {
-        // Token-to-name key, written by ShieldConfiguration extension.
-        if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-            let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-            if let storedName = defaults.string(forKey: tokenKey) {
-                return storedName
-            }
-        }
-    }
-    
-    // 3) Fallback: don't expose internal ID, show generic name.
-    return "Selected app"
 }
 
 // MARK: - Notification Handling

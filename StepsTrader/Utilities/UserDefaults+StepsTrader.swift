@@ -2,29 +2,30 @@ import Foundation
 
 // MARK: - UserDefaults Extension for Proof
 extension UserDefaults {
-    private static var hasLoggedFallback = false
     private static var hasLoggedGroupInfo = false
     
+    /// Returns the shared App Group UserDefaults.
+    /// In DEBUG builds, asserts if the container is unavailable (entitlements misconfiguration).
+    /// In RELEASE builds, falls back to .standard with a warning — but data written here
+    /// will NOT be visible to extensions, causing shields/charges to silently break (audit fix #24).
     static func stepsTrader() -> UserDefaults {
         let groupId = SharedKeys.appGroupId
         #if DEBUG
         if !hasLoggedGroupInfo {
-            print("bundle:", Bundle.main.bundleIdentifier ?? "nil")
-            print("group URL:", FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId) as Any)
+            AppLogger.app.debug("bundle: \(Bundle.main.bundleIdentifier ?? "nil")")
+            AppLogger.app.debug("group URL: \(String(describing: FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId)))")
             hasLoggedGroupInfo = true
         }
         #endif
         
-        // Check if App Group container is available (otherwise suiteName may return a warning).
-        if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId) != nil,
-           let appGroup = UserDefaults(suiteName: groupId) {
+        if let appGroup = UserDefaults(suiteName: groupId) {
             return appGroup
         }
 
-        if !hasLoggedFallback {
-            hasLoggedFallback = true
-            AppLogger.app.error("App Group container unavailable, using standard UserDefaults")
-        }
+        #if DEBUG
+        assertionFailure("App Group container '\(groupId)' unavailable — check entitlements")
+        #endif
+        AppLogger.app.error("App Group container unavailable, falling back to .standard — extensions will NOT see this data")
         return .standard
     }
 }

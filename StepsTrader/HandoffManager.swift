@@ -6,13 +6,13 @@ extension AppModel {
 
     func handleHandoffContinue() {
         guard let token = handoffToken else {
-            print("❌ handleHandoffContinue called but no handoffToken found")
+            AppLogger.app.error("❌ handleHandoffContinue called but no handoffToken found")
             return
         }
 
-        print("🚀 User continued with handoff for \(token.targetAppName)")
-        print(
-            "🚀 Before - showHandoffProtection: \(showHandoffProtection), handoffToken: \(handoffToken?.targetAppName ?? "nil")"
+        AppLogger.app.debug("🚀 User continued with handoff for \(token.targetAppName)")
+        AppLogger.app.debug(
+            "🚀 Before - showHandoffProtection: \(self.showHandoffProtection), handoffToken: \(self.handoffToken?.targetAppName ?? "nil")"
         )
 
         let userDefaults = UserDefaults.stepsTrader()
@@ -20,21 +20,21 @@ extension AppModel {
         // Hide protection screen
         showHandoffProtection = false
         handoffToken = nil
-        print(
-            "🚀 After - showHandoffProtection: \(showHandoffProtection), handoffToken: \(handoffToken?.targetAppName ?? "nil")"
+        AppLogger.app.debug(
+            "🚀 After - showHandoffProtection: \(self.showHandoffProtection), handoffToken: \(self.handoffToken?.targetAppName ?? "nil")"
         )
 
         // Remove token
-        userDefaults.removeObject(forKey: "handoffToken")
-        print("🚀 Removed handoff token from UserDefaults")
+        userDefaults.removeObject(forKey: SharedKeys.handoffToken)
+        AppLogger.app.debug("🚀 Removed handoff token from UserDefaults")
 
         // Open target app
-        print("🚀 Opening target app: \(token.targetBundleId)")
+        AppLogger.app.debug("🚀 Opening target app: \(token.targetBundleId)")
         openTargetApp(bundleId: token.targetBundleId)
     }
 
     func handleHandoffCancel() {
-        print("❌ User cancelled handoff")
+        AppLogger.app.error("❌ User cancelled handoff")
 
         // Hide protection screen
         showHandoffProtection = false
@@ -42,44 +42,41 @@ extension AppModel {
 
         // Remove token
         let userDefaults = UserDefaults.stepsTrader()
-        userDefaults.removeObject(forKey: "handoffToken")
+        userDefaults.removeObject(forKey: SharedKeys.handoffToken)
     }
 
     private func openTargetApp(bundleId: String) {
         let userDefaults = UserDefaults.stepsTrader()
         let now = Date()
-        userDefaults.set(now, forKey: "lastAppOpenedFromStepsTrader")
+        userDefaults.set(now, forKey: SharedKeys.lastAppOpenedFromStepsTrader(bundleId))
 
-        print("🚀 Opening \(bundleId) from HandoffManager and setting protection flag at \(now)")
+        AppLogger.app.debug("🚀 Opening \(bundleId) from HandoffManager and setting protection flag at \(now)")
 
-        let scheme = bundleScheme(for: bundleId)
+        let schemes = TargetResolver.primaryAndFallbackSchemes(for: bundleId)
+        guard !schemes.isEmpty else {
+            AppLogger.app.error("❌ No URL schemes found for \(bundleId), skipping handoff")
+            return
+        }
+        attemptOpenScheme(schemes: schemes, index: 0, bundleId: bundleId)
+    }
 
-        if let url = URL(string: scheme) {
-            UIApplication.shared.open(url) { success in
-                if success {
-                    print("✅ Successfully opened \(bundleId)")
-                } else {
-                    print("❌ Failed to open \(bundleId)")
-                }
+    /// Try each URL scheme in order until one succeeds (audit fix #42)
+    private func attemptOpenScheme(schemes: [String], index: Int, bundleId: String) {
+        guard index < schemes.count else {
+            AppLogger.app.error("❌ All URL schemes failed for \(bundleId)")
+            return
+        }
+        guard let url = URL(string: schemes[index]) else {
+            attemptOpenScheme(schemes: schemes, index: index + 1, bundleId: bundleId)
+            return
+        }
+        UIApplication.shared.open(url) { [weak self] success in
+            if success {
+                AppLogger.app.debug("✅ Opened \(bundleId) via \(schemes[index])")
+            } else {
+                AppLogger.app.debug("⚠️ Scheme \(schemes[index]) failed for \(bundleId), trying next")
+                self?.attemptOpenScheme(schemes: schemes, index: index + 1, bundleId: bundleId)
             }
         }
-    }
-    
-    private func bundleScheme(for bundleId: String) -> String {
-        let map: [String: String] = [
-            "com.burbn.instagram": "instagram://app",
-            "com.zhiliaoapp.musically": "tiktok://",
-            "com.google.ios.youtube": "youtube://",
-            "ph.telegra.Telegraph": "tg://",
-            "net.whatsapp.WhatsApp": "whatsapp://",
-            "com.toyopagroup.picaboo": "snapchat://",
-            "com.facebook.Facebook": "fb://",
-            "com.linkedin.LinkedIn": "linkedin://",
-            "com.atebits.Tweetie2": "twitter://",
-            "com.reddit.Reddit": "reddit://",
-            "com.pinterest": "pinterest://",
-            "com.duolingo.DuolingoMobile": "duolingo://"
-        ]
-        return map[bundleId] ?? "instagram://app"
     }
 }

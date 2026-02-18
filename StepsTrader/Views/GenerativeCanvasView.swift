@@ -15,8 +15,17 @@ struct GenerativeCanvasView: View {
     var labelColor: Color?
     /// Whether to show labels directly on canvas elements
     var showLabelsOnCanvas: Bool = true
+    /// Whether labels are rendered with an outlined shadow halo for readability.
+    var showsOutlinedLabels: Bool = true
     /// When false, only activity elements are rendered (no radial background gradient).
     var showsBackgroundGradient: Bool = true
+    /// Whether HealthKit has returned step data today (do not infer from points alone).
+    var hasStepsData: Bool = true
+    /// Whether HealthKit has returned sleep data today (do not infer from points alone).
+    var hasSleepData: Bool = true
+    /// When non-nil, renders a single static frame at this time instead of using
+    /// TimelineView animation.  Used for ImageRenderer snapshots (e.g. canvas export).
+    var fixedTime: Date? = nil
 
     /// Whether the background is visually dark — controls blend mode for elements.
     /// When true, uses `.plusLighter` (additive glow on dark). When false, uses `.normal`.
@@ -40,32 +49,48 @@ struct GenerativeCanvasView: View {
     // ═══════════════════════════════════════════════════════════
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
+        if let fixedTime {
+            // Static single-frame render (used by ImageRenderer snapshots)
             Canvas { context, size in
-                let t = timeline.date.timeIntervalSinceReferenceDate
-                let decay = decayNorm
-
-                // Unified background gradient
-                if showsBackgroundGradient {
-                    drawUnifiedGradient(context: &context, size: size, t: t)
-                }
-
-                // Activity elements + labels
-                let circles = elements.filter { $0.kind == .circle }.sorted { $0.size > $1.size }
-                let nonCircles = elements.filter { $0.kind != .circle }
-                let sortedElements = circles + nonCircles
-
-                for element in sortedElements {
-                    drawElement(element, context: &context, size: size, t: t, decay: decay)
-
-                    if showLabelsOnCanvas {
-                        let center = elementCenter(element, size: size, t: t)
-                        drawLabel(element, at: center, context: &context)
-                    }
+                renderCanvas(context: &context, size: size,
+                             t: fixedTime.timeIntervalSinceReferenceDate)
+            }
+            .background(Color.clear)
+        } else {
+            // Live animated render at ~20 fps
+            TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
+                Canvas { context, size in
+                    renderCanvas(context: &context, size: size,
+                                 t: timeline.date.timeIntervalSinceReferenceDate)
                 }
             }
+            .background(Color.clear)
         }
-        .background(backgroundColor)
+    }
+
+    /// Shared drawing code called from both the live TimelineView path
+    /// and the static fixedTime snapshot path.
+    private func renderCanvas(context: inout GraphicsContext, size: CGSize, t: Double) {
+        let decay = decayNorm
+
+        // Unified background gradient
+        if showsBackgroundGradient {
+            drawUnifiedGradient(context: &context, size: size, t: t)
+        }
+
+        // Activity elements + labels
+        let circles = elements.filter { $0.kind == .circle }.sorted { $0.size > $1.size }
+        let nonCircles = elements.filter { $0.kind != .circle }
+        let sortedElements = circles + nonCircles
+
+        for element in sortedElements {
+            drawElement(element, context: &context, size: size, t: t, decay: decay)
+
+            if showLabelsOnCanvas {
+                let center = elementCenter(element, size: size, t: t)
+                drawLabel(element, at: center, context: &context)
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -76,9 +101,13 @@ struct GenerativeCanvasView: View {
     private static let mindCircleAssetNames = ["mind 1"]
     private static let heartAssetNames = ["heart 1"]
 
-    /// Stable, uniformly-distributed index derived from UUID bytes (not hashValue, which clusters).
-    private static func assetIndex(for id: UUID, count: Int) -> Int {
-        let uuid = id.uuid
+    /// Returns the asset index for an element. Prefers the persisted `assetVariant` (round-robin,
+    /// guarantees variety). Falls back to UUID-based hash for legacy elements saved before the field existed.
+    private static func assetIndex(for element: CanvasElement, count: Int) -> Int {
+        if let variant = element.assetVariant {
+            return variant % count
+        }
+        let uuid = element.id.uuid
         let mixed = Int(uuid.0) &+ Int(uuid.4) &* 31 &+ Int(uuid.8) &* 127 &+ Int(uuid.12) &* 8191
         return abs(mixed) % count
     }
@@ -86,6 +115,7 @@ struct GenerativeCanvasView: View {
     private static let tintedImageCacheMax = 400
     private static var tintedImageCache: [String: Image] = [:]
     private static let tintedImageCacheLock = NSLock()
+    private static var assetAspectRatioCache: [String: CGFloat] = [:]
 
     /// Renders an asset tinted with the user's color. Cached by (name, hex, decayBucket).
     private func tintedAssetImage(name: String, color: Color, hex: String, decay: Double) -> Image? {
@@ -117,85 +147,26 @@ struct GenerativeCanvasView: View {
         return image
     }
 
-    /// Luminance-mapped tinting: black stays black, grey mid-tones become the user's color,
-    /// transparent stays transparent.
-    private func luminanceTintedAssetImage(name: String, color: Color, hex: String, decay: Double) -> Image? {
-        let decayBucket = min(10, max(0, Int(round(decay * 10))))
-        let key = "lum|\(name)|\(hex)|\(decayBucket)"
+    /// Returns asset width/height ratio (cached) to avoid geometry distortion when drawing.
+    private func assetAspectRatio(name: String) -> CGFloat {
         Self.tintedImageCacheLock.lock()
-        if let cached = Self.tintedImageCache[key] {
+        if let cached = Self.assetAspectRatioCache[name] {
             Self.tintedImageCacheLock.unlock()
             return cached
         }
         Self.tintedImageCacheLock.unlock()
 
-        guard let original = UIImage(named: name),
-              let cgImage = original.cgImage else { return nil }
-
-        let width = cgImage.width
-        let height = cgImage.height
-        let bytesPerPixel = 4
-        let bytesPerRow = bytesPerPixel * width
-        let bitsPerComponent = 8
-
-        var pixelData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
-
-        guard let context = CGContext(
-            data: &pixelData,
-            width: width,
-            height: height,
-            bitsPerComponent: bitsPerComponent,
-            bytesPerRow: bytesPerRow,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-
-        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-
-        let uiColor = UIColor(color)
-        var tR: CGFloat = 0, tG: CGFloat = 0, tB: CGFloat = 0, tA: CGFloat = 0
-        uiColor.getRed(&tR, green: &tG, blue: &tB, alpha: &tA)
-
-        for i in 0..<(width * height) {
-            let offset = i * bytesPerPixel
-            let r = pixelData[offset]
-            let g = pixelData[offset + 1]
-            let b = pixelData[offset + 2]
-            let a = pixelData[offset + 3]
-
-            guard a > 0 else { continue }
-
-            let af = CGFloat(a) / 255.0
-            let trueR = CGFloat(r) / (af * 255.0)
-            let trueG = CGFloat(g) / (af * 255.0)
-            let trueB = CGFloat(b) / (af * 255.0)
-            let luminance = min(1.0, 0.299 * trueR + 0.587 * trueG + 0.114 * trueB)
-
-            pixelData[offset]     = UInt8(min(255, luminance * tR * 255.0 * af))
-            pixelData[offset + 1] = UInt8(min(255, luminance * tG * 255.0 * af))
-            pixelData[offset + 2] = UInt8(min(255, luminance * tB * 255.0 * af))
+        let ratio: CGFloat
+        if let image = UIImage(named: name), image.size.height > 0 {
+            ratio = image.size.width / image.size.height
+        } else {
+            ratio = 1.0
         }
-
-        guard let outputContext = CGContext(
-            data: &pixelData,
-            width: width,
-            height: height,
-            bitsPerComponent: bitsPerComponent,
-            bytesPerRow: bytesPerRow,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ),
-        let outputCG = outputContext.makeImage() else { return nil }
-
-        let image = Image(uiImage: UIImage(cgImage: outputCG, scale: original.scale, orientation: original.imageOrientation))
 
         Self.tintedImageCacheLock.lock()
-        if Self.tintedImageCache.count >= Self.tintedImageCacheMax {
-            Self.tintedImageCache.removeAll()
-        }
-        Self.tintedImageCache[key] = image
+        Self.assetAspectRatioCache[name] = ratio
         Self.tintedImageCacheLock.unlock()
-        return image
+        return ratio
     }
 
     // MARK: - Spawn Animation
@@ -245,83 +216,19 @@ struct GenerativeCanvasView: View {
     // MARK: - Unified Background Gradient
     // ═══════════════════════════════════════════════════════════
 
-    /// Radial gradient — warm gold center, coral & navy mid-ring, dark night edges.
-    /// Steps intensify the warm core; sleep deepens the outer ring.
-    /// Palette: #FFBF65 → #FD8973 → #003A6C → #13181B
+    /// Delegates to `EnergyGradientRenderer` — single source of truth for gradient logic.
     private func drawUnifiedGradient(context: inout GraphicsContext, size: CGSize, t: Double) {
-        let w = Double(size.width)
-        let h = Double(size.height)
-        let dim = min(w, h)
-
         let stepsNorm = Double(min(max(stepsPoints, 0), 20)) / 20.0
         let sleepNorm = Double(min(max(sleepPoints, 0), 20)) / 20.0
-
-        // Sunset palette
-        let gold = Color(hex: "#FFBF65")     // warm center (steps)
-        let coral = Color(hex: "#FD8973")     // warm-to-cool transition
-        let navy = Color(hex: "#003A6C")      // cool-to-dark transition
-        let night = Color(hex: "#13181B")     // dark edges (sleep)
-
-        // Steps control core brightness + reach
-        let goldOpacity = 0.35 + stepsNorm * 0.55
-        let coralOpacity = 0.3 + stepsNorm * 0.4
-
-        // Sleep controls edge darkness
-        let navyOpacity = 0.3 + sleepNorm * 0.5
-        let nightOpacity = 0.5 + sleepNorm * 0.5
-
-        // Fixed center — exact middle of the screen, no drift
-        let cx = w * 0.5
-        let cy = h * 0.5
-        let center = CGPoint(x: cx, y: cy)
-
-        // Radial gradient: gold center → coral → navy → night edges
-        let gradient = Gradient(stops: [
-            .init(color: gold.opacity(goldOpacity), location: 0.0),
-            .init(color: coral.opacity(coralOpacity), location: 0.25),
-            .init(color: navy.opacity(navyOpacity), location: 0.55),
-            .init(color: night.opacity(nightOpacity), location: 0.85),
-            .init(color: night.opacity(nightOpacity), location: 1.0)
-        ])
-
-        let canvasRect = CGRect(x: 0, y: 0, width: w, height: h)
-        let maxReach = max(w, h)
-
-        context.drawLayer { ctx in
-            ctx.fill(
-                Path(canvasRect),
-                with: .radialGradient(
-                    gradient,
-                    center: center,
-                    startRadius: 0,
-                    endRadius: maxReach * 0.7
-                )
-            )
-        }
-
-        // Soft secondary glow — also pinned to center
-        let secondaryCenter = center
-        let secondaryGrad = Gradient(colors: [
-            gold.opacity(goldOpacity * 0.2),
-            coral.opacity(coralOpacity * 0.08),
-            .clear
-        ])
-        let glowRadius = dim * 0.4
-        context.drawLayer { ctx in
-            ctx.opacity = 0.5
-            let shading = GraphicsContext.Shading.radialGradient(
-                secondaryGrad,
-                center: secondaryCenter,
-                startRadius: 0,
-                endRadius: glowRadius
-            )
-            ctx.fill(Ellipse().path(in: CGRect(
-                x: secondaryCenter.x - glowRadius,
-                y: secondaryCenter.y - glowRadius,
-                width: glowRadius * 2,
-                height: glowRadius * 2
-            )), with: shading)
-        }
+        let Ss = EnergyGradientRenderer.smoothstep(stepsNorm)
+        let Ls = EnergyGradientRenderer.smoothstep(sleepNorm)
+        let opacities = EnergyGradientRenderer.computeOpacities(
+            smoothedS: Ss,
+            smoothedL: Ls,
+            hasStepsData: hasStepsData,
+            hasSleepData: hasSleepData
+        )
+        EnergyGradientRenderer.draw(context: &context, size: size, opacities: opacities)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -412,14 +319,18 @@ struct GenerativeCanvasView: View {
             : 1.0
         let center = circleCenter(e, size: size, t: t)
         let dim = Double(min(size.width, size.height))
-        let radius = Double(e.size) * dim * 1.1 * pulse
+        let scale = e.category == .body ? 1.05 : 1.1
+        let radius = Double(e.size) * dim * scale * pulse
         let circleAssets = e.category == .body ? Self.bodyCircleAssetNames : Self.mindCircleAssetNames
-        let name = circleAssets[Self.assetIndex(for: e.id, count: circleAssets.count)]
+        let name = circleAssets[Self.assetIndex(for: e, count: circleAssets.count)]
         let color = decayedColor(e.hexColor, decay: decay)
         guard let image = tintedAssetImage(name: name, color: color, hex: e.hexColor, decay: decay) else { return }
+        let aspect = assetAspectRatio(name: name)
+        let halfW = radius * aspect
+        let halfH = radius
         let rect = CGRect(
-            x: center.x - radius, y: center.y - radius,
-            width: radius * 2, height: radius * 2
+            x: center.x - halfW, y: center.y - halfH,
+            width: halfW * 2, height: halfH * 2
         )
 
         if e.category == .mind {
@@ -428,7 +339,7 @@ struct GenerativeCanvasView: View {
             // Asset's solid face points left (–X) in source — flip 180° so it leads travel.
             let rotation = Angle.radians(atan2(vel.y, vel.x)) + .degrees(180)
             context.drawLayer { ctx in
-                ctx.opacity = 0.6
+                ctx.opacity = 0.85
                 ctx.blendMode = elementBlendMode
                 ctx.translateBy(x: center.x, y: center.y)
                 ctx.rotate(by: rotation)
@@ -436,9 +347,14 @@ struct GenerativeCanvasView: View {
                 ctx.draw(image, in: rect)
             }
         } else {
+            // Body: static random rotation derived from phaseOffset (already 0…2π per element)
+            let rotation = Angle.radians(e.phaseOffset)
             context.drawLayer { ctx in
-                ctx.opacity = 0.6
+                ctx.opacity = 0.85
                 ctx.blendMode = elementBlendMode
+                ctx.translateBy(x: center.x, y: center.y)
+                ctx.rotate(by: rotation)
+                ctx.translateBy(x: -center.x, y: -center.y)
                 ctx.draw(image, in: rect)
             }
         }
@@ -496,10 +412,6 @@ struct GenerativeCanvasView: View {
         )
     }
 
-    private func heartCenter(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
-        heartDriftPosition(e, size: size, t: t)
-    }
-
     /// Keep heart anchors visually close to edges/corners, even for legacy positions.
     private func edgeAnchoredCenter(_ e: CanvasElement, size: CGSize) -> CGPoint {
         let nx = Double(e.basePosition.x)
@@ -534,59 +446,36 @@ struct GenerativeCanvasView: View {
         return CGPoint(x: ax * Double(size.width), y: ay * Double(size.height))
     }
 
-    /// Direction from a point to the canvas center.
-    private func angleTowardCanvasCenter(from point: CGPoint, size: CGSize) -> Angle {
-        let canvasCenter = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
-        return .radians(atan2(canvasCenter.y - point.y, canvasCenter.x - point.x))
-    }
-
-    private func drawSoftLine(
-        _ e: CanvasElement,
-        context: inout GraphicsContext,
-        size: CGSize,
-        t: Double,
-        decay: Double
-    ) {
-        let phase = t * e.pulseFrequency * 0.5 + e.phaseOffset
-        let pulse = 1.0 + sin(phase) * 0.05
-        let center = heartCenter(e, size: size, t: t)
-        let dim = Double(min(size.width, size.height))
-        let radius = Double(e.size) * dim * 0.42 * pulse
-        let color = decayedColor(e.hexColor, decay: decay)
-        let name = Self.heartAssetNames[Self.assetIndex(for: e.id, count: Self.heartAssetNames.count)]
-        guard let image = tintedAssetImage(name: name, color: color, hex: e.hexColor, decay: decay) else { return }
-        let drawRect = CGRect(
-            x: center.x - radius, y: center.y - radius,
-            width: radius * 2, height: radius * 2
-        )
-
-        let inward = angleTowardCanvasCenter(from: center, size: size)
-        // Asset's broad side points "up" in source; add 90deg so broad side aims inward.
-        let rotation = inward + .degrees(90)
-
-        context.drawLayer { ctx in
-            ctx.opacity = 0.7
-            ctx.blendMode = elementBlendMode
-            ctx.translateBy(x: center.x, y: center.y)
-            ctx.rotate(by: rotation)
-            ctx.translateBy(x: -center.x, y: -center.y)
-            ctx.draw(image, in: drawRect)
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════
     // MARK: - Heart (Ray) — angled rays pointing toward center
     // ═══════════════════════════════════════════════════════════
 
-    /// Heart rays: hold their spawn position, only "look" left-right.
-    private func raySearchAngle(_ e: CanvasElement, t: Double, size: CGSize) -> Angle {
-        // Keep hearts horizontally oriented. Left side faces right, right side faces left.
-        let isLeftSide = Double(e.basePosition.x) < 0.5
-        let baseDeg = isLeftSide ? 0.0 : 180.0
-        let sweepRange = 12.0 + e.rotationSpeed * 0.2
+    /// Base inward angle — always points from the heart's position toward canvas center.
+    private func rayBaseAngle(_ e: CanvasElement, size: CGSize) -> Angle {
+        let center = rayDrawCenter(e, size: size)
+        let dx = Double(size.width) * 0.5 - center.x
+        let dy = Double(size.height) * 0.5 - center.y
+        return Angle.radians(atan2(dy, dx))
+    }
+
+    /// Slow oscillating sweep that pivots around the solid tip.
+    private func raySweepAngle(_ e: CanvasElement, t: Double) -> Angle {
+        let sweepRange = 10.0 + e.rotationSpeed * 0.2
         let sweepSpeed = 0.012 + e.driftSpeed * 0.01
         let sweep = sin(t * sweepSpeed + e.phaseOffset * 2.1) * sweepRange
-        return Angle.degrees(baseDeg + sweep)
+        return Angle.degrees(sweep)
+    }
+
+    /// Clamped draw center for a heart ray — keeps the asset rect inside the canvas.
+    /// Shared by both `drawRay` (visual) and `elementCenter` (label placement).
+    private func rayDrawCenter(_ e: CanvasElement, size: CGSize) -> CGPoint {
+        let dim = Double(min(size.width, size.height))
+        let radius = Double(e.size) * dim * 2.2
+        let base = edgeAnchoredCenter(e, size: size)
+        return CGPoint(
+            x: min(max(base.x, radius), Double(size.width) - radius),
+            y: min(max(base.y, radius), Double(size.height) - radius)
+        )
     }
 
     private func drawRay(
@@ -596,23 +485,36 @@ struct GenerativeCanvasView: View {
         t: Double,
         decay: Double
     ) {
-        let center = edgeAnchoredCenter(e, size: size)
         let dim = Double(min(size.width, size.height))
         let radius = Double(e.size) * dim * 2.2   // heart rays larger, at edges
-        let breathe = 0.85 + sin(t * e.pulseFrequency * 0.5 + e.phaseOffset) * 0.1
+        let center = rayDrawCenter(e, size: size)
+        let breathe = 0.92 + sin(t * e.pulseFrequency * 0.5 + e.phaseOffset) * 0.06
         let color = decayedColor(e.hexColor, decay: decay)
-        let angle = raySearchAngle(e, t: t, size: size)
-        let name = Self.heartAssetNames[Self.assetIndex(for: e.id, count: Self.heartAssetNames.count)]
+        let baseAngle = rayBaseAngle(e, size: size)
+        let sweep = raySweepAngle(e, t: t)
+        let name = Self.heartAssetNames[Self.assetIndex(for: e, count: Self.heartAssetNames.count)]
         guard let image = tintedAssetImage(name: name, color: color, hex: e.hexColor, decay: decay) else { return }
-        let rect = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
-        // Asset's broad side points "up" in source; add 90deg so broad side aims inward.
-        let orientedAngle = angle + .degrees(90)
+        let aspect = assetAspectRatio(name: name)
+        let rect = CGRect(
+            x: -radius * aspect,
+            y: -radius,
+            width: radius * 2 * aspect,
+            height: radius * 2
+        )
+        // Base orientation: +90° so the asset's top (broad side) aims inward.
+        let baseOriented = baseAngle + .degrees(90)
 
+        // Pivot the sweep around the solid tip (local 0, -radius) so the
+        // tip stays fixed while the tail swings left/right like it's observing.
         context.drawLayer { ctx in
             ctx.opacity = breathe
             ctx.blendMode = elementBlendMode
             ctx.translateBy(x: center.x, y: center.y)
-            ctx.rotate(by: orientedAngle)
+            ctx.rotate(by: baseOriented)
+            // Move origin to the tip, apply sweep, move back
+            ctx.translateBy(x: 0, y: -radius)
+            ctx.rotate(by: sweep)
+            ctx.translateBy(x: 0, y: radius)
             ctx.draw(image, in: rect)
         }
     }
@@ -626,30 +528,45 @@ struct GenerativeCanvasView: View {
         case .body, .mind:
             return circleCenter(element, size: size, t: t)
         case .heart:
-            return edgeAnchoredCenter(element, size: size)
+            // Place label at the solid tip of the heart asset, which points
+            // toward the canvas center. The tip sits ~radius along the inward direction.
+            let center = rayDrawCenter(element, size: size)
+            let dim = Double(min(size.width, size.height))
+            let radius = Double(element.size) * dim * 2.2
+            let canvasMid = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
+            let dx = canvasMid.x - center.x
+            let dy = canvasMid.y - center.y
+            let dist = sqrt(dx * dx + dy * dy)
+            guard dist > 1 else { return center }
+            let tipOffset = min(dist, radius * 0.75)
+            return CGPoint(
+                x: center.x + dx / dist * tipOffset,
+                y: center.y + dy / dist * tipOffset
+            )
         }
     }
 
     private func drawLabel(_ element: CanvasElement, at point: CGPoint, context: inout GraphicsContext) {
         let labelText = element.displayLabel.uppercased()
-        let shadowColor = isDarkBackground ? Color.black : Color.white
+        if showsOutlinedLabels {
+            let shadowColor = isDarkBackground ? Color.black : Color.white
+            let offsets: [(CGFloat, CGFloat)] = [
+                (-1, -1), (0, -1), (1, -1),
+                (-1, 0),           (1, 0),
+                (-1, 1),  (0, 1),  (1, 1)
+            ]
 
-        let offsets: [(CGFloat, CGFloat)] = [
-            (-1, -1), (0, -1), (1, -1),
-            (-1, 0),           (1, 0),
-            (-1, 1),  (0, 1),  (1, 1)
-        ]
-
-        for offset in offsets {
-            context.drawLayer { ctx in
-                ctx.opacity = 0.4
-                ctx.draw(
-                    Text(labelText)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(shadowColor),
-                    at: CGPoint(x: point.x + offset.0, y: point.y + offset.1),
-                    anchor: .center
-                )
+            for offset in offsets {
+                context.drawLayer { ctx in
+                    ctx.opacity = 0.4
+                    ctx.draw(
+                        Text(labelText)
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(shadowColor),
+                        at: CGPoint(x: point.x + offset.0, y: point.y + offset.1),
+                        anchor: .center
+                    )
+                }
             }
         }
 

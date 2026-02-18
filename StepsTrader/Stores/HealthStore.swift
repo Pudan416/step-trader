@@ -12,6 +12,11 @@ final class HealthStore: ObservableObject {
     @Published var dailySleepHours: Double = 0
     @Published var baseEnergyToday: Int = 0
     @Published var authorizationStatus: HKAuthorizationStatus = .notDetermined
+    /// True once HealthKit has returned step data (or a cached value was loaded).
+    /// Do not infer from `stepsToday > 0` — zero steps with data IS valid.
+    @Published var hasStepsData: Bool = false
+    /// True once HealthKit has returned sleep data.
+    @Published var hasSleepData: Bool = false
     
     init(healthKitService: any HealthKitServiceProtocol) {
         self.healthKitService = healthKitService
@@ -41,40 +46,32 @@ final class HealthStore: ObservableObject {
         // for most users.
         do {
             stepsToday = try await fetchStepsForCurrentDay()
+            hasStepsData = true
             cacheStepsToday()
         } catch {
-            print("⚠️ Failed to refresh steps: \(error)")
+            AppLogger.healthKit.error("⚠️ Failed to refresh steps: \(error.localizedDescription)")
             loadCachedStepsToday()
         }
     }
     
     func refreshSleepIfAuthorized() async {
         let status = healthKitService.sleepAuthorizationStatus()
-        print("🛌 HealthKit sleep write-status: \(status.rawValue)")
+        AppLogger.healthKit.debug("🛌 HealthKit sleep write-status: \(status.rawValue)")
         // authorizationStatus reports WRITE permission. Read access can still be allowed when status is denied.
         do {
             let now = Date()
             let start = currentDayStart(for: now)
             dailySleepHours = try await healthKitService.fetchSleep(from: start, to: now)
-            print("🛌 Fetched sleep hours: \(String(format: "%.2f", dailySleepHours))h")
+            hasSleepData = true
+            AppLogger.healthKit.debug("🛌 Fetched sleep hours: \(String(format: "%.2f", self.dailySleepHours))h")
         } catch {
-            print("⚠️ Failed to refresh sleep: \(error)")
+            AppLogger.healthKit.error("⚠️ Failed to refresh sleep: \(error.localizedDescription)")
         }
     }
     
     // MARK: - Helpers
     private func currentDayStart(for date: Date) -> Date {
-        let g = UserDefaults.stepsTrader()
-        let s = UserDefaults.standard
-        
-        let hour = (g.object(forKey: "dayEndHour_v1") as? Int)
-            ?? (s.object(forKey: "dayEndHour_v1") as? Int)
-            ?? 0
-            
-        let minute = (g.object(forKey: "dayEndMinute_v1") as? Int)
-            ?? (s.object(forKey: "dayEndMinute_v1") as? Int)
-            ?? 0
-            
+        let (hour, minute) = DayBoundary.storedDayEnd()
         return DayBoundary.currentDayStart(for: date, dayEndHour: hour, dayEndMinute: minute)
     }
     
@@ -82,11 +79,15 @@ final class HealthStore: ObservableObject {
     private func cacheStepsToday() {
         let g = UserDefaults.stepsTrader()
         g.set(stepsToday, forKey: "cachedStepsToday")
+        g.set(true, forKey: "hasStepsData_v1")
     }
     
     private func loadCachedStepsToday() {
         let g = UserDefaults.stepsTrader()
-        stepsToday = g.double(forKey: "cachedStepsToday")
+        let cached = g.double(forKey: "cachedStepsToday")
+        stepsToday = cached
+        // Use a separate flag so 0 steps is distinguishable from "never fetched"
+        hasStepsData = g.bool(forKey: "hasStepsData_v1")
     }
     
     // MARK: - Observation
@@ -94,6 +95,7 @@ final class HealthStore: ObservableObject {
         healthKitService.startObservingSteps { [weak self] (steps: Double) in
             Task { @MainActor [weak self] in
                 self?.stepsToday = steps
+                self?.hasStepsData = true
                 self?.cacheStepsToday()
             }
         }

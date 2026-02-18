@@ -39,8 +39,7 @@ extension AppModel {
                 name: "ticket_created",
                 properties: [
                     "group_id": group.id,
-                    "template_app": templateApp ?? "",
-                    "difficulty_level": String(group.difficultyLevel)
+                    "template_app": templateApp ?? ""
                 ]
             )
         }

@@ -47,15 +47,5 @@ struct CountryPickerView: View {
         }
     }
     
-    private func countryFlag(_ countryCode: String) -> String {
-        let base: UInt32 = 127397
-        var flag = ""
-        for scalar in countryCode.uppercased().unicodeScalars {
-            if let unicode = UnicodeScalar(base + scalar.value) {
-                flag.append(String(unicode))
-            }
-        }
-        return flag
-    }
 }
 

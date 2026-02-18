@@ -84,9 +84,11 @@ private enum MonitorLogger {
     }
 }
 
+private let sharedISO8601Formatter = ISO8601DateFormatter()
+
 private func appendMonitorLog(_ message: String) {
     let defaults = SharedKeys.appGroupDefaults()
-    let now = ISO8601DateFormatter().string(from: Date())
+    let now = sharedISO8601Formatter.string(from: Date())
     var logs = defaults.stringArray(forKey: SharedKeys.monitorLogs) ?? []
     logs.append("[\(now)] \(message)")
     if logs.count > 30 {
@@ -180,11 +182,9 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         // Check for expired unlocks
         checkAndClearExpiredUnlocks()
         
-        // Clear shield when interval ends (but don't clear if monitoring is still active)
-        // Shield will be re-enabled on next interval start
+        // Shield persists until next day when minuteMode interval ends
         if activity == DeviceActivityName("minuteMode") {
             // Don't clear immediately - let it persist until next day
-            // clearShield()
         }
     }
     
@@ -335,6 +335,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let defaults = SharedKeys.appGroupDefaults()
         var allApps: Set<ApplicationToken> = []
         var allCategories: Set<ActivityCategoryToken> = []
+        let now = Date()
         
         MonitorLogger.info("Setting up shield for minute mode")
         
@@ -345,6 +346,12 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let groups = loadTicketGroupsForExtension(defaults: defaults)
         MonitorLogger.info("Found \(groups.count) ticket groups")
         for group in groups where group.active {
+            // Respect active unlock timestamps (audit fix #5)
+            let unlockKey = "groupUnlock_\(group.id)"
+            if let unlockUntil = defaults.object(forKey: unlockKey) as? Date, now < unlockUntil {
+                MonitorLogger.info("Skipping group \(group.name) - unlocked until \(unlockUntil)")
+                continue
+            }
             guard let selectionData = group.selectionData else {
                 MonitorLogger.warning("Group \(group.name) has no selectionData")
                 continue
@@ -470,54 +477,8 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         
         MonitorLogger.info("Shield applied: \(allApps.count) apps, \(allCategories.count) categories")
     }
-    
-    #if canImport(UserNotifications)
-    private func sendBlockedAppPushNotifications(for settings: [String: StoredUnlockSettings], defaults: UserDefaults) {
-        let center = UNUserNotificationCenter.current()
-        
-        for (bundleId, settings) in settings {
-            if settings.minuteTariffEnabled == true || settings.familyControlsModeEnabled == true {
-                // Get app name
-                let appName = defaults.string(forKey: "appName_\(bundleId)") ?? bundleId
-                
-                // Create notification
-                let content = UNMutableNotificationContent()
-                content.title = "App Blocked"
-                content.body = "\(appName) is blocked. Tap to unlock."
-                content.sound = .default
-                content.categoryIdentifier = "UNLOCK_APP"
-                content.userInfo = [
-                    "bundleId": bundleId,
-                    "appName": appName,
-                    "action": "unlock"
-                ]
-                
-                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
-                let request = UNNotificationRequest(
-                    identifier: "blocked_\(bundleId)_\(UUID().uuidString)",
-                    content: content,
-                    trigger: trigger
-                )
-                
-                center.add(request) { error in
-                    if let error = error {
-                        print("❌ Failed to send blocked app push: \(error)")
-                    } else {
-                        print("✅ Sent blocked app push for \(bundleId)")
-                    }
-                }
-            }
-        }
-    }
-    #endif
-    
-    private func clearShield() {
-        let store = ManagedSettingsStore(named: .init("minuteModeShield"))
-        store.clearAllSettings()
-    }
     #else
     private func setupBlockForMinuteMode() {}
-    private func clearShield() {}
     #endif
 
     private func handleMinuteEvent(_ event: DeviceActivityEvent.Name) {
@@ -599,8 +560,8 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         }
 
         let schedule = DeviceActivitySchedule(
-            intervalStart: DateComponents(hour: 0, minute: 0),
-            intervalEnd: DateComponents(hour: 23, minute: 59),
+            intervalStart: DateComponents(hour: 0, minute: 0, second: 0),
+            intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
             repeats: true
         )
 
@@ -784,7 +745,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         defaults.set(spentStepsToday, forKey: "spentStepsToday")
         defaults.set(stepsBalance, forKey: "stepsBalance")
         defaults.set(bonusSteps, forKey: "debugStepsBonus_v1")
-        defaults.set(Calendar.current.startOfDay(for: Date()), forKey: "stepsBalanceAnchor")
+        defaults.set(currentDayStart(for: Date()), forKey: "stepsBalanceAnchor")
     }
 
     private func updateSpentSteps(cost: Int, for bundleId: String, defaults: UserDefaults) {
@@ -850,11 +811,51 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         return max(0, (balance + bonusSteps) / cost)
     }
 
-    private func dayKey(for date: Date) -> String {
+    // MARK: - Day Boundary Helpers (mirrors DayBoundary from main app)
+
+    private static let dayKeyFormatter: DateFormatter = {
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.dateFormat = "yyyy-MM-dd"
-        return df.string(from: date)
+        return df
+    }()
+
+    private static let iso8601Formatter = ISO8601DateFormatter()
+
+    /// Compute the logical day start respecting the user's custom day-end boundary.
+    private func currentDayStart(for date: Date) -> Date {
+        let defaults = SharedKeys.appGroupDefaults()
+        let h = max(0, min(23, defaults.integer(forKey: SharedKeys.dayEndHour)))
+        let m = max(0, min(59, defaults.integer(forKey: SharedKeys.dayEndMinute)))
+        let calendar = Calendar.current
+
+        if h == 0 && m == 0 {
+            return calendar.startOfDay(for: date)
+        }
+
+        var comps = DateComponents()
+        comps.hour = h
+        comps.minute = m
+        guard let cutoffToday = calendar.nextDate(
+            after: calendar.startOfDay(for: date),
+            matching: comps,
+            matchingPolicy: .nextTimePreservingSmallerComponents
+        ) else {
+            return calendar.startOfDay(for: date)
+        }
+
+        if date >= cutoffToday {
+            return cutoffToday
+        } else if let prev = calendar.date(byAdding: .day, value: -1, to: cutoffToday) {
+            return prev
+        } else {
+            return calendar.startOfDay(for: date)
+        }
+    }
+
+    private func dayKey(for date: Date) -> String {
+        let dayStart = currentDayStart(for: date)
+        return Self.dayKeyFormatter.string(from: dayStart)
     }
     
     // Minimal structure for decoding ticket groups (legacy full payload)

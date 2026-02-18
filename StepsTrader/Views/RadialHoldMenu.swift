@@ -1,89 +1,5 @@
 import SwiftUI
 
-// MARK: - Liquid Dots (organic, slowly drifting cluster)
-
-/// Organic cluster of dots that drift like particles in liquid.
-/// Each dot has its own slow orbit so the cluster breathes and flows.
-struct LiquidDotsView: View {
-    var color: Color = .white
-    var dotCount: Int = 48
-    var clusterRadius: CGFloat = 32
-
-    // Pre-computed stable base positions (deterministic)
-    private struct DotSeed {
-        let baseX: CGFloat
-        let baseY: CGFloat
-        let orbitRx: CGFloat
-        let orbitRy: CGFloat
-        let speed: Double
-        let phase: Double
-        let baseSize: CGFloat
-    }
-
-    private let seeds: [DotSeed]
-
-    init(color: Color = .white, dotCount: Int = 48, clusterRadius: CGFloat = 32) {
-        self.color = color
-        self.dotCount = dotCount
-        self.clusterRadius = clusterRadius
-        var s: [DotSeed] = []
-        var rng: UInt64 = 42
-        for _ in 0..<dotCount {
-            rng = rng &* 6364136223846793005 &+ 1
-            let u = CGFloat((rng >> 16) & 0xFFFF) / 65535.0
-            rng = rng &* 6364136223846793005 &+ 1
-            let v = CGFloat((rng >> 16) & 0xFFFF) / 65535.0
-            rng = rng &* 6364136223846793005 &+ 1
-            let w = CGFloat((rng >> 16) & 0xFFFF) / 65535.0
-            let r = clusterRadius * (0.08 + 0.92 * sqrt(u))
-            let theta = 2 * .pi * v
-            let bx = r * cos(theta)
-            let by = r * sin(theta)
-            let orbitR = 2.0 + w * 5.0
-            rng = rng &* 6364136223846793005 &+ 1
-            let sp = 0.3 + Double((rng >> 16) & 0xFFFF) / 65535.0 * 0.7
-            rng = rng &* 6364136223846793005 &+ 1
-            let ph = Double((rng >> 16) & 0xFFFF) / 65535.0 * 2 * .pi
-            let sz: CGFloat = 1.8 + (1.0 - sqrt(u)) * 2.5
-            s.append(DotSeed(baseX: bx, baseY: by, orbitRx: orbitR, orbitRy: orbitR * 0.7, speed: sp, phase: ph, baseSize: sz))
-        }
-        self.seeds = s
-    }
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
-
-            Canvas { context, size in
-                let cx = size.width / 2
-                let cy = size.height / 2
-
-                for dot in seeds {
-                    let angle = t * dot.speed + dot.phase
-                    let dx = cos(angle) * dot.orbitRx
-                    let dy = sin(angle) * dot.orbitRy
-                    let x = cx + dot.baseX + dx
-                    let y = cy + dot.baseY + dy
-
-                    let dist = sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy))
-                    let norm = min(1.0, dist / clusterRadius)
-                    let pulse = 0.75 + 0.25 * sin(t * 1.8 + dot.phase)
-                    let opacity = (1.0 - norm * norm) * pulse
-                    let sz = dot.baseSize * (0.85 + 0.15 * sin(t * 2.0 + dot.phase * 1.3))
-
-                    let rect = CGRect(x: x - sz / 2, y: y - sz / 2, width: sz, height: sz)
-                    context.fill(
-                        Circle().path(in: rect),
-                        with: .color(color.opacity(opacity * 0.9))
-                    )
-                }
-            }
-            .allowsHitTesting(false)
-        }
-        .frame(width: clusterRadius * 2.4, height: clusterRadius * 2.4)
-    }
-}
-
 // MARK: - Radial Hold Menu (tap to fan, or long-press+drag)
 
 /// Tap shows 3 category buttons (Body / Mind / Heart) in a fan arc.
@@ -99,8 +15,8 @@ struct RadialHoldMenu: View {
 
     private let nodes: [(category: EnergyCategory, label: String, icon: String, angle: Double)] = [
         (.body,   "Body",  "figure.walk",       135),  // upper-left
-        (.heart,       "Heart", "heart.fill",         90),  // straight up
-        (.mind, "Mind",  "brain.head.profile", 45),  // upper-right
+        (.mind,   "Mind",  "brain.head.profile", 90),  // straight up
+        (.heart,  "Heart", "heart.fill",         45),  // upper-right
     ]
 
     private let fanRadius: CGFloat = 80
@@ -270,7 +186,7 @@ struct RadialHoldMenu: View {
         VStack {
             Spacer()
             RadialHoldMenu(labelColor: .white) { category in
-                print("Selected: \(category.rawValue)")
+                AppLogger.ui.debug("Selected: \(category.rawValue)")
             }
             .padding(.bottom, 80)
         }

@@ -39,14 +39,6 @@ extension AppModel {
         await refreshSleepIfAuthorized()
     }
     
-    func cacheStepsToday() {
-        // Handled by HealthStore
-    }
-    
-    func loadCachedStepsToday() {
-        // Handled by HealthStore
-    }
-    
     func fallbackCachedSteps() -> Double {
         let g = UserDefaults.stepsTrader()
         let cached = g.double(forKey: "cachedStepsToday")

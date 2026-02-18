@@ -13,8 +13,7 @@ enum TargetResolver {
         "x": "com.atebits.Tweetie2",
         "twitter": "com.atebits.Tweetie2",
         "reddit": "com.reddit.Reddit",
-        "pinterest": "com.pinterest",
-        "duolingo": "com.duolingo.DuolingoMobile"
+        "pinterest": "com.pinterest"
     ]
     
     private static let targetToScheme: [String: String] = [
@@ -29,8 +28,7 @@ enum TargetResolver {
         "x": "twitter://",
         "twitter": "twitter://",
         "reddit": "reddit://",
-        "pinterest": "pinterest://",
-        "duolingo": "duolingo://"
+        "pinterest": "pinterest://"
     ]
 
     private static let bundleToScheme: [String: String] = {
@@ -54,8 +52,7 @@ enum TargetResolver {
         "com.linkedin.LinkedIn": "LinkedIn",
         "com.atebits.Tweetie2": "X",
         "com.reddit.Reddit": "Reddit",
-        "com.pinterest": "Pinterest",
-        "com.duolingo.DuolingoMobile": "Duolingo"
+        "com.pinterest": "Pinterest"
     ]
 
     /// Asset name in Assets.xcassets for shield/template icon. Use with UIImage(named:).
@@ -67,7 +64,6 @@ enum TargetResolver {
         "com.toyopagroup.picaboo": "snapchat",
         "com.reddit.Reddit": "reddit",
         "com.atebits.Tweetie2": "x",
-        "com.duolingo.DuolingoMobile": "duolingo",
         "com.facebook.Facebook": "facebook",
         "com.linkedin.LinkedIn": "linkedin",
         "com.pinterest": "pinterest",
@@ -123,13 +119,11 @@ enum TargetResolver {
             return ["reddit://"]
         case "com.pinterest":
             return ["pinterest://"]
-        case "com.duolingo.DuolingoMobile":
-            return ["duolingo://"]
         default:
             if let scheme = bundleToScheme[bundleId] {
                 return [scheme]
             }
-            return ["instagram://"]
+            return []
         }
     }
 }

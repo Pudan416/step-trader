@@ -14,7 +14,7 @@ struct HandoffProtectionView: View {
             VStack(spacing: 30) {
                 VStack(spacing: 16) {
                     Text("🛡️")
-                        .font(.notoSerif(60))
+                        .font(.systemSerif(60))
                         .accessibilityHidden(true)
 
                     Text("Protection Screen")
@@ -57,7 +57,7 @@ struct HandoffProtectionView: View {
                         .accessibilityLabel("Cancel opening \(token.targetAppName)")
 
                         Button("Open \(token.targetAppName)") {
-                            print("🛡️ User clicked Continue button for \(token.targetAppName)")
+                            AppLogger.app.debug("🛡️ User clicked Continue button for \(token.targetAppName)")
                             onContinue()
                         }
                         .frame(maxWidth: .infinity, minHeight: 50)
@@ -76,8 +76,8 @@ struct HandoffProtectionView: View {
             .padding(.horizontal, 40)
         }
         .onAppear {
-            print("🛡️ HandoffProtectionView appeared for \(token.targetAppName)")
-            print("🛡️ Token ID: \(token.tokenId), Created: \(token.createdAt)")
+            AppLogger.app.debug("🛡️ HandoffProtectionView appeared for \(token.targetAppName)")
+            AppLogger.app.debug("🛡️ Token ID: \(token.tokenId), Created: \(token.createdAt)")
         }
     }
 }

@@ -103,7 +103,7 @@ struct ActivityColorSelection: Codable, Equatable {
     let optionId: String
     let category: EnergyCategory
     let hexColor: String           // "#FF5733"
-    let elementKind: ElementKind   // .circle, .softLine, .ray
+    let elementKind: ElementKind   // .circle, .ray
 }
 ```
 
@@ -116,19 +116,17 @@ struct ActivityColorSelection: Codable, Equatable {
 | Kind       | Shape                          | Animation                                   |
 |------------|-------------------------------|---------------------------------------------|
 | `.circle`  | RadialGradient, soft edges     | Pulse (scale oscillation) + slow drift       |
-| `.softLine`| Bezier path, wide stroke, blur | Float across canvas, control points animate  |
 | `.ray`     | Narrow LinearGradient at angle | Slow rotation + opacity breathing            |
 
 The user does **not** pick the element type. It is assigned based on **category**:
 - **Body** activities → `.circle` (grounded, centered energy)
-- **Mind** activities → `.ray` (directional, focused)
-- **Heart** activities → `.softLine` (fluid, emotional)
+- **Mind** activities → `.circle` (floating circles, same as body)
+- **Heart** activities → `.ray` (directional, focused)
 
 ### Element data model
 ```swift
 enum ElementKind: String, Codable, CaseIterable {
     case circle
-    case softLine
     case ray
 }
 
@@ -169,7 +167,7 @@ static func spawn(
     let kind: ElementKind = switch category {
         case .activity:   .circle
         case .creativity: .ray
-        case .joys:       .softLine
+        case .joys:       .circle
     }
 
     // Position: avoid overlap with existing elements
@@ -261,7 +259,6 @@ struct GenerativeCanvasView: View {
                 for element in elements {
                     switch element.kind {
                     case .circle:   drawCircle(element, context: &context, size: size, t: t)
-                    case .softLine: drawSoftLine(element, context: &context, size: size, t: t)
                     case .ray:      drawRay(element, context: &context, size: size, t: t)
                     }
                 }

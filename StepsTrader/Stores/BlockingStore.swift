@@ -10,6 +10,17 @@ final class BlockingStore: ObservableObject {
     // Dependencies
     private let familyControlsService: any FamilyControlsServiceProtocol
     
+    // Cache serialized token keys to avoid repeated NSKeyedArchiver calls
+    private var tokenKeyCache: [ApplicationToken: String] = [:]
+
+    private func cachedTokenKey(for token: ApplicationToken) -> String? {
+        if let cached = tokenKeyCache[token] { return cached }
+        guard let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) else { return nil }
+        let key = "fc_unlockUntil_" + data.base64EncodedString()
+        tokenKeyCache[token] = key
+        return key
+    }
+
     // Published State
     @Published var ticketGroups: [TicketGroup] = []
     @Published var appUnlockSettings: [String: AppUnlockSettings] = [:]
@@ -24,6 +35,7 @@ final class BlockingStore: ObservableObject {
     
     // Internal state
     private var rebuildBlockTask: Task<Void, Never>?
+    private var persistAndRebuildTask: Task<Void, Never>?
     private var saveAppSelectionTask: Task<Void, Never>?
     private var lastSavedAppSelection: FamilyActivitySelection?
     
@@ -135,12 +147,14 @@ final class BlockingStore: ObservableObject {
 
         let persistTime = CFAbsoluteTimeGetCurrent() - startTime
         if persistTime > 0.05 {
-            print("⏱️ persistTicketGroups took \(String(format: "%.3f", persistTime))s")
+            AppLogger.shield.debug("⏱️ persistTicketGroups took \(String(format: "%.3f", persistTime))s")
         }
 
-        rebuildBlockTask?.cancel()
-        rebuildBlockTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+        // Use a separate task so persist-triggered rebuilds don't collide
+        // with direct rebuildFamilyControlsShield() calls (audit fix #8)
+        persistAndRebuildTask?.cancel()
+        persistAndRebuildTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms debounce
             guard !Task.isCancelled else { return }
             self.rebuildFamilyControlsShield()
         }
@@ -228,7 +242,7 @@ final class BlockingStore: ObservableObject {
             guard !Task.isCancelled else { return }
 
             guard familyControlsService.isAuthorized else {
-                print("⚠️ Cannot rebuild block: Family Controls not authorized")
+                AppLogger.shield.debug("⚠️ Cannot rebuild block: Family Controls not authorized")
                 return
             }
             
@@ -241,10 +255,10 @@ final class BlockingStore: ObservableObject {
                 let unlockKey = "groupUnlock_\(group.id)"
                 if let unlockUntil = defaults.object(forKey: unlockKey) as? Date {
                     if now < unlockUntil {
-                        print("⏭️ Skipping group \(group.name) - unlocked until \(unlockUntil)")
+                        AppLogger.shield.debug("⏭️ Skipping group \(group.name) - unlocked until \(unlockUntil)")
                         continue
                     } else {
-                        print("🧹 Cleaning expired unlock for group \(group.name)")
+                        AppLogger.shield.debug("🧹 Cleaning expired unlock for group \(group.name)")
                         defaults.removeObject(forKey: unlockKey)
                     }
                 }
@@ -255,13 +269,9 @@ final class BlockingStore: ObservableObject {
                     let groupCategories = group.selection.categoryTokens
                     
                     groupTokens = groupTokens.filter { token in
-                        if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-                            let tokenKey = "fc_unlockUntil_" + tokenData.base64EncodedString()
-                            if let unlockUntil = defaults.object(forKey: tokenKey) as? Date {
-                                return now >= unlockUntil
-                            }
-                        }
-                        return true
+                        guard let tokenKey = cachedTokenKey(for: token),
+                              let unlockUntil = defaults.object(forKey: tokenKey) as? Date else { return true }
+                        return now >= unlockUntil
                     }
                     
                     combined.applicationTokens.formUnion(groupTokens)
@@ -292,7 +302,7 @@ final class BlockingStore: ObservableObject {
             
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
             if elapsed > 0.1 {
-                print("⚠️ rebuildFamilyControlsShield took \(String(format: "%.3f", elapsed))s")
+                AppLogger.shield.debug("⚠️ rebuildFamilyControlsShield took \(String(format: "%.3f", elapsed))s")
             }
             
             let sharedDefaults = UserDefaults.stepsTrader()
@@ -303,14 +313,14 @@ final class BlockingStore: ObservableObject {
     #if canImport(ManagedSettings)
     private func applyShieldImmediately(selection: FamilyActivitySelection) {
         guard familyControlsService.isAuthorized else {
-            print("⚠️ Cannot apply shield: Family Controls not authorized")
+            AppLogger.shield.debug("⚠️ Cannot apply shield: Family Controls not authorized")
             return
         }
         
         let store = ManagedSettingsStore(named: .init("shield"))
         store.shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
         store.shield.applicationCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
-        print("🛡️ Shield applied immediately: \(selection.applicationTokens.count) apps, \(selection.categoryTokens.count) categories")
+        AppLogger.shield.debug("🛡️ Shield applied immediately: \(selection.applicationTokens.count) apps, \(selection.categoryTokens.count) categories")
     }
     #endif
     
@@ -325,12 +335,12 @@ final class BlockingStore: ObservableObject {
                now >= unlockUntil {
                 defaults.removeObject(forKey: unlockKey)
                 cleanedCount += 1
-                print("🧹 Cleaned expired unlock for group \(group.name)")
+                AppLogger.shield.debug("🧹 Cleaned expired unlock for group \(group.name)")
             }
         }
         
         if cleanedCount > 0 {
-            print("🧹 Cleaned \(cleanedCount) expired unlock(s), rebuilding shield...")
+            AppLogger.shield.debug("🧹 Cleaned \(cleanedCount) expired unlock(s), rebuilding shield...")
             rebuildFamilyControlsShield()
         }
     }
@@ -345,12 +355,14 @@ final class BlockingStore: ObservableObject {
     func stopTracking() {
         isTrackingTime = false
         isBlocked = false
-        // Clear shield
+        // Clear shield using targeted properties instead of clearAllSettings()
+        // to avoid wiping unrelated ManagedSettings (audit fix #17)
         let empty = FamilyActivitySelection()
         familyControlsService.updateSelection(empty)
         #if canImport(ManagedSettings)
         let store = ManagedSettingsStore(named: .init("shield"))
-        store.clearAllSettings()
+        store.shield.applications = nil
+        store.shield.applicationCategories = nil
         #endif
     }
 }

@@ -4,14 +4,16 @@ import SwiftUI
 /// Replaces hardcoded Color(red:green:blue:) values throughout the codebase
 enum AppColors {
     // MARK: - Brand Colors
-    // Primary accent (yellow marker)
-    static let brandPink = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255)   // #FFD369
+    // Primary accent (gold marker — legacy name was brandPink)
+    static let brandAccent = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255)   // #FFD369
+    @available(*, deprecated, renamed: "brandAccent")
+    static var brandPink: Color { brandAccent }
     
     // MARK: - Daylight Theme (Paper)
     // "This is not a light mode. This is a daytime version of resistance."
     // The screen is not your life. This is just a place to notice.
     enum Daylight {
-        static let background = Color(red: 0xEE/255, green: 0xEE/255, blue: 0xEE/255)  // #EEEEEE
+        static let background = Color(red: 0xF2/255, green: 0xF2/255, blue: 0xF2/255)  // #F2F2F2
         static let backgroundSecondary = Color(red: 243/255, green: 244/255, blue: 246/255)
         static let backgroundTertiary = Color(red: 235/255, green: 236/255, blue: 240/255)
         
@@ -105,7 +107,6 @@ enum AppColors {
         // App-specific colors
         static let youtube = Color(red: 1, green: 0, blue: 0)
         static let linkedin = Color(red: 0, green: 0.47, blue: 0.71)
-        static let duolingo = Color(red: 0.35, green: 0.8, blue: 0.2)
         static let bronze = Color(red: 205/255, green: 127/255, blue: 50/255)
     }
     
@@ -179,12 +180,12 @@ extension Text {
 }
 
 // MARK: - Resistance UI Components
-/// Components that embody the exp philosophy:
+/// Components that embody the ink philosophy:
 /// - No gamification. No motivation. No self-improvement tone.
 /// - Observation over instruction
 /// - Invitation over pressure
 /// - Empty states are allowed
-/// - "Spending exp" is neutral, never framed as failure
+/// - "Spending ink" is neutral, never framed as failure
 
 struct ResistanceTag: View {
     let text: String

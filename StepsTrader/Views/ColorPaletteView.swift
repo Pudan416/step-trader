@@ -27,7 +27,7 @@ struct ColorPaletteView: View {
             Button {
                 onConfirm()
             } label: {
-                Text("Add to canvas")
+                Text("Add")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(theme.isLightTheme ? .white : .black)
                     .frame(maxWidth: .infinity)
@@ -77,7 +77,7 @@ struct ColorPaletteView: View {
 struct ActivityPickerWithColorSheet: View {
     @ObservedObject var model: AppModel
     let initialCategory: EnergyCategory
-    let onActivityConfirmed: (String, EnergyCategory, String) -> Void  // (optionId, category, hexColor)
+    let onActivityConfirmed: (String, EnergyCategory, String, Int?) -> Void  // (optionId, category, hexColor, assetVariant?)
     let onActivityUndo: (String, EnergyCategory) -> Void               // (optionId, category) — remove from canvas + toggle off
     let onDismiss: () -> Void
 
@@ -177,7 +177,7 @@ struct ActivityPickerWithColorSheet: View {
             }
             guard canSelect else { return }
             pendingOptionId = option.id
-            selectedColorHex = defaultColorHex(for: category)
+            selectedColorHex = category.defaultColorHex
             showColorPicker = true
         } label: {
             HStack(spacing: 12) {
@@ -207,22 +207,14 @@ struct ActivityPickerWithColorSheet: View {
         .opacity(canSelect || isSelected ? 1 : 0.4)
     }
 
-    private func defaultColorHex(for category: EnergyCategory) -> String {
-        switch category {
-        case .body:   return "#C3143B"  // Red
-        case .mind:   return "#7652AF"  // Purple
-        case .heart:  return "#FEAAC2"  // Light pink
-        }
-    }
-
     private func confirmSelection() {
         guard let optionId = pendingOptionId else { return }
         // Toggle in model
         withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
             model.toggleDailySelection(optionId: optionId, category: tab)
         }
-        // Spawn canvas element
-        onActivityConfirmed(optionId, tab, selectedColorHex)
+        // Spawn canvas element (no shape picker in this flow — pass nil for auto variant)
+        onActivityConfirmed(optionId, tab, selectedColorHex, nil)
         // Reset
         showColorPicker = false
         pendingOptionId = nil
@@ -235,7 +227,7 @@ struct ActivityPickerWithColorSheet: View {
     ZStack {
         Color.black.ignoresSafeArea()
         ColorPaletteView(selectedHex: .constant("#C3143B")) {
-            print("Confirmed")
+            AppLogger.ui.debug("Confirmed")
         }
         .padding(20)
     }

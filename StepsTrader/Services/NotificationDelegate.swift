@@ -54,7 +54,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         
         // Handle expired notification - rebuild shields
         if let action = userInfo["action"] as? String, action == "expired" {
-            print("🔒 Access expired notification tapped - rebuilding shields")
+            AppLogger.notifications.debug("🔒 Access expired notification tapped - rebuilding shields")
             Task { @MainActor in
                 self.model?.purgeExpiredAccessWindows()
                 self.model?.rebuildFamilyControlsShield()
@@ -72,7 +72,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             
             // PRIORITY 1: If groupId present in notification, open directly by group
             if let directGroupId = userInfo["groupId"] as? String {
-                print("📲 Push notification: opening PayGate for group \(directGroupId)")
+                AppLogger.notifications.debug("📲 Push notification: opening PayGate for group \(directGroupId)")
                 persistPayGateIntent(groupId: directGroupId)
                 Task { @MainActor in
                     self.model?.openPayGate(for: directGroupId)
@@ -88,7 +88,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             
             // If saved groupId exists, use it directly
             if let groupId = sharedGroupId, directBundleId == nil {
-                print("📲 Push notification: using saved groupId \(groupId)")
+                AppLogger.notifications.debug("📲 Push notification: using saved groupId \(groupId)")
                 persistPayGateIntent(groupId: groupId)
                 Task { @MainActor in
                     self.model?.openPayGate(for: groupId)
@@ -100,9 +100,9 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             let bundleId = directBundleId ?? sharedBundleId
             
             if let bundleId {
-                print("📲 Push notification tapped for unlock: \(bundleId)")
-                print("   - directBundleId: \(directBundleId ?? "nil")")
-                print("   - sharedBundleId: \(sharedBundleId ?? "nil")")
+                AppLogger.notifications.debug("📲 Push notification tapped for unlock: \(bundleId)")
+                AppLogger.notifications.debug("   - directBundleId: \(directBundleId ?? "nil")")
+                AppLogger.notifications.debug("   - sharedBundleId: \(sharedBundleId ?? "nil")")
                 
                 // Open paygate — find group by bundleId
                 persistPayGateIntent(bundleId: bundleId)
@@ -110,21 +110,21 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                     self.model?.openPayGateForBundleId(bundleId)
                 }
             } else {
-                print("⚠️ Push notification tapped for unlock, but bundleId not found")
+                AppLogger.notifications.debug("⚠️ Push notification tapped for unlock, but bundleId not found")
                 
                 // Last fallback: open the first ticket group
                 persistPayGateIntent(groupId: nil, bundleId: nil)
                 Task { @MainActor in
                     guard let model = self.model else { 
-                        print("⚠️ Fallback: Model is nil")
+                        AppLogger.notifications.debug("⚠️ Fallback: Model is nil")
                         return 
                     }
                     
                     if let firstGroup = model.blockingStore.ticketGroups.first {
-                        print("🔄 Fallback: Using first shield group: \(firstGroup.name) (id: \(firstGroup.id))")
+                        AppLogger.notifications.debug("🔄 Fallback: Using first shield group: \(firstGroup.name) (id: \(firstGroup.id))")
                         model.openPayGate(for: firstGroup.id)
                     } else {
-                        print("⚠️ Fallback: No shield groups available")
+                        AppLogger.notifications.debug("⚠️ Fallback: No shield groups available")
                     }
                 }
             }
@@ -138,7 +138,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         
         // If this is an "expired" notification, rebuild shields immediately
         if let action = userInfo["action"] as? String, action == "expired" {
-            print("🔒 Access expired notification delivered - rebuilding shields")
+            AppLogger.notifications.debug("🔒 Access expired notification delivered - rebuilding shields")
             Task { @MainActor in
                 // Clear expired unlocks and rebuild
                 self.model?.purgeExpiredAccessWindows()

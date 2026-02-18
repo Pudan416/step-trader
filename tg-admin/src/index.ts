@@ -1,9 +1,12 @@
+import type { EnergyLedgerRow, PublicUserRow, ShieldRow } from "./types";
+
 type Env = {
   TELEGRAM_BOT_TOKEN: string;
   ADMIN_IDS: string; // "113872890,123"
   SUPABASE_URL: string; // https://xxxx.supabase.co
   SUPABASE_SERVICE_ROLE_KEY: string;
   OPENAI_API_KEY?: string; // For natural language processing
+  TELEGRAM_WEBHOOK_SECRET?: string; // Set via `wrangler secret put`, must match setWebhook secret_token
 };
 
 type TelegramUpdate = {
@@ -176,12 +179,28 @@ async function countTable(env: Env, table: string, filter?: string): Promise<num
 }
 
 async function sumEnergy(env: Env, userId?: string): Promise<number> {
+  // Try server-side RPC first (requires migration: sum_energy_delta)
+  try {
+    const { data } = await supabaseRequest<number>(
+      env,
+      `/rest/v1/rpc/sum_energy_delta`,
+      {
+        method: "POST",
+        body: { p_user_id: userId ?? null },
+      }
+    );
+    if (typeof data === "number") return data;
+  } catch {
+    // RPC not deployed yet — fall through to client-side pagination
+  }
+
+  // Fallback: client-side pagination
   const pageSize = 1000;
   let offset = 0;
   let total = 0;
   while (true) {
     const filter = userId ? `&user_id=eq.${encodeURIComponent(userId)}` : "";
-    const { data } = await supabaseRequest<Array<{ delta: number }>>(
+    const { data } = await supabaseRequest<Pick<EnergyLedgerRow, "delta">[]>(
       env,
       `/rest/v1/energy_ledger?select=delta&order=created_at.desc&limit=${pageSize}&offset=${offset}${filter}`
     );
@@ -194,24 +213,24 @@ async function sumEnergy(env: Env, userId?: string): Promise<number> {
   return total;
 }
 
-async function getUser(env: Env, userId: string) {
-  const { data } = await supabaseRequest<any[]>(
+async function getUser(env: Env, userId: string): Promise<PublicUserRow | null> {
+  const { data } = await supabaseRequest<PublicUserRow[]>(
     env,
     `/rest/v1/users?select=id,email,nickname,country,created_at,is_banned,ban_reason,ban_until,energy_spent_lifetime,batteries_collected,current_steps_today,current_energy_balance&id=eq.${encodeURIComponent(userId)}`
   );
   return data[0] ?? null;
 }
 
-async function listUsers(env: Env, limit: number = 10) {
-  const { data } = await supabaseRequest<any[]>(
+async function listUsers(env: Env, limit: number = 10): Promise<PublicUserRow[]> {
+  const { data } = await supabaseRequest<PublicUserRow[]>(
     env,
     `/rest/v1/users?select=id,email,nickname,country,created_at,current_energy_balance&order=created_at.desc&limit=${limit}`
   );
   return data ?? [];
 }
 
-async function listUserShields(env: Env, userId: string) {
-  const { data } = await supabaseRequest<any[]>(
+async function listUserShields(env: Env, userId: string): Promise<ShieldRow[]> {
+  const { data } = await supabaseRequest<ShieldRow[]>(
     env,
     `/rest/v1/shields?select=id,user_id,bundle_id,mode,level,updated_at&user_id=eq.${encodeURIComponent(userId)}`
   );
@@ -240,7 +259,7 @@ async function banUser(env: Env, userId: string, reason: string, until?: Date) {
 
 async function unbanUser(env: Env, userId: string) {
   await supabaseRequest(env, `/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
-      method: "PATCH",
+    method: "PATCH",
     headers: { prefer: "return=minimal" },
     body: { is_banned: false, ban_reason: null, ban_until: null },
   });
@@ -274,11 +293,11 @@ function generateRandomNickname(): string {
 }
 
 async function isNicknameUnique(env: Env, nickname: string): Promise<boolean> {
-  const rows = await supabaseRequest<{ id: string }[]>(
+  const { data } = await supabaseRequest<{ id: string }[]>(
     env,
     `/rest/v1/users?nickname=eq.${encodeURIComponent(nickname)}&select=id&limit=1`
   );
-  return rows.length === 0;
+  return data.length === 0;
 }
 
 async function generateAndSetRandomNickname(env: Env, userId: string): Promise<string | null> {
@@ -295,7 +314,7 @@ async function generateAndSetRandomNickname(env: Env, userId: string): Promise<s
       return candidate;
     }
   }
-  
+
   // Fallback: use UUID-based name
   const fallback = `User${Date.now().toString(36).toUpperCase().slice(-6)}`;
   await supabaseRequest(env, `/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
@@ -468,7 +487,7 @@ async function buildUserMessage(env: Env, userId: string): Promise<string | null
   if (shields.length > 0) {
     msg += "\n";
     for (const s of shields.slice(0, 5)) {
-      msg += `\n• ${s.bundle_id.split(".").pop()} (${s.mode}, Lv${s.level})`;
+      msg += `\n• ${s.bundle_id.split(".").pop()} (${s.mode})`;
     }
     if (shields.length > 5) msg += `\n• ... +${shields.length - 5} more`;
   }
@@ -480,10 +499,6 @@ async function buildUserMessage(env: Env, userId: string): Promise<string | null
 
   return msg;
 }
-
-// ========== State for multi-step flows ==========
-// Note: In production, use KV or Durable Objects. This is per-request only.
-const pendingActions: Map<number, { action: string; data?: any }> = new Map();
 
 // ========== Command Parser ==========
 
@@ -505,6 +520,15 @@ export default {
       }
       if (request.method !== "POST") {
         return new Response("method not allowed", { status: 405 });
+      }
+
+      if (!env.TELEGRAM_WEBHOOK_SECRET) {
+        console.error("⚠️ TELEGRAM_WEBHOOK_SECRET is not set — webhook is unprotected!");
+        return new Response("webhook secret not configured", { status: 500 });
+      }
+      const headerSecret = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
+      if (headerSecret !== env.TELEGRAM_WEBHOOK_SECRET) {
+        return new Response("unauthorized", { status: 403 });
       }
 
       const update = (await request.json()) as TelegramUpdate;
@@ -531,9 +555,9 @@ export default {
         if (chatId) {
           await sendMessage(env, chatId, `❌ Error: ${String(e?.message ?? e)}`, backKeyboard());
         }
-      } catch {}
-        return new Response("ok", { status: 200 });
-      }
+      } catch { }
+      return new Response("ok", { status: 200 });
+    }
   },
 };
 
@@ -544,7 +568,7 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
 
   // Command handling
   if (parsed) {
-      const { cmd, args } = parsed;
+    const { cmd, args } = parsed;
 
     if (cmd === "/start" || cmd === "/menu") {
       await sendMessage(
@@ -553,44 +577,44 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
         `<b>🛡️ DOOM CTRL Admin Panel</b>\n\nWelcome! Choose an action:`,
         mainMenuKeyboard()
       );
-        return new Response("ok", { status: 200 });
-      }
+      return new Response("ok", { status: 200 });
+    }
 
-      if (cmd === "/stats") {
+    if (cmd === "/stats") {
       const statsMsg = await buildStatsMessage(env);
       await sendMessage(env, chatId, statsMsg, backKeyboard());
+      return new Response("ok", { status: 200 });
+    }
+
+    if (cmd === "/user") {
+      const userId = args[0];
+      if (!userId) {
+        await sendMessage(env, chatId, "Usage: /user <userId>", backKeyboard());
         return new Response("ok", { status: 200 });
       }
-
-      if (cmd === "/user") {
-          const userId = args[0];
-          if (!userId) {
-        await sendMessage(env, chatId, "Usage: /user <userId>", backKeyboard());
-            return new Response("ok", { status: 200 });
-          }
       const userMsg = await buildUserMessage(env, userId);
       if (!userMsg) {
         await sendMessage(env, chatId, `User not found: ${userId}`, backKeyboard());
       } else {
         await sendMessage(env, chatId, userMsg, userActionsKeyboard(userId));
-        }
+      }
+      return new Response("ok", { status: 200 });
+    }
+
+    if (cmd === "/grant") {
+      const userId = args[0];
+      const deltaRaw = args[1];
+      const reason = args.slice(2).join(" ");
+      if (!userId || !deltaRaw) {
+        await sendMessage(env, chatId, "Usage: /grant <userId> <delta> [reason]", backKeyboard());
         return new Response("ok", { status: 200 });
       }
-
-      if (cmd === "/grant") {
-          const userId = args[0];
-          const deltaRaw = args[1];
-          const reason = args.slice(2).join(" ");
-          if (!userId || !deltaRaw) {
-        await sendMessage(env, chatId, "Usage: /grant <userId> <delta> [reason]", backKeyboard());
-            return new Response("ok", { status: 200 });
-          }
-          const delta = Number(deltaRaw);
-          if (!Number.isFinite(delta) || !Number.isInteger(delta) || delta === 0) {
+      const delta = Number(deltaRaw);
+      if (!Number.isFinite(delta) || !Number.isInteger(delta) || delta === 0) {
         await sendMessage(env, chatId, "Delta must be a non-zero integer", backKeyboard());
-            return new Response("ok", { status: 200 });
-          }
-          await grantEnergy(env, userId, delta, reason || undefined);
+        return new Response("ok", { status: 200 });
+      }
+      await grantEnergy(env, userId, delta, reason || undefined);
       await sendMessage(
         env,
         chatId,
@@ -607,7 +631,7 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
         await sendMessage(env, chatId, "Usage: /setnick <userId> <nickname>", backKeyboard());
         return new Response("ok", { status: 200 });
       }
-      
+
       // Check uniqueness
       if (!(await isNicknameUnique(env, nickname))) {
         await sendMessage(env, chatId, `❌ Nickname "${nickname}" is already taken`, backKeyboard());
@@ -620,22 +644,22 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
         headers: { prefer: "return=minimal" },
         body: { nickname },
       });
-      
+
       await sendMessage(env, chatId, `✅ Nickname set to <b>${nickname}</b>`, backKeyboard());
       return new Response("ok", { status: 200 });
     }
 
     if (cmd === "/ban") {
-          const userId = args[0];
+      const userId = args[0];
       const reason = args.slice(1).join(" ") || "Admin decision";
       if (!userId) {
         await sendMessage(env, chatId, "Usage: /ban <userId> [reason]", backKeyboard());
-            return new Response("ok", { status: 200 });
-          }
+        return new Response("ok", { status: 200 });
+      }
       await banUser(env, userId, reason);
       await sendMessage(env, chatId, `🚫 User <code>${userId}</code> banned.\nReason: ${reason}`, backKeyboard());
-            return new Response("ok", { status: 200 });
-          }
+      return new Response("ok", { status: 200 });
+    }
 
     if (cmd === "/unban") {
       const userId = args[0];
@@ -645,18 +669,18 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
       }
       await unbanUser(env, userId);
       await sendMessage(env, chatId, `✅ User <code>${userId}</code> unbanned.`, backKeyboard());
-        return new Response("ok", { status: 200 });
-      }
+      return new Response("ok", { status: 200 });
+    }
 
-      if (cmd === "/diag") {
-          const envOk = {
-            TELEGRAM_BOT_TOKEN: Boolean(env.TELEGRAM_BOT_TOKEN),
-            SUPABASE_URL: Boolean(env.SUPABASE_URL),
-            SUPABASE_SERVICE_ROLE_KEY: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
+    if (cmd === "/diag") {
+      const envOk = {
+        TELEGRAM_BOT_TOKEN: Boolean(env.TELEGRAM_BOT_TOKEN),
+        SUPABASE_URL: Boolean(env.SUPABASE_URL),
+        SUPABASE_SERVICE_ROLE_KEY: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
         OPENAI_API_KEY: Boolean(env.OPENAI_API_KEY),
-            ADMIN_IDS: Boolean(env.ADMIN_IDS),
-          };
-          const me = await tgCall<any>(env, "getMe", {});
+        ADMIN_IDS: Boolean(env.ADMIN_IDS),
+      };
+      const me = await tgCall<any>(env, "getMe", {});
       const [users, shields] = await Promise.all([countTable(env, "users"), countTable(env, "shields")]);
 
       await sendMessage(
@@ -670,16 +694,16 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
 
 <b>Env:</b>
 ${Object.entries(envOk)
-  .map(([k, v]) => `• ${k}: ${v ? "✅" : "❌"}`)
-  .join("\n")}`,
+          .map(([k, v]) => `• ${k}: ${v ? "✅" : "❌"}`)
+          .join("\n")}`,
         backKeyboard()
       );
       return new Response("ok", { status: 200 });
     }
 
     if (cmd === "/help") {
-          await sendMessage(
-            env,
+      await sendMessage(
+        env,
         chatId,
         `<b>📖 Commands</b>
 
@@ -765,9 +789,9 @@ async function handleCallbackQuery(env: Env, query: TelegramCallbackQuery): Prom
       } else {
         await editMessage(env, chatId, messageId, userMsg, userActionsKeyboard(userId));
         await answerCallbackQuery(env, query.id);
-        }
-        return new Response("ok", { status: 200 });
       }
+      return new Response("ok", { status: 200 });
+    }
 
     // Quick grant
     if (data.startsWith("grant:")) {
@@ -792,7 +816,7 @@ async function handleCallbackQuery(env: Env, query: TelegramCallbackQuery): Prom
         msg += "No shields configured.";
       } else {
         for (const s of shields) {
-          msg += `• <b>${s.bundle_id}</b>\n  Mode: ${s.mode} | Level: ${s.level}\n`;
+          msg += `• <b>${s.bundle_id}</b>\n  Mode: ${s.mode}\n`;
         }
       }
       await editMessage(env, chatId, messageId, msg, {
@@ -889,8 +913,8 @@ async function handleCallbackQuery(env: Env, query: TelegramCallbackQuery): Prom
 
 <b>Env:</b>
 ${Object.entries(envOk)
-  .map(([k, v]) => `• ${k}: ${v ? "✅" : "❌"}`)
-  .join("\n")}`,
+          .map(([k, v]) => `• ${k}: ${v ? "✅" : "❌"}`)
+          .join("\n")}`,
         backKeyboard()
       );
       await answerCallbackQuery(env, query.id);

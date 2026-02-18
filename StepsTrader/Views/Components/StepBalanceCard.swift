@@ -46,8 +46,8 @@ struct StepBalanceCard: View {
         return min(1, Double(baseEnergyToday) / Double(maxEnergy))
     }
 
-    private var accent: Color { AppColors.brandPink }
-    private var balanceYellow: Color { .yellow }
+    private var accent: Color { AppColors.brandAccent }
+    private var balanceYellow: Color { AppColors.brandAccent }
     
     private var timeUntilReset: String {
         let now = Date()
@@ -64,13 +64,13 @@ struct StepBalanceCard: View {
     
     var body: some View {
         VStack(spacing: 10) {
-            // ── Header: TODAY EXP + balance + timer ──
+            // ── Header: TODAY INK + balance + timer ──
             HStack(alignment: .center, spacing: 10) {
-                VStack(alignment: .leading, spacing: -2) {
-                    Text("TODAY")
-                        .font(.caption2.weight(.heavy))
-                    Text("EXP")
-                        .font(.title3.weight(.black))
+                VStack(alignment: .leading, spacing: -4) {
+                    Text("TODAY'S")
+                        .font(.system(size: 10, weight: .heavy))
+                    Text("INK")
+                        .font(.system(size: 28, weight: .black))
                 }
                 .foregroundColor(colorScheme == .dark ? balanceYellow : .black)
                 
@@ -127,26 +127,20 @@ struct StepBalanceCard: View {
                 let innerW = max(0, w - inset * 2)
                 let fillWidth = max(0, innerW * progress)
                 let earnedWidth = max(0, innerW * earnedTodayProgress)
-                let spentSegmentWidth = max(0, earnedWidth - fillWidth)
 
-                HStack(spacing: 0) {
+                ZStack(alignment: .leading) {
+                    // Earned outline (full earned width, sits behind fill)
+                    if earnedWidth > 0 {
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(balanceYellow, lineWidth: 1.5)
+                            .frame(width: max(4, earnedWidth))
+                    }
+                    // Remaining fill (overlaps the left portion seamlessly)
                     if fillWidth > 0 {
-                        UnevenRoundedRectangle(
-                            topLeadingRadius: 5, bottomLeadingRadius: 5,
-                            bottomTrailingRadius: 0, topTrailingRadius: 0
-                        )
-                        .fill(balanceYellow)
-                        .frame(width: max(4, fillWidth))
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(balanceYellow)
+                            .frame(width: max(4, fillWidth))
                     }
-                    if spentSegmentWidth > 0 {
-                        UnevenRoundedRectangle(
-                            topLeadingRadius: 0, bottomLeadingRadius: 0,
-                            bottomTrailingRadius: 5, topTrailingRadius: 5
-                        )
-                        .stroke(balanceYellow, lineWidth: 1.5)
-                        .frame(width: max(2, spentSegmentWidth))
-                    }
-                    Spacer(minLength: 0)
                 }
                 .padding(inset)
                 .frame(width: w, height: proxy.size.height, alignment: .leading)
@@ -201,14 +195,14 @@ struct StepBalanceCard: View {
                     // Row 2: Card-based categories
                     HStack(spacing: 8) {
                         metricChip(
-                            icon: "figure.run",
+                            icon: "figure.walk",
                             value: bodyPoints,
                             max: 20,
                             accessibilityId: "chip_body",
                             onTap: { onMoveTap?() }
                         )
                         metricChip(
-                            icon: "sparkles",
+                            icon: "brain.head.profile",
                             value: mindPoints,
                             max: 20,
                             accessibilityId: "chip_mind",
@@ -290,37 +284,6 @@ private func metricChip(icon: String, value: Int, max: Int, accessibilityId: Str
     }
     .buttonStyle(.plain)
     .accessibilityIdentifier(accessibilityId)
-}
-
-// MARK: - Helpers
-
-private func formatNumber(_ num: Int) -> String {
-    let absValue = abs(num)
-    let sign = num < 0 ? "-" : ""
-    
-    func trimTrailingZero(_ s: String) -> String {
-        s.hasSuffix(".0") ? String(s.dropLast(2)) : s
-    }
-    
-    if absValue < 1000 { return "\(num)" }
-    
-    if absValue < 10_000 {
-        let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
-        return sign + trimTrailingZero(String(format: "%.1f", v)) + "K"
-    }
-    
-    if absValue < 1_000_000 {
-        let v = Int((Double(absValue) / 1000.0).rounded())
-        return sign + "\(v)K"
-    }
-    
-    if absValue < 10_000_000 {
-        let v = (Double(absValue) / 1_000_000.0 * 10).rounded() / 10
-        return sign + trimTrailingZero(String(format: "%.1f", v)) + "M"
-    }
-    
-    let v = Int((Double(absValue) / 1_000_000.0).rounded())
-    return sign + "\(v)M"
 }
 
 #Preview {

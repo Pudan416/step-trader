@@ -5,17 +5,11 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     @Published var tariff: Tariff {
         didSet {
             UserDefaults.standard.set(tariff.rawValue, forKey: "selectedTariff")
-            print("💰 Tariff updated to: \(tariff.displayName) (\(Int(tariff.stepsPerMinute)) steps/min)")
+            AppLogger.energy.debug("💰 Tariff updated to: \(self.tariff.displayName) (\(Int(self.tariff.stepsPerMinute)) steps/min)")
         }
     }
     
     var stepsPerMinute: Double { tariff.stepsPerMinute }
-    
-    // Backward compatibility
-    var difficultyLevel: DifficultyLevel {
-        get { tariff }
-        set { tariff = newValue }
-    }
     
     @Published private(set) var todayAnchor: Date
     @Published private(set) var dailyBudgetMinutes: Int = 0
@@ -57,7 +51,7 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         self.remainingMinutes = savedRemaining
         self.todayAnchor = resolvedAnchor
         
-        print("💰 BudgetEngine initialized with tariff: \(tariff.displayName)")
+        AppLogger.energy.debug("💰 BudgetEngine initialized with tariff: \(self.tariff.displayName)")
     }
 
     func minutes(from steps: Double) -> Int { max(0, Int(steps / stepsPerMinute)) }
@@ -86,7 +80,7 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     }
 
     func updateTariff(_ newTariff: Tariff) {
-        print("💰 Updating tariff from \(tariff.displayName) to \(newTariff.displayName)")
+        AppLogger.energy.debug("💰 Updating tariff from \(self.tariff.displayName) to \(newTariff.displayName)")
         tariff = newTariff
     }
     
@@ -126,7 +120,7 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         let savedMinute = g.object(forKey: "dayEndMinute_v1") as? Int ?? 0
         dayEndHour = max(0, min(23, savedHour))
         dayEndMinute = max(0, min(59, savedMinute))
-        print("🔄 BudgetEngine reloaded: daily=\(dailyBudgetMinutes), remaining=\(remainingMinutes)")
+        AppLogger.energy.debug("🔄 BudgetEngine reloaded: daily=\(self.dailyBudgetMinutes), remaining=\(self.remainingMinutes)")
     }
     
     // MARK: - Day boundary helpers

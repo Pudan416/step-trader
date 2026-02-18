@@ -20,13 +20,13 @@ final class CustomActivityTests: XCTestCase {
     func testAddCustomOptionAppearsInOrderedOptions() {
         let model = makeModel()
         let id = model.addCustomOption(
-            category: .activity,
+            category: .body,
             titleEn: "Test Activity",
             titleRu: "Test Activity",
             icon: "figure.run"
         )
 
-        let options = model.orderedOptions(for: .activity)
+        let options = model.orderedOptions(for: .body)
         XCTAssertTrue(options.contains(where: { $0.id == id }))
 
         let reloaded = makeModel()
@@ -37,18 +37,18 @@ final class CustomActivityTests: XCTestCase {
     func testDeleteCustomOptionRemovesFromOrderAndPreferred() {
         let model = makeModel()
         let id = model.addCustomOption(
-            category: .activity,
+            category: .body,
             titleEn: "Disposable Activity",
             titleRu: "Disposable Activity",
             icon: "figure.walk"
         )
-        model.updatePreferredOptions([id], category: .activity)
+        model.updatePreferredOptions([id], category: .body)
 
         model.deleteCustomOption(optionId: id)
 
-        let options = model.orderedOptions(for: .activity)
+        let options = model.orderedOptions(for: .body)
         XCTAssertFalse(options.contains(where: { $0.id == id }))
-        XCTAssertFalse(model.isPreferredOptionSelected(id, category: .activity))
+        XCTAssertFalse(model.isPreferredOptionSelected(id, category: .body))
 
         let reloaded = makeModel()
         reloaded.loadCustomEnergyOptions()
@@ -84,12 +84,10 @@ final class CustomActivityTests: XCTestCase {
 // MARK: - Mocks
 
 private final class MockHealthKitService: HealthKitServiceProtocol {
-    func fetchTodaySleep() async throws -> Double { 0 }
     func fetchSleep(from: Date, to: Date) async throws -> Double { 0 }
     @MainActor func requestAuthorization() async throws {}
     @MainActor func authorizationStatus() -> HKAuthorizationStatus { .sharingAuthorized }
     @MainActor func sleepAuthorizationStatus() -> HKAuthorizationStatus { .sharingAuthorized }
-    func fetchTodaySteps() async throws -> Double { 0 }
     func fetchSteps(from: Date, to: Date) async throws -> Double { 0 }
     func startObservingSteps(updateHandler: @escaping (Double) -> Void) {}
     func stopObservingSteps() {}
@@ -108,7 +106,6 @@ private final class MockFamilyControlsService: FamilyControlsServiceProtocol {
 private final class MockNotificationService: NotificationServiceProtocol {
     func requestPermission() async throws {}
     func sendTimeExpiredNotification() {}
-    func sendTimeExpiredNotification(remainingMinutes: Int) {}
     func sendUnblockNotification(remainingMinutes: Int) {}
     func sendRemainingTimeNotification(remainingMinutes: Int) {}
     func sendMinuteModeSummary(bundleId: String, minutesUsed: Int, stepsCharged: Int) {}
@@ -133,8 +130,4 @@ private final class MockBudgetEngine: BudgetEngineProtocol {
     func updateTariff(_ newTariff: Tariff) { tariff = newTariff }
     func updateDayEnd(hour: Int, minute: Int) {}
     func reloadFromStorage() {}
-    var difficultyLevel: DifficultyLevel {
-        get { tariff }
-        set { tariff = newValue }
-    }
 }

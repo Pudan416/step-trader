@@ -1,59 +1,75 @@
 import SwiftUI
 
-// MARK: - Me tab: who I am + my journey
+// MARK: - Me tab
 struct MeView: View {
     @ObservedObject var model: AppModel
-    @ObservedObject var authService = AuthenticationService.shared
+    @StateObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
     @State private var pastDays: [String: PastDaySnapshot] = [:]
     @State private var selectedDayKey: String? = nil
     @State private var showLogin = false
     @State private var showProfileEditor = false
+    @State private var cachedDayKeys: [String] = []
 
     var body: some View {
         NavigationStack {
             ZStack {
                 EnergyGradientBackground(
+                    stepsPoints: model.stepsPointsToday,
                     sleepPoints: model.sleepPointsToday,
-                    stepsPoints: model.stepsPointsToday
+                    hasStepsData: model.hasStepsData,
+                    hasSleepData: model.hasSleepData
                 )
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
 
-                VStack(spacing: 0) {
-                    // Profile header - centered, large avatar
-                    profileHeaderSection
-                        .padding(.top, 12)
-                    
-                    Divider()
-                        .padding(.vertical, 10)
-                    
-                    // Main content (no scroll)
-                    VStack(spacing: 16) {
-                        // Last 7 days horizontal with yellow fill
-                        compactJourneySection
-                        
-                        // Weekly reflection card
-                        weeklyReflectionSection
-                        
-                        // Top gallery - large like on gallery screen
-                        largeTopGallerySection
-                        
-                        Spacer()
-                        
-                        // Stats grid - small at bottom
-                        smallStatsSection
-                            .padding(.bottom, 80)
+                VStack(spacing: 24) {
+                    // Profile: compact inline row
+                    profileRow
+
+                    // 7-day ring row (always 7 slots)
+                    weekRow
+
+                    // Reflection line (hidden when empty)
+                    if hasAnyData {
+                        reflectionLine
                     }
-                    .padding(.horizontal, 16)
+
+                    // Body · Mind · Heart (hidden when no picks)
+                    if hasAnyPicks {
+                        Text("mostly from")
+                            .font(.caption.weight(.medium))
+                            .foregroundColor(theme.textSecondary)
+                        dimensionRow
+                    }
+
+                    // Average sleep & steps
+                    if hasAnyData {
+                        weeklyAveragesLine
+                    }
+
+                    // Top energy consumers (week)
+                    if !topConsumers.isEmpty {
+                        topConsumersSection
+                    }
+
+                    Spacer()
+
+                    // Totals line
+                    if hasAnyData {
+                        totalsLine
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 96)
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 Color.clear.frame(height: topCardHeight)
             }
             .navigationBarHidden(true)
             .onAppear {
+                cachedDayKeys = Self.computeDayKeys()
                 loadAllSnapshots()
             }
             .sheet(isPresented: $showLogin) {
@@ -75,264 +91,353 @@ struct MeView: View {
             }
         }
     }
-    
-    // MARK: - Data Loading
+
+    // MARK: - Computed helpers
+
+    private var hasAnyData: Bool {
+        !pastDays.isEmpty
+    }
+
+    private var hasAnyPicks: Bool {
+        let snaps = cachedDayKeys.compactMap { pastDays[$0] }
+        return snaps.contains { !$0.bodyIds.isEmpty || !$0.mindIds.isEmpty || !$0.heartIds.isEmpty }
+    }
+
+    /// Compute 7 day-keys once (today and 6 prior days), using the custom day boundary
+    /// so keys stay correct between midnight and the configured day-end time.
+    private static func computeDayKeys() -> [String] {
+        let cal = Calendar.current
+        let (endH, endM) = DayBoundary.storedDayEnd()
+        return (0..<7).reversed().map { offset in
+            let d = cal.date(byAdding: .day, value: -offset, to: Date()) ?? Date()
+            return DayBoundary.dayKey(for: d, dayEndHour: endH, dayEndMinute: endM)
+        }
+    }
+
+    // MARK: - Data loading
+
     private func loadAllSnapshots() {
-        // Start with local data
         pastDays = model.loadPastDaySnapshots()
-        
-        // Then load from Supabase and merge
         Task {
-            let serverSnapshots = await SupabaseSyncService.shared.loadHistoricalSnapshots()
+            let server = await SupabaseSyncService.shared.loadHistoricalSnapshots()
             await MainActor.run {
-                // Merge: server data fills gaps, local data takes priority for same day
-                for (dayKey, snapshot) in serverSnapshots {
-                    if pastDays[dayKey] == nil {
-                        pastDays[dayKey] = snapshot
-                    }
+                for (key, snap) in server where pastDays[key] == nil {
+                    pastDays[key] = snap
                 }
             }
         }
     }
-    
-    // MARK: - Profile Header (centered, large)
-    private var profileHeaderSection: some View {
+
+    // MARK: - Profile row (avatar + name, single line)
+
+    private var profileRow: some View {
         Button {
-            if authService.isAuthenticated {
-                showProfileEditor = true
-            } else {
-                showLogin = true
-            }
+            if authService.isAuthenticated { showProfileEditor = true }
+            else { showLogin = true }
         } label: {
-            VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                avatarView
                 if authService.isAuthenticated, let user = authService.currentUser {
-                    largeAvatarView(user: user)
-                    
-                    let countryName = countryNameFromLocation(user.locationString)
-                    if let country = countryName {
-                        (Text("I am ")
-                            .font(.subheadline.weight(.regular))
-                            .foregroundColor(.secondary) +
-                         Text(user.displayName)
-                            .font(.reenie(30, relativeTo: .subheadline))
-                            .foregroundColor(.primary) +
-                         Text(" from ")
-                            .font(.subheadline.weight(.regular))
-                            .foregroundColor(.secondary) +
-                         Text(country)
-                            .font(.reenie(30, relativeTo: .subheadline))
-                            .foregroundColor(.primary))
-                    } else {
-                        (Text("I am ")
-                            .font(.subheadline.weight(.regular))
-                            .foregroundColor(.secondary) +
-                         Text(user.displayName)
-                            .font(.reenie(16, relativeTo: .subheadline))
-                            .foregroundColor(.primary))
-                    }
+                    Text(user.displayName)
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
                 } else {
-                    ZStack {
-                        Circle()
-                            .fill(Color(.tertiarySystemFill))
-                            .frame(width: 64, height: 64)
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.secondary)
-                    }
                     Text("Sign in")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundColor(.primary)
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
                 }
+                Spacer()
             }
         }
         .buttonStyle(.plain)
+        .padding(.top, 8)
     }
-    
-    private func countryNameFromLocation(_ locationString: String?) -> String? {
-        guard let location = locationString else { return nil }
-        // Extract country from "City, Country" format
-        let components = location.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-        return components.count > 1 ? components.last : location
-    }
-    
+
     @ViewBuilder
-    private func largeAvatarView(user: AppUser) -> some View {
-        ZStack {
+    private var avatarView: some View {
+        if authService.isAuthenticated, let user = authService.currentUser {
             if let data = user.avatarData, let uiImage = UIImage(data: data) {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 64, height: 64)
+                    .frame(width: 40, height: 40)
                     .clipShape(Circle())
                     .grayscale(1.0)
+                    .overlay(Circle().strokeBorder(theme.accentColor, lineWidth: 1))
             } else {
                 ZStack {
-                    Circle()
-                        .fill(Color(.systemGray5))
-                        .frame(width: 64, height: 64)
+                    Circle().fill(Color(.systemGray5)).frame(width: 40, height: 40)
                     Text(String(user.displayName.prefix(2)).uppercased())
-                        .font(.title3.weight(.bold))
-                        .foregroundColor(.primary)
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(theme.textPrimary)
                 }
+                .overlay(Circle().strokeBorder(theme.accentColor, lineWidth: 1))
             }
-            
-            Circle()
-                .strokeBorder(Color.accentColor, lineWidth: 2.5)
-                .frame(width: 64, height: 64)
-        }
-    }
-    
-    // MARK: - Compact Journey (last 7 days horizontal)
-    private var compactJourneySection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Last 7 days")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.secondary)
-            
-            HStack(spacing: 8) {
-                ForEach(last7DayKeys, id: \.self) { dayKey in
-                    compactDayCircle(dayKey: dayKey)
-                }
-                if last7DayKeys.isEmpty {
-                    Text("—")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+        } else {
+            ZStack {
+                Circle().fill(theme.stroke.opacity(theme.strokeOpacity)).frame(width: 40, height: 40)
+                Image(systemName: "person.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(theme.textSecondary)
             }
         }
     }
-    
-    private var weeklyReflectionSection: some View {
-        let snapshots = last7DayKeys.compactMap { pastDays[$0] }
-        let reflection = buildWeeklyReflection(from: snapshots)
-        return WeeklyReflectionCard(reflection: reflection)
+
+    // MARK: - 7-day ring row (always 7 slots)
+
+    private var weekRow: some View {
+        HStack(spacing: 0) {
+            ForEach(cachedDayKeys, id: \.self) { dayKey in
+                dayRing(dayKey: dayKey)
+                    .frame(maxWidth: .infinity)
+            }
+        }
     }
-    
-    private func compactDayCircle(dayKey: String) -> some View {
-        Button {
-            selectedDayKey = dayKey
-        } label: {
+
+    private func dayRing(dayKey: String) -> some View {
+        Button { selectedDayKey = dayKey } label: {
             let snapshot = pastDays[dayKey]
-            
             VStack(spacing: 3) {
                 ZStack {
-                    // Background circle
                     Circle()
-                        .stroke(Color.primary, lineWidth: 1)
+                        .stroke(theme.stroke.opacity(theme.strokeOpacity), lineWidth: 1)
                         .frame(width: 36, height: 36)
-                    
-                    // Yellow fill based on exp balance
+
                     if let snap = snapshot {
-                        let gained = snap.experienceEarned
-                        let spent = snap.experienceSpent
-                        let remaining = max(0, gained - spent)
-                        
-                        // Assume max energy = 100 for percentage
-                        let maxEnergy = 100.0
-                        let remainingProgress = min(1.0, Double(remaining) / maxEnergy)
-                        let gainedProgress = min(1.0, Double(gained) / maxEnergy)
-                        let spentProgress = max(0, gainedProgress - remainingProgress)
-                        
-                        GeometryReader { proxy in
-                            let size = proxy.size.width
-                            
-                            ZStack {
-                                // Yellow fill (remaining)
-                                if remainingProgress > 0 {
-                                    Circle()
-                                        .trim(from: 0, to: remainingProgress)
-                                        .stroke(Color.yellow, lineWidth: 3)
-                                        .frame(width: size - 3, height: size - 3)
-                                        .rotationEffect(.degrees(-90))
-                                }
-                                
-                                // Yellow outline only (spent)
-                                if spentProgress > 0 {
-                                    Circle()
-                                        .trim(from: remainingProgress, to: gainedProgress)
-                                        .stroke(Color.yellow.opacity(0.3), lineWidth: 3)
-                                        .frame(width: size - 3, height: size - 3)
-                                        .rotationEffect(.degrees(-90))
-                                }
-                            }
+                        let maxE = 100.0
+                        let gained = min(1.0, Double(snap.inkEarned) / maxE)
+                        let remaining = min(1.0, Double(max(0, snap.inkEarned - snap.inkSpent)) / maxE)
+
+                        Circle()
+                            .trim(from: 0, to: remaining)
+                            .stroke(theme.accentColor, lineWidth: 2.5)
+                            .frame(width: 33, height: 33)
+                            .rotationEffect(.degrees(-90))
+
+                        if gained > remaining {
+                            Circle()
+                                .trim(from: remaining, to: gained)
+                                .stroke(theme.accentColor.opacity(0.25), lineWidth: 2.5)
+                                .frame(width: 33, height: 33)
+                                .rotationEffect(.degrees(-90))
                         }
-                        .frame(width: 36, height: 36)
                     }
                 }
-                
-                Text(dayLabel(from: dayKey))
-                    .font(.system(size: 8, weight: .medium))
-                    .foregroundColor(.secondary)
+
+                Text(shortDayLabel(dayKey))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(isToday(dayKey) ? theme.textPrimary : theme.textSecondary)
             }
         }
         .buttonStyle(.plain)
     }
-    
-    private func dayLabel(from dayKey: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: dayKey) else { return "" }
-        
-        formatter.dateFormat = "EEE"
-        formatter.locale = Locale(identifier: "en")
-        return String(formatter.string(from: date).prefix(3))
+
+    private func shortDayLabel(_ dayKey: String) -> String {
+        guard let date = CachedFormatters.dayKey.date(from: dayKey) else { return "" }
+        return String(CachedFormatters.shortWeekday.string(from: date).prefix(2))
     }
 
-    // MARK: - Top activity/rest/joy (last 7 days)
-    private var last7DayKeys: [String] {
-        let keys = pastDays.keys.sorted(by: <)
-        return Array(keys.suffix(7))
+    private func isToday(_ dayKey: String) -> Bool {
+        return dayKey == AppModel.dayKey(for: Date())
     }
-    
-    private func buildWeeklyReflection(from snapshots: [PastDaySnapshot]) -> WeeklyReflectionData {
-        guard !snapshots.isEmpty else {
-            return WeeklyReflectionData(
-                periodLabel: "Last 7 days",
-                headline: "No reflection yet",
-                subheadline: "Use a ticket and come back tomorrow.",
-                gained: 0,
-                spent: 0,
-                kept: 0,
-                strongestRoom: "—"
-            )
-        }
-        
-        let gained = snapshots.reduce(0) { $0 + $1.experienceEarned }
-        let spent = snapshots.reduce(0) { $0 + $1.experienceSpent }
+
+    // MARK: - Reflection (single centered line)
+
+    private var reflectionLine: some View {
+        let snaps = cachedDayKeys.compactMap { pastDays[$0] }
+        let gained = snaps.reduce(0) { $0 + $1.inkEarned }
+        let spent = snaps.reduce(0) { $0 + $1.inkSpent }
         let kept = max(0, gained - spent)
-        
-        let activityCount = snapshots.reduce(0) { $0 + $1.bodyIds.count }
-        let creativityCount = snapshots.reduce(0) { $0 + $1.mindIds.count }
-        let joysCount = snapshots.reduce(0) { $0 + $1.heartIds.count }
-        let roomCounts: [(String, Int)] = [
-            ("Activity", activityCount),
-            ("Creativity", creativityCount),
-            ("Joys", joysCount)
-        ]
-        let strongestRoom = roomCounts.max(by: { $0.1 < $1.1 })?.0 ?? "—"
-        
-        let keepRate = gained > 0 ? Int((Double(kept) / Double(gained)) * 100.0) : 0
-        let headline: String
-        if keepRate >= 70 {
-            headline = "Strong week"
-        } else if keepRate >= 40 {
-            headline = "Balanced week"
-        } else {
-            headline = "Expensive week"
+
+        return VStack(spacing: 4) {
+            if gained > 0 {
+                Text("My week")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(theme.textPrimary)
+                Text("\(gained) earned · \(spent) spent · \(kept) kept")
+                    .font(.caption)
+                    .foregroundColor(theme.textSecondary)
+                    .monospacedDigit()
+            } else {
+                Text("No activity yet")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(theme.textPrimary)
+            }
         }
-        
-        let subheadline = "You kept \(keepRate)% of earned experience."
-        
-        return WeeklyReflectionData(
-            periodLabel: "Last 7 days",
-            headline: headline,
-            subheadline: subheadline,
-            gained: gained,
-            spent: spent,
-            kept: kept,
-            strongestRoom: strongestRoom
-        )
+        .frame(maxWidth: .infinity)
     }
+
+    // MARK: - Weekly averages (sleep + steps)
+
+    private var weeklyAveragesLine: some View {
+        let snaps = cachedDayKeys.compactMap { pastDays[$0] }
+        let dayCount = max(snaps.count, 1)
+        let avgSleep = snaps.reduce(0.0) { $0 + $1.sleepHours } / Double(dayCount)
+        let avgSteps = snaps.reduce(0) { $0 + $1.steps } / dayCount
+        let sleepText = String(format: "%.1f", avgSleep)
+
+        return Text("avg \(sleepText)h sleep · \(avgSteps) steps / day")
+            .font(.caption.weight(.medium))
+            .foregroundColor(theme.textSecondary)
+            .monospacedDigit()
+            .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Body · Mind · Heart
+
+    private var dimensionRow: some View {
+        let snaps = cachedDayKeys.compactMap { pastDays[$0] }
+        let topBody = topOptionId(for: .body, from: snaps)
+        let topMind = topOptionId(for: .mind, from: snaps)
+        let topHeart = topOptionId(for: .heart, from: snaps)
+
+        return HStack(spacing: 0) {
+            dimensionItem(icon: "figure.run", optionId: topBody)
+            dimensionItem(icon: "sparkles", optionId: topMind)
+            dimensionItem(icon: "heart.fill", optionId: topHeart)
+        }
+    }
+
+    private func dimensionItem(icon: String, optionId: String?) -> some View {
+        VStack(spacing: 3) {
+            if let id = optionId {
+                if id.hasPrefix("custom_") {
+                    Image(systemName: optionIcon(for: id))
+                        .font(.system(size: 22))
+                        .foregroundColor(theme.textPrimary)
+                } else {
+                    Image(assetImageName(for: id))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                }
+                Text(model.resolveOptionTitle(for: id))
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                    .lineLimit(1)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 22))
+                    .foregroundColor(theme.textSecondary.opacity(0.5))
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Top Energy Consumers
+
+    private var topConsumers: [(name: String, spent: Int)] {
+        // Aggregate all spending across the 7-day window
+        var allSpending: [String: Int] = [:]
+        for dayKey in cachedDayKeys {
+            if let perApp = model.appStepsSpentByDay[dayKey] {
+                for (key, value) in perApp {
+                    allSpending[key, default: 0] += value
+                }
+            }
+        }
+
+        // Build results from ticket groups first (guaranteed correct names)
+        var results: [(name: String, spent: Int)] = []
+        var claimedKeys: Set<String> = []
+
+        for group in model.ticketGroups {
+            let groupKey = "group_\(group.id)"
+            var total = allSpending[groupKey] ?? 0
+            if total > 0 { claimedKeys.insert(groupKey) }
+
+            // Also claim spending under the raw group id
+            if let raw = allSpending[group.id] {
+                total += raw
+                claimedKeys.insert(group.id)
+            }
+
+            if total > 0 {
+                results.append((name: group.name, spent: total))
+            }
+        }
+
+        // Remaining keys not claimed by any current group
+        let txNames = Self.loadTransactionNameMap()
+        for (key, value) in allSpending where !claimedKeys.contains(key) {
+            let name: String
+            if key.hasPrefix("group_") {
+                // Orphaned group — look up stored name from payment log
+                name = txNames[key] ?? txNames[String(key.dropFirst(6))] ?? "Deleted ticket"
+            } else {
+                name = txNames[key] ?? TargetResolver.displayName(for: key)
+            }
+            results.append((name: name, spent: value))
+        }
+
+        return results
+            .sorted { $0.spent > $1.spent }
+            .prefix(5)
+            .map { $0 }
+    }
+
+    /// Build a map of spending target → display name from the payment transaction log.
+    private static func loadTransactionNameMap() -> [String: String] {
+        let url = PersistenceManager.paymentTransactionsFileURL
+        guard let data = try? Data(contentsOf: url),
+              let txs = try? JSONDecoder().decode([TransactionNameEntry].self, from: data)
+        else { return [:] }
+        var map: [String: String] = [:]
+        for tx in txs {
+            if let name = tx.targetName, !name.isEmpty {
+                map[tx.target] = name
+            }
+        }
+        return map
+    }
+
+    /// Minimal decodable for reading just target + targetName from the payment log.
+    private struct TransactionNameEntry: Decodable {
+        let target: String
+        let targetName: String?
+    }
+
+    private var topConsumersSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Top consumers")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.textSecondary)
+
+            ForEach(Array(topConsumers.enumerated()), id: \.offset) { index, item in
+                HStack(spacing: 8) {
+                    Text("\(index + 1)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .frame(width: 16, alignment: .trailing)
+
+                    Text(item.name)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Text("\(item.spent) ink")
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundColor(theme.accentColor)
+                }
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    // MARK: - Totals
+
+    private var totalsLine: some View {
+        let totalG = pastDays.values.reduce(0) { $0 + $1.inkEarned }
+        let totalS = pastDays.values.reduce(0) { $0 + $1.inkSpent }
+        return Text("\(pastDays.count)d · \(totalG) earned · \(totalS) spent")
+            .font(.system(size: 11, weight: .medium, design: .rounded))
+            .foregroundColor(theme.textSecondary)
+            .monospacedDigit()
+    }
+
+    // MARK: - Helpers
 
     private func topOptionId(for category: EnergyCategory, from snapshots: [PastDaySnapshot]) -> String? {
         var counts: [String: Int] = [:]
@@ -342,217 +447,18 @@ struct MeView: View {
             case .mind: s.mindIds
             case .heart: s.heartIds
             }
-            for id in ids {
-                counts[id, default: 0] += 1
-            }
+            for id in ids { counts[id, default: 0] += 1 }
         }
         return counts.max(by: { $0.value < $1.value })?.key
     }
 
-    private func optionTitle(for optionId: String) -> String {
-        if optionId.hasPrefix("custom_") {
-            if let custom = model.customEnergyOptions.first(where: { $0.id == optionId }) {
-                return custom.titleEn
-            }
-            return optionId
-        }
-        if let opt = EnergyDefaults.options.first(where: { $0.id == optionId }) {
-            return opt.title(for: "en")
-        }
-        return optionId
-    }
-
     private func optionIcon(for optionId: String) -> String {
         if optionId.hasPrefix("custom_"),
-           let custom = model.customEnergyOptions.first(where: { $0.id == optionId }) {
-            return custom.icon
-        }
+           let c = model.customEnergyOptions.first(where: { $0.id == optionId }) { return c.icon }
         return EnergyDefaults.options.first(where: { $0.id == optionId })?.icon ?? "circle.fill"
     }
 
-    /// Asset name for gallery images: option id is the image set name (e.g. activity_favourite_sport).
-    private func assetImageName(for optionId: String) -> String {
-        optionId
-    }
-
-    // MARK: - Large Top Gallery (like on gallery screen)
-    private var largeTopGallerySection: some View {
-        let snapshots = last7DayKeys.compactMap { pastDays[$0] }
-        let topActivity = topOptionId(for: .body, from: snapshots)
-        let topCreativity = topOptionId(for: .mind, from: snapshots)
-        let topJoy = topOptionId(for: .heart, from: snapshots)
-
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("Frequent activities")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.secondary)
-
-            HStack(spacing: 12) {
-                largeTopGalleryCard(
-                    category: "Activity",
-                    optionId: topActivity,
-                    icon: "figure.run"
-                )
-                largeTopGalleryCard(
-                    category: "Creativity",
-                    optionId: topCreativity,
-                    icon: "sparkles"
-                )
-                largeTopGalleryCard(
-                    category: "Joy",
-                    optionId: topJoy,
-                    icon: "heart.fill"
-                )
-            }
-        }
-    }
-
-    private func largeTopGalleryCard(category: String, optionId: String?, icon: String) -> some View {
-        VStack(spacing: 6) {
-            // Show image for option
-            if let id = optionId {
-                if id.hasPrefix("custom_") {
-                    Image(systemName: optionIcon(for: id))
-                        .font(.system(size: 40))
-                        .foregroundColor(.primary)
-                        .frame(width: 56, height: 56)
-                } else {
-                    Image(assetImageName(for: id))
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 56, height: 56)
-                }
-            } else {
-                Image(systemName: icon)
-                    .font(.system(size: 32))
-                    .foregroundColor(.secondary)
-                    .frame(width: 56, height: 56)
-            }
-            
-            VStack(spacing: 2) {
-                Text(category)
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
-                
-                if let id = optionId {
-                    Text(optionTitle(for: id))
-                        .font(.system(size: 11, weight: .medium))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.primary)
-                } else {
-                    Text("—")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 110)
-        .padding(.vertical, 6)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    // MARK: - Small Stats (at bottom)
-    private var smallStatsSection: some View {
-        let totalGained = pastDays.values.reduce(0) { $0 + $1.experienceEarned }
-        let totalLost = pastDays.values.reduce(0) { $0 + $1.experienceSpent }
-        let daysCount = pastDays.count
-
-        return HStack(spacing: 12) {
-            smallStatItem(
-                value: "\(daysCount)",
-                label: "Days"
-            )
-            
-            Divider()
-                .frame(height: 20)
-            
-            smallStatItem(
-                value: "\(totalGained)",
-                label: "Gained"
-            )
-            
-            Divider()
-                .frame(height: 20)
-            
-            smallStatItem(
-                value: "\(totalLost)",
-                label: "Spent"
-            )
-        }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 12)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-    
-    private func smallStatItem(value: String, label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.body.weight(.bold).monospacedDigit())
-                .foregroundColor(.primary)
-            
-            Text(label)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-private struct WeeklyReflectionData {
-    let periodLabel: String
-    let headline: String
-    let subheadline: String
-    let gained: Int
-    let spent: Int
-    let kept: Int
-    let strongestRoom: String
-}
-
-private struct WeeklyReflectionCard: View {
-    let reflection: WeeklyReflectionData
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(reflection.periodLabel)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.secondary)
-            
-            Text(reflection.headline)
-                .font(.headline.weight(.semibold))
-            
-            Text(reflection.subheadline)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            HStack(spacing: 10) {
-                reflectionMetric(value: "\(reflection.gained)", label: "Earned")
-                reflectionMetric(value: "\(reflection.spent)", label: "Spent")
-                reflectionMetric(value: "\(reflection.kept)", label: "Kept")
-                reflectionMetric(value: reflection.strongestRoom, label: "Room")
-            }
-        }
-        .padding(12)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-    
-    private func reflectionMetric(value: String, label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundColor(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Text(label)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
+    private func assetImageName(for optionId: String) -> String { optionId }
 }
 
 private struct MeDayKeyWrapper: Identifiable {
@@ -560,187 +466,28 @@ private struct MeDayKeyWrapper: Identifiable {
     var id: String { key }
 }
 
-// MARK: - Settings Sheet (minimal, clean; can be embedded in tab or presented as sheet)
-struct SettingsSheet: View {
-    @ObservedObject var model: AppModel
-    let appLanguage: String = "en"
-    var onDone: (() -> Void)? = nil
-    /// When true, shown as a tab root — no Done button.
-    var embeddedInTab: Bool = false
-    @ObservedObject var authService = AuthenticationService.shared
-    @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
-    @AppStorage("payGateBackgroundStyle") private var payGateBackgroundStyle: String = "midnight"
-    @Environment(\.appTheme) private var theme
-    @Environment(\.topCardHeight) private var topCardHeight
-    @State private var showLogin = false
-    
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                EnergyGradientBackground(
-                    sleepPoints: model.sleepPointsToday,
-                    stepsPoints: model.stepsPointsToday
-                )
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
+// MARK: - Glass card modifier (iOS 26+ liquid glass, fallback ultraThinMaterial)
 
-                VStack(spacing: 0) {
-                    // Custom inline header when embedded in tab
-                    if embeddedInTab {
-                        HStack {
-                            Text("Settings")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                    }
-
-                    List {
-                        // Account
-                        Section {
-                            if authService.isAuthenticated, let user = authService.currentUser {
-                                HStack(spacing: 12) {
-                                    avatarSmall(user: user)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(user.displayName)
-                                            .font(.subheadline.weight(.medium))
-                                        if let email = user.email {
-                                            Text(email)
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                    }
-                                    Spacer()
-                                }
-                                
-                                Button(role: .destructive) {
-                                    authService.signOut()
-                                } label: {
-                                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                                }
-                            } else {
-                                Button { showLogin = true } label: {
-                                    Label("Sign in with Apple", systemImage: "apple.logo")
-                                }
-                            }
-                        } header: {
-                            Text("Account")
-                        }
-                        
-                        // Preferences
-                        Section {
-                            NavigationLink {
-                                ThemePicker(selected: $appThemeRaw)
-                            } label: {
-                                HStack {
-                                    Label("Appearance", systemImage: "circle.lefthalf.filled")
-                                    Spacer()
-                                    Text(themeLabel)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            
-                            NavigationLink {
-                                EnergySetupView(model: model)
-                            } label: {
-                                Label("Daily gallery", systemImage: "sparkles")
-                            }
-                        } header: {
-                            Text("Preferences")
-                        }
-                        
-                        // About
-                        Section {
-                            HStack {
-                                Text("Version")
-                                Spacer()
-                                Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
-                                    .foregroundColor(.secondary)
-                            }
-                        } header: {
-                            Text("About")
-                        } footer: {
-                            Text("Less scrolling. More living.")
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 8)
-                        }
-                    }
-                    .listStyle(.insetGrouped)
-                    .scrollContentBackground(.hidden)
+struct GlassCardModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .background {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(.clear)
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16))
                 }
-            }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: embeddedInTab ? topCardHeight : 0)
-            }
-            .navigationTitle(embeddedInTab ? "" : "Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarHidden(embeddedInTab)
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .toolbar {
-                if !embeddedInTab, let onDone = onDone {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { onDone() }
-                    }
-                }
-            }
-            .sheet(isPresented: $showLogin) {
-                LoginView(authService: authService)
-            }
-        }
-    }
-    
-    private var themeLabel: String {
-        let theme = AppTheme.normalized(rawValue: appThemeRaw)
-        return theme.displayNameEn
-    }
-    
-    @ViewBuilder
-    private func avatarSmall(user: AppUser) -> some View {
-        if let data = user.avatarData, let uiImage = UIImage(data: data) {
-            Image(uiImage: uiImage)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 40, height: 40)
-                .clipShape(Circle())
+                .clipShape(RoundedRectangle(cornerRadius: 16))
         } else {
-            ZStack {
-                Circle()
-                    .fill(Color.accentColor.opacity(0.2))
-                    .frame(width: 40, height: 40)
-                Text(String(user.displayName.prefix(2)).uppercased())
-                    .font(.caption.weight(.bold))
-                    .foregroundColor(.accentColor)
-            }
+            content
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
         }
     }
 }
 
-// MARK: - Theme Picker
-private struct ThemePicker: View {
-    @Binding var selected: String
-    
-    var body: some View {
-        List {
-            ForEach(AppTheme.selectableThemes, id: \.rawValue) { theme in
-                Button {
-                    selected = theme.rawValue
-                } label: {
-                    HStack {
-                        Text(theme.displayNameEn)
-                            .foregroundColor(.primary)
-                        Spacer()
-                        if selected == theme.rawValue {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(.accentColor)
-                        }
-                    }
-                }
-            }
-        }
-        .navigationTitle("Appearance")
-        .navigationBarTitleDisplayMode(.inline)
+extension View {
+    func glassCard() -> some View {
+        self.modifier(GlassCardModifier())
     }
 }
 

@@ -62,10 +62,10 @@ struct LoginView: View {
                     } onCompletion: { result in
                         switch result {
                         case .success(let authorization):
-                            print("🔐 SignInWithAppleButton completed successfully")
+                            AppLogger.auth.debug("🔐 SignInWithAppleButton completed successfully")
                             authService.handleAuthorization(authorization)
                         case .failure(let error):
-                            print("❌ SignInWithAppleButton failed: \(error)")
+                            AppLogger.auth.error("❌ SignInWithAppleButton failed: \(error.localizedDescription)")
                             authService.error = error.localizedDescription
                             showError = true
                         }
@@ -110,12 +110,12 @@ struct LoginView: View {
                                 .frame(width: 100, height: 100)
                                 .shadow(color: Color.purple.opacity(0.4), radius: 20, x: 0, y: 10)
                             Image(systemName: "flame.fill")
-                                .font(.notoSerif(44, weight: .bold))
+                                .font(.systemSerif(44, weight: .bold))
                                 .foregroundColor(.white)
                         }
                         VStack(spacing: 8) {
                             Text("Proof")
-                                .font(.notoSerif(32, weight: .black))
+                                .font(.systemSerif(32, weight: .black))
                                 .foregroundColor(.white)
                             Text("Trade steps for screen time")
                                 .font(.subheadline)
@@ -131,7 +131,7 @@ struct LoginView: View {
                         )
                         featureRow(
                             icon: "app.badge.checkmark",
-                            title: "Manage app access with exp",
+                            title: "Manage app access with ink",
                             color: .blue
                         )
                         featureRow(
@@ -148,10 +148,10 @@ struct LoginView: View {
                         } onCompletion: { result in
                             switch result {
                             case .success(let authorization):
-                                print("🔐 SignInWithAppleButton completed successfully")
+                                AppLogger.auth.debug("🔐 SignInWithAppleButton completed successfully")
                                 authService.handleAuthorization(authorization)
                             case .failure(let error):
-                                print("❌ SignInWithAppleButton failed: \(error)")
+                                AppLogger.auth.error("❌ SignInWithAppleButton failed: \(error.localizedDescription)")
                                 authService.error = error.localizedDescription
                                 showError = true
                             }
@@ -199,7 +199,7 @@ struct LoginView: View {
                     .frame(width: 44, height: 44)
                 
                 Image(systemName: icon)
-                    .font(.notoSerif(18, weight: .semibold))
+                    .font(.systemSerif(18, weight: .semibold))
                     .foregroundColor(color)
             }
             

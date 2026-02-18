@@ -17,12 +17,10 @@ extension AppModel {
         blockingStore.saveTimeAccessSelection(selection, for: bundleId)
     }
 
+    /// Rebuild shield for all groups. The bundleId parameter is accepted for call-site
+    /// clarity but the rebuild is always global (audit fix #32).
     func applyFamilyControlsSelection(for bundleId: String) {
-        // No-op: selection is now managed via ticket groups or direct FamilyActivitySelection updates
-    }
-
-    func disableFamilyControlsShield() {
-        blockingStore.rebuildFamilyControlsShield()
+        rebuildFamilyControlsShield()
     }
 
     func rebuildFamilyControlsShield() {
@@ -40,7 +38,8 @@ extension AppModel {
     }
 
     func scheduleSupabaseTicketUpsert(bundleId: String) {
-        // TODO: Implement Supabase ticket sync
+        let groups = ticketGroups
+        Task { await SupabaseSyncService.shared.syncTicketGroups(groups) }
     }
 
     // MARK: - Tracking

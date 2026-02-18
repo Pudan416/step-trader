@@ -77,10 +77,7 @@ extension AppModel {
 
             // Check save date
             if let savedDate = userDefaults.object(forKey: "appSelectionSavedDate") as? Date {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                formatter.timeStyle = .short
-                AppLogger.familyControls.debug("📅 App selection was saved on: \(formatter.string(from: savedDate))")
+                AppLogger.familyControls.debug("📅 App selection was saved on: \(CachedFormatters.mediumDateTime.string(from: savedDate))")
             }
         } else {
             AppLogger.familyControls.debug("📱 No saved app selection found")

@@ -10,6 +10,7 @@ struct OptionEntrySheet: View {
     let onSave: (OptionEntry) -> Void
 
     @State private var selectedColorHex: String = CanvasColorPalette.paletteHex[0]
+    @State private var selectedAssetVariant: Int = Int.random(in: 0...2)
     @State private var text: String = ""
     @FocusState private var isTextFieldFocused: Bool
 
@@ -30,46 +31,71 @@ struct OptionEntrySheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Activity title
-                    Text(option.title(for: "en"))
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(theme.textPrimary)
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Activity title
+                        Text(option.title(for: "en"))
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
 
-                    // Examples — small inline list
-                    if !examples.isEmpty {
-                        examplesSection
+                        // Examples — small inline list
+                        if !examples.isEmpty {
+                            examplesSection
+                        }
+
+                        // Personal note (optional)
+                        noteSection
+
+                        // Shape picker — body only
+                        if category == .body {
+                            shapePickerSection
+                        }
+
+                        // Color asset grid — category assets tinted with palette colors
+                        colorAssetGrid
                     }
-
-                    // Personal note (optional)
-                    noteSection
-
-                    // Color asset grid — category assets tinted with palette colors
-                    colorAssetGrid
-
-                    // Save
-                    saveButton
+                    .padding(20)
+                    .padding(.bottom, 20)
                 }
-                .padding(20)
-                .padding(.bottom, 20)
-            }
             .scrollContentBackground(.hidden)
-            .background(.ultraThinMaterial)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 15, weight: .regular, design: .rounded))
+                        .foregroundStyle(.secondary.opacity(0.8))
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        saveEntry()
+                    } label: {
+                        Text("Add")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().fill(Color(hex: selectedColorHex))
+                            )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .presentationBackground(.ultraThinMaterial)
         .onAppear {
             if let entry = entry {
                 selectedColorHex = entry.colorHex
                 text = entry.text
+                if let variant = entry.assetVariant {
+                    selectedAssetVariant = variant
+                }
             } else {
-                selectedColorHex = defaultColorHex
+                selectedColorHex = category.defaultColorHex
+                if category == .body {
+                    selectedAssetVariant = Int.random(in: 0...2)
+                }
             }
         }
     }
@@ -80,22 +106,34 @@ struct OptionEntrySheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("e.g.")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(theme.textSecondary.opacity(0.5))
+                .foregroundStyle(.secondary.opacity(0.6))
                 .textCase(.uppercase)
 
             FlowLayout(spacing: 6) {
                 ForEach(examples, id: \.self) { example in
-                    Text(example)
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(theme.textSecondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule().fill(theme.textPrimary.opacity(0.05))
-                        )
+                    Button {
+                        if text.isEmpty {
+                            text = example
+                        } else {
+                            text += ", \(example)"
+                        }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Text(example)
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule().fill(Color.primary.opacity(0.05))
+                            )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
+        .padding(14)
+        .glassCard()
     }
 
     // MARK: - Note
@@ -105,15 +143,15 @@ struct OptionEntrySheet: View {
             HStack {
                 Text("Note")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(theme.textSecondary.opacity(0.6))
+                    .foregroundStyle(.secondary.opacity(0.6))
                 Text("optional")
                     .font(.system(size: 10, weight: .regular))
-                    .foregroundStyle(theme.textSecondary.opacity(0.3))
+                    .foregroundStyle(.secondary.opacity(0.3))
                 Spacer()
                 if !text.isEmpty {
                     Text("\(text.count)/200")
                         .font(.system(size: 10))
-                        .foregroundStyle(theme.textSecondary.opacity(0.4))
+                        .foregroundStyle(.secondary.opacity(0.4))
                 }
             }
 
@@ -126,7 +164,7 @@ struct OptionEntrySheet: View {
                 .focused($isTextFieldFocused)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(theme.textPrimary.opacity(0.04))
+                        .fill(Color.primary.opacity(0.04))
                         .overlay(
                             RoundedRectangle(cornerRadius: 10)
                                 .stroke(isTextFieldFocused ? Color(hex: selectedColorHex).opacity(0.3) : Color.clear, lineWidth: 1)
@@ -138,6 +176,66 @@ struct OptionEntrySheet: View {
                     }
                 }
         }
+        .padding(14)
+        .glassCard()
+    }
+
+    // MARK: - Shape Picker (Body only)
+
+    private let shapeLabels = ["Circle", "Square", "Triangle"]
+    private let shapeIcons = ["circle.fill", "square.fill", "triangle.fill"]
+
+    private var shapePickerSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Shape")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary.opacity(0.6))
+
+            HStack(spacing: 10) {
+                ForEach(0..<3, id: \.self) { index in
+                    let isSelected = index == selectedAssetVariant
+                    let assetName = categoryAssets[index]
+
+                    Button {
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                            selectedAssetVariant = index
+                        }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        VStack(spacing: 6) {
+                            if let uiImage = UIImage(named: assetName)?.withRenderingMode(.alwaysTemplate) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .foregroundStyle(Color(hex: selectedColorHex).opacity(isSelected ? 1.0 : 0.4))
+                                    .frame(width: 40, height: 40)
+                            } else {
+                                Image(systemName: shapeIcons[index])
+                                    .font(.system(size: 28))
+                                    .foregroundStyle(Color(hex: selectedColorHex).opacity(isSelected ? 1.0 : 0.4))
+                            }
+
+                            Text(shapeLabels[index])
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.secondary.opacity(isSelected ? 1.0 : 0.5))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color(hex: selectedColorHex).opacity(isSelected ? 0.12 : 0.04))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(isSelected ? Color(hex: selectedColorHex).opacity(0.5) : Color.clear, lineWidth: 2)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(14)
+        .glassCard()
     }
 
     // MARK: - Color Asset Grid
@@ -147,13 +245,15 @@ struct OptionEntrySheet: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Color")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(theme.textSecondary.opacity(0.6))
+                .foregroundStyle(.secondary.opacity(0.6))
 
             let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
 
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(Array(CanvasColorPalette.paletteHex.enumerated()), id: \.offset) { index, hex in
-                    let assetName = categoryAssets[index % categoryAssets.count]
+                    let assetName = category == .body
+                        ? categoryAssets[selectedAssetVariant]
+                        : categoryAssets[index % categoryAssets.count]
                     let isSelected = hex == selectedColorHex
 
                     Button {
@@ -191,37 +291,11 @@ struct OptionEntrySheet: View {
                 }
             }
         }
-    }
-
-    // MARK: - Save
-
-    private var saveButton: some View {
-        Button {
-            saveEntry()
-        } label: {
-            Text("Add to canvas")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(hex: selectedColorHex))
-                )
-        }
-        .buttonStyle(.plain)
-        .padding(.top, 4)
+        .padding(14)
+        .glassCard()
     }
 
     // MARK: - Helpers
-
-    private var defaultColorHex: String {
-        switch category {
-        case .body:  return "#C3143B"
-        case .mind:  return "#7652AF"
-        case .heart: return "#FEAAC2"
-        }
-    }
 
     private func saveEntry() {
         let dayKey = AppModel.dayKey(for: Date())
@@ -232,7 +306,8 @@ struct OptionEntrySheet: View {
             category: category,
             colorHex: selectedColorHex,
             text: text.trimmingCharacters(in: .whitespacesAndNewlines),
-            timestamp: Date()
+            timestamp: Date(),
+            assetVariant: category == .body ? selectedAssetVariant : nil
         )
         onSave(newEntry)
         UINotificationFeedbackGenerator().notificationOccurred(.success)

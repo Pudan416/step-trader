@@ -23,10 +23,9 @@ enum SharedKeys {
     static let cachedStepsToday = "cachedStepsToday"
     static let stepsBalanceAnchor = "stepsBalanceAnchor"
 
-    // MARK: - Budget / tariff (legacy and current)
+    // MARK: - Budget (legacy and current)
     static let dailyTariffSelectionsAnchor = "dailyTariffSelectionsAnchor"
     static let dailyTariffSelections = "dailyTariffSelections_v1"
-    static let entryCostTariff = "entryCostTariff"
     static let spentMinutes = "spentMinutes_v1"
     static let spentStepsLegacy = "spentSteps_v1"
     static let spentTariff = "spentTariff_v1"
@@ -73,6 +72,9 @@ enum SharedKeys {
         return container.appendingPathComponent(minuteChargeLogsFilename)
     }
     static let appDayPassGrants = "appDayPassGrants_v1"
+
+    // MARK: - Appearance
+    static let gradientStyle = "gradientStyle_v1"
 
     // MARK: - Selections / gallery
     static let appSelection = "appSelection_v1"
