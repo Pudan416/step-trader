@@ -27,12 +27,9 @@ struct GenerativeCanvasView: View {
     /// TimelineView animation.  Used for ImageRenderer snapshots (e.g. canvas export).
     var fixedTime: Date? = nil
 
-    /// Whether the background is visually dark — controls blend mode for elements.
-    /// When true, uses `.plusLighter` (additive glow on dark). When false, uses `.normal`.
     private var isDarkBackground: Bool {
-        let uiColor = UIColor(backgroundColor)
-        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        uiColor.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        var b: CGFloat = 0
+        UIColor(backgroundColor).getHue(nil, saturation: nil, brightness: &b, alpha: nil)
         return b < 0.5
     }
 
@@ -72,23 +69,25 @@ struct GenerativeCanvasView: View {
     /// and the static fixedTime snapshot path.
     private func renderCanvas(context: inout GraphicsContext, size: CGSize, t: Double) {
         let decay = decayNorm
+        let dark = isDarkBackground
+        let blendMode: GraphicsContext.BlendMode = dark ? .plusLighter : .normal
+        let lblColor = labelColor ?? (dark ? .white : .black)
+        let shadowClr = dark ? Color.black : Color.white
 
-        // Unified background gradient
         if showsBackgroundGradient {
             drawUnifiedGradient(context: &context, size: size, t: t)
         }
 
-        // Activity elements + labels
         let circles = elements.filter { $0.kind == .circle }.sorted { $0.size > $1.size }
         let nonCircles = elements.filter { $0.kind != .circle }
         let sortedElements = circles + nonCircles
 
         for element in sortedElements {
-            drawElement(element, context: &context, size: size, t: t, decay: decay)
+            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode)
 
             if showLabelsOnCanvas {
                 let center = elementCenter(element, size: size, t: t)
-                drawLabel(element, at: center, context: &context)
+                drawLabel(element, at: center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
             }
         }
     }
@@ -188,7 +187,8 @@ struct GenerativeCanvasView: View {
         context: inout GraphicsContext,
         size: CGSize,
         t: Double,
-        decay: Double
+        decay: Double,
+        blendMode: GraphicsContext.BlendMode
     ) {
         let spawn = spawnFactor(for: element, t: t)
         guard spawn > 0.001 else { return }
@@ -205,9 +205,9 @@ struct GenerativeCanvasView: View {
             // Enforce category-driven behavior (works for legacy saved elements too).
             switch element.category {
             case .body, .mind:
-                drawCircle(element, context: &ctx, size: size, t: t, decay: decay)
+                drawCircle(element, context: &ctx, size: size, t: t, decay: decay, blendMode: blendMode)
             case .heart:
-                drawRay(element, context: &ctx, size: size, t: t, decay: decay)
+                drawRay(element, context: &ctx, size: size, t: t, decay: decay, blendMode: blendMode)
             }
         }
     }
@@ -275,8 +275,8 @@ struct GenerativeCanvasView: View {
         let dy3 = cos(t * speed * 3.61 + p * 5.3) * 0.04
         let dy4 = cos(t * speed * 5.89 + p * 7.9) * 0.015
 
-        let nx = 0.5 + dx1 + dx2 + dx3 + dx4
-        let ny = 0.5 + dy1 + dy2 + dy3 + dy4
+        let nx = Double(e.basePosition.x) + dx1 + dx2 + dx3 + dx4
+        let ny = Double(e.basePosition.y) + dy1 + dy2 + dy3 + dy4
 
         let margin = 0.06
         let cx = min(1.0 - margin, max(margin, nx)) * w
@@ -311,7 +311,8 @@ struct GenerativeCanvasView: View {
         context: inout GraphicsContext,
         size: CGSize,
         t: Double,
-        decay: Double
+        decay: Double,
+        blendMode: GraphicsContext.BlendMode
     ) {
         // Body: visible inhale/exhale pulse. Mind: no pulse (wandering is the motion).
         let pulse: Double = e.category == .body
@@ -337,21 +338,20 @@ struct GenerativeCanvasView: View {
             // Rotate so the solid/front side faces the direction of travel.
             let vel = mindDriftVelocity(e, size: size, t: t)
             // Asset's solid face points left (–X) in source — flip 180° so it leads travel.
-            let rotation = Angle.radians(atan2(vel.y, vel.x)) + .degrees(180)
+            let rotation = Angle.radians(atan2(vel.y, vel.x) + e.userRotation) + .degrees(180)
             context.drawLayer { ctx in
                 ctx.opacity = 0.85
-                ctx.blendMode = elementBlendMode
+                ctx.blendMode = blendMode
                 ctx.translateBy(x: center.x, y: center.y)
                 ctx.rotate(by: rotation)
                 ctx.translateBy(x: -center.x, y: -center.y)
                 ctx.draw(image, in: rect)
             }
         } else {
-            // Body: static random rotation derived from phaseOffset (already 0…2π per element)
-            let rotation = Angle.radians(e.phaseOffset)
+            let rotation = Angle.radians(e.phaseOffset + e.userRotation)
             context.drawLayer { ctx in
                 ctx.opacity = 0.85
-                ctx.blendMode = elementBlendMode
+                ctx.blendMode = blendMode
                 ctx.translateBy(x: center.x, y: center.y)
                 ctx.rotate(by: rotation)
                 ctx.translateBy(x: -center.x, y: -center.y)
@@ -483,7 +483,8 @@ struct GenerativeCanvasView: View {
         context: inout GraphicsContext,
         size: CGSize,
         t: Double,
-        decay: Double
+        decay: Double,
+        blendMode: GraphicsContext.BlendMode
     ) {
         let dim = Double(min(size.width, size.height))
         let radius = Double(e.size) * dim * 2.2   // heart rays larger, at edges
@@ -502,13 +503,13 @@ struct GenerativeCanvasView: View {
             height: radius * 2
         )
         // Base orientation: +90° so the asset's top (broad side) aims inward.
-        let baseOriented = baseAngle + .degrees(90)
+        let baseOriented = baseAngle + .degrees(90) + Angle.radians(e.userRotation)
 
         // Pivot the sweep around the solid tip (local 0, -radius) so the
         // tip stays fixed while the tail swings left/right like it's observing.
         context.drawLayer { ctx in
             ctx.opacity = breathe
-            ctx.blendMode = elementBlendMode
+            ctx.blendMode = blendMode
             ctx.translateBy(x: center.x, y: center.y)
             ctx.rotate(by: baseOriented)
             // Move origin to the tip, apply sweep, move back
@@ -528,28 +529,27 @@ struct GenerativeCanvasView: View {
         case .body, .mind:
             return circleCenter(element, size: size, t: t)
         case .heart:
-            // Place label at the solid tip of the heart asset, which points
-            // toward the canvas center. The tip sits ~radius along the inward direction.
+            // The colored narrow tip points OUTWARD (local 0, +radius).
+            // The broad pivot end aims inward at (0, -radius).
+            // Place the label near the visible outward-facing colored tip.
             let center = rayDrawCenter(element, size: size)
             let dim = Double(min(size.width, size.height))
             let radius = Double(element.size) * dim * 2.2
-            let canvasMid = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
-            let dx = canvasMid.x - center.x
-            let dy = canvasMid.y - center.y
-            let dist = sqrt(dx * dx + dy * dy)
-            guard dist > 1 else { return center }
-            let tipOffset = min(dist, radius * 0.75)
+            let baseAngle = rayBaseAngle(element, size: size)
+            let oriented = baseAngle + .degrees(90) + Angle.radians(element.userRotation)
+            let outwardDist = radius * 0.55
+            let tipX = center.x - outwardDist * sin(oriented.radians)
+            let tipY = center.y + outwardDist * cos(oriented.radians)
             return CGPoint(
-                x: center.x + dx / dist * tipOffset,
-                y: center.y + dy / dist * tipOffset
+                x: min(max(tipX, 24), Double(size.width) - 24),
+                y: min(max(tipY, 24), Double(size.height) - 24)
             )
         }
     }
 
-    private func drawLabel(_ element: CanvasElement, at point: CGPoint, context: inout GraphicsContext) {
+    private func drawLabel(_ element: CanvasElement, at point: CGPoint, context: inout GraphicsContext, labelColor: Color, shadowColor: Color) {
         let labelText = element.displayLabel.uppercased()
         if showsOutlinedLabels {
-            let shadowColor = isDarkBackground ? Color.black : Color.white
             let offsets: [(CGFloat, CGFloat)] = [
                 (-1, -1), (0, -1), (1, -1),
                 (-1, 0),           (1, 0),
@@ -572,7 +572,7 @@ struct GenerativeCanvasView: View {
 
         let text = Text(labelText)
             .font(.system(size: 11, weight: .bold, design: .rounded))
-            .foregroundStyle(effectiveLabelColor.opacity(0.9))
+            .foregroundStyle(labelColor.opacity(0.9))
         context.draw(text, at: point, anchor: .center)
     }
 

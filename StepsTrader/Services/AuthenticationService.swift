@@ -18,7 +18,21 @@ struct AppUser: Codable {
     // Synced stats
     var energySpentLifetime: Int
     
+    // Local-only: name from Apple ID (stored in UserDefaults, only sent on first sign-in)
+    var appleDisplayName: String?
+    // Local-only: true once the user explicitly saves a nickname in the profile editor
+    var hasSetCustomNickname: Bool
+    
     var displayName: String {
+        // Explicitly user-chosen nickname wins
+        if hasSetCustomNickname, let nickname = nickname, !nickname.isEmpty {
+            return nickname
+        }
+        // Apple ID full name as default
+        if let appleDisplayName = appleDisplayName, !appleDisplayName.isEmpty {
+            return appleDisplayName
+        }
+        // Auto-generated nickname or email fallback
         if let nickname = nickname, !nickname.isEmpty {
             return nickname
         }
@@ -37,7 +51,7 @@ struct AppUser: Codable {
         return result.isEmpty ? nil : result
     }
     
-    init(id: String, email: String?, nickname: String? = nil, country: String? = nil, avatarData: Data? = nil, avatarURL: String? = nil, createdAt: Date, energySpentLifetime: Int = 0) {
+    init(id: String, email: String?, nickname: String? = nil, country: String? = nil, avatarData: Data? = nil, avatarURL: String? = nil, createdAt: Date, energySpentLifetime: Int = 0, appleDisplayName: String? = nil, hasSetCustomNickname: Bool = false) {
         self.id = id
         self.email = email
         self.nickname = nickname
@@ -46,6 +60,8 @@ struct AppUser: Codable {
         self.avatarURL = avatarURL
         self.createdAt = createdAt
         self.energySpentLifetime = energySpentLifetime
+        self.appleDisplayName = appleDisplayName
+        self.hasSetCustomNickname = hasSetCustomNickname
     }
 }
 
@@ -80,6 +96,8 @@ class AuthenticationService: NSObject, ObservableObject {
     
     private let userDefaultsKey = "supabaseSession_v1"
     private let avatarDefaultsPrefix = "userAvatarData_v1_"
+    private let appleNamePrefix = "appleDisplayName_v1_"
+    private let customNicknamePrefix = "hasCustomNickname_v1_"
     private var currentNonce: String?
     private var pendingContinuations: [CheckedContinuation<Void, Never>] = []
     
@@ -137,11 +155,22 @@ class AuthenticationService: NSObject, ObservableObject {
         isLoading = true
         error = nil
         
+        // Apple only delivers fullName on the very first sign-in — capture it now
+        let appleFullName: String? = {
+            guard let fn = credential.fullName else { return nil }
+            let parts = [fn.givenName, fn.familyName].compactMap { $0 }.filter { !$0.isEmpty }
+            return parts.isEmpty ? nil : parts.joined(separator: " ")
+        }()
+        
         Task { @MainActor in
             defer { self.isLoading = false }
             do {
                 let session = try await self.supabaseSignInWithApple(idToken: idTokenString, nonce: nonce)
                 self.storeSession(session)
+                // Persist Apple name keyed by user ID (never overwrite with nil)
+                if let name = appleFullName {
+                    self.storeAppleDisplayName(name, for: session.user.id)
+                }
                 try await self.loadCurrentUserFromSupabase(session: session)
                 self.isAuthenticated = (self.currentUser != nil)
                 self.currentNonce = nil
@@ -187,6 +216,12 @@ class AuthenticationService: NSObject, ObservableObject {
         user.avatarData = avatarData
         storeAvatarData(avatarData, for: user.id)
         
+        // Mark as explicitly set if a non-empty nickname was provided
+        if let nick = nickname, !nick.isEmpty {
+            user.hasSetCustomNickname = true
+            storeHasCustomNickname(true, for: user.id)
+        }
+        
         // Update local user immediately for responsive UI
         user.nickname = nickname
         user.country = country
@@ -229,6 +264,12 @@ class AuthenticationService: NSObject, ObservableObject {
         user.avatarData = avatarData
         storeAvatarData(avatarData, for: user.id)
         
+        // Mark as explicitly set if a non-empty nickname was provided
+        if let nick = nickname, !nick.isEmpty {
+            user.hasSetCustomNickname = true
+            storeHasCustomNickname(true, for: user.id)
+        }
+        
         // Update local user immediately
         user.nickname = nickname
         user.country = country
@@ -253,10 +294,15 @@ class AuthenticationService: NSObject, ObservableObject {
     // MARK: - Private Methods
     
     func configureAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
-        let nonce = randomNonceString()
-        currentNonce = nonce
-        request.requestedScopes = [.email]
-        request.nonce = sha256(nonce)
+        do {
+            let nonce = try randomNonceString()
+            currentNonce = nonce
+            request.requestedScopes = [.email, .fullName]
+            request.nonce = sha256(nonce)
+        } catch {
+            AppLogger.auth.error("Failed to generate nonce: \(error.localizedDescription)")
+            self.error = "Authentication setup failed. Please try again."
+        }
     }
     
     private func storeAvatarData(_ data: Data?, for userId: String) {
@@ -270,6 +316,22 @@ class AuthenticationService: NSObject, ObservableObject {
     
     private func loadAvatarData(for userId: String) -> Data? {
         UserDefaults.standard.data(forKey: avatarDefaultsPrefix + userId)
+    }
+    
+    func storeAppleDisplayName(_ name: String, for userId: String) {
+        UserDefaults.standard.set(name, forKey: appleNamePrefix + userId)
+    }
+    
+    private func loadAppleDisplayName(for userId: String) -> String? {
+        UserDefaults.standard.string(forKey: appleNamePrefix + userId)
+    }
+    
+    func storeHasCustomNickname(_ value: Bool, for userId: String) {
+        UserDefaults.standard.set(value, forKey: customNicknamePrefix + userId)
+    }
+    
+    private func loadHasCustomNickname(for userId: String) -> Bool {
+        UserDefaults.standard.bool(forKey: customNicknamePrefix + userId)
     }
     
     private func loadStoredSession() -> SupabaseSessionResponse? {
@@ -466,7 +528,9 @@ class AuthenticationService: NSObject, ObservableObject {
                 avatarData: loadAvatarData(for: session.user.id),
                 avatarURL: nil,
                 createdAt: session.user.createdAt ?? Date(),
-                energySpentLifetime: 0
+                energySpentLifetime: 0,
+                appleDisplayName: loadAppleDisplayName(for: session.user.id),
+                hasSetCustomNickname: loadHasCustomNickname(for: session.user.id)
             )
             currentUser = user
             
@@ -513,7 +577,9 @@ class AuthenticationService: NSObject, ObservableObject {
                     avatarData: avatarData,
                     avatarURL: row.avatarUrl,
                     createdAt: row.createdAt,
-                    energySpentLifetime: row.energySpentLifetime ?? 0
+                    energySpentLifetime: row.energySpentLifetime ?? 0,
+                    appleDisplayName: loadAppleDisplayName(for: row.id),
+                    hasSetCustomNickname: loadHasCustomNickname(for: row.id)
                 )
                 isAuthenticated = true
                 error = "Account is banned."
@@ -535,7 +601,9 @@ class AuthenticationService: NSObject, ObservableObject {
             avatarData: avatarData,
             avatarURL: row.avatarUrl,
             createdAt: row.createdAt,
-            energySpentLifetime: mergedEnergy
+            energySpentLifetime: mergedEnergy,
+            appleDisplayName: loadAppleDisplayName(for: row.id),
+            hasSetCustomNickname: loadHasCustomNickname(for: row.id)
         )
         
         // If local has more, push to server
@@ -932,7 +1000,7 @@ class AuthenticationService: NSObject, ObservableObject {
     
     // MARK: - Nonce helpers (Apple Sign In)
     
-    private func randomNonceString(length: Int = 32) -> String {
+    private func randomNonceString(length: Int = 32) throws -> String {
         precondition(length > 0)
         let charset: [Character] =
         Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
@@ -943,7 +1011,8 @@ class AuthenticationService: NSObject, ObservableObject {
             var randoms = [UInt8](repeating: 0, count: 16)
             let errorCode = SecRandomCopyBytes(kSecRandomDefault, randoms.count, &randoms)
             if errorCode != errSecSuccess {
-                fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)")
+                throw NSError(domain: "AuthenticationService", code: Int(errorCode),
+                              userInfo: [NSLocalizedDescriptionKey: "SecRandomCopyBytes failed with OSStatus \(errorCode)"])
             }
             
             randoms.forEach { random in

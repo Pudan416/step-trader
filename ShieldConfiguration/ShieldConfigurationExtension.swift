@@ -86,15 +86,15 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         case .blocked:
             return baseConfiguration(
                 title: "\(appName) is closed.",
-                subtitle: "Open Proof to spend ink.",
+                subtitle: "Open Nowhere to unlock it.",
                 primaryButtonText: "Open"
             )
             
         case .waitingPush:
             return baseConfiguration(
                 title: "Check your notifications.",
-                subtitle: "A notification is waiting.\nOr open Proof directly.",
-                primaryButtonText: "Open Proof"
+                subtitle: "A notification is waiting.\nOr open Nowhere directly.",
+                primaryButtonText: "Open Nowhere"
             )
         }
     }
@@ -110,15 +110,15 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         case .blocked:
             return baseConfiguration(
                 title: "\(domain) is closed.",
-                subtitle: "Open Proof to spend ink.",
+                subtitle: "Open Nowhere to unlock it.",
                 primaryButtonText: "Open"
             )
             
         case .waitingPush:
             return baseConfiguration(
                 title: "Check your notifications.",
-                subtitle: "A notification is waiting.\nOr open Proof directly.",
-                primaryButtonText: "Open Proof"
+                subtitle: "A notification is waiting.\nOr open Nowhere directly.",
+                primaryButtonText: "Open Nowhere"
             )
         }
     }

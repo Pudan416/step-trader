@@ -18,7 +18,7 @@ struct CustomActivityEditorView: View {
     private let maxCharacters = 30
     
     private var catalogImageNames: [String] {
-        GalleryImageCatalog.imageNames(for: category)
+        CanvasImageCatalog.imageNames(for: category)
     }
     
     private var availableIcons: [String] {
@@ -192,7 +192,7 @@ struct CustomActivityEditorView: View {
         .buttonStyle(.plain)
     }
     
-    /// Load from Assets trying exact name, then lowercase, then capitalized (same as shields/gallery).
+    /// Load from Assets trying exact name, then lowercase, then capitalized (same as shields/canvas).
     private func loadCatalogImage(named name: String) -> UIImage? {
         UIImage(named: name) ?? UIImage(named: name.lowercased()) ?? UIImage(named: name.capitalized)
     }

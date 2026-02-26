@@ -18,35 +18,29 @@ CREATE OR REPLACE FUNCTION check_admin_rate_limit(
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
-    v_row admin_login_attempts%ROWTYPE;
+    v_count INTEGER;
     v_cutoff TIMESTAMPTZ := now() - (p_window_seconds || ' seconds')::INTERVAL;
 BEGIN
-    -- Try to get existing row
-    SELECT * INTO v_row FROM admin_login_attempts WHERE ip = p_ip FOR UPDATE;
+    -- Atomic upsert: insert new IP or bump existing counter.
+    -- ON CONFLICT eliminates the race where two concurrent first-time
+    -- requests both see NOT FOUND and both try to INSERT.
+    INSERT INTO admin_login_attempts (ip, attempt_count, window_start)
+    VALUES (p_ip, 1, now())
+    ON CONFLICT (ip) DO UPDATE
+        SET attempt_count = CASE
+                WHEN admin_login_attempts.window_start < v_cutoff THEN 1
+                ELSE admin_login_attempts.attempt_count + 1
+            END,
+            window_start = CASE
+                WHEN admin_login_attempts.window_start < v_cutoff THEN now()
+                ELSE admin_login_attempts.window_start
+            END
+    RETURNING attempt_count INTO v_count;
 
-    IF NOT FOUND THEN
-        -- First attempt from this IP
-        INSERT INTO admin_login_attempts (ip, attempt_count, window_start)
-        VALUES (p_ip, 1, now());
-        RETURN TRUE;
-    END IF;
-
-    IF v_row.window_start < v_cutoff THEN
-        -- Window expired, reset
-        UPDATE admin_login_attempts
-        SET attempt_count = 1, window_start = now()
-        WHERE ip = p_ip;
-        RETURN TRUE;
-    END IF;
-
-    -- Window still active
-    UPDATE admin_login_attempts
-    SET attempt_count = attempt_count + 1
-    WHERE ip = p_ip;
-
-    RETURN (v_row.attempt_count + 1) <= p_max_attempts;
+    RETURN v_count <= p_max_attempts;
 END;
 $$;
 
@@ -55,6 +49,7 @@ CREATE OR REPLACE FUNCTION cleanup_login_attempts()
 RETURNS void
 LANGUAGE sql
 SECURITY DEFINER
+SET search_path = public
 AS $$
     DELETE FROM admin_login_attempts
     WHERE window_start < now() - INTERVAL '1 hour';

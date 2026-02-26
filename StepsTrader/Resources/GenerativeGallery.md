@@ -1,10 +1,10 @@
-# Generative Gallery — Technical Specification
+# Generative Canvas — Technical Specification
 
 ## Concept
 
-The Gallery page becomes a **living, generative art canvas**. Every action the user takes during the day — choosing activities, walking, sleeping — paints a visual element onto the canvas. No silhouette. No triangle. Just an evolving abstract painting that is unique to each day.
+The Canvas page is a **living, generative art canvas**. Every action the user takes during the day — choosing activities, walking, sleeping — paints a visual element onto the canvas. No silhouette. No triangle. Just an evolving abstract painting that is unique to each day.
 
-The user holds `+`, slides toward a category, picks an activity, chooses a color, and a new visual element appears on the canvas. Steps and sleep form the background atmosphere. Everything drifts, pulses, and breathes. At end of day the painting is saved as a snapshot for the history gallery.
+The user holds `+`, slides toward a category, picks an activity, chooses a color, and a new visual element appears on the canvas. Steps and sleep form the background atmosphere. Everything drifts, pulses, and breathes. At end of day the painting is saved as a snapshot for the history.
 
 ---
 
@@ -220,7 +220,7 @@ Stored in UserDefaults:
 @AppStorage("gallery_steps_color") var stepsColorHex: String = "#EAB308"  // yellow
 ```
 
-Accessible via a settings gear icon on the gallery page, or long-press on the background.
+Accessible via a settings gear icon on the canvas page, or long-press on the background.
 
 ---
 
@@ -425,7 +425,7 @@ func saveCanvasSnapshot(canvas: DayCanvas) {
 
 ---
 
-## 7. History Gallery
+## 7. History
 
 A horizontal scroll of past day canvases (replacing the current `MemoriesSection`).
 
@@ -644,7 +644,7 @@ struct DayCanvas: Codable {
 
 ### Narrative impact
 
-The painting is your **proof of a day lived**. Spending EXP on blocked apps literally **corrodes your art**. The history gallery becomes a visual record: clean days vs. damaged days. No numbers needed — you can *see* which days you were present and which you weren't.
+The painting is your **proof of a day lived**. Spending EXP on blocked apps literally **corrodes your art**. The history becomes a visual record: clean days vs. damaged days. No numbers needed — you can *see* which days you were present and which you weren't.
 
 ---
 
@@ -681,7 +681,7 @@ MainTabView
 - `EnergyCategory`, `EnergyOption`, `EnergyDefaults` — unchanged
 - `ActivityPickerSheet` — extended with color picker column
 - `PastDaySnapshot` — extended with `elements: [CanvasElement]` field
-- `CategoryCardsRow`, `GalleryCard` — can be removed (replaced by radial menu flow)
+- `CategoryCardsRow` — can be removed (replaced by radial menu flow)
 
 ### What gets added
 | File | Contents |
@@ -714,7 +714,7 @@ MainTabView
 | 5 | `ColorPaletteView` — curated grid | 0.5 day |
 | 6 | Wire up: activity confirm → spawn element on canvas | 1 day |
 | 7 | `CanvasStorageService` — persist + snapshot | 1.5 days |
-| 8 | History gallery — thumbnails + tap-to-expand | 1.5 days |
+| 8 | History — thumbnails + tap-to-expand | 1.5 days |
 | 9 | Decay system: grain, jitter, aberration, scanlines | 2 days |
 | 10 | Replace `GalleryView` internals, remove old views | 1 day |
 | 11 | Polish: tuning animations, colors, positions | 2 days |

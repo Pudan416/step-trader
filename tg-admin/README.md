@@ -1,6 +1,6 @@
-# DOOM CTRL Telegram Admin Bot 🛡️
+# Nowhere Telegram Admin Bot
 
-Cloudflare Worker-based Telegram bot for managing DOOM CTRL users.
+Cloudflare Worker-based Telegram bot for managing Nowhere users.
 
 ## Features
 

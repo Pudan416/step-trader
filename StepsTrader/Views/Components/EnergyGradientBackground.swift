@@ -11,12 +11,56 @@ enum EnergyGradientRenderer {
 
     // MARK: - Palette
 
+    struct Palette {
+        let bright: Color       // steps-driven (gold role)
+        let warm: Color         // mid-warm (coral role)
+        let cool: Color         // sleep-driven mid (navy role)
+        let dark: Color         // sleep-driven edge (night role)
+        let daylightBase: Color // light-mode background tint
+    }
+
+    static func palette(for scheme: GradientPalette) -> Palette {
+        switch scheme {
+        case .warmSunset:
+            return Palette(
+                bright: Color(hex: "#FFBF65"),
+                warm:   Color(hex: "#FD8973"),
+                cool:   Color(hex: "#003A6C"),
+                dark:   Color(hex: "#002646"),
+                daylightBase: Color(hex: "#F2DCC8")
+            )
+        case .roseGarden:
+            return Palette(
+                bright: Color(hex: "#FFB0C4"),
+                warm:   Color(hex: "#D4627A"),
+                cool:   Color(hex: "#1B5E3B"),
+                dark:   Color(hex: "#0C2318"),
+                daylightBase: Color(hex: "#F5E0E6")
+            )
+        case .ember:
+            return Palette(
+                bright: Color(hex: "#FFF0A0"),
+                warm:   Color(hex: "#E8864A"),
+                cool:   Color(hex: "#7A1A1A"),
+                dark:   Color(hex: "#2A0808"),
+                daylightBase: Color(hex: "#FFF5E0")
+            )
+        case .dusk:
+            return Palette(
+                bright: Color(hex: "#EEDDC9"),
+                warm:   Color(hex: "#C0AC98"),
+                cool:   Color(hex: "#5E7282"),
+                dark:   Color(hex: "#384856"),
+                daylightBase: Color(hex: "#F2EAE0")
+            )
+        }
+    }
+
+    // Backward-compat statics (warmSunset default)
     static let gold  = Color(hex: "#FFBF65")
     static let coral = Color(hex: "#FD8973")
     static let navy  = Color(hex: "#003A6C")
     static let night = Color(hex: "#002646")
-
-    /// Warm peach-cream base for daylight — vibrant and juicy.
     static let daylightBase = Color(hex: "#F2DCC8")
 
     // MARK: - Math Helpers
@@ -31,6 +75,90 @@ enum EnergyGradientRenderer {
     /// Linear interpolation: `a + (b − a) * t`
     static func lerp(_ a: Double, _ b: Double, _ t: Double) -> Double {
         a + (b - a) * t
+    }
+
+    // MARK: - Seeded RNG (deterministic per-day)
+
+    /// LCG-based PRNG — lightweight, deterministic, no framework deps.
+    struct SeededRNG: RandomNumberGenerator {
+        private var state: UInt64
+        init(seed: UInt64) { state = seed == 0 ? 1 : seed }
+        mutating func next() -> UInt64 {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            return state
+        }
+        mutating func nextDouble() -> Double {
+            Double(next() >> 11) / Double(1 << 53)
+        }
+        mutating func nextDouble(in range: ClosedRange<Double>) -> Double {
+            range.lowerBound + nextDouble() * (range.upperBound - range.lowerBound)
+        }
+    }
+
+    struct Blob {
+        let x: Double      // normalized 0…1
+        let y: Double
+        let radius: Double  // fraction of maxReach
+        let color: Color
+        let opacity: Double
+    }
+
+    /// Day seed: same value all day, changes at midnight.
+    static var daySeed: UInt64 {
+        UInt64(Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 1)
+    }
+
+    /// Generate organic blob layout from opacities + day seed.
+    static func organicBlobs(
+        opacities: Opacities,
+        seed: UInt64,
+        palette p: Palette? = nil
+    ) -> [Blob] {
+        let pal = p ?? palette(for: .warmSunset)
+        var rng = SeededRNG(seed: seed)
+        var blobs: [Blob] = []
+
+        for _ in 0..<2 {
+            blobs.append(Blob(
+                x: rng.nextDouble(in: 0.0...1.0),
+                y: rng.nextDouble(in: 0.0...1.0),
+                radius: rng.nextDouble(in: 0.5...0.8),
+                color: pal.dark,
+                opacity: opacities.night * rng.nextDouble(in: 0.6...1.0)
+            ))
+        }
+
+        for _ in 0..<2 {
+            blobs.append(Blob(
+                x: rng.nextDouble(in: 0.05...0.95),
+                y: rng.nextDouble(in: 0.05...0.95),
+                radius: rng.nextDouble(in: 0.35...0.6),
+                color: pal.cool,
+                opacity: opacities.navy * rng.nextDouble(in: 0.5...0.9)
+            ))
+        }
+
+        for _ in 0..<2 {
+            blobs.append(Blob(
+                x: rng.nextDouble(in: 0.1...0.9),
+                y: rng.nextDouble(in: 0.1...0.9),
+                radius: rng.nextDouble(in: 0.25...0.5),
+                color: pal.warm,
+                opacity: opacities.coral * rng.nextDouble(in: 0.4...0.8)
+            ))
+        }
+
+        for _ in 0..<2 {
+            blobs.append(Blob(
+                x: rng.nextDouble(in: 0.15...0.85),
+                y: rng.nextDouble(in: 0.15...0.85),
+                radius: rng.nextDouble(in: 0.2...0.4),
+                color: pal.bright,
+                opacity: opacities.gold * rng.nextDouble(in: 0.5...0.9)
+            ))
+        }
+
+        return blobs
     }
 
     // MARK: - Opacity Model
@@ -164,14 +292,15 @@ enum EnergyGradientRenderer {
     // MARK: - Drawing
 
     /// Draw the energy gradient into a `GraphicsContext`.
-    /// Geometry (stop positions, radii) is **unchanged** from the original design.
     static func draw(
         context: inout GraphicsContext,
         size: CGSize,
         opacities: Opacities,
         baseColor: Color = night,
-        gradientStyle: GradientStyle = .radial
+        gradientStyle: GradientStyle = .radial,
+        colorPalette: Palette? = nil
     ) {
+        let pal = colorPalette ?? palette(for: .warmSunset)
         let w = Double(size.width)
         let h = Double(size.height)
         let dim = min(w, h)
@@ -179,153 +308,108 @@ enum EnergyGradientRenderer {
         let maxReach = max(w, h)
         let rect = CGRect(x: 0, y: 0, width: w, height: h)
 
-        // ── Solid base fill (prevents parent bg from bleeding through) ─
         context.fill(Path(rect), with: .color(baseColor))
 
-        // ── Primary gradient (radial or linear) ──────────────────────
-        // Stop locations are data-driven: each color's share grows with its metric.
         let gradient = Gradient(stops: [
-            .init(color: gold.opacity(opacities.gold),   location: 0.00),
-            .init(color: coral.opacity(opacities.coral),  location: opacities.goldLoc),
-            .init(color: navy.opacity(opacities.navy),   location: opacities.coralLoc),
-            .init(color: night.opacity(opacities.night),  location: opacities.navyLoc),
-            .init(color: night.opacity(opacities.night),  location: 1.00),
+            .init(color: pal.bright.opacity(opacities.gold),  location: 0.00),
+            .init(color: pal.warm.opacity(opacities.coral),   location: opacities.goldLoc),
+            .init(color: pal.cool.opacity(opacities.navy),    location: opacities.coralLoc),
+            .init(color: pal.dark.opacity(opacities.night),   location: opacities.navyLoc),
+            .init(color: pal.dark.opacity(opacities.night),   location: 1.00),
         ])
 
         switch gradientStyle {
         case .radial:
             context.fill(
                 Path(rect),
-                with: .radialGradient(
-                    gradient,
-                    center: center,
-                    startRadius: 0,
-                    endRadius: maxReach * 0.85
-                )
+                with: .radialGradient(gradient, center: center, startRadius: 0, endRadius: maxReach * 0.85)
             )
         case .radialReversed:
-            // Dark center → light edges (night at center, gold at rim)
-            let reversedRadial = Gradient(stops: [
-                .init(color: night.opacity(opacities.night),  location: 0.00),
-                .init(color: navy.opacity(opacities.navy),    location: 1.0 - opacities.navyLoc),
-                .init(color: coral.opacity(opacities.coral),  location: 1.0 - opacities.goldLoc),
-                .init(color: gold.opacity(opacities.gold),    location: 1.00),
+            let reversed = Gradient(stops: [
+                .init(color: pal.dark.opacity(opacities.night),   location: 0.00),
+                .init(color: pal.cool.opacity(opacities.navy),    location: 1.0 - opacities.navyLoc),
+                .init(color: pal.warm.opacity(opacities.coral),   location: 1.0 - opacities.goldLoc),
+                .init(color: pal.bright.opacity(opacities.gold),  location: 1.00),
             ])
             context.fill(
                 Path(rect),
-                with: .radialGradient(
-                    reversedRadial,
-                    center: center,
-                    startRadius: 0,
-                    endRadius: maxReach * 0.85
-                )
+                with: .radialGradient(reversed, center: center, startRadius: 0, endRadius: maxReach * 0.85)
             )
         case .linear:
-            // Dark top → bright bottom: night at top, gold at bottom.
-            // Mirrors radial stops: gold's share shrinks to 0 when no steps data.
-            let linearGradient = Gradient(stops: [
-                .init(color: night.opacity(opacities.night),  location: 0.00),
-                .init(color: night.opacity(opacities.night),  location: 1.0 - opacities.navyLoc),
-                .init(color: navy.opacity(opacities.navy),    location: 1.0 - opacities.coralLoc),
-                .init(color: coral.opacity(opacities.coral),  location: 1.0 - opacities.goldLoc),
-                .init(color: gold.opacity(opacities.gold),    location: 1.00),
+            let lin = Gradient(stops: [
+                .init(color: pal.dark.opacity(opacities.night),   location: 0.00),
+                .init(color: pal.dark.opacity(opacities.night),   location: 1.0 - opacities.navyLoc),
+                .init(color: pal.cool.opacity(opacities.navy),    location: 1.0 - opacities.coralLoc),
+                .init(color: pal.warm.opacity(opacities.coral),   location: 1.0 - opacities.goldLoc),
+                .init(color: pal.bright.opacity(opacities.gold),  location: 1.00),
             ])
             context.fill(
                 Path(rect),
-                with: .linearGradient(
-                    linearGradient,
-                    startPoint: CGPoint(x: w * 0.5, y: 0),
-                    endPoint: CGPoint(x: w * 0.5, y: h)
-                )
+                with: .linearGradient(lin, startPoint: CGPoint(x: w * 0.5, y: 0), endPoint: CGPoint(x: w * 0.5, y: h))
             )
         case .linearReversed:
-            // Bright top → dark bottom: gold at top, night at bottom.
-            // Same data-driven locations, flipped direction.
-            let linearReversed = Gradient(stops: [
-                .init(color: gold.opacity(opacities.gold),    location: 0.00),
-                .init(color: coral.opacity(opacities.coral),  location: opacities.goldLoc),
-                .init(color: navy.opacity(opacities.navy),    location: opacities.coralLoc),
-                .init(color: night.opacity(opacities.night),  location: opacities.navyLoc),
-                .init(color: night.opacity(opacities.night),  location: 1.00),
+            let linR = Gradient(stops: [
+                .init(color: pal.bright.opacity(opacities.gold),  location: 0.00),
+                .init(color: pal.warm.opacity(opacities.coral),   location: opacities.goldLoc),
+                .init(color: pal.cool.opacity(opacities.navy),    location: opacities.coralLoc),
+                .init(color: pal.dark.opacity(opacities.night),   location: opacities.navyLoc),
+                .init(color: pal.dark.opacity(opacities.night),   location: 1.00),
             ])
             context.fill(
                 Path(rect),
-                with: .linearGradient(
-                    linearReversed,
-                    startPoint: CGPoint(x: w * 0.5, y: 0),
-                    endPoint: CGPoint(x: w * 0.5, y: h)
-                )
+                with: .linearGradient(linR, startPoint: CGPoint(x: w * 0.5, y: 0), endPoint: CGPoint(x: w * 0.5, y: h))
             )
+        case .organic:
+            let blobs = organicBlobs(opacities: opacities, seed: daySeed, palette: pal)
+            for blob in blobs {
+                let cx = blob.x * w
+                let cy = blob.y * h
+                let r = blob.radius * maxReach
+                let blobGrad = Gradient(colors: [
+                    blob.color.opacity(blob.opacity),
+                    blob.color.opacity(blob.opacity * 0.4),
+                    blob.color.opacity(0),
+                ])
+                context.drawLayer { ctx in
+                    ctx.blendMode = .plusLighter
+                    ctx.fill(
+                        Ellipse().path(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)),
+                        with: .radialGradient(blobGrad, center: CGPoint(x: cx, y: cy), startRadius: 0, endRadius: r)
+                    )
+                }
+            }
         }
 
-        // ── Secondary glow ──────────────────────────────────────────
+        if gradientStyle == .organic { return }
+
         let secondaryGrad = Gradient(colors: [
-            gold.opacity(opacities.glow * 0.6),
-            coral.opacity(opacities.glow * 0.25),
+            pal.bright.opacity(opacities.glow * 0.6),
+            pal.warm.opacity(opacities.glow * 0.25),
             .clear,
         ])
 
         switch gradientStyle {
         case .radial:
             let glowRadius = dim * 0.5
-            let shading = GraphicsContext.Shading.radialGradient(
-                secondaryGrad,
-                center: center,
-                startRadius: 0,
-                endRadius: glowRadius
-            )
+            let shading = GraphicsContext.Shading.radialGradient(secondaryGrad, center: center, startRadius: 0, endRadius: glowRadius)
             context.drawLayer { ctx in
-                ctx.fill(
-                    Ellipse().path(in: CGRect(
-                        x: center.x - glowRadius,
-                        y: center.y - glowRadius,
-                        width: glowRadius * 2,
-                        height: glowRadius * 2
-                    )),
-                    with: shading
-                )
+                ctx.fill(Ellipse().path(in: CGRect(x: center.x - glowRadius, y: center.y - glowRadius, width: glowRadius * 2, height: glowRadius * 2)), with: shading)
             }
         case .radialReversed:
-            // Edge glow ring — warm colors bleed inward from the rim
-            let ringGrad = Gradient(colors: [
-                .clear,
-                coral.opacity(opacities.glow * 0.2),
-                gold.opacity(opacities.glow * 0.5),
-            ])
+            let ringGrad = Gradient(colors: [.clear, pal.warm.opacity(opacities.glow * 0.2), pal.bright.opacity(opacities.glow * 0.5)])
             let ringRadius = maxReach * 0.85
-            let shading = GraphicsContext.Shading.radialGradient(
-                ringGrad,
-                center: center,
-                startRadius: 0,
-                endRadius: ringRadius
-            )
-            context.drawLayer { ctx in
-                ctx.fill(Path(rect), with: shading)
-            }
+            let shading = GraphicsContext.Shading.radialGradient(ringGrad, center: center, startRadius: 0, endRadius: ringRadius)
+            context.drawLayer { ctx in ctx.fill(Path(rect), with: shading) }
         case .linear:
-            // Bottom glow band instead of center ellipse
-            let glowHeight = h * 0.4
-            let glowRect = CGRect(x: 0, y: h - glowHeight, width: w, height: glowHeight)
-            let shading = GraphicsContext.Shading.linearGradient(
-                secondaryGrad,
-                startPoint: CGPoint(x: w * 0.5, y: h),
-                endPoint: CGPoint(x: w * 0.5, y: h - glowHeight)
-            )
-            context.drawLayer { ctx in
-                ctx.fill(Path(glowRect), with: shading)
-            }
+            let glowH = h * 0.4
+            let shading = GraphicsContext.Shading.linearGradient(secondaryGrad, startPoint: CGPoint(x: w * 0.5, y: h), endPoint: CGPoint(x: w * 0.5, y: h - glowH))
+            context.drawLayer { ctx in ctx.fill(Path(CGRect(x: 0, y: h - glowH, width: w, height: glowH)), with: shading) }
         case .linearReversed:
-            // Top glow band — warm colors at the top edge
-            let glowHeight = h * 0.4
-            let glowRect = CGRect(x: 0, y: 0, width: w, height: glowHeight)
-            let shading = GraphicsContext.Shading.linearGradient(
-                secondaryGrad,
-                startPoint: CGPoint(x: w * 0.5, y: 0),
-                endPoint: CGPoint(x: w * 0.5, y: glowHeight)
-            )
-            context.drawLayer { ctx in
-                ctx.fill(Path(glowRect), with: shading)
-            }
+            let glowH = h * 0.4
+            let shading = GraphicsContext.Shading.linearGradient(secondaryGrad, startPoint: CGPoint(x: w * 0.5, y: 0), endPoint: CGPoint(x: w * 0.5, y: glowH))
+            context.drawLayer { ctx in ctx.fill(Path(CGRect(x: 0, y: 0, width: w, height: glowH)), with: shading) }
+        case .organic:
+            break
         }
     }
 }
@@ -342,6 +426,7 @@ private struct EnergyGradientAnimator: ViewModifier, Animatable {
     var hasSleepData: Bool
     var isDaylight: Bool
     var gradientStyle: GradientStyle
+    var gradientPalette: GradientPalette
 
     nonisolated var animatableData: AnimatablePair<Double, Double> {
         get { AnimatablePair(stepsNorm, sleepNorm) }
@@ -352,6 +437,7 @@ private struct EnergyGradientAnimator: ViewModifier, Animatable {
     }
 
     func body(content: Content) -> some View {
+        let pal = EnergyGradientRenderer.palette(for: gradientPalette)
         Canvas { context, size in
             let Ss = EnergyGradientRenderer.smoothstep(stepsNorm)
             let Ls = EnergyGradientRenderer.smoothstep(sleepNorm)
@@ -366,10 +452,9 @@ private struct EnergyGradientAnimator: ViewModifier, Animatable {
                 context: &context,
                 size: size,
                 opacities: opacities,
-                baseColor: isDaylight
-                    ? EnergyGradientRenderer.daylightBase
-                    : EnergyGradientRenderer.night,
-                gradientStyle: gradientStyle
+                baseColor: isDaylight ? pal.daylightBase : pal.dark,
+                gradientStyle: gradientStyle,
+                colorPalette: pal
             )
         }
     }
@@ -396,10 +481,7 @@ struct EnergyGradientBackground: View {
     @Environment(\.appTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("gradientStyle_v1") private var gradientStyleRaw: String = GradientStyle.radial.rawValue
-    @AppStorage("testBgStepsNorm") private var testStepsNorm: Double = -1
-    @AppStorage("testBgSleepNorm") private var testSleepNorm: Double = -1
-
-    private var isTestOverride: Bool { testStepsNorm >= 0 && testSleepNorm >= 0 }
+    @AppStorage("gradientPalette_v1") private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
 
     private var isDaylight: Bool {
         switch theme {
@@ -413,22 +495,15 @@ struct EnergyGradientBackground: View {
         GradientStyle(rawValue: gradientStyleRaw) ?? .radial
     }
 
-    private var stepsNorm: Double {
-        if isTestOverride { return min(max(testStepsNorm, 0), 1) }
-        return Double(min(max(stepsPoints, 0), 20)) / 20.0
-    }
-    private var sleepNorm: Double {
-        if isTestOverride { return min(max(testSleepNorm, 0), 1) }
-        return Double(min(max(sleepPoints, 0), 20)) / 20.0
+    private var gradientPaletteValue: GradientPalette {
+        GradientPalette(rawValue: gradientPaletteRaw) ?? .warmSunset
     }
 
-    private var effectiveHasSteps: Bool {
-        if isTestOverride { return testStepsNorm > 0 }
-        return hasStepsData
+    private var stepsNorm: Double {
+        Double(min(max(stepsPoints, 0), 20)) / 20.0
     }
-    private var effectiveHasSleep: Bool {
-        if isTestOverride { return testSleepNorm > 0 }
-        return hasSleepData
+    private var sleepNorm: Double {
+        Double(min(max(sleepPoints, 0), 20)) / 20.0
     }
 
     var body: some View {
@@ -436,10 +511,11 @@ struct EnergyGradientBackground: View {
             .modifier(EnergyGradientAnimator(
                 stepsNorm: stepsNorm,
                 sleepNorm: sleepNorm,
-                hasStepsData: effectiveHasSteps,
-                hasSleepData: effectiveHasSleep,
+                hasStepsData: hasStepsData,
+                hasSleepData: hasSleepData,
                 isDaylight: isDaylight,
-                gradientStyle: gradientStyle
+                gradientStyle: gradientStyle,
+                gradientPalette: gradientPaletteValue
             ))
             .animation(.easeInOut(duration: 0.8), value: stepsPoints)
             .animation(.easeInOut(duration: 0.8), value: sleepPoints)

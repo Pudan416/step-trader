@@ -44,7 +44,7 @@ struct DailyEnergyCard: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Daily Ink")
+                Text("Daily Rays")
                     .font(.title3.weight(.bold))
                 Text("Build 100 points from activity, creativity, and joys")
                     .font(.caption)

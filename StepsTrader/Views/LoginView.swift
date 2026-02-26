@@ -100,24 +100,24 @@ struct LoginView: View {
                                 .fill(
                                     LinearGradient(
                                         colors: [
-                                            Color(red: 0.88, green: 0.51, blue: 0.85),
-                                            Color(red: 0.65, green: 0.35, blue: 0.85)
+                                            Color(red: 0.45, green: 0.35, blue: 0.85),
+                                            Color(red: 0.30, green: 0.20, blue: 0.65)
                                         ],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
                                 )
                                 .frame(width: 100, height: 100)
-                                .shadow(color: Color.purple.opacity(0.4), radius: 20, x: 0, y: 10)
-                            Image(systemName: "flame.fill")
+                                .shadow(color: Color.indigo.opacity(0.4), radius: 20, x: 0, y: 10)
+                            Image(systemName: "eye.fill")
                                 .font(.systemSerif(44, weight: .bold))
                                 .foregroundColor(.white)
                         }
                         VStack(spacing: 8) {
-                            Text("Proof")
+                            Text("Nowhere")
                                 .font(.systemSerif(32, weight: .black))
                                 .foregroundColor(.white)
-                            Text("Trade steps for screen time")
+                            Text("The sense of being present")
                                 .font(.subheadline)
                                 .foregroundColor(.white.opacity(0.6))
                         }
@@ -126,17 +126,17 @@ struct LoginView: View {
                     VStack(spacing: 16) {
                         featureRow(
                             icon: "figure.walk",
-                            title: "Earn energy by walking",
+                            title: "Turn movement into energy",
                             color: .green
                         )
                         featureRow(
-                            icon: "app.badge.checkmark",
-                            title: "Manage app access with ink",
-                            color: .blue
+                            icon: "eye.fill",
+                            title: "Stay present, control screen time",
+                            color: .indigo
                         )
                         featureRow(
                             icon: "chart.line.uptrend.xyaxis",
-                            title: "Track my progress",
+                            title: "Track what matters",
                             color: .orange
                         )
                     }

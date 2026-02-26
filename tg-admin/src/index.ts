@@ -1,12 +1,14 @@
 import type { EnergyLedgerRow, PublicUserRow, ShieldRow } from "./types";
 
+const MAX_GRANT = 100_000;
+
 type Env = {
   TELEGRAM_BOT_TOKEN: string;
   ADMIN_IDS: string; // "113872890,123"
   SUPABASE_URL: string; // https://xxxx.supabase.co
   SUPABASE_SERVICE_ROLE_KEY: string;
   OPENAI_API_KEY?: string; // For natural language processing
-  TELEGRAM_WEBHOOK_SECRET?: string; // Set via `wrangler secret put`, must match setWebhook secret_token
+  TELEGRAM_WEBHOOK_SECRET: string;
 };
 
 type TelegramUpdate = {
@@ -333,7 +335,7 @@ async function askLLM(env: Env, userMessage: string, context: string): Promise<s
     return "LLM not configured. Set OPENAI_API_KEY in environment.";
   }
 
-  const systemPrompt = `You are DOOM CTRL Admin Bot assistant. You help manage users of a mobile app that gamifies screen time.
+  const systemPrompt = `You are Nowhere Admin Bot assistant. You help manage users of a mobile app that gamifies screen time.
 
 Available actions you can suggest:
 - View stats: /stats
@@ -442,6 +444,10 @@ function formatNumber(n: number): string {
   return String(n);
 }
 
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 async function buildStatsMessage(env: Env): Promise<string> {
   const [users, shields, energy] = await Promise.all([
     countTable(env, "users"),
@@ -449,7 +455,7 @@ async function buildStatsMessage(env: Env): Promise<string> {
     sumEnergy(env),
   ]);
 
-  return `<b>📊 DOOM CTRL Stats</b>
+  return `<b>📊 Nowhere Stats</b>
 
 👥 <b>Users:</b> ${formatNumber(users)}
 🛡️ <b>Shields:</b> ${formatNumber(shields)}
@@ -470,9 +476,9 @@ async function buildUserMessage(env: Env, userId: string): Promise<string | null
   let msg = `<b>👤 User Profile</b>
 
 <b>ID:</b> <code>${u.id}</code>
-<b>Email:</b> ${u.email ?? "—"}
-<b>Nickname:</b> ${u.nickname ?? "—"}
-<b>Country:</b> ${u.country ?? "—"}
+<b>Email:</b> ${esc(u.email ?? "—")}
+<b>Nickname:</b> ${esc(u.nickname ?? "—")}
+<b>Country:</b> ${esc(u.country ?? "—")}
 <b>Created:</b> ${new Date(u.created_at).toLocaleDateString()}
 
 <b>⚡ Energy:</b>
@@ -487,13 +493,13 @@ async function buildUserMessage(env: Env, userId: string): Promise<string | null
   if (shields.length > 0) {
     msg += "\n";
     for (const s of shields.slice(0, 5)) {
-      msg += `\n• ${s.bundle_id.split(".").pop()} (${s.mode})`;
+      msg += `\n• ${esc(s.bundle_id.split(".").pop() ?? "")} (${esc(s.mode)})`;
     }
     if (shields.length > 5) msg += `\n• ... +${shields.length - 5} more`;
   }
 
   if (u.is_banned) {
-    msg += `\n\n🚫 <b>BANNED:</b> ${u.ban_reason ?? "No reason"}`;
+    msg += `\n\n🚫 <b>BANNED:</b> ${esc(u.ban_reason ?? "No reason")}`;
     if (u.ban_until) msg += ` (until ${new Date(u.ban_until).toLocaleDateString()})`;
   }
 
@@ -514,9 +520,10 @@ function parseCommand(text: string): { cmd: string; args: string[] } | null {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    let errorChatId: number | undefined;
     try {
       if (request.method === "GET") {
-        return new Response("DOOM CTRL Admin Bot 🛡️", { status: 200 });
+        return new Response("Nowhere Admin Bot 🛡️", { status: 200 });
       }
       if (request.method !== "POST") {
         return new Response("method not allowed", { status: 405 });
@@ -532,6 +539,7 @@ export default {
       }
 
       const update = (await request.json()) as TelegramUpdate;
+      errorChatId = update.message?.chat?.id ?? update.callback_query?.message?.chat?.id;
 
       // Handle callback queries (button presses)
       if (update.callback_query) {
@@ -550,10 +558,9 @@ export default {
       return await handleMessage(env, msg);
     } catch (e: any) {
       try {
-        const update = (await request.clone().json()) as TelegramUpdate;
-        const chatId = update.message?.chat?.id ?? update.callback_query?.message?.chat?.id;
-        if (chatId) {
-          await sendMessage(env, chatId, `❌ Error: ${String(e?.message ?? e)}`, backKeyboard());
+        if (errorChatId) {
+          console.error("Bot handler error:", e);
+          await sendMessage(env, errorChatId, `❌ Something went wrong. Check worker logs.`, backKeyboard());
         }
       } catch { }
       return new Response("ok", { status: 200 });
@@ -574,7 +581,7 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
       await sendMessage(
         env,
         chatId,
-        `<b>🛡️ DOOM CTRL Admin Panel</b>\n\nWelcome! Choose an action:`,
+        `<b>🛡️ Nowhere Admin Panel</b>\n\nWelcome! Choose an action:`,
         mainMenuKeyboard()
       );
       return new Response("ok", { status: 200 });
@@ -614,6 +621,10 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
         await sendMessage(env, chatId, "Delta must be a non-zero integer", backKeyboard());
         return new Response("ok", { status: 200 });
       }
+      if (Math.abs(delta) > MAX_GRANT) {
+        await sendMessage(env, chatId, `❌ Amount exceeds cap of ${formatNumber(MAX_GRANT)}`, backKeyboard());
+        return new Response("ok", { status: 200 });
+      }
       await grantEnergy(env, userId, delta, reason || undefined);
       await sendMessage(
         env,
@@ -634,7 +645,7 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
 
       // Check uniqueness
       if (!(await isNicknameUnique(env, nickname))) {
-        await sendMessage(env, chatId, `❌ Nickname "${nickname}" is already taken`, backKeyboard());
+        await sendMessage(env, chatId, `❌ Nickname "${esc(nickname)}" is already taken`, backKeyboard());
         return new Response("ok", { status: 200 });
       }
 
@@ -645,7 +656,7 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
         body: { nickname },
       });
 
-      await sendMessage(env, chatId, `✅ Nickname set to <b>${nickname}</b>`, backKeyboard());
+      await sendMessage(env, chatId, `✅ Nickname set to <b>${esc(nickname)}</b>`, backKeyboard());
       return new Response("ok", { status: 200 });
     }
 
@@ -657,7 +668,7 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
         return new Response("ok", { status: 200 });
       }
       await banUser(env, userId, reason);
-      await sendMessage(env, chatId, `🚫 User <code>${userId}</code> banned.\nReason: ${reason}`, backKeyboard());
+      await sendMessage(env, chatId, `🚫 User <code>${userId}</code> banned.\nReason: ${esc(reason)}`, backKeyboard());
       return new Response("ok", { status: 200 });
     }
 
@@ -722,14 +733,14 @@ Or just type a question in natural language!`,
     }
 
     // Unknown command
-    await sendMessage(env, chatId, `Unknown command: ${cmd}\n\nUse /help for available commands.`, mainMenuKeyboard());
+    await sendMessage(env, chatId, `Unknown command: ${esc(cmd)}\n\nUse /help for available commands.`, mainMenuKeyboard());
     return new Response("ok", { status: 200 });
   }
 
   // Natural language - use LLM
   const context = await buildStatsMessage(env);
   const llmResponse = await askLLM(env, text, context);
-  await sendMessage(env, chatId, `💬 <b>AI Response:</b>\n\n${llmResponse}`, mainMenuKeyboard());
+  await sendMessage(env, chatId, `💬 <b>AI Response:</b>\n\n${esc(llmResponse)}`, mainMenuKeyboard());
   return new Response("ok", { status: 200 });
 }
 
@@ -753,7 +764,7 @@ async function handleCallbackQuery(env: Env, query: TelegramCallbackQuery): Prom
   try {
     // Menu
     if (data === "menu") {
-      await editMessage(env, chatId, messageId, `<b>🛡️ DOOM CTRL Admin Panel</b>\n\nChoose an action:`, mainMenuKeyboard());
+      await editMessage(env, chatId, messageId, `<b>🛡️ Nowhere Admin Panel</b>\n\nChoose an action:`, mainMenuKeyboard());
       await answerCallbackQuery(env, query.id);
       return new Response("ok", { status: 200 });
     }
@@ -797,6 +808,14 @@ async function handleCallbackQuery(env: Env, query: TelegramCallbackQuery): Prom
     if (data.startsWith("grant:")) {
       const [, userId, amountStr] = data.split(":");
       const amount = Number(amountStr);
+      if (!Number.isFinite(amount) || amount === 0) {
+        await answerCallbackQuery(env, query.id, "❌ Invalid amount");
+        return new Response("ok", { status: 200 });
+      }
+      if (Math.abs(amount) > MAX_GRANT) {
+        await answerCallbackQuery(env, query.id, `❌ Exceeds cap of ${formatNumber(MAX_GRANT)}`);
+        return new Response("ok", { status: 200 });
+      }
       await grantEnergy(env, userId, amount, "Admin quick grant");
       await answerCallbackQuery(env, query.id, `✅ Granted ${formatNumber(amount)} energy`);
       // Refresh user view
@@ -816,7 +835,31 @@ async function handleCallbackQuery(env: Env, query: TelegramCallbackQuery): Prom
         msg += "No shields configured.";
       } else {
         for (const s of shields) {
-          msg += `• <b>${s.bundle_id}</b>\n  Mode: ${s.mode}\n`;
+          msg += `• <b>${esc(s.bundle_id)}</b>\n  Mode: ${esc(s.mode)}\n`;
+        }
+      }
+      await editMessage(env, chatId, messageId, msg, {
+        inline_keyboard: [[{ text: "« Back to User", callback_data: `user:${userId}` }]],
+      });
+      await answerCallbackQuery(env, query.id);
+      return new Response("ok", { status: 200 });
+    }
+
+    // Energy history for user
+    if (data.startsWith("history:")) {
+      const userId = data.split(":")[1];
+      const rows = await supabaseRequest<EnergyLedgerRow[]>(
+        env,
+        `/rest/v1/energy_ledger?select=delta,reason,created_at&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=20`
+      );
+      let msg = `<b>📜 Energy History</b>\n<code>${userId}</code>\n\n`;
+      if (!rows.data || rows.data.length === 0) {
+        msg += "No ledger entries.";
+      } else {
+        for (const r of rows.data) {
+          const sign = r.delta >= 0 ? "+" : "";
+          const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : "?";
+          msg += `${date} <b>${sign}${formatNumber(r.delta)}</b> ${esc(r.reason ?? "—")}\n`;
         }
       }
       await editMessage(env, chatId, messageId, msg, {

@@ -15,15 +15,14 @@ struct ProfileEditorView: View {
     @State private var isSaving: Bool = false
     @State private var saveError: String?
     
-    // All countries sorted by localized name
-    private var countries: [(code: String, name: String)] {
+    private static let countries: [(code: String, name: String)] = {
         let codes = Locale.Region.isoRegions.map { $0.identifier }
         let locale = Locale(identifier: "en_US")
         return codes.compactMap { code -> (String, String)? in
             guard let name = locale.localizedString(forRegionCode: code), !name.isEmpty else { return nil }
             return (code, name)
         }.sorted { $0.name < $1.name }
-    }
+    }()
     
     private var selectedCountryName: String {
         if selectedCountryCode.isEmpty { return "" }
@@ -233,7 +232,7 @@ struct ProfileEditorView: View {
             .sheet(isPresented: $showCountryPicker) {
                 CountryPickerView(
                     selectedCountryCode: $selectedCountryCode,
-                    countries: countries
+                    countries: Self.countries
                 )
             }
         }
@@ -242,7 +241,7 @@ struct ProfileEditorView: View {
     private func loadCurrentProfile() {
         if let user = authService.currentUser {
             nickname = user.nickname ?? ""
-            if let storedCountry = user.country, countries.contains(where: { $0.code == storedCountry }) {
+            if let storedCountry = user.country, Self.countries.contains(where: { $0.code == storedCountry }) {
                 selectedCountryCode = storedCountry
             } else {
                 selectedCountryCode = user.country ?? ""

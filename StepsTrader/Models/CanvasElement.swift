@@ -20,9 +20,9 @@ struct CanvasElement: Identifiable, Codable {
     var label: String?
 
     // Visual
-    let hexColor: String
+    var hexColor: String
     let size: CGFloat              // normalized 0…1 relative to canvas
-    let basePosition: CGPoint      // normalized (0…1, 0…1)
+    var basePosition: CGPoint      // normalized (0…1, 0…1)
 
     // Animation parameters (randomized on creation)
     let phaseOffset: Double        // 0…2π — desynchronizes from other elements
@@ -38,13 +38,16 @@ struct CanvasElement: Identifiable, Codable {
     /// Legacy elements (saved before this field existed) fall back to UUID-based selection.
     var assetVariant: Int?
 
+    /// User-applied rotation in radians (from move mode). 0 = default orientation.
+    var userRotation: Double
+
     // Timestamps
     let createdAt: Date
 
     /// Title to draw on the canvas; falls back to optionId for legacy elements.
     var displayLabel: String { label ?? optionId }
 
-    init(id: UUID, kind: ElementKind, category: EnergyCategory, optionId: String, label: String?, hexColor: String, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil) {
+    init(id: UUID, kind: ElementKind, category: EnergyCategory, optionId: String, label: String?, hexColor: String, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0) {
         self.id = id
         self.kind = kind
         self.category = category
@@ -62,6 +65,7 @@ struct CanvasElement: Identifiable, Codable {
         self.opacity = opacity
         self.createdAt = createdAt
         self.assetVariant = assetVariant
+        self.userRotation = userRotation
     }
 
     // MARK: - Factory
@@ -136,7 +140,7 @@ struct CanvasElement: Identifiable, Codable {
     enum CodingKeys: String, CodingKey {
         case id, kind, category, optionId, hexColor, size, basePosition
         case phaseOffset, driftSpeed, driftAmplitude, pulseFrequency, pulseAmplitude, rotationSpeed, opacity, createdAt
-        case label, assetVariant
+        case label, assetVariant, userRotation
     }
 
     init(from decoder: Decoder) throws {
@@ -158,6 +162,7 @@ struct CanvasElement: Identifiable, Codable {
         opacity = try c.decode(Double.self, forKey: .opacity)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         assetVariant = try c.decodeIfPresent(Int.self, forKey: .assetVariant)
+        userRotation = try c.decodeIfPresent(Double.self, forKey: .userRotation) ?? 0
     }
 
     func encode(to encoder: Encoder) throws {
@@ -179,6 +184,7 @@ struct CanvasElement: Identifiable, Codable {
         try c.encode(opacity, forKey: .opacity)
         try c.encode(createdAt, forKey: .createdAt)
         try c.encodeIfPresent(assetVariant, forKey: .assetVariant)
+        try c.encode(userRotation, forKey: .userRotation)
     }
 
     /// Place heart elements along edges / corners, biased toward the frame perimeter.
@@ -262,7 +268,7 @@ struct DayCanvas: Codable {
     let createdAt: Date
     var lastModified: Date
 
-    /// 0.0 = pristine (nothing spent), 1.0 = fully degraded (all ink spent)
+    /// 0.0 = pristine (nothing spent), 1.0 = fully degraded (all rays spent)
     var decayNorm: Double {
         guard inkEarned > 0 else { return 0 }
         return min(1.0, Double(inkSpent) / Double(inkEarned))
@@ -322,13 +328,10 @@ extension Color {
     }
 
     func toHex() -> String {
-        guard let components = UIColor(self).cgColor.components, components.count >= 3 else {
-            return "#FFFFFF"
-        }
-        let r = Int(components[0] * 255)
-        let g = Int(components[1] * 255)
-        let b = Int(components[2] * 255)
-        return String(format: "#%02X%02X%02X", r, g, b)
+        let uiColor = UIColor(self)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
     }
 
     /// Desaturate toward gray by a factor 0…1

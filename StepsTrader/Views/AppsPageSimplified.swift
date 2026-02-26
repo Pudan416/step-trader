@@ -42,6 +42,15 @@ struct AppsPageSimplified: View {
     @State private var showTemplatePicker = false
     private let appLanguage = "en"
     @State private var expandedSheetGroupId: TicketGroupId? = nil
+
+    /// Tint for the + button: dark in daylight, light at night, so it stays visible on the gradient.
+    private var buttonTint: Color {
+        switch theme {
+        case .daylight: return theme.textPrimary
+        case .night: return AppColors.Night.textPrimary
+        case .system: return colorScheme == .dark ? AppColors.Night.textPrimary : theme.textPrimary
+        }
+    }
     @State private var flippedTicketId: String? = nil
     @State private var showCustomNamePrompt = false
     @State private var customTicketName = ""
@@ -60,7 +69,7 @@ struct AppsPageSimplified: View {
 
                 VStack(spacing: 0) {
                     HStack {
-                        Text("My Tickets")
+                        Text("My Feeds")
                             .font(.system(size: 17, weight: .light, design: .rounded))
                             .foregroundStyle(Color.primary.opacity(0.7))
                         Spacer()
@@ -69,16 +78,20 @@ struct AppsPageSimplified: View {
                         } label: {
                             ZStack {
                                 Circle()
-                                    .strokeBorder(Color.primary.opacity(0.15), lineWidth: 1)
+                                    .fill(.ultraThinMaterial)
+                                    .opacity(0.5)
+                                    .frame(width: 36, height: 36)
+                                Circle()
+                                    .strokeBorder(buttonTint.opacity(0.4), lineWidth: 1)
                                     .frame(width: 36, height: 36)
                                 Image(systemName: "plus")
                                     .font(.system(size: 16, weight: .ultraLight))
-                                    .foregroundStyle(Color.primary.opacity(0.7))
+                                    .foregroundStyle(buttonTint)
                             }
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 20)
+                    .padding(.top, 32)
                     .padding(.bottom, 8)
 
                     if model.blockingStore.ticketGroups.isEmpty {
@@ -244,7 +257,7 @@ struct AppsPageSimplified: View {
                 .font(.system(size: 52, weight: .ultraLight))
                 .foregroundStyle(Color.primary.opacity(0.25))
             VStack(spacing: 8) {
-                Text("No tickets yet")
+                Text("No feeds connected yet")
                     .font(.system(size: 20, weight: .light, design: .rounded))
                     .foregroundStyle(Color.primary.opacity(0.7))
                 Text("Create one when you're ready.")

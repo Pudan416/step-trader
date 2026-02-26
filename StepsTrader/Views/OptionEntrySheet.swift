@@ -7,7 +7,9 @@ struct OptionEntrySheet: View {
     let option: EnergyOption
     let category: EnergyCategory
     @Binding var entry: OptionEntry?
+    var isEditing: Bool = false
     let onSave: (OptionEntry) -> Void
+    var onRemove: (() -> Void)? = nil
 
     @State private var selectedColorHex: String = CanvasColorPalette.paletteHex[0]
     @State private var selectedAssetVariant: Int = Int.random(in: 0...2)
@@ -52,6 +54,25 @@ struct OptionEntrySheet: View {
 
                         // Color asset grid — category assets tinted with palette colors
                         colorAssetGrid
+
+                        if isEditing, let onRemove {
+                            Button(role: .destructive) {
+                                onRemove()
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 13, weight: .medium))
+                                    Text("Remove")
+                                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                                }
+                                .foregroundStyle(.red.opacity(0.8))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                            .glassCard()
+                        }
                     }
                     .padding(20)
                     .padding(.bottom, 20)
@@ -68,7 +89,7 @@ struct OptionEntrySheet: View {
                     Button {
                         saveEntry()
                     } label: {
-                        Text("Add")
+                        Text(isEditing ? "Save" : "Add")
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 12)
@@ -78,6 +99,14 @@ struct OptionEntrySheet: View {
                             )
                     }
                     .buttonStyle(.plain)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        isTextFieldFocused = false
+                    }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color(hex: selectedColorHex))
                 }
             }
         }

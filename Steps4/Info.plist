@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Proof</string>
+	<string>Nowhere</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -22,6 +22,14 @@
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SUPABASE_URL</key>
 	<string>$(SUPABASE_URL)</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Nowhere writes mindful minutes and related activity updates only when you explicitly enable health syncing.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Nowhere uses your location only while you use the app to personalize your profile context and improve in-app guidance.</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.personalproject.StepsTrader.unlockExpiryRefresh</string>
+	</array>
 	<key>UIAppFonts</key>
 	<array>
 		<string>ReenieBeanie-Regular.ttf</string>

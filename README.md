@@ -1,30 +1,71 @@
-# Proof (iOS, SwiftUI)
+# Nowhere (iOS, SwiftUI)
 
-An iOS app that turns daily real-world activity into experience and spends that experience to open access windows for selected apps or app groups ("tickets").
+Your life makes rays. Your feeds cost them.
 
-## Core mechanics
-- **Daily experience** is built from:
-  - steps (HealthKit)
-  - sleep hours
-  - daily selections across body / mind / heart rooms
-- **Bonus experience** can be granted and is added to the same spendable balance.
-- **Spending experience** happens in PayGate when opening a ticket for a selected interval.
-- **Minute mode** can track app usage via DeviceActivity and charge per-minute based on ticket settings.
+An iOS app where real-world activity — steps, sleep, and daily choices across body, mind, and heart — produces **rays**. Rays are what you spend to open your feeds.
+
+## Core Loop
+
+1. **Live** — Walk, sleep, choose pieces from three categories (body, mind, heart).
+2. **See** — Your canvas fills up. Rays accumulate.
+3. **Spend** — When you want into your feeds, spend rays through the PayGate.
+
+## Tabs
+
+| Tab | View | Purpose |
+|-----|------|---------|
+| 0 (default) | Canvas | Generative canvas + daily piece selection via radial menu |
+| 1 | Feeds | App blocking groups — create tickets, set tariffs, configure time windows |
+| 2 | Me | 7-day ring row, weekly reflection, dimension breakdown, top consumers |
+| 3 | Notes | 12 wall texts — philosophy, not instructions |
+| 4 | Settings | Theme, targets, account, rest day override |
 
 ## Targets
-- **`Steps4`** — main iOS app (display name: **Proof**)
-- **`DeviceActivityMonitor`** — extension (`com.apple.deviceactivity.monitor`) for interval/events and shield rebuilds
-- **`ShieldConfiguration`** — extension that renders custom shield UI
-- **`ShieldAction`** — extension handling shield actions and unlock flow
+
+| Target | Description |
+|--------|-------------|
+| **Steps4** | Main iOS app (display name: **Nowhere**) |
+| **DeviceActivityMonitor** | Extension — tracks app usage events and shield rebuilds |
+| **ShieldConfiguration** | Extension — renders custom shield UI |
+| **ShieldAction** | Extension — handles shield button taps and unlock flow |
+| **Steps4Tests** | Unit tests |
+| **Steps4UITests** | UI tests |
 
 ## Capabilities / Permissions
+
 - **HealthKit (Read)** — step count and sleep hours
 - **Family Controls + Device Activity + ManagedSettings** — app selection, monitoring, and shielding
 - **App Group** — `group.personal-project.StepsTrader` (shared state between app + extensions)
 
-Important: **ManagedSettings shielding is active**. Blocking and unblocking flow is implemented through ticket settings, DeviceActivity, and custom shield extensions.
+ManagedSettings shielding is active. Blocking/unblocking flows through ticket settings, DeviceActivity, and the shield extensions.
 
-## Deep links
+## Project Structure
+
+```
+StepsTrader/
+├── Views/              SwiftUI views (MainTabView, GalleryView, MeView, etc.)
+├── Models/             Data models (DailyEnergy, CanvasElement, AccessWindow, etc.)
+├── Services/           Business logic (HealthKit, Auth, Supabase, Persistence, etc.)
+├── Stores/             State management (BlockingStore, HealthStore, UserEconomyStore)
+├── Intents/            App Shortcuts and intents
+├── Utilities/          Helpers (SharedKeys, ColorConstants, AppLogger, etc.)
+├── Metal/              Metal shaders for canvas rendering
+├── Resources/          In-app documentation and markdown content
+└── Assets.xcassets/    App icons and images
+
+DeviceActivityMonitor/  Extension target
+ShieldAction/           Extension target
+ShieldConfiguration/    Extension target
+Steps4/                 App bundle resources (Info.plist, entitlements)
+Steps4Tests/            Unit tests
+Steps4UITests/          UI tests
+admin-panel/            Next.js admin dashboard (Supabase-backed)
+tg-admin/               Cloudflare Worker Telegram admin bot
+supabase/               Database migrations
+```
+
+## Deep Links
+
 Schemes registered in `Steps4/Info.plist`:
 - `stepstrader://...`
 - `steps-trader://...`
@@ -34,28 +75,22 @@ Examples (see `StepsTrader/AppModel.swift`):
 - `steps-trader://guard?target=<bundleId|alias>`
 
 ## Supabase
+
 Keys used in `Steps4/Info.plist`:
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 
-Recommendation: **don’t commit keys in `Info.plist`**. Move them to `.xcconfig` (Debug/Release) or use CI secrets + a local gitignored config.
-
-## Choice cards (polaroid images)
-Cards on the Choices tab use a polaroid style: image on top, caption on white below. When a choice is completed, a yellow cross is overlaid on the image.
-
-**To add images for testing:**
-1. In **Assets.xcassets** create an image set named `choice_<optionId>`.
-2. **Option IDs** are in `StepsTrader/Models/DailyEnergy.swift` (e.g. `activity_stairs`, `activity_10k_steps`, `recovery_sleeping_well`, `joys_coffee_tea`).
-3. Example: for “Taking the stairs instead of the elevator” the ID is `activity_stairs`, so the asset name is **`choice_activity_stairs`**. An imageset `choice_activity_stairs` already exists — add your photo as `stairs.jpg` (or update `Contents.json` to your filename).
-4. Format: JPG or PNG; recommended height ~200–300 pt for sharp @2x. If an image is missing, the card shows a gray placeholder with the option’s SF Symbol icon.
+Move to `.xcconfig` (Debug/Release) or use CI secrets before shipping.
 
 ## Run / Build
-- For real **FamilyControls/DeviceActivity**, test on a **physical device** (entitlements + system limitations).
-- Quick build check:
+
+FamilyControls/DeviceActivity require a **physical device** (entitlements + system limitations).
 
 ```bash
 xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 16' -configuration Debug build
 ```
 
-## Notes
-- The repo includes an `admin-panel/` workspace used for operational tooling.
+## Admin Tools
+
+- **admin-panel/** — Next.js dashboard for user management, global stats, and energy ledger. Password-protected, uses Supabase service role key.
+- **tg-admin/** — Telegram bot on Cloudflare Workers for interactive admin commands (`/stats`, `/user`, `/grant`, `/ban`, etc.) with LLM-powered natural language queries.

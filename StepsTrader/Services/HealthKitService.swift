@@ -28,10 +28,16 @@ final class HealthKitService: HealthKitServiceProtocol {
     private let store = HKHealthStore()
     private let stepType: HKQuantityType?
     private let sleepType: HKCategoryType?
-    private var observerQuery: HKQuery?
-    private var isObserving = false
-    private var lastStepCount: Double = 0
-    private var isRequestingAuthorization = false
+    @MainActor private var observerQuery: HKQuery?
+    @MainActor private var isObserving = false
+    @MainActor private var isRequestingAuthorization = false
+
+    private let _stepCountLock = NSLock()
+    private var _lastStepCountBacking: Double = 0
+    private var lastStepCount: Double {
+        get { _stepCountLock.withLock { _lastStepCountBacking } }
+        set { _stepCountLock.withLock { _lastStepCountBacking = newValue } }
+    }
     
     init() {
         self.stepType = HKObjectType.quantityType(forIdentifier: .stepCount)
@@ -99,12 +105,6 @@ final class HealthKitService: HealthKitServiceProtocol {
         guard let sleepType = sleepType else {
             log.warning("Sleep type not available, returning 0")
             return 0
-        }
-        
-        // Ensure authorization is determined before querying
-        let sleepAuthStatus = store.authorizationStatus(for: sleepType)
-        if sleepAuthStatus == .notDetermined {
-            try await requestAuthorization()
         }
         
         // P10: Clamp lookback to 24h to avoid ancient samples whose endDate falls in the window
@@ -229,9 +229,10 @@ final class HealthKitService: HealthKitServiceProtocol {
     }
     
     // MARK: - Background Updates
+    @MainActor
     func startObservingSteps(updateHandler: @escaping (Double) -> Void) {
         guard !isObserving else { return }
-        guard let stepType = stepType else {
+        guard stepType != nil else {
             log.warning("Step type not available, cannot observe")
             return
         }
@@ -242,17 +243,6 @@ final class HealthKitService: HealthKitServiceProtocol {
         
         Task { [weak self] in
             guard let self = self else { return }
-            // Request authorization if not done yet
-            let observeAuthStatus = self.store.authorizationStatus(for: stepType)
-            if observeAuthStatus == .notDetermined {
-                log.warning("Authorization not determined. Requesting before observing.")
-                do {
-                    try await self.requestAuthorization()
-                } catch {
-                    log.error("Authorization request failed: \(error.localizedDescription)")
-                }
-            }
-            
             // Initial fetch so UI has fresh value before observer fires
             if let steps = try? await self.fetchSteps(from: Date.startOfToday, to: Date()) {
                 self.lastStepCount = steps
@@ -262,6 +252,7 @@ final class HealthKitService: HealthKitServiceProtocol {
         }
     }
 
+    @MainActor
     func stopObservingSteps() {
         guard let query = observerQuery else { return }
         

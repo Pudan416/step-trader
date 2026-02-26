@@ -19,6 +19,7 @@ final class DIContainer {
         NotificationManager()
     }
     
+    @MainActor
     func makeBudgetEngine() -> any BudgetEngineProtocol {
         BudgetEngine()
     }

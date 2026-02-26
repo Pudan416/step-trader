@@ -107,7 +107,7 @@ struct PayGateView: View {
             
             // Text
             VStack(spacing: 8) {
-                Text("spend ink")
+                Text("spend rays")
                     .font(.systemSerif(28, weight: .bold))
                     .foregroundColor(PayGatePalette.textPrimary)
                     .multilineTextAlignment(.center)
@@ -226,7 +226,7 @@ struct PayGateView: View {
                 
                 Spacer()
                 
-                Text("· \(cost) ink")
+                Text("· \(cost) rays")
                     .font(.headline.weight(.bold))
                     .monospacedDigit()
                     .foregroundColor(isDisabled ? PayGatePalette.textSecondary.opacity(0.5) : .black)

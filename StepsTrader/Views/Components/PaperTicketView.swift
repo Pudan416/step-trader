@@ -18,6 +18,14 @@ struct PaperTicketView: View {
     var onFlip: () -> Void = {}
 
     @State private var isUnlocking = false
+    @State private var resolvedTitle: String?
+
+    private static let titleCacheLock = NSLock()
+    private static var _titleCache: [String: String] = [:]
+    private static var titleCache: [String: String] {
+        get { titleCacheLock.withLock { _titleCache } }
+        set { titleCacheLock.withLock { _titleCache = newValue } }
+    }
 
     private var frontFill: Color { AppColors.brandAccent }
     private var backSurface: Color { Color(red: 0xF2/255.0, green: 0xF2/255.0, blue: 0xF2/255.0) }
@@ -272,19 +280,31 @@ struct PaperTicketView: View {
     }
 
     private var ticketTitle: String {
+        if let cached = resolvedTitle { return cached }
+        if let cached = Self.titleCache[group.id] { return cached }
+        return computeTicketTitle()
+    }
+
+    private func computeTicketTitle() -> String {
         if let templateApp = group.templateApp {
-            return TargetResolver.displayName(for: templateApp)
+            let name = TargetResolver.displayName(for: templateApp)
+            Self.titleCache[group.id] = name
+            return name
         }
         #if canImport(FamilyControls)
         let defaults = UserDefaults(suiteName: "group.personal-project.StepsTrader") ?? .standard
         if appsCount == 1, let firstToken = group.selection.applicationTokens.first,
            let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: firstToken, requiringSecureCoding: true) {
             let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-            if let name = defaults.string(forKey: tokenKey) { return name }
+            if let name = defaults.string(forKey: tokenKey) {
+                Self.titleCache[group.id] = name
+                return name
+            }
         }
         #endif
         if appsCount == 0 { return "Empty Ticket" }
-        return group.name.isEmpty ? "\(appsCount) \(appsCount == 1 ? "app" : "apps")" : group.name
+        let fallback = group.name.isEmpty ? "\(appsCount) \(appsCount == 1 ? "app" : "apps")" : group.name
+        return fallback
     }
 
 }

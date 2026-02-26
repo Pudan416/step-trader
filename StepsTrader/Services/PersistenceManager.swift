@@ -6,16 +6,7 @@ actor PersistenceManager {
     private let fileManager = FileManager.default
     
     init() {
-        // Ensure directory exists
-        let directory = Self.storageDirectory
-        Task {
-            let fileManager = FileManager.default
-            do {
-                try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-            } catch {
-                AppLogger.app.error("PersistenceManager: Failed to create storage directory: \(error)")
-            }
-        }
+        Self.ensureStorageDirectoryExists()
     }
     
     private static var storageDirectory: URL {

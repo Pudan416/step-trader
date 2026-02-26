@@ -188,7 +188,7 @@ struct InlineTicketSettingsView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Spend ink on")
+                Text("Spend rays on")
                     .font(.caption.weight(.semibold))
                     .foregroundColor(.secondary)
 
@@ -228,7 +228,7 @@ struct InlineTicketSettingsView: View {
                     Text("\(cost)")
                         .font(.headline)
                         .monospacedDigit()
-                    Text("ink")
+                    Text("rays")
                         .font(.subheadline)
                 }
                 .foregroundStyle(canAfford ? Color.primary : Color.primary.opacity(0.5))

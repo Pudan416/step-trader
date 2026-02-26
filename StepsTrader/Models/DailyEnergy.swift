@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Gallery tab: past day snapshot (for history)
+// MARK: - Canvas tab: past day snapshot (for history)
 struct PastDaySnapshot: Codable, Equatable {
     var inkEarned: Int
     var inkSpent: Int
@@ -119,8 +119,8 @@ struct PastDaySnapshot: Codable, Equatable {
     }
 }
 
-// MARK: - Gallery tab: one of four daily slots (category + option)
-struct DayGallerySlot: Codable, Equatable {
+// MARK: - Canvas tab: one of four daily slots (category + option)
+struct DayCanvasSlot: Codable, Equatable {
     var category: EnergyCategory?
     var optionId: String?
 }
@@ -177,7 +177,6 @@ struct OptionEntry: Identifiable, Codable, Equatable {
 
 enum EnergyDefaults {
     static let maxBaseEnergy: Int = 100
-    static let maxBonusEnergy: Int = 50
     static let maxSelectionsPerCategory: Int = 4
     
     static let sleepTargetHours: Double = 8
@@ -199,6 +198,7 @@ enum EnergyDefaults {
         EnergyOption(id: "body_repetition", titleEn: "Repetition", titleRu: "Повторение", category: .body, icon: "arrow.clockwise"),
         EnergyOption(id: "body_warming", titleEn: "Warming", titleRu: "Согревание", category: .body, icon: "sun.max.fill"),
         EnergyOption(id: "body_stillness", titleEn: "Stillness", titleRu: "Неподвижность", category: .body, icon: "figure.stand"),
+        EnergyOption(id: "body_healing", titleEn: "Healing", titleRu: "Исцеление", category: .body, icon: "cross.case.fill"),
 
         // MIND - Ways your attention shaped the day
         EnergyOption(id: "mind_focusing", titleEn: "Focusing", titleRu: "Фокусировка", category: .mind, icon: "eye.fill"),
@@ -229,12 +229,12 @@ enum EnergyDefaults {
     static let optionDescriptions: [String: (description: String, examples: String)] = [
         // BODY
         "body_walking": ("Moving forward with your body in the world.", "city walk, nature walk, walking without a goal"),
-        "body_physical_effort": ("Using strength and resistance.", "gym, home workout, carrying, manual work"),
+        "body_physical_effort": ("Using strength and resistance.", "gym, home workout, manual work"),
         "body_stretching": ("Opening and releasing tension.", "stretching, yoga, mobility, slow warm-up"),
-        "body_resting": ("Allowing the body to recover.", "good sleep, lying down, intentional break"),
+        "body_resting": ("Allowing the body to recover.", "good sleep, lying down, intentional break, power nap"),
         "body_breathing": ("Returning to your physical rhythm.", "breathing pause, calming breath, mindful inhale"),
         "body_touch": ("Feeling the world through contact.", "water, grass, sunlight, physical grounding"),
-        "body_balance": ("Holding yourself steady and aware.", "slow movement, posture work, standing still"),
+        "body_healing": ("Taking care of your body through medical attention.", "visiting a doctor, taking medication, therapy, antidepressants"),
         "body_repetition": ("Doing simple physical actions with presence.", "cleaning, tidying, daily routines"),
         "body_warming": ("Feeling heat and comfort in the body.", "hot shower, sun exposure, warm drink"),
         "body_stillness": ("Being completely motionless for a moment.", "sitting quietly, body scan, silent pause"),
@@ -243,12 +243,12 @@ enum EnergyDefaults {
         "mind_focusing": ("Holding attention on one thing.", "reading, deep work, careful listening"),
         "mind_learning": ("Taking something new into the mind.", "studying, educational content, skill practice"),
         "mind_thinking": ("Actively processing ideas or situations.", "reflecting, problem-solving, mental exploration"),
-        "mind_planning": ("Organising what comes next.", "structuring tasks, setting priorities"),
+        "mind_planning": ("Organising what comes next.", "structuring tasks, setting priorities, looking for a job"),
         "mind_writing": ("Turning thoughts into form.", "journaling, notes, drafting ideas"),
         "mind_observing": ("Noticing without interfering.", "watching people, noticing patterns, awareness"),
         "mind_questioning": ("Challenging assumptions.", "asking why, rethinking, curiosity moments"),
         "mind_ordering": ("Creating clarity and structure.", "organising files, simplifying, arranging ideas"),
-        "mind_remembering": ("Returning to a past moment consciously.", "reviewing the day, recalling a memory"),
+        "mind_remembering": ("Returning to a past moment consciously.", "sitting on a bench, reviewing the day, recalling a memory"),
         "mind_letting_go": ("Releasing mental tension.", "closing tasks, stopping overthinking, pause"),
         
         // HEART
@@ -259,9 +259,9 @@ enum EnergyDefaults {
         "heart_care": ("Giving attention and warmth.", "helping, supporting, caring for yourself"),
         "heart_wonder": ("Feeling awe or curiosity.", "noticing beauty, surprise, inspiration"),
         "heart_trust": ("Allowing openness without tension.", "relying on someone, emotional safety"),
-        "heart_vulnerability": ("Allowing yourself to feel honestly.", "emotional openness, sincere sharing"),
+        "heart_vulnerability": ("Allowing yourself to feel honestly.", "emotional openness, sincere sharing, fill blue or green"),
         "heart_belonging": ("Feeling part of something.", "community, shared identity, feeling at home"),
-        "heart_peace": ("Deep inner quiet.", "acceptance, emotional stillness")
+        "heart_peace": ("Deep inner quiet.", "acceptance of self, emotional stillness")
     ]
 }
 

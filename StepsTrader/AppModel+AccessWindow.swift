@@ -59,36 +59,41 @@ extension AppModel {
         let activityName = DeviceActivityName("accessWindowExpiry_\(bundleId)")
         let calendar = Calendar.current
         let now = Date()
-        let startComponents = calendar.dateComponents([.hour, .minute, .second], from: now)
-        
-        let schedule: DeviceActivitySchedule
-        if expiresInSeconds >= 900 {
-            let expiryDate = now.addingTimeInterval(TimeInterval(expiresInSeconds))
-            let endComponents = calendar.dateComponents([.hour, .minute, .second], from: expiryDate)
-            schedule = DeviceActivitySchedule(
-                intervalStart: startComponents,
-                intervalEnd: endComponents,
-                repeats: false
-            )
-            AppLogger.app.debug("📅 Scheduled access window expiry for \(bundleId) in \(expiresInSeconds)s (interval end)")
-        } else {
-            let endDate = now.addingTimeInterval(900)
-            let endComponents = calendar.dateComponents([.hour, .minute, .second], from: endDate)
-            let secondsBeforeEnd = 900 - expiresInSeconds
-            let warningTime = DateComponents(minute: secondsBeforeEnd / 60, second: secondsBeforeEnd % 60)
-            schedule = DeviceActivitySchedule(
-                intervalStart: startComponents,
-                intervalEnd: endComponents,
-                repeats: false,
-                warningTime: warningTime
-            )
-            AppLogger.app.debug("📅 Scheduled access window expiry for \(bundleId) in \(expiresInSeconds)s (warning in \(secondsBeforeEnd)s)")
-        }
+
+        // Start 5s in the future so the non-repeating schedule reliably starts today.
+        let startBuffer = 5
+        let startDate = now.addingTimeInterval(TimeInterval(startBuffer))
+        let startComponents = calendar.dateComponents([.hour, .minute, .second], from: startDate)
+
+        // 5-minute warning buffer ensures intervalWillEndWarning is delivered reliably.
+        // Apple skips short warnings (< ~5 min) empirically, leaving apps unblocked.
+        let minWarningBuffer = 300
+        let windowSeconds = max(expiresInSeconds + minWarningBuffer, 900)
+        let totalWindow = windowSeconds + startBuffer
+        let endDate = now.addingTimeInterval(TimeInterval(totalWindow))
+        let endComponents = calendar.dateComponents([.hour, .minute, .second], from: endDate)
+
+        let secondsBeforeEnd = totalWindow - expiresInSeconds
+        let warningTime = DateComponents(minute: secondsBeforeEnd / 60, second: secondsBeforeEnd % 60)
+
+        let schedule = DeviceActivitySchedule(
+            intervalStart: startComponents,
+            intervalEnd: endComponents,
+            repeats: false,
+            warningTime: warningTime
+        )
+        AppLogger.app.debug("📅 Scheduled access window expiry for \(bundleId) in \(expiresInSeconds)s (window=\(totalWindow)s, warning=\(secondsBeforeEnd)s before end)")
         
         center.stopMonitoring([activityName])
+        let defaults = UserDefaults.stepsTrader()
+        let iso = ISO8601DateFormatter()
         do {
             try center.startMonitoring(activityName, during: schedule)
+            let msg = "[\(iso.string(from: Date()))] OK: \(activityName.rawValue) window=\(totalWindow)s warn=\(secondsBeforeEnd)s | activities after: \(center.activities.map(\.rawValue))"
+            defaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
         } catch {
+            let msg = "[\(iso.string(from: Date()))] FAIL: \(activityName.rawValue) — \(error.localizedDescription)"
+            defaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
             AppLogger.app.debug("Failed to schedule access window expiry: \(error.localizedDescription)")
         }
         #endif

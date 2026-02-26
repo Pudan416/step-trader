@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 import UIKit
 import UserNotifications
+import BackgroundTasks
 
 @main
 struct StepsTraderApp: App {
@@ -22,6 +23,9 @@ struct StepsTraderApp: App {
         // Install notification delegate as early as possible so taps that *launch* the app
         // are routed through our handler (onAppear can be too late).
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+
+        // Register BGAppRefreshTask before app finishes launching
+        UnlockExpiryTaskManager.shared.registerTask()
 
         // Mirror theme to app-group so the wallpaper Shortcut intent can read it reliably.
         let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.system.rawValue
@@ -137,8 +141,9 @@ struct StepsTraderApp: App {
                 NotificationCenter.default.publisher(
                     for: UIApplication.didEnterBackgroundNotification)
             ) { _ in
-                // Sync theme to app-group so the wallpaper Shortcut can read it.
                 UserDefaults(suiteName: SharedKeys.appGroupId)?.set(appThemeRaw, forKey: "appTheme")
+                UnlockExpiryTaskManager.shared.scheduleIfNeeded()
+                model.handleAppDidEnterBackground()
             }
             .task {
                 if hasCompletedOnboarding && !isUITest {
@@ -235,8 +240,8 @@ struct StepsTraderApp: App {
                     }
                     AppLogger.app.debug("📱 Local notification PayGate - target: \(target), bundleId: \(bundleId)")
                     Task { @MainActor in
-                        model.startPayGateSession(for: bundleId)
-                AppLogger.app.debug("📱 PayGate state after setting - showPayGate: \(model.userEconomyStore.showPayGate), targetGroupId: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")")
+                        model.openPayGateForBundleId(bundleId)
+                        AppLogger.app.debug("📱 PayGate state after setting - showPayGate: \(model.userEconomyStore.showPayGate), targetGroupId: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")")
                     }
                 }
             }

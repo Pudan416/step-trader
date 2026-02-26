@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 
+@MainActor
 final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     @Published var tariff: Tariff {
         didSet {
@@ -40,10 +41,8 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         let resolvedAnchor = savedAnchor
             ?? DayBoundary.currentDayStart(for: Date(), dayEndHour: dayEndHourValue, dayEndMinute: dayEndMinuteValue)
         
-        let savedDaily = (g.object(forKey: "dailyBudgetMinutes") as? Int)
-            ?? g.integer(forKey: "dailyBudgetMinutes")
-        let savedRemaining = (g.object(forKey: "remainingMinutes") as? Int)
-            ?? g.integer(forKey: "remainingMinutes")
+        let savedDaily = g.integer(forKey: "dailyBudgetMinutes")
+        let savedRemaining = g.integer(forKey: "remainingMinutes")
         
         self.dayEndHour = dayEndHourValue
         self.dayEndMinute = dayEndMinuteValue

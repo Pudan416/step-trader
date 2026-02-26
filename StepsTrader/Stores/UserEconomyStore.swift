@@ -129,23 +129,27 @@ final class UserEconomyStore: ObservableObject {
     }
     
     func persistAppStepsSpentByDay() {
+        let snapshot = appStepsSpentByDay
         Task {
-            try? await persistence.save(appStepsSpentByDay, to: appStepsSpentByDayKey)
+            try? await persistence.save(snapshot, to: appStepsSpentByDayKey)
         }
     }
     
     func persistAppStepsSpentLifetime() {
+        let snapshot = appStepsSpentLifetime
         Task {
-            try? await persistence.save(appStepsSpentLifetime, to: appStepsSpentLifetimeKey)
+            try? await persistence.save(snapshot, to: appStepsSpentLifetimeKey)
         }
     }
     
     func persistMinuteChargeLogs() {
+        let logsSnapshot = minuteChargeLogs
+        let timeSnapshot = minuteTimeByDay
         Task {
-            if let url = SharedKeys.minuteChargeLogsFileURL(), let data = try? JSONEncoder().encode(minuteChargeLogs) {
+            if let url = SharedKeys.minuteChargeLogsFileURL(), let data = try? JSONEncoder().encode(logsSnapshot) {
                 try? data.write(to: url, options: .atomic)
             }
-            try? await persistence.save(minuteTimeByDay, to: minuteTimeByDayKey)
+            try? await persistence.save(timeSnapshot, to: minuteTimeByDayKey)
         }
     }
     

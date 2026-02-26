@@ -243,6 +243,8 @@ final class BlockingStore: ObservableObject {
 
             guard familyControlsService.isAuthorized else {
                 AppLogger.shield.debug("⚠️ Cannot rebuild block: Family Controls not authorized")
+                logShieldDiagnostic(source: "app", apps: 0, categories: 0,
+                                    detail: "ABORTED: Family Controls not authorized")
                 return
             }
             
@@ -250,20 +252,25 @@ final class BlockingStore: ObservableObject {
             var combined = FamilyActivitySelection()
             let defaults = UserDefaults.stepsTrader()
             let now = Date()
+            var diagLines: [String] = []
             
             for group in ticketGroups {
                 let unlockKey = "groupUnlock_\(group.id)"
                 if let unlockUntil = defaults.object(forKey: unlockKey) as? Date {
                     if now < unlockUntil {
+                        let secs = Int(unlockUntil.timeIntervalSince(now))
+                        diagLines.append("SKIP \(group.name): unlocked \(secs)s left")
                         AppLogger.shield.debug("⏭️ Skipping group \(group.name) - unlocked until \(unlockUntil)")
                         continue
                     } else {
+                        diagLines.append("EXPIRED \(group.name): key removed")
                         AppLogger.shield.debug("🧹 Cleaning expired unlock for group \(group.name)")
                         defaults.removeObject(forKey: unlockKey)
                     }
                 }
                 
-                if group.settings.familyControlsModeEnabled == true || group.settings.minuteTariffEnabled == true {
+                let isActive = group.settings.familyControlsModeEnabled == true || group.settings.minuteTariffEnabled == true
+                if isActive {
                     #if canImport(FamilyControls)
                     var groupTokens = group.selection.applicationTokens
                     let groupCategories = group.selection.categoryTokens
@@ -276,7 +283,10 @@ final class BlockingStore: ObservableObject {
                     
                     combined.applicationTokens.formUnion(groupTokens)
                     combined.categoryTokens.formUnion(groupCategories)
+                    diagLines.append("ADD \(group.name): \(groupTokens.count) apps, \(groupCategories.count) cats (fc=\(group.settings.familyControlsModeEnabled) mt=\(group.settings.minuteTariffEnabled))")
                     #endif
+                } else {
+                    diagLines.append("INACTIVE \(group.name): fc=\(group.settings.familyControlsModeEnabled) mt=\(group.settings.minuteTariffEnabled)")
                 }
             }
             
@@ -307,6 +317,10 @@ final class BlockingStore: ObservableObject {
             
             let sharedDefaults = UserDefaults.stepsTrader()
             sharedDefaults.set(0, forKey: "doomShieldState_v1")
+
+            let detail = diagLines.joined(separator: " | ")
+            logShieldDiagnostic(source: "app", apps: combined.applicationTokens.count,
+                                categories: combined.categoryTokens.count, detail: detail)
         }
     }
     
@@ -343,6 +357,160 @@ final class BlockingStore: ObservableObject {
             AppLogger.shield.debug("🧹 Cleaned \(cleanedCount) expired unlock(s), rebuilding shield...")
             rebuildFamilyControlsShield()
         }
+
+        // If no unlocks remain, cancel the background refresh task
+        let hasActiveUnlocks = ticketGroups.contains { group in
+            let key = "groupUnlock_\(group.id)"
+            if let until = defaults.object(forKey: key) as? Date, now < until { return true }
+            return false
+        }
+        if !hasActiveUnlocks {
+            UnlockExpiryTaskManager.shared.cancelPendingTasks()
+        }
+    }
+
+    // MARK: - Shield Diagnostics
+
+    /// Append a diagnostic entry to the shared history ring buffer (last 20 entries).
+    /// Called from app-side rebuild; the extension writes its own via the same keys.
+    static func logShieldDiagnostic(source: String, apps: Int, categories: Int, detail: String) {
+        let defaults = UserDefaults.stepsTrader()
+        let iso = ISO8601DateFormatter()
+        let ts = iso.string(from: Date())
+        let entry = "[\(ts)] [\(source)] apps=\(apps) cats=\(categories) \(detail)"
+
+        var history = defaults.stringArray(forKey: SharedKeys.shieldDiagHistory) ?? []
+        history.append(entry)
+        if history.count > 20 { history = Array(history.suffix(20)) }
+        defaults.set(history, forKey: SharedKeys.shieldDiagHistory)
+        defaults.set(entry, forKey: SharedKeys.shieldDiagLastRebuild)
+    }
+
+    private func logShieldDiagnostic(source: String, apps: Int, categories: Int, detail: String) {
+        Self.logShieldDiagnostic(source: source, apps: apps, categories: categories, detail: detail)
+    }
+
+    /// Build a human-readable diagnostics string covering shield state, unlock keys,
+    /// ticket groups, extension logs, and rebuild history.
+    func dumpShieldDiagnostics() -> String {
+        let defaults = UserDefaults.stepsTrader()
+        let now = Date()
+        let iso = ISO8601DateFormatter()
+        var lines: [String] = ["=== Shield Diagnostics (\(iso.string(from: now))) ===", ""]
+
+        // 1. Ticket groups
+        lines.append("-- Ticket Groups (\(ticketGroups.count)) --")
+        for g in ticketGroups {
+            let fc = g.settings.familyControlsModeEnabled
+            let mt = g.settings.minuteTariffEnabled
+            let appCount = g.selection.applicationTokens.count
+            let catCount = g.selection.categoryTokens.count
+            let unlockKey = "groupUnlock_\(g.id)"
+            var status = "LOCKED"
+            if let until = defaults.object(forKey: unlockKey) as? Date {
+                if now < until {
+                    status = "UNLOCKED \(Int(until.timeIntervalSince(now)))s left"
+                } else {
+                    status = "EXPIRED (key still present!)"
+                }
+            }
+            lines.append("  \(g.name) | id=\(g.id.prefix(8))… | fc=\(fc) mt=\(mt) | \(appCount) apps \(catCount) cats | \(status)")
+        }
+
+        // 2. Active unlock/block keys
+        lines.append("")
+        lines.append("-- Active Unlock Keys --")
+        let allKeys = defaults.dictionaryRepresentation().keys.sorted()
+        var unlockCount = 0
+        for key in allKeys where key.hasPrefix("groupUnlock_") || key.hasPrefix("blockUntil_") {
+            if let until = defaults.object(forKey: key) as? Date {
+                let delta = Int(until.timeIntervalSince(now))
+                let state = delta > 0 ? "active (\(delta)s)" : "EXPIRED (\(-delta)s ago)"
+                lines.append("  \(key) → \(state)")
+                unlockCount += 1
+            }
+        }
+        if unlockCount == 0 { lines.append("  (none)") }
+
+        // 3. Family Controls auth
+        lines.append("")
+        lines.append("-- Family Controls --")
+        lines.append("  authorized: \(familyControlsService.isAuthorized)")
+
+        // 4. Current ManagedSettingsStore state
+        #if canImport(ManagedSettings)
+        let store = ManagedSettingsStore(named: .init("shield"))
+        let shieldApps = store.shield.applications?.count ?? 0
+        let shieldCats: Int = {
+            if case .specific(let cats, _) = store.shield.applicationCategories { return cats.count }
+            return 0
+        }()
+        lines.append("  ManagedSettingsStore 'shield': \(shieldApps) apps, \(shieldCats) categories")
+        #endif
+
+        // 5. DeviceActivityCenter registered activities
+        #if canImport(DeviceActivity)
+        let activityCenter = DeviceActivityCenter()
+        let registeredActivities = activityCenter.activities
+        lines.append("")
+        lines.append("-- DeviceActivityCenter.activities (\(registeredActivities.count)) --")
+        if registeredActivities.isEmpty {
+            lines.append("  (none — startMonitoring never succeeded or was cleared)")
+        } else {
+            for activity in registeredActivities {
+                lines.append("  \(activity.rawValue)")
+            }
+        }
+        #endif
+
+        // 5b. Last startMonitoring log
+        if let lastMonLog = defaults.string(forKey: SharedKeys.lastStartMonitoringLog) {
+            lines.append("")
+            lines.append("-- Last startMonitoring Result --")
+            lines.append("  \(lastMonLog)")
+        }
+
+        // 5c. Extension test
+        if let testAt = defaults.object(forKey: SharedKeys.extensionTestScheduledAt) as? Date {
+            let delta = Int(now.timeIntervalSince(testAt))
+            lines.append("")
+            lines.append("-- Extension Test --")
+            lines.append("  scheduled \(delta)s ago")
+        }
+
+        // 6. Shield rebuild history
+        lines.append("")
+        lines.append("-- Rebuild History (last 20) --")
+        let history = defaults.stringArray(forKey: SharedKeys.shieldDiagHistory) ?? []
+        if history.isEmpty {
+            lines.append("  (none)")
+        } else {
+            for entry in history { lines.append("  \(entry)") }
+        }
+
+        // 7. Extension monitor logs
+        lines.append("")
+        lines.append("-- Extension Monitor Logs (last 30) --")
+        let monitorLogs = defaults.stringArray(forKey: SharedKeys.monitorLogs) ?? []
+        if monitorLogs.isEmpty {
+            lines.append("  (none)")
+        } else {
+            for log in monitorLogs { lines.append("  \(log)") }
+        }
+
+        // 8. Extension errors
+        let errorCount = defaults.integer(forKey: SharedKeys.monitorErrorCount)
+        if errorCount > 0 {
+            lines.append("")
+            lines.append("-- Extension Errors (count: \(errorCount)) --")
+            if let lastAt = defaults.object(forKey: SharedKeys.monitorLastErrorAt) as? Date {
+                lines.append("  last error: \(iso.string(from: lastAt))")
+            }
+        }
+
+        lines.append("")
+        lines.append("=== END ===")
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Tracking

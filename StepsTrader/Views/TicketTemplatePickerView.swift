@@ -64,7 +64,7 @@ struct TicketTemplatePickerView: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Custom Ticket")
+                                Text("Custom Apps")
                                     .font(.system(size: 15, weight: .regular, design: .rounded))
                                     .foregroundColor(.primary)
                                 Text("Choose your own apps")

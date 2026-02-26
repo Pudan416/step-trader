@@ -2,7 +2,7 @@ import Foundation
 import UserNotifications
 
 // MARK: - Notification Manager
-final class NotificationManager: NotificationServiceProtocol {
+final class NotificationManager: NotificationServiceProtocol, @unchecked Sendable {
     func requestPermission() async throws {
         let center = UNUserNotificationCenter.current()
         let granted = try await center.requestAuthorization(options: [.alert, .sound])
@@ -16,8 +16,8 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendTimeExpiredNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "Proof"
-        content.body = "An app is closed. Open Proof to spend ink."
+        content.title = "Nowhere"
+        content.body = "An app is closed. Open Nowhere to unlock it."
         content.sound = .default
         content.badge = nil
         
@@ -38,8 +38,8 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendUnblockNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
-        content.title = "Proof"
-        content.body = "Ink restored. \(remainingMinutes) min."
+        content.title = "Nowhere"
+        content.body = "Rays restored. \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
         
@@ -60,8 +60,8 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendRemainingTimeNotification(remainingMinutes: Int) {
         let content = UNMutableNotificationContent()
-        content.title = "Proof"
-        content.body = "Ink left: \(remainingMinutes) min."
+        content.title = "Nowhere"
+        content.body = "Rays left: \(remainingMinutes) min."
         content.sound = .default
         content.badge = nil
         
@@ -88,11 +88,11 @@ final class NotificationManager: NotificationServiceProtocol {
         content.title = "⏱️ \(displayName)"
         
         if minutesUsed > 0 && stepsCharged > 0 {
-            content.body = "Used: \(minutesUsed) min · Charged: \(stepsCharged) ink."
+            content.body = "Used: \(minutesUsed) min · Charged: \(stepsCharged) rays."
         } else if minutesUsed > 0 {
             content.body = "Used: \(minutesUsed) min."
         } else {
-            content.body = "Charged: \(stepsCharged) ink."
+            content.body = "Charged: \(stepsCharged) rays."
         }
         
         content.sound = .default
@@ -115,7 +115,7 @@ final class NotificationManager: NotificationServiceProtocol {
     
     func sendTestNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "Proof"
+        content.title = "Nowhere"
         content.body = "Test notification."
         content.sound = .default
         content.badge = nil

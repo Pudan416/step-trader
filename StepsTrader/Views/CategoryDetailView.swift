@@ -8,6 +8,7 @@ struct CategoryDetailView: View {
     @Environment(\.appTheme) private var theme
     @State private var selectedOption: EnergyOption? = nil
     @State private var selectedOptionEntry: OptionEntry? = nil
+    @State private var entryColorCache: [String: Color] = [:]
     
     // Optional callback for canvas integration — (optionId, category, hexColor, assetVariant?)
     var onActivityConfirmed: ((String, EnergyCategory, String, Int?) -> Void)? = nil
@@ -46,18 +47,31 @@ struct CategoryDetailView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .sheet(item: $selectedOption) { option in
                 if let category = category {
+                    let editing = model.isDailySelected(option.id, category: category)
                     OptionEntrySheet(
                         option: option,
                         category: category,
                         entry: $selectedOptionEntry,
+                        isEditing: editing,
                         onSave: { entry in
                             saveEntry(entry, for: option)
-                        }
+                            entryColorCache[option.id] = Color(hex: entry.colorHex)
+                        },
+                        onRemove: editing ? {
+                            withAnimation(.spring(response: 0.3)) {
+                                model.toggleDailySelection(optionId: option.id, category: category)
+                                deleteEntry(for: option.id)
+                                entryColorCache.removeValue(forKey: option.id)
+                                onActivityUndo?(option.id, category)
+                            }
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        } : nil
                     )
                 }
             }
         }
         .presentationBackground(.clear)
+        .onAppear { refreshEntryColorCache() }
     }
     
     // MARK: - Title
@@ -137,18 +151,9 @@ struct CategoryDetailView: View {
         let isDisabled = !isSelected && model.isDailyLimitReached(for: category)
         
         return Button {
-            if isSelected {
-                withAnimation(.spring(response: 0.3)) {
-                    model.toggleDailySelection(optionId: option.id, category: category)
-                    deleteEntry(for: option.id)
-                    onActivityUndo?(option.id, category)
-                }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            } else {
-                selectedOptionEntry = loadEntry(for: option.id)
-                selectedOption = option
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            }
+            selectedOptionEntry = loadEntry(for: option.id)
+            selectedOption = option
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } label: {
             HStack(spacing: 10) {
                 // Small icon
@@ -169,9 +174,14 @@ struct CategoryDetailView: View {
                 Spacer()
                 
                 if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(getEntryColor(for: option.id))
+                    HStack(spacing: 6) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(getEntryColor(for: option.id).opacity(0.6))
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(getEntryColor(for: option.id))
+                    }
                 } else {
                     Image(systemName: "plus")
                         .font(.system(size: 12, weight: .medium))
@@ -264,9 +274,24 @@ struct CategoryDetailView: View {
     }
     
     private func getEntryColor(for optionId: String) -> Color {
+        if let cached = entryColorCache[optionId] { return cached }
         if let entry = loadEntry(for: optionId) {
             return Color(hex: entry.colorHex)
         }
         return category?.color ?? .cyan
+    }
+
+    private func refreshEntryColorCache() {
+        guard let cat = category else { return }
+        var cache: [String: Color] = [:]
+        let options = EnergyDefaults.options.filter { $0.category == cat }
+        for option in options {
+            if let entry = loadEntry(for: option.id) {
+                cache[option.id] = Color(hex: entry.colorHex)
+            } else {
+                cache[option.id] = cat.color
+            }
+        }
+        entryColorCache = cache
     }
 }

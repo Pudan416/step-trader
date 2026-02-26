@@ -144,7 +144,7 @@ Gradient can be implemented as:
 - overlay = radial “glow” × sleep intensity
 
 ## UI placement (locked)
-Decision: **replace the Gallery option card rows with a single interactive triangle picker**, where the selectable cards remain **inside each corresponding angle**:
+Decision: **replace the Canvas option card rows with a single interactive triangle picker**, where the selectable cards remain **inside each corresponding angle**:
 - Body options live in the Body wedge
 - Mind options live in the Mind wedge
 - Heart options live in the Heart wedge
@@ -161,7 +161,7 @@ Interaction update (locked):
 ## Production task: implement TLE in Steps4 (v1)
 
 ### Goal
-Introduce an **interactive triangle picker** in `GalleryView` that:
+Introduce an **interactive triangle picker** in `CanvasView` that:
 - **replaces** `CategoryCardsRow` horizontally scrolling rows
 - keeps the same selection rules (max 4 per category, confirmation, etc.)
 - visualizes direction/foundation/current-vs-potential at a glance
@@ -222,8 +222,8 @@ Schema change:
 - write them when saving snapshot at day rollover
 - decode them with backward compatibility (missing → default to current or `EnergyDefaults`)
 
-#### 3) Gallery integration (interactive triangle picker)
-In `GalleryView`:
+#### 3) Canvas integration (interactive triangle picker)
+In `CanvasView`:
 - Replace the `VStack` of `CategoryCardsRow(...)` with **one** `LivedEnergyTrianglePickerView` that:
   - renders `LivedEnergyTriangleView` as the background (potential vs remaining)
   - shows only lightweight in-angle status/chips (selected summary), not the full option list
@@ -321,7 +321,7 @@ Add events (if you want them):
 
 ## Locked decisions (from you)
 - **Size driver**: filled triangle size = **remaining balance** (`totalStepsBalance`).
-- **Gallery UI**: replace rows of cards with a **single triangle picker**; cards remain **inside their angle**.
+- **Canvas UI**: replace rows of cards with a **single triangle picker**; cards remain **inside their angle**.
 - **History accuracy**: **store steps/sleep targets per day** in `PastDaySnapshot` and use them for reconstruction.
 - **Energy-size mapping**: use **area-linear** scaling (sqrt).
 - **Angle growth model**: each angle grows independently with **4 lengths** (plus zero baseline).

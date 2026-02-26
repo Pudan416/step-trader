@@ -17,24 +17,95 @@ enum ExportCanvasError: Error, CustomLocalizedStringResourceConvertible {
     }
 }
 
+// MARK: - AppIntent Enums
+
+enum GradientStyleOption: String, AppEnum {
+    case appDefault = "default"
+    case radial
+    case linear
+    case radialReversed
+    case linearReversed
+    case organic
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Gradient Style"
+    static var caseDisplayRepresentations: [GradientStyleOption: DisplayRepresentation] = [
+        .appDefault:      "App Default",
+        .radial:          "Radial",
+        .linear:          "Linear",
+        .radialReversed:  "Radial Reversed",
+        .linearReversed:  "Linear Reversed",
+        .organic:         "Organic",
+    ]
+
+    func resolved() -> GradientStyle {
+        switch self {
+        case .appDefault:
+            let raw = UserDefaults(suiteName: SharedKeys.appGroupId)?.string(forKey: "gradientStyle_v1")
+                ?? UserDefaults.standard.string(forKey: "gradientStyle_v1")
+                ?? GradientStyle.radial.rawValue
+            return GradientStyle(rawValue: raw) ?? .radial
+        case .radial:          return .radial
+        case .linear:          return .linear
+        case .radialReversed:  return .radialReversed
+        case .linearReversed:  return .linearReversed
+        case .organic:         return .organic
+        }
+    }
+}
+
+enum ColorPaletteOption: String, AppEnum {
+    case appDefault = "default"
+    case warmSunset
+    case roseGarden
+    case ember
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Color Palette"
+    static var caseDisplayRepresentations: [ColorPaletteOption: DisplayRepresentation] = [
+        .appDefault:  "App Default",
+        .warmSunset:  "Warm Sunset",
+        .roseGarden:  "Rose Garden",
+        .ember:       "Ember",
+    ]
+
+    func resolved() -> GradientPalette {
+        switch self {
+        case .appDefault:
+            let raw = UserDefaults(suiteName: SharedKeys.appGroupId)?.string(forKey: "gradientPalette_v1")
+                ?? UserDefaults.standard.string(forKey: "gradientPalette_v1")
+                ?? GradientPalette.warmSunset.rawValue
+            return GradientPalette(rawValue: raw) ?? .warmSunset
+        case .warmSunset: return .warmSunset
+        case .roseGarden: return .roseGarden
+        case .ember:      return .ember
+        }
+    }
+}
+
 // MARK: - Export Canvas Wallpaper Intent
 
 struct ExportCanvasWallpaperIntent: AppIntent {
     static var title: LocalizedStringResource = "Export Canvas Wallpaper"
     static var description: IntentDescription = IntentDescription(
-        "Renders today's energy canvas as a 9:16 wallpaper image.",
+        "Renders today's energy canvas as a wallpaper image. Optionally override gradient style and color palette.",
         categoryName: "Canvas"
     )
+
+    @Parameter(title: "Gradient Style", default: .appDefault)
+    var gradientStyle: GradientStyleOption
+
+    @Parameter(title: "Color Palette", default: .appDefault)
+    var colorPalette: ColorPaletteOption
 
     static var openAppWhenRun: Bool = false
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
+        Self.trackShortcutUsage()
+
         let dayKey = AppModel.dayKey(for: Date())
         let canvas = CanvasStorageService.shared.loadOrCreateCanvas(for: dayKey)
         let theme = Self.resolvedTheme()
 
-        // Match actual device screen size so iOS doesn't upscale/crop
         let screen = UIScreen.main
         let baseWidth: CGFloat = screen.bounds.width
         let baseHeight: CGFloat = screen.bounds.height
@@ -44,14 +115,18 @@ struct ExportCanvasWallpaperIntent: AppIntent {
         let hasSteps = canvas.stepsPoints > 0
         let hasSleep = canvas.sleepPoints > 0
 
+        let resolvedStyle = gradientStyle.resolved()
+        let resolvedPalette = colorPalette.resolved()
+
         let view = ZStack {
-            // Background gradient — use the same EnergyGradientRenderer the app uses
             WallpaperGradientLayer(
                 stepsPoints: canvas.stepsPoints,
                 sleepPoints: canvas.sleepPoints,
                 hasStepsData: hasSteps,
                 hasSleepData: hasSleep,
-                isDaylight: isDaylight
+                isDaylight: isDaylight,
+                gradientStyle: resolvedStyle,
+                palette: resolvedPalette
             )
 
             GenerativeCanvasView(
@@ -93,6 +168,19 @@ struct ExportCanvasWallpaperIntent: AppIntent {
         return .result(value: file)
     }
 
+    // MARK: - Shortcut Usage Tracking
+
+    private static func trackShortcutUsage() {
+        let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? UserDefaults.standard
+        g.set(true, forKey: "hasWallpaperShortcut")
+        let current = g.integer(forKey: "wallpaperShortcutUses")
+        g.set(current + 1, forKey: "wallpaperShortcutUses")
+
+        Task.detached {
+            await SupabaseSyncService.shared.trackWallpaperShortcutUsage()
+        }
+    }
+
     // MARK: - Theme Resolution
 
     private static func resolvedTheme() -> AppTheme {
@@ -101,7 +189,6 @@ struct ExportCanvasWallpaperIntent: AppIntent {
             ?? "system"
         let theme = AppTheme.normalized(rawValue: raw)
         if theme == .system {
-            // Check actual device appearance
             let isDark = UITraitCollection.current.userInterfaceStyle == .dark
             return isDark ? .night : .daylight
         }
@@ -111,17 +198,18 @@ struct ExportCanvasWallpaperIntent: AppIntent {
 
 // MARK: - Wallpaper Gradient Layer
 
-/// Renders the energy gradient using the same `EnergyGradientRenderer` the app uses,
-/// ensuring pixel-perfect match with in-app appearance for both themes.
 private struct WallpaperGradientLayer: View {
     let stepsPoints: Int
     let sleepPoints: Int
     let hasStepsData: Bool
     let hasSleepData: Bool
     let isDaylight: Bool
+    let gradientStyle: GradientStyle
+    let palette: GradientPalette
 
     var body: some View {
         Canvas { context, size in
+            let pal = EnergyGradientRenderer.palette(for: palette)
             let stepsNorm = Double(min(max(stepsPoints, 0), 20)) / 20.0
             let sleepNorm = Double(min(max(sleepPoints, 0), 20)) / 20.0
             let Ss = EnergyGradientRenderer.smoothstep(stepsNorm)
@@ -137,9 +225,9 @@ private struct WallpaperGradientLayer: View {
                 context: &context,
                 size: size,
                 opacities: opacities,
-                baseColor: isDaylight
-                    ? EnergyGradientRenderer.daylightBase
-                    : EnergyGradientRenderer.night
+                baseColor: isDaylight ? pal.daylightBase : pal.dark,
+                gradientStyle: gradientStyle,
+                colorPalette: pal
             )
         }
     }

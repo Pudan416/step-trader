@@ -1,0 +1,42 @@
+One-Page App Summary
+Source basis: README.md, Swift source, extension targets, and repo audits.
+
+WHAT IT IS
+Steps4 is an iOS SwiftUI app that converts daily activity into spendable experience.
+Users spend that experience to open time-limited access to selected apps or app groups.
+
+WHO IT IS FOR
+Primary persona: iPhone users who want structured self-control for distracting apps,
+using an earn-then-unlock model tied to health and daily actions.
+
+WHAT IT DOES (KEY FEATURES)
+- Converts HealthKit steps and sleep into daily energy/experience.
+- Tracks body/mind/heart daily selections within a 100-point model.
+- Uses PayGate sessions to spend balance for unlock intervals.
+- Supports ticket groups, per-app/group settings, and minute charging.
+- Applies Family Controls + ManagedSettings shields via DeviceActivity.
+- Syncs stats, selections, settings, and snapshots to Supabase.
+
+VISUAL STYLE AND METAPHORS (REPO EVIDENCE)
+- Data-driven gradient maps steps/sleep to warm/cool/dark opacity.
+- Theme metaphor in code comments: daylight = paper-like resistance;
+  night = screen context.
+- Visual language emphasizes high-contrast text, thin strokes,
+  yellow marker accent (#FFD369), and expressive headline fonts.
+
+HOW IT WORKS (ARCHITECTURE - REPO EVIDENCE)
+- Components: SwiftUI views + AppModel + stores (HealthStore,
+  BlockingStore, UserEconomyStore).
+- Services: HealthKitService, FamilyControlsService, NotificationManager,
+  SupabaseSyncService actor, AuthenticationService, persistence/cloud services.
+- Extensions: DeviceActivityMonitor, ShieldConfiguration, ShieldAction.
+- Data flow: HealthKit + selections -> AppModel recalculates balance ->
+  PayGate/minute events spend -> shields update -> local persistence + Supabase sync.
+
+HOW TO RUN (MINIMAL)
+1. Open /Users/kpudan/dev/xcode/Steps4/Steps4.xcodeproj (scheme: Steps4).
+2. Set SUPABASE_URL and SUPABASE_ANON_KEY for app target.
+3. Build/run (simulator): xcodebuild -project Steps4.xcodeproj -scheme Steps4 \
+   -destination 'platform=iOS Simulator,name=iPhone 16' -configuration Debug build
+4. Physical device is recommended for FamilyControls/DeviceActivity behavior.
+5. Exact backend provisioning/seed steps: Not found in repo.

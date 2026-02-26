@@ -21,12 +21,13 @@ struct MainTabView: View {
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
     @State private var isLabelMode: Bool = false
+    @State private var showRaysHelp: Bool = false
 
     private enum Tab: Int, CaseIterable {
         case canvas = 0
         case feeds = 1
         case me = 2
-        case guides = 3
+        case notes = 3
         case settings = 4
 
         var icon: String {
@@ -34,7 +35,7 @@ struct MainTabView: View {
             case .feeds: return "square.grid.2x2"
             case .canvas: return "hand.point.up.left.fill"
             case .me: return "person.circle"
-            case .guides: return "questionmark.circle"
+            case .notes: return "book.fill"
             case .settings: return "gearshape"
             }
         }
@@ -44,27 +45,18 @@ struct MainTabView: View {
             case .feeds: return "Feeds"
             case .canvas: return "Canvas"
             case .me: return "Me"
-            case .guides: return "Guides"
+            case .notes: return "Notes"
             case .settings: return "Settings"
             }
         }
         
-        var shortTitle: String {
-            switch self {
-            case .feeds: return "Feeds"
-            case .canvas: return "Canvas"
-            case .me: return "Me"
-            case .guides: return "Guides"
-            case .settings: return "Settings"
-            }
-        }
         
         var accessibilityId: String {
             switch self {
             case .feeds: return "tab_feeds"
             case .canvas: return "tab_canvas"
             case .me: return "tab_me"
-            case .guides: return "tab_guides"
+            case .notes: return "tab_notes"
             case .settings: return "tab_settings"
             }
         }
@@ -101,10 +93,10 @@ struct MainTabView: View {
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.me.rawValue)
 
-                // 3: Guides (same as manuals)
+                // 3: Notes
                 ManualsPage(model: model)
                     .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.guides.rawValue)
+                    .tag(Tab.notes.rawValue)
                 
                 // 4: Settings
                 SettingsSheet(model: model, embeddedInTab: true)
@@ -136,11 +128,11 @@ struct MainTabView: View {
             if !isLabelMode {
             StepBalanceCard(
                 remainingSteps: model.userEconomyStore.totalStepsBalance,
-                totalSteps: model.healthStore.baseEnergyToday + model.userEconomyStore.bonusSteps,
+                totalSteps: model.healthStore.baseEnergyToday,
                 spentSteps: model.spentStepsToday,
                 healthKitSteps: model.userEconomyStore.stepsBalance,
                 outerWorldSteps: 0,
-                grantedSteps: model.userEconomyStore.bonusSteps,
+                grantedSteps: 0,
                 dayEndHour: model.dayEndHour,
                 dayEndMinute: model.dayEndMinute,
                 showDetails: selection == Tab.canvas.rawValue,
@@ -180,7 +172,8 @@ struct MainTabView: View {
                     } else {
                         selectedCategory = .heart
                     }
-                }
+                },
+                onRaysHelpTap: { showRaysHelp = true }
             )
             .padding(.horizontal)
             .padding(.top, 8)
@@ -192,6 +185,11 @@ struct MainTabView: View {
                 }
             )
             .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .overlay {
+            if showRaysHelp {
+                raysHelpOverlay
             }
         }
         .onPreferenceChange(TopCardHeightPreferenceKey.self) { topCardHeight = $0 }
@@ -219,6 +217,42 @@ struct MainTabView: View {
                     )
                 }
             }
+        }
+    }
+
+    private var raysHelpOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.35)
+                .ignoresSafeArea()
+                .onTapGesture { showRaysHelp = false }
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("About rays")
+                        .font(.headline)
+                    Spacer()
+                    Button { showRaysHelp = false } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Text("Each of the five areas — steps, sleep, body, mind and heart — contributes up to 20 rays (100 rays total).")
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+                Text("Steps and sleep come from the Health app and are the same for everyone. Body, mind and heart are activities you add by tapping the + button at the bottom of the screen.")
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+            }
+            .padding(16)
+            .frame(maxWidth: 300)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(theme.backgroundSecondary.opacity(0.98))
+                    .shadow(color: Color.black.opacity(0.2), radius: 16, x: 0, y: 8)
+            )
+            .padding(.horizontal, 32)
         }
     }
 
@@ -255,7 +289,7 @@ struct MainTabView: View {
                             .fontWeight(isSelected ? .semibold : .regular)
                             .symbolRenderingMode(.hierarchical)
                         
-                        Text(tab.shortTitle)
+                        Text(tab.title)
                             .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
@@ -289,7 +323,7 @@ struct MainTabView: View {
                             .fontWeight(isSelected ? .semibold : .regular)
                             .symbolRenderingMode(.hierarchical)
                         
-                        Text(tab.shortTitle)
+                        Text(tab.title)
                             .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)

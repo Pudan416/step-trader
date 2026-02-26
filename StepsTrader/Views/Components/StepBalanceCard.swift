@@ -26,7 +26,8 @@ struct StepBalanceCard: View {
     var onRebootTap: (() -> Void)? = nil
     var onJoyTap: (() -> Void)? = nil
     var onOuterWorldTap: (() -> Void)? = nil
-    
+    var onRaysHelpTap: (() -> Void)? = nil
+
     @Environment(\.colorScheme) private var colorScheme
     @State private var isExpanded = false
     
@@ -49,8 +50,7 @@ struct StepBalanceCard: View {
     private var accent: Color { AppColors.brandAccent }
     private var balanceYellow: Color { AppColors.brandAccent }
     
-    private var timeUntilReset: String {
-        let now = Date()
+    private static func formatTimeUntilReset(dayEndHour: Int, dayEndMinute: Int, now: Date = Date()) -> String {
         let calendar = Calendar.current
         var comps = DateComponents()
         comps.hour = dayEndHour
@@ -64,15 +64,14 @@ struct StepBalanceCard: View {
     
     var body: some View {
         VStack(spacing: 10) {
-            // ── Header: TODAY INK + balance + timer ──
-            HStack(alignment: .center, spacing: 10) {
-                VStack(alignment: .leading, spacing: -4) {
-                    Text("TODAY'S")
-                        .font(.system(size: 10, weight: .heavy))
-                    Text("INK")
-                        .font(.system(size: 28, weight: .black))
-                }
-                .foregroundColor(colorScheme == .dark ? balanceYellow : .black)
+            // ── Header: TODAY'S RAYS + balance + timer ──
+            HStack(alignment: .center, spacing: 4) {
+                Image("rays")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(balanceYellow)
+                    .frame(width: 51, height: 51)
                 
                 HStack(spacing: 4) {
                     // Current balance — yellow pill
@@ -109,14 +108,16 @@ struct StepBalanceCard: View {
                 
                 Spacer()
                 
-                HStack(spacing: 3) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Text(timeUntilReset)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundColor(.primary)
-                        .monospacedDigit()
+                TimelineView(.periodic(from: .now, by: 60)) { timeline in
+                    HStack(spacing: 3) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(Self.formatTimeUntilReset(dayEndHour: dayEndHour, dayEndMinute: dayEndMinute, now: timeline.date))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(.primary)
+                            .monospacedDigit()
+                    }
                 }
             }
             
@@ -153,22 +154,36 @@ struct StepBalanceCard: View {
             .animation(.spring(response: 0.4), value: progress)
             .animation(.spring(response: 0.4), value: earnedTodayProgress)
             
-            // ── Expand / Collapse toggle ──
+            // ── Expand / Collapse toggle + ? help (same line) ──
             if showDetails {
-                Button {
-                    withAnimation(.spring(response: 0.3)) {
-                        isExpanded.toggle()
+                HStack(spacing: 8) {
+                    Button {
+                        onRaysHelpTap?()
+                    } label: {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 18))
+                            .foregroundColor(.secondary)
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
                     }
-                } label: {
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("About rays")
+                    Spacer(minLength: 0)
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(.secondary)
+                            .frame(minWidth: 80, minHeight: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isExpanded ? "Collapse categories" : "Expand categories")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isExpanded ? "Collapse categories" : "Expand categories")
+                .frame(minHeight: 30)
             }
             
             // ── Metric chips (two rows, icons only) ──

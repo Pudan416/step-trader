@@ -40,8 +40,8 @@ protocol HealthKitServiceProtocol {
     @MainActor
     func sleepAuthorizationStatus() -> HKAuthorizationStatus
     func fetchSteps(from: Date, to: Date) async throws -> Double
-    func startObservingSteps(updateHandler: @escaping (Double) -> Void)
-    func stopObservingSteps()
+    @MainActor func startObservingSteps(updateHandler: @escaping (Double) -> Void)
+    @MainActor func stopObservingSteps()
 }
 
 // MARK: - Family Controls Service Protocol
@@ -70,6 +70,7 @@ protocol NotificationServiceProtocol {
 }
 
 // MARK: - Budget Engine Protocol
+@MainActor
 protocol BudgetEngineProtocol: ObservableObject {
     var tariff: Tariff { get set }
     var stepsPerMinute: Double { get }
@@ -171,12 +172,30 @@ final class ActivityCategoryToken: NSObject, NSSecureCoding {
 }
 #endif
 
+// MARK: - Gradient color palette
+enum GradientPalette: String, CaseIterable {
+    case warmSunset   // gold → dark blue (original)
+    case roseGarden   // pink → dark green
+    case ember        // light yellow → dark red
+    case dusk         // warm cream → slate blue
+
+    var displayName: String {
+        switch self {
+        case .warmSunset: return "Warm Sunset"
+        case .roseGarden: return "Rose Garden"
+        case .ember:      return "Ember"
+        case .dusk:       return "Dusk"
+        }
+    }
+}
+
 // MARK: - Gradient style
 enum GradientStyle: String, CaseIterable {
     case radial
     case linear
     case radialReversed
     case linearReversed
+    case organic
 
     var displayName: String {
         switch self {
@@ -184,6 +203,7 @@ enum GradientStyle: String, CaseIterable {
         case .linear: return "Linear"
         case .radialReversed: return "Radial Reversed"
         case .linearReversed: return "Linear Reversed"
+        case .organic: return "Organic"
         }
     }
 }

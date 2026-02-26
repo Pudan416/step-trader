@@ -13,7 +13,7 @@ extension AppModel {
     }
     
     private var pastDaySnapshotsKey: String { "pastDaySnapshots_v1" }
-    private var dailyGallerySlotsKey: String { "dailyChoiceSlots_v1" }
+    private var dailyCanvasSlotsKey: String { "dailyChoiceSlots_v1" }
     private var customEnergyOptionsKey: String { "customEnergyOptions_v1" }
     
     private func preferredOptionsKey(for category: EnergyCategory) -> String {
@@ -129,7 +129,7 @@ extension AppModel {
 
         baseEnergyToday = g.integer(forKey: baseEnergyTodayKey)
         
-        loadDailyGallerySlots()
+        loadDailyCanvasSlots()
     }
     
     func loadCustomEnergyOptions() {
@@ -250,7 +250,7 @@ extension AppModel {
         currentDaily.removeAll { $0 == optionId }
         setDailySelections(currentDaily, category: category)
         syncFromSelectionsToSlots()
-        persistDailyGallerySlots()
+        persistDailyCanvasSlots()
         recalculateDailyEnergy()
         persistDailyEnergyState()
         objectWillChange.send()
@@ -283,52 +283,52 @@ extension AppModel {
         currentDaily.removeAll { $0 == optionId }
         setDailySelections(currentDaily, category: category)
         syncFromSelectionsToSlots()
-        persistDailyGallerySlots()
+        persistDailyCanvasSlots()
         recalculateDailyEnergy()
         persistDailyEnergyState()
         objectWillChange.send()
     }
     
-    private func loadDailyGallerySlots() {
+    private func loadDailyCanvasSlots() {
         let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: dailyGallerySlotsKey),
-              let decoded = try? JSONDecoder().decode([DayGallerySlot].self, from: data),
+        guard let data = g.data(forKey: dailyCanvasSlotsKey),
+              let decoded = try? JSONDecoder().decode([DayCanvasSlot].self, from: data),
               decoded.count == 4 else {
             syncFromSelectionsToSlots()
-            persistDailyGallerySlots()
+            persistDailyCanvasSlots()
             return
         }
-        dailyGallerySlots = decoded
+        dailyCanvasSlots = decoded
         syncFromSlotsToSelections()
         persistDailyEnergyState()
     }
     
     private func syncFromSelectionsToSlots() {
-        var slots: [DayGallerySlot] = []
+        var slots: [DayCanvasSlot] = []
         for cat in [EnergyCategory.body, .mind, .heart] {
             let ids = dailySelections(for: cat)
             for id in ids.prefix(4) {
-                slots.append(DayGallerySlot(category: cat, optionId: id))
+                slots.append(DayCanvasSlot(category: cat, optionId: id))
             }
         }
         while slots.count < 4 {
-            slots.append(DayGallerySlot(category: nil, optionId: nil))
+            slots.append(DayCanvasSlot(category: nil, optionId: nil))
         }
-        dailyGallerySlots = Array(slots.prefix(4))
+        dailyCanvasSlots = Array(slots.prefix(4))
     }
     
     private func syncFromSlotsToSelections() {
-        dailyActivitySelections = dailyGallerySlots.compactMap { $0.category == .body ? $0.optionId : nil }
-        dailyRestSelections = dailyGallerySlots.compactMap { $0.category == .mind ? $0.optionId : nil }
-        dailyJoysSelections = dailyGallerySlots.compactMap { $0.category == .heart ? $0.optionId : nil }
+        dailyActivitySelections = dailyCanvasSlots.compactMap { $0.category == .body ? $0.optionId : nil }
+        dailyRestSelections = dailyCanvasSlots.compactMap { $0.category == .mind ? $0.optionId : nil }
+        dailyJoysSelections = dailyCanvasSlots.compactMap { $0.category == .heart ? $0.optionId : nil }
     }
     
-    func setDailyGallerySlot(at index: Int, category: EnergyCategory?, optionId: String?) {
+    func setDailyCanvasSlot(at index: Int, category: EnergyCategory?, optionId: String?) {
         guard (0..<4).contains(index) else { return }
-        let previous = dailyGallerySlots[index]
-        dailyGallerySlots[index] = DayGallerySlot(category: category, optionId: optionId)
+        let previous = dailyCanvasSlots[index]
+        dailyCanvasSlots[index] = DayCanvasSlot(category: category, optionId: optionId)
         syncFromSlotsToSelections()
-        persistDailyGallerySlots()
+        persistDailyCanvasSlots()
         recalculateDailyEnergy()
         persistDailyEnergyState()
         
@@ -342,7 +342,7 @@ extension AppModel {
                         properties: [
                             "option_id": id,
                             "category": cat.rawValue,
-                            "source": "gallery_slot"
+                            "source": "canvas_slot"
                         ]
                     )
                 }
@@ -388,10 +388,10 @@ extension AppModel {
         }
     }
     
-    private func persistDailyGallerySlots() {
+    private func persistDailyCanvasSlots() {
         let g = UserDefaults.stepsTrader()
-        if let data = try? JSONEncoder().encode(dailyGallerySlots) {
-            g.set(data, forKey: dailyGallerySlotsKey)
+        if let data = try? JSONEncoder().encode(dailyCanvasSlots) {
+            g.set(data, forKey: dailyCanvasSlotsKey)
         }
     }
     
@@ -470,7 +470,6 @@ extension AppModel {
         let dayKeyToSave = Self.dayKey(for: anchor)
 
         // Build snapshot from PERSISTED state (UserDefaults), not in-memory — on new-day launch in-memory is still default 0/empty
-        let savedBaseEnergy = g.integer(forKey: baseEnergyTodayKey)
         let savedSpent = g.integer(forKey: SharedKeys.spentStepsToday)
         let savedActivity = loadStringArray(forKey: dailySelectionsKey(for: .body))
         let needsLegacyMigration = g.integer(forKey: Self.energyMigrationVersionKey) < Self.currentEnergyMigrationVersion
@@ -501,8 +500,26 @@ extension AppModel {
         let savedSteps: Int = cachedSteps > 0 ? Int(cachedSteps) : Int(stepsToday)
         let savedStepsTarget = userStepsTarget
         let savedSleepTarget = userSleepTarget
+
+        // Recompute inkEarned from raw persisted values instead of trusting baseEnergyTodayKey.
+        // baseEnergyTodayKey can be stale (=0) when HealthKit delivers steps/sleep data after
+        // a day-boundary reset, because the Combine-debounced recalculateDailyEnergy() fires
+        // 200ms after the reset — too late. Computing inline guarantees correctness.
+        let stepsForInk = cachedSteps > 0 ? cachedSteps : stepsToday
+        let computedInkEarned = min(
+            EnergyDefaults.maxBaseEnergy,
+            pointsFromSteps(stepsForInk) +
+            pointsFromSleep(hours: savedSleep) +
+            pointsFromSelections(savedActivity.count) +
+            pointsFromSelections(savedCreativity.count) +
+            pointsFromSelections(migratedSavedJoys.count)
+        )
+        // Fall back to the persisted key only if computation yields 0 (no raw data available).
+        let savedBaseEnergy = g.integer(forKey: baseEnergyTodayKey)
+        let inkEarned = computedInkEarned > 0 ? computedInkEarned : savedBaseEnergy
+
         let daySnapshot = PastDaySnapshot(
-            inkEarned: savedBaseEnergy,
+            inkEarned: inkEarned,
             inkSpent: savedSpent,
             bodyIds: savedActivity,
             mindIds: savedCreativity,
@@ -522,7 +539,7 @@ extension AppModel {
             )
         }
 
-        // Save a rendered canvas snapshot for the history gallery
+        // Save a rendered canvas snapshot for history
         if let oldCanvas = CanvasStorageService.shared.loadCanvas(for: dayKeyToSave),
            !oldCanvas.elements.isEmpty {
             CanvasStorageService.shared.saveSnapshot(
@@ -537,13 +554,17 @@ extension AppModel {
         }
 
         dailySleepHours = 0
+        stepsToday = 0
+        healthStore.hasStepsData = false
+        g.removeObject(forKey: "cachedStepsToday")
+        g.set(false, forKey: "hasStepsData_v1")
         dailyActivitySelections = []
         dailyRestSelections = []
         dailyJoysSelections = []
-        dailyGallerySlots = (0..<4).map { _ in DayGallerySlot(category: nil, optionId: nil) }
+        dailyCanvasSlots = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
         baseEnergyToday = 0
         persistDailyEnergyState()
-        persistDailyGallerySlots()
+        persistDailyCanvasSlots()
         g.set(currentDayStart(for: Date()), forKey: dailyEnergyAnchorKey)
     }
 
@@ -736,7 +757,7 @@ extension AppModel {
         }
         setDailySelections(selections, category: category)
         syncFromSelectionsToSlots()
-        persistDailyGallerySlots()
+        persistDailyCanvasSlots()
         // Recalculate BEFORE persisting so baseEnergyToday is up-to-date when saved.
         // Previously, persistDailyEnergyState saved the stale value, and if the app
         // crashed before recalculate finished, baseEnergyToday would be wrong on reload.
@@ -750,7 +771,7 @@ extension AppModel {
                     properties: [
                         "option_id": optionId,
                         "category": category.rawValue,
-                        "source": "daily_gallery"
+                        "source": "daily_canvas"
                     ]
                 )
             }
@@ -799,7 +820,7 @@ extension AppModel {
         saveStringArray(dailyRestSelections, forKey: dailySelectionsKey(for: .mind))
         saveStringArray(dailyJoysSelections, forKey: dailySelectionsKey(for: .heart))
         g.set(baseEnergyToday, forKey: baseEnergyTodayKey)
-        persistDailyGallerySlots()
+        persistDailyCanvasSlots()
         if g.object(forKey: dailyEnergyAnchorKey) == nil {
             g.set(currentDayStart(for: Date()), forKey: dailyEnergyAnchorKey)
         }
@@ -845,17 +866,17 @@ extension AppModel {
         pointsFromSelections(dailyJoysSelections.count)
     }
 
-    /// Body: 4 chosen cards × 5 ink = 20 max.
+    /// Body: 4 chosen cards × 5 rays = 20 max.
     var activityPointsToday: Int {
         activityExtrasPoints
     }
 
-    /// Mind: 4 chosen cards × 5 ink = 20 max.
+    /// Mind: 4 chosen cards × 5 rays = 20 max.
     var creativityPointsToday: Int {
         creativityExtrasPoints
     }
 
-    /// Heart: 4 chosen cards × 5 ink = 20 max.
+    /// Heart: 4 chosen cards × 5 rays = 20 max.
     var joysCategoryPointsToday: Int {
         joysChoicePointsToday
     }
@@ -872,6 +893,24 @@ extension AppModel {
     
     var isRestDayOverrideEnabled: Bool {
         UserDefaults.stepsTrader().bool(forKey: SharedKeys.restDayOverrideEnabled)
+    }
+    
+    // MARK: - Wallpaper Shortcut Tracking
+    
+    var hasWallpaperShortcut: Bool {
+        UserDefaults.stepsTrader().bool(forKey: "hasWallpaperShortcut")
+    }
+    
+    var wallpaperShortcutUses: Int {
+        UserDefaults.stepsTrader().integer(forKey: "wallpaperShortcutUses")
+    }
+    
+    func markWallpaperShortcutUsed() {
+        let g = UserDefaults.stepsTrader()
+        g.set(true, forKey: "hasWallpaperShortcut")
+        let current = g.integer(forKey: "wallpaperShortcutUses")
+        g.set(current + 1, forKey: "wallpaperShortcutUses")
+        syncUserPreferencesToSupabase()
     }
     
     func setRestDayOverrideEnabled(_ enabled: Bool) {
@@ -912,23 +951,11 @@ extension AppModel {
         AppLogger.energy.debug("⚡️ recalculateDailyEnergy: steps=\(stepsPts) + sleep=\(sleepPts) + body=\(self.activityPointsToday) + mind=\(self.creativityPointsToday) + heart=\(self.joysCategoryPointsToday) = \(total)")
         // Assertion removed — was tautological (BUG-R08)
         
-        // Rest day override grants a minimum base of 30 ink.
+        // Rest day override grants a minimum base of 30 rays.
         let adjustedTotal = isRestDayOverrideEnabled ? max(total, 30) : total
         
         // Base energy capped at maximum 100
         baseEnergyToday = min(EnergyDefaults.maxBaseEnergy, adjustedTotal)
-        
-        // Check total limit: baseEnergyToday + bonusSteps must not exceed 100
-        // If baseEnergyToday increased and total exceeds limit, reduce bonusSteps
-        let maxTotalEnergy = EnergyDefaults.maxBaseEnergy // 100
-        let currentTotal = baseEnergyToday + bonusSteps
-        if currentTotal > maxTotalEnergy {
-            // Reduce bonusSteps so total stays <= 100
-            let oldBonus = bonusSteps
-            bonusSteps = max(0, maxTotalEnergy - baseEnergyToday)
-            AppLogger.energy.debug("⚡️ Capped bonusSteps: \(oldBonus) → \(self.bonusSteps)")
-            syncAndPersistBonusBreakdown() // Persist the update
-        }
         
         // NOTE: Do NOT cap spentStepsToday to baseEnergyToday here.
         // If a user resets the canvas (clearing category selections → lower baseEnergyToday),
@@ -959,12 +986,12 @@ extension AppModel {
                 steps: Int(stepsToday),
                 sleepHours: dailySleepHours,
                 baseEnergy: baseEnergyToday,
-                bonusEnergy: bonusSteps,
+                bonusEnergy: 0,
                 remainingBalance: totalStepsBalance
             )
         }
         
-        // Sync user preferences (targets, day boundary, preferred options, gallery slots)
+        // Sync user preferences (targets, day boundary, preferred options, canvas slots)
         syncUserPreferencesToSupabase()
     }
     
@@ -982,7 +1009,9 @@ extension AppModel {
                 preferredBody: preferredActivityOptions,
                 preferredMind: preferredRestOptions,
                 preferredHeart: preferredJoysOptions,
-                gallerySlots: dailyGallerySlots
+                canvasSlots: dailyCanvasSlots,
+                hasWallpaperShortcut: hasWallpaperShortcut,
+                wallpaperShortcutUses: wallpaperShortcutUses
             )
         }
     }

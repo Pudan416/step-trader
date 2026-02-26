@@ -17,7 +17,7 @@ export default async function UserDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ success?: string }>;
+  searchParams: Promise<{ success?: string; error?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -34,24 +34,37 @@ export default async function UserDetailPage({
   // Server Actions
   async function handleBan(formData: FormData) {
     "use server";
-    const reason = String(formData.get("reason") ?? "Admin action");
-    const until = String(formData.get("until") ?? "");
-    await banUser(id, reason, until || undefined);
+    try {
+      const reason = String(formData.get("reason") ?? "Admin action");
+      const until = String(formData.get("until") ?? "");
+      await banUser(id, reason, until || undefined);
+    } catch (e) {
+      redirect(`/users/${id}?error=${encodeURIComponent(String(e))}`);
+    }
     redirect(`/users/${id}?success=banned`);
   }
 
   async function handleUnban() {
     "use server";
-    await unbanUser(id);
+    try {
+      await unbanUser(id);
+    } catch (e) {
+      redirect(`/users/${id}?error=${encodeURIComponent(String(e))}`);
+    }
     redirect(`/users/${id}?success=unbanned`);
   }
 
+  const MAX_GRANT = 100_000;
   async function handleGrantEnergy(formData: FormData) {
     "use server";
     const delta = Number(formData.get("delta"));
     const reason = String(formData.get("reason") ?? "Admin grant");
-    if (!delta || !Number.isFinite(delta)) return;
-    await grantEnergy(id, delta, reason);
+    if (!delta || !Number.isFinite(delta) || Math.abs(delta) > MAX_GRANT) return;
+    try {
+      await grantEnergy(id, delta, reason);
+    } catch (e) {
+      redirect(`/users/${id}?error=${encodeURIComponent(String(e))}`);
+    }
     redirect(`/users/${id}?success=energy_granted`);
   }
 
@@ -61,6 +74,12 @@ export default async function UserDetailPage({
         <h1 className="text-xl font-semibold tracking-tight">User</h1>
         <div className="mt-1 font-mono text-xs text-zinc-600 dark:text-zinc-400">{user.id}</div>
       </div>
+
+      {sp.error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          Error: {sp.error}
+        </div>
+      ) : null}
 
       {sp.success ? (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-200">

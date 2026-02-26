@@ -7,9 +7,9 @@ import XCTest
 /// Scoring model (5 metrics × 20 = 100 max):
 ///   steps  = 20 × min(made_steps, target_steps) / target_steps
 ///   sleep  = 20 × min(today_sleep, target_sleep) / target_sleep
-///   body   = 4 chosen cards × 5 ink = 20
-///   mind   = 4 chosen cards × 5 ink = 20
-///   heart  = 4 chosen cards × 5 ink = 20
+///   body   = 4 chosen cards × 5 rays = 20
+///   mind   = 4 chosen cards × 5 rays = 20
+///   heart  = 4 chosen cards × 5 rays = 20
 final class DailyEnergyLogicTests: XCTestCase {
 
     // MARK: - EnergyDefaults constants

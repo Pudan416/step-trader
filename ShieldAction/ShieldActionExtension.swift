@@ -136,8 +136,8 @@ class ShieldActionExtension: ShieldActionDelegate {
             return name
         }()
         
-        content.title = "Proof"
-        content.body = "\(blockedTargetName) is closed. Tap to spend ink."
+        content.title = "Nowhere"
+        content.body = "\(blockedTargetName) is closed. Tap to spend rays."
         content.sound = .default
         content.categoryIdentifier = "UNLOCK_APP"
         

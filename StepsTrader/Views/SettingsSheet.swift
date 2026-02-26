@@ -9,6 +9,7 @@ struct SettingsSheet: View {
     @StateObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showLogin = false
     @State private var showProfileEditor = false
 
@@ -39,14 +40,18 @@ struct SettingsSheet: View {
                         settingsNavRow(icon: "bolt.fill", title: "Limits") {
                             SettingsEnergyPage(model: model)
                         }
-                        settingsNavRow(icon: "arrow.down.app", title: "Shortcut") {
+                        settingsNavRow(icon: "arrow.down.app", title: "Wallpaper") {
                             SettingsShortcutPage(model: model)
                         }
                         settingsNavRow(icon: "info.circle", title: "About") {
                             SettingsAboutPage(model: model)
                         }
 
-                        Text("Less scrolling. More living.")
+                        #if DEBUG
+                        shieldDiagnosticsRow
+                        #endif
+
+                        Text("You are not nowhere. You are now here.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity)
@@ -93,7 +98,10 @@ struct SettingsSheet: View {
                         .foregroundColor(.secondary.opacity(0.5))
                 }
                 .padding(14)
-                .background(RoundedRectangle(cornerRadius: 16).fill(Color.primary.opacity(0.05)))
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(colorScheme == .dark ? Color.black.opacity(0.28) : Color.primary.opacity(0.05))
+                )
             }
             .buttonStyle(.plain)
         } else {
@@ -107,11 +115,62 @@ struct SettingsSheet: View {
                 }
                 .foregroundColor(.primary)
                 .padding(14)
-                .background(RoundedRectangle(cornerRadius: 16).fill(Color.primary.opacity(0.05)))
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(colorScheme == .dark ? Color.black.opacity(0.28) : Color.primary.opacity(0.05))
+                )
             }
             .buttonStyle(.plain)
         }
     }
+
+    // MARK: - Shield Diagnostics (DEBUG only)
+
+    #if DEBUG
+    @State private var diagCopied = false
+
+    private var shieldDiagnosticsRow: some View {
+        VStack(spacing: 8) {
+            // Copy diagnostics
+            Button {
+                let text = model.blockingStore.dumpShieldDiagnostics()
+                UIPasteboard.general.string = text
+                diagCopied = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { diagCopied = false }
+            } label: {
+                diagButton(
+                    icon: "shield.lefthalf.filled",
+                    text: diagCopied ? "Copied to clipboard!" : "Copy Shield Diagnostics",
+                    color: .orange,
+                    highlight: diagCopied,
+                    trailing: "doc.on.clipboard"
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func diagButton(icon: String, text: String, color: Color, highlight: Bool = false, trailing: String? = nil) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.subheadline)
+                .foregroundColor(color)
+                .frame(width: 24)
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(highlight ? .green : .primary)
+            Spacer()
+            if let trailing {
+                Image(systemName: trailing)
+                    .font(.caption2)
+                    .foregroundColor(.secondary.opacity(0.5))
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .background(RoundedRectangle(cornerRadius: 12).fill(color.opacity(0.08)))
+    }
+    #endif
 
     // MARK: - Navigation row
 
@@ -132,7 +191,10 @@ struct SettingsSheet: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 14)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.05)))
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(colorScheme == .dark ? Color.black.opacity(0.28) : Color.primary.opacity(0.05))
+            )
         }
         .buttonStyle(.plain)
     }
@@ -247,152 +309,152 @@ private struct SettingsAppearancePage: View {
     @ObservedObject var model: AppModel
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     @AppStorage("gradientStyle_v1") private var gradientStyleRaw: String = GradientStyle.radial.rawValue
-    @AppStorage("testBgStepsNorm") private var testStepsNorm: Double = -1
-    @AppStorage("testBgSleepNorm") private var testSleepNorm: Double = -1
+    @AppStorage("gradientPalette_v1") private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
     @Environment(\.topCardHeight) private var topCardHeight
 
     @State private var previewConfig: GradientPreviewConfig?
+
+    private var activePalette: EnergyGradientRenderer.Palette {
+        EnergyGradientRenderer.palette(for: GradientPalette(rawValue: gradientPaletteRaw) ?? .warmSunset)
+    }
 
     var body: some View {
         ZStack {
             SettingsGradientBG(model: model)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 20) {
                     DetailHeader(title: "Appearance")
+                        .padding(.horizontal, 16)
 
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("THEME")
-                            .font(.caption2.weight(.heavy))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 14)
-                            .padding(.top, 14)
-                            .padding(.bottom, 8)
+                    // MARK: Theme — segmented pill
+                    VStack(alignment: .leading, spacing: 10) {
+                        sectionLabel("THEME")
 
-                        ForEach(Array(AppTheme.selectableThemes.enumerated()), id: \.element.rawValue) { index, option in
-                            if index > 0 { DetailDivider() }
-                            let isSelected = appThemeRaw == option.rawValue
-                            Button {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    appThemeRaw = option.rawValue
-                                }
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Circle()
-                                        .fill(swatchGradient(for: option))
-                                        .frame(width: 28, height: 28)
-                                        .overlay(Circle().strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
-
-                                    Text(option.displayNameEn)
-                                        .font(.subheadline.weight(isSelected ? .semibold : .regular))
-                                        .foregroundColor(.primary)
-
-                                    Spacer()
-
-                                    if isSelected {
-                                        Image(systemName: "checkmark")
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundColor(AppColors.brandAccent)
-                                    }
-                                }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 12)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .glassCard()
-
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("GRADIENT")
-                            .font(.caption2.weight(.heavy))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 14)
-                            .padding(.top, 14)
-                            .padding(.bottom, 8)
-
-                        ForEach(Array(GradientStyle.allCases.enumerated()), id: \.element.rawValue) { index, style in
-                            if index > 0 { DetailDivider() }
-                            let isSelected = gradientStyleRaw == style.rawValue
-                            Button {
-                                previewConfig = GradientPreviewConfig(style: style)
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            } label: {
-                                HStack(spacing: 12) {
-                                    gradientSwatch(for: style)
-                                        .frame(width: 28, height: 28)
-                                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
-
-                                    Text(style.displayName)
-                                        .font(.subheadline.weight(isSelected ? .semibold : .regular))
-                                        .foregroundColor(.primary)
-
-                                    Spacer()
-
-                                    if isSelected {
-                                        Image(systemName: "checkmark")
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundColor(AppColors.brandAccent)
-                                    }
-                                }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 12)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .glassCard()
-
-                    // MARK: - TEST: All gradients × 3 states
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack {
-                            Text("TEST")
-                                .font(.caption2.weight(.heavy))
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            if testStepsNorm >= 0 {
+                        HStack(spacing: 0) {
+                            ForEach(AppTheme.selectableThemes, id: \.rawValue) { option in
+                                let isSelected = appThemeRaw == option.rawValue
                                 Button {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        testStepsNorm = -1
-                                        testSleepNorm = -1
+                                        appThemeRaw = option.rawValue
                                     }
                                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                 } label: {
-                                    Text("Reset to live")
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundColor(AppColors.brandAccent)
+                                    Text(option.displayNameEn)
+                                        .font(.caption.weight(isSelected ? .bold : .medium))
+                                        .foregroundColor(isSelected ? .primary : .secondary)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            isSelected
+                                                ? AnyShapeStyle(Color.primary.opacity(0.1))
+                                                : AnyShapeStyle(Color.clear)
+                                        )
+                                        .clipShape(Capsule())
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.top, 14)
-                        .padding(.bottom, 8)
+                        .padding(3)
+                        .background(Capsule().fill(Color.primary.opacity(0.04)))
+                    }
+                    .padding(.horizontal, 16)
 
-                        ForEach(Array(GradientStyle.allCases.enumerated()), id: \.element.rawValue) { index, style in
-                            if index > 0 { DetailDivider() }
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(style.displayName)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(.primary)
+                    // MARK: Palette — horizontal color row
+                    VStack(alignment: .leading, spacing: 10) {
+                        sectionLabel("COLORS")
 
-                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                                    testGradientTile(style: style, stepsNorm: 1.0, sleepNorm: 1.0, label: "Full")
-                                    testGradientTile(style: style, stepsNorm: 0.0, sleepNorm: 1.0, label: "Sleep only")
-                                    testGradientTile(style: style, stepsNorm: 1.0, sleepNorm: 0.0, label: "Steps only")
-                                    testGradientTile(style: style, stepsNorm: 0.0, sleepNorm: 0.0, label: "No data")
+                        HStack(spacing: 12) {
+                            ForEach(GradientPalette.allCases, id: \.rawValue) { scheme in
+                                let isSelected = gradientPaletteRaw == scheme.rawValue
+                                Button {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        gradientPaletteRaw = scheme.rawValue
+                                    }
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                } label: {
+                                    VStack(spacing: 6) {
+                                        let pal = EnergyGradientRenderer.palette(for: scheme)
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(LinearGradient(
+                                                colors: [pal.bright, pal.warm, pal.cool, pal.dark],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ))
+                                            .frame(height: 44)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .strokeBorder(
+                                                        isSelected ? AppColors.brandAccent : Color.clear,
+                                                        lineWidth: 2
+                                                    )
+                                            )
+
+                                        Text(scheme.displayName)
+                                            .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                                            .foregroundColor(isSelected ? .primary : .secondary)
+                                    }
+                                    .frame(maxWidth: .infinity)
                                 }
+                                .buttonStyle(.plain)
                             }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
                         }
                     }
-                    .glassCard()
+                    .padding(.horizontal, 16)
+
+                    // MARK: Gradient — visual swatch grid
+                    VStack(alignment: .leading, spacing: 10) {
+                        sectionLabel("GRADIENT")
+
+                        let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+                        LazyVGrid(columns: columns, spacing: 10) {
+                            ForEach(GradientStyle.allCases, id: \.rawValue) { style in
+                                let isSelected = gradientStyleRaw == style.rawValue
+                                Button {
+                                    previewConfig = GradientPreviewConfig(style: style)
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                } label: {
+                                    VStack(spacing: 6) {
+                                        Canvas { context, size in
+                                            let pal = activePalette
+                                            let opacities = EnergyGradientRenderer.computeOpacities(
+                                                smoothedS: 0.8,
+                                                smoothedL: 0.6,
+                                                hasStepsData: true,
+                                                hasSleepData: true,
+                                                isDaylight: false
+                                            )
+                                            EnergyGradientRenderer.draw(
+                                                context: &context,
+                                                size: size,
+                                                opacities: opacities,
+                                                baseColor: pal.dark,
+                                                gradientStyle: style,
+                                                colorPalette: pal
+                                            )
+                                        }
+                                        .frame(height: 80)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .strokeBorder(
+                                                    isSelected ? AppColors.brandAccent : Color.white.opacity(0.08),
+                                                    lineWidth: isSelected ? 2 : 0.5
+                                                )
+                                        )
+
+                                        Text(style.displayName)
+                                            .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                                            .foregroundColor(isSelected ? .primary : .secondary)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 32)
+                .padding(.bottom, 80)
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -414,96 +476,10 @@ private struct SettingsAppearancePage: View {
         }
     }
 
-    @ViewBuilder
-    private func testGradientTile(style: GradientStyle, stepsNorm: Double, sleepNorm: Double, label: String) -> some View {
-        let isActive = gradientStyleRaw == style.rawValue
-            && testStepsNorm == stepsNorm
-            && testSleepNorm == sleepNorm
-
-        Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                gradientStyleRaw = style.rawValue
-                testStepsNorm = stepsNorm
-                testSleepNorm = sleepNorm
-            }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        } label: {
-            VStack(spacing: 4) {
-                Canvas { context, size in
-                    let Ss = EnergyGradientRenderer.smoothstep(stepsNorm)
-                    let Ls = EnergyGradientRenderer.smoothstep(sleepNorm)
-                    let opacities = EnergyGradientRenderer.computeOpacities(
-                        smoothedS: Ss,
-                        smoothedL: Ls,
-                        hasStepsData: stepsNorm > 0,
-                        hasSleepData: sleepNorm > 0,
-                        isDaylight: false
-                    )
-                    EnergyGradientRenderer.draw(
-                        context: &context,
-                        size: size,
-                        opacities: opacities,
-                        gradientStyle: style
-                    )
-                }
-                .frame(height: 120)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(
-                            isActive ? AppColors.brandAccent : Color.primary.opacity(0.1),
-                            lineWidth: isActive ? 2 : 0.5
-                        )
-                )
-
-                Text(label)
-                    .font(.system(size: 9, weight: isActive ? .bold : .medium))
-                    .foregroundColor(isActive ? AppColors.brandAccent : .secondary)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func swatchGradient(for option: AppTheme) -> some ShapeStyle {
-        switch option {
-        case .daylight:
-            return LinearGradient(colors: [Color(white: 0.95), Color(white: 0.88)], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .night:
-            return LinearGradient(colors: [Color(red: 0.13, green: 0.16, blue: 0.19), Color(red: 0.08, green: 0.09, blue: 0.12)], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .system:
-            return LinearGradient(colors: [Color(white: 0.85), Color(red: 0.15, green: 0.17, blue: 0.21)], startPoint: .leading, endPoint: .trailing)
-        }
-    }
-
-    @ViewBuilder
-    private func gradientSwatch(for style: GradientStyle) -> some View {
-        let darkToLight: [Color] = [
-            EnergyGradientRenderer.night,
-            EnergyGradientRenderer.navy,
-            EnergyGradientRenderer.coral,
-            EnergyGradientRenderer.gold
-        ]
-        switch style {
-        case .radial:
-            RadialGradient(
-                colors: darkToLight.reversed(),
-                center: .center,
-                startRadius: 0,
-                endRadius: 18
-            )
-        case .radialReversed:
-            RadialGradient(
-                colors: darkToLight,
-                center: .center,
-                startRadius: 0,
-                endRadius: 18
-            )
-        case .linear:
-            LinearGradient(colors: darkToLight, startPoint: .top, endPoint: .bottom)
-        case .linearReversed:
-            LinearGradient(colors: darkToLight.reversed(), startPoint: .top, endPoint: .bottom)
-        }
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.weight(.heavy))
+            .foregroundColor(.secondary)
     }
 }
 
@@ -514,6 +490,7 @@ private struct GradientPreviewSheet: View {
     let onApply: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("gradientPalette_v1") private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
     @State private var isDaylight = false
     @State private var selectedState = 0
 
@@ -524,13 +501,16 @@ private struct GradientPreviewSheet: View {
         (0.0, 0.0, "No data"),
     ]
 
+    private var pal: EnergyGradientRenderer.Palette {
+        EnergyGradientRenderer.palette(for: GradientPalette(rawValue: gradientPaletteRaw) ?? .warmSunset)
+    }
+
     private var baseColor: Color {
-        isDaylight ? EnergyGradientRenderer.daylightBase : EnergyGradientRenderer.night
+        isDaylight ? pal.daylightBase : pal.dark
     }
 
     var body: some View {
         ZStack {
-            // Full-bleed gradient background for current state
             Canvas { context, size in
                 let st = states[selectedState]
                 let Ss = EnergyGradientRenderer.smoothstep(st.steps)
@@ -547,7 +527,8 @@ private struct GradientPreviewSheet: View {
                     size: size,
                     opacities: opacities,
                     baseColor: baseColor,
-                    gradientStyle: config.style
+                    gradientStyle: config.style,
+                    colorPalette: pal
                 )
             }
             .ignoresSafeArea()
@@ -604,7 +585,8 @@ private struct GradientPreviewSheet: View {
                                         size: size,
                                         opacities: opacities,
                                         baseColor: baseColor,
-                                        gradientStyle: config.style
+                                        gradientStyle: config.style,
+                                        colorPalette: pal
                                     )
                                 }
                                 .frame(height: 72)
@@ -799,7 +781,7 @@ private struct SettingsEnergyPage: View {
 
 }
 
-// MARK: - Shortcut Page
+// MARK: - Wallpaper Page
 
 private struct SettingsShortcutPage: View {
     @ObservedObject var model: AppModel
@@ -814,7 +796,7 @@ private struct SettingsShortcutPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    DetailHeader(title: "Shortcut")
+                    DetailHeader(title: "Wallpaper")
 
                     VStack(alignment: .leading, spacing: 12) {
                     Text("Set today's energy canvas as your Lock Screen wallpaper automatically each time you close the app.")
@@ -823,10 +805,10 @@ private struct SettingsShortcutPage: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("1. Tap the button to add the shortcut")
-                        Text("2. Open Shortcuts -> Automation -> + -> App")
+                        Text("1. Tap the button to add the wallpaper shortcut")
+                        Text("2. Open Shortcuts → Automation → + → App")
                         Text("3. Select this app, pick \"Is Closed\"")
-                        Text("4. Set the action to the shortcut")
+                        Text("4. Set the action to the wallpaper shortcut")
                         Text("5. Turn off \"Ask Before Running\"")
                     }
                     .font(.caption)
@@ -838,7 +820,7 @@ private struct SettingsShortcutPage: View {
                         HStack(spacing: 6) {
                             Image(systemName: "square.and.arrow.down")
                                 .font(.caption.weight(.semibold))
-                            Text("Get Shortcut")
+                            Text("Get Wallpaper Shortcut")
                                 .font(.subheadline.weight(.semibold))
                         }
                         .foregroundColor(.black)
@@ -867,6 +849,7 @@ private struct SettingsShortcutPage: View {
 private struct SettingsAboutPage: View {
     @ObservedObject var model: AppModel
     @Environment(\.topCardHeight) private var topCardHeight
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openURL) private var openURL
 
     private var appVersion: String {
@@ -887,7 +870,7 @@ private struct SettingsAboutPage: View {
                     DetailInfoRow(label: "Version", value: appVersion)
                     DetailDivider()
                     Button {
-                        if let url = URL(string: "mailto:kostill@gmail.com") {
+                        if let url = URL(string: "mailto:we.live.now.here@gmail.com") {
                             openURL(url)
                         }
                     } label: {
@@ -896,7 +879,7 @@ private struct SettingsAboutPage: View {
                                 .font(.subheadline)
                                 .foregroundColor(.primary)
                             Spacer()
-                            Text("kostill@gmail.com")
+                            Text("we.live.now.here@gmail.com")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Image(systemName: "envelope")
@@ -907,14 +890,37 @@ private struct SettingsAboutPage: View {
                         .padding(.vertical, 12)
                     }
                     .buttonStyle(.plain)
-                }
+                    DetailDivider()
+                    Button {
+                        if let url = URL(string: "https://t.me/now_here_admin") {
+                            openURL(url)
+                        }
+                    } label: {
+                        HStack {
+                            Text("Telegram")
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text("@now_here_admin")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Image(systemName: "paperplane")
+                                .font(.caption2)
+                                .foregroundColor(.secondary.opacity(0.5))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    }
                 .glassCard()
 
-                    Text("Less scrolling. More living.")
+                    Text("You are not nowhere. You are now here.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 8)
+
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 32)

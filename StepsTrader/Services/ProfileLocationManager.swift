@@ -43,9 +43,11 @@ class ProfileLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
         if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
             manager.requestLocation()
         } else if manager.authorizationStatus == .denied {
-            isLoading = false
-            errorMessage = "Location access denied"
-            completion?(nil)
+            DispatchQueue.main.async {
+                self.isLoading = false
+                self.errorMessage = "Location access denied"
+                self.completion?(nil)
+            }
         }
     }
     

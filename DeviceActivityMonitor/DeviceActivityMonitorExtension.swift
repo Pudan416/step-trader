@@ -208,7 +208,6 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let now = Date()
         var hasExpired = false
         
-        // Find all groupUnlock_* keys and check if they've expired
         let allKeys = defaults.dictionaryRepresentation().keys
         for key in allKeys where key.hasPrefix("groupUnlock_") {
             if let unlockUntil = defaults.object(forKey: key) as? Date {
@@ -250,22 +249,27 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         var allApps: Set<ApplicationToken> = []
         var allCategories: Set<ActivityCategoryToken> = []
         let now = Date()
+        var diagLines: [String] = []
         
         let groups = loadTicketGroupsForExtension(defaults: defaults)
         if groups.isEmpty {
             MonitorLogger.warning("No ticket groups (lite or legacy) found in UserDefaults")
             appendMonitorLog("rebuildBlockFromExtension: no groups")
+            diagLines.append("NO GROUPS")
         }
         MonitorLogger.info("Processing \(groups.count) ticket groups")
         
-        for group in groups {
+        for group in groups where group.active {
             let unlockKey = "groupUnlock_\(group.id)"
             if let unlockUntil = defaults.object(forKey: unlockKey) as? Date, now < unlockUntil {
+                let secs = Int(unlockUntil.timeIntervalSince(now))
                 MonitorLogger.info("Group \(group.name) still unlocked until \(unlockUntil)")
+                diagLines.append("SKIP \(group.name): unlocked \(secs)s")
                 continue
             }
             guard let selectionData = group.selectionData else {
                 MonitorLogger.warning("Group \(group.name) has no selectionData")
+                diagLines.append("NODATA \(group.name)")
                 continue
             }
             do {
@@ -273,12 +277,14 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                 allApps.formUnion(sel.applicationTokens)
                 allCategories.formUnion(sel.categoryTokens)
                 MonitorLogger.info("Adding \(sel.applicationTokens.count) apps from locked group: \(group.name)")
+                diagLines.append("ADD \(group.name): \(sel.applicationTokens.count)a \(sel.categoryTokens.count)c")
             } catch {
                 MonitorLogger.error("Failed to decode FamilyActivitySelection for group \(group.name): \(error.localizedDescription)", context: [
                     "groupId": group.id,
                     "groupName": group.name,
                     "error": error.localizedDescription
                 ])
+                diagLines.append("ERR \(group.name): decode failed")
             }
         }
         
@@ -292,7 +298,6 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                         let blockKey = "blockUntil_\(bundleId)"
                         if let until = defaults.object(forKey: blockKey) as? Date {
                             if now < until {
-                                // Access window active — skip shielding this app
                                 continue
                             } else {
                                 defaults.removeObject(forKey: blockKey)
@@ -327,7 +332,24 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         
         MonitorLogger.info("Shield rebuilt: \(allApps.count) apps, \(allCategories.count) categories")
         appendMonitorLog("Shield rebuilt: \(allApps.count) apps, \(allCategories.count) categories")
+
+        // Write diagnostic snapshot to shared UserDefaults
+        let detail = diagLines.joined(separator: " | ")
+        logShieldDiagFromExtension(source: "ext", apps: allApps.count, categories: allCategories.count, detail: detail, defaults: defaults)
         #endif
+    }
+
+    /// Write a shield diagnostic entry from the extension process.
+    private func logShieldDiagFromExtension(source: String, apps: Int, categories: Int, detail: String, defaults: UserDefaults) {
+        let iso = ISO8601DateFormatter()
+        let ts = iso.string(from: Date())
+        let entry = "[\(ts)] [\(source)] apps=\(apps) cats=\(categories) \(detail)"
+
+        var history = defaults.stringArray(forKey: SharedKeys.shieldDiagHistory) ?? []
+        history.append(entry)
+        if history.count > 20 { history = Array(history.suffix(20)) }
+        defaults.set(history, forKey: SharedKeys.shieldDiagHistory)
+        defaults.set(entry, forKey: SharedKeys.shieldDiagLastRebuild)
     }
     
     #if canImport(ManagedSettings)
@@ -483,6 +505,13 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     private func handleMinuteEvent(_ event: DeviceActivityEvent.Name) {
         let raw = event.rawValue
+
+        // Ticket-group heartbeat events: just check for expired unlocks and rebuild.
+        if raw.hasPrefix("ticketGroup_") {
+            checkAndClearExpiredUnlocks()
+            return
+        }
+
         let prefix = "minute_"
         guard raw.hasPrefix(prefix) else { return }
         let bundleId = String(raw.dropFirst(prefix.count))

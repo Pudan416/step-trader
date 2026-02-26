@@ -14,7 +14,8 @@ struct TicketGroupSettingsView: View {
     @State private var showAuthAlert = false
     @State private var showIntervals = false
     @State private var isUnlocking = false
-    
+    @State private var cachedAppName: String?
+
     // Computed dynamic title based on selection - uses actual app names
     private var displayTitle: String {
         // If template app is set, use its display name
@@ -53,15 +54,17 @@ struct TicketGroupSettingsView: View {
         return "\(appCount + catCount) Apps"
     }
     
-    // Helper to get app name from first token
     private func getFirstAppName() -> String? {
+        if let cached = cachedAppName { return cached }
         #if canImport(FamilyControls)
         let defaults = UserDefaults(suiteName: "group.personal-project.StepsTrader") ?? .standard
-        
         if let firstToken = group.selection.applicationTokens.first,
            let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: firstToken, requiringSecureCoding: true) {
             let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
-            return defaults.string(forKey: tokenKey)
+            if let name = defaults.string(forKey: tokenKey) {
+                DispatchQueue.main.async { cachedAppName = name }
+                return name
+            }
         }
         #endif
         return nil
@@ -137,7 +140,7 @@ struct TicketGroupSettingsView: View {
             HStack {
                 Image(systemName: "lock.open.fill")
                     .foregroundColor(.green)
-                Text("I want to spend ink on")
+                Text("I want to spend rays on")
                     .font(.headline)
                 Spacer()
                 

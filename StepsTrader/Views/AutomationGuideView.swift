@@ -267,7 +267,7 @@ struct AutomationGuideView: View {
                     .font(AppFonts.caption)
                     .foregroundColor(.secondary)
                 Text(minuteModeEnabled 
-                    ? "Ink is deducted for each minute I spend in the app"
+                    ? "Rays are deducted for each minute I spend in the app"
                     : "Choose a time window (5min, 1h, day) and pay once for unlimited access")
                     .font(AppFonts.caption)
                     .foregroundColor(.secondary)

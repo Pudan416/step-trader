@@ -6,15 +6,15 @@
 
 ## 🎯 STRATEGY ALIGNMENT SUMMARY
 
-**Core Value**: Your life is a daily exhibition. You curate it with every choice. Screen time is what you trade to leave your own gallery and enter someone else's.
+**Core Value**: Your life is a daily canvas. You paint it with every choice. Screen time is what you trade to leave your own canvas and enter someone else's.
 
 **Target Personas**: Intentional living (25–35), Quantified self (22–35), Creative/philosophical (20–30)
 
 **Key KPIs**: D7 retention > 20%, beta users explain app in one sentence, premium conversion > 2%, >500 installs from launch
 
-**Vocabulary Contract**: experience (not EXP/balance/energy), pieces (not activities/selections), rooms — body/mind/heart (not Move/Reboot/Joy), tickets (not shields), spend (not pay/deduct), archive (not history/memories)
+**Vocabulary Contract**: experience (not EXP/balance/energy), pieces (not activities/selections), categories — body/mind/heart (not Move/Reboot/Joy), tickets (not shields), spend (not pay/deduct), archive (not history/memories)
 
-**Tone**: Gallery wall text. Observational. Brief. No exclamation marks. No motivational language. No punishment language.
+**Tone**: Canvas wall text. Observational. Brief. No exclamation marks. No motivational language. No punishment language.
 
 **This Audit Ensures**: Every line of user-facing code matches the strategic "best outcome" vision. Technical debt that blocks beta launch is identified and prioritized.
 
@@ -26,14 +26,14 @@
 |---|---|---|---|
 | App name = "Proof" | Code says "DOOM CTRL", "Steps4", "StepsTrader" everywhere | **Critical** — brand identity doesn't exist in code | P0 |
 | Vocabulary = "experience" | StepBalanceCard shows "EXP"; variables use `steps`, `balance` | **Critical** — contradicts one-word-per-concept rule | P0 |
-| Three rooms = body / mind / heart | UI shows "My activities / My creativity / My joys" | **Critical** — core metaphor absent from UI | P0 |
-| Shield copy = gallery tone | Extension shows "⚡ BLOCKED" + "DOOM CTRL" | **Critical** — directly anti-strategic (punishment language) | P0 |
+| Three categories = body / mind / heart | UI shows "My activities / My creativity / My joys" | **Critical** — core metaphor absent from UI | P0 |
+| Shield copy = canvas tone | Extension shows "⚡ BLOCKED" + "DOOM CTRL" | **Critical** — directly anti-strategic (punishment language) | P0 |
 | English-only for v1 | All UI strings wrapped in `loc(appLanguage, ...)` with RU branches | **Critical** — dead code, maintenance drag, blocks vocabulary pass | P0 |
 | PayGate = "keep it closed" | Code says "Keep it locked" | **High** — punishment framing | P1 |
-| Gallery = conceptual center | Gallery is tab index 1; Tickets is default tab 0 | **High** — gallery buried behind tickets | P1 |
+| Canvas = conceptual center | Canvas is tab index 1; Tickets is default tab 0 | **High** — canvas buried behind tickets | P1 |
 | Guides tab = philosophy wall texts | ManualsPage is empty VStack | **High** — missed opportunity, strategic feature | P1 |
 | Piece names = action phrases | "Dancing", "Curiosity", "Cringe" (nouns) | **High** — should be "dancing it out", "following my curiosity" | P1 |
-| Onboarding = 7 gallery-first slides | 13+ slides, permissions-first | **High** — onboarding completion rate at risk | P2 |
+| Onboarding = 7 canvas-first slides | 13+ slides, permissions-first | **High** — onboarding completion rate at risk | P2 |
 | Weekly reflection card | Not built | **Medium** — Week 3 deliverable | P2 |
 | Lock Screen widget | Not built | **Medium** — biggest retention driver per strategy | P2 |
 | Rest day override | Not built | **Medium** — Week 3 deliverable | P2 |
@@ -51,7 +51,7 @@
 | **S2** ✅ | `AppModel.swift:760` | Periodic notification = `"⏰ DOOM CTRL"` / unlock reminder | — | **DONE** — Replaced with "Proof" / "You have experience to earn." |
 | **S3** ✅ | `StepBalanceCard.swift:68` | Header label = `"EXP"` | — | **DONE** — Changed to "experience" (lowercase, .medium weight, 0.3 tracking). |
 | **S4** ✅ | `StepBalanceCard.swift:175-196` | Category chips show SF Symbols only (figure.run / sparkles / heart.fill) with no text labels | — | **DONE** — Added text labels "body", "mind", "heart" alongside icons in `compactCategoryChip`; chips now read body · mind · heart explicitly. |
-| **S5** ✅ | `ChoiceView.swift:278-283` | Gallery section headers = `"My activities"` / `"My creativity"` / `"My joys"` | — | **DONE** — `categoryTitle` updated to `"my body"` / `"my mind"` / `"my heart"` in gallery sections. |
+| **S5** ✅ | `GalleryView.swift` | Canvas section headers = `"My activities"` / `"My creativity"` / `"My joys"` | — | **DONE** — `categoryTitle` updated to `"my body"` / `"my mind"` / `"my heart"` in canvas sections. |
 | **S6** ✅ | `PayGateView.swift:204` | Close button = `"Keep it locked"` | — | **DONE** — Button copy changed to `"keep it closed"` (choice framing, no punishment language). |
 | **S7** ✅ | `PayGateView.swift:85-87` | Header shows `bolt.fill` icon next to balance | — | **DONE** — Removed bolt icon; header shows balance number only in capsule. |
 | **S8** ✅ | `PayGateView.swift:117` | Title = `"Spend experience"` (capitalized) | — | **DONE** — Changed to lowercase `"spend experience"`. |
@@ -59,11 +59,11 @@
 | **S10** ✅ | `ShieldConfigurationExtension.swift:88-89` | Shield showed "⚡ BLOCKED" + punishment copy | — | **DONE** — Rewritten to "[app] is closed." / "Open Proof to spend experience." / "Open". Bolt fallback icon → shield.fill. |
 | **S11** ✅ | `ShieldConfigurationExtension.swift:95-106` | Second state: "👆 CHECK ABOVE" + "Open DOOM CTRL app" | — | **DONE** — "Check your notifications." / "A notification is waiting. Or open Proof directly." / "Open Proof". Same for webDomain. |
 | **S12** ✅ | `ShieldActionExtension.swift:131-133` | Notification = "DOOM CTRL" / "Tap to choose unlock time." | — | **DONE** — "Proof" / "This app is closed. Tap to spend experience." |
-| **S13** ✅ | `ManualsPage.swift:11` | Guides tab = empty `VStack {}` | Strategy calls this "where the philosophy lives" — 5 wall texts planned. Blocks beta messaging. | Implement with at least 3 entries ("On proof", "On the three rooms", "On the threshold") |
-| **S14** ✅ | `DailyEnergy.swift:112-147` | Option titles are nouns: "Dancing", "Meal", "Curiosity", "Cringe", "Embrace" | Strategy: action phrases — "dancing it out", "eating a real meal", "following my curiosity", "embracing the cringe", "holding someone close" | Update all `titleEn` values |
+| **S13** ✅ | `ManualsPage.swift:11` | Guides tab = empty `VStack {}` | Strategy calls this "where the philosophy lives" — 5 wall texts planned. Blocks beta messaging. | Implement with at least 3 entries ("On proof", "On the three categories", "On the threshold") |
+| **S14** ✅ | `DailyEnergy.swift:112-147` | Option titles were nouns | Now 10 activities per category (body/mind/heart): Walking, Focusing, Joy, etc. | Updated all `titleEn` values |
 | **S15** ✅ | `DailyEnergy.swift:145` | Typo: `"joysl_junkfood"` (extra 'l') | Asset mismatch risk, data corruption for users who select it | Rename to `"joys_junkfood"` with migration |
-| **S16** ✅ | `AppModel.swift:65-180` | 65+ forwarding computed properties from AppModel → 3 stores | — | **DONE** — Migrated UI call sites to direct store access (`model.healthStore`, `model.blockingStore`, `model.userEconomyStore`) across core screens (`MainTabView`, `GalleryView`, ticket/paygate/settings surfaces, quick status, handoff). AppModel forwarding remains as compatibility shim while UI no longer depends on it. |
-| **S17** ✅ | `MainTabView.swift:11-47` | Tab order: tickets(0), gallery(1), me(2), guides(3), settings(4) | Strategy says gallery IS the product. It should be the default tab, or at minimum more prominent | Move gallery to tab 0, or set `selection` default to 1 |
+| **S16** ✅ | `AppModel.swift:65-180` | 65+ forwarding computed properties from AppModel → 3 stores | — | **DONE** — Migrated UI call sites to direct store access (`model.healthStore`, `model.blockingStore`, `model.userEconomyStore`) across core screens (`MainTabView`, canvas view, ticket/paygate/settings surfaces, quick status, handoff). AppModel forwarding remains as compatibility shim while UI no longer depends on it. |
+| **S17** ✅ | `MainTabView.swift:11-47` | Tab order: tickets(0), canvas(1), me(2), guides(3), settings(4) | Strategy says canvas IS the product. It should be the default tab, or at minimum more prominent | Move canvas to tab 0, or set `selection` default to 1 |
 | **S18** ✅ | `MainTabView.swift:64` | Balance card params use `movePoints`, `rebootPoints`, `joyPoints` | Variable names contradict vocabulary. Should be `bodyPoints`, `mindPoints`, `heartPoints` | Rename parameters |
 | **S19** ✅ | `AppsPageSimplified.swift:229` | Empty state: `"Create your first ticket to collect experience"` | "Collect" is gamification-adjacent. Strategy empty state template: `"[What's absent]. [Neutral observation]. [Action]. Or not."` | Rewrite: `"No tickets yet. Create one when you're ready."` |
 | **S20** ✅ | `AppsPageSimplified.swift:386-404` | Ticket front shows `bolt.fill` icon for experience cost | Strategy: no lightning bolts throughout | Remove bolt icons, show just the number or use the word "experience" |
@@ -77,7 +77,7 @@
 | **B2** ✅ | `AppModel.swift:481-484` | `deleteSupabaseTicket()` was a stub/TODO | — | **DONE** — Implemented real delete path via `SupabaseSyncService.deleteTicket(bundleId:)` that removes current user's row from `shields` (`user_id` + `bundle_id`) using authenticated Supabase REST call. |
 | **B3** ✅ | `DeviceActivityMonitorExtension.swift:87-94` | Extension duplicates `stepsTraderDefaults()` function locally instead of sharing | — | **DONE** — Centralized App Group defaults access in `SharedKeys.appGroupDefaults()` and replaced all local `stepsTraderDefaults()` usage in `DeviceActivityMonitorExtension`. |
 | **B4** ✅ | `SupabaseSyncService.swift` | Daily selections sync worked but ticket group sync was TODO | — | **DONE** — Implemented debounced `syncTicketGroups(_:)` in `SupabaseSyncService` (delete+reinsert `group:*` rows in `shields`) and wired calls from ticket-group mutations in `AppModel+TicketGroups`. |
-| **B5** ✅ | `SupabaseSyncService.swift` + call sites | No analytics tracking for strategic KPIs (D7 retention, onboarding completion, gallery engagement) | — | **DONE** — Added queued analytics pipeline (`trackAnalyticsEvent`) with Supabase flush to `user_analytics_events`, and wired required events: `onboarding_completed` (`OnboardingFlowView`), `piece_selected` (`AppModel+DailyEnergy`), `experience_spent` (`AppModel+Payment`), `gallery_viewed` (`GalleryView`), `ticket_created` (`AppModel+TicketGroups`). |
+| **B5** ✅ | `SupabaseSyncService.swift` + call sites | No analytics tracking for strategic KPIs (D7 retention, onboarding completion, canvas engagement) | — | **DONE** — Added queued analytics pipeline (`trackAnalyticsEvent`) with Supabase flush to `user_analytics_events`, and wired required events: `onboarding_completed` (`OnboardingFlowView`), `piece_selected` (`AppModel+DailyEnergy`), `experience_spent` (`AppModel+Payment`), `canvas_viewed` (`GalleryView`), `ticket_created` (`AppModel+TicketGroups`). |
 | **B6** ✅ | `DeviceActivityMonitorExtension.swift:96-105` | Monitor log retains up to 200 string entries in UserDefaults | App Group storage bloat risk (extensions have tight memory limits) | Reduce to 50 entries or move to file-based logging |
 | **B7** ✅ | `PastDaySnapshot.swift:7-9` | Snapshot uses `controlGained` / `controlSpent` | Vocabulary violation — should be `experienceEarned` / `experienceSpent`. Affects Supabase schema and historical data. | Rename with backward-compat decoding (add new coding keys, keep old ones for reading) |
 
@@ -86,15 +86,15 @@
 | ID | Strategic Goal | Current Gap | User Impact | Fix Plan |
 |---|---|---|---|---|
 | **P1** ✅ | App identity = "Proof" | Bundle display name = "Steps4", all internal references = "DOOM CTRL" / "StepsTrader" | Beta testers can't identify the product. Word-of-mouth impossible. | Update display name in Info.plist, all user-facing strings |
-| **P2** ✅ | Gallery = soul of product | Gallery was not the conceptual center in tab order/navigation | — | **DONE** — Reordered `MainTabView` so gallery is tab `0` and default selection, moved tickets to tab `1`, and replaced hardcoded tab indices with `Tab.*.rawValue` for robust routing. |
-| **P3** ✅ | Onboarding = 7 slides, gallery-first | Previous onboarding path had extra intro/login/permission/profile phases and 13+ interactions | — | **DONE** — Rewrote `OnboardingFlowView` into a single 7-slide flow with gallery-first ordering (joys first), collapsed multi-phase onboarding into one sequence, and moved permission prompts to a single post-onboarding request step. |
-| **P4** ✅ | Weekly reflection | Not implemented | — | **DONE** — Added `WeeklyReflectionCard` in `MeView` using last-7-day snapshots to show weekly earned/spent/kept experience and strongest room, with an interpretive headline ("Strong/Balanced/Expensive week"). |
+| **P2** ✅ | Canvas = soul of product | Canvas was not the conceptual center in tab order/navigation | — | **DONE** — Reordered `MainTabView` so canvas is tab `0` and default selection, moved tickets to tab `1`, and replaced hardcoded tab indices with `Tab.*.rawValue` for robust routing. |
+| **P3** ✅ | Onboarding = 7 slides, canvas-first | Previous onboarding path had extra intro/login/permission/profile phases and 13+ interactions | — | **DONE** — Rewrote `OnboardingFlowView` into a single 7-slide flow with canvas-first ordering (heart first), collapsed multi-phase onboarding into one sequence, and moved permission prompts to a single post-onboarding request step. |
+| **P4** ✅ | Weekly reflection | Not implemented | — | **DONE** — Added `WeeklyReflectionCard` in `MeView` using last-7-day snapshots to show weekly earned/spent/kept experience and strongest category, with an interpretive headline ("Strong/Balanced/Expensive week"). |
 | **P5** ✅ | Lock Screen widget | — | — | **DONE** — Added `ProofLockScreenWidget` WidgetKit extension with Lock Screen accessory families (inline/circular/rectangular) that read current experience from App Group UserDefaults (`stepsBalance`) and refresh timeline every 15 minutes. |
 | **P6** ✅ | Rest day override | Not implemented | — | **DONE** — Added a user-facing "Rest day override" toggle in `SettingsView` persisted via `SharedKeys.restDayOverrideEnabled`; when enabled, daily base energy is floored to 30 EXP in `recalculateDailyEnergy()`. |
 | **P7** ✅ | Difficulty labels = gamification | "Rookie / Rebel / Fighter / Warrior / Legend" | — | **DONE** — Replaced gamified difficulty labels with neutral numeric labels (`Level 1` … `Level 5`) across ticket list/detail and shield group settings views. |
 | **P8** ✅ | Privacy manifest | Not present | App Store requirement. Blocks public launch (Phase 3). | **DONE** — Added `PrivacyInfo.xcprivacy` to main app target (`Steps4`) with NSPrivacyAccessedAPITypes: UserDefaults CA92.1 and tracking explicitly set to false. |
 | **P9** ✅ | README contradicts code | README claimed "ManagedSettings shield blocking was removed" while shielding is active in code | — | **DONE** — Rewrote `README.md` to match current behavior (Proof branding, active ManagedSettings/Shield extensions, accurate target/capability notes). |
-| **P10** ✅ | `joys_money` in heart room | "Money" was listed under joys/heart though strategy places it in mind | — | **DONE** — Removed `joys_money` from joys defaults, kept `creativity_doing_cash` ("making money happen") in mind, and added migration that moves legacy `joys_money` IDs in daily/preferred/snapshot data to mind. |
+| **P10** ✅ | `joys_money` in heart category | "Money" was listed under joys/heart though strategy places it in mind | — | **DONE** — Removed `joys_money` from joys defaults, kept `creativity_doing_cash` ("making money happen") in mind, and added migration that moves legacy `joys_money` IDs in daily/preferred/snapshot data to mind. |
 
 ---
 
@@ -106,10 +106,10 @@
 Day 1-2: Identity & Vocabulary Pass
   ✅ S21: Strip ALL loc() wrappers → plain English strings (DO THIS FIRST — unblocks every other string change)
   ✅ S21: Delete loc() helper, remove appLanguage property & Settings toggle
-  ✅ **S1, S2, S12: Replace all "DOOM CTRL" with "Proof" in notifications** — DONE (AppModel, NotificationManager, ShieldActionExtension; gallery-toned bodies)
+  ✅ **S1, S2, S12: Replace all "DOOM CTRL" with "Proof" in notifications** — DONE (AppModel, NotificationManager, ShieldActionExtension; canvas-toned bodies)
   ✅ **S3: StepBalanceCard "EXP" → "experience"** — DONE
   ✅ **S10, S11: Shield copy rewrite** — DONE (blocked + waitingPush; app + webDomain; bolt fallback → shield.fill)
-  ✅ S5: Gallery headers "My activities/creativity/joys" → "my body/mind/heart"
+  ✅ S5: Canvas headers "My activities/creativity/joys" → "my body/mind/heart"
   ✅ S6: PayGate "Keep it locked" → "keep it closed"
   ✅ S14: Update all option titleEn to action phrases
   ✅ S15: Fix "joysl_junkfood" typo
@@ -136,8 +136,8 @@ Day 5: Architecture & Keys
 ### Week 2: Strategy Accelerators
 
 ```
-Day 6-7: Gallery Elevation & Guides
-  ✅ P2/S17: Make gallery the default tab
+Day 6-7: Canvas Elevation & Guides
+  ✅ P2/S17: Make canvas the default tab
   ✅ S4: Add body/mind/heart text labels to balance card chips — DONE
   ✅ S13: Build Guides tab with 3 philosophy entries
   ⏱️ ~8 engineering hours
@@ -156,7 +156,7 @@ Day 10: Polish & Ship
   ✅ P10: Move joys_money to mind, rename
   ⏱️ ~6 engineering hours
 
-📈 Impact: Gallery-first experience. Philosophy present. Backend ready for beta feedback loop.
+📈 Impact: Canvas-first experience. Philosophy present. Backend ready for beta feedback loop.
    Enables Phase 1 beta launch (30-50 TestFlight users).
 ```
 
@@ -170,7 +170,7 @@ Shield copy rewrite (S10/S11) requires:
   → App name finalized (P1) for "Open Proof to spend experience"
 
 Guides tab (S13) requires:
-  → Gallery-as-default (P2) so users discover Guides naturally
+  → Canvas-as-default (P2) so users discover Guides naturally
   → Vocabulary pass complete so Guides text matches UI
 
 Analytics (B5) requires:
@@ -196,7 +196,7 @@ Technical (post-Week 1):
   - ShieldConfiguration copy passes strategy tone check
 
 Strategic (post-Week 2):
-  - Gallery is default tab with body/mind/heart rooms labeled
+  - Canvas is default tab with body/mind/heart categories labeled
   - Guides tab has ≥3 philosophy entries
   - Onboarding ≤ 7 slides
   - Beta-ready TestFlight build
@@ -226,7 +226,7 @@ Business (Week 4 checkpoint):
 +     .tracking(0.3)
 ```
 
-### S5: Gallery headers → three rooms
+### S5: Canvas headers → three categories
 
 **File**: `StepsTrader/Views/ChoiceView.swift` (CategoryCardsRow)
 
@@ -285,67 +285,12 @@ Business (Week 4 checkpoint):
       )
 ```
 
-### S14: Option titles → action phrases (sample)
+### S14: Option titles (SUPERSEDED)
 
-**File**: `StepsTrader/Models/DailyEnergy.swift`
-
-```diff
-  // Activity
-- EnergyOption(id: "activity_dancing", titleEn: "Dancing", ...
-- EnergyOption(id: "activity_meal", titleEn: "Meal", ...
-- EnergyOption(id: "activity_overcome", titleEn: "Overcome", ...
-- EnergyOption(id: "activity_risk", titleEn: "Risk", ...
-- EnergyOption(id: "activity_sex", titleEn: "Sex", ...
-- EnergyOption(id: "activity_sport", titleEn: "Sport", ...
-- EnergyOption(id: "activity_strong", titleEn: "Strong", ...
-+ EnergyOption(id: "activity_dancing", titleEn: "dancing it out", ...
-+ EnergyOption(id: "activity_meal", titleEn: "eating a real meal", ...
-+ EnergyOption(id: "activity_overcome", titleEn: "overcoming something hard", ...
-+ EnergyOption(id: "activity_risk", titleEn: "taking a real risk", ...
-+ EnergyOption(id: "activity_sex", titleEn: "making love", ...
-+ EnergyOption(id: "activity_sport", titleEn: "pushing my limits", ...
-+ EnergyOption(id: "activity_strong", titleEn: "feeling my strength", ...
-  
-  // Creativity
-- EnergyOption(id: "creativity_curiosity", titleEn: "Curiosity", ...
-- EnergyOption(id: "creativity_doing_cash", titleEn: "Cash doing", ...
-- EnergyOption(id: "creativity_fantasizing", titleEn: "Fantasizing", ...
-- EnergyOption(id: "creativity_general", titleEn: "General", ...
-- EnergyOption(id: "creativity_invisible", titleEn: "Invisible", ...
-- EnergyOption(id: "creativity_museum", titleEn: "Museum", ...
-- EnergyOption(id: "creativity_observe", titleEn: "Observe", ...
-+ EnergyOption(id: "creativity_curiosity", titleEn: "following my curiosity", ...
-+ EnergyOption(id: "creativity_doing_cash", titleEn: "making money happen", ...
-+ EnergyOption(id: "creativity_fantasizing", titleEn: "letting my mind wander", ...
-+ EnergyOption(id: "creativity_general", titleEn: "creating something new", ...
-+ EnergyOption(id: "creativity_invisible", titleEn: "noticing the invisible", ...
-+ EnergyOption(id: "creativity_museum", titleEn: "visiting a real place", ...
-+ EnergyOption(id: "creativity_observe", titleEn: "watching the world closely", ...
-  
-  // Joys
-- EnergyOption(id: "joys_cringe", titleEn: "Cringe", ...
-- EnergyOption(id: "joys_embrase", titleEn: "Embrace", ...
-- EnergyOption(id: "joys_emotional", titleEn: "Emotional", ...
-- EnergyOption(id: "joys_friends", titleEn: "Friends", ...
-- EnergyOption(id: "joys_happy_tears", titleEn: "Happy tears", ...
-- EnergyOption(id: "joys_in_love", titleEn: "In love", ...
-- EnergyOption(id: "joys_kiss", titleEn: "Kiss", ...
-- EnergyOption(id: "joys_love_myself", titleEn: "Love myself", ...
-- EnergyOption(id: "joys_rebel", titleEn: "Rebel", ...
-- EnergyOption(id: "joys_range", titleEn: "Range", ...
-- EnergyOption(id: "joysl_junkfood", titleEn: "Junk food", ...
-+ EnergyOption(id: "joys_cringe", titleEn: "embracing the cringe", ...
-+ EnergyOption(id: "joys_embrase", titleEn: "holding someone close", ...
-+ EnergyOption(id: "joys_emotional", titleEn: "feeling deeply today", ...
-+ EnergyOption(id: "joys_friends", titleEn: "being with my people", ...
-+ EnergyOption(id: "joys_happy_tears", titleEn: "crying from joy", ...
-+ EnergyOption(id: "joys_in_love", titleEn: "feeling in love", ...
-+ EnergyOption(id: "joys_kiss", titleEn: "kissing someone", ...
-+ EnergyOption(id: "joys_love_myself", titleEn: "choosing myself today", ...
-+ EnergyOption(id: "joys_rebel", titleEn: "breaking my rules", ...
-+ EnergyOption(id: "joys_range", titleEn: "going all out", ...
-+ EnergyOption(id: "joys_junkfood", titleEn: "guilty pleasures", ...
-```
+> **Note**: Activities have been completely replaced. Now 3 categories (body/mind/heart) with 10 activities each.
+> Body: Walking, Physical Effort, Stretching, Resting, Breathing, Touch, Balance, Repetition, Warming, Stillness
+> Mind: Focusing, Learning, Thinking, Planning, Writing, Observing, Questioning, Ordering, Remembering, Letting Go
+> Heart: Joy, Calm, Gratitude, Connection, Care, Wonder, Trust, Vulnerability, Belonging, Peace
 
 ### S1/S2: Notification copy
 
@@ -427,7 +372,7 @@ enum SharedKeys {
     static let appSelection = "appSelection_v1"
     static let customEnergyOptions = "customEnergyOptions_v1"
     static let pastDaySnapshots = "pastDaySnapshots_v1"
-    static let dailyGallerySlots = "dailyChoiceSlots_v1"
+    static let dailyCanvasSlots = "dailyChoiceSlots_v1"
     
     // MARK: - Monitor
     static let monitorLogs = "monitorLogs_v1"
@@ -453,8 +398,8 @@ enum SharedKeys {
    → Test: grep codebase for "DOOM", "EXP", "BLOCKED", "bolt.fill"
    → Target: zero hits in user-facing strings
 
-2. Implement Week 2 fixes (gallery elevation + Guides + backend)
-   → Test: launch app, confirm gallery is default tab, Guides has content
+2. Implement Week 2 fixes (canvas elevation + Guides + backend)
+   → Test: launch app, confirm canvas is default tab, Guides has content
    → Test: Supabase receives ticket group sync data
 
 3. Build TestFlight (Week 4)

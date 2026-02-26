@@ -151,13 +151,10 @@ extension AppModel {
 
     @MainActor
     func syncAndPersistBonusBreakdown() {
-        let cappedBonus = min(self.serverGrantedSteps, EnergyDefaults.maxBonusEnergy)
-        let maxTotalEnergy = EnergyDefaults.maxBaseEnergy
-        let availableForBonus = max(0, maxTotalEnergy - self.baseEnergyToday)
-        self.bonusSteps = min(cappedBonus, availableForBonus)
+        self.bonusSteps = 0
         
         let g = UserDefaults.stepsTrader()
-        g.set(self.bonusSteps, forKey: "debugStepsBonus_v1")
+        g.set(0, forKey: "debugStepsBonus_v1")
         g.removeObject(forKey: "debugStepsBonus_outerworld_v1")
         g.removeObject(forKey: "debugStepsBonus_debug_v1")
     }
@@ -223,9 +220,9 @@ extension AppModel {
     }
     
     func clearExpiredDayPasses() {
-        let today = currentDayStart(for: Date())
+        let now = Date()
         dayPassGrants = dayPassGrants.filter { _, value in
-            isSameCustomDay(value, today)
+            isSameCustomDay(value, now)
         }
         persistDayPassGrants()
     }

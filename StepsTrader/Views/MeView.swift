@@ -11,6 +11,9 @@ struct MeView: View {
     @State private var showLogin = false
     @State private var showProfileEditor = false
     @State private var cachedDayKeys: [String] = []
+    @State private var hasLoadedSnapshots = false
+    @State private var cachedTopConsumers: [(name: String, spent: Int)] = []
+    @State private var cachedTxNames: [String: String] = [:]
 
     var body: some View {
         NavigationStack {
@@ -50,7 +53,7 @@ struct MeView: View {
                     }
 
                     // Top energy consumers (week)
-                    if !topConsumers.isEmpty {
+                    if !cachedTopConsumers.isEmpty {
                         topConsumersSection
                     }
 
@@ -69,6 +72,8 @@ struct MeView: View {
             }
             .navigationBarHidden(true)
             .onAppear {
+                guard !hasLoadedSnapshots else { return }
+                hasLoadedSnapshots = true
                 cachedDayKeys = Self.computeDayKeys()
                 loadAllSnapshots()
             }
@@ -82,7 +87,7 @@ struct MeView: View {
                 get: { selectedDayKey.map { MeDayKeyWrapper(key: $0) } },
                 set: { selectedDayKey = $0?.key }
             )) { wrapper in
-                GalleryDayDetailSheet(
+                CanvasDayDetailSheet(
                     model: model,
                     dayKey: wrapper.key,
                     snapshot: pastDays[wrapper.key],
@@ -118,12 +123,20 @@ struct MeView: View {
 
     private func loadAllSnapshots() {
         pastDays = model.loadPastDaySnapshots()
+        Task.detached {
+            let names = Self.loadTransactionNameMap()
+            await MainActor.run { cachedTxNames = names }
+        }
+        rebuildTopConsumers()
         Task {
             let server = await SupabaseSyncService.shared.loadHistoricalSnapshots()
             await MainActor.run {
+                var changed = false
                 for (key, snap) in server where pastDays[key] == nil {
                     pastDays[key] = snap
+                    changed = true
                 }
+                if changed { rebuildTopConsumers() }
             }
         }
     }
@@ -292,33 +305,28 @@ struct MeView: View {
         let topHeart = topOptionId(for: .heart, from: snaps)
 
         return HStack(spacing: 0) {
-            dimensionItem(icon: "figure.run", optionId: topBody)
-            dimensionItem(icon: "sparkles", optionId: topMind)
-            dimensionItem(icon: "heart.fill", optionId: topHeart)
+            dimensionItem(categoryIcon: "figure.run", label: "Body", optionId: topBody)
+            dimensionItem(categoryIcon: "brain.head.profile", label: "Mind", optionId: topMind)
+            dimensionItem(categoryIcon: "heart.fill", label: "Heart", optionId: topHeart)
         }
     }
 
-    private func dimensionItem(icon: String, optionId: String?) -> some View {
-        VStack(spacing: 3) {
+    private func dimensionItem(categoryIcon: String, label: String, optionId: String?) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: categoryIcon)
+                .font(.system(size: 18))
+                .foregroundColor(optionId != nil ? theme.textPrimary : theme.textSecondary.opacity(0.5))
+
             if let id = optionId {
-                if id.hasPrefix("custom_") {
-                    Image(systemName: optionIcon(for: id))
-                        .font(.system(size: 22))
-                        .foregroundColor(theme.textPrimary)
-                } else {
-                    Image(assetImageName(for: id))
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 32, height: 32)
-                }
                 Text(model.resolveOptionTitle(for: id))
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundColor(theme.textPrimary)
                     .lineLimit(1)
             } else {
-                Image(systemName: icon)
-                    .font(.system(size: 22))
+                Text(label)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundColor(theme.textSecondary.opacity(0.5))
+                    .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity)
@@ -326,8 +334,7 @@ struct MeView: View {
 
     // MARK: - Top Energy Consumers
 
-    private var topConsumers: [(name: String, spent: Int)] {
-        // Aggregate all spending across the 7-day window
+    private func rebuildTopConsumers() {
         var allSpending: [String: Int] = [:]
         for dayKey in cachedDayKeys {
             if let perApp = model.appStepsSpentByDay[dayKey] {
@@ -337,7 +344,6 @@ struct MeView: View {
             }
         }
 
-        // Build results from ticket groups first (guaranteed correct names)
         var results: [(name: String, spent: Int)] = []
         var claimedKeys: Set<String> = []
 
@@ -346,7 +352,6 @@ struct MeView: View {
             var total = allSpending[groupKey] ?? 0
             if total > 0 { claimedKeys.insert(groupKey) }
 
-            // Also claim spending under the raw group id
             if let raw = allSpending[group.id] {
                 total += raw
                 claimedKeys.insert(group.id)
@@ -357,12 +362,10 @@ struct MeView: View {
             }
         }
 
-        // Remaining keys not claimed by any current group
-        let txNames = Self.loadTransactionNameMap()
-        for (key, value) in allSpending where !claimedKeys.contains(key) {
+        let txNames = cachedTxNames
+        for (key, value) in allSpending.sorted(by: { $0.key < $1.key }) where !claimedKeys.contains(key) {
             let name: String
             if key.hasPrefix("group_") {
-                // Orphaned group — look up stored name from payment log
                 name = txNames[key] ?? txNames[String(key.dropFirst(6))] ?? "Deleted ticket"
             } else {
                 name = txNames[key] ?? TargetResolver.displayName(for: key)
@@ -370,14 +373,14 @@ struct MeView: View {
             results.append((name: name, spent: value))
         }
 
-        return results
-            .sorted { $0.spent > $1.spent }
+        cachedTopConsumers = results
+            .sorted { $0.spent != $1.spent ? $0.spent > $1.spent : $0.name < $1.name }
             .prefix(5)
             .map { $0 }
     }
 
     /// Build a map of spending target → display name from the payment transaction log.
-    private static func loadTransactionNameMap() -> [String: String] {
+    private nonisolated static func loadTransactionNameMap() -> [String: String] {
         let url = PersistenceManager.paymentTransactionsFileURL
         guard let data = try? Data(contentsOf: url),
               let txs = try? JSONDecoder().decode([TransactionNameEntry].self, from: data)
@@ -403,7 +406,7 @@ struct MeView: View {
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundColor(theme.textSecondary)
 
-            ForEach(Array(topConsumers.enumerated()), id: \.offset) { index, item in
+            ForEach(Array(cachedTopConsumers.enumerated()), id: \.offset) { index, item in
                 HStack(spacing: 8) {
                     Text("\(index + 1)")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
@@ -417,7 +420,7 @@ struct MeView: View {
 
                     Spacer()
 
-                    Text("\(item.spent) ink")
+                    Text("\(item.spent) rays")
                         .font(.system(size: 13, weight: .semibold, design: .monospaced))
                         .foregroundColor(theme.accentColor)
                 }
@@ -449,16 +452,12 @@ struct MeView: View {
             }
             for id in ids { counts[id, default: 0] += 1 }
         }
-        return counts.max(by: { $0.value < $1.value })?.key
+        guard !counts.isEmpty else { return nil }
+        return counts
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+            .first?.key
     }
 
-    private func optionIcon(for optionId: String) -> String {
-        if optionId.hasPrefix("custom_"),
-           let c = model.customEnergyOptions.first(where: { $0.id == optionId }) { return c.icon }
-        return EnergyDefaults.options.first(where: { $0.id == optionId })?.icon ?? "circle.fill"
-    }
-
-    private func assetImageName(for optionId: String) -> String { optionId }
 }
 
 private struct MeDayKeyWrapper: Identifiable {

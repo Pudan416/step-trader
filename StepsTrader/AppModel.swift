@@ -55,7 +55,8 @@ final class AppModel: ObservableObject {
     private var lastSupabaseSyncAt: Date = .distantPast
     
     // MARK: - Performance optimization
-    var unlockExpiryTasks: [String: Task<Void, Never>] = [:]  // Tasks to rebuild shield when unlock expires
+    var unlockExpiryTasks: [String: Task<Void, Never>] = [:]
+    private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     
     // MARK: - Forwarding to Stores
     
@@ -204,14 +205,14 @@ final class AppModel: ObservableObject {
     @Published var dailyActivitySelections: [String] = []
     @Published var dailyRestSelections: [String] = []
     @Published var dailyJoysSelections: [String] = []
-    /// Gallery tab: 4 slots (category + option each). Synced with daily *Selections.
-    @Published var dailyGallerySlots: [DayGallerySlot] = (0..<4).map { _ in DayGallerySlot(category: nil, optionId: nil) }
+    /// Canvas tab: 4 slots (category + option each). Synced with daily *Selections.
+    @Published var dailyCanvasSlots: [DayCanvasSlot] = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
     @Published var preferredActivityOptions: [String] = []
     @Published var preferredRestOptions: [String] = []
     @Published var preferredJoysOptions: [String] = []
     @Published var customEnergyOptions: [CustomEnergyOption] = []
     
-    var effectiveStepsToday: Double { stepsToday + Double(bonusSteps) }
+    var effectiveStepsToday: Double { stepsToday }
     /// Single source of truth: UserEconomyStore.spentSteps (persisted as SharedKeys.spentStepsToday).
     var spentStepsToday: Int {
         get { userEconomyStore.spentSteps }
@@ -249,28 +250,7 @@ final class AppModel: ObservableObject {
     // Startup guard to prevent immediate deep link loops on cold launch
     private let appLaunchTime: Date = Date()
 
-    @Published var isInstagramSelected: Bool = false {
-        didSet {
-            // Skip if value hasn't actually changed (important during init).
-            guard isInstagramSelected != oldValue else { return }
-            
-            // Prevent recursion
-            guard !isUpdatingInstagramSelection else { return }
-
-            UserDefaults.stepsTrader().set(isInstagramSelected, forKey: "isInstagramSelected")
-            if isInstagramSelected {
-                // For Instagram specifically, we use the existing selection mechanism
-                // but we don't call setAppAsTarget which triggers applyFamilyControlsSelection
-                // Instead we just ensure the shield is rebuilt if needed
-                rebuildFamilyControlsShield()
-            } else {
-                clearAppSelection()
-            }
-        }
-    }
-
-    // Flag to prevent recursion when updating Instagram selection
-    private var isUpdatingInstagramSelection = false
+    
     
     // MARK: - App Selection Race Condition Prevention
     /// Debounce task for saving app selection
@@ -316,7 +296,7 @@ final class AppModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
         
-        // Recalc ink total when steps or sleep update (so total = activity + creativity + joys)
+        // Recalc rays total when steps or sleep update (so total = activity + creativity + joys)
         Publishers.CombineLatest(healthStore.$stepsToday, healthStore.$dailySleepHours)
             .dropFirst()
             .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
@@ -659,28 +639,33 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func scheduleReturnNotification() {
-        let content = UNMutableNotificationContent()
-        content.title = "Proof"
-        content.body = "Your exhibition is still open."
-        content.sound = .default
-        content.badge = nil
-
-        // Add action for quick return to app
+    private func registerNotificationCategories() {
         let returnAction = UNNotificationAction(
             identifier: "RETURN_TO_APP",
-            title: "Open Proof",
+            title: "Open Nowhere",
             options: [.foreground]
         )
-
-        let category = UNNotificationCategory(
+        let stepsReminder = UNNotificationCategory(
             identifier: "STEPS_REMINDER",
             actions: [returnAction],
             intentIdentifiers: [],
             options: []
         )
+        let accessExpired = UNNotificationCategory(
+            identifier: "ACCESS_EXPIRED",
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([stepsReminder, accessExpired])
+    }
 
-        UNUserNotificationCenter.current().setNotificationCategories([category])
+    private func scheduleReturnNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Nowhere"
+        content.body = "Your exhibition is still open."
+        content.sound = .default
+        content.badge = nil
         content.categoryIdentifier = "STEPS_REMINDER"
 
         let request = UNNotificationRequest(
@@ -702,8 +687,8 @@ final class AppModel: ObservableObject {
         guard isBlocked else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "Proof"
-        content.body = "You have ink to earn."
+        content.title = "Nowhere"
+        content.body = "You have rays to earn."
         content.sound = .default
 
         let center = UNUserNotificationCenter.current()
@@ -718,7 +703,7 @@ final class AppModel: ObservableObject {
         center.add(request)
     }
 
-    func withTimeout(seconds: TimeInterval, operation: @escaping () async throws -> Void) async rethrows {
+    func withTimeout(seconds: TimeInterval, operation: @escaping () async throws -> Void) async throws {
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask {
                 try await operation()
@@ -755,7 +740,7 @@ final class AppModel: ObservableObject {
     
     func handleAppWillEnterForeground() {
         AppLogger.app.debug("📱 App will enter foreground")
-        // Refresh Family Controls auth status in case user revoked in Settings (audit fix #15)
+        endBackgroundExpiryWatcher()
         if let service = familyControlsService as? FamilyControlsService {
             service.refreshAuthorizationStatus()
         }
@@ -763,15 +748,98 @@ final class AppModel: ObservableObject {
         scheduleDayBoundaryTimer()
         cleanupExpiredUnlocks()
         purgeExpiredAccessWindows()
-        // Always rebuild shield on foreground to guarantee consistency.
-        // The DeviceActivity extension's expiry callback may not have fired
-        // (system constraints, DateComponents issues), so the main app must
-        // re-apply the correct shield state every time it resumes.
         rebuildFamilyControlsShield()
         Task {
             await refreshStepsBalance()
             await refreshSleepIfAuthorized()
         }
+    }
+
+    /// Called when the app enters background. Starts a background task that
+    /// polls for expired unlock keys and reapplies the shield before the
+    /// system suspends us (~25-30 seconds of execution time).
+    func handleAppDidEnterBackground() {
+        startBackgroundExpiryWatcher()
+    }
+
+    private func startBackgroundExpiryWatcher() {
+        guard backgroundTaskID == .invalid else { return }
+
+        let defaults = UserDefaults.stepsTrader()
+        let now = Date()
+        let hasActiveUnlocks = defaults.dictionaryRepresentation().keys.contains { key in
+            guard key.hasPrefix("groupUnlock_") || key.hasPrefix("blockUntil_") else { return false }
+            guard let until = defaults.object(forKey: key) as? Date else { return false }
+            return until > now
+        }
+        guard hasActiveUnlocks else { return }
+
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask { [weak self] in
+            self?.endBackgroundExpiryWatcher()
+        }
+
+        Task.detached(priority: .utility) { [weak self] in
+            for _ in 0..<6 {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                let d = SharedKeys.appGroupDefaults()
+                let now = Date()
+                var didExpire = false
+                for key in d.dictionaryRepresentation().keys {
+                    guard key.hasPrefix("groupUnlock_") || key.hasPrefix("blockUntil_") else { continue }
+                    guard let until = d.object(forKey: key) as? Date, now >= until else { continue }
+                    d.removeObject(forKey: key)
+                    didExpire = true
+                }
+                if didExpire {
+                    await self?.rebuildShieldFromBackground(defaults: d, now: now)
+                    if let s = self {
+                        await MainActor.run { s.endBackgroundExpiryWatcher() }
+                    }
+                    return
+                }
+            }
+            if let s = self {
+                await MainActor.run { s.endBackgroundExpiryWatcher() }
+            }
+        }
+    }
+
+    private func endBackgroundExpiryWatcher() {
+        guard backgroundTaskID != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(backgroundTaskID)
+        backgroundTaskID = .invalid
+    }
+
+    /// Rebuild shield directly from ManagedSettingsStore (non-MainActor safe).
+    private nonisolated func rebuildShieldFromBackground(defaults: UserDefaults, now: Date) async {
+        #if canImport(ManagedSettings) && canImport(FamilyControls)
+        var allApps: Set<ApplicationToken> = []
+        var allCategories: Set<ActivityCategoryToken> = []
+
+        let groups = UnlockExpiryTaskManager.shared.loadGroupsPublic(defaults: defaults)
+        for group in groups {
+            let unlockKey = "groupUnlock_\(group.id)"
+            if let until = defaults.object(forKey: unlockKey) as? Date, now < until { continue }
+            guard group.active, let selectionData = group.selectionData else { continue }
+            if let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData) {
+                allApps.formUnion(sel.applicationTokens)
+                allCategories.formUnion(sel.categoryTokens)
+            }
+        }
+
+        let store = ManagedSettingsStore(named: .init("shield"))
+        store.shield.applications = allApps.isEmpty ? nil : allApps
+        store.shield.applicationCategories = allCategories.isEmpty ? nil : .specific(allCategories)
+
+        let iso = ISO8601DateFormatter()
+        let ts = iso.string(from: Date())
+        let entry = "[\(ts)] [bgTask] apps=\(allApps.count) cats=\(allCategories.count) background expiry watcher"
+        var history = defaults.stringArray(forKey: SharedKeys.shieldDiagHistory) ?? []
+        history.append(entry)
+        if history.count > 20 { history = Array(history.suffix(20)) }
+        defaults.set(history, forKey: SharedKeys.shieldDiagHistory)
+        defaults.set(entry, forKey: SharedKeys.shieldDiagLastRebuild)
+        #endif
     }
 
     func toggleRealBlocking() {
@@ -786,13 +854,15 @@ final class AppModel: ObservableObject {
         AppLogger.app.debug("🚀 Bootstrapping AppModel...")
         isBootstrapping = true
         
+        registerNotificationCategories()
+        
         // 1. Load data from stores
         await userEconomyStore.loadAppStepsSpentToday()
         await userEconomyStore.loadAppStepsSpentLifetime()
         loadMinuteChargeLogs()
         blockingStore.loadTicketGroups()
         
-        // 1.5 Restore daily energy state and spent balance so ink counts persist across restarts
+        // 1.5 Restore daily energy state and spent balance so rays counts persist across restarts
         loadEnergyPreferences()
         loadDailyEnergyState()
         loadSpentStepsBalance()

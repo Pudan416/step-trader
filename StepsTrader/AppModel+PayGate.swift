@@ -65,13 +65,13 @@ extension AppModel {
         // Get cost - use override if provided, otherwise use group's cost for the window
         let cost = costOverride ?? group.cost(for: window)
         
-        AppLogger.shield.debug("💰 Attempting to pay \(cost) ink for group \(group.name)")
+        AppLogger.shield.debug("💰 Attempting to pay \(cost) rays for group \(group.name)")
         AppLogger.shield.debug("💰 Current balance: \(self.totalStepsBalance) (base: \(self.stepsBalance), bonus: \(self.bonusSteps))")
         
         // Pay the cost
         guard pay(cost: cost) else {
-            message = "Not enough ink"
-            AppLogger.shield.debug("❌ Payment failed - not enough ink")
+            message = "Not enough rays"
+            AppLogger.shield.debug("❌ Payment failed - not enough rays")
             return
         }
         
@@ -109,6 +109,9 @@ extension AppModel {
         
         // CRITICAL: Rebuild shield to actually remove the block from all apps in the group
         rebuildFamilyControlsShield()
+
+        // Schedule BGTask to re-block when unlock expires (reliable background fallback)
+        UnlockExpiryTaskManager.shared.scheduleIfNeeded()
 
         // Dismiss pay gate
         dismissPayGate(reason: .programmatic)
@@ -163,16 +166,25 @@ extension AppModel {
         let activityName = DeviceActivityName("unlockExpiry_\(groupId)")
         let calendar = Calendar.current
         let now = Date()
-        let startComponents = calendar.dateComponents([.hour, .minute, .second], from: now)
 
-        // Always use a padded window (at least 15 min + 60s buffer) with warningTime.
-        // warningTime fires the extension's intervalWillEndWarning at the right moment.
-        // This avoids the midnight-crossing problem where DateComponents end < start
-        // could cause the interval to misfire on some OS versions.
-        let windowSeconds = max(expiresInSeconds, 900) + 60
-        let endDate = now.addingTimeInterval(TimeInterval(windowSeconds))
+        // Start 5s in the future so the system has time to register the schedule.
+        let startBuffer = 5
+        let startDate = now.addingTimeInterval(TimeInterval(startBuffer))
+        let startComponents = calendar.dateComponents([.hour, .minute, .second], from: startDate)
+
+        // Use a 5-minute warning buffer. Apple requires warningTime to be substantial
+        // (empirically >= 5 min) for intervalWillEndWarning to fire reliably. With 65s
+        // the system routinely skips it, leaving apps unblocked after expiry.
+        let minWarningBuffer = 300
+        let windowSeconds = max(expiresInSeconds + minWarningBuffer, 900)
+        let totalWindow = windowSeconds + startBuffer
+        let endDate = now.addingTimeInterval(TimeInterval(totalWindow))
         let endComponents = calendar.dateComponents([.hour, .minute, .second], from: endDate)
-        let secondsBeforeEnd = windowSeconds - expiresInSeconds
+
+        // warningTime fires relative to intervalEnd.
+        //   intervalEnd - warningTime = now + expiresInSeconds
+        //   warningTime = totalWindow - expiresInSeconds  (always >= minWarningBuffer + startBuffer)
+        let secondsBeforeEnd = totalWindow - expiresInSeconds
         let warningTime = DateComponents(minute: secondsBeforeEnd / 60, second: secondsBeforeEnd % 60)
 
         let schedule = DeviceActivitySchedule(
@@ -182,12 +194,19 @@ extension AppModel {
             warningTime: warningTime
         )
 
-        AppLogger.shield.debug("📅 Scheduled unlock expiry for group \(groupId) in \(expiresInSeconds)s (window=\(windowSeconds)s, warning=\(secondsBeforeEnd)s before end)")
+        AppLogger.shield.debug("📅 Scheduled unlock expiry for group \(groupId) in \(expiresInSeconds)s (window=\(totalWindow)s, warning=\(secondsBeforeEnd)s before end)")
 
         center.stopMonitoring([activityName])
+        let defaults = UserDefaults.stepsTrader()
+        let iso = ISO8601DateFormatter()
         do {
             try center.startMonitoring(activityName, during: schedule)
+            let msg = "[\(iso.string(from: Date()))] OK: \(activityName.rawValue) window=\(totalWindow)s warn=\(secondsBeforeEnd)s | activities after: \(center.activities.map(\.rawValue))"
+            defaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
+            AppLogger.shield.debug("✅ startMonitoring succeeded for \(activityName.rawValue)")
         } catch {
+            let msg = "[\(iso.string(from: Date()))] FAIL: \(activityName.rawValue) — \(error.localizedDescription)"
+            defaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
             AppLogger.shield.debug("Failed to schedule unlock expiry activity: \(error.localizedDescription)")
         }
         #endif
@@ -217,7 +236,7 @@ extension AppModel {
         
         if minutesRemaining > 0 {
             content.title = "⏱️ \(groupName)"
-            content.body = "Access ends in \(minutesRemaining) min. Save my work!"
+            content.body = "Access ends in \(minutesRemaining) min."
         } else {
             content.title = "🔒 \(groupName)"
             content.body = "Access ended. Apps are blocked again."
@@ -254,8 +273,8 @@ extension AppModel {
         
         // Pay the cost
         guard pay(cost: cost) else {
-            message = "Not enough ink"
-            AppLogger.shield.debug("❌ Payment failed - not enough ink")
+            message = "Not enough rays"
+            AppLogger.shield.debug("❌ Payment failed - not enough rays")
             return
         }
         
@@ -276,6 +295,9 @@ extension AppModel {
         applyAccessWindow(window, for: bundleId)
         rebuildFamilyControlsShield()
         
+        // Schedule BGTask to re-block when unlock expires (reliable background fallback)
+        UnlockExpiryTaskManager.shared.scheduleIfNeeded()
+
         // Dismiss pay gate
         dismissPayGate(reason: .programmatic)
         

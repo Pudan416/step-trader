@@ -15,9 +15,9 @@ final class CustomActivityUITests: XCTestCase {
         app.launchArguments = ["ui-testing"]
         app.launch()
 
-        let galleryTab = app.buttons["tab_gallery"]
-        XCTAssertTrue(galleryTab.waitForExistence(timeout: 5))
-        galleryTab.tap()
+        let canvasTab = app.buttons["tab_canvas"]
+        XCTAssertTrue(canvasTab.waitForExistence(timeout: 5))
+        canvasTab.tap()
 
         let activityChip = app.buttons["chip_activity"]
         XCTAssertTrue(activityChip.waitForExistence(timeout: 5))

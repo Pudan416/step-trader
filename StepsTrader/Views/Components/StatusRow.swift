@@ -10,7 +10,13 @@ struct StatusRow: View {
     enum ConnectionStatus {
         case connected, disconnected, warning
         
-        var color: Color { .primary }
+        var color: Color {
+            switch self {
+            case .connected: return .green
+            case .disconnected: return .red
+            case .warning: return .orange
+            }
+        }
         
         var icon: String {
             switch self {

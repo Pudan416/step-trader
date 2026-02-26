@@ -17,7 +17,7 @@ enum AppColors {
         static let backgroundSecondary = Color(red: 243/255, green: 244/255, blue: 246/255)
         static let backgroundTertiary = Color(red: 235/255, green: 236/255, blue: 240/255)
         
-        static let textPrimary = Color(red: 0.08, green: 0.08, blue: 0.08)      // Near-black ink
+        static let textPrimary = Color(red: 0.08, green: 0.08, blue: 0.08)
         static let textSecondary = textPrimary
         static let textMuted = textPrimary
         
@@ -163,7 +163,7 @@ extension View {
 /// - No soft greys for main content
 /// - Text should feel printed, not digital
 extension Text {
-    /// Primary text — near-black ink, high contrast
+    /// Primary text — near-black, high contrast
     func themedPrimary(_ theme: AppTheme) -> Text {
         self.foregroundColor(theme.textPrimary)
     }
@@ -173,19 +173,19 @@ extension Text {
         self.foregroundColor(theme.textSecondary)
     }
     
-    /// Accent text — rebellious pink marker ink
+    /// Accent text — rebellious pink marker
     func themedAccent(_ theme: AppTheme) -> Text {
         self.foregroundColor(theme.accentColor)
     }
 }
 
 // MARK: - Resistance UI Components
-/// Components that embody the ink philosophy:
+/// Components that embody the rays philosophy:
 /// - No gamification. No motivation. No self-improvement tone.
 /// - Observation over instruction
 /// - Invitation over pressure
 /// - Empty states are allowed
-/// - "Spending ink" is neutral, never framed as failure
+/// - "Spending rays" is neutral, never framed as failure
 
 struct ResistanceTag: View {
     let text: String

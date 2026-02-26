@@ -21,8 +21,8 @@ struct RadialHoldMenu: View {
 
     private let fanRadius: CGFloat = 80
     private let activationDistance: CGFloat = 55
-    private let hapticMedium = UIImpactFeedbackGenerator(style: .medium)
-    private let hapticLight = UIImpactFeedbackGenerator(style: .light)
+    private static let hapticMedium = UIImpactFeedbackGenerator(style: .medium)
+    private static let hapticLight = UIImpactFeedbackGenerator(style: .light)
 
     private func nodeOffset(angleDeg: Double) -> CGSize {
         let rad = angleDeg * .pi / 180
@@ -69,7 +69,7 @@ struct RadialHoldMenu: View {
                     if !isHolding {
                         isFanOpen = false
                         isHolding = true
-                        hapticMedium.impactOccurred()
+                        Self.hapticMedium.impactOccurred()
                     }
                     if let drag = drag {
                         updateHoveredCategory(from: drag.translation)
@@ -78,7 +78,7 @@ struct RadialHoldMenu: View {
             }
             .onEnded { _ in
                 if let category = hoveredCategory {
-                    hapticMedium.impactOccurred()
+                    Self.hapticMedium.impactOccurred()
                     onCategorySelected(category)
                 }
                 isHolding = false
@@ -89,19 +89,23 @@ struct RadialHoldMenu: View {
 
         return ZStack {
             Circle()
-                .strokeBorder(labelColor.opacity(isActive ? 0.3 : 0.15), lineWidth: 1)
+                .fill(.ultraThinMaterial)
+                .opacity(isActive ? 0.7 : 0.5)
+                .frame(width: 56, height: 56)
+            Circle()
+                .strokeBorder(labelColor.opacity(isActive ? 0.5 : 0.3), lineWidth: 1)
                 .frame(width: 56, height: 56)
 
             Image(systemName: isActive ? "xmark" : "plus")
-                .font(.system(size: 22, weight: .ultraLight))
-                .foregroundStyle(labelColor.opacity(isActive ? 0.5 : 0.7))
+                .font(.system(size: 22, weight: .light))
+                .foregroundStyle(labelColor.opacity(isActive ? 0.7 : 0.85))
                 .rotationEffect(.degrees(isFanOpen ? 45 : 0))
         }
         .contentShape(Circle().size(width: 72, height: 72))
         .gesture(holdAndDrag)
         .simultaneousGesture(
             TapGesture().onEnded {
-                hapticLight.impactOccurred()
+                Self.hapticLight.impactOccurred()
                 if isFanOpen {
                     isFanOpen = false
                 } else {
@@ -122,29 +126,30 @@ struct RadialHoldMenu: View {
     ) -> some View {
         Button {
             if isFanOpen {
-                hapticMedium.impactOccurred()
+                Self.hapticMedium.impactOccurred()
                 onCategorySelected(category)
                 isFanOpen = false
             }
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: isHovered ? 20 : 16, weight: .regular))
-                    .foregroundStyle(labelColor.opacity(isHovered ? 0.9 : 0.6))
+                    .font(.system(size: isHovered ? 20 : 16, weight: .medium))
+                    .foregroundStyle(labelColor.opacity(isHovered ? 1.0 : 0.85))
                     .frame(width: 40, height: 40)
                     .background(
                         Circle()
-                            .fill(labelColor.opacity(isHovered ? 0.15 : 0.06))
+                            .fill(.ultraThinMaterial)
+                            .opacity(isHovered ? 0.9 : 0.7)
                     )
                     .overlay(
                         Circle()
-                            .stroke(labelColor.opacity(isHovered ? 0.4 : 0.12), lineWidth: 1)
+                            .stroke(labelColor.opacity(isHovered ? 0.6 : 0.3), lineWidth: 1)
                     )
                     .scaleEffect(isHovered ? 1.15 : 1.0)
 
                 Text(label)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(labelColor.opacity(isHovered ? 0.7 : 0.4))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(labelColor.opacity(isHovered ? 0.9 : 0.7))
             }
         }
         .buttonStyle(.plain)
@@ -170,7 +175,7 @@ struct RadialHoldMenu: View {
 
         if closest != hoveredCategory {
             if closest != nil {
-                hapticLight.impactOccurred()
+                Self.hapticLight.impactOccurred()
             }
             hoveredCategory = closest
         }

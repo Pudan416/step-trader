@@ -13,27 +13,23 @@ final class CanvasStorageService {
     private let fileManager = FileManager.default
     private let retentionDays = 90
 
-    private var storageDirectory: URL {
+    private lazy var storageDirectory: URL = {
         let paths = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
         let appSupport = paths.first!
         let bundleID = Bundle.main.bundleIdentifier ?? "StepsTrader"
         let dir = appSupport
             .appendingPathComponent(bundleID, isDirectory: true)
             .appendingPathComponent("canvases", isDirectory: true)
-        if !fileManager.fileExists(atPath: dir.path) {
-            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
+        try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
-    }
+    }()
 
-    private var snapshotDirectory: URL {
+    private lazy var snapshotDirectory: URL = {
         let dir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
             .appendingPathComponent("canvas_snapshots", isDirectory: true)
-        if !fileManager.fileExists(atPath: dir.path) {
-            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
+        try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
-    }
+    }()
 
     // MARK: - Canvas CRUD
 

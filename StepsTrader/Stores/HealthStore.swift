@@ -91,6 +91,7 @@ final class HealthStore: ObservableObject {
     }
     
     // MARK: - Observation
+    @MainActor
     func startObservingSteps() {
         healthKitService.startObservingSteps { [weak self] (steps: Double) in
             Task { @MainActor [weak self] in
@@ -101,6 +102,7 @@ final class HealthStore: ObservableObject {
         }
     }
     
+    @MainActor
     func stopObservingSteps() {
         healthKitService.stopObservingSteps()
     }

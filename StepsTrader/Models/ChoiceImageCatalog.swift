@@ -5,7 +5,7 @@ import UIKit
 
 /// Catalog of image names from Assets for daily energy categories.
 /// One list per selection grid in the editor. Add the Image Set name here when adding a new image to Assets.
-enum GalleryImageCatalog {
+enum CanvasImageCatalog {
 
     static let body: [String] = [
         "body 1",

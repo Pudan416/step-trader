@@ -3,11 +3,11 @@
     "name": "Steps4 Visual Design System",
     "version": "1.0.0",
     "sourceOfTruth": [
-      "Gallery tab",
+      "Canvas tab",
       "Tickets tab"
     ],
     "primaryReferenceFiles": [
-      "StepsTrader/Views/ChoiceView.swift",
+      "StepsTrader/Views/GalleryView.swift",
       "StepsTrader/Views/AppsPageSimplified.swift",
       "StepsTrader/Views/MainTabView.swift",
       "StepsTrader/Views/Components/StepBalanceCard.swift",
@@ -83,7 +83,7 @@
       "primaryUI": "SF Pro / system",
       "preferredDesign": "rounded for human-readable UI labels",
       "numeric": "monospaced digits for counters, timers, balances",
-      "customAvailableButNotCoreForGalleryTickets": [
+      "customAvailableButNotCoreForCanvasTickets": [
         "ReenieBeanie",
         "BigShouldersStencil",
         "CarterOne",
@@ -134,7 +134,7 @@
         "design": "rounded",
         "numeric": "monospacedDigit"
       },
-      "galleryEmptyState": {
+      "canvasEmptyState": {
         "icon": {
           "size": 20,
           "weight": "ultraLight"
@@ -215,7 +215,7 @@
       "settingsButtonCircle": 36,
       "scrollBottomSafePadding": 96
     },
-    "gallery": {
+    "canvas": {
       "shareButtonSize": 28,
       "shareTrailingPadding": 24,
       "bottomControlPadding": 96
@@ -238,7 +238,7 @@
         "Header: TODAY/EXP + current/earned/max",
         "Timer with monospaced countdown",
         "Progress bar with filled + outlined spent segment",
-        "Expandable metric chip rows on Gallery only"
+        "Expandable metric chip rows on Canvas only"
       ],
       "metricChipStyle": {
         "cornerRadius": 8,
@@ -247,7 +247,7 @@
         "verticalPadding": 7
       }
     },
-    "gallery": {
+    "canvas": {
       "coreInteraction": "Long-press radial + menu to add activities; keep center visually open.",
       "emptyStateCopy": "Hold + to begin",
       "buttons": [
@@ -290,8 +290,8 @@
     "tabSelectionBounce": "spring(response: 0.3, dampingFraction: 0.7)",
     "ticketFlip": "spring(response: 0.5, dampingFraction: 0.75)",
     "topCardExpand": "spring(response: 0.3)",
-    "galleryOverlay": "easeInOut 0.2",
-    "galleryElementSpawn": "spring(response: 0.5, dampingFraction: 0.8)"
+    "canvasOverlay": "easeInOut 0.2",
+    "canvasElementSpawn": "spring(response: 0.5, dampingFraction: 0.8)"
   },
   "copyTone": {
     "style": "short, neutral, factual, non-judgmental",

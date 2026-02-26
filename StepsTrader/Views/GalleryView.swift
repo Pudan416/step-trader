@@ -16,7 +16,7 @@ enum MetricOverlayKind: Identifiable, Equatable {
     }
 }
 
-// MARK: - GALLERY tab: generative canvas
+// MARK: - CANVAS tab: generative canvas
 
 struct GalleryView: View {
     @ObservedObject var model: AppModel
@@ -30,7 +30,9 @@ struct GalleryView: View {
     @AppStorage("gallery_sleep_color") private var sleepColorHex: String = "#000000"
     @AppStorage("gallery_steps_color") private var stepsColorHex: String = "#FED415"
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var dayCanvas: DayCanvas = DayCanvas(dayKey: AppModel.dayKey(for: Date()))
+    @State private var activeDayKey: String = AppModel.dayKey(for: Date())
     /// True once `loadCanvas()` has run at least once. Prevents `syncCanvasWithModel()`
     /// from saving the empty default canvas to disk before the real one is loaded,
     /// which would overwrite the persisted elements.
@@ -38,17 +40,37 @@ struct GalleryView: View {
     @State private var pickerCategory: EnergyCategory? = nil
     @State private var showShareSheet = false
     @State private var shareImage: UIImage? = nil
+    // Move mode state
+    @State private var isMoveMode: Bool = false
+    @State private var activeElementId: UUID? = nil
+    @State private var dragStartBasePosition: CGPoint? = nil
+    @State private var rotationGestureActive: Bool = false
+    @State private var rotationAtGestureStart: Double = 0
+
     private var canvasBackground: Color { theme.backgroundColor }
     private var labelColor: Color { theme.textPrimary }
-    /// Button tint: black in daylight, brand yellow in night / dark system.
+    /// Button tint: dark in daylight, light in night for contrast on the energy gradient.
     private var buttonColor: Color {
         switch theme {
         case .daylight: return labelColor
-        case .night: return AppColors.brandAccent
-        case .system: return colorScheme == .dark ? AppColors.brandAccent : labelColor
+        case .night: return AppColors.Night.textPrimary
+        case .system: return colorScheme == .dark ? AppColors.Night.textPrimary : labelColor
         }
     }
     private var todayKey: String { AppModel.dayKey(for: Date()) }
+
+    private var canvasSyncTrigger: [String] {
+        [
+            "\(model.sleepPointsToday)",
+            "\(model.stepsPointsToday)",
+            "\(model.baseEnergyToday)",
+            "\(model.spentStepsToday)",
+            "\(model.isBootstrapping)",
+            model.dailyActivitySelections.joined(separator: ","),
+            model.dailyRestSelections.joined(separator: ","),
+            model.dailyJoysSelections.joined(separator: ","),
+        ]
+    }
 
     private var isCanvasEmpty: Bool { dayCanvas.elements.isEmpty }
 
@@ -106,6 +128,13 @@ struct GalleryView: View {
                 hasSleepData: model.hasSleepData
             )
             .ignoresSafeArea()
+            .allowsHitTesting(!isMoveMode)
+
+            // Layer 2b: Move/rotate gesture overlay (move mode only)
+            if isMoveMode {
+                moveGestureOverlay
+                    .ignoresSafeArea()
+            }
 
             // Layer 3: Interactive controls (respect safe area — stay above tab bar)
             canvasControls
@@ -124,14 +153,24 @@ struct GalleryView: View {
             let dayKey = AppModel.dayKey(for: Date())
             Task {
                 await SupabaseSyncService.shared.trackAnalyticsEvent(
-                    name: "gallery_viewed",
-                    properties: ["day_key": dayKey, "surface": "gallery_tab"],
-                    dedupeKey: "gallery_viewed_\(dayKey)"
+                    name: "canvas_viewed",
+                    properties: ["day_key": dayKey, "surface": "canvas_tab"],
+                    dedupeKey: "canvas_viewed_\(dayKey)"
                 )
             }
         }
-        .onReceive(model.objectWillChange) { _ in
+        .onChange(of: canvasSyncTrigger) {
             syncCanvasWithModel()
+        }
+        .onChange(of: scenePhase) {
+            guard scenePhase == .active else { return }
+            let newKey = AppModel.dayKey(for: Date())
+            if newKey != activeDayKey {
+                activeDayKey = newKey
+                dayCanvas = DayCanvas(dayKey: newKey)
+                canvasLoaded = false
+                loadCanvas()
+            }
         }
         .sheet(item: $pickerCategory) { category in
             CategoryDetailView(
@@ -148,7 +187,7 @@ struct GalleryView: View {
         }
         .sheet(isPresented: $showShareSheet) {
             if let image = shareImage {
-                GalleryShareSheet(items: [image])
+                CanvasShareSheet(items: [image])
             }
         }
         .animation(.easeInOut(duration: 0.25), value: isLabelMode)
@@ -168,6 +207,20 @@ struct GalleryView: View {
                 emptyStateView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+
+            // Top-right: move button (label mode only)
+            if isLabelMode {
+                VStack {
+                    HStack {
+                        Spacer()
+                        moveButton
+                            .padding(.trailing, 24)
+                            .padding(.top, 12)
+                    }
+                    Spacer()
+                }
+                .transition(.opacity)
             }
 
             // Bottom section
@@ -208,15 +261,20 @@ struct GalleryView: View {
         Button {
             exportCanvas()
         } label: {
-            Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 22, weight: .ultraLight))
-                .foregroundStyle(buttonColor.opacity(0.7))
-                .frame(width: 56, height: 56)
-                .overlay(
-                    Circle()
-                        .stroke(buttonColor.opacity(0.2), lineWidth: 1)
-                )
-                .contentShape(Circle().size(width: 72, height: 72))
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.5)
+                    .frame(width: 56, height: 56)
+                Circle()
+                    .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
+                    .frame(width: 56, height: 56)
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 22, weight: .ultraLight))
+                    .foregroundStyle(buttonColor.opacity(0.85))
+            }
+            .frame(width: 56, height: 56)
+            .contentShape(Circle().size(width: 72, height: 72))
         }
         .buttonStyle(.plain)
         .opacity(isCanvasEmpty ? 0.35 : 1.0)
@@ -232,17 +290,23 @@ struct GalleryView: View {
             withAnimation(.easeInOut(duration: 0.25)) {
                 isLabelMode.toggle()
                 if isLabelMode { metricOverlay = nil }
+                if !isLabelMode { isMoveMode = false; activeElementId = nil }
             }
         } label: {
-            Image(systemName: isLabelMode ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 22, weight: .ultraLight))
-                .foregroundStyle(buttonColor.opacity(isLabelMode ? 0.9 : 0.7))
-                .frame(width: 56, height: 56)
-                .overlay(
-                    Circle()
-                        .stroke(buttonColor.opacity(isLabelMode ? 0.4 : 0.2), lineWidth: 1)
-                )
-                .contentShape(Circle().size(width: 72, height: 72))
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.5)
+                    .frame(width: 56, height: 56)
+                Circle()
+                    .strokeBorder(buttonColor.opacity(isLabelMode ? 0.4 : 0.3), lineWidth: 1)
+                    .frame(width: 56, height: 56)
+                Image(systemName: isLabelMode ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 22, weight: .ultraLight))
+                    .foregroundStyle(buttonColor.opacity(isLabelMode ? 0.9 : 0.85))
+            }
+            .frame(width: 56, height: 56)
+            .contentShape(Circle().size(width: 72, height: 72))
         }
         .buttonStyle(.plain)
         .opacity(isCanvasEmpty ? 0.35 : 1.0)
@@ -351,17 +415,26 @@ struct GalleryView: View {
     }
 
     private func spawnElement(optionId: String, category: EnergyCategory, color: String, assetVariant: Int? = nil) {
-        let label = model.resolveOptionTitle(for: optionId)
-        let element = CanvasElement.spawn(
-            optionId: optionId,
-            category: category,
-            color: color,
-            label: label,
-            existingElements: dayCanvas.elements,
-            forcedVariant: assetVariant
-        )
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-            dayCanvas.elements.append(element)
+        if let index = dayCanvas.elements.firstIndex(where: { $0.optionId == optionId && $0.category == category }) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                dayCanvas.elements[index].hexColor = color
+                if let variant = assetVariant {
+                    dayCanvas.elements[index].assetVariant = variant
+                }
+            }
+        } else {
+            let label = model.resolveOptionTitle(for: optionId)
+            let element = CanvasElement.spawn(
+                optionId: optionId,
+                category: category,
+                color: color,
+                label: label,
+                existingElements: dayCanvas.elements,
+                forcedVariant: assetVariant
+            )
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                dayCanvas.elements.append(element)
+            }
         }
         dayCanvas.lastModified = Date()
         saveCanvasLocally()
@@ -374,6 +447,208 @@ struct GalleryView: View {
         updated.lastModified = Date()
         dayCanvas = updated
         saveCanvasLocally()
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Move Mode
+    // ═══════════════════════════════════════════════════════════
+
+    private var moveButton: some View {
+        let activeTint = AppColors.brandAccent
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isMoveMode.toggle()
+                if !isMoveMode { activeElementId = nil }
+            }
+        } label: {
+            Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                .font(.system(size: 18, weight: isMoveMode ? .regular : .ultraLight))
+                .foregroundStyle(isMoveMode ? activeTint : buttonColor.opacity(0.7))
+                .frame(width: 44, height: 44)
+                .overlay(
+                    Circle()
+                        .stroke(isMoveMode ? activeTint.opacity(0.6) : buttonColor.opacity(0.2), lineWidth: 1)
+                )
+                .background(isMoveMode ? Circle().fill(activeTint.opacity(0.15)) : nil)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .opacity(isCanvasEmpty ? 0.35 : 1.0)
+        .disabled(isCanvasEmpty)
+    }
+
+    private var moveGestureOverlay: some View {
+        GeometryReader { geo in
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 5)
+                        .onChanged { value in
+                            handleMoveDrag(value: value, canvasSize: geo.size)
+                        }
+                        .onEnded { _ in
+                            handleMoveDragEnd()
+                        }
+                )
+                .simultaneousGesture(
+                    RotationGesture()
+                        .onChanged { angle in
+                            handleRotation(angle: angle)
+                        }
+                        .onEnded { _ in
+                            handleRotationEnd()
+                        }
+                )
+        }
+    }
+
+    // MARK: - Drag to Move
+
+    private func handleMoveDrag(value: DragGesture.Value, canvasSize: CGSize) {
+        if activeElementId == nil {
+            let t = Date().timeIntervalSinceReferenceDate
+            if let hit = findClosestElement(to: value.startLocation, canvasSize: canvasSize, t: t),
+               hit.distance < 80 {
+                activeElementId = hit.element.id
+                dragStartBasePosition = hit.element.basePosition
+            }
+        }
+
+        guard let id = activeElementId,
+              let startPos = dragStartBasePosition,
+              let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
+
+        let dx = value.translation.width / canvasSize.width
+        let dy = value.translation.height / canvasSize.height
+
+        dayCanvas.elements[index].basePosition = CGPoint(
+            x: min(0.95, max(0.05, startPos.x + dx)),
+            y: min(0.95, max(0.05, startPos.y + dy))
+        )
+    }
+
+    private func handleMoveDragEnd() {
+        activeElementId = nil
+        dragStartBasePosition = nil
+        dayCanvas.lastModified = Date()
+        saveCanvasLocally()
+    }
+
+    // MARK: - Two-Finger Rotate
+
+    private func handleRotation(angle: Angle) {
+        guard let id = activeElementId,
+              let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
+
+        if !rotationGestureActive {
+            rotationGestureActive = true
+            rotationAtGestureStart = dayCanvas.elements[index].userRotation
+        }
+
+        dayCanvas.elements[index].userRotation = rotationAtGestureStart + angle.radians
+    }
+
+    private func handleRotationEnd() {
+        rotationGestureActive = false
+        dayCanvas.lastModified = Date()
+        saveCanvasLocally()
+    }
+
+    // MARK: - Hit Testing (mirrors GenerativeCanvasView positions)
+
+    private func findClosestElement(to point: CGPoint, canvasSize: CGSize, t: TimeInterval)
+        -> (element: CanvasElement, distance: CGFloat)? {
+        var closest: (element: CanvasElement, distance: CGFloat)? = nil
+        for element in dayCanvas.elements {
+            let center = hitTestCenter(for: element, canvasSize: canvasSize, t: t)
+            let dx = point.x - center.x
+            let dy = point.y - center.y
+            let dist = sqrt(dx * dx + dy * dy)
+            if closest == nil || dist < closest!.distance {
+                closest = (element, dist)
+            }
+        }
+        return closest
+    }
+
+    private func hitTestCenter(for e: CanvasElement, canvasSize: CGSize, t: TimeInterval) -> CGPoint {
+        switch e.category {
+        case .body:
+            return CGPoint(
+                x: e.basePosition.x * canvasSize.width,
+                y: e.basePosition.y * canvasSize.height
+            )
+        case .mind:
+            return mindHitPosition(e, canvasSize: canvasSize, t: t)
+        case .heart:
+            return heartHitPosition(e, canvasSize: canvasSize)
+        }
+    }
+
+    private func mindHitPosition(_ e: CanvasElement, canvasSize: CGSize, t: TimeInterval) -> CGPoint {
+        let p = e.phaseOffset
+        let speed = 0.03 + e.driftSpeed * 0.06
+
+        let nx = Double(e.basePosition.x)
+            + sin(t * speed * 1.00 + p) * 0.34
+            + sin(t * speed * 2.37 + p * 2.3) * 0.12
+            + sin(t * speed * 4.13 + p * 4.1) * 0.04
+            + sin(t * speed * 6.71 + p * 6.7) * 0.015
+
+        let ny = Double(e.basePosition.y)
+            + cos(t * speed * 0.83 + p * 1.7) * 0.32
+            + cos(t * speed * 1.97 + p * 3.1) * 0.11
+            + cos(t * speed * 3.61 + p * 5.3) * 0.04
+            + cos(t * speed * 5.89 + p * 7.9) * 0.015
+
+        let margin = 0.06
+        return CGPoint(
+            x: min(1.0 - margin, max(margin, nx)) * canvasSize.width,
+            y: min(1.0 - margin, max(margin, ny)) * canvasSize.height
+        )
+    }
+
+    private func heartHitPosition(_ e: CanvasElement, canvasSize: CGSize) -> CGPoint {
+        let base = heartEdgeAnchor(e, canvasSize: canvasSize)
+        let dim = Double(min(canvasSize.width, canvasSize.height))
+        let radius = Double(e.size) * dim * 2.2
+
+        // Must match GenerativeCanvasView.rayDrawCenter clamping exactly
+        let center = CGPoint(
+            x: min(max(Double(base.x), radius), Double(canvasSize.width) - radius),
+            y: min(max(Double(base.y), radius), Double(canvasSize.height) - radius)
+        )
+
+        // Must match GenerativeCanvasView.elementCenter for .heart
+        let dx = Double(canvasSize.width) * 0.5 - center.x
+        let dy = Double(canvasSize.height) * 0.5 - center.y
+        let baseAngle = atan2(dy, dx)
+        let oriented = baseAngle + .pi / 2 + e.userRotation
+        let outwardDist = radius * 0.55
+        let tipX = center.x - outwardDist * sin(oriented)
+        let tipY = center.y + outwardDist * cos(oriented)
+        return CGPoint(
+            x: min(max(tipX, 24), Double(canvasSize.width) - 24),
+            y: min(max(tipY, 24), Double(canvasSize.height) - 24)
+        )
+    }
+
+    private func heartEdgeAnchor(_ e: CanvasElement, canvasSize: CGSize) -> CGPoint {
+        let nx = Double(e.basePosition.x)
+        let ny = Double(e.basePosition.y)
+        let edgeInset = 0.08
+        let minN = edgeInset
+        let maxN = 1.0 - edgeInset
+
+        let dL = nx, dR = 1.0 - nx, dT = ny, dB = 1.0 - ny
+        let minDist = min(dL, dR, dT, dB)
+        var ax = nx, ay = ny
+        if minDist == dL      { ax = minN; ay = min(max(ny, minN), maxN) }
+        else if minDist == dR { ax = maxN; ay = min(max(ny, minN), maxN) }
+        else if minDist == dT { ay = minN; ax = min(max(nx, minN), maxN) }
+        else                  { ay = maxN; ax = min(max(nx, minN), maxN) }
+
+        return CGPoint(x: ax * canvasSize.width, y: ay * canvasSize.height)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -481,7 +756,7 @@ struct GalleryView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(model.stepsPointsToday)/\(EnergyDefaults.stepsMaxPoints)")
                         .font(.title3.bold())
-                    Text("ink")
+                    Text("rays")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -506,7 +781,7 @@ struct GalleryView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(model.sleepPointsToday)/\(EnergyDefaults.sleepMaxPoints)")
                         .font(.title3.bold())
-                    Text("ink")
+                    Text("rays")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -524,23 +799,23 @@ struct GalleryView: View {
             let extras = selectionTitles(for: .body)
             let total = model.activityPointsToday
             if extras.isEmpty {
-                return "Body tracks physical activities you choose. Pick up to 4 cards for \(maxPts) ink (\(total) ink today)."
+                return "Body tracks physical activities you choose. Pick up to 4 cards for \(maxPts) rays (\(total) rays today)."
             }
-            return "Body tracks physical activities. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) ink for my body."
+            return "Body tracks physical activities. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) rays for my body."
         case .mind:
             let extras = selectionTitles(for: .mind)
             let total = model.creativityPointsToday
             if extras.isEmpty {
-                return "Mind tracks creativity and rest. Pick up to 4 cards for \(maxPts) ink (\(total) ink today)."
+                return "Mind tracks creativity and rest. Pick up to 4 cards for \(maxPts) rays (\(total) rays today)."
             }
-            return "Mind tracks creativity and rest. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) ink for my mind."
+            return "Mind tracks creativity and rest. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) rays for my mind."
         case .heart:
             let extras = selectionTitles(for: .heart)
             let total = model.joysCategoryPointsToday
             if extras.isEmpty {
-                return "Heart tracks joys and things that make you feel alive. Pick up to 4 cards for \(maxPts) ink (\(total) ink today)."
+                return "Heart tracks joys and things that make you feel alive. Pick up to 4 cards for \(maxPts) rays (\(total) rays today)."
             }
-            return "Heart tracks joys and what makes you feel alive. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) ink for my heart."
+            return "Heart tracks joys and what makes you feel alive. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) rays for my heart."
         }
     }
 
@@ -561,7 +836,7 @@ struct GalleryView: View {
 
 // MARK: - Share Sheet (UIActivityViewController wrapper)
 
-struct GalleryShareSheet: UIViewControllerRepresentable {
+struct CanvasShareSheet: UIViewControllerRepresentable {
     let items: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
@@ -573,7 +848,7 @@ struct GalleryShareSheet: UIViewControllerRepresentable {
 
 // MARK: - Day detail sheet (used by MeView)
 
-struct GalleryDayDetailSheet: View {
+struct CanvasDayDetailSheet: View {
     @ObservedObject var model: AppModel
     let dayKey: String
     let snapshot: PastDaySnapshot?
@@ -601,7 +876,7 @@ struct GalleryDayDetailSheet: View {
                             statCard(icon: "plus.circle.fill", value: "\(s.inkEarned)", label: "Gained", color: .blue)
                             statCard(icon: "minus.circle.fill", value: "\(s.inkSpent)", label: "Spent", color: .orange)
                         }
-                        gallerySection(s)
+                        canvasSection(s)
                     } else {
                         Text("No data for this day.")
                             .font(.subheadline)
@@ -624,15 +899,15 @@ struct GalleryDayDetailSheet: View {
         .presentationDetents([.medium])
     }
 
-    private func gallerySection(_ s: PastDaySnapshot) -> some View {
+    private func canvasSection(_ s: PastDaySnapshot) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            galleryRow(title: "Body", ids: s.bodyIds, color: theme.bodyColor)
-            galleryRow(title: "Mind", ids: s.mindIds, color: theme.mindColor)
-            galleryRow(title: "Heart", ids: s.heartIds, color: theme.heartColor)
+            canvasRow(title: "Body", ids: s.bodyIds, color: theme.bodyColor)
+            canvasRow(title: "Mind", ids: s.mindIds, color: theme.mindColor)
+            canvasRow(title: "Heart", ids: s.heartIds, color: theme.heartColor)
         }
     }
 
-    private func galleryRow(title: String, ids: [String], color: Color) -> some View {
+    private func canvasRow(title: String, ids: [String], color: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption.weight(.semibold))

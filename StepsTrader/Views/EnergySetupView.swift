@@ -75,7 +75,7 @@ struct EnergySetupView: View {
                         }
                     }
                 } header: {
-                    Text("Daily gallery")
+                    Text("Daily canvas")
                 } footer: {
                     Text("Set goals and manage cards per category.")
                 }

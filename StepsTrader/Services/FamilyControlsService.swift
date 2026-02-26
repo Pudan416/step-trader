@@ -96,35 +96,58 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
     #if canImport(FamilyControls)
     private func buildMinuteEvents() -> [DeviceActivityEvent.Name: DeviceActivityEvent] {
         let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: "appUnlockSettings_v1"),
-              let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data)
-        else { return [:] }
-
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
-        
-        for (bundleId, _) in decoded {
-            let key = "timeAccessSelection_v1_\(bundleId)"
-            guard let selectionData = g.data(forKey: key),
-                  let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
-            else { continue }
 
-            if selection.applicationTokens.isEmpty && selection.categoryTokens.isEmpty {
-                continue
+        // Per-app legacy settings
+        if let data = g.data(forKey: "appUnlockSettings_v1"),
+           let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data) {
+            for (bundleId, _) in decoded {
+                let key = "timeAccessSelection_v1_\(bundleId)"
+                guard let selectionData = g.data(forKey: key),
+                      let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData),
+                      !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
+                else { continue }
+
+                let eventName = DeviceActivityEvent.Name("minute_\(bundleId)")
+                events[eventName] = DeviceActivityEvent(
+                    applications: selection.applicationTokens,
+                    categories: selection.categoryTokens,
+                    threshold: DateComponents(minute: 1)
+                )
             }
+        }
 
-            // DeviceActivity tracks usage since schedule start.
-            // Since we restart monitoring after every event, the counter resets to 0.
-            // We always want to be notified after the *next* 1 minute of usage.
-            let eventName = DeviceActivityEvent.Name("minute_\(bundleId)")
-            let event = DeviceActivityEvent(
-                applications: selection.applicationTokens,
-                categories: selection.categoryTokens,
-                threshold: DateComponents(minute: 1)
-            )
-            events[eventName] = event
+        // Ticket groups — add all active groups' apps so checkAndClearExpiredUnlocks
+        // fires every minute while the user is in an unblocked app, catching expiry
+        // without waiting for DeviceActivity unlock-expiry callbacks (which are best-effort).
+        let liteData = g.data(forKey: "liteTicketConfig_v1") ?? g.data(forKey: "liteShieldConfig_v1")
+        if let data = liteData,
+           let lite = try? JSONDecoder().decode(LiteTicketConfig.self, from: data) {
+            for group in lite.groups where group.active {
+                guard let selectionData = Data(base64Encoded: group.selectionDataBase64),
+                      let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData),
+                      !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
+                else { continue }
+
+                let eventName = DeviceActivityEvent.Name("ticketGroup_\(group.id)")
+                events[eventName] = DeviceActivityEvent(
+                    applications: selection.applicationTokens,
+                    categories: selection.categoryTokens,
+                    threshold: DateComponents(minute: 1)
+                )
+            }
         }
 
         return events
+    }
+
+    private struct LiteTicketConfig: Decodable {
+        struct Group: Decodable {
+            let id: String
+            let selectionDataBase64: String
+            let active: Bool
+        }
+        let groups: [Group]
     }
     #endif
 }

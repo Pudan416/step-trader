@@ -75,13 +75,14 @@ enum SharedKeys {
 
     // MARK: - Appearance
     static let gradientStyle = "gradientStyle_v1"
+    static let gradientPalette = "gradientPalette_v1"
 
-    // MARK: - Selections / gallery
+    // MARK: - Selections / canvas
     static let appSelection = "appSelection_v1"
     static let appSelectionSavedDate = "appSelectionSavedDate"
     static let customEnergyOptions = "customEnergyOptions_v1"
     static let pastDaySnapshots = "pastDaySnapshots_v1"
-    static let dailyGallerySlots = "dailyChoiceSlots_v1"
+    static let dailyCanvasSlots = "dailyChoiceSlots_v1"
     static let userStepsTarget = "userStepsTarget"
     static let userSleepTarget = "userSleepTarget"
 
@@ -90,6 +91,12 @@ enum SharedKeys {
     static let monitorErrorLogs = "monitorErrorLogs_v1"
     static let monitorErrorCount = "monitorErrorCount_v1"
     static let monitorLastErrorAt = "monitorLastErrorAt_v1"
+
+    // MARK: - Shield diagnostics (written by app, extension, and BGTask)
+    static let shieldDiagLastRebuild = "shieldDiag_lastRebuild_v1"
+    static let shieldDiagHistory = "shieldDiag_history_v1"
+    static let lastStartMonitoringLog = "shieldDiag_lastStartMonitoring_v1"
+    static let extensionTestScheduledAt = "shieldDiag_extTestScheduledAt_v1"
 
     // MARK: - Automation / handoff
     static let handoffToken = "handoffToken"

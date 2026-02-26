@@ -112,7 +112,9 @@ actor SupabaseSyncService {
         let preferredBody: [String]
         let preferredMind: [String]
         let preferredHeart: [String]
-        let gallerySlots: [DayGallerySlot]
+        let canvasSlots: [DayCanvasSlot]
+        let hasWallpaperShortcut: Bool
+        let wallpaperShortcutUses: Int
     }
     
     private var pendingDailySelections: DailySelectionsPayload?
@@ -322,7 +324,7 @@ actor SupabaseSyncService {
     }
 
     /// Sync full DayCanvas to Supabase `user_day_canvases` table.
-    /// Stores the entire canvas JSON (elements, colors, ink) keyed by day.
+    /// Stores the entire canvas JSON (elements, colors, rays) keyed by day.
     func syncDayCanvas(_ canvas: DayCanvas) {
         guard let jsonData = try? JSONEncoder().encode(canvas) else {
             AppLogger.network.error("📡 syncDayCanvas: failed to encode canvas for \(canvas.dayKey)")
@@ -422,7 +424,51 @@ actor SupabaseSyncService {
         }
     }
     
-    /// Sync user preferences (targets, day boundary, preferred options, gallery slots)
+    /// Track wallpaper shortcut usage (lightweight, called from Intent)
+    func trackWallpaperShortcutUsage() async {
+        await AuthenticationService.shared.waitForInitialization()
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
+            AppLogger.network.debug("📡 Wallpaper shortcut tracking skipped: no auth")
+            return
+        }
+        
+        do {
+            let cfg = try SupabaseConfig.load()
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_preferences")
+            guard var urlComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return }
+            urlComps.queryItems = [URLQueryItem(name: "on_conflict", value: "user_id")]
+            guard let url = urlComps.url else { return }
+            
+            let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? UserDefaults.standard
+            let hasShortcut = g.bool(forKey: "hasWallpaperShortcut")
+            let uses = g.integer(forKey: "wallpaperShortcutUses")
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+            request.setValue("application/json", forHTTPHeaderField: "content-type")
+            request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "prefer")
+            
+            let row: [String: Any] = [
+                "user_id": userId,
+                "has_wallpaper_shortcut": hasShortcut,
+                "wallpaper_shortcut_uses": uses,
+                "updated_at": iso8601String(Date())
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: row)
+            
+            let (_, response) = try await network.data(for: request)
+            if response.statusCode < 400 {
+                AppLogger.network.debug("📡 Wallpaper shortcut usage tracked: uses=\(uses)")
+            }
+        } catch {
+            AppLogger.network.error("📡 Failed to track wallpaper shortcut: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Sync user preferences (targets, day boundary, preferred options, canvas slots)
     func syncUserPreferences(
         stepsTarget: Double,
         sleepTarget: Double,
@@ -432,7 +478,9 @@ actor SupabaseSyncService {
         preferredBody: [String],
         preferredMind: [String],
         preferredHeart: [String],
-        gallerySlots: [DayGallerySlot]
+        canvasSlots: [DayCanvasSlot],
+        hasWallpaperShortcut: Bool,
+        wallpaperShortcutUses: Int
     ) {
         let payload = UserPreferencesPayload(
             stepsTarget: stepsTarget,
@@ -443,7 +491,9 @@ actor SupabaseSyncService {
             preferredBody: preferredBody,
             preferredMind: preferredMind,
             preferredHeart: preferredHeart,
-            gallerySlots: gallerySlots
+            canvasSlots: canvasSlots,
+            hasWallpaperShortcut: hasWallpaperShortcut,
+            wallpaperShortcutUses: wallpaperShortcutUses
         )
         
         if payload == pendingPreferences { return }
@@ -572,7 +622,7 @@ actor SupabaseSyncService {
                 stepsToday: model.healthStore.stepsToday,
                 dailySleepHours: model.healthStore.dailySleepHours,
                 baseEnergyToday: model.healthStore.baseEnergyToday,
-                bonusSteps: model.userEconomyStore.bonusSteps,
+                bonusSteps: 0,
                 totalStepsBalance: model.userEconomyStore.totalStepsBalance,
                 appStepsSpentByDay: model.userEconomyStore.appStepsSpentByDay,
                 // Preferences
@@ -584,7 +634,7 @@ actor SupabaseSyncService {
                 preferredBody: model.preferredActivityOptions,
                 preferredMind: model.preferredRestOptions,
                 preferredHeart: model.preferredJoysOptions,
-                gallerySlots: model.dailyGallerySlots,
+                canvasSlots: model.dailyCanvasSlots,
                 ticketGroups: model.ticketGroups
             )
         }
@@ -610,7 +660,7 @@ actor SupabaseSyncService {
                 steps: Int(snapshot.stepsToday),
                 sleepHours: snapshot.dailySleepHours,
                 baseEnergy: snapshot.baseEnergyToday,
-                bonusEnergy: snapshot.bonusSteps,
+                bonusEnergy: 0,
                 remainingBalance: snapshot.totalStepsBalance
             )
         )
@@ -626,6 +676,7 @@ actor SupabaseSyncService {
         )
         
         // Sync user preferences
+        let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? UserDefaults.standard
         await performPreferencesSync(
             payload: UserPreferencesPayload(
                 stepsTarget: snapshot.stepsTarget,
@@ -636,7 +687,9 @@ actor SupabaseSyncService {
                 preferredBody: snapshot.preferredBody,
                 preferredMind: snapshot.preferredMind,
                 preferredHeart: snapshot.preferredHeart,
-                gallerySlots: snapshot.gallerySlots
+                canvasSlots: snapshot.canvasSlots,
+                hasWallpaperShortcut: g.bool(forKey: "hasWallpaperShortcut"),
+                wallpaperShortcutUses: g.integer(forKey: "wallpaperShortcutUses")
             )
         )
         
@@ -1192,7 +1245,7 @@ actor SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "content-type")
             request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "prefer")
             
-            let slotsData = (try? JSONEncoder().encode(payload.gallerySlots)) ?? Data("[]".utf8)
+            let slotsData = (try? JSONEncoder().encode(payload.canvasSlots)) ?? Data("[]".utf8)
             let slotsJson = try JSONSerialization.jsonObject(with: slotsData)
             
             let row: [String: Any] = [
@@ -1206,6 +1259,8 @@ actor SupabaseSyncService {
                 "preferred_mind": payload.preferredMind,
                 "preferred_heart": payload.preferredHeart,
                 "gallery_slots": slotsJson,
+                "has_wallpaper_shortcut": payload.hasWallpaperShortcut,
+                "wallpaper_shortcut_uses": payload.wallpaperShortcutUses,
                 "updated_at": iso8601String(Date())
             ]
             request.httpBody = try JSONSerialization.data(withJSONObject: row)
@@ -1622,7 +1677,8 @@ actor SupabaseSyncService {
         dayEndHour: Int, dayEndMinute: Int,
         restDayOverride: Bool,
         preferredBody: [String], preferredMind: [String], preferredHeart: [String],
-        gallerySlots: [DayGallerySlot]
+        canvasSlots: [DayCanvasSlot],
+        hasWallpaperShortcut: Bool, wallpaperShortcutUses: Int
     )? {
         await AuthenticationService.shared.waitForInitialization()
         guard let token = await AuthenticationService.shared.accessToken,
@@ -1656,11 +1712,11 @@ actor SupabaseSyncService {
                 return nil
             }
             
-            // Decode gallery slots from raw JSONB
-            var gallerySlots: [DayGallerySlot] = []
-            if let rawSlots = row.gallerySlots?.value {
+            // Decode canvas slots from raw JSONB
+            var canvasSlots: [DayCanvasSlot] = []
+            if let rawSlots = row.canvasSlots?.value {
                 let slotsData = try JSONSerialization.data(withJSONObject: rawSlots)
-                gallerySlots = (try? JSONDecoder().decode([DayGallerySlot].self, from: slotsData)) ?? []
+                canvasSlots = (try? JSONDecoder().decode([DayCanvasSlot].self, from: slotsData)) ?? []
             }
             
             AppLogger.network.debug("📡 Loaded user preferences from server")
@@ -1673,7 +1729,9 @@ actor SupabaseSyncService {
                 preferredBody: row.preferredBody,
                 preferredMind: row.preferredMind,
                 preferredHeart: row.preferredHeart,
-                gallerySlots: gallerySlots
+                canvasSlots: canvasSlots,
+                hasWallpaperShortcut: row.hasWallpaperShortcut,
+                wallpaperShortcutUses: row.wallpaperShortcutUses
             )
         } catch {
             AppLogger.network.error("📡 Failed to load preferences: \(error.localizedDescription)")
@@ -1781,7 +1839,7 @@ actor SupabaseSyncService {
             }
         }
         
-        // 4. Restore preferences (targets, day boundary, preferred options, gallery slots)
+        // 4. Restore preferences (targets, day boundary, preferred options, canvas slots)
         if let prefs = await loadUserPreferencesFromServer() {
             await MainActor.run {
                 let g = UserDefaults.stepsTrader()
@@ -1790,18 +1848,20 @@ actor SupabaseSyncService {
                 g.set(prefs.dayEndHour, forKey: SharedKeys.dayEndHour)
                 g.set(prefs.dayEndMinute, forKey: SharedKeys.dayEndMinute)
                 g.set(prefs.restDayOverride, forKey: SharedKeys.restDayOverrideEnabled)
+                g.set(prefs.hasWallpaperShortcut, forKey: "hasWallpaperShortcut")
+                g.set(prefs.wallpaperShortcutUses, forKey: "wallpaperShortcutUses")
                 model.dayEndHour = prefs.dayEndHour
                 model.dayEndMinute = prefs.dayEndMinute
                 model.preferredActivityOptions = prefs.preferredBody
                 model.preferredRestOptions = prefs.preferredMind
                 model.preferredJoysOptions = prefs.preferredHeart
-                if !prefs.gallerySlots.isEmpty {
-                    model.dailyGallerySlots = prefs.gallerySlots
+                if !prefs.canvasSlots.isEmpty {
+                    model.dailyCanvasSlots = prefs.canvasSlots
                 }
                 model.persistDailyEnergyState()
             }
             didRestore = true
-            AppLogger.network.debug("📡 Restored user preferences from server")
+            AppLogger.network.debug("📡 Restored user preferences (including wallpaper shortcut: \(prefs.hasWallpaperShortcut), uses: \(prefs.wallpaperShortcutUses))")
         }
         
         // 5. Restore day snapshots (merge with local, server wins on conflict)
@@ -2366,7 +2426,9 @@ private struct UserPreferencesRow: Decodable {
     let preferredBody: [String]
     let preferredMind: [String]
     let preferredHeart: [String]
-    let gallerySlots: AnyCodable? // Raw JSONB
+    let canvasSlots: AnyCodable? // Raw JSONB
+    let hasWallpaperShortcut: Bool
+    let wallpaperShortcutUses: Int
     
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -2378,7 +2440,9 @@ private struct UserPreferencesRow: Decodable {
         case preferredBody = "preferred_body"
         case preferredMind = "preferred_mind"
         case preferredHeart = "preferred_heart"
-        case gallerySlots = "gallery_slots"
+        case canvasSlots = "gallery_slots"
+        case hasWallpaperShortcut = "has_wallpaper_shortcut"
+        case wallpaperShortcutUses = "wallpaper_shortcut_uses"
     }
     
     init(from decoder: Decoder) throws {
@@ -2392,7 +2456,9 @@ private struct UserPreferencesRow: Decodable {
         preferredBody = try c.decodeIfPresent([String].self, forKey: .preferredBody) ?? []
         preferredMind = try c.decodeIfPresent([String].self, forKey: .preferredMind) ?? []
         preferredHeart = try c.decodeIfPresent([String].self, forKey: .preferredHeart) ?? []
-        gallerySlots = try c.decodeIfPresent(AnyCodable.self, forKey: .gallerySlots)
+        canvasSlots = try c.decodeIfPresent(AnyCodable.self, forKey: .canvasSlots)
+        hasWallpaperShortcut = try c.decodeIfPresent(Bool.self, forKey: .hasWallpaperShortcut) ?? false
+        wallpaperShortcutUses = try c.decodeIfPresent(Int.self, forKey: .wallpaperShortcutUses) ?? 0
     }
 }
 

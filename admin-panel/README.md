@@ -1,4 +1,4 @@
-# DOOM CTRL — Admin Panel
+# Nowhere — Admin Panel
 
 Internal admin UI for inspecting **global stats** and drilling down **per user**.
 

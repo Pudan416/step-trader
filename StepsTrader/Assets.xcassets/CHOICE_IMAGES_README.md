@@ -1,10 +1,10 @@
-# How to add images for Gallery activities
+# How to add images for Canvas activities
 
 Пользователи выбирают картинку для занятия в редакторе (Edit → категория → Add / Edit). Список доступных картинок задаётся в коде.
 
 ## 1. Добавить имя в каталог
 
-Открой **StepsTrader/Models/GalleryImageCatalog.swift**. В массив нужной категории (`activity`, `rest`, `joys`) добавь **имя** будущего Image Set, например:
+Открой **StepsTrader/Models/CanvasImageCatalog.swift**. В массив нужной категории (`activity`, `rest`, `joys`) добавь **имя** будущего Image Set, например:
 
 ```swift
 static let activity: [String] = [
@@ -29,7 +29,7 @@ static let activity: [String] = [
 
 ## 3. Где что лежит
 
-- **Каталог имён** (какие картинки показывать): **StepsTrader/Models/GalleryImageCatalog.swift**
+- **Каталог имён** (какие картинки показывать): **StepsTrader/Models/CanvasImageCatalog.swift**
 - **Список опций** (id, titleEn, titleRu): **StepsTrader/Models/DailyEnergy.swift**
 - **Редактор** (выбор картинки/иконки): **StepsTrader/Views/CustomActivityEditorView.swift**
 

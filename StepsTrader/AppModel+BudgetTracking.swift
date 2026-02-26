@@ -192,7 +192,7 @@ extension AppModel {
 
                 guard self.budgetEngine.remainingMinutes > 0 else {
                     AppLogger.energy.debug("❌ No remaining time - aborting")
-                    message = "No time left. Open Proof to earn ink."
+                    message = "No time left. Open Proof to earn rays."
                     return
                 }
 
@@ -235,7 +235,7 @@ extension AppModel {
             // Start monitoring with timeout
             Task { [weak self] in
                 AppLogger.energy.debug("🔄 Created task to start monitoring with a 10s timeout")
-                await self?.withTimeout(seconds: 10) {
+                try? await self?.withTimeout(seconds: 10) {
                     AppLogger.energy.debug("⏰ Calling startMonitoring in FamilyControlsService")
                     familyService.startMonitoring(
                         budgetMinutes: self?.budgetEngine.remainingMinutes ?? 0

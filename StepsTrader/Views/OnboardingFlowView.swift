@@ -1,5 +1,8 @@
 import SwiftUI
 import UIKit
+#if canImport(FamilyControls)
+import FamilyControls
+#endif
 
 struct OnboardingFlowView: View {
     @ObservedObject var model: AppModel
@@ -9,11 +12,12 @@ struct OnboardingFlowView: View {
 
     @State private var onboardingPresented: Bool = true
     
-    // Setup values - use @AppStorage for immediate sync with other views
     @AppStorage("userStepsTarget") private var stepsTarget: Double = 10_000
     @AppStorage("userSleepTarget") private var sleepTarget: Double = 8.0
     @State private var userName: String = ""
     @State private var avatarImage: UIImage? = nil
+    @State private var onboardingSelection = FamilyActivitySelection()
+    @State private var selectedFeedApp: String? = nil
 
     var body: some View {
         ZStack {
@@ -23,44 +27,46 @@ struct OnboardingFlowView: View {
                 accent: AppColors.brandAccent,
                 skipText: "Skip",
                 nextText: "Next",
-                startText: "Start",
+                startText: "Let's go",
                 allowText: "Allow",
                 showsSkip: false,
                 onLocationSlide: nil,
-                onHealthSlide: nil,
-                onNotificationSlide: nil,
-                onFamilyControlsSlide: nil,
+                onHealthSlide: {
+                    Task { await model.ensureHealthAuthorizationAndRefresh() }
+                },
+                onNotificationSlide: {
+                    Task { await model.requestNotificationPermission() }
+                },
+                onFamilyControlsSlide: {
+                    Task { try? await model.familyControlsService.requestAuthorization() }
+                },
                 onFinish: { finishOnboarding() },
                 model: model,
                 stepsTarget: $stepsTarget,
                 sleepTarget: $sleepTarget,
                 userName: $userName,
-                avatarImage: $avatarImage
+                avatarImage: $avatarImage,
+                authService: authService,
+                onboardingSelection: $onboardingSelection,
+                selectedFeedApp: $selectedFeedApp
             )
         }
         .transition(.opacity)
     }
 
     private func finishOnboarding() {
-        // Save setup values to app group (for extensions)
         let defaults = UserDefaults.stepsTrader()
         defaults.set(stepsTarget, forKey: "userStepsTarget")
         defaults.set(sleepTarget, forKey: "userSleepTarget")
         
-        // Note: Activity preferences (body/mind/heart) are saved automatically
-        // when toggled via model.togglePreferredOption()
+        let hasApps = !onboardingSelection.applicationTokens.isEmpty
+            || !onboardingSelection.categoryTokens.isEmpty
+        if hasApps {
+            let name = selectedFeedApp.map { TargetResolver.displayName(for: $0) } ?? "My Apps"
+            let group = model.createTicketGroup(name: name, templateApp: selectedFeedApp)
+            model.addAppsToGroup(group.id, selection: onboardingSelection)
+        }
         
-        // Save username and avatar to profile
-        let trimmedName = userName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let avatarData = avatarImage?.jpegData(compressionQuality: 0.75)
-        
-        authService.updateProfile(
-            nickname: trimmedName.isEmpty ? nil : trimmedName,
-            country: authService.currentUser?.country,
-            avatarData: avatarData
-        )
-        
-        // Trigger energy recalculation with new settings
         Task { @MainActor in
             model.recalculateDailyEnergy()
         }
@@ -69,15 +75,16 @@ struct OnboardingFlowView: View {
             await SupabaseSyncService.shared.trackAnalyticsEvent(
                 name: "onboarding_completed",
                 properties: [
-                    "flow": "v1_7_slide",
+                    "flow": "v3_nowhere_philosophy",
                     "steps_target": String(Int(stepsTarget)),
-                    "sleep_target": String(format: "%.1f", sleepTarget)
+                    "sleep_target": String(format: "%.1f", sleepTarget),
+                    "selected_feed": selectedFeedApp ?? "none",
+                    "selected_apps_count": String(onboardingSelection.applicationTokens.count)
                 ],
                 dedupeKey: "onboarding_completed_v1"
             )
         }
         
-        // Request core permissions once at the end of the 7-slide flow.
         Task {
             await MainActor.run {
                 locationPermissionRequester.requestWhenInUse()
@@ -92,86 +99,154 @@ struct OnboardingFlowView: View {
         }
     }
     
-    // MARK: - Main onboarding slides (7-step, gallery-first)
+    // MARK: - Philosophy-driven onboarding (13 slides)
     
     private func mainSlides() -> [OnboardingSlide] {
         [
-            // 1 - Gallery-first framing
+            // 1 — the feeling
             OnboardingSlide(
                 lines: [
-                    "Welcome to Proof.",
-                    "Your gallery comes first.",
-                    "Everything else supports it."
+                    "Recently I've found myself",
+                    "living the same day over and over.",
+                    "Working, scrolling, staring at the screen."
                 ],
-                symbol: "sparkles.rectangle.stack",
-                gradient: [.pink, .purple]
+                symbol: "eye.slash",
+                gradient: [Color(white: 0.15), Color(white: 0.08)]
             ),
             
-            // 2 - Joys (gallery center)
+            // 2 — the thought
             OnboardingSlide(
                 lines: [
-                    "Pick what belongs",
-                    "in your daily gallery.",
-                    "Choose up to 4."
+                    "So I thought —",
+                    "am I even being present?",
+                    "And I made this app."
                 ],
-                symbol: "heart.fill",
-                gradient: [.orange, .pink],
-                slideType: .activitySelection(.heart)
+                symbol: "paintpalette",
+                gradient: [.indigo, .purple]
             ),
             
-            // 3 - Activity
+            // 3 — the canvas
             OnboardingSlide(
                 lines: [
-                    "Pick up to 4 activity pieces.",
-                    "These add energy from movement."
+                    "It presents each day as a canvas",
+                    "you color by doing real things.",
                 ],
-                symbol: "figure.run",
-                gradient: [.green, .teal],
-                slideType: .activitySelection(.body)
+                symbol: "rectangle.on.rectangle.angled",
+                gradient: [.blue, .teal],
+                slideType: .canvasDemo
             ),
             
-            // 4 - Creativity
+            // 4 — steps
             OnboardingSlide(
                 lines: [
-                    "Pick up to 4 creativity pieces.",
-                    "These support focus and reset."
-                ],
-                symbol: "brain.head.profile",
-                gradient: [.blue, .cyan],
-                slideType: .activitySelection(.mind)
-            ),
-            
-            // 5 - Steps setup
-            OnboardingSlide(
-                lines: [
-                    "How many steps a day",
-                    "make me feel good?"
+                    "Walking adds bright color.",
+                    "I need about 7k steps to feel nice.",
+                    "How about you?"
                 ],
                 symbol: "figure.walk",
                 gradient: [.green, .mint],
                 slideType: .stepsSetup
             ),
             
-            // 6 - Sleep setup
+            // 5 — sleep
             OnboardingSlide(
                 lines: [
-                    "How much sleep keeps me",
-                    "clear and steady?"
+                    "Sleep adds the dark tones.",
+                    "I feel like 9 hours is my sweet spot.",
+                    "What about you?"
                 ],
-                symbol: "moon.zzz.fill",
+                symbol: "moon.zzz",
                 gradient: [.indigo, .purple],
                 slideType: .sleepSetup
             ),
             
-            // 7 - Final confirm
+            // 6 — health
             OnboardingSlide(
                 lines: [
-                    "You're set.",
-                    "We'll ask permissions next",
-                    "to make this work."
+                    "To color up your canvas",
+                    "share your steps and sleep data.",
                 ],
-                symbol: "checkmark.circle.fill",
-                gradient: [.green, .mint]
+                symbol: "heart.text.square",
+                gradient: [.pink, .red],
+                action: .requestHealth
+            ),
+            
+            // 7 — rays
+            OnboardingSlide(
+                lines: [
+                    "Hitting your sleep and steps targets brings rays.",
+                    "Body, mind, heart activities",
+                    "give you even more."
+                ],
+                symbol: "sun.max",
+                gradient: [.orange, .yellow],
+                slideType: .raysDemo
+            ),
+            
+            // 8 — feeds concept
+            OnboardingSlide(
+                lines: [
+                    "Rays are a currency you earn",
+                    "just by being present.",
+                    "You can't buy them, but..."
+                ],
+                symbol: "iphone.slash",
+                gradient: [.red, .orange],
+                action: .requestFamilyControls
+            ),
+            
+            // 9 — pick app
+            OnboardingSlide(
+                lines: [
+                    "...you can spend them on opening apps.",
+                    "Set the first one to try it."
+                ],
+                symbol: "apps.iphone",
+                gradient: [.red, .pink],
+                slideType: .feedSelection
+            ),
+            
+            // 10 — notifications
+            OnboardingSlide(
+                lines: [
+                    "To unlock the chosen app",
+                    "you'll get a notification.",
+                    "Better to allow them."
+                ],
+                symbol: "bell",
+                gradient: [.blue, .cyan],
+                action: .requestNotifications
+            ),
+            
+            // 11 — wallpaper
+            OnboardingSlide(
+                lines: [
+                    "Your canvas is different every day.",
+                    "You can set it as your wallpaper.",
+                    "Pretty convenient and... pretty."
+                ],
+                symbol: "photo",
+                gradient: [.teal, .blue]
+            ),
+            
+            // 12 — login
+            OnboardingSlide(
+                lines: [
+                    "By the way, I'm Konstantin.",
+                    "Who are you?"
+                ],
+                symbol: "person",
+                gradient: [.indigo, .purple],
+                slideType: .appleLogin
+            ),
+            
+            // 13 — close
+            OnboardingSlide(
+                lines: [
+                    "Welcome to Nowhere"
+                ],
+                symbol: "eye",
+                gradient: [.indigo, .purple]
             )
         ]
     }
