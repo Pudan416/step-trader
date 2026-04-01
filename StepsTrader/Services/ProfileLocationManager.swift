@@ -2,7 +2,8 @@ import Foundation
 import CoreLocation
 import Combine
 
-class ProfileLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+@MainActor
+class ProfileLocationManager: NSObject, ObservableObject {
     private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
     
@@ -39,19 +40,17 @@ class ProfileLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
         }
     }
     
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    fileprivate func handleAuthorizationChange(_ manager: CLLocationManager) {
         if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
             manager.requestLocation()
         } else if manager.authorizationStatus == .denied {
-            DispatchQueue.main.async {
-                self.isLoading = false
-                self.errorMessage = "Location access denied"
-                self.completion?(nil)
-            }
+            isLoading = false
+            errorMessage = "Location access denied"
+            completion?(nil)
         }
     }
     
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    fileprivate func handleLocations(_ locations: [CLLocation]) {
         guard let location = locations.first else {
             isLoading = false
             completion?(nil)
@@ -59,7 +58,7 @@ class ProfileLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
         }
         
         geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self?.isLoading = false
                 
                 if let error = error {
@@ -73,35 +72,46 @@ class ProfileLocationManager: NSObject, ObservableObject, CLLocationManagerDeleg
                     return
                 }
                 
-                let countryCode = placemark.isoCountryCode
-                
-                self?.completion?(countryCode)
+                self?.completion?(placemark.isoCountryCode)
+                self?.completion = nil
             }
         }
     }
     
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        DispatchQueue.main.async {
-            self.isLoading = false
-            
-            // Provide user-friendly error messages
-            let nsError = error as NSError
-            if nsError.domain == kCLErrorDomain {
-                switch CLError.Code(rawValue: nsError.code) {
-                case .locationUnknown:
-                    self.errorMessage = "Could not determine location. Try again or select manually."
-                case .denied:
-                    self.errorMessage = "Location access denied. Enable in Settings."
-                case .network:
-                    self.errorMessage = "Network error. Check my connection."
-                default:
-                    self.errorMessage = "Location error. Please select country manually."
-                }
-            } else {
-                self.errorMessage = error.localizedDescription
+    fileprivate func handleError(_ error: Error) {
+        isLoading = false
+        
+        let nsError = error as NSError
+        if nsError.domain == kCLErrorDomain {
+            switch CLError.Code(rawValue: nsError.code) {
+            case .locationUnknown:
+                errorMessage = "Could not determine location. Try again or select manually."
+            case .denied:
+                errorMessage = "Location access denied. Enable in Settings."
+            case .network:
+                errorMessage = "Network error. Check your connection."
+            default:
+                errorMessage = "Location error. Please select country manually."
             }
-            
-            self.completion?(nil)
+        } else {
+            errorMessage = error.localizedDescription
         }
+        
+        completion?(nil)
+        completion = nil
+    }
+}
+
+extension ProfileLocationManager: CLLocationManagerDelegate {
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        Task { @MainActor in self.handleAuthorizationChange(manager) }
+    }
+    
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        Task { @MainActor in self.handleLocations(locations) }
+    }
+    
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor in self.handleError(error) }
     }
 }

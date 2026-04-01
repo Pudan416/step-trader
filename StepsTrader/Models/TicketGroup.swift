@@ -8,9 +8,8 @@ struct TicketGroup: Identifiable, Codable {
     var name: String
     var selection: FamilyActivitySelection
     var settings: AppUnlockSettings
-    var enabledIntervals: Set<AccessWindow> = [.minutes10, .minutes30, .hour1] // 10 / 30 / 60 min
-    var templateApp: String? = nil // Template bundle ID (e.g., "com.burbn.instagram")
-    /// Index into sticker themes (bright colors, shapes, fonts) for "sticker" look.
+    var enabledIntervals: Set<AccessWindow> = [.minutes10, .minutes30, .hour1]
+    var templateApp: String? = nil
     var stickerThemeIndex: Int = 0
 
     init(id: String = UUID().uuidString, name: String, selection: FamilyActivitySelection = FamilyActivitySelection(), settings: AppUnlockSettings, enabledIntervals: Set<AccessWindow> = [.minutes10, .minutes30, .hour1], templateApp: String? = nil, stickerThemeIndex: Int = 0) {
@@ -23,14 +22,17 @@ struct TicketGroup: Identifiable, Codable {
         self.stickerThemeIndex = stickerThemeIndex
     }
 
-    // Flat base costs for each interval
-    func cost(for interval: AccessWindow) -> Int {
+    static func cost(for interval: AccessWindow) -> Int {
         let baseCosts: [AccessWindow: Int] = [
             .minutes10: 4,
             .minutes30: 10,
             .hour1: 20
         ]
         return baseCosts[interval] ?? 5
+    }
+
+    func cost(for interval: AccessWindow) -> Int {
+        Self.cost(for: interval)
     }
 
     // Custom Codable implementation for FamilyActivitySelection
@@ -44,7 +46,6 @@ struct TicketGroup: Identifiable, Codable {
         name = try container.decode(String.self, forKey: .name)
         settings = try container.decode(AppUnlockSettings.self, forKey: .settings)
 
-        // Decode only known intervals (ignore removed: single, minutes5, minutes15, hour2, day1)
         if let rawArray = try? container.decodeIfPresent([String].self, forKey: .enabledIntervals) {
             enabledIntervals = Set(rawArray.compactMap { AccessWindow(rawValue: $0) })
         }
@@ -76,8 +77,11 @@ struct TicketGroup: Identifiable, Codable {
         try container.encode(stickerThemeIndex, forKey: .stickerThemeIndex)
 
         #if canImport(FamilyControls)
-        if let data = try? JSONEncoder().encode(selection) {
+        do {
+            let data = try JSONEncoder().encode(selection)
             try container.encode(data, forKey: .selectionData)
+        } catch {
+            print("[TicketGroup] Failed to encode selection for group \(id): \(error.localizedDescription)")
         }
         #endif
     }

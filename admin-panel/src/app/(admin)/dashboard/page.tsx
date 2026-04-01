@@ -1,23 +1,18 @@
-import { countAuthUsers, countShields, sumEnergyDelta } from "@/lib/queries";
+import { countAuthUsers, countShields } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 function StatCard({
   label,
   value,
-  hint,
 }: {
   label: string;
   value: string;
-  hint?: string;
 }) {
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
       <div className="text-sm text-zinc-600 dark:text-zinc-400">{label}</div>
       <div className="mt-2 text-2xl font-semibold tracking-tight">{value}</div>
-      {hint ? (
-        <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">{hint}</div>
-      ) : null}
     </div>
   );
 }
@@ -25,14 +20,12 @@ function StatCard({
 export default async function DashboardPage() {
   let usersTotal: number | null = null;
   let shieldsTotal: number | null = null;
-  let energy: { total: number; rowsScanned: number } | null = null;
   let error: string | null = null;
 
   try {
-    [usersTotal, shieldsTotal, energy] = await Promise.all([
+    [usersTotal, shieldsTotal] = await Promise.all([
       countAuthUsers(),
       countShields(),
-      sumEnergyDelta(),
     ]);
   } catch (e: any) {
     error = String(e?.message ?? e);
@@ -57,14 +50,9 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <StatCard label="Total users" value={usersTotal === null ? "—" : String(usersTotal)} />
         <StatCard label="Total shields" value={shieldsTotal === null ? "—" : String(shieldsTotal)} />
-        <StatCard
-          label="Total granted energy (sum of energy_ledger.delta)"
-          value={energy === null ? "—" : String(energy.total)}
-          hint={energy === null ? undefined : `Rows scanned: ${energy.rowsScanned.toLocaleString()}`}
-        />
       </div>
     </div>
   );

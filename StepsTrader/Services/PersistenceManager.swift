@@ -12,7 +12,9 @@ actor PersistenceManager {
     private static var storageDirectory: URL {
         // Use Application Support directory for data that shouldn't be exposed to the user directly
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let appSupport = paths.first!
+        guard let appSupport = paths.first else {
+            return FileManager.default.temporaryDirectory.appendingPathComponent("StepsTrader", isDirectory: true)
+        }
         let bundleID = Bundle.main.bundleIdentifier ?? "StepsTrader"
         return appSupport.appendingPathComponent(bundleID, isDirectory: true)
     }

@@ -4,7 +4,6 @@ import UIKit
 // MARK: - Ticket Template Picker
 struct TicketTemplatePickerView: View {
     @ObservedObject var model: AppModel
-    let appLanguage: String = "en"
     let onTemplateSelected: (String) -> Void
     let onCustomSelected: () -> Void
     @Environment(\.dismiss) private var dismiss
@@ -64,10 +63,10 @@ struct TicketTemplatePickerView: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Custom Apps")
+                                Text(String(localized: "Custom Apps", comment: "TemplatePicker – custom apps option title"))
                                     .font(.system(size: 15, weight: .regular, design: .rounded))
                                     .foregroundColor(.primary)
-                                Text("Choose your own apps")
+                                Text(String(localized: "Choose your own apps", comment: "TemplatePicker – custom apps subtitle"))
                                     .font(.system(size: 12, weight: .light, design: .rounded))
                                     .foregroundStyle(Color.primary.opacity(0.4))
                             }
@@ -88,13 +87,13 @@ struct TicketTemplatePickerView: View {
                     .buttonStyle(.plain)
                     
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Templates")
+                        Text(String(localized: "Templates", comment: "TemplatePicker – section header"))
                             .font(.system(size: 14, weight: .light, design: .rounded))
                             .foregroundStyle(Color.primary.opacity(0.4))
                             .padding(.horizontal, 4)
                         
                         if availableTemplates.isEmpty {
-                            Text("All templates in use")
+                            Text(String(localized: "All templates in use", comment: "TemplatePicker – empty state when all used"))
                                 .font(.system(size: 13, weight: .light, design: .rounded))
                                 .foregroundStyle(Color.primary.opacity(0.3))
                                 .padding(.vertical, 20)
@@ -114,13 +113,13 @@ struct TicketTemplatePickerView: View {
                 .padding()
             }
             .background(theme.backgroundColor)
-            .navigationTitle("New Ticket")
+            .navigationTitle(String(localized: "New Ticket", comment: "TemplatePicker – navigation title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(theme.backgroundColor, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(String(localized: "Cancel", comment: "TemplatePicker – dismiss button")) {
                         dismiss()
                     }
                 }
@@ -134,23 +133,23 @@ struct TicketTemplatePickerView: View {
         } label: {
             VStack(spacing: 8) {
                 let uiImage = Self.resolvedTemplateImage(template.imageName)
-                if let uiImage = uiImage {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                } else {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.7)
-                        .frame(width: 44, height: 44)
-                        .overlay(
-                            Image(systemName: "app")
-                                .font(.system(size: 18, weight: .ultraLight))
-                                .foregroundStyle(Color.primary.opacity(0.3))
-                        )
+                ZStack {
+                    Circle()
+                        .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.7)
+                        .frame(width: 38, height: 38)
+                    if let uiImage {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 30, height: 30)
+                            .clipShape(Circle())
+                    } else {
+                        Image(systemName: "app")
+                            .font(.system(size: 16, weight: .ultraLight))
+                            .foregroundStyle(Color.primary.opacity(0.3))
+                    }
                 }
-                
+
                 Text(template.name)
                     .font(.system(size: 11, weight: .light, design: .rounded))
                     .foregroundStyle(Color.primary.opacity(0.7))

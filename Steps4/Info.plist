@@ -22,10 +22,14 @@
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SUPABASE_URL</key>
 	<string>$(SUPABASE_URL)</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Nowhere reads your step count, sleep, and workout data to calculate your daily energy balance and suggest activities for your canvas.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Nowhere writes mindful minutes and related activity updates only when you explicitly enable health syncing.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Nowhere uses your location only while you use the app to personalize your profile context and improve in-app guidance.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Nowhere uses your photo library so you can choose a profile photo.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.personalproject.StepsTrader.unlockExpiryRefresh</string>

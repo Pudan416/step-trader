@@ -5,7 +5,9 @@ import Combine
 final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     @Published var tariff: Tariff {
         didSet {
-            UserDefaults.standard.set(tariff.rawValue, forKey: "selectedTariff")
+            let g = UserDefaults.stepsTrader()
+            g.set(tariff.rawValue, forKey: SharedKeys.selectedTariff)
+            UserDefaults.standard.set(tariff.rawValue, forKey: SharedKeys.selectedTariff)
             AppLogger.energy.debug("💰 Tariff updated to: \(self.tariff.displayName) (\(Int(self.tariff.stepsPerMinute)) steps/min)")
         }
     }
@@ -21,28 +23,28 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     private var sharedDefaults: UserDefaults { UserDefaults.stepsTrader() }
 
     init() {
-        // Load saved tariff or use medium as default
-        let savedTariffString = UserDefaults.standard.string(forKey: "selectedTariff") ?? Tariff.medium.rawValue
+        let g = UserDefaults.stepsTrader()
+        let savedTariffString = g.string(forKey: SharedKeys.selectedTariff)
+            ?? UserDefaults.standard.string(forKey: SharedKeys.selectedTariff)
+            ?? Tariff.medium.rawValue
         self.tariff = Tariff(rawValue: savedTariffString) ?? .medium
         
-        // Read from App Group, fallback to standard keys for backward compatibility
-        let g = UserDefaults.stepsTrader()
-        let savedHour = (g.object(forKey: "dayEndHour_v1") as? Int)
-            ?? (UserDefaults.standard.object(forKey: "dayEndHour_v1") as? Int)
+        let savedHour = (g.object(forKey: SharedKeys.dayEndHour) as? Int)
+            ?? (UserDefaults.standard.object(forKey: SharedKeys.dayEndHour) as? Int)
             ?? 0
-        let savedMinute = (g.object(forKey: "dayEndMinute_v1") as? Int)
-            ?? (UserDefaults.standard.object(forKey: "dayEndMinute_v1") as? Int)
+        let savedMinute = (g.object(forKey: SharedKeys.dayEndMinute) as? Int)
+            ?? (UserDefaults.standard.object(forKey: SharedKeys.dayEndMinute) as? Int)
             ?? 0
         let dayEndHourValue = max(0, min(23, savedHour))
         let dayEndMinuteValue = max(0, min(59, savedMinute))
         
-        let savedAnchor = (g.object(forKey: "todayAnchor") as? Date)
-            ?? (UserDefaults.standard.object(forKey: "todayAnchor") as? Date)
+        let savedAnchor = (g.object(forKey: SharedKeys.todayAnchor) as? Date)
+            ?? (UserDefaults.standard.object(forKey: SharedKeys.todayAnchor) as? Date)
         let resolvedAnchor = savedAnchor
             ?? DayBoundary.currentDayStart(for: Date(), dayEndHour: dayEndHourValue, dayEndMinute: dayEndMinuteValue)
         
-        let savedDaily = g.integer(forKey: "dailyBudgetMinutes")
-        let savedRemaining = g.integer(forKey: "remainingMinutes")
+        let savedDaily = g.integer(forKey: SharedKeys.dailyBudgetMinutes)
+        let savedRemaining = g.integer(forKey: SharedKeys.remainingMinutes)
         
         self.dayEndHour = dayEndHourValue
         self.dayEndMinute = dayEndMinuteValue
@@ -86,37 +88,29 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     func updateDayEnd(hour: Int, minute: Int) {
         dayEndHour = max(0, min(23, hour))
         dayEndMinute = max(0, min(59, minute))
-        persistDayEnd()
+        persist()
         resetIfNeeded()
     }
     
     private func persist() {
-        // Write to App Group and duplicate to standard for backward compatibility
         let g = sharedDefaults
-        g.set(todayAnchor, forKey: "todayAnchor")
-        g.set(dailyBudgetMinutes, forKey: "dailyBudgetMinutes")
-        g.set(remainingMinutes, forKey: "remainingMinutes")
-        g.set(dayEndHour, forKey: "dayEndHour_v1")
-        g.set(dayEndMinute, forKey: "dayEndMinute_v1")
-        
-        let d = UserDefaults.standard
-        d.set(todayAnchor, forKey: "todayAnchor")
-        d.set(dailyBudgetMinutes, forKey: "dailyBudgetMinutes")
-        d.set(remainingMinutes, forKey: "remainingMinutes")
-        d.set(dayEndHour, forKey: "dayEndHour_v1")
-        d.set(dayEndMinute, forKey: "dayEndMinute_v1")
+        g.set(todayAnchor, forKey: SharedKeys.todayAnchor)
+        g.set(dailyBudgetMinutes, forKey: SharedKeys.dailyBudgetMinutes)
+        g.set(remainingMinutes, forKey: SharedKeys.remainingMinutes)
+        g.set(dayEndHour, forKey: SharedKeys.dayEndHour)
+        g.set(dayEndMinute, forKey: SharedKeys.dayEndMinute)
     }
 
     // Force re-read values from App Group (for syncing with snippet/intent)
     func reloadFromStorage() {
         let g = UserDefaults.stepsTrader()
-        if let anchor = g.object(forKey: "todayAnchor") as? Date {
+        if let anchor = g.object(forKey: SharedKeys.todayAnchor) as? Date {
             todayAnchor = anchor
         }
-        dailyBudgetMinutes = g.integer(forKey: "dailyBudgetMinutes")
-        remainingMinutes = g.integer(forKey: "remainingMinutes")
-        let savedHour = g.object(forKey: "dayEndHour_v1") as? Int ?? 0
-        let savedMinute = g.object(forKey: "dayEndMinute_v1") as? Int ?? 0
+        dailyBudgetMinutes = g.integer(forKey: SharedKeys.dailyBudgetMinutes)
+        remainingMinutes = g.integer(forKey: SharedKeys.remainingMinutes)
+        let savedHour = g.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
+        let savedMinute = g.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
         dayEndHour = max(0, min(23, savedHour))
         dayEndMinute = max(0, min(59, savedMinute))
         AppLogger.energy.debug("🔄 BudgetEngine reloaded: daily=\(self.dailyBudgetMinutes), remaining=\(self.remainingMinutes)")
@@ -139,18 +133,5 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         } else {
             return cal.startOfDay(for: date)
         }
-    }
-    
-    private func isSamePeriod(anchor: Date, date: Date) -> Bool {
-        currentDayAnchor(for: date) == currentDayAnchor(for: anchor)
-    }
-    
-    private func persistDayEnd() {
-        let g = sharedDefaults
-        g.set(dayEndHour, forKey: "dayEndHour_v1")
-        g.set(dayEndMinute, forKey: "dayEndMinute_v1")
-        let d = UserDefaults.standard
-        d.set(dayEndHour, forKey: "dayEndHour_v1")
-        d.set(dayEndMinute, forKey: "dayEndMinute_v1")
     }
 }

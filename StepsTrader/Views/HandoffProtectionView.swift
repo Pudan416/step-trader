@@ -17,36 +17,36 @@ struct HandoffProtectionView: View {
                         .font(.systemSerif(60))
                         .accessibilityHidden(true)
 
-                    Text("Protection Screen")
+                    Text(String(localized: "Protection Screen"))
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                         .accessibilityAddTraits(.isHeader)
 
-                    Text("You're about to open \(token.targetAppName)")
+                    Text(String(localized: "You're about to open \(token.targetAppName)"))
                         .font(.title2)
                         .foregroundColor(.white.opacity(0.8))
                         .multilineTextAlignment(.center)
                 }
 
                 VStack(spacing: 20) {
-                    let totalSteps = Int(model.effectiveStepsToday)
+                    let totalSteps = Int(model.stepsToday)
                     let spent = model.spentStepsToday
                     let cost = model.userEconomyStore.entryCostSteps
                     let available = max(0, totalSteps - spent)
                     let opensLeftText: String = {
-                        if cost == 0 { return "Unlimited" }
+                        if cost == 0 { return String(localized: "Unlimited") }
                         return "\(available / max(cost, 1))"
                     }()
 
-                    Text("Entries left today: \(opensLeftText)")
+                    Text(String(localized: "Entries left today: \(opensLeftText)"))
                         .font(.body)
                         .foregroundColor(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)
 
                     HStack(spacing: 20) {
-                        Button("Cancel") {
+                        Button(String(localized: "Cancel")) {
                             onCancel()
                         }
                         .frame(maxWidth: .infinity, minHeight: 50)
@@ -54,9 +54,9 @@ struct HandoffProtectionView: View {
                         .foregroundColor(.white)
                         .font(.headline)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .accessibilityLabel("Cancel opening \(token.targetAppName)")
+                        .accessibilityLabel(String(localized: "Cancel opening \(token.targetAppName)", comment: "Handoff – cancel button accessibility"))
 
-                        Button("Open \(token.targetAppName)") {
+                        Button(String(localized: "Open \(token.targetAppName)")) {
                             AppLogger.app.debug("🛡️ User clicked Continue button for \(token.targetAppName)")
                             onContinue()
                         }
@@ -65,8 +65,8 @@ struct HandoffProtectionView: View {
                         .foregroundColor(.white)
                         .font(.headline)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .accessibilityLabel("Open \(token.targetAppName)")
-                        .accessibilityHint("Opens the app \(token.targetAppName) after confirming access")
+                        .accessibilityLabel(String(localized: "Open \(token.targetAppName)", comment: "Handoff – open button accessibility"))
+                        .accessibilityHint(String(localized: "Opens the app \(token.targetAppName) after confirming access", comment: "Handoff – open button accessibility hint"))
                     }
                     .padding(.horizontal, 20)
                 }

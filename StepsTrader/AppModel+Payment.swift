@@ -2,20 +2,6 @@ import Foundation
 
 // MARK: - Payment & Entry Management
 extension AppModel {
-    // MARK: - Payment Checks
-    func canPayForEntry(for bundleId: String? = nil, costOverride: Int? = nil) -> Bool {
-        if hasDayPass(for: bundleId) { return true }
-        let cost = costOverride ?? unlockSettings(for: bundleId).entryCostSteps
-        return self.totalStepsBalance >= cost
-    }
-
-    func canPayForDayPass(for bundleId: String?) -> Bool {
-        guard let bundleId else { return false }
-        if hasDayPass(for: bundleId) { return true }
-        let cost = unlockSettings(for: bundleId).dayPassCostSteps
-        return self.totalStepsBalance >= cost
-    }
-
     // MARK: - Payment Execution
     @MainActor
     @discardableResult
@@ -34,9 +20,7 @@ extension AppModel {
         let success = pay(cost: cost)
         
         if success {
-            if let bundleId {
-                addSpentSteps(cost, for: bundleId)
-            }
+            addSpentSteps(cost, for: bundleId ?? "_unknown")
             #if DEBUG
             AppLogger.payment.debug("payForEntry successful, new balance: \(self.totalStepsBalance)")
             #else
@@ -92,7 +76,7 @@ extension AppModel {
         let todaysBaseEnergy = self.baseEnergyToday
         let baseAvailable = self.stepsBalance
         let consumeFromBase = min(baseAvailable, cost)
-        let newSpent = min(self.spentStepsToday + consumeFromBase, max(0, todaysBaseEnergy))
+        let newSpent = self.spentStepsToday + consumeFromBase
         self.spentStepsToday = newSpent
         self.stepsBalance = max(0, todaysBaseEnergy - self.spentStepsToday)
 
@@ -102,11 +86,12 @@ extension AppModel {
         }
 
         let g = UserDefaults.stepsTrader()
-        g.set(self.stepsBalance, forKey: "stepsBalance")
-        g.set(currentDayStart(for: Date()), forKey: "stepsBalanceAnchor")
+        g.set(currentDayStart(for: Date()), forKey: SharedKeys.stepsBalanceAnchor)
         
         // CRITICAL: Force sync bonus steps to UserDefaults to ensure persistence
-        syncAndPersistBonusBreakdown()
+        clearBonusBreakdown()
+        
+        writeWidgetSnapshot()
         
         #if DEBUG
         AppLogger.payment.debug("After: totalBalance=\(self.totalStepsBalance), stepsBalance=\(self.stepsBalance), bonusSteps=\(self.bonusSteps), spentStepsToday=\(self.spentStepsToday)")
@@ -121,7 +106,7 @@ extension AppModel {
         #if DEBUG
         AppLogger.payment.debug("Loading spent steps balance")
         #endif
-        let anchor = g.object(forKey: "stepsBalanceAnchor") as? Date ?? .distantPast
+        let anchor = g.object(forKey: SharedKeys.stepsBalanceAnchor) as? Date ?? .distantPast
         let isSameDay = isSameCustomDay(anchor, Date())
         
         if !isSameDay {
@@ -130,8 +115,7 @@ extension AppModel {
             #endif
             self.spentStepsToday = 0
             self.stepsBalance = 0
-            g.set(0, forKey: "stepsBalance")
-            g.set(currentDayStart(for: Date()), forKey: "stepsBalanceAnchor")
+            g.set(currentDayStart(for: Date()), forKey: SharedKeys.stepsBalanceAnchor)
         } else {
             self.spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
         }
@@ -146,15 +130,15 @@ extension AppModel {
         
         self.serverGrantedSteps = g.integer(forKey: "serverGrantedSteps_v1")
         
-        syncAndPersistBonusBreakdown()
+        clearBonusBreakdown()
     }
 
     @MainActor
-    func syncAndPersistBonusBreakdown() {
+    func clearBonusBreakdown() {
         self.bonusSteps = 0
         
         let g = UserDefaults.stepsTrader()
-        g.set(0, forKey: "debugStepsBonus_v1")
+        g.set(0, forKey: SharedKeys.bonusSteps)
         g.removeObject(forKey: "debugStepsBonus_outerworld_v1")
         g.removeObject(forKey: "debugStepsBonus_debug_v1")
     }
@@ -197,7 +181,7 @@ extension AppModel {
         #if DEBUG
         AppLogger.payment.debug("consumeBonusSteps: \(cost), serverGrantedSteps: \(before) → \(self.serverGrantedSteps)")
         #endif
-        syncAndPersistBonusBreakdown()
+        clearBonusBreakdown()
         
         // Force immediate persistence
         let g = UserDefaults.stepsTrader()
@@ -213,17 +197,4 @@ extension AppModel {
         return isSameCustomDay(date, Date())
     }
 
-    func cleanupExpiredDayPass(for bundleId: String) {
-        guard let date = dayPassGrants[bundleId], !isSameCustomDay(date, Date()) else { return }
-        dayPassGrants.removeValue(forKey: bundleId)
-        persistDayPassGrants()
-    }
-    
-    func clearExpiredDayPasses() {
-        let now = Date()
-        dayPassGrants = dayPassGrants.filter { _, value in
-            isSameCustomDay(value, now)
-        }
-        persistDayPassGrants()
-    }
 }

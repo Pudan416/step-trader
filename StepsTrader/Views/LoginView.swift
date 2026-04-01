@@ -9,6 +9,8 @@ struct LoginView: View {
     var onAuthenticated: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var showError: Bool = false
+    @ScaledMetric(relativeTo: .body) private var decorCircleLarge: CGFloat = 300
+    @ScaledMetric(relativeTo: .body) private var decorCircleSmall: CGFloat = 250
     
     var body: some View {
         ZStack {
@@ -36,13 +38,13 @@ struct LoginView: View {
                 GeometryReader { geo in
                     Circle()
                         .fill(Color.purple.opacity(0.15))
-                        .frame(width: 300, height: 300)
+                        .frame(width: decorCircleLarge, height: decorCircleLarge)
                         .blur(radius: 60)
                         .offset(x: -100, y: -50)
                     
                     Circle()
                         .fill(Color.blue.opacity(0.1))
-                        .frame(width: 250, height: 250)
+                        .frame(width: decorCircleSmall, height: decorCircleSmall)
                         .blur(radius: 50)
                         .offset(x: geo.size.width - 100, y: geo.size.height - 200)
                 }
@@ -72,7 +74,7 @@ struct LoginView: View {
                     }
                     .signInWithAppleButtonStyle(.white)
                     .frame(height: 54)
-                    .cornerRadius(12)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
                     .disabled(authService.isLoading || authService.isAuthenticated)
                     .padding(.horizontal, 32)
@@ -110,14 +112,14 @@ struct LoginView: View {
                                 .frame(width: 100, height: 100)
                                 .shadow(color: Color.indigo.opacity(0.4), radius: 20, x: 0, y: 10)
                             Image(systemName: "eye.fill")
-                                .font(.systemSerif(44, weight: .bold))
+                                .font(.systemSerif(44, weight: .bold, relativeTo: .largeTitle))
                                 .foregroundColor(.white)
                         }
                         VStack(spacing: 8) {
-                            Text("Nowhere")
-                                .font(.systemSerif(32, weight: .black))
+                            Text(String(localized: "Nowhere", comment: "App name"))
+                                .font(.systemSerif(32, weight: .black, relativeTo: .title))
                                 .foregroundColor(.white)
-                            Text("The sense of being present")
+                            Text(String(localized: "The sense of being present", comment: "App tagline"))
                                 .font(.subheadline)
                                 .foregroundColor(.white.opacity(0.6))
                         }
@@ -126,17 +128,17 @@ struct LoginView: View {
                     VStack(spacing: 16) {
                         featureRow(
                             icon: "figure.walk",
-                            title: "Turn movement into energy",
+                            title: String(localized: "Turn movement into energy"),
                             color: .green
                         )
                         featureRow(
                             icon: "eye.fill",
-                            title: "Stay present, control screen time",
+                            title: String(localized: "Stay present, control screen time"),
                             color: .indigo
                         )
                         featureRow(
                             icon: "chart.line.uptrend.xyaxis",
-                            title: "Track what matters",
+                            title: String(localized: "Track what matters"),
                             color: .orange
                         )
                     }
@@ -158,10 +160,10 @@ struct LoginView: View {
                         }
                         .signInWithAppleButtonStyle(.white)
                         .frame(height: 54)
-                        .cornerRadius(12)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                         .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
                         .disabled(authService.isLoading || authService.isAuthenticated)
-                        Text("Account syncs across devices")
+                        Text(String(localized: "Account syncs across devices"))
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.4))
                     }
@@ -175,10 +177,10 @@ struct LoginView: View {
                 }
             }
         }
-        .alert("Error", isPresented: $showError) {
-            Button("OK") { showError = false }
+        .alert(String(localized: "Error"), isPresented: $showError) {
+            Button(String(localized: "OK")) { showError = false }
         } message: {
-            Text(authService.error ?? "Something went wrong")
+            Text(authService.error ?? String(localized: "Something went wrong"))
         }
         .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
             if isAuthenticated {
@@ -199,7 +201,7 @@ struct LoginView: View {
                     .frame(width: 44, height: 44)
                 
                 Image(systemName: icon)
-                    .font(.systemSerif(18, weight: .semibold))
+                    .font(.systemSerif(18, weight: .semibold, relativeTo: .body))
                     .foregroundColor(color)
             }
             

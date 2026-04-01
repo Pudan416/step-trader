@@ -12,12 +12,8 @@ import UserNotifications
 import FamilyControls
 #endif
 
-
-// Local copy of settings structure (minimal fields needed for key decoding).
-private struct StoredUnlockSettings: Codable {
-    let entryCostSteps: Int?
-    let minuteTariffEnabled: Bool?
-    let familyControlsModeEnabled: Bool?
+private func makeISO8601Formatter() -> ISO8601DateFormatter {
+    ISO8601DateFormatter()
 }
 
 // Override the functions below to customize the shield actions used in various situations.
@@ -29,74 +25,38 @@ class ShieldActionExtension: ShieldActionDelegate {
         for application: ApplicationToken,
         completionHandler: @escaping (ShieldActionResponse) -> Void
     ) {
+        logToDefaults("🔵 handle() called — action: \(action == .primaryButtonPressed ? "primary" : "secondary")")
+        
         guard let defaults = UserDefaults(suiteName: SharedKeys.appGroupId) else {
+            logToDefaults("❌ Could not open app group defaults")
             completionHandler(.close)
             return
         }
-        
-        // IMPORTANT: Check if this app's group is already unlocked
-        if isAppCurrentlyUnlocked(application: application, defaults: defaults) {
-            print("✅ ShieldAction: App is currently unlocked, allowing access")
-            completionHandler(.close)
-            return
-        }
-        
-        let currentState = defaults.integer(forKey: SharedKeys.shieldState)
         
         switch action {
         case .primaryButtonPressed:
-            if currentState == 0 {
-                // First tap on "Unlock": switch to "waitingPush" state and send push
-                defaults.set(1, forKey: SharedKeys.shieldState)
-                sendUnlockNotification(for: application, using: defaults)
+            let resolved = resolveAppInfo(for: application, defaults: defaults)
+            logToDefaults("📋 resolved bundleId=\(resolved.bundleId ?? "nil") groupId=\(resolved.groupId ?? "nil")")
+            
+            let lastRequestKey = "shieldUnlockLastRequestedAt"
+            let now = Date()
+            if let last = defaults.object(forKey: lastRequestKey) as? Date,
+               now.timeIntervalSince(last) < 3 {
+                logToDefaults("⏳ Debounced — notification already sent recently")
                 completionHandler(.defer)
-            } else {
-                // In second state "Push not received" button — just resend push
-                sendUnlockNotification(for: application, using: defaults)
+                return
+            }
+            defaults.set(now, forKey: lastRequestKey)
+            
+            persistPayGateIntent(groupId: resolved.groupId, bundleId: resolved.bundleId, defaults: defaults)
+            sendUnlockNotification(for: resolved, defaults: defaults) {
                 completionHandler(.defer)
             }
         case .secondaryButtonPressed:
-            // Just in case — ask system to redraw the shield
-            completionHandler(.defer)
+            completionHandler(.close)
         @unknown default:
             completionHandler(.close)
         }
-    }
-    
-    /// Check if the app is unlocked within any group
-    private func isAppCurrentlyUnlocked(application: ApplicationToken, defaults: UserDefaults) -> Bool {
-        #if canImport(FamilyControls)
-        let now = Date()
-        
-        // Check ticket groups (then legacy shield groups)
-        guard let groupsData = defaults.data(forKey: SharedKeys.ticketGroups) ?? defaults.data(forKey: SharedKeys.legacyShieldGroups),
-              let groups = try? JSONDecoder().decode([ShieldGroupData].self, from: groupsData)
-        else {
-            return false
-        }
-        
-        for group in groups {
-            // Check if this group is unlocked
-            let unlockKey = SharedKeys.groupUnlockKey(group.id)
-            guard let unlockUntil = defaults.object(forKey: unlockKey) as? Date,
-                  now < unlockUntil
-            else {
-                continue // Group not unlocked
-            }
-            
-            // Group is unlocked — check if it contains this app
-            if let selectionData = group.selectionData,
-               let sel = try? JSONDecoder().decode(FamilyControls.FamilyActivitySelection.self, from: selectionData),
-               sel.applicationTokens.contains(application) {
-                print("✅ ShieldAction: App found in unlocked group \(group.name)")
-                return true
-            }
-        }
-        
-        return false
-        #else
-        return false
-        #endif
     }
     
     override func handle(
@@ -112,32 +72,69 @@ class ShieldActionExtension: ShieldActionDelegate {
         for category: ActivityCategoryToken,
         completionHandler: @escaping (ShieldActionResponse) -> Void
     ) {
-        completionHandler(.close)
+        logToDefaults("🔵 handle(category) called — action: \(action == .primaryButtonPressed ? "primary" : "secondary")")
+
+        guard let defaults = UserDefaults(suiteName: SharedKeys.appGroupId) else {
+            logToDefaults("❌ Could not open app group defaults")
+            completionHandler(.close)
+            return
+        }
+
+        switch action {
+        case .primaryButtonPressed:
+            let resolved = resolveCategoryInfo(for: category, defaults: defaults)
+            logToDefaults("📋 category resolved groupId=\(resolved.groupId ?? "nil") groupName=\(resolved.groupName ?? "nil")")
+
+            let lastRequestKey = "shieldUnlockLastRequestedAt"
+            let now = Date()
+            if let last = defaults.object(forKey: lastRequestKey) as? Date,
+               now.timeIntervalSince(last) < 3 {
+                logToDefaults("⏳ Debounced — notification already sent recently")
+                completionHandler(.defer)
+                return
+            }
+            defaults.set(now, forKey: lastRequestKey)
+
+            persistPayGateIntent(groupId: resolved.groupId, bundleId: nil, defaults: defaults)
+            sendUnlockNotification(for: (bundleId: resolved.groupName, groupId: resolved.groupId), defaults: defaults) {
+                completionHandler(.defer)
+            }
+        case .secondaryButtonPressed:
+            completionHandler(.close)
+        @unknown default:
+            completionHandler(.close)
+        }
     }
     
     // MARK: - Private helpers
     
-    private func sendUnlockNotification(for application: ApplicationToken, using defaults: UserDefaults?) {
-        // Get shared defaults from App Group (retry if nil)
-        guard let defaults = defaults ?? UserDefaults(suiteName: SharedKeys.appGroupId) else {
-            print("❌ ShieldAction: No UserDefaults for app group")
-            return
+    private func persistPayGateIntent(groupId: String?, bundleId: String?, defaults: UserDefaults) {
+        defaults.set(true, forKey: SharedKeys.shouldShowPayGate)
+        defaults.set(Date(), forKey: SharedKeys.payGateRequestedAt)
+        if let groupId {
+            defaults.set(groupId, forKey: SharedKeys.payGateTargetGroupId)
+            defaults.removeObject(forKey: SharedKeys.payGateTargetBundleId)
+        } else if let bundleId {
+            defaults.set(bundleId, forKey: SharedKeys.payGateTargetBundleId)
+            defaults.removeObject(forKey: SharedKeys.payGateTargetGroupId)
         }
-        
+        defaults.set(0, forKey: SharedKeys.shieldState)
+        logToDefaults("💾 PayGate intent persisted (groupId=\(groupId ?? "nil"), bundleId=\(bundleId ?? "nil"))")
+    }
+    
+    private func sendUnlockNotification(for resolved: (bundleId: String?, groupId: String?), defaults: UserDefaults, then done: @escaping () -> Void) {
         let center = UNUserNotificationCenter.current()
-        let content = UNMutableNotificationContent()
         
-        // Determine bundleId and groupId for the blocked app
-        let resolved = resolveAppInfo(for: application, defaults: defaults)
         let blockedTargetName: String = {
             guard let name = resolved.bundleId, !name.isEmpty, !name.contains(".") else {
-                return "This app"
+                return NSLocalizedString("This app", comment: "Fallback name for blocked app in notification")
             }
             return name
         }()
         
-        content.title = "Nowhere"
-        content.body = "\(blockedTargetName) is closed. Tap to spend rays."
+        let content = UNMutableNotificationContent()
+        content.title = NSLocalizedString("Nowhere", comment: "App name used in notification title")
+        content.body = String(format: NSLocalizedString("%@ is closed. Tap to spend colors and unlock it.", comment: "Shield notification body"), blockedTargetName)
         content.sound = .default
         content.categoryIdentifier = "UNLOCK_APP"
         
@@ -150,21 +147,53 @@ class ShieldActionExtension: ShieldActionDelegate {
         }
         content.userInfo = userInfo
         
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         let request = UNNotificationRequest(
             identifier: "shield_unlock_\(UUID().uuidString)",
             content: content,
-            trigger: nil
+            trigger: trigger
         )
         
-        center.add(request) { error in
+        center.add(request) { [self] error in
             if let error = error {
-                print("❌ ShieldAction: failed to schedule unlock notification: \(error)")
+                self.logToDefaults("❌ Notification failed: \(error.localizedDescription)")
             } else {
-                print("✅ ShieldAction: scheduled unlock notification (bundleId: \(resolved.bundleId ?? "nil"), groupId: \(resolved.groupId ?? "nil"))")
+                self.logToDefaults("✅ Notification committed")
             }
+            done()
         }
     }
     
+    private func logToDefaults(_ message: String) {
+        guard let defaults = UserDefaults(suiteName: SharedKeys.appGroupId) else { return }
+        let ts = makeISO8601Formatter().string(from: Date())
+        let entry = "[\(ts)] \(message)"
+        var logs = defaults.stringArray(forKey: SharedKeys.shieldActionLogs) ?? []
+        logs.append(entry)
+        if logs.count > 20 { logs = Array(logs.suffix(20)) }
+        defaults.set(logs, forKey: SharedKeys.shieldActionLogs)
+    }
+    
+    /// Determine groupId for a blocked category by iterating ticket groups.
+    private func resolveCategoryInfo(for category: ActivityCategoryToken, defaults: UserDefaults) -> (groupId: String?, groupName: String?) {
+        #if canImport(FamilyControls)
+        if let groupsData = defaults.data(forKey: SharedKeys.ticketGroups) ?? defaults.data(forKey: SharedKeys.legacyShieldGroups),
+           let groups = try? JSONDecoder().decode([ShieldGroupData].self, from: groupsData) {
+            for group in groups {
+                if let selectionData = group.selectionData,
+                   let sel = try? JSONDecoder().decode(FamilyControls.FamilyActivitySelection.self, from: selectionData),
+                   sel.categoryTokens.contains(category) {
+                    defaults.set(group.id, forKey: SharedKeys.lastBlockedGroupId)
+                    return (groupId: group.id, groupName: group.name)
+                }
+            }
+        }
+        return (groupId: nil, groupName: nil)
+        #else
+        return (groupId: nil, groupName: nil)
+        #endif
+    }
+
     /// Determine bundleId and groupId of the blocked app.
     private func resolveAppInfo(for application: ApplicationToken, defaults: UserDefaults) -> (bundleId: String?, groupId: String?) {
         #if canImport(FamilyControls)
@@ -177,7 +206,7 @@ class ShieldActionExtension: ShieldActionDelegate {
                    sel.applicationTokens.contains(application) {
                     // Found group with this app — get name/bundleId
                     if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: application, requiringSecureCoding: true) {
-                        let tokenKey = "fc_appName_" + tokenData.base64EncodedString()
+                        let tokenKey = SharedKeys.fcAppNameKey(tokenData.base64EncodedString())
                         if let appName = defaults.string(forKey: tokenKey) {
                             // Save for fallback
                             defaults.set(appName, forKey: SharedKeys.lastBlockedAppBundleId)
@@ -227,14 +256,4 @@ class ShieldActionExtension: ShieldActionDelegate {
         #endif
     }
     
-    // Minimal structure for decoding ticket groups
-    private struct ShieldGroupData: Codable {
-        let id: String
-        let name: String
-        let selectionData: Data?
-        
-        enum CodingKeys: String, CodingKey {
-            case id, name, selectionData
-        }
-    }
 }

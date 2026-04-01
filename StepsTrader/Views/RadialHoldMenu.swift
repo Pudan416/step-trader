@@ -14,9 +14,9 @@ struct RadialHoldMenu: View {
     @State private var hoveredCategory: EnergyCategory? = nil
 
     private let nodes: [(category: EnergyCategory, label: String, icon: String, angle: Double)] = [
-        (.body,   "Body",  "figure.walk",       135),  // upper-left
-        (.mind,   "Mind",  "brain.head.profile", 90),  // straight up
-        (.heart,  "Heart", "heart.fill",         45),  // upper-right
+        (.body,   String(localized: "Body", comment: "RadialMenu – energy category label"),  "figure.walk",       135),  // upper-left
+        (.mind,   String(localized: "Mind", comment: "RadialMenu – energy category label"),  "brain.head.profile", 90),  // straight up
+        (.heart,  String(localized: "Heart", comment: "RadialMenu – energy category label"), "heart.fill",         45),  // upper-right
     ]
 
     private let fanRadius: CGFloat = 80

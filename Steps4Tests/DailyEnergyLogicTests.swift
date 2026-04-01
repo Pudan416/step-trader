@@ -7,9 +7,9 @@ import XCTest
 /// Scoring model (5 metrics × 20 = 100 max):
 ///   steps  = 20 × min(made_steps, target_steps) / target_steps
 ///   sleep  = 20 × min(today_sleep, target_sleep) / target_sleep
-///   body   = 4 chosen cards × 5 rays = 20
-///   mind   = 4 chosen cards × 5 rays = 20
-///   heart  = 4 chosen cards × 5 rays = 20
+///   body   = 4 chosen cards × 5 colors = 20
+///   mind   = 4 chosen cards × 5 colors = 20
+///   heart  = 4 chosen cards × 5 colors = 20
 final class DailyEnergyLogicTests: XCTestCase {
 
     // MARK: - EnergyDefaults constants
@@ -133,7 +133,7 @@ final class DailyEnergyLogicTests: XCTestCase {
         }
     }
 
-    /// Body, mind, heart are independent; body = activityExtrasPoints only (no steps), heart = joysChoicePoints only (no sleep).
+    /// Body, mind, heart are independent; body = activityPointsToday only (no steps), heart = joysCategoryPointsToday only (no sleep).
     func testBodyMindHeartIndependentOfStepsSleep() {
         // Body: only card selections, not steps
         let bodyWithZeroCards = pointsFromSelections(count: 0, maxSelections: 4, pointsPer: 5)

@@ -1,6 +1,4 @@
-import type { EnergyLedgerRow, PublicUserRow, ShieldRow } from "./types";
-
-const MAX_GRANT = 100_000;
+import type { PublicUserRow, ShieldRow } from "./types";
 
 type Env = {
   TELEGRAM_BOT_TOKEN: string;
@@ -180,45 +178,10 @@ async function countTable(env: Env, table: string, filter?: string): Promise<num
   return count;
 }
 
-async function sumEnergy(env: Env, userId?: string): Promise<number> {
-  // Try server-side RPC first (requires migration: sum_energy_delta)
-  try {
-    const { data } = await supabaseRequest<number>(
-      env,
-      `/rest/v1/rpc/sum_energy_delta`,
-      {
-        method: "POST",
-        body: { p_user_id: userId ?? null },
-      }
-    );
-    if (typeof data === "number") return data;
-  } catch {
-    // RPC not deployed yet — fall through to client-side pagination
-  }
-
-  // Fallback: client-side pagination
-  const pageSize = 1000;
-  let offset = 0;
-  let total = 0;
-  while (true) {
-    const filter = userId ? `&user_id=eq.${encodeURIComponent(userId)}` : "";
-    const { data } = await supabaseRequest<Pick<EnergyLedgerRow, "delta">[]>(
-      env,
-      `/rest/v1/energy_ledger?select=delta&order=created_at.desc&limit=${pageSize}&offset=${offset}${filter}`
-    );
-    if (data.length === 0) break;
-    total += data.reduce((acc, r) => acc + (r.delta ?? 0), 0);
-    if (data.length < pageSize) break;
-    offset += pageSize;
-    if (offset > 200_000) break;
-  }
-  return total;
-}
-
 async function getUser(env: Env, userId: string): Promise<PublicUserRow | null> {
   const { data } = await supabaseRequest<PublicUserRow[]>(
     env,
-    `/rest/v1/users?select=id,email,nickname,country,created_at,is_banned,ban_reason,ban_until,energy_spent_lifetime,batteries_collected,current_steps_today,current_energy_balance&id=eq.${encodeURIComponent(userId)}`
+    `/rest/v1/users?select=id,email,nickname,country,created_at,is_banned,ban_reason,ban_until&id=eq.${encodeURIComponent(userId)}`
   );
   return data[0] ?? null;
 }
@@ -226,9 +189,17 @@ async function getUser(env: Env, userId: string): Promise<PublicUserRow | null> 
 async function listUsers(env: Env, limit: number = 10): Promise<PublicUserRow[]> {
   const { data } = await supabaseRequest<PublicUserRow[]>(
     env,
-    `/rest/v1/users?select=id,email,nickname,country,created_at,current_energy_balance&order=created_at.desc&limit=${limit}`
+    `/rest/v1/users?select=id,email,nickname,country,created_at&order=created_at.desc&limit=${limit}`
   );
   return data ?? [];
+}
+
+async function getUserPrefs(env: Env, userId: string): Promise<{ last_opened_at: string | null; has_medium_widget: boolean; has_large_widget: boolean } | null> {
+  const { data } = await supabaseRequest<{ last_opened_at: string | null; has_medium_widget: boolean; has_large_widget: boolean }[]>(
+    env,
+    `/rest/v1/user_preferences?select=last_opened_at,has_medium_widget,has_large_widget&user_id=eq.${encodeURIComponent(userId)}`
+  );
+  return data[0] ?? null;
 }
 
 async function listUserShields(env: Env, userId: string): Promise<ShieldRow[]> {
@@ -237,14 +208,6 @@ async function listUserShields(env: Env, userId: string): Promise<ShieldRow[]> {
     `/rest/v1/shields?select=id,user_id,bundle_id,mode,level,updated_at&user_id=eq.${encodeURIComponent(userId)}`
   );
   return data ?? [];
-}
-
-async function grantEnergy(env: Env, userId: string, delta: number, reason?: string) {
-  await supabaseRequest(env, `/rest/v1/energy_ledger`, {
-    method: "POST",
-    headers: { prefer: "return=minimal" },
-    body: { user_id: userId, delta, reason: reason ?? null },
-  });
 }
 
 async function banUser(env: Env, userId: string, reason: string, until?: Date) {
@@ -340,7 +303,6 @@ async function askLLM(env: Env, userMessage: string, context: string): Promise<s
 Available actions you can suggest:
 - View stats: /stats
 - View user: /user <userId>
-- Grant energy: /grant <userId> <amount> [reason]
 - Ban user: /ban <userId> <reason>
 - Unban user: /unban <userId>
 
@@ -385,13 +347,12 @@ function mainMenuKeyboard(): InlineKeyboardMarkup {
       ],
       [
         { text: "🔍 Find User", callback_data: "find_user" },
-        { text: "⚡ Grant Energy", callback_data: "grant_prompt" },
+        { text: "🛡️ Shields", callback_data: "shields" },
       ],
       [
-        { text: "🛡️ Shields", callback_data: "shields" },
         { text: "🔧 Diagnostics", callback_data: "diag" },
+        { text: "💬 Ask AI", callback_data: "ask_ai" },
       ],
-      [{ text: "💬 Ask AI", callback_data: "ask_ai" }],
     ],
   };
 }
@@ -400,14 +361,7 @@ function userActionsKeyboard(userId: string): InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       [
-        { text: "⚡ Grant +1000", callback_data: `grant:${userId}:1000` },
-        { text: "⚡ Grant +5000", callback_data: `grant:${userId}:5000` },
-      ],
-      [
         { text: "🛡️ Shields", callback_data: `shields:${userId}` },
-        { text: "📜 History", callback_data: `history:${userId}` },
-      ],
-      [
         { text: "🎲 Random Name", callback_data: `randname:${userId}` },
       ],
       [
@@ -428,7 +382,7 @@ function backKeyboard(): InlineKeyboardMarkup {
 function usersListKeyboard(users: any[]): InlineKeyboardMarkup {
   const buttons: InlineKeyboardButton[][] = users.slice(0, 8).map((u) => [
     {
-      text: `${u.nickname ?? u.email?.slice(0, 15) ?? u.id.slice(0, 8)}... | ⚡${u.current_energy_balance ?? 0}`,
+      text: `${u.nickname ?? u.email?.slice(0, 15) ?? u.id.slice(0, 8)}`,
       callback_data: `user:${u.id}`,
     },
   ]);
@@ -449,29 +403,35 @@ function esc(s: string): string {
 }
 
 async function buildStatsMessage(env: Env): Promise<string> {
-  const [users, shields, energy] = await Promise.all([
+  const [users, shields] = await Promise.all([
     countTable(env, "users"),
     countTable(env, "shields"),
-    sumEnergy(env),
   ]);
 
   return `<b>📊 Nowhere Stats</b>
 
 👥 <b>Users:</b> ${formatNumber(users)}
 🛡️ <b>Shields:</b> ${formatNumber(shields)}
-⚡ <b>Energy Granted:</b> ${formatNumber(energy)}
 
 <i>Updated: ${new Date().toLocaleString()}</i>`;
 }
 
 async function buildUserMessage(env: Env, userId: string): Promise<string | null> {
-  const [u, shields, energy] = await Promise.all([
+  const [u, shields, prefs] = await Promise.all([
     getUser(env, userId),
     listUserShields(env, userId),
-    sumEnergy(env, userId),
+    getUserPrefs(env, userId),
   ]);
 
   if (!u) return null;
+
+  const lastActive = prefs?.last_opened_at
+    ? new Date(prefs.last_opened_at).toLocaleDateString()
+    : "—";
+  const widgets = [
+    prefs?.has_medium_widget && "medium",
+    prefs?.has_large_widget && "large",
+  ].filter(Boolean).join(", ") || "—";
 
   let msg = `<b>👤 User Profile</b>
 
@@ -480,13 +440,8 @@ async function buildUserMessage(env: Env, userId: string): Promise<string | null
 <b>Nickname:</b> ${esc(u.nickname ?? "—")}
 <b>Country:</b> ${esc(u.country ?? "—")}
 <b>Created:</b> ${new Date(u.created_at).toLocaleDateString()}
-
-<b>⚡ Energy:</b>
-• Balance: <b>${formatNumber(u.current_energy_balance ?? 0)}</b>
-• Steps today: ${formatNumber(u.current_steps_today ?? 0)}
-• Spent lifetime: ${formatNumber(u.energy_spent_lifetime ?? 0)}
-• Batteries: ${u.batteries_collected ?? 0}
-• Granted: ${formatNumber(energy)}
+<b>Last active:</b> ${lastActive}
+<b>Widgets:</b> ${widgets}
 
 <b>🛡️ Shields:</b> ${shields.length}`;
 
@@ -608,33 +563,6 @@ async function handleMessage(env: Env, msg: TelegramMessage): Promise<Response> 
       return new Response("ok", { status: 200 });
     }
 
-    if (cmd === "/grant") {
-      const userId = args[0];
-      const deltaRaw = args[1];
-      const reason = args.slice(2).join(" ");
-      if (!userId || !deltaRaw) {
-        await sendMessage(env, chatId, "Usage: /grant <userId> <delta> [reason]", backKeyboard());
-        return new Response("ok", { status: 200 });
-      }
-      const delta = Number(deltaRaw);
-      if (!Number.isFinite(delta) || !Number.isInteger(delta) || delta === 0) {
-        await sendMessage(env, chatId, "Delta must be a non-zero integer", backKeyboard());
-        return new Response("ok", { status: 200 });
-      }
-      if (Math.abs(delta) > MAX_GRANT) {
-        await sendMessage(env, chatId, `❌ Amount exceeds cap of ${formatNumber(MAX_GRANT)}`, backKeyboard());
-        return new Response("ok", { status: 200 });
-      }
-      await grantEnergy(env, userId, delta, reason || undefined);
-      await sendMessage(
-        env,
-        chatId,
-        `✅ Granted <b>${formatNumber(delta)}</b> energy to user\n<code>${userId}</code>`,
-        backKeyboard()
-      );
-      return new Response("ok", { status: 200 });
-    }
-
     if (cmd === "/setnick") {
       const userId = args[0];
       const nickname = args.slice(1).join(" ");
@@ -721,7 +649,6 @@ ${Object.entries(envOk)
 /menu — Main menu
 /stats — Global statistics
 /user &lt;id&gt; — User profile
-/grant &lt;id&gt; &lt;amount&gt; [reason] — Grant energy
 /ban &lt;id&gt; [reason] — Ban user
 /unban &lt;id&gt; — Unban user
 /diag — Diagnostics
@@ -804,28 +731,6 @@ async function handleCallbackQuery(env: Env, query: TelegramCallbackQuery): Prom
       return new Response("ok", { status: 200 });
     }
 
-    // Quick grant
-    if (data.startsWith("grant:")) {
-      const [, userId, amountStr] = data.split(":");
-      const amount = Number(amountStr);
-      if (!Number.isFinite(amount) || amount === 0) {
-        await answerCallbackQuery(env, query.id, "❌ Invalid amount");
-        return new Response("ok", { status: 200 });
-      }
-      if (Math.abs(amount) > MAX_GRANT) {
-        await answerCallbackQuery(env, query.id, `❌ Exceeds cap of ${formatNumber(MAX_GRANT)}`);
-        return new Response("ok", { status: 200 });
-      }
-      await grantEnergy(env, userId, amount, "Admin quick grant");
-      await answerCallbackQuery(env, query.id, `✅ Granted ${formatNumber(amount)} energy`);
-      // Refresh user view
-      const userMsg = await buildUserMessage(env, userId);
-      if (userMsg) {
-        await editMessage(env, chatId, messageId, userMsg, userActionsKeyboard(userId));
-      }
-      return new Response("ok", { status: 200 });
-    }
-
     // Shields for user
     if (data.startsWith("shields:")) {
       const userId = data.split(":")[1];
@@ -836,30 +741,6 @@ async function handleCallbackQuery(env: Env, query: TelegramCallbackQuery): Prom
       } else {
         for (const s of shields) {
           msg += `• <b>${esc(s.bundle_id)}</b>\n  Mode: ${esc(s.mode)}\n`;
-        }
-      }
-      await editMessage(env, chatId, messageId, msg, {
-        inline_keyboard: [[{ text: "« Back to User", callback_data: `user:${userId}` }]],
-      });
-      await answerCallbackQuery(env, query.id);
-      return new Response("ok", { status: 200 });
-    }
-
-    // Energy history for user
-    if (data.startsWith("history:")) {
-      const userId = data.split(":")[1];
-      const rows = await supabaseRequest<EnergyLedgerRow[]>(
-        env,
-        `/rest/v1/energy_ledger?select=delta,reason,created_at&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=20`
-      );
-      let msg = `<b>📜 Energy History</b>\n<code>${userId}</code>\n\n`;
-      if (!rows.data || rows.data.length === 0) {
-        msg += "No ledger entries.";
-      } else {
-        for (const r of rows.data) {
-          const sign = r.delta >= 0 ? "+" : "";
-          const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : "?";
-          msg += `${date} <b>${sign}${formatNumber(r.delta)}</b> ${esc(r.reason ?? "—")}\n`;
         }
       }
       await editMessage(env, chatId, messageId, msg, {
@@ -900,19 +781,6 @@ async function handleCallbackQuery(env: Env, query: TelegramCallbackQuery): Prom
         chatId,
         messageId,
         `<b>🔍 Find User</b>\n\nSend the user ID:\n<code>/user &lt;userId&gt;</code>`,
-        backKeyboard()
-      );
-      await answerCallbackQuery(env, query.id);
-      return new Response("ok", { status: 200 });
-    }
-
-    // Grant prompt
-    if (data === "grant_prompt") {
-      await editMessage(
-        env,
-        chatId,
-        messageId,
-        `<b>⚡ Grant Energy</b>\n\nSend command:\n<code>/grant &lt;userId&gt; &lt;amount&gt; [reason]</code>\n\nExample:\n<code>/grant abc123 1000 Welcome bonus</code>`,
         backKeyboard()
       );
       await answerCallbackQuery(env, query.id);

@@ -1,129 +1,172 @@
 import Foundation
+#if canImport(FamilyControls)
+import FamilyControls
+#endif
 
 enum TargetResolver {
-    private static let targetToBundleId: [String: String] = [
-        "instagram": "com.burbn.instagram",
-        "tiktok": "com.zhiliaoapp.musically",
-        "youtube": "com.google.ios.youtube",
-        "telegram": "ph.telegra.Telegraph",
-        "whatsapp": "net.whatsapp.WhatsApp",
-        "snapchat": "com.toyopagroup.picaboo",
-        "facebook": "com.facebook.Facebook",
-        "linkedin": "com.linkedin.LinkedIn",
-        "x": "com.atebits.Tweetie2",
-        "twitter": "com.atebits.Tweetie2",
-        "reddit": "com.reddit.Reddit",
-        "pinterest": "com.pinterest"
-    ]
-    
-    private static let targetToScheme: [String: String] = [
-        "instagram": "instagram://",
-        "tiktok": "tiktok://",
-        "youtube": "youtube://",
-        "telegram": "tg://",
-        "whatsapp": "whatsapp://",
-        "snapchat": "snapchat://",
-        "facebook": "fb://",
-        "linkedin": "linkedin://",
-        "x": "twitter://",
-        "twitter": "twitter://",
-        "reddit": "reddit://",
-        "pinterest": "pinterest://"
+
+    // MARK: - Single-source registry
+
+    private struct AppTarget {
+        let targets: [String]
+        let bundleId: String
+        let displayName: String
+        let imageName: String
+        let scheme: String
+        let fallbackSchemes: [String]
+    }
+
+    private static let registry: [AppTarget] = [
+        AppTarget(targets: ["instagram"],
+                  bundleId: "com.burbn.instagram",
+                  displayName: "Instagram",
+                  imageName: "instagram",
+                  scheme: "instagram://",
+                  fallbackSchemes: ["instagram://app", "instagram://", "instagram://feed", "instagram://camera"]),
+
+        AppTarget(targets: ["tiktok"],
+                  bundleId: "com.zhiliaoapp.musically",
+                  displayName: "TikTok",
+                  imageName: "tiktok",
+                  scheme: "tiktok://",
+                  fallbackSchemes: ["tiktok://"]),
+
+        AppTarget(targets: ["youtube"],
+                  bundleId: "com.google.ios.youtube",
+                  displayName: "YouTube",
+                  imageName: "youtube",
+                  scheme: "youtube://",
+                  fallbackSchemes: ["youtube://"]),
+
+        AppTarget(targets: ["telegram"],
+                  bundleId: "ph.telegra.Telegraph",
+                  displayName: "Telegram",
+                  imageName: "telegram",
+                  scheme: "tg://",
+                  fallbackSchemes: ["tg://", "telegram://"]),
+
+        AppTarget(targets: ["whatsapp"],
+                  bundleId: "net.whatsapp.WhatsApp",
+                  displayName: "WhatsApp",
+                  imageName: "whatsapp",
+                  scheme: "whatsapp://",
+                  fallbackSchemes: ["whatsapp://"]),
+
+        AppTarget(targets: ["snapchat"],
+                  bundleId: "com.toyopagroup.picaboo",
+                  displayName: "Snapchat",
+                  imageName: "snapchat",
+                  scheme: "snapchat://",
+                  fallbackSchemes: ["snapchat://"]),
+
+        AppTarget(targets: ["facebook"],
+                  bundleId: "com.facebook.Facebook",
+                  displayName: "Facebook",
+                  imageName: "facebook",
+                  scheme: "fb://",
+                  fallbackSchemes: ["fb://", "facebook://"]),
+
+        AppTarget(targets: ["linkedin"],
+                  bundleId: "com.linkedin.LinkedIn",
+                  displayName: "LinkedIn",
+                  imageName: "linkedin",
+                  scheme: "linkedin://",
+                  fallbackSchemes: ["linkedin://"]),
+
+        AppTarget(targets: ["x", "twitter"],
+                  bundleId: "com.atebits.Tweetie2",
+                  displayName: "X",
+                  imageName: "x",
+                  scheme: "twitter://",
+                  fallbackSchemes: ["twitter://", "x://"]),
+
+        AppTarget(targets: ["reddit"],
+                  bundleId: "com.reddit.Reddit",
+                  displayName: "Reddit",
+                  imageName: "reddit",
+                  scheme: "reddit://",
+                  fallbackSchemes: ["reddit://"]),
+
+        AppTarget(targets: ["pinterest"],
+                  bundleId: "com.pinterest",
+                  displayName: "Pinterest",
+                  imageName: "pinterest",
+                  scheme: "pinterest://",
+                  fallbackSchemes: ["pinterest://"])
     ]
 
-    private static let bundleToScheme: [String: String] = {
-        var result: [String: String] = [:]
-        for (target, bundle) in targetToBundleId {
-            if let scheme = targetToScheme[target] {
-                result[bundle] = scheme
-            }
+    // MARK: - Derived lookup tables (built once, lazily)
+
+    private static let targetToBundleId: [String: String] = {
+        var map: [String: String] = [:]
+        for entry in registry {
+            for t in entry.targets { map[t] = entry.bundleId }
         }
-        return result
+        return map
     }()
-    
-    private static let bundleToDisplayName: [String: String] = [
-        "com.burbn.instagram": "Instagram",
-        "com.zhiliaoapp.musically": "TikTok",
-        "com.google.ios.youtube": "YouTube",
-        "ph.telegra.Telegraph": "Telegram",
-        "net.whatsapp.WhatsApp": "WhatsApp",
-        "com.toyopagroup.picaboo": "Snapchat",
-        "com.facebook.Facebook": "Facebook",
-        "com.linkedin.LinkedIn": "LinkedIn",
-        "com.atebits.Tweetie2": "X",
-        "com.reddit.Reddit": "Reddit",
-        "com.pinterest": "Pinterest"
-    ]
 
-    /// Asset name in Assets.xcassets for shield/template icon. Use with UIImage(named:).
-    /// Add matching .imageset (e.g. "instagram.imageset") so the icon appears on shields.
-    private static let bundleToImageName: [String: String] = [
-        "com.burbn.instagram": "instagram",
-        "com.zhiliaoapp.musically": "tiktok",
-        "com.google.ios.youtube": "youtube",
-        "com.toyopagroup.picaboo": "snapchat",
-        "com.reddit.Reddit": "reddit",
-        "com.atebits.Tweetie2": "x",
-        "com.facebook.Facebook": "facebook",
-        "com.linkedin.LinkedIn": "linkedin",
-        "com.pinterest": "pinterest",
-        "ph.telegra.Telegraph": "telegram",
-        "net.whatsapp.WhatsApp": "whatsapp"
-    ]
-    
+    private static let targetToScheme: [String: String] = {
+        var map: [String: String] = [:]
+        for entry in registry {
+            for t in entry.targets { map[t] = entry.scheme }
+        }
+        return map
+    }()
+
+    private static let bundleToEntry: [String: AppTarget] = {
+        var map: [String: AppTarget] = [:]
+        for entry in registry { map[entry.bundleId] = entry }
+        return map
+    }()
+
+    // MARK: - Public API (unchanged)
+
     static func bundleId(from target: String?) -> String? {
         guard let target else { return nil }
         if target.contains(".") { return target }
         return targetToBundleId[target.lowercased()] ?? target
     }
-    
+
     static func displayName(for bundleId: String) -> String {
-        bundleToDisplayName[bundleId] ?? bundleId
+        bundleToEntry[bundleId]?.displayName ?? bundleId
     }
 
-    /// Image asset name for shield icon. Name must match an imageset in Assets (e.g. instagram.imageset → "instagram").
     static func imageName(for bundleId: String) -> String? {
-        bundleToImageName[bundleId]
+        bundleToEntry[bundleId]?.imageName
     }
-    
+
     static func urlScheme(for target: String) -> String? {
         targetToScheme[target.lowercased()]
     }
 
     static func urlScheme(forBundleId bundleId: String) -> String? {
-        bundleToScheme[bundleId]
+        bundleToEntry[bundleId]?.scheme
     }
 
-    /// Primary and fallback URL schemes to try when opening an app by bundle id (e.g. redirect from block screen).
     static func primaryAndFallbackSchemes(for bundleId: String) -> [String] {
-        switch bundleId {
-        case "com.burbn.instagram":
-            return ["instagram://app", "instagram://", "instagram://feed", "instagram://camera"]
-        case "com.zhiliaoapp.musically":
-            return ["tiktok://"]
-        case "com.google.ios.youtube":
-            return ["youtube://"]
-        case "ph.telegra.Telegraph":
-            return ["tg://", "telegram://"]
-        case "net.whatsapp.WhatsApp":
-            return ["whatsapp://"]
-        case "com.toyopagroup.picaboo":
-            return ["snapchat://"]
-        case "com.facebook.Facebook":
-            return ["fb://", "facebook://"]
-        case "com.linkedin.LinkedIn":
-            return ["linkedin://"]
-        case "com.atebits.Tweetie2":
-            return ["twitter://", "x://"]
-        case "com.reddit.Reddit":
-            return ["reddit://"]
-        case "com.pinterest":
-            return ["pinterest://"]
-        default:
-            if let scheme = bundleToScheme[bundleId] {
-                return [scheme]
-            }
-            return []
+        if let entry = bundleToEntry[bundleId] {
+            return entry.fallbackSchemes
         }
+        return []
     }
+
+#if canImport(FamilyControls)
+    static func supportsSingleAppPreset(_ selection: FamilyActivitySelection) -> Bool {
+        selection.categoryTokens.isEmpty && selection.applicationTokens.count == 1
+    }
+
+    static func singleAppPresetValidationMessage(
+        for selection: FamilyActivitySelection,
+        templateBundleId: String?
+    ) -> String? {
+        let hasAnySelection = !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
+        guard hasAnySelection else { return nil }
+        guard !supportsSingleAppPreset(selection) else { return nil }
+
+        if let templateBundleId {
+            return "This preset should include only one app. Find \(displayName(for: templateBundleId)) in the list of your apps or use a search to find it."
+        }
+        return "This preset should include only one app. Use the search to find the app you need."
+    }
+#endif
 }

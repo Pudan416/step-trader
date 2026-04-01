@@ -67,7 +67,7 @@ final class CustomActivityUITests: XCTestCase {
         )
 
         if let data = try? JSONEncoder().encode([seed]) {
-            appGroup.set(data, forKey: "customEnergyOptions_v1")
+            appGroup.set(data, forKey: SharedKeys.customEnergyOptions)
         }
     }
 
@@ -79,7 +79,7 @@ final class CustomActivityUITests: XCTestCase {
         standard.removeObject(forKey: "appLanguage")
 
         if let appGroup = UserDefaults(suiteName: "group.personal-project.StepsTrader") {
-            appGroup.removeObject(forKey: "customEnergyOptions_v1")
+            appGroup.removeObject(forKey: SharedKeys.customEnergyOptions)
         }
     }
 }

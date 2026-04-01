@@ -6,10 +6,10 @@ import BackgroundTasks
 
 @main
 struct StepsTraderApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model: AppModel
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var authService = AuthenticationService.shared
-    @StateObject private var locationPermissionRequester = LocationPermissionRequester()
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     @AppStorage("hasSeenIntro_v3") private var hasSeenIntro: Bool = false
     @AppStorage("hasSeenEnergySetup_v1") private var hasSeenEnergySetup: Bool = false
@@ -23,9 +23,6 @@ struct StepsTraderApp: App {
         // Install notification delegate as early as possible so taps that *launch* the app
         // are routed through our handler (onAppear can be too late).
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
-
-        // Register BGAppRefreshTask before app finishes launching
-        UnlockExpiryTaskManager.shared.registerTask()
 
         // Mirror theme to app-group so the wallpaper Shortcut intent can read it reliably.
         let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.system.rawValue
@@ -79,8 +76,7 @@ struct StepsTraderApp: App {
                 } else {
                     OnboardingFlowView(
                         model: model,
-                        authService: authService,
-                        locationPermissionRequester: locationPermissionRequester
+                        authService: authService
                     ) {
                         hasSeenIntro = true
                         hasSeenEnergySetup = true
@@ -137,30 +133,28 @@ struct StepsTraderApp: App {
                 )
                 checkForHandoffToken()
             }
-            .onReceive(
-                NotificationCenter.default.publisher(
-                    for: UIApplication.didEnterBackgroundNotification)
-            ) { _ in
-                UserDefaults(suiteName: SharedKeys.appGroupId)?.set(appThemeRaw, forKey: "appTheme")
-                UnlockExpiryTaskManager.shared.scheduleIfNeeded()
-                model.handleAppDidEnterBackground()
-            }
             .task {
                 if hasCompletedOnboarding && !isUITest {
-                    await model.ensureHealthAuthorizationAndRefresh()
+                    await model.refreshStepsIfAuthorized()
                 }
             }
             .onReceive(cleanupTimer) { _ in
-                model.cleanupExpiredUnlocks()
                 model.checkDayBoundary()
             }
-            .onReceive(
-                NotificationCenter.default.publisher(
-                    for: UIApplication.willEnterForegroundNotification)
-            ) { _ in
-                model.handleAppWillEnterForeground()
-                checkForHandoffToken()
-                checkForPayGateFlags()
+            .onChange(of: scenePhase) { _, newPhase in
+                switch newPhase {
+                case .active:
+                    model.handleAppWillEnterForeground()
+                    checkForHandoffToken()
+                    checkForPayGateFlags()
+                case .background:
+                    UserDefaults(suiteName: SharedKeys.appGroupId)?.set(appThemeRaw, forKey: "appTheme")
+                    model.handleAppDidEnterBackground()
+                case .inactive:
+                    break
+                @unknown default:
+                    break
+                }
             }
             .onReceive(
                 NotificationCenter.default.publisher(
@@ -189,17 +183,10 @@ struct StepsTraderApp: App {
                    let target = userInfo["target"] as? String,
                    let bundleId = userInfo["bundleId"] as? String {
                     let g = UserDefaults.stepsTrader()
-                    if let until = g.object(forKey: "payGateDismissedUntil_v1") as? Date,
+                    if let until = g.object(forKey: SharedKeys.payGateDismissedUntil) as? Date,
                        Date() < until
                     {
                         AppLogger.app.debug("🚫 PayGate notification suppressed after dismiss")
-                        return
-                    }
-                    if model.isAccessBlocked(for: bundleId) {
-                        AppLogger.app.debug("🚫 PayGate notification ignored: access window active for \(bundleId)")
-                        model.dismissPayGate(reason: .programmatic)
-                        clearPayGateFlags(UserDefaults.stepsTrader())
-                        reopenTargetIfPossible(bundleId: bundleId)
                         return
                     }
                     AppLogger.app.debug("📱 PayGate notification - target: \(target), bundleId: \(bundleId)")
@@ -217,20 +204,13 @@ struct StepsTraderApp: App {
                    let target = userInfo["target"] as? String,
                    let bundleId = userInfo["bundleId"] as? String {
                     let g = UserDefaults.stepsTrader()
-                    if let until = g.object(forKey: "payGateDismissedUntil_v1") as? Date,
+                    if let until = g.object(forKey: SharedKeys.payGateDismissedUntil) as? Date,
                        Date() < until
                     {
                         AppLogger.app.debug("🚫 PayGate local notification suppressed after dismiss")
                         return
                     }
                     let lastOpen = g.object(forKey: "lastAppOpenedFromStepsTrader_\(bundleId)") as? Date
-                    if model.isAccessBlocked(for: bundleId) {
-                        AppLogger.app.debug("🚫 PayGate local ignored: access window active for \(bundleId)")
-                        model.dismissPayGate(reason: .programmatic)
-                        clearPayGateFlags(UserDefaults.stepsTrader())
-                        reopenTargetIfPossible(bundleId: bundleId)
-                        return
-                    }
                     if let lastOpen {
                         let elapsed = Date().timeIntervalSince(lastOpen)
                         if elapsed < 10 {
@@ -245,9 +225,25 @@ struct StepsTraderApp: App {
                     }
                 }
             }
+            .onOpenURL { url in
+                handleWidgetOpenApp(url)
+            }
             .tint(currentTheme.accentColor)
             .background(currentTheme.backgroundColor)
             .preferredColorScheme(currentTheme.colorScheme)
+        }
+    }
+
+    private func handleWidgetOpenApp(_ url: URL) {
+        guard url.host == "openapp",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let bundleId = components.queryItems?.first(where: { $0.name == "bundleId" })?.value,
+              let scheme = TargetResolver.primaryAndFallbackSchemes(for: bundleId).first,
+              let targetURL = URL(string: scheme)
+        else { return }
+
+        Task { @MainActor in
+            UIApplication.shared.open(targetURL)
         }
     }
 
@@ -299,7 +295,7 @@ struct StepsTraderApp: App {
         let userDefaults = UserDefaults.stepsTrader()
         
         // Check if flags set to show PayGate (only set by notification intent)
-        let shouldShowPayGate = userDefaults.bool(forKey: "shouldShowPayGate")
+        let shouldShowPayGate = userDefaults.bool(forKey: SharedKeys.shouldShowPayGate)
         
         guard shouldShowPayGate else {
             clearPayGateFlags(userDefaults)
@@ -309,10 +305,10 @@ struct StepsTraderApp: App {
         // User explicitly tapped a notification → override any dismiss cooldown.
         // The 10s cooldown exists to prevent re-open loops after manual dismiss,
         // but it must not block an intentional notification tap.
-        userDefaults.removeObject(forKey: "payGateDismissedUntil_v1")
+        userDefaults.removeObject(forKey: SharedKeys.payGateDismissedUntil)
         
-        let targetGroupId = userDefaults.string(forKey: "payGateTargetGroupId")
-        let targetBundleId = userDefaults.string(forKey: "payGateTargetBundleId_v1")
+        let targetGroupId = userDefaults.string(forKey: SharedKeys.payGateTargetGroupId)
+        let targetBundleId = userDefaults.string(forKey: SharedKeys.payGateTargetBundleId)
         
         if let groupId = targetGroupId {
             if !model.userEconomyStore.showPayGate, isRecentPayGateOpen(groupId: groupId, userDefaults: userDefaults) {
@@ -337,9 +333,9 @@ struct StepsTraderApp: App {
     }
     
     private func clearPayGateFlags(_ userDefaults: UserDefaults) {
-        userDefaults.removeObject(forKey: "shouldShowPayGate")
-        userDefaults.removeObject(forKey: "payGateTargetGroupId")
-        userDefaults.removeObject(forKey: "payGateTargetBundleId_v1")
+        userDefaults.removeObject(forKey: SharedKeys.shouldShowPayGate)
+        userDefaults.removeObject(forKey: SharedKeys.payGateTargetGroupId)
+        userDefaults.removeObject(forKey: SharedKeys.payGateTargetBundleId)
     }
 
     private func isRecentPayGateOpen(groupId: String, userDefaults: UserDefaults) -> Bool {
@@ -354,19 +350,6 @@ struct StepsTraderApp: App {
         return false
     }
     
-    private func reopenTargetIfPossible(bundleId: String) {
-        guard let scheme = TargetResolver.urlScheme(forBundleId: bundleId),
-              let url = URL(string: scheme)
-        else { return }
-        Task { @MainActor in
-            UIApplication.shared.open(url, options: [:]) { success in
-                if success {
-                    model.recordAutomationOpen(bundleId: bundleId)
-                }
-            }
-        }
-    }
-
 }
 
 private extension StepsTraderApp {

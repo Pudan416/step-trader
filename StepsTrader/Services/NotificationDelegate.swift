@@ -4,48 +4,23 @@ import UserNotifications
 import FamilyControls
 #endif
 
-// Minimal settings copy for decoding appUnlockSettings_v1
-private struct StoredUnlockSettingsForNotification: Codable {
-    let entryCostSteps: Int?
-    let minuteTariffEnabled: Bool?
-    let familyControlsModeEnabled: Bool?
-}
-
-// Minimal structure for decoding ticket groups
-private struct ShieldGroupDataForNotification: Codable {
-    let id: String
-    let name: String
-    let selectionData: Data?
-    
-    enum CodingKeys: String, CodingKey {
-        case id, name, selectionData
-    }
-}
-
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationDelegate()
     weak var model: AppModel?
 
-    private enum PayGateIntentKeys {
-        static let shouldShowPayGate = "shouldShowPayGate"
-        static let payGateTargetGroupId = "payGateTargetGroupId"
-        static let payGateTargetBundleId = "payGateTargetBundleId_v1"
-        static let payGateRequestedAt = "payGateRequestedAt_v1"
-    }
-    
     private func persistPayGateIntent(groupId: String? = nil, bundleId: String? = nil) {
         let defaults = UserDefaults.stepsTrader()
-        defaults.set(true, forKey: PayGateIntentKeys.shouldShowPayGate)
-        defaults.set(Date(), forKey: PayGateIntentKeys.payGateRequestedAt)
+        defaults.set(true, forKey: SharedKeys.shouldShowPayGate)
+        defaults.set(Date(), forKey: SharedKeys.payGateRequestedAt)
         if let groupId {
-            defaults.set(groupId, forKey: PayGateIntentKeys.payGateTargetGroupId)
-            defaults.removeObject(forKey: PayGateIntentKeys.payGateTargetBundleId)
+            defaults.set(groupId, forKey: SharedKeys.payGateTargetGroupId)
+            defaults.removeObject(forKey: SharedKeys.payGateTargetBundleId)
         } else if let bundleId {
-            defaults.set(bundleId, forKey: PayGateIntentKeys.payGateTargetBundleId)
-            defaults.removeObject(forKey: PayGateIntentKeys.payGateTargetGroupId)
+            defaults.set(bundleId, forKey: SharedKeys.payGateTargetBundleId)
+            defaults.removeObject(forKey: SharedKeys.payGateTargetGroupId)
         } else {
-            defaults.removeObject(forKey: PayGateIntentKeys.payGateTargetGroupId)
-            defaults.removeObject(forKey: PayGateIntentKeys.payGateTargetBundleId)
+            defaults.removeObject(forKey: SharedKeys.payGateTargetGroupId)
+            defaults.removeObject(forKey: SharedKeys.payGateTargetBundleId)
         }
     }
     
@@ -56,7 +31,6 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         if let action = userInfo["action"] as? String, action == "expired" {
             AppLogger.notifications.debug("🔒 Access expired notification tapped - rebuilding shields")
             Task { @MainActor in
-                self.model?.purgeExpiredAccessWindows()
                 self.model?.rebuildFamilyControlsShield()
             }
             completionHandler()
@@ -68,7 +42,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             
             // User explicitly tapped a notification → clear any dismiss cooldown
             // so startPayGateSession won't suppress this intentional action.
-            defaults.removeObject(forKey: "payGateDismissedUntil_v1")
+            defaults.removeObject(forKey: SharedKeys.payGateDismissedUntil)
             
             // PRIORITY 1: If groupId present in notification, open directly by group
             if let directGroupId = userInfo["groupId"] as? String {
@@ -83,8 +57,8 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             
             // PRIORITY 2: Use bundleId from notification or saved state
             let directBundleId = userInfo["bundleId"] as? String
-            let sharedBundleId = defaults.string(forKey: "lastBlockedAppBundleId")
-            let sharedGroupId = defaults.string(forKey: "lastBlockedGroupId")
+            let sharedBundleId = defaults.string(forKey: SharedKeys.lastBlockedAppBundleId)
+            let sharedGroupId = defaults.string(forKey: SharedKeys.lastBlockedGroupId)
             
             // If saved groupId exists, use it directly
             if let groupId = sharedGroupId, directBundleId == nil {
@@ -136,12 +110,9 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         let userInfo = notification.request.content.userInfo
         
-        // If this is an "expired" notification, rebuild shields immediately
         if let action = userInfo["action"] as? String, action == "expired" {
             AppLogger.notifications.debug("🔒 Access expired notification delivered - rebuilding shields")
             Task { @MainActor in
-                // Clear expired unlocks and rebuild
-                self.model?.purgeExpiredAccessWindows()
                 self.model?.rebuildFamilyControlsShield()
             }
         }

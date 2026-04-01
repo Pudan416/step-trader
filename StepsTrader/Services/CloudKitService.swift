@@ -65,30 +65,33 @@ final class CloudKitService: ObservableObject {
         isSyncing = true
         defer { isSyncing = false }
 
-        // Delete existing records first
         let query = CKQuery(recordType: CloudKitRecordType.ticketSettings.rawValue, predicate: NSPredicate(value: true))
         let existingRecords = try await privateDatabase.records(matching: query)
-        
-        for (recordID, _) in existingRecords.matchResults {
-            _ = try? await privateDatabase.deleteRecord(withID: recordID)
-        }
-        
-        // Save new records
+        let deleteIDs = existingRecords.matchResults.compactMap { try? $0.1.get().recordID }
+
+        var newRecords: [CKRecord] = []
         for (bundleId, setting) in settings {
             let record = CKRecord(recordType: CloudKitRecordType.ticketSettings.rawValue)
             record["bundleId"] = bundleId
             record["entryCostSteps"] = setting.entryCostSteps
             record["dayPassCostSteps"] = setting.dayPassCostSteps
-            record["minuteTariffEnabled"] = setting.minuteTariffEnabled
             record["familyControlsModeEnabled"] = setting.familyControlsModeEnabled
             record["allowedWindows"] = setting.allowedWindowsRaw
             record["updatedAt"] = Date()
-            
-            try await privateDatabase.save(record)
+            newRecords.append(record)
+        }
+
+        let (saveResults, deleteResults) = try await privateDatabase.modifyRecords(saving: newRecords, deleting: deleteIDs)
+        let savedCount = saveResults.values.filter { (try? $0.get()) != nil }.count
+        let failedSaveCount = saveResults.count - savedCount
+        let deletedCount = deleteResults.values.filter { (try? $0.get()) != nil }.count
+        AppLogger.network.debug("☁️ saveTicketSettings: saved \(savedCount)/\(saveResults.count), deleted \(deletedCount)/\(deleteResults.count)")
+        if failedSaveCount > 0 {
+            AppLogger.network.error("☁️ saveTicketSettings: \(failedSaveCount) record(s) failed to save")
         }
         
         lastSyncDate = Date()
-        UserDefaults.standard.set(lastSyncDate, forKey: "cloudkit_lastSync")
+        UserDefaults.stepsTrader().set(lastSyncDate, forKey: "cloudkit_lastSync")
     }
     
     func fetchTicketSettings() async throws -> [String: CloudTicketSettings] {
@@ -108,8 +111,7 @@ final class CloudKitService: ObservableObject {
                 settings[bundleId] = CloudTicketSettings(
                     entryCostSteps: record["entryCostSteps"] as? Int ?? 0,
                     dayPassCostSteps: record["dayPassCostSteps"] as? Int ?? 0,
-                    minuteTariffEnabled: record["minuteTariffEnabled"] as? Bool ?? false,
-                    familyControlsModeEnabled: record["familyControlsModeEnabled"] as? Bool ?? false,
+                    familyControlsModeEnabled: record["familyControlsModeEnabled"] as? Bool ?? (record["minuteTariffEnabled"] as? Bool ?? false),
                     allowedWindowsRaw: record["allowedWindows"] as? [String] ?? []
                 )
             }
@@ -126,27 +128,29 @@ final class CloudKitService: ObservableObject {
         isSyncing = true
         defer { isSyncing = false }
         
-        // Delete existing records
         let query = CKQuery(recordType: CloudKitRecordType.stepsSpent.rawValue, predicate: NSPredicate(value: true))
         let existingRecords = try await privateDatabase.records(matching: query)
-        
-        for (recordID, _) in existingRecords.matchResults {
-            _ = try? await privateDatabase.deleteRecord(withID: recordID)
-        }
-        
-        // Save new records - one per day
+        let deleteIDs = existingRecords.matchResults.compactMap { try? $0.1.get().recordID }
+
+        var newRecords: [CKRecord] = []
         for (dayKey, appSteps) in stepsData {
             let record = CKRecord(recordType: CloudKitRecordType.stepsSpent.rawValue)
             record["dayKey"] = dayKey
-            
-            // Encode app steps as JSON
             if let jsonData = try? JSONEncoder().encode(appSteps),
                let jsonString = String(data: jsonData, encoding: .utf8) {
                 record["appStepsJson"] = jsonString
             }
             record["updatedAt"] = Date()
-            
-            try await privateDatabase.save(record)
+            newRecords.append(record)
+        }
+
+        let (saveResults, deleteResults) = try await privateDatabase.modifyRecords(saving: newRecords, deleting: deleteIDs)
+        let savedCount = saveResults.values.filter { (try? $0.get()) != nil }.count
+        let failedSaveCount = saveResults.count - savedCount
+        let deletedCount = deleteResults.values.filter { (try? $0.get()) != nil }.count
+        AppLogger.network.debug("☁️ saveStepsSpent: saved \(savedCount)/\(saveResults.count), deleted \(deletedCount)/\(deleteResults.count)")
+        if failedSaveCount > 0 {
+            AppLogger.network.error("☁️ saveStepsSpent: \(failedSaveCount) record(s) failed to save")
         }
         
         lastSyncDate = Date()
@@ -183,22 +187,26 @@ final class CloudKitService: ObservableObject {
         isSyncing = true
         defer { isSyncing = false }
         
-        // Delete existing records
         let query = CKQuery(recordType: CloudKitRecordType.dayPass.rawValue, predicate: NSPredicate(value: true))
         let existingRecords = try await privateDatabase.records(matching: query)
-        
-        for (recordID, _) in existingRecords.matchResults {
-            _ = try? await privateDatabase.deleteRecord(withID: recordID)
-        }
-        
-        // Save new records
+        let deleteIDs = existingRecords.matchResults.compactMap { try? $0.1.get().recordID }
+
+        var newRecords: [CKRecord] = []
         for (bundleId, grantDate) in dayPasses {
             let record = CKRecord(recordType: CloudKitRecordType.dayPass.rawValue)
             record["bundleId"] = bundleId
             record["grantDate"] = grantDate
             record["updatedAt"] = Date()
-            
-            try await privateDatabase.save(record)
+            newRecords.append(record)
+        }
+
+        let (saveResults, deleteResults) = try await privateDatabase.modifyRecords(saving: newRecords, deleting: deleteIDs)
+        let savedCount = saveResults.values.filter { (try? $0.get()) != nil }.count
+        let failedSaveCount = saveResults.count - savedCount
+        let deletedCount = deleteResults.values.filter { (try? $0.get()) != nil }.count
+        AppLogger.network.debug("☁️ saveDayPasses: saved \(savedCount)/\(saveResults.count), deleted \(deletedCount)/\(deleteResults.count)")
+        if failedSaveCount > 0 {
+            AppLogger.network.error("☁️ saveDayPasses: \(failedSaveCount) record(s) failed to save")
         }
         
         lastSyncDate = Date()
@@ -248,7 +256,7 @@ final class CloudKitService: ObservableObject {
             try await saveDayPasses(dayPasses)
             
             lastSyncDate = Date()
-            UserDefaults.standard.set(lastSyncDate, forKey: "cloudkit_lastSync")
+            UserDefaults.stepsTrader().set(lastSyncDate, forKey: "cloudkit_lastSync")
             
         } catch {
             syncError = error.localizedDescription
@@ -299,7 +307,6 @@ final class CloudKitService: ObservableObject {
 struct CloudTicketSettings: Codable {
     let entryCostSteps: Int
     let dayPassCostSteps: Int
-    let minuteTariffEnabled: Bool
     let familyControlsModeEnabled: Bool
     let allowedWindowsRaw: [String]
 }

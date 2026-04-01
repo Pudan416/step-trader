@@ -4,23 +4,13 @@ import FamilyControls
 import DeviceActivity
 import ManagedSettings
 import SwiftUI
+import WidgetKit
 
 @MainActor
 final class BlockingStore: ObservableObject {
     // Dependencies
     private let familyControlsService: any FamilyControlsServiceProtocol
     
-    // Cache serialized token keys to avoid repeated NSKeyedArchiver calls
-    private var tokenKeyCache: [ApplicationToken: String] = [:]
-
-    private func cachedTokenKey(for token: ApplicationToken) -> String? {
-        if let cached = tokenKeyCache[token] { return cached }
-        guard let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) else { return nil }
-        let key = "fc_unlockUntil_" + data.base64EncodedString()
-        tokenKeyCache[token] = key
-        return key
-    }
-
     // Published State
     @Published var ticketGroups: [TicketGroup] = []
     @Published var appUnlockSettings: [String: AppUnlockSettings] = [:]
@@ -31,7 +21,6 @@ final class BlockingStore: ObservableObject {
         }
     }
     @Published var isBlocked = false
-    @Published var isTrackingTime = false
     
     // Internal state
     private var rebuildBlockTask: Task<Void, Never>?
@@ -100,8 +89,8 @@ final class BlockingStore: ObservableObject {
     private func saveAppSelection() {
         let defaults = UserDefaults.stepsTrader()
         if let data = try? JSONEncoder().encode(appSelection) {
-            defaults.set(data, forKey: "appSelection_v1")
-            defaults.set(Date(), forKey: "appSelectionSavedDate")
+            defaults.set(data, forKey: SharedKeys.appSelection)
+            defaults.set(Date(), forKey: SharedKeys.appSelectionSavedDate)
         }
     }
     
@@ -145,6 +134,8 @@ final class BlockingStore: ObservableObject {
             g.set(liteData, forKey: LiteTicketConfig.storageKey)
         }
 
+        WidgetCenter.shared.reloadAllTimelines()
+
         let persistTime = CFAbsoluteTimeGetCurrent() - startTime
         if persistTime > 0.05 {
             AppLogger.shield.debug("⏱️ persistTicketGroups took \(String(format: "%.3f", persistTime))s")
@@ -165,7 +156,7 @@ final class BlockingStore: ObservableObject {
         let groups: [LiteTicketGroup] = ticketGroups.compactMap { group in
             guard let data = try? JSONEncoder().encode(group.selection) else { return nil }
             let base64 = data.base64EncodedString()
-            let active = group.settings.minuteTariffEnabled || group.settings.familyControlsModeEnabled
+            let active = group.settings.familyControlsModeEnabled
             return LiteTicketGroup(
                 id: group.id,
                 name: group.name,
@@ -211,7 +202,7 @@ final class BlockingStore: ObservableObject {
 
     // MARK: - Block Management
     private func timeAccessSelectionKey(for bundleId: String) -> String {
-        "timeAccessSelection_v1_\(bundleId)"
+        SharedKeys.timeAccessSelectionKey(bundleId)
     }
     
     func timeAccessSelection(for bundleId: String) -> FamilyActivitySelection {
@@ -241,63 +232,44 @@ final class BlockingStore: ObservableObject {
             try? await Task.sleep(nanoseconds: 50_000_000)
             guard !Task.isCancelled else { return }
 
+            familyControlsService.refreshAuthorizationStatus()
+
             guard familyControlsService.isAuthorized else {
-                AppLogger.shield.debug("⚠️ Cannot rebuild block: Family Controls not authorized")
+                AppLogger.shield.debug("⚠️ Cannot rebuild block: Family Controls not authorized (even after refresh)")
                 logShieldDiagnostic(source: "app", apps: 0, categories: 0,
                                     detail: "ABORTED: Family Controls not authorized")
+                ShieldRebuildHelper.rebuild()
                 return
             }
             
             let startTime = CFAbsoluteTimeGetCurrent()
             var combined = FamilyActivitySelection()
             let defaults = UserDefaults.stepsTrader()
-            let now = Date()
             var diagLines: [String] = []
             
             for group in ticketGroups {
-                let unlockKey = "groupUnlock_\(group.id)"
-                if let unlockUntil = defaults.object(forKey: unlockKey) as? Date {
-                    if now < unlockUntil {
-                        let secs = Int(unlockUntil.timeIntervalSince(now))
-                        diagLines.append("SKIP \(group.name): unlocked \(secs)s left")
-                        AppLogger.shield.debug("⏭️ Skipping group \(group.name) - unlocked until \(unlockUntil)")
-                        continue
-                    } else {
-                        diagLines.append("EXPIRED \(group.name): key removed")
-                        AppLogger.shield.debug("🧹 Cleaning expired unlock for group \(group.name)")
-                        defaults.removeObject(forKey: unlockKey)
-                    }
+                let budgetKey = SharedKeys.usageBudgetKey(group.id)
+                if defaults.integer(forKey: budgetKey) > 0 {
+                    diagLines.append("SKIP \(group.name): usageBudget active")
+                    AppLogger.shield.debug("⏭️ Skipping group \(group.name) - usage budget active")
+                    continue
                 }
                 
-                let isActive = group.settings.familyControlsModeEnabled == true || group.settings.minuteTariffEnabled == true
+                let isActive = group.settings.familyControlsModeEnabled == true
                 if isActive {
                     #if canImport(FamilyControls)
-                    var groupTokens = group.selection.applicationTokens
-                    let groupCategories = group.selection.categoryTokens
-                    
-                    groupTokens = groupTokens.filter { token in
-                        guard let tokenKey = cachedTokenKey(for: token),
-                              let unlockUntil = defaults.object(forKey: tokenKey) as? Date else { return true }
-                        return now >= unlockUntil
-                    }
-                    
-                    combined.applicationTokens.formUnion(groupTokens)
-                    combined.categoryTokens.formUnion(groupCategories)
-                    diagLines.append("ADD \(group.name): \(groupTokens.count) apps, \(groupCategories.count) cats (fc=\(group.settings.familyControlsModeEnabled) mt=\(group.settings.minuteTariffEnabled))")
+                    combined.applicationTokens.formUnion(group.selection.applicationTokens)
+                    combined.categoryTokens.formUnion(group.selection.categoryTokens)
+                    diagLines.append("ADD \(group.name): \(group.selection.applicationTokens.count) apps, \(group.selection.categoryTokens.count) cats (fc=\(group.settings.familyControlsModeEnabled))")
                     #endif
                 } else {
-                    diagLines.append("INACTIVE \(group.name): fc=\(group.settings.familyControlsModeEnabled) mt=\(group.settings.minuteTariffEnabled)")
+                    diagLines.append("INACTIVE \(group.name): fc=\(group.settings.familyControlsModeEnabled)")
                 }
             }
             
             // Legacy appUnlockSettings support
             for (cardId, settings) in appUnlockSettings {
-                if settings.familyControlsModeEnabled == true || settings.minuteTariffEnabled == true {
-                    let blockKey = "blockUntil_\(cardId)"
-                    if let until = defaults.object(forKey: blockKey) as? Date {
-                        if now < until { continue }
-                        else { defaults.removeObject(forKey: blockKey) }
-                    }
+                if settings.familyControlsModeEnabled == true {
                     let selection = timeAccessSelection(for: cardId)
                     combined.applicationTokens.formUnion(selection.applicationTokens)
                     combined.categoryTokens.formUnion(selection.categoryTokens)
@@ -316,7 +288,7 @@ final class BlockingStore: ObservableObject {
             }
             
             let sharedDefaults = UserDefaults.stepsTrader()
-            sharedDefaults.set(0, forKey: "doomShieldState_v1")
+            sharedDefaults.set(0, forKey: SharedKeys.shieldState)
 
             let detail = diagLines.joined(separator: " | ")
             logShieldDiagnostic(source: "app", apps: combined.applicationTokens.count,
@@ -338,36 +310,6 @@ final class BlockingStore: ObservableObject {
     }
     #endif
     
-    func cleanupExpiredUnlocks() {
-        let defaults = UserDefaults.stepsTrader()
-        let now = Date()
-        var cleanedCount = 0
-        
-        for group in ticketGroups {
-            let unlockKey = "groupUnlock_\(group.id)"
-            if let unlockUntil = defaults.object(forKey: unlockKey) as? Date,
-               now >= unlockUntil {
-                defaults.removeObject(forKey: unlockKey)
-                cleanedCount += 1
-                AppLogger.shield.debug("🧹 Cleaned expired unlock for group \(group.name)")
-            }
-        }
-        
-        if cleanedCount > 0 {
-            AppLogger.shield.debug("🧹 Cleaned \(cleanedCount) expired unlock(s), rebuilding shield...")
-            rebuildFamilyControlsShield()
-        }
-
-        // If no unlocks remain, cancel the background refresh task
-        let hasActiveUnlocks = ticketGroups.contains { group in
-            let key = "groupUnlock_\(group.id)"
-            if let until = defaults.object(forKey: key) as? Date, now < until { return true }
-            return false
-        }
-        if !hasActiveUnlocks {
-            UnlockExpiryTaskManager.shared.cancelPendingTasks()
-        }
-    }
 
     // MARK: - Shield Diagnostics
 
@@ -402,37 +344,15 @@ final class BlockingStore: ObservableObject {
         lines.append("-- Ticket Groups (\(ticketGroups.count)) --")
         for g in ticketGroups {
             let fc = g.settings.familyControlsModeEnabled
-            let mt = g.settings.minuteTariffEnabled
             let appCount = g.selection.applicationTokens.count
             let catCount = g.selection.categoryTokens.count
-            let unlockKey = "groupUnlock_\(g.id)"
-            var status = "LOCKED"
-            if let until = defaults.object(forKey: unlockKey) as? Date {
-                if now < until {
-                    status = "UNLOCKED \(Int(until.timeIntervalSince(now)))s left"
-                } else {
-                    status = "EXPIRED (key still present!)"
-                }
-            }
-            lines.append("  \(g.name) | id=\(g.id.prefix(8))… | fc=\(fc) mt=\(mt) | \(appCount) apps \(catCount) cats | \(status)")
+            let budgetKey = SharedKeys.usageBudgetKey(g.id)
+            let budget = defaults.integer(forKey: budgetKey)
+            let status = budget > 0 ? "USAGE_BUDGET \(budget)m" : "LOCKED"
+            lines.append("  \(g.name) | id=\(g.id.prefix(8))… | fc=\(fc) | \(appCount) apps \(catCount) cats | \(status)")
         }
 
-        // 2. Active unlock/block keys
-        lines.append("")
-        lines.append("-- Active Unlock Keys --")
-        let allKeys = defaults.dictionaryRepresentation().keys.sorted()
-        var unlockCount = 0
-        for key in allKeys where key.hasPrefix("groupUnlock_") || key.hasPrefix("blockUntil_") {
-            if let until = defaults.object(forKey: key) as? Date {
-                let delta = Int(until.timeIntervalSince(now))
-                let state = delta > 0 ? "active (\(delta)s)" : "EXPIRED (\(-delta)s ago)"
-                lines.append("  \(key) → \(state)")
-                unlockCount += 1
-            }
-        }
-        if unlockCount == 0 { lines.append("  (none)") }
-
-        // 3. Family Controls auth
+        // 2. Family Controls auth
         lines.append("")
         lines.append("-- Family Controls --")
         lines.append("  authorized: \(familyControlsService.isAuthorized)")
@@ -463,7 +383,23 @@ final class BlockingStore: ObservableObject {
         }
         #endif
 
-        // 5b. Last startMonitoring log
+        // 5b. Usage Budget State
+        lines.append("")
+        lines.append("-- Usage Budgets --")
+        var budgetCount = 0
+        for g in ticketGroups {
+            let remaining = defaults.integer(forKey: SharedKeys.usageBudgetKey(g.id))
+            let initial = defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(g.id))
+            let started = defaults.object(forKey: SharedKeys.usageBudgetStartedKey(g.id)) as? Date
+            if remaining > 0 || initial > 0 || started != nil {
+                let startedStr = started.map { iso.string(from: $0) } ?? "nil"
+                lines.append("  \(g.name): \(remaining)/\(initial)m remaining | started: \(startedStr)")
+                budgetCount += 1
+            }
+        }
+        if budgetCount == 0 { lines.append("  (no active budgets)") }
+
+        // 5c. Last startMonitoring log
         if let lastMonLog = defaults.string(forKey: SharedKeys.lastStartMonitoringLog) {
             lines.append("")
             lines.append("-- Last startMonitoring Result --")
@@ -513,24 +449,4 @@ final class BlockingStore: ObservableObject {
         return lines.joined(separator: "\n")
     }
 
-    // MARK: - Tracking
-    func startTracking() {
-        isTrackingTime = true
-        isBlocked = true
-        rebuildFamilyControlsShield()
-    }
-    
-    func stopTracking() {
-        isTrackingTime = false
-        isBlocked = false
-        // Clear shield using targeted properties instead of clearAllSettings()
-        // to avoid wiping unrelated ManagedSettings (audit fix #17)
-        let empty = FamilyActivitySelection()
-        familyControlsService.updateSelection(empty)
-        #if canImport(ManagedSettings)
-        let store = ManagedSettingsStore(named: .init("shield"))
-        store.shield.applications = nil
-        store.shield.applicationCategories = nil
-        #endif
-    }
 }

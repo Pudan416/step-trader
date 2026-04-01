@@ -63,7 +63,7 @@ struct OptionEntrySheet: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "trash")
                                         .font(.system(size: 13, weight: .medium))
-                                    Text("Remove")
+                                    Text(String(localized: "Remove", comment: "OptionEntry – remove option button"))
                                         .font(.system(size: 14, weight: .medium, design: .rounded))
                                 }
                                 .foregroundStyle(.red.opacity(0.8))
@@ -81,7 +81,7 @@ struct OptionEntrySheet: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(String(localized: "Cancel", comment: "OptionEntry – dismiss button")) { dismiss() }
                         .font(.system(size: 15, weight: .regular, design: .rounded))
                         .foregroundStyle(.secondary.opacity(0.8))
                 }
@@ -89,20 +89,20 @@ struct OptionEntrySheet: View {
                     Button {
                         saveEntry()
                     } label: {
-                        Text(isEditing ? "Save" : "Add")
+                        Text(isEditing ? String(localized: "Save", comment: "OptionEntry – save/add button") : String(localized: "Add", comment: "OptionEntry – save/add button"))
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color(.systemBackground))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(
-                                Capsule().fill(Color(hex: selectedColorHex))
+                                Capsule().fill(Color.primary)
                             )
                     }
                     .buttonStyle(.plain)
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") {
+                    Button(String(localized: "Done", comment: "OptionEntry – done button")) {
                         isTextFieldFocused = false
                     }
                     .font(.system(size: 16, weight: .semibold))
@@ -133,7 +133,7 @@ struct OptionEntrySheet: View {
 
     private var examplesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("e.g.")
+            Text(String(localized: "e.g.", comment: "OptionEntry – example text prefix"))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary.opacity(0.6))
                 .textCase(.uppercase)
@@ -170,10 +170,10 @@ struct OptionEntrySheet: View {
     private var noteSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Note")
+                Text(String(localized: "Note", comment: "OptionEntry – note field label"))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary.opacity(0.6))
-                Text("optional")
+                Text(String(localized: "optional", comment: "OptionEntry – optional field hint"))
                     .font(.system(size: 10, weight: .regular))
                     .foregroundStyle(.secondary.opacity(0.3))
                 Spacer()
@@ -211,12 +211,12 @@ struct OptionEntrySheet: View {
 
     // MARK: - Shape Picker (Body only)
 
-    private let shapeLabels = ["Circle", "Square", "Triangle"]
-    private let shapeIcons = ["circle.fill", "square.fill", "triangle.fill"]
+    private let shapeLabels = [String(localized: "Circle", comment: "OptionEntry – shape picker options"), String(localized: "Triangle", comment: "OptionEntry – shape picker options"), String(localized: "Diamond", comment: "OptionEntry – shape picker options")]
+    private let shapeIcons = ["circle.fill", "triangle.fill", "diamond.fill"]
 
     private var shapePickerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Shape")
+            Text(String(localized: "Shape", comment: "OptionEntry – shape section header"))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary.opacity(0.6))
 
@@ -272,7 +272,7 @@ struct OptionEntrySheet: View {
     /// Shows category assets tinted in each palette color. Tap to select color.
     private var colorAssetGrid: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Color")
+            Text(String(localized: "Color", comment: "OptionEntry – color section header"))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary.opacity(0.6))
 

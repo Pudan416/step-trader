@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import os.log
 
 // MARK: - Canvas Storage Service
 
@@ -13,30 +14,62 @@ final class CanvasStorageService {
     private let fileManager = FileManager.default
     private let retentionDays = 90
 
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "StepsTrader", category: "CanvasStorage")
+
     private lazy var storageDirectory: URL = {
         let paths = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let appSupport = paths.first!
+        guard let appSupport = paths.first else {
+            return FileManager.default.temporaryDirectory
+                .appendingPathComponent("StepsTrader", isDirectory: true)
+                .appendingPathComponent("canvases", isDirectory: true)
+        }
         let bundleID = Bundle.main.bundleIdentifier ?? "StepsTrader"
         let dir = appSupport
             .appendingPathComponent(bundleID, isDirectory: true)
             .appendingPathComponent("canvases", isDirectory: true)
-        try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        do {
+            try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        } catch {
+            Self.log.error("Failed to create canvas storage directory: \(error.localizedDescription)")
+        }
         return dir
     }()
 
     private lazy var snapshotDirectory: URL = {
-        let dir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("canvas_snapshots", isDirectory: true)
-        try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        let paths = fileManager.urls(for: .documentDirectory, in: .userDomainMask)
+        guard let docDir = paths.first else {
+            let fallback = FileManager.default.temporaryDirectory
+                .appendingPathComponent("StepsTrader", isDirectory: true)
+                .appendingPathComponent("canvas_snapshots", isDirectory: true)
+            do {
+                try fileManager.createDirectory(at: fallback, withIntermediateDirectories: true)
+            } catch {
+                Self.log.error("Failed to create snapshot fallback directory: \(error.localizedDescription)")
+            }
+            return fallback
+        }
+        let dir = docDir.appendingPathComponent("canvas_snapshots", isDirectory: true)
+        do {
+            try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        } catch {
+            Self.log.error("Failed to create snapshot directory: \(error.localizedDescription)")
+        }
         return dir
     }()
 
     // MARK: - Canvas CRUD
 
-    func saveCanvas(_ canvas: DayCanvas) {
+    @discardableResult
+    func saveCanvas(_ canvas: DayCanvas) -> Bool {
         let url = canvasFileURL(for: canvas.dayKey)
-        guard let data = try? JSONEncoder().encode(canvas) else { return }
-        try? data.write(to: url, options: .atomic)
+        do {
+            let data = try JSONEncoder().encode(canvas)
+            try data.write(to: url, options: .atomic)
+            return true
+        } catch {
+            Self.log.error("Failed to save canvas for \(canvas.dayKey): \(error.localizedDescription)")
+            return false
+        }
     }
 
     func loadCanvas(for dayKey: String) -> DayCanvas? {
@@ -73,7 +106,8 @@ final class CanvasStorageService {
             sleepColor: sleepColor,
             stepsColor: stepsColor,
             decayNorm: decayNorm,
-            backgroundColor: backgroundColor
+            backgroundColor: backgroundColor,
+            fixedTime: Date()
         )
         .frame(width: 390, height: 500)
 
@@ -82,7 +116,52 @@ final class CanvasStorageService {
         if let image = renderer.uiImage,
            let data = image.pngData() {
             let url = snapshotURL(for: dayKey)
-            try? data.write(to: url, options: .atomic)
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                Self.log.error("Failed to save snapshot for \(dayKey): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Saves a smaller canvas snapshot to the shared App Group container
+    /// so the widget extension can display today's canvas preview.
+    @MainActor
+    func saveWidgetSnapshot(for dayKey: String, elements: [CanvasElement], sleepPoints: Int, stepsPoints: Int, sleepColor: Color, stepsColor: Color, decayNorm: Double, backgroundColor: Color = AppColors.Night.background) {
+        let view = GenerativeCanvasView(
+            elements: elements,
+            sleepPoints: sleepPoints,
+            stepsPoints: stepsPoints,
+            sleepColor: sleepColor,
+            stepsColor: stepsColor,
+            decayNorm: decayNorm,
+            backgroundColor: backgroundColor,
+            showLabelsOnCanvas: false,
+            showsOutlinedLabels: false,
+            fixedTime: Date()
+        )
+        .frame(width: 200, height: 200)
+
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2.0
+        guard let image = renderer.uiImage,
+              let data = image.jpegData(compressionQuality: 0.8) else { return }
+
+        guard let containerURL = fileManager.containerURL(
+            forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
+        ) else { return }
+
+        let dir = containerURL.appendingPathComponent("widget_snapshots", isDirectory: true)
+        do {
+            try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        } catch {
+            Self.log.error("Failed to create widget snapshot directory: \(error.localizedDescription)")
+        }
+        let url = dir.appendingPathComponent("canvas_today.jpg")
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            Self.log.error("Failed to save widget snapshot: \(error.localizedDescription)")
         }
     }
 

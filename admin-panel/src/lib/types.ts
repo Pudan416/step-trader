@@ -9,6 +9,13 @@ export type PublicUserRow = {
   ban_until: string | null;
 };
 
+export type UserPrefsRow = {
+  user_id: string;
+  last_opened_at: string | null;
+  has_medium_widget: boolean;
+  has_large_widget: boolean;
+};
+
 export type ShieldRow = {
   id: string;
   user_id: string;
@@ -17,13 +24,5 @@ export type ShieldRow = {
   level: number;
   settings_json: unknown;
   updated_at: string | null;
-};
-
-export type EnergyLedgerRow = {
-  id?: string;
-  user_id: string;
-  delta: number;
-  created_at: string;
-  reason?: string | null;
 };
 

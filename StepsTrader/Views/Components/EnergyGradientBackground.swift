@@ -463,14 +463,10 @@ private struct EnergyGradientAnimator: ViewModifier, Animatable {
 // MARK: - EnergyGradientBackground View
 /// Shared energy gradient + grain background used by every tab.
 ///
-/// Usage:
+/// Usage (preferred):
 /// ```
-/// EnergyGradientBackground(
-///     stepsPoints: model.stepsPointsToday,
-///     sleepPoints: model.sleepPointsToday,
-///     hasStepsData: model.hasStepsData,
-///     hasSleepData: model.hasSleepData
-/// )
+/// ScrollView { ... }
+///     .energyGradientBackground(model: model)
 /// ```
 struct EnergyGradientBackground: View {
     let stepsPoints: Int
@@ -480,8 +476,8 @@ struct EnergyGradientBackground: View {
 
     @Environment(\.appTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
-    @AppStorage("gradientStyle_v1") private var gradientStyleRaw: String = GradientStyle.radial.rawValue
-    @AppStorage("gradientPalette_v1") private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
+    @AppStorage(SharedKeys.gradientStyle) private var gradientStyleRaw: String = GradientStyle.radial.rawValue
+    @AppStorage(SharedKeys.gradientPalette) private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
 
     private var isDaylight: Bool {
         switch theme {
@@ -534,6 +530,25 @@ struct EnergyGradientBackground: View {
                     .opacity(0.4)
                     .blendMode(.overlay)
             }
+    }
+}
+
+// MARK: - View Extension
+
+extension View {
+    /// Applies the shared energy gradient background behind this view.
+    /// Replaces the repeated ZStack + EnergyGradientBackground boilerplate.
+    func energyGradientBackground(model: AppModel) -> some View {
+        background {
+            EnergyGradientBackground(
+                stepsPoints: model.stepsPointsToday,
+                sleepPoints: model.sleepPointsToday,
+                hasStepsData: model.hasStepsData,
+                hasSleepData: model.hasSleepData
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+        }
     }
 }
 

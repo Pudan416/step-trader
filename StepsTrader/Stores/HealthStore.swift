@@ -69,6 +69,29 @@ final class HealthStore: ObservableObject {
         }
     }
     
+    // MARK: - Workouts & Mindful Minutes
+    func fetchTodayMindfulMinutes() async -> Double {
+        let now = Date()
+        let start = currentDayStart(for: now)
+        do {
+            return try await healthKitService.fetchMindfulMinutes(from: start, to: now)
+        } catch {
+            AppLogger.healthKit.error("⚠️ Failed to fetch mindful minutes: \(error.localizedDescription)")
+            return 0
+        }
+    }
+
+    func fetchTodayWorkouts() async -> [DetectedWorkout] {
+        let now = Date()
+        let start = currentDayStart(for: now)
+        do {
+            return try await healthKitService.fetchWorkouts(from: start, to: now)
+        } catch {
+            AppLogger.healthKit.error("⚠️ Failed to fetch workouts: \(error.localizedDescription)")
+            return []
+        }
+    }
+
     // MARK: - Helpers
     private func currentDayStart(for date: Date) -> Date {
         let (hour, minute) = DayBoundary.storedDayEnd()
@@ -78,16 +101,15 @@ final class HealthStore: ObservableObject {
     // MARK: - Caching
     private func cacheStepsToday() {
         let g = UserDefaults.stepsTrader()
-        g.set(stepsToday, forKey: "cachedStepsToday")
-        g.set(true, forKey: "hasStepsData_v1")
+        g.set(stepsToday, forKey: SharedKeys.cachedStepsToday)
+        g.set(true, forKey: SharedKeys.hasStepsData)
     }
     
     private func loadCachedStepsToday() {
         let g = UserDefaults.stepsTrader()
-        let cached = g.double(forKey: "cachedStepsToday")
+        let cached = g.double(forKey: SharedKeys.cachedStepsToday)
         stepsToday = cached
-        // Use a separate flag so 0 steps is distinguishable from "never fetched"
-        hasStepsData = g.bool(forKey: "hasStepsData_v1")
+        hasStepsData = g.bool(forKey: SharedKeys.hasStepsData)
     }
     
     // MARK: - Observation

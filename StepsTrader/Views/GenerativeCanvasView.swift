@@ -23,9 +23,13 @@ struct GenerativeCanvasView: View {
     var hasStepsData: Bool = true
     /// Whether HealthKit has returned sleep data today (do not infer from points alone).
     var hasSleepData: Bool = true
+    /// Amplitude multiplier for drift/wobble (1.0 = normal, 0.25 = subdued for label/edit mode).
+    var timeScale: Double = 1.0
     /// When non-nil, renders a single static frame at this time instead of using
     /// TimelineView animation.  Used for ImageRenderer snapshots (e.g. canvas export).
     var fixedTime: Date? = nil
+
+    @State private var ampScale: Double = 1.0
 
     private var isDarkBackground: Bool {
         var b: CGFloat = 0
@@ -47,14 +51,16 @@ struct GenerativeCanvasView: View {
 
     var body: some View {
         if let fixedTime {
-            // Static single-frame render (used by ImageRenderer snapshots)
             Canvas { context, size in
                 renderCanvas(context: &context, size: size,
                              t: fixedTime.timeIntervalSinceReferenceDate)
             }
             .background(Color.clear)
+            .onAppear { ampScale = timeScale }
+            .onChange(of: timeScale) { _, newValue in
+                withAnimation(.easeInOut(duration: 0.6)) { ampScale = newValue }
+            }
         } else {
-            // Live animated render at ~20 fps
             TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
                 Canvas { context, size in
                     renderCanvas(context: &context, size: size,
@@ -62,11 +68,21 @@ struct GenerativeCanvasView: View {
                 }
             }
             .background(Color.clear)
+            .onAppear { ampScale = timeScale }
+            .onChange(of: timeScale) { _, newValue in
+                withAnimation(.easeInOut(duration: 0.6)) { ampScale = newValue }
+            }
         }
     }
 
-    /// Shared drawing code called from both the live TimelineView path
-    /// and the static fixedTime snapshot path.
+    /// Portrait screen bounds captured once at launch. Used by GalleryView
+    /// to pin the canvas to a fixed frame so it never resizes on rotation /
+    /// split-view changes — elements stay at their exact pixel positions.
+    static let canonicalPortraitSize: CGSize = {
+        let b = UIScreen.main.bounds.size
+        return b.width <= b.height ? b : CGSize(width: b.height, height: b.width)
+    }()
+
     private func renderCanvas(context: inout GraphicsContext, size: CGSize, t: Double) {
         let decay = decayNorm
         let dark = isDarkBackground
@@ -240,15 +256,15 @@ struct GenerativeCanvasView: View {
         if e.category == .mind {
             return mindDriftPosition(e, size: size, t: t)
         }
-        // Body: stable pulsing — barely perceptible drift
         let w = Double(size.width)
         let h = Double(size.height)
         let cx = Double(e.basePosition.x) * w
         let cy = Double(e.basePosition.y) * h
-        let wobbleX = sin(t * 0.04 + e.phaseOffset) * w * 0.008
-            + sin(t * 0.017 + e.phaseOffset * 2.3) * w * 0.005
-        let wobbleY = cos(t * 0.035 + e.phaseOffset * 1.3) * h * 0.008
-            + cos(t * 0.02 + e.phaseOffset * 0.7) * h * 0.005
+        let amp = ampScale
+        let wobbleX = sin(t * 0.04 + e.phaseOffset) * w * 0.008 * amp
+            + sin(t * 0.017 + e.phaseOffset * 2.3) * w * 0.005 * amp
+        let wobbleY = cos(t * 0.035 + e.phaseOffset * 1.3) * h * 0.008 * amp
+            + cos(t * 0.02 + e.phaseOffset * 0.7) * h * 0.005 * amp
         return CGPoint(x: cx + wobbleX, y: cy + wobbleY)
     }
 
@@ -262,18 +278,18 @@ struct GenerativeCanvasView: View {
         let w = Double(size.width)
         let h = Double(size.height)
         let p = e.phaseOffset
-        let speed = 0.03 + e.driftSpeed * 0.06   // very slow: ~0.03–0.09
+        let speed = 0.03 + e.driftSpeed * 0.06
+        let amp = ampScale
 
-        // Sum of 4 sine harmonics — irregular, non-repeating-looking path
-        let dx1 = sin(t * speed * 1.00 + p) * 0.34
-        let dx2 = sin(t * speed * 2.37 + p * 2.3) * 0.12
-        let dx3 = sin(t * speed * 4.13 + p * 4.1) * 0.04
-        let dx4 = sin(t * speed * 6.71 + p * 6.7) * 0.015
+        let dx1 = sin(t * speed * 1.00 + p) * 0.34 * amp
+        let dx2 = sin(t * speed * 2.37 + p * 2.3) * 0.12 * amp
+        let dx3 = sin(t * speed * 4.13 + p * 4.1) * 0.04 * amp
+        let dx4 = sin(t * speed * 6.71 + p * 6.7) * 0.015 * amp
 
-        let dy1 = cos(t * speed * 0.83 + p * 1.7) * 0.32
-        let dy2 = cos(t * speed * 1.97 + p * 3.1) * 0.11
-        let dy3 = cos(t * speed * 3.61 + p * 5.3) * 0.04
-        let dy4 = cos(t * speed * 5.89 + p * 7.9) * 0.015
+        let dy1 = cos(t * speed * 0.83 + p * 1.7) * 0.32 * amp
+        let dy2 = cos(t * speed * 1.97 + p * 3.1) * 0.11 * amp
+        let dy3 = cos(t * speed * 3.61 + p * 5.3) * 0.04 * amp
+        let dy4 = cos(t * speed * 5.89 + p * 7.9) * 0.015 * amp
 
         let nx = Double(e.basePosition.x) + dx1 + dx2 + dx3 + dx4
         let ny = Double(e.basePosition.y) + dy1 + dy2 + dy3 + dy4
@@ -314,9 +330,8 @@ struct GenerativeCanvasView: View {
         decay: Double,
         blendMode: GraphicsContext.BlendMode
     ) {
-        // Body: visible inhale/exhale pulse. Mind: no pulse (wandering is the motion).
         let pulse: Double = e.category == .body
-            ? (1.0 + sin(t * (0.7 + e.pulseFrequency * 0.8) + e.phaseOffset) * 0.05)
+            ? (1.0 + sin(t * (0.7 + e.pulseFrequency * 0.8) + e.phaseOffset) * 0.05 * ampScale)
             : 1.0
         let center = circleCenter(e, size: size, t: t)
         let dim = Double(min(size.width, size.height))
@@ -325,8 +340,8 @@ struct GenerativeCanvasView: View {
         let circleAssets = e.category == .body ? Self.bodyCircleAssetNames : Self.mindCircleAssetNames
         let name = circleAssets[Self.assetIndex(for: e, count: circleAssets.count)]
         let color = decayedColor(e.hexColor, decay: decay)
-        guard let image = tintedAssetImage(name: name, color: color, hex: e.hexColor, decay: decay) else { return }
-        let aspect = assetAspectRatio(name: name)
+        let image = tintedAssetImage(name: name, color: color, hex: e.hexColor, decay: decay)
+        let aspect = image != nil ? assetAspectRatio(name: name) : 1.0
         let halfW = radius * aspect
         let halfH = radius
         let rect = CGRect(
@@ -335,9 +350,7 @@ struct GenerativeCanvasView: View {
         )
 
         if e.category == .mind {
-            // Rotate so the solid/front side faces the direction of travel.
             let vel = mindDriftVelocity(e, size: size, t: t)
-            // Asset's solid face points left (–X) in source — flip 180° so it leads travel.
             let rotation = Angle.radians(atan2(vel.y, vel.x) + e.userRotation) + .degrees(180)
             context.drawLayer { ctx in
                 ctx.opacity = 0.85
@@ -345,7 +358,11 @@ struct GenerativeCanvasView: View {
                 ctx.translateBy(x: center.x, y: center.y)
                 ctx.rotate(by: rotation)
                 ctx.translateBy(x: -center.x, y: -center.y)
-                ctx.draw(image, in: rect)
+                if let image {
+                    ctx.draw(image, in: rect)
+                } else {
+                    drawFallbackBlob(context: &ctx, in: rect, color: color)
+                }
             }
         } else {
             let rotation = Angle.radians(e.phaseOffset + e.userRotation)
@@ -355,9 +372,28 @@ struct GenerativeCanvasView: View {
                 ctx.translateBy(x: center.x, y: center.y)
                 ctx.rotate(by: rotation)
                 ctx.translateBy(x: -center.x, y: -center.y)
-                ctx.draw(image, in: rect)
+                if let image {
+                    ctx.draw(image, in: rect)
+                } else {
+                    drawFallbackBlob(context: &ctx, in: rect, color: color)
+                }
             }
         }
+    }
+
+    /// Soft radial-gradient circle fallback when the PNG/SVG asset is missing.
+    private func drawFallbackBlob(context: inout GraphicsContext, in rect: CGRect, color: Color) {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let r = min(rect.width, rect.height) / 2
+        let gradient = Gradient(stops: [
+            .init(color: color.opacity(0.7), location: 0),
+            .init(color: color.opacity(0.25), location: 0.55),
+            .init(color: color.opacity(0), location: 1.0),
+        ])
+        context.fill(
+            Path(ellipseIn: rect),
+            with: .radialGradient(gradient, center: center, startRadius: 0, endRadius: r)
+        )
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -460,7 +496,7 @@ struct GenerativeCanvasView: View {
 
     /// Slow oscillating sweep that pivots around the solid tip.
     private func raySweepAngle(_ e: CanvasElement, t: Double) -> Angle {
-        let sweepRange = 10.0 + e.rotationSpeed * 0.2
+        let sweepRange = (10.0 + e.rotationSpeed * 0.2) * ampScale
         let sweepSpeed = 0.012 + e.driftSpeed * 0.01
         let sweep = sin(t * sweepSpeed + e.phaseOffset * 2.1) * sweepRange
         return Angle.degrees(sweep)
@@ -487,37 +523,68 @@ struct GenerativeCanvasView: View {
         blendMode: GraphicsContext.BlendMode
     ) {
         let dim = Double(min(size.width, size.height))
-        let radius = Double(e.size) * dim * 2.2   // heart rays larger, at edges
+        let radius = Double(e.size) * dim * 2.2
         let center = rayDrawCenter(e, size: size)
         let breathe = 0.92 + sin(t * e.pulseFrequency * 0.5 + e.phaseOffset) * 0.06
         let color = decayedColor(e.hexColor, decay: decay)
         let baseAngle = rayBaseAngle(e, size: size)
         let sweep = raySweepAngle(e, t: t)
         let name = Self.heartAssetNames[Self.assetIndex(for: e, count: Self.heartAssetNames.count)]
-        guard let image = tintedAssetImage(name: name, color: color, hex: e.hexColor, decay: decay) else { return }
-        let aspect = assetAspectRatio(name: name)
+        let image = tintedAssetImage(name: name, color: color, hex: e.hexColor, decay: decay)
+        let aspect = image != nil ? assetAspectRatio(name: name) : 0.35
         let rect = CGRect(
             x: -radius * aspect,
             y: -radius,
             width: radius * 2 * aspect,
             height: radius * 2
         )
-        // Base orientation: +90° so the asset's top (broad side) aims inward.
         let baseOriented = baseAngle + .degrees(90) + Angle.radians(e.userRotation)
 
-        // Pivot the sweep around the solid tip (local 0, -radius) so the
-        // tip stays fixed while the tail swings left/right like it's observing.
         context.drawLayer { ctx in
             ctx.opacity = breathe
             ctx.blendMode = blendMode
             ctx.translateBy(x: center.x, y: center.y)
             ctx.rotate(by: baseOriented)
-            // Move origin to the tip, apply sweep, move back
             ctx.translateBy(x: 0, y: -radius)
             ctx.rotate(by: sweep)
             ctx.translateBy(x: 0, y: radius)
-            ctx.draw(image, in: rect)
+            if let image {
+                ctx.draw(image, in: rect)
+            } else {
+                drawFallbackRay(context: &ctx, in: rect, color: color)
+            }
         }
+    }
+
+    /// Tapered gradient ray fallback when the heart PNG asset is missing.
+    private func drawFallbackRay(context: inout GraphicsContext, in rect: CGRect, color: Color) {
+        let tipY = rect.minY
+        let baseY = rect.maxY
+        let midX = rect.midX
+        let halfBase = rect.width * 0.5
+
+        var path = Path()
+        path.move(to: CGPoint(x: midX, y: tipY))
+        path.addQuadCurve(
+            to: CGPoint(x: midX + halfBase, y: baseY),
+            control: CGPoint(x: midX + halfBase * 0.3, y: tipY + rect.height * 0.4)
+        )
+        path.addLine(to: CGPoint(x: midX - halfBase, y: baseY))
+        path.addQuadCurve(
+            to: CGPoint(x: midX, y: tipY),
+            control: CGPoint(x: midX - halfBase * 0.3, y: tipY + rect.height * 0.4)
+        )
+        path.closeSubpath()
+
+        let gradient = Gradient(stops: [
+            .init(color: color.opacity(0.6), location: 0),
+            .init(color: color.opacity(0.15), location: 0.7),
+            .init(color: color.opacity(0), location: 1.0),
+        ])
+        context.fill(
+            path,
+            with: .linearGradient(gradient, startPoint: CGPoint(x: midX, y: tipY), endPoint: CGPoint(x: midX, y: baseY))
+        )
     }
 
     // ═══════════════════════════════════════════════════════════

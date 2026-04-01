@@ -1,14 +1,14 @@
 # Nowhere (iOS, SwiftUI)
 
-Your life makes rays. Your feeds cost them.
+Your life makes colors. Your feeds cost them.
 
-An iOS app where real-world activity — steps, sleep, and daily choices across body, mind, and heart — produces **rays**. Rays are what you spend to open your feeds.
+An iOS app where real-world activity — steps, sleep, and daily choices across body, mind, and heart — produces **colors**. Colors are what you spend to open your feeds.
 
 ## Core Loop
 
 1. **Live** — Walk, sleep, choose pieces from three categories (body, mind, heart).
-2. **See** — Your canvas fills up. Rays accumulate.
-3. **Spend** — When you want into your feeds, spend rays through the PayGate.
+2. **See** — Your canvas fills up. Colors accumulate.
+3. **Spend** — When you want into your feeds, spend colors through the PayGate.
 
 ## Tabs
 

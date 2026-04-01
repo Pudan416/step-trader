@@ -25,8 +25,8 @@ struct GalleryView: View {
     @Binding var metricOverlay: MetricOverlayKind?
     @Binding var isLabelMode: Bool
 
-    @AppStorage("userStepsTarget") private var userStepsTarget: Double = 10_000
-    @AppStorage("userSleepTarget") private var userSleepTarget: Double = 8.0
+    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader()) private var userStepsTarget: Double = 10_000
+    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var userSleepTarget: Double = 8.0
     @AppStorage("gallery_sleep_color") private var sleepColorHex: String = "#000000"
     @AppStorage("gallery_steps_color") private var stepsColorHex: String = "#FED415"
 
@@ -40,12 +40,18 @@ struct GalleryView: View {
     @State private var pickerCategory: EnergyCategory? = nil
     @State private var showShareSheet = false
     @State private var shareImage: UIImage? = nil
-    // Move mode state
-    @State private var isMoveMode: Bool = false
+    @State private var showSaveRoutine = false
+    @State private var routineName = ""
     @State private var activeElementId: UUID? = nil
+    @State private var isDraggingElement: Bool = false
     @State private var dragStartBasePosition: CGPoint? = nil
     @State private var rotationGestureActive: Bool = false
     @State private var rotationAtGestureStart: Double = 0
+    @State private var showLabelModeHint: Bool = false
+    @AppStorage("labelModeHintShown") private var labelModeHintShown: Bool = false
+    @Binding var isWideCanvas: Bool
+    @Environment(\.tabBarHeight) private var tabBarHeight
+    @Environment(\.topCardHeight) private var topCardHeight
 
     private var canvasBackground: Color { theme.backgroundColor }
     private var labelColor: Color { theme.textPrimary }
@@ -58,6 +64,22 @@ struct GalleryView: View {
         }
     }
     private var todayKey: String { AppModel.dayKey(for: Date()) }
+
+    private var deviceTopInset: CGFloat {
+        (UIApplication.shared.connectedScenes.first as? UIWindowScene)?
+            .keyWindow?.safeAreaInsets.top ?? 59
+    }
+
+    private var deviceBottomInset: CGFloat {
+        (UIApplication.shared.connectedScenes.first as? UIWindowScene)?
+            .keyWindow?.safeAreaInsets.bottom ?? 34
+    }
+
+    private var bottomControlsPadding: CGFloat {
+        let base = deviceBottomInset + 24
+        if isLabelMode || isWideCanvas { return base }
+        return base + tabBarHeight
+    }
 
     private var canvasSyncTrigger: [String] {
         [
@@ -74,6 +96,9 @@ struct GalleryView: View {
 
     private var isCanvasEmpty: Bool { dayCanvas.elements.isEmpty }
 
+    /// Show routines/repeat/hint when fewer than 2 elements on canvas
+    private var showQuickStartArea: Bool { dayCanvas.elements.count < 2 }
+
     private var decayNorm: Double {
         guard dayCanvas.inkEarned > 0 else { return 0 }
         return min(1.0, Double(dayCanvas.inkSpent) / Double(dayCanvas.inkEarned))
@@ -84,18 +109,9 @@ struct GalleryView: View {
     // ═══════════════════════════════════════════════════════════
 
     var body: some View {
-        ZStack {
-            // Layer 0: Live animated gradient background
-            EnergyGradientBackground(
-                stepsPoints: model.stepsPointsToday,
-                sleepPoints: model.sleepPointsToday,
-                hasStepsData: model.hasStepsData,
-                hasSleepData: model.hasSleepData
-            )
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-
-            // Layer 1: Live animated generative canvas elements
+        ZStack(alignment: .topLeading) {
+            // Layer 1: Fixed-size canvas — never resizes, so the backing
+            // buffer stays identical when the viewport gets wider.
             GenerativeCanvasView(
                 elements: dayCanvas.elements,
                 sleepPoints: model.sleepPointsToday,
@@ -108,13 +124,17 @@ struct GalleryView: View {
                 showLabelsOnCanvas: isLabelMode,
                 showsBackgroundGradient: false,
                 hasStepsData: model.hasStepsData,
-                hasSleepData: model.hasSleepData
+                hasSleepData: model.hasSleepData,
+                timeScale: isLabelMode ? 0.25 : 1.0
+            )
+            .frame(
+                width: GenerativeCanvasView.canonicalPortraitSize.width,
+                height: GenerativeCanvasView.canonicalPortraitSize.height
             )
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            // Layer 2: Transparent Metal overlay — snapshots canvas on touch,
-            // applies smudge distortion, then fades back to transparent.
+            // Layer 2: Fixed-size smudge overlay — same pinned frame.
             SmudgeOverlayView(
                 elements: dayCanvas.elements,
                 sleepPoints: model.sleepPointsToday,
@@ -127,12 +147,16 @@ struct GalleryView: View {
                 hasStepsData: model.hasStepsData,
                 hasSleepData: model.hasSleepData
             )
+            .frame(
+                width: GenerativeCanvasView.canonicalPortraitSize.width,
+                height: GenerativeCanvasView.canonicalPortraitSize.height
+            )
             .ignoresSafeArea()
-            .allowsHitTesting(!isMoveMode)
+            .allowsHitTesting(!isLabelMode)
 
-            // Layer 2b: Move/rotate gesture overlay (move mode only)
-            if isMoveMode {
-                moveGestureOverlay
+            // Layer 2b: Tap-to-select + drag gesture overlay (label mode)
+            if isLabelMode && !isWideCanvas {
+                labelModeGestureOverlay
                     .ignoresSafeArea()
             }
 
@@ -140,15 +164,26 @@ struct GalleryView: View {
             canvasControls
 
             // Layer 4: Metric popover
-            if let kind = metricOverlay {
+            if let kind = metricOverlay, !isWideCanvas {
                 metricPopover(kind: kind)
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
             }
         }
-        .navigationBarHidden(true)
+        .energyGradientBackground(model: model)
+        .toolbar(.hidden, for: .navigationBar)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onChange(of: geo.size.width, initial: true) { _, w in
+                        let wide = w > GenerativeCanvasView.canonicalPortraitSize.width + 20
+                        if wide != isWideCanvas { isWideCanvas = wide }
+                    }
+            }
+        )
         .animation(.easeInOut(duration: 0.2), value: metricOverlay != nil)
-        .animation(.easeInOut(duration: 0.35), value: isCanvasEmpty)
+        .animation(.easeInOut(duration: 0.35), value: showQuickStartArea)
         .onAppear {
+            model.checkDayBoundary()
             loadCanvas()
             let dayKey = AppModel.dayKey(for: Date())
             Task {
@@ -164,6 +199,7 @@ struct GalleryView: View {
         }
         .onChange(of: scenePhase) {
             guard scenePhase == .active else { return }
+            model.checkDayBoundary()
             let newKey = AppModel.dayKey(for: Date())
             if newKey != activeDayKey {
                 activeDayKey = newKey
@@ -190,7 +226,16 @@ struct GalleryView: View {
                 CanvasShareSheet(items: [image])
             }
         }
+        .sheet(isPresented: Binding(
+            get: { repaintElementId != nil },
+            set: { if !$0 { repaintElementId = nil } }
+        )) {
+            if let elementId = repaintElementId {
+                repaintSheet(for: elementId)
+            }
+        }
         .animation(.easeInOut(duration: 0.25), value: isLabelMode)
+        .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -202,53 +247,100 @@ struct GalleryView: View {
     /// Gradients are confined to top/bottom strips so the canvas stays visible in the center.
     private var canvasControls: some View {
         ZStack {
-            // Center: empty state when needed (transparent, canvas shows through)
-            if isCanvasEmpty && !isLabelMode {
+            if showQuickStartArea && !isLabelMode && !isWideCanvas {
                 emptyStateView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
-            // Top-right: move button (label mode only)
-            if isLabelMode {
+            // Wide-canvas wallpaper suggestion
+            if isWideCanvas && !model.hasWallpaperShortcut && !isLabelMode {
                 VStack {
-                    HStack {
-                        Spacer()
-                        moveButton
-                            .padding(.trailing, 24)
-                            .padding(.top, 12)
-                    }
                     Spacer()
+                    wallpaperPromptBanner
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 40)
                 }
-                .transition(.opacity)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            // Bottom section
+            // Proactive activity suggestions (workouts, mindful minutes, behavioral signals)
+            if !model._pendingActivitySuggestions.isEmpty && !isLabelMode && !isWideCanvas {
+                VStack {
+                    ActivitySuggestionBanner(
+                        suggestions: model._pendingActivitySuggestions,
+                        onAccept: { suggestion in
+                            model.acceptActivitySuggestion(suggestion)
+                        },
+                        onDismiss: { suggestion in
+                            model.dismissActivitySuggestion(suggestion)
+                        },
+                        onDismissAll: {
+                            model.dismissAllActivitySuggestions()
+                        }
+                    )
+                    Spacer()
+                }
+                .padding(.top, deviceTopInset + topCardHeight)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            // Contextual orbit for selected element (label mode)
+            if isLabelMode && !isWideCanvas, let selectedId = activeElementId {
+                elementContextOrbit(elementId: selectedId)
+                    .transition(.scale.combined(with: .opacity))
+            }
+
+            // Discoverability hint on first label mode entry
+            if showLabelModeHint && isLabelMode && !isWideCanvas {
+                VStack {
+                    Spacer()
+                    Text(String(localized: "Tap an element to edit it", comment: "Label mode – discoverability hint"))
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(buttonColor.opacity(0.7))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(.bottom, 140)
+                }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .allowsHitTesting(false)
+            }
+
+            // Bottom section — always visible, sits above tab bar
             VStack {
                 Spacer(minLength: 0)
-                HStack(alignment: .center) {
-                    Spacer()
-                    if !isLabelMode {
-                        RadialHoldMenu(
-                            labelColor: buttonColor,
-                            onCategorySelected: { category in pickerCategory = category }
-                        )
-                        .transition(.opacity)
-                    }
-                    Spacer()
-                }
-                .overlay(alignment: .leading) {
-                    labelToggleButton
-                        .padding(.leading, 24)
-                }
-                .overlay(alignment: .trailing) {
-                    if !isLabelMode {
-                        shareButton
-                            .padding(.trailing, 24)
-                            .transition(.opacity)
-                    }
-                }
-                .padding(.bottom, isLabelMode ? 32 : 96)
+                bottomControlsBar
+                    .padding(.bottom, bottomControlsPadding)
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Bottom Controls Bar (share, +, wide toggle)
+    // ═══════════════════════════════════════════════════════════
+
+    private var bottomControlsBar: some View {
+        HStack(alignment: .center) {
+            Spacer()
+            if !isLabelMode {
+                RadialHoldMenu(
+                    labelColor: buttonColor,
+                    onCategorySelected: { category in pickerCategory = category }
+                )
+                .transition(.opacity)
+            }
+            Spacer()
+        }
+        .overlay(alignment: .leading) {
+            labelToggleButton
+                .padding(.leading, 24)
+        }
+        .overlay(alignment: .trailing) {
+            if !isLabelMode {
+                shareButton
+                    .padding(.trailing, 24)
+                    .transition(.opacity)
             }
         }
     }
@@ -279,6 +371,27 @@ struct GalleryView: View {
         .buttonStyle(.plain)
         .opacity(isCanvasEmpty ? 0.35 : 1.0)
         .disabled(isCanvasEmpty)
+        .contextMenu {
+            if !isCanvasEmpty {
+                Button {
+                    showSaveRoutine = true
+                } label: {
+                    Label(String(localized: "Save as Routine"), systemImage: "square.and.arrow.down")
+                }
+            }
+        }
+        .alert(String(localized: "Save Routine"), isPresented: $showSaveRoutine) {
+            TextField(String(localized: "e.g. Gym Day", comment: "Placeholder for routine name"), text: $routineName)
+            Button(String(localized: "Save")) {
+                let name = routineName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                model.saveCurrentAsRoutine(name: name)
+                routineName = ""
+            }
+            Button(String(localized: "Cancel"), role: .cancel) { routineName = "" }
+        } message: {
+            Text(String(localized: "Give this combination a name to reuse it later."))
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -289,8 +402,17 @@ struct GalleryView: View {
         Button {
             withAnimation(.easeInOut(duration: 0.25)) {
                 isLabelMode.toggle()
-                if isLabelMode { metricOverlay = nil }
-                if !isLabelMode { isMoveMode = false; activeElementId = nil }
+                if isLabelMode {
+                    metricOverlay = nil
+                    if !labelModeHintShown {
+                        showLabelModeHint = true
+                        labelModeHintShown = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                            withAnimation(.easeOut(duration: 0.4)) { showLabelModeHint = false }
+                        }
+                    }
+                }
+                if !isLabelMode { activeElementId = nil; isDraggingElement = false }
             }
         } label: {
             ZStack {
@@ -314,20 +436,113 @@ struct GalleryView: View {
     }
 
     // ═══════════════════════════════════════════════════════════
+    // MARK: - Wallpaper Prompt (wide canvas)
+    // ═══════════════════════════════════════════════════════════
+
+    private var wallpaperPromptBanner: some View {
+        NavigationLink {
+            SettingsShortcutPage(model: model)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(buttonColor.opacity(0.8))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Set this canvas as your wallpaper", comment: "Wide canvas – wallpaper prompt"))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(buttonColor)
+                    Text(String(localized: "Learn how to automate it", comment: "Wide canvas – wallpaper prompt subtitle"))
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .foregroundStyle(buttonColor.opacity(0.5))
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(buttonColor.opacity(0.35))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(buttonColor.opacity(0.12), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // MARK: - Empty State
     // ═══════════════════════════════════════════════════════════
 
     private var emptyStateView: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "plus")
-                .font(.system(size: 20, weight: .ultraLight))
-                .foregroundStyle(labelColor.opacity(0.25))
+        VStack(spacing: 16) {
+            if model.canRepeatYesterday {
+                repeatYesterdayButton
+            }
 
-            Text("Hold + to begin")
-                .font(.system(size: 13, weight: .regular, design: .rounded))
-                .foregroundStyle(labelColor.opacity(0.3))
+            if !model.savedRoutines.isEmpty {
+                routinesRow
+            }
+
+            if isCanvasEmpty {
+                Text(String(localized: "Today is uncolored", comment: "Canvas empty state hint"))
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .foregroundStyle(labelColor.opacity(0.3))
+            }
         }
         .multilineTextAlignment(.center)
+    }
+
+    private var repeatYesterdayButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                model.repeatYesterday()
+            }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 13, weight: .medium))
+                Text(String(localized: "Repeat Yesterday"))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+            }
+            .foregroundStyle(labelColor)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(.ultraThinMaterial, in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var routinesRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(model.savedRoutines) { routine in
+                    Button {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            model.applyRoutine(routine)
+                        }
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    } label: {
+                        Text(routine.name)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(labelColor)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                    Button(role: .destructive) {
+                        model.deleteRoutine(routine)
+                    } label: {
+                        Label(String(localized: "Delete"), systemImage: "trash")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -377,9 +592,39 @@ struct GalleryView: View {
                 + model.dailyRestSelections
                 + model.dailyJoysSelections
             )
+            // Defensive guard: if selections are transiently empty during launch/restore,
+            // don't wipe a non-empty persisted canvas.
+            if activeIds.isEmpty && !dayCanvas.elements.isEmpty {
+                return
+            }
             let before = dayCanvas.elements.count
             dayCanvas.elements.removeAll { !activeIds.contains($0.optionId) }
             if dayCanvas.elements.count != before {
+                didChange = true
+            }
+        }
+
+        // 1b. Spawn canvas elements for selections that don't have one yet
+        //     (covers Repeat Yesterday, Routines, and Supabase restore).
+        if !model.isBootstrapping {
+            let existingIds = Set(dayCanvas.elements.map(\.optionId))
+            let allSelections: [(String, EnergyCategory)] =
+                model.dailyActivitySelections.map { ($0, .body) }
+                + model.dailyRestSelections.map { ($0, .mind) }
+                + model.dailyJoysSelections.map { ($0, .heart) }
+
+            for (optionId, cat) in allSelections where !existingIds.contains(optionId) {
+                let color = CanvasColorPalette.paletteHex.randomElement() ?? "#FFD369"
+                let label = model.resolveOptionTitle(for: optionId)
+                let element = CanvasElement.spawn(
+                    optionId: optionId,
+                    category: cat,
+                    color: color,
+                    label: label,
+                    existingElements: dayCanvas.elements,
+                    forcedVariant: cat == .body ? Int.random(in: 0...2) : nil
+                )
+                dayCanvas.elements.append(element)
                 didChange = true
             }
         }
@@ -412,6 +657,17 @@ struct GalleryView: View {
     private func saveCanvasLocally() {
         CanvasStorageService.shared.saveCanvas(dayCanvas)
         Task { await SupabaseSyncService.shared.syncDayCanvas(dayCanvas) }
+        Task { @MainActor in
+            CanvasStorageService.shared.saveWidgetSnapshot(
+                for: dayCanvas.dayKey,
+                elements: dayCanvas.elements,
+                sleepPoints: dayCanvas.sleepPoints,
+                stepsPoints: dayCanvas.stepsPoints,
+                sleepColor: Color(hex: dayCanvas.sleepColorHex),
+                stepsColor: Color(hex: dayCanvas.stepsColorHex),
+                decayNorm: dayCanvas.decayNorm
+            )
+        }
     }
 
     private func spawnElement(optionId: String, category: EnergyCategory, color: String, assetVariant: Int? = nil) {
@@ -450,85 +706,160 @@ struct GalleryView: View {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Move Mode
+    // MARK: - Label Mode Gesture Overlay (tap to select, drag to move)
     // ═══════════════════════════════════════════════════════════
 
-    private var moveButton: some View {
-        let activeTint = AppColors.brandAccent
-        return Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isMoveMode.toggle()
-                if !isMoveMode { activeElementId = nil }
-            }
-        } label: {
-            Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
-                .font(.system(size: 18, weight: isMoveMode ? .regular : .ultraLight))
-                .foregroundStyle(isMoveMode ? activeTint : buttonColor.opacity(0.7))
-                .frame(width: 44, height: 44)
-                .overlay(
-                    Circle()
-                        .stroke(isMoveMode ? activeTint.opacity(0.6) : buttonColor.opacity(0.2), lineWidth: 1)
-                )
-                .background(isMoveMode ? Circle().fill(activeTint.opacity(0.15)) : nil)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .opacity(isCanvasEmpty ? 0.35 : 1.0)
-        .disabled(isCanvasEmpty)
-    }
-
-    private var moveGestureOverlay: some View {
-        GeometryReader { geo in
+    private var labelModeGestureOverlay: some View {
+        GeometryReader { _ in
+            let refSize = GenerativeCanvasView.canonicalPortraitSize
             Color.clear
                 .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 5)
+                .onTapGesture { location in
+                    let t = Date().timeIntervalSinceReferenceDate
+                    if let hit = findClosestElement(to: location, canvasSize: refSize, t: t),
+                       hit.distance < 80 {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            activeElementId = (activeElementId == hit.element.id) ? nil : hit.element.id
+                        }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } else {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            activeElementId = nil
+                        }
+                    }
+                }
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 8)
                         .onChanged { value in
-                            handleMoveDrag(value: value, canvasSize: geo.size)
+                            handleLabelDrag(value: value, canvasSize: refSize)
                         }
                         .onEnded { _ in
-                            handleMoveDragEnd()
+                            handleLabelDragEnd()
                         }
                 )
                 .simultaneousGesture(
                     RotationGesture()
-                        .onChanged { angle in
-                            handleRotation(angle: angle)
-                        }
-                        .onEnded { _ in
-                            handleRotationEnd()
-                        }
+                        .onChanged { angle in handleRotation(angle: angle) }
+                        .onEnded { _ in handleRotationEnd() }
                 )
         }
     }
 
-    // MARK: - Drag to Move
+    // MARK: - Contextual Orbit (shows around selected element)
 
-    private func handleMoveDrag(value: DragGesture.Value, canvasSize: CGSize) {
-        if activeElementId == nil {
+    private func elementContextOrbit(elementId: UUID) -> some View {
+        GeometryReader { _ in
+            let refSize = GenerativeCanvasView.canonicalPortraitSize
+            let t = Date().timeIntervalSinceReferenceDate
+            let element = dayCanvas.elements.first { $0.id == elementId }
+            let center: CGPoint = {
+                guard let el = element else { return CGPoint(x: refSize.width / 2, y: refSize.height / 2) }
+                return hitTestCenter(for: el, canvasSize: refSize, t: t)
+            }()
+
+            let orbitRadius: CGFloat = 52
+            let actions: [(icon: String, label: String, angle: Double)] = [
+                ("paintpalette", "Repaint", -.pi * 0.75),
+                ("arrow.up.and.down.and.arrow.left.and.right", "Move", -.pi * 0.25),
+                ("trash", "Remove", .pi * 0.25),
+            ]
+
+            TimelineView(.animation(minimumInterval: 1.0 / 10.0)) { timeline in
+                let liveT = timeline.date.timeIntervalSinceReferenceDate
+                let liveCenter: CGPoint = {
+                    guard let el = element else { return center }
+                    return hitTestCenter(for: el, canvasSize: refSize, t: liveT)
+                }()
+
+                ZStack {
+                    Circle()
+                        .stroke(buttonColor.opacity(0.15), lineWidth: 1)
+                        .frame(width: orbitRadius * 2, height: orbitRadius * 2)
+                        .position(liveCenter)
+
+                    ForEach(0..<actions.count, id: \.self) { i in
+                        let action = actions[i]
+                        let btnX = liveCenter.x + orbitRadius * cos(action.angle)
+                        let btnY = liveCenter.y + orbitRadius * sin(action.angle)
+
+                        Button {
+                            handleOrbitAction(action.label, elementId: elementId)
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                                    .frame(width: 36, height: 36)
+                                Circle()
+                                    .stroke(buttonColor.opacity(0.2), lineWidth: 0.5)
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: action.icon)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(action.label == "Remove" ? .red.opacity(0.8) : buttonColor.opacity(0.8))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .position(x: btnX, y: btnY)
+                    }
+                }
+            }
+        }
+        .allowsHitTesting(true)
+    }
+
+    @State private var repaintElementId: UUID? = nil
+
+    private func handleOrbitAction(_ action: String, elementId: UUID) {
+        switch action {
+        case "Repaint":
+            repaintElementId = elementId
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        case "Move":
+            withAnimation(.spring(response: 0.25)) {
+                isDraggingElement = true
+            }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        case "Remove":
+            withAnimation(.spring(response: 0.3)) {
+                dayCanvas.elements.removeAll { $0.id == elementId }
+                activeElementId = nil
+                dayCanvas.lastModified = Date()
+                saveCanvasLocally()
+            }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        default:
+            break
+        }
+    }
+
+    // MARK: - Label Mode Drag to Move
+
+    private func handleLabelDrag(value: DragGesture.Value, canvasSize: CGSize) {
+        if activeElementId == nil || !isDraggingElement {
             let t = Date().timeIntervalSinceReferenceDate
             if let hit = findClosestElement(to: value.startLocation, canvasSize: canvasSize, t: t),
                hit.distance < 80 {
                 activeElementId = hit.element.id
+                isDraggingElement = true
                 dragStartBasePosition = hit.element.basePosition
             }
         }
 
         guard let id = activeElementId,
-              let startPos = dragStartBasePosition,
+              let startPos = dragStartBasePosition ?? dayCanvas.elements.first(where: { $0.id == id })?.basePosition,
               let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
+
+        if dragStartBasePosition == nil { dragStartBasePosition = startPos }
 
         let dx = value.translation.width / canvasSize.width
         let dy = value.translation.height / canvasSize.height
-
         dayCanvas.elements[index].basePosition = CGPoint(
             x: min(0.95, max(0.05, startPos.x + dx)),
             y: min(0.95, max(0.05, startPos.y + dy))
         )
     }
 
-    private func handleMoveDragEnd() {
-        activeElementId = nil
+    private func handleLabelDragEnd() {
+        isDraggingElement = false
         dragStartBasePosition = nil
         dayCanvas.lastModified = Date()
         saveCanvasLocally()
@@ -544,7 +875,6 @@ struct GalleryView: View {
             rotationGestureActive = true
             rotationAtGestureStart = dayCanvas.elements[index].userRotation
         }
-
         dayCanvas.elements[index].userRotation = rotationAtGestureStart + angle.radians
     }
 
@@ -552,6 +882,61 @@ struct GalleryView: View {
         rotationGestureActive = false
         dayCanvas.lastModified = Date()
         saveCanvasLocally()
+    }
+
+    // MARK: - Repaint Sheet
+
+    private func repaintSheet(for elementId: UUID) -> some View {
+        let elementIndex = dayCanvas.elements.firstIndex { $0.id == elementId }
+        let currentHex = elementIndex.map { dayCanvas.elements[$0].hexColor } ?? "#FFFFFF"
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 6)
+
+        return NavigationStack {
+            VStack(spacing: 16) {
+                Text(String(localized: "Pick a new color", comment: "Repaint sheet – title"))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(Array(CanvasColorPalette.paletteHex.enumerated()), id: \.offset) { _, hex in
+                        let isActive = hex == currentHex
+                        Button {
+                            if let idx = elementIndex {
+                                withAnimation(.spring(response: 0.2)) {
+                                    dayCanvas.elements[idx].hexColor = hex
+                                    dayCanvas.lastModified = Date()
+                                    saveCanvasLocally()
+                                }
+                            }
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            Circle()
+                                .fill(Color(hex: hex))
+                                .frame(width: 40, height: 40)
+                                .overlay(
+                                    Circle().stroke(Color.primary.opacity(isActive ? 0.6 : 0), lineWidth: 2.5)
+                                        .padding(-3)
+                                )
+                                .scaleEffect(isActive ? 1.12 : 1.0)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+            .padding(.vertical, 24)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "Done", comment: "Repaint sheet – dismiss")) {
+                        repaintElementId = nil
+                    }
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                }
+            }
+        }
+        .presentationDetents([.height(280)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(.ultraThinMaterial)
     }
 
     // MARK: - Hit Testing (mirrors GenerativeCanvasView positions)
@@ -564,7 +949,7 @@ struct GalleryView: View {
             let dx = point.x - center.x
             let dy = point.y - center.y
             let dist = sqrt(dx * dx + dy * dy)
-            if closest == nil || dist < closest!.distance {
+            if closest == nil || dist < (closest?.distance ?? .greatestFiniteMagnitude) {
                 closest = (element, dist)
             }
         }
@@ -585,21 +970,26 @@ struct GalleryView: View {
         }
     }
 
+    private var hitTestAmpScale: Double {
+        isLabelMode ? 0.25 : 1.0
+    }
+
     private func mindHitPosition(_ e: CanvasElement, canvasSize: CGSize, t: TimeInterval) -> CGPoint {
         let p = e.phaseOffset
         let speed = 0.03 + e.driftSpeed * 0.06
+        let amp = hitTestAmpScale
 
         let nx = Double(e.basePosition.x)
-            + sin(t * speed * 1.00 + p) * 0.34
-            + sin(t * speed * 2.37 + p * 2.3) * 0.12
-            + sin(t * speed * 4.13 + p * 4.1) * 0.04
-            + sin(t * speed * 6.71 + p * 6.7) * 0.015
+            + sin(t * speed * 1.00 + p) * 0.34 * amp
+            + sin(t * speed * 2.37 + p * 2.3) * 0.12 * amp
+            + sin(t * speed * 4.13 + p * 4.1) * 0.04 * amp
+            + sin(t * speed * 6.71 + p * 6.7) * 0.015 * amp
 
         let ny = Double(e.basePosition.y)
-            + cos(t * speed * 0.83 + p * 1.7) * 0.32
-            + cos(t * speed * 1.97 + p * 3.1) * 0.11
-            + cos(t * speed * 3.61 + p * 5.3) * 0.04
-            + cos(t * speed * 5.89 + p * 7.9) * 0.015
+            + cos(t * speed * 0.83 + p * 1.7) * 0.32 * amp
+            + cos(t * speed * 1.97 + p * 3.1) * 0.11 * amp
+            + cos(t * speed * 3.61 + p * 5.3) * 0.04 * amp
+            + cos(t * speed * 5.89 + p * 7.9) * 0.015 * amp
 
         let margin = 0.06
         return CGPoint(
@@ -668,7 +1058,8 @@ struct GalleryView: View {
             showLabelsOnCanvas: true,
             showsOutlinedLabels: false,
             hasStepsData: model.hasStepsData,
-            hasSleepData: model.hasSleepData
+            hasSleepData: model.hasSleepData,
+            fixedTime: Date()
         )
         .frame(width: 390, height: 500)
 
@@ -717,13 +1108,13 @@ struct GalleryView: View {
 
     private func overlayTitle(for kind: MetricOverlayKind) -> String {
         switch kind {
-        case .steps: return "Steps"
-        case .sleep: return "Sleep"
+        case .steps: return String(localized: "Steps")
+        case .sleep: return String(localized: "Sleep")
         case .category(let c):
             switch c {
-            case .body: return "Body"
-            case .mind: return "Mind"
-            case .heart: return "Heart"
+            case .body: return String(localized: "Body", comment: "Energy category")
+            case .mind: return String(localized: "Mind", comment: "Energy category")
+            case .heart: return String(localized: "Heart", comment: "Energy category")
             }
         }
     }
@@ -748,7 +1139,7 @@ struct GalleryView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(formatCompactNumber(Int(model.healthStore.stepsToday)))
                         .font(.title2.bold())
-                    Text("steps today")
+                    Text(String(localized: "steps today"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -756,12 +1147,12 @@ struct GalleryView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(model.stepsPointsToday)/\(EnergyDefaults.stepsMaxPoints)")
                         .font(.title3.bold())
-                    Text("rays")
+                    Text(String(localized: "colors"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-            Text("Target: \(formatCompactNumber(Int(userStepsTarget))) steps")
+            Text(String(localized: "Target: \(formatCompactNumber(Int(userStepsTarget))) steps"))
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -773,7 +1164,7 @@ struct GalleryView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(format: "%.1fh", model.healthStore.dailySleepHours))
                         .font(.title2.bold())
-                    Text("hours slept")
+                    Text(String(localized: "hours slept"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -781,12 +1172,12 @@ struct GalleryView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(model.sleepPointsToday)/\(EnergyDefaults.sleepMaxPoints)")
                         .font(.title3.bold())
-                    Text("rays")
+                    Text(String(localized: "colors"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-            Text("Target: \(String(format: "%.1f", userSleepTarget))h")
+            Text(String(localized: "Target: \(String(format: "%.1f", userSleepTarget))h"))
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -799,23 +1190,23 @@ struct GalleryView: View {
             let extras = selectionTitles(for: .body)
             let total = model.activityPointsToday
             if extras.isEmpty {
-                return "Body tracks physical activities you choose. Pick up to 4 cards for \(maxPts) rays (\(total) rays today)."
+                return String(localized: "Body tracks physical activities you choose. Pick up to 4 cards for \(maxPts) colors (\(total) colors today).")
             }
-            return "Body tracks physical activities. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) rays for my body."
+            return String(localized: "Body tracks physical activities. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) colors for my body.")
         case .mind:
             let extras = selectionTitles(for: .mind)
             let total = model.creativityPointsToday
             if extras.isEmpty {
-                return "Mind tracks creativity and rest. Pick up to 4 cards for \(maxPts) rays (\(total) rays today)."
+                return String(localized: "Mind tracks creativity and rest. Pick up to 4 cards for \(maxPts) colors (\(total) colors today).")
             }
-            return "Mind tracks creativity and rest. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) rays for my mind."
+            return String(localized: "Mind tracks creativity and rest. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) colors for my mind.")
         case .heart:
             let extras = selectionTitles(for: .heart)
             let total = model.joysCategoryPointsToday
             if extras.isEmpty {
-                return "Heart tracks joys and things that make you feel alive. Pick up to 4 cards for \(maxPts) rays (\(total) rays today)."
+                return String(localized: "Heart tracks joys and things that make you feel alive. Pick up to 4 cards for \(maxPts) colors (\(total) colors today).")
             }
-            return "Heart tracks joys and what makes you feel alive. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) rays for my heart."
+            return String(localized: "Heart tracks joys and what makes you feel alive. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) colors for my heart.")
         }
     }
 
@@ -852,7 +1243,6 @@ struct CanvasDayDetailSheet: View {
     @ObservedObject var model: AppModel
     let dayKey: String
     let snapshot: PastDaySnapshot?
-    let appLanguage: String = "en"
     let onDismiss: () -> Void
     @Environment(\.appTheme) private var theme
 
@@ -871,14 +1261,14 @@ struct CanvasDayDetailSheet: View {
                 VStack(alignment: .leading, spacing: 20) {
                     if let s = snapshot {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            statCard(icon: "figure.walk", value: "\(s.steps)", label: "Steps", color: .green)
-                            statCard(icon: "bed.double.fill", value: String(format: "%.1f", s.sleepHours), label: "Sleep hours", color: .indigo)
-                            statCard(icon: "plus.circle.fill", value: "\(s.inkEarned)", label: "Gained", color: .blue)
-                            statCard(icon: "minus.circle.fill", value: "\(s.inkSpent)", label: "Spent", color: .orange)
+                            statCard(icon: "figure.walk", value: "\(s.steps)", label: String(localized: "Steps"), color: .green)
+                            statCard(icon: "bed.double.fill", value: String(format: "%.1f", s.sleepHours), label: String(localized: "Sleep hours"), color: .indigo)
+                            statCard(icon: "plus.circle.fill", value: "\(s.inkEarned)", label: String(localized: "Gained"), color: .blue)
+                            statCard(icon: "minus.circle.fill", value: "\(s.inkSpent)", label: String(localized: "Spent"), color: .orange)
                         }
                         canvasSection(s)
                     } else {
-                        Text("No data for this day.")
+                        Text(String(localized: "No data for this day."))
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -892,7 +1282,7 @@ struct CanvasDayDetailSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { onDismiss() }
+                    Button(String(localized: "Done")) { onDismiss() }
                 }
             }
         }
@@ -901,9 +1291,9 @@ struct CanvasDayDetailSheet: View {
 
     private func canvasSection(_ s: PastDaySnapshot) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            canvasRow(title: "Body", ids: s.bodyIds, color: theme.bodyColor)
-            canvasRow(title: "Mind", ids: s.mindIds, color: theme.mindColor)
-            canvasRow(title: "Heart", ids: s.heartIds, color: theme.heartColor)
+            canvasRow(title: String(localized: "Body", comment: "Energy category"), ids: s.bodyIds, color: theme.bodyColor)
+            canvasRow(title: String(localized: "Mind", comment: "Energy category"), ids: s.mindIds, color: theme.mindColor)
+            canvasRow(title: String(localized: "Heart", comment: "Energy category"), ids: s.heartIds, color: theme.heartColor)
         }
     }
 
@@ -995,6 +1385,6 @@ struct FlowLayout: Layout {
 
 #Preview {
     NavigationStack {
-        GalleryView(model: DIContainer.shared.makeAppModel(), metricOverlay: .constant(nil), isLabelMode: .constant(false))
+        GalleryView(model: DIContainer.shared.makeAppModel(), metricOverlay: .constant(nil), isLabelMode: .constant(false), isWideCanvas: .constant(false))
     }
 }

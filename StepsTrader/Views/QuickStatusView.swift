@@ -33,36 +33,10 @@ struct QuickStatusView: View {
                         Text("Steps today:")
                             .font(.title2)
                         Spacer()
-                        Text("\(Int(model.effectiveStepsToday))")
+                        Text("\(Int(model.stepsToday))")
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(.green)
-                    }
-                    .padding()
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
-
-                    // Time budget
-                    HStack {
-                        Text("Time budget:")
-                            .font(.title2)
-                        Spacer()
-                        Text("\(model.remainingMinutes) min")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(model.remainingMinutes > 0 ? .blue : .red)
-                    }
-                    .padding()
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
-
-                    // Time spent
-                    HStack {
-                        Text("Spent time:")
-                            .font(.title2)
-                        Spacer()
-                        Text("\(model.spentMinutes) min")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(.orange)
                     }
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))

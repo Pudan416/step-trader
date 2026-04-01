@@ -14,11 +14,6 @@ import UIKit
 // Make sure that your class name matches the NSExtensionPrincipalClass in your Info.plist.
 class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     
-    private enum ShieldState: Int {
-        case blocked = 0        // Initial state: just blocked
-        case waitingPush = 1    // After user taps "Unlock" – show "check notifications"
-    }
-    
     /// Shared UserDefaults from App Group
     private func sharedDefaults() -> UserDefaults {
         if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId) != nil,
@@ -28,18 +23,14 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         return .standard
     }
     
-    private func currentState() -> ShieldState {
-        let raw = sharedDefaults().integer(forKey: SharedKeys.shieldState)
-        return ShieldState(rawValue: raw) ?? .blocked
-    }
-    
     private func getAppName(for application: Application) -> String {
-        return application.localizedDisplayName ?? "App"
+        return application.localizedDisplayName ?? NSLocalizedString("App", comment: "Fallback name for unknown app")
     }
     
     // MARK: - Brand Colors
-    private var brandPink: UIColor {
-        UIColor(red: 224/255, green: 130/255, blue: 217/255, alpha: 1.0)
+    // Matches AppColors.brandAccent (#FFD369); extension target can't import ColorConstants.
+    private var brandYellow: UIColor {
+        UIColor(red: 0xFF/255.0, green: 0xD3/255.0, blue: 0x69/255.0, alpha: 1.0)
     }
     
     private var darkBackground: UIColor {
@@ -62,8 +53,8 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             icon: appIcon,
             title: ShieldConfiguration.Label(text: title, color: .white),
             subtitle: ShieldConfiguration.Label(text: subtitle, color: UIColor.white.withAlphaComponent(0.85)),
-            primaryButtonLabel: ShieldConfiguration.Label(text: primaryButtonText, color: .white),
-            primaryButtonBackgroundColor: brandPink,
+            primaryButtonLabel: ShieldConfiguration.Label(text: primaryButtonText, color: .black),
+            primaryButtonBackgroundColor: brandYellow,
             secondaryButtonLabel: secondaryButtonText.map { ShieldConfiguration.Label(text: $0, color: UIColor.white.withAlphaComponent(0.6)) }
         )
     }
@@ -76,27 +67,17 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
            let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
             let base64 = tokenData.base64EncodedString()
             let defaults = sharedDefaults()
-            defaults.set(appName, forKey: "fc_appName_" + base64)
+            defaults.set(appName, forKey: SharedKeys.fcAppNameKey(base64))
             if let bid = application.bundleIdentifier {
-                defaults.set(bid, forKey: "fc_bundleId_" + base64)
+                defaults.set(bid, forKey: SharedKeys.fcBundleIdKey(base64))
             }
         }
         
-        switch currentState() {
-        case .blocked:
-            return baseConfiguration(
-                title: "\(appName) is closed.",
-                subtitle: "Open Nowhere to unlock it.",
-                primaryButtonText: "Open"
-            )
-            
-        case .waitingPush:
-            return baseConfiguration(
-                title: "Check your notifications.",
-                subtitle: "A notification is waiting.\nOr open Nowhere directly.",
-                primaryButtonText: "Open Nowhere"
-            )
-        }
+        return baseConfiguration(
+            title: String(format: NSLocalizedString("%@ is closed.", comment: "Shield title for blocked app"), appName),
+            subtitle: NSLocalizedString("Spend colors in Nowhere to unlock it.", comment: "Shield subtitle"),
+            primaryButtonText: NSLocalizedString("Unlock with colors", comment: "Shield primary button")
+        )
     }
     
     override func configuration(shielding application: Application, in category: ActivityCategory) -> ShieldConfiguration {
@@ -104,23 +85,13 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     }
     
     override func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
-        let domain = webDomain.domain ?? "this site"
+        let domain = webDomain.domain ?? NSLocalizedString("this site", comment: "Fallback name for unknown web domain")
         
-        switch currentState() {
-        case .blocked:
-            return baseConfiguration(
-                title: "\(domain) is closed.",
-                subtitle: "Open Nowhere to unlock it.",
-                primaryButtonText: "Open"
-            )
-            
-        case .waitingPush:
-            return baseConfiguration(
-                title: "Check your notifications.",
-                subtitle: "A notification is waiting.\nOr open Nowhere directly.",
-                primaryButtonText: "Open Nowhere"
-            )
-        }
+        return baseConfiguration(
+            title: String(format: NSLocalizedString("%@ is closed.", comment: "Shield title for blocked domain"), domain),
+            subtitle: NSLocalizedString("Spend colors in Nowhere to unlock it.", comment: "Shield subtitle"),
+            primaryButtonText: NSLocalizedString("Unlock with colors", comment: "Shield primary button")
+        )
     }
     
     override func configuration(shielding webDomain: WebDomain, in category: ActivityCategory) -> ShieldConfiguration {

@@ -2,8 +2,8 @@ import SwiftUI
 
 struct DayEndSettingsView: View {
     @ObservedObject var model: AppModel
-    @AppStorage("dayEndHour_v1") private var dayEndHourSetting: Int = 0
-    @AppStorage("dayEndMinute_v1") private var dayEndMinuteSetting: Int = 0
+    @AppStorage(SharedKeys.dayEndHour) private var dayEndHourSetting: Int = 0
+    @AppStorage(SharedKeys.dayEndMinute) private var dayEndMinuteSetting: Int = 0
     
     @State private var selectedMinutes: Int = 21 * 60
     @Environment(\.dismiss) private var dismiss
@@ -24,15 +24,6 @@ struct DayEndSettingsView: View {
     
     var body: some View {
         ZStack {
-            EnergyGradientBackground(
-                stepsPoints: model.stepsPointsToday,
-                sleepPoints: model.sleepPointsToday,
-                hasStepsData: model.hasStepsData,
-                hasSleepData: model.hasSleepData
-            )
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-            
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     // Back + title header
@@ -41,13 +32,13 @@ struct DayEndSettingsView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "chevron.left")
                                     .font(.subheadline.weight(.semibold))
-                                Text("Back")
+                                Text(String(localized: "Back"))
                                     .font(.subheadline)
                             }
                             .foregroundColor(.primary)
                         }
                         Spacer()
-                        Text("Day reset")
+                        Text(String(localized: "Day reset", comment: "Navigation title"))
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(.primary)
                         Spacer()
@@ -58,22 +49,23 @@ struct DayEndSettingsView: View {
                     
                     // Picker card
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("DAILY RESET TIME")
+                        Text(String(localized: "DAILY RESET TIME", comment: "Section header"))
                             .font(.caption2.weight(.heavy))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 14)
                             .padding(.top, 14)
                         
-                        Picker("End of day", selection: $selectedMinutes) {
+                        Picker(String(localized: "End of day", comment: "Picker label"), selection: $selectedMinutes) {
                             ForEach(allowedMinutes, id: \.self) { minutes in
                                 Text(formatTime(minutes))
                                     .tag(minutes)
                             }
                         }
                         .pickerStyle(.wheel)
+                        .accessibilityLabel(String(localized: "Daily reset time", comment: "Accessibility label"))
                         .padding(.horizontal, 8)
                         
-                        Text("Choose a time between 21:00 and 03:00.")
+                        Text(String(localized: "Choose a time between 21:00 and 03:00."))
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 14)
@@ -85,10 +77,11 @@ struct DayEndSettingsView: View {
                 .padding(.bottom, 32)
             }
         }
+        .energyGradientBackground(model: model)
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             let current = dayEndHourSetting * 60 + dayEndMinuteSetting
             if allowedMinutes.contains(current) {

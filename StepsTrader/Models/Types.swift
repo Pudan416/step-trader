@@ -40,6 +40,8 @@ protocol HealthKitServiceProtocol {
     @MainActor
     func sleepAuthorizationStatus() -> HKAuthorizationStatus
     func fetchSteps(from: Date, to: Date) async throws -> Double
+    func fetchWorkouts(from: Date, to: Date) async throws -> [DetectedWorkout]
+    func fetchMindfulMinutes(from: Date, to: Date) async throws -> Double
     @MainActor func startObservingSteps(updateHandler: @escaping (Double) -> Void)
     @MainActor func stopObservingSteps()
 }
@@ -50,6 +52,7 @@ protocol FamilyControlsServiceProtocol {
     var isAuthorized: Bool { get }
     var selection: FamilyActivitySelection { get set }
     func requestAuthorization() async throws
+    func refreshAuthorizationStatus()
     func updateSelection(_ newSelection: FamilyActivitySelection)
     /// Updates DeviceActivity monitoring for minute-mode charging (if supported/authorized).
     func updateMinuteModeMonitoring()

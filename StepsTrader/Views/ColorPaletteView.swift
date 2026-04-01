@@ -8,13 +8,14 @@ struct ColorPaletteView: View {
     @Binding var selectedHex: String
     let onConfirm: () -> Void
     @Environment(\.appTheme) private var theme
+    @ScaledMetric(relativeTo: .body) private var colorDotSize: CGFloat = 44
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 4)
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("Pick a color")
-                .font(.system(size: 13, weight: .semibold))
+            Text(String(localized: "Pick a color", comment: "ColorPalette – sheet title"))
+                .font(.footnote.weight(.semibold))
                 .foregroundStyle(theme.textPrimary.opacity(0.6))
 
             LazyVGrid(columns: columns, spacing: 8) {
@@ -27,8 +28,8 @@ struct ColorPaletteView: View {
             Button {
                 onConfirm()
             } label: {
-                Text("Add")
-                    .font(.system(size: 14, weight: .semibold))
+                Text(String(localized: "Add", comment: "ColorPalette – add button"))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(theme.isLightTheme ? .white : .black)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -56,7 +57,7 @@ struct ColorPaletteView: View {
         } label: {
             Circle()
                 .fill(Color(hex: hex))
-                .frame(width: 32, height: 32)
+                .frame(width: colorDotSize, height: colorDotSize)
                 .overlay(
                     Circle()
                         .stroke(.white, lineWidth: isSelected ? 2.5 : 0)
@@ -69,155 +70,6 @@ struct ColorPaletteView: View {
                 .shadow(color: isSelected ? Color(hex: hex).opacity(0.5) : .clear, radius: 6)
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Activity Picker with Color (wraps existing list + adds color)
-
-struct ActivityPickerWithColorSheet: View {
-    @ObservedObject var model: AppModel
-    let initialCategory: EnergyCategory
-    let onActivityConfirmed: (String, EnergyCategory, String, Int?) -> Void  // (optionId, category, hexColor, assetVariant?)
-    let onActivityUndo: (String, EnergyCategory) -> Void               // (optionId, category) — remove from canvas + toggle off
-    let onDismiss: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var tab: EnergyCategory = .body
-    @State private var pendingOptionId: String? = nil
-    @State private var selectedColorHex: String = CanvasColorPalette.paletteHex[0]
-    @State private var showColorPicker = false
-    @State private var showConfirm = false
-    @State private var showUndoAlert = false
-    @State private var undoOptionId: String? = nil
-    @State private var undoCategory: EnergyCategory? = nil
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            VStack(spacing: 0) {
-                // Minimalist header
-                HStack {
-                    Text("Add activity")
-                        .font(.system(size: 16, weight: .semibold))
-                    Spacer()
-                    Button("Done") { 
-                        onDismiss()
-                        dismiss() 
-                    }
-                    .font(.system(size: 15, weight: .medium))
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                
-                Picker("", selection: $tab) {
-                    Text("Body").tag(EnergyCategory.body)
-                    Text("Mind").tag(EnergyCategory.mind)
-                    Text("Heart").tag(EnergyCategory.heart)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-
-                ScrollView {
-                    LazyVStack(spacing: 4) {
-                        ForEach(options(for: tab)) { option in
-                            activityRow(option: option, category: tab)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, showColorPicker ? 240 : 16)
-                }
-
-                // Color picker overlay
-                if showColorPicker {
-                    ColorPaletteView(selectedHex: $selectedColorHex) {
-                        confirmSelection()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: showColorPicker)
-        }
-        .onAppear { tab = initialCategory }
-        .presentationDetents([.height(480), .large])
-        .presentationBackgroundInteraction(.enabled(upThrough: .height(480)))
-        .alert("Undo this action?", isPresented: $showUndoAlert) {
-            Button("Cancel", role: .cancel) {
-                undoOptionId = nil
-                undoCategory = nil
-            }
-            Button("Undo", role: .destructive) {
-                if let optionId = undoOptionId, let category = undoCategory {
-                    onActivityUndo(optionId, category)
-                }
-                undoOptionId = nil
-                undoCategory = nil
-            }
-        } message: {
-            Text("This will remove the activity from today's canvas and unmark it.")
-        }
-    }
-
-    private func options(for category: EnergyCategory) -> [EnergyOption] {
-        model.orderedOptions(for: category)
-    }
-
-    @ViewBuilder
-    private func activityRow(option: EnergyOption, category: EnergyCategory) -> some View {
-        let isSelected = model.isDailySelected(option.id, category: category)
-        let canSelect = !isSelected && model.dailySelectionsCount(for: category) < EnergyDefaults.maxSelectionsPerCategory
-
-        Button {
-            if isSelected {
-                undoOptionId = option.id
-                undoCategory = category
-                showUndoAlert = true
-                return
-            }
-            guard canSelect else { return }
-            pendingOptionId = option.id
-            selectedColorHex = category.defaultColorHex
-            showColorPicker = true
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: option.icon)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(isSelected ? .yellow : .primary)
-                    .frame(width: 24)
-                Text(option.title(for: "en"))
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.primary)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.yellow)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(.secondarySystemGroupedBackground))
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .opacity(canSelect || isSelected ? 1 : 0.4)
-    }
-
-    private func confirmSelection() {
-        guard let optionId = pendingOptionId else { return }
-        // Toggle in model
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            model.toggleDailySelection(optionId: optionId, category: tab)
-        }
-        // Spawn canvas element (no shape picker in this flow — pass nil for auto variant)
-        onActivityConfirmed(optionId, tab, selectedColorHex, nil)
-        // Reset
-        showColorPicker = false
-        pendingOptionId = nil
     }
 }
 

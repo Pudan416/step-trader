@@ -1,0 +1,173 @@
+import SwiftUI
+
+struct GradientPreviewSheet: View {
+    let config: GradientPreviewConfig
+    let onApply: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage(SharedKeys.gradientPalette) private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
+    @State private var isDaylight = false
+    @State private var selectedState = 0
+
+    private let states: [(steps: Double, sleep: Double, label: String)] = [
+        (1.0, 1.0, String(localized: "Full", comment: "GradientPreview – preview mode showing all data")),
+        (0.0, 1.0, String(localized: "Sleep only", comment: "GradientPreview – preview mode sleep data only")),
+        (1.0, 0.0, String(localized: "Steps only", comment: "GradientPreview – preview mode steps data only")),
+        (0.0, 0.0, String(localized: "No data", comment: "GradientPreview – preview mode empty state")),
+    ]
+
+    private var pal: EnergyGradientRenderer.Palette {
+        EnergyGradientRenderer.palette(for: GradientPalette(rawValue: gradientPaletteRaw) ?? .warmSunset)
+    }
+
+    private var baseColor: Color {
+        isDaylight ? pal.daylightBase : pal.dark
+    }
+
+    var body: some View {
+        ZStack {
+            Canvas { context, size in
+                let st = states[selectedState]
+                let Ss = EnergyGradientRenderer.smoothstep(st.steps)
+                let Ls = EnergyGradientRenderer.smoothstep(st.sleep)
+                let opacities = EnergyGradientRenderer.computeOpacities(
+                    smoothedS: Ss,
+                    smoothedL: Ls,
+                    hasStepsData: st.steps > 0,
+                    hasSleepData: st.sleep > 0,
+                    isDaylight: isDaylight
+                )
+                EnergyGradientRenderer.draw(
+                    context: &context,
+                    size: size,
+                    opacities: opacities,
+                    baseColor: baseColor,
+                    gradientStyle: config.style,
+                    colorPalette: pal
+                )
+            }
+            .ignoresSafeArea()
+            .overlay {
+                Image("grain 1")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .opacity(0.4)
+                    .blendMode(.overlay)
+            }
+
+            VStack(spacing: 0) {
+                HStack {
+                    Text(config.style.displayName)
+                        .font(.headline.weight(.semibold))
+                        .foregroundColor(.white)
+                    Spacer()
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+
+                Spacer()
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    ForEach(Array(states.enumerated()), id: \.offset) { index, state in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.4)) { selectedState = index }
+                        } label: {
+                            VStack(spacing: 5) {
+                                Canvas { context, size in
+                                    let Ss = EnergyGradientRenderer.smoothstep(state.steps)
+                                    let Ls = EnergyGradientRenderer.smoothstep(state.sleep)
+                                    let opacities = EnergyGradientRenderer.computeOpacities(
+                                        smoothedS: Ss,
+                                        smoothedL: Ls,
+                                        hasStepsData: state.steps > 0,
+                                        hasSleepData: state.sleep > 0,
+                                        isDaylight: isDaylight
+                                    )
+                                    EnergyGradientRenderer.draw(
+                                        context: &context,
+                                        size: size,
+                                        opacities: opacities,
+                                        baseColor: baseColor,
+                                        gradientStyle: config.style,
+                                        colorPalette: pal
+                                    )
+                                }
+                                .frame(height: 72)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .strokeBorder(
+                                            selectedState == index ? Color.white : Color.white.opacity(0.15),
+                                            lineWidth: selectedState == index ? 2 : 0.5
+                                        )
+                                )
+
+                                Text(state.label)
+                                    .font(.system(size: 10, weight: selectedState == index ? .bold : .medium))
+                                    .foregroundColor(selectedState == index ? .white : .white.opacity(0.5))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 20)
+
+                HStack(spacing: 0) {
+                    modeButton(title: String(localized: "Night", comment: "GradientPreview – time-of-day label"), icon: "moon.fill", isActive: !isDaylight) {
+                        withAnimation(.easeInOut(duration: 0.6)) { isDaylight = false }
+                    }
+                    modeButton(title: String(localized: "Daylight", comment: "GradientPreview – time-of-day label"), icon: "sun.max.fill", isActive: isDaylight) {
+                        withAnimation(.easeInOut(duration: 0.6)) { isDaylight = true }
+                    }
+                }
+                .background(Capsule().fill(.ultraThinMaterial))
+                .padding(.top, 16)
+
+                Button {
+                    onApply()
+                } label: {
+                    Text(String(localized: "Apply", comment: "GradientPreview – apply gradient button"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Capsule().fill(AppColors.brandAccent))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 40)
+                .padding(.top, 16)
+                .padding(.bottom, 32)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func modeButton(title: String, icon: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.caption)
+                Text(title)
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundColor(isActive ? .white : .white.opacity(0.5))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                isActive ? AnyShapeStyle(Color.white.opacity(0.2)) : AnyShapeStyle(Color.clear)
+            )
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}

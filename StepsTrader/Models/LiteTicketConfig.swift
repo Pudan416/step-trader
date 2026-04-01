@@ -7,12 +7,12 @@ import FamilyControls
 // Minimal payload: id, name, selection (base64), active. Avoids passing full
 // TicketGroup/AppUnlockSettings to reduce memory and decode cost in the extension.
 
-struct LiteTicketConfig: Encodable {
+struct LiteTicketConfig: Codable {
     static let storageKey = "liteTicketConfig_v1"
     let groups: [LiteTicketGroup]
 }
 
-struct LiteTicketGroup: Encodable {
+struct LiteTicketGroup: Codable {
     let id: String
     let name: String
     /// FamilyActivitySelection encoded as JSON then base64

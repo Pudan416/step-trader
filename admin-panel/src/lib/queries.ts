@@ -1,7 +1,6 @@
 import { supabaseAdmin } from "./supabaseAdmin";
-import type { EnergyLedgerRow, PublicUserRow, ShieldRow } from "./types";
+import type { PublicUserRow, ShieldRow, UserPrefsRow } from "./types";
 
-const PAGE_SIZE = 1000;
 const HARD_ROW_LIMIT = 200_000;
 
 export async function listPublicUsers(params: {
@@ -47,6 +46,17 @@ export async function getPublicUser(userId: string): Promise<PublicUserRow | nul
   return (data ?? null) as PublicUserRow | null;
 }
 
+export async function getUserPrefs(userId: string): Promise<UserPrefsRow | null> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("user_preferences")
+    .select("user_id,last_opened_at,has_medium_widget,has_large_widget")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as UserPrefsRow | null;
+}
+
 export async function listShields(userId: string): Promise<ShieldRow[]> {
   const sb = supabaseAdmin();
   const { data, error } = await sb
@@ -70,56 +80,6 @@ export async function countShields(userId?: string): Promise<number> {
     : await sb.from("shields").select("id").limit(10_000);
   if (e2) throw e2;
   return (data ?? []).length;
-}
-
-export async function sumEnergyDelta(userId?: string): Promise<{ total: number; rowsScanned: number }> {
-  const sb = supabaseAdmin();
-
-  // Try server-side RPC first (requires migration: sum_energy_delta)
-  const { data: rpcResult, error: rpcError } = await sb.rpc("sum_energy_delta", {
-    p_user_id: userId ?? null,
-  });
-  if (!rpcError && typeof rpcResult === "number") {
-    return { total: rpcResult, rowsScanned: 0 };
-  }
-
-  // Fallback: client-side pagination (remove once RPC is deployed)
-  let offset = 0;
-  let total = 0;
-  let scanned = 0;
-
-  while (true) {
-    const q = sb
-      .from("energy_ledger")
-      .select("delta", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-    const { data, error } = userId ? await q.eq("user_id", userId) : await q;
-    if (error) throw error;
-
-    const rows = (data ?? []) as Array<{ delta: number }>;
-    if (rows.length === 0) break;
-    total += rows.reduce((acc, r) => acc + (r.delta ?? 0), 0);
-    scanned += rows.length;
-
-    if (rows.length < PAGE_SIZE) break;
-    offset += PAGE_SIZE;
-    if (offset > HARD_ROW_LIMIT) break;
-  }
-
-  return { total, rowsScanned: scanned };
-}
-
-export async function listEnergyLedger(userId: string, limit = 200): Promise<EnergyLedgerRow[]> {
-  const sb = supabaseAdmin();
-  const { data, error } = await sb
-    .from("energy_ledger")
-    .select("user_id,delta,created_at,reason")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw error;
-  return (data ?? []) as EnergyLedgerRow[];
 }
 
 export async function countAuthUsers(): Promise<number> {
@@ -169,18 +129,6 @@ export async function unbanUser(userId: string): Promise<void> {
       ban_until: null,
     })
     .eq("id", userId);
-  if (error) throw error;
-}
-
-export async function grantEnergy(
-  userId: string,
-  delta: number,
-  reason: string
-): Promise<void> {
-  const sb = supabaseAdmin();
-  const { error } = await sb
-    .from("energy_ledger")
-    .insert({ user_id: userId, delta, reason });
   if (error) throw error;
 }
 

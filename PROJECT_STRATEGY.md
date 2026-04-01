@@ -6,9 +6,9 @@
 
 ## 1. Executive Summary
 
-**What Nowhere is**: A SwiftUI iOS app where your real life — steps, sleep, and daily choices across three categories (body, mind, heart) — produces rays. Rays are what you spend to open your feeds. The canvas is the soul of the product; screen time is what you trade to leave your own canvas and enter someone else's feed.
+**What Nowhere is**: A SwiftUI iOS app where your real life — steps, sleep, and daily choices across three categories (body, mind, heart) — produces colors. Colors are what you spend to open your feeds. The canvas is the soul of the product; screen time is what you trade to leave your own canvas and enter someone else's feed.
 
-**Current state**: ~95% feature-complete for beta. Branded as **Nowhere**, uses canvas/rays language throughout, 12-entry Notes tab, 7-slide onboarding, and a 5-tab layout. The codebase has been through a full audit with 60+ fixes landed.
+**Current state**: ~95% feature-complete for beta. Branded as **Nowhere**, uses canvas/colors language throughout, 12-entry Notes tab, 7-slide onboarding, and a 5-tab layout. The codebase has been through a full audit with 60+ fixes landed.
 
 **What remains for beta launch**: Final QA, TestFlight build, beta tester recruitment, fix remaining "Proof" references in shield copy.
 
@@ -21,11 +21,11 @@
 | Goal | Status |
 |------|--------|
 | App name = "Nowhere" | Done. Notifications, onboarding, StepBalanceCard header ("NOW / HERE") all say Nowhere. |
-| Currency = "rays" | Done in UI. PayGate reads "spend rays", "N rays". Internal model uses `ink` (inkEarned/inkSpent). |
+| Currency = "colors" | Done in UI. PayGate reads "spend colors", "N colors". Internal model uses `ink` (inkEarned/inkSpent). |
 | Three categories = body / mind / heart | Done. Canvas headers, balance card chips, onboarding, notes all use body / mind / heart. |
 | 10+ activities per category | Done. Body (11), Mind (10), Heart (10). Custom user-added activities supported. |
-| Shield copy = canvas tone | Partial. Copy reads "[app] is closed. Open Proof to spend rays." — **"Proof" needs updating to "Nowhere"**. |
-| PayGate = choice framing | Done. "keep it closed", "spend rays", cost as "N rays". |
+| Shield copy = canvas tone | Partial. Copy reads "[app] is closed. Open Nowhere to spend colors." |
+| PayGate = choice framing | Done. "keep it closed", "spend colors", cost as "N colors". |
 | English-only for v1 | Done. All `loc()` wrappers stripped. `titleRu` fields remain in models for backward compat but are unused. |
 | Difficulty labels | Done. Neutral "Level 1" through "Level 5". |
 
@@ -35,9 +35,9 @@
 |------|--------|
 | Canvas = default tab | Done. Tab 0, default selection on launch. |
 | Onboarding = 7 slides, canvas-first | Done. Welcome, heart picks, body picks, mind picks, steps setup, sleep setup, permissions. |
-| Notes tab = 12 wall texts | Done. Topics: canvas, body/mind/heart, sleep, steps, feeds, limits, wallpaper, colors, rays, proof, threshold, time. |
+| Notes tab = 12 wall texts | Done. Topics: canvas, body/mind/heart, sleep, steps, feeds, limits, wallpaper, colors, proof, threshold, time. |
 | Me tab = weekly reflection | Done. 7-day ring row, reflection line, dimension breakdown (body/mind/heart), average stats, top consumers. |
-| Lock Screen widget | Done. ProofLockScreenWidget extension — inline/circular/rectangular accessories showing rays. |
+| Lock Screen widget | Done. ProofLockScreenWidget extension — inline/circular/rectangular accessories showing colors. |
 | Rest day override | Done. Toggle in Settings, floors base energy to 30 when enabled. |
 | SharedKeys.swift | Done. Single enum shared across app + 3 extensions. |
 | Privacy manifest | Done. PrivacyInfo.xcprivacy with UserDefaults API declaration. |
@@ -71,7 +71,7 @@
 
 | Item | Severity | Notes |
 |------|----------|-------|
-| Shield copy says "Proof" instead of "Nowhere" | Medium | `ShieldConfigurationExtension.swift` — "Open Proof to spend rays." should be "Open Nowhere to spend rays." |
+| Shield copy says "Proof" instead of "Nowhere" | Medium | `ShieldConfigurationExtension.swift` — "Open Proof to spend colors." should be "Open Nowhere to spend colors." |
 | ProofLockScreenWidget target name | Low | Code target is still named `ProofLockScreenWidget`. Renaming requires Xcode project changes. User-facing display name may differ. |
 | Internal variable names still use "steps" vocabulary | Low | `stepsBalance`, `spentStepsToday`, etc. Deliberate deferral — large mechanical rename, no user impact. |
 | AppModel forwarding layer | Medium | ~65 computed properties forward to stores. Remove incrementally. |
@@ -86,7 +86,7 @@
 2. **DeviceActivityMonitor** — Extension: tracks app usage events
 3. **ShieldAction** — Extension: handles shield button taps
 4. **ShieldConfiguration** — Extension: provides shield UI content
-5. **ProofLockScreenWidget** — WidgetKit extension: Lock Screen rays display
+5. **ProofLockScreenWidget** — WidgetKit extension: Lock Screen colors display
 6. **Steps4Tests** — Unit tests
 7. **Steps4UITests** — UI tests
 
@@ -115,7 +115,7 @@ HealthKit (steps, sleep)
 
 ### Key Technical Moats
 - **FamilyControls + DeviceActivity + ManagedSettings + 3 extensions** — months of integration work
-- **Generative canvas** — real-time animated visualization of daily rays (circles for body/mind, rays for heart)
+- **Generative canvas** — real-time animated visualization of daily colors (circles for body/mind, beams for heart)
 - **Energy gradient background** — ambient background that shifts with steps/sleep points
 
 ---
@@ -124,8 +124,8 @@ HealthKit (steps, sleep)
 
 ### The Core Loop
 1. **Live** — Walk, sleep, choose from three categories (body, mind, heart)
-2. **See** — Your canvas fills up. The painting animates. Rays accumulate.
-3. **Spend** — When you want into your feeds, you spend rays through the PayGate. Consciously, visibly.
+2. **See** — Your canvas fills up. The painting animates. Colors accumulate.
+3. **Spend** — When you want into your feeds, you spend colors through the PayGate. Consciously, visibly.
 
 ### Tab Structure
 | Tab | View | Purpose |
@@ -139,7 +139,7 @@ HealthKit (steps, sleep)
 ### Vocabulary Contract (Enforced)
 | Concept | THE word | NOT these |
 |---------|---------|-----------|
-| What your life produces | **rays** | balance, energy, EXP, experience, steps, points, ink (ink is code-only) |
+| What your life produces | **colors** | balance, energy, EXP, experience, steps, points, ink (ink is code-only) |
 | What you do each day | **pieces** | activities, selections, options |
 | The three categories | **body, mind, heart** | Move/Reboot/Joy |
 | The app groups | **tickets** (code) / **feeds** (tab) | shields, groups, bundles |
@@ -173,7 +173,7 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 | on limits | "A limit is not a punishment. It is a threshold..." |
 | on wallpaper | "The wallpaper is proof that today happened..." |
 | on colors | "Colors shift with energy. They are not decoration — they are weather..." |
-| on rays | "Rays are energy made visible..." |
+| on colors | "Colors are energy made visible..." |
 | on proof | "Proof is not self-improvement. It is a record of what you chose to trade..." |
 | on the threshold | "Tickets are thresholds, not punishments. You pause..." |
 | on time | "Time doesn't refill. Steps do..." |
@@ -189,8 +189,8 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 | Observational | "Today: 6,200 steps. 7h sleep. 3 pieces." | "Great job! You're crushing it!" |
 | Respectful | "You chose this. Change it anytime." | "Don't give up! Stay strong!" |
 | Dry | Empty state: "No tickets yet. Create one when you're ready." | "Oops! Looks like you haven't started!" |
-| Economical | "10 min · 4 rays" | "Unlock for 10 minutes at a cost of 4 rays" |
-| Honest | "spend rays" — then the number, no decoration | "Enjoy your well-deserved break!" |
+| Economical | "10 min · 4 colors" | "Unlock for 10 minutes at a cost of 4 colors" |
+| Honest | "spend colors" — then the number, no decoration | "Enjoy your well-deserved break!" |
 
 **Rules**:
 - No exclamation marks in UI
@@ -207,7 +207,7 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 ### Positioning
 **Not a screen-time blocker.** A daily life canvas that happens to control your feeds.
 
-**One-line pitch**: *"Your life makes rays. Your feeds cost them."*
+**One-line pitch**: *"Your life makes colors. Your feeds cost them."*
 
 ### Target Audience
 | Segment | Why | Where |
@@ -221,7 +221,7 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 **Phase 1: Closed Beta (Weeks 1-4 from now)**
 - TestFlight build from current codebase
 - 30-50 testers from personal network + targeted Reddit posts
-- Test positioning: "Your life makes rays" vs "Your day is a canvas"
+- Test positioning: "Your life makes colors" vs "Your day is a canvas"
 - In-app feedback + weekly survey
 - Key metric: D7 retention, can testers explain Nowhere in one sentence?
 
@@ -257,10 +257,10 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 | Beta feedback analysis | P0 | Act on D7 retention data and user explanations |
 | Onboarding A/B test | P1 | Canvas-first vs permissions-first |
 | More notes entries | P1 | "on the spectacle" (Debord), "on imperfection" (wabi-sabi) |
-| Internal variable rename | P2 | stepsBalance -> raysBalance, etc. (dedicated PR) |
+| Internal variable rename | P2 | stepsBalance -> colorsBalance, etc. (dedicated PR) |
 | AppModel forwarding cleanup | P2 | Remove remaining forwarding layer incrementally |
 | Premium tier implementation | P1 | 3 free tickets, then $3.99/mo |
-| Landing page | P1 | "Your life makes rays. Your feeds cost them." |
+| Landing page | P1 | "Your life makes colors. Your feeds cost them." |
 
 ### Medium-Term (Months 4-6)
 
@@ -268,7 +268,7 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 |---------|----------|-------|
 | Home Screen widgets | P1 | Expand beyond Lock Screen |
 | Shortcuts integration | P2 | |
-| Apple Watch (rays display) | P2 | |
+| Apple Watch (colors display) | P2 | |
 | Re-enable minute mode as opt-in | P3 | Code exists, gated behind flag |
 | Social exploration | P3 | Anonymous weekly canvas leaderboard |
 
@@ -317,7 +317,7 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 ### Stores (3)
 - `HealthStore.swift` — Steps, sleep, HealthKit auth
 - `BlockingStore.swift` — Tickets, app selection, shield state
-- `UserEconomyStore.swift` — Balance (rays), spending, transactions
+- `UserEconomyStore.swift` — Balance (colors), spending, transactions
 
 ### Models
 - `Types.swift`, `DailyEnergy.swift`, `BudgetEngine.swift`, `TicketGroup.swift`, `CanvasElement.swift`, `AccessWindow.swift`, `PayGateSession.swift`, `MinuteChargeLog.swift`, `AppUnlockSettings.swift`, `LiteTicketConfig.swift`, `PayGateBackgroundStyle.swift`, `ChoiceImageCatalog.swift`, `Note.swift`

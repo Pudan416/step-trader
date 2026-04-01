@@ -17,9 +17,7 @@ extension AppModel {
         blockingStore.saveTimeAccessSelection(selection, for: bundleId)
     }
 
-    /// Rebuild shield for all groups. The bundleId parameter is accepted for call-site
-    /// clarity but the rebuild is always global (audit fix #32).
-    func applyFamilyControlsSelection(for bundleId: String) {
+    func applyFamilyControlsSelection() {
         rebuildFamilyControlsShield()
     }
 
@@ -30,11 +28,6 @@ extension AppModel {
     func isTimeAccessEnabled(for bundleId: String) -> Bool {
         let selection = timeAccessSelection(for: bundleId)
         return !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
-    }
-
-    // MARK: - Cleanup Expired Unlocks
-    func cleanupExpiredUnlocks() {
-        blockingStore.cleanupExpiredUnlocks()
     }
 
     func scheduleSupabaseTicketUpsert(bundleId: String) {

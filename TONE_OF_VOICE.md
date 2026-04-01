@@ -22,8 +22,8 @@ A single human (Konstantin) who built this for himself and is sharing it. Not a 
 ### 1. Lowercase bias
 Use lowercase for UI labels and short phrases. Reserve Title Case for navigation titles only.
 
-- **Yes:** "spend rays", "keep it closed", "all notes", "mostly from"
-- **No:** "Spend Rays", "Keep It Closed"
+- **Yes:** "spend colors", "keep it closed", "all notes", "mostly from"
+- **No:** "Spend Colors", "Keep It Closed"
 
 Exceptions: proper nouns ("Nowhere"), app-level navigation ("Settings", "Canvas", "Me").
 
@@ -41,8 +41,8 @@ Not: "So I thought — am I even being present? And I made this app."
 ### 3. No exclamation marks
 The voice does not shout. Period is the default. Question marks are fine sparingly.
 
-- **Yes:** "Rays restored. 30 min."
-- **No:** "Rays restored! You got 30 min!"
+- **Yes:** "Colors restored. 30 min."
+- **No:** "Colors restored! You got 30 min!"
 
 ### 4. Questions over instructions
 When asking the user to do something, prefer a question or a gentle statement.
@@ -82,20 +82,20 @@ Never tell the user what they should feel or do. Present the choice, not the jud
 
 | Concept | Use | Avoid |
 |---|---|---|
-| Energy unit | **rays** | points, coins, credits, XP |
+| Energy unit | **colors** | points, coins, credits, XP |
 | App blocking | **closed** / **ticket** / **threshold** | blocked, locked, restricted |
 | Daily metric | **canvas** | dashboard, summary, stats |
 | Activities | **body, mind, heart** | fitness, wellness, self-care |
 | App time | **feeds** | social media, screen time |
-| Paying rays | **spend** | use, consume, pay |
-| Earning rays | **earn** / **bring** | gain, collect, accrue |
+| Paying colors | **spend** | use, consume, pay |
+| Earning colors | **earn** / **bring** | gain, collect, accrue |
 | The day's visual | **canvas** | wallpaper (only when literally exported) |
 | Daily categories | **body, mind, heart** | exercise, creativity, joys |
 | App name | **Nowhere** or **Nowhere** | the app, our app |
 
 ### Words that set the mood
 
-Use freely: canvas, rays, threshold, proof, mirror, shape, color, breath, pause, dark, bright, weight, quiet, alive, present, honest, trade, mark, room, glow, direction, foundation.
+Use freely: canvas, colors, threshold, proof, mirror, shape, color, breath, pause, dark, bright, weight, quiet, alive, present, honest, trade, mark, room, glow, direction, foundation.
 
 Avoid: optimize, achieve, streak, crush, reward, badge, milestone, gamify, level up, productivity, hack, grind, hustle.
 
@@ -112,14 +112,14 @@ The most personal, narrative voice. First person. Reflective. Asks questions.
 Factual. Brief. No guilt.
 
 > "Instagram is closed."
-> "Open Nowhere to spend rays."
+> "Open Nowhere to spend colors."
 
 ### Notifications
 Telegram-short. No emoji. State the fact.
 
-> "An app is closed. Open Nowhere to spend rays."
-> "Rays restored. 30 min."
-> "Rays left: 10 min."
+> "An app is closed. Open Nowhere to spend colors."
+> "Colors restored. 30 min."
+> "Colors left: 10 min."
 
 ### Notes (in-app reflections)
 Literary. Serif-weight. Each note reads like a single thought from a notebook.
@@ -131,7 +131,7 @@ Literary. Serif-weight. Each note reads like a single thought from a notebook.
 ### Labels and buttons
 Lowercase. Verb-first or noun. Minimal.
 
-> "spend rays" / "keep it closed" / "10 min" / "all notes"
+> "spend colors" / "keep it closed" / "10 min" / "all notes"
 > "Next" / "Allow" / "Let's go" / "Login"
 
 ### Settings and data
@@ -150,8 +150,8 @@ Data-first. Concise. Monospaced numbers.
 ### PayGate (unlock screen)
 Direct. Black and gold. The choice is clear without pressure.
 
-> "spend rays"
-> "10 min · 5 rays"
+> "spend colors"
+> "10 min · 5 colors"
 > "keep it closed"
 
 ### Footer / tagline
@@ -167,14 +167,14 @@ When writing new copy, use these patterns:
 |---|---|
 | `[Thing] is [metaphor].` | "The canvas is a mirror of the day." |
 | `[Thing] is not [wrong assumption]. It is [truth].` | "A limit is not a punishment. It is a threshold." |
-| `[Short fact]. [Consequence].` | "Rays restored. 30 min." |
+| `[Short fact]. [Consequence].` | "Colors restored. 30 min." |
 | `[Question without setup].` | "How about you?" / "Who are you?" |
-| `[Verb] + [object], no preamble.` | "spend rays" / "keep it closed" |
+| `[Verb] + [object], no preamble.` | "spend colors" / "keep it closed" |
 | `Not [x], not [y] — just [z].` | "Not evil, not good — just expensive." |
 
 ## Anti-patterns (never do this)
 
-- "Congratulations! You've earned 20 rays!" — no celebration language.
+- "Congratulations! You've earned 20 colors!" — no celebration language.
 - "Keep going! Only 3,000 steps to your goal!" — no coaching.
 - "You've been on Instagram for 45 minutes today" — no guilt data.
 - "Unlock Premium for unlimited access" — no upsell copy.

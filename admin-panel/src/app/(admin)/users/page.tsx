@@ -1,4 +1,4 @@
-import { countShields, listPublicUsers, sumEnergyDelta } from "@/lib/queries";
+import { countShields, listPublicUsers } from "@/lib/queries";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -21,14 +21,12 @@ export default async function UsersPage({
 
   let users: Awaited<ReturnType<typeof listPublicUsers>> = { rows: [], total: 0 };
   let totalShields: number | null = null;
-  let totalEnergy: Awaited<ReturnType<typeof sumEnergyDelta>> | null = null;
   let error: string | null = null;
 
   try {
-    [users, totalShields, totalEnergy] = await Promise.all([
+    [users, totalShields] = await Promise.all([
       listPublicUsers({ limit: PAGE_SIZE, offset, search: search || undefined }),
       countShields(),
-      sumEnergyDelta(),
     ]);
   } catch (e: any) {
     error = String(e?.message ?? e);
@@ -47,7 +45,6 @@ export default async function UsersPage({
         </div>
         <div className="text-right text-xs text-zinc-600 dark:text-zinc-400">
           <div>Total shields: {totalShields ?? "—"}</div>
-          <div>Total energy: {totalEnergy?.total ?? "—"}</div>
         </div>
       </div>
 

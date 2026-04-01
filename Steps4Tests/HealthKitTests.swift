@@ -74,7 +74,6 @@ final class SleepIntervalMergingTests: XCTestCase {
     }
 
     func testSingleInterval() {
-        let intervals = [(start: date(23), end: date(7))]
         // 23:00 to 07:00 next day — but since we use same-day dates, end < start.
         // Use proper dates instead.
         let start = date(1)
@@ -167,13 +166,13 @@ final class HealthStoreTests: XCTestCase {
         store = HealthStore(healthKitService: mock)
         defaults = UserDefaults.stepsTrader()
         // Clear cached values
-        defaults.removeObject(forKey: "cachedStepsToday")
-        defaults.removeObject(forKey: "hasStepsData_v1")
+        defaults.removeObject(forKey: SharedKeys.cachedStepsToday)
+        defaults.removeObject(forKey: SharedKeys.hasStepsData)
     }
 
     override func tearDown() {
-        defaults.removeObject(forKey: "cachedStepsToday")
-        defaults.removeObject(forKey: "hasStepsData_v1")
+        defaults.removeObject(forKey: SharedKeys.cachedStepsToday)
+        defaults.removeObject(forKey: SharedKeys.hasStepsData)
         super.tearDown()
     }
 
@@ -199,9 +198,9 @@ final class HealthStoreTests: XCTestCase {
         mock.stepsToReturn = 8000
         await store.refreshStepsIfAuthorized()
 
-        let cached = defaults.double(forKey: "cachedStepsToday")
+        let cached = defaults.double(forKey: SharedKeys.cachedStepsToday)
         XCTAssertEqual(cached, 8000)
-        XCTAssertTrue(defaults.bool(forKey: "hasStepsData_v1"))
+        XCTAssertTrue(defaults.bool(forKey: SharedKeys.hasStepsData))
     }
 
     func testRefreshStepsFallsBackToCacheOnError() async {

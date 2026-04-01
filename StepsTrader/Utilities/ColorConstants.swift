@@ -6,8 +6,6 @@ enum AppColors {
     // MARK: - Brand Colors
     // Primary accent (gold marker — legacy name was brandPink)
     static let brandAccent = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255)   // #FFD369
-    @available(*, deprecated, renamed: "brandAccent")
-    static var brandPink: Color { brandAccent }
     
     // MARK: - Daylight Theme (Paper)
     // "This is not a light mode. This is a daytime version of resistance."
@@ -179,81 +177,21 @@ extension Text {
     }
 }
 
-// MARK: - Resistance UI Components
-/// Components that embody the rays philosophy:
-/// - No gamification. No motivation. No self-improvement tone.
-/// - Observation over instruction
-/// - Invitation over pressure
-/// - Empty states are allowed
-/// - "Spending rays" is neutral, never framed as failure
+extension AppTheme {
+    var adaptivePrimaryText: Color {
+        textPrimary
+    }
 
-struct ResistanceTag: View {
-    let text: String
-    let theme: AppTheme
-    
-    var body: some View {
-        Text(text)
-            .font(.caption.weight(.medium))
-            .foregroundColor(theme.accentColor)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule()
-                    .stroke(theme.accentColor, lineWidth: 1)
-            )
+    var adaptiveSecondaryText: Color {
+        textSecondary.opacity(isLightTheme ? 0.72 : 0.78)
+    }
+
+    var adaptiveMutedText: Color {
+        textSecondary.opacity(isLightTheme ? 0.5 : 0.55)
+    }
+
+    var adaptiveDividerColor: Color {
+        textPrimary.opacity(isLightTheme ? 0.12 : 0.18)
     }
 }
 
-/// Hand-drawn underline effect for rebellious accent
-struct PinkUnderline: View {
-    let width: CGFloat
-    let theme: AppTheme
-    
-    var body: some View {
-        // Slightly imperfect line — like marker on paper
-        Path { path in
-            path.move(to: CGPoint(x: 0, y: 0))
-            path.addQuadCurve(
-                to: CGPoint(x: width, y: 2),
-                control: CGPoint(x: width * 0.5, y: -1)
-            )
-        }
-        .stroke(theme.accentColor, lineWidth: 2)
-        .frame(width: width, height: 4)
-    }
-}
-
-/// Divider for daylight theme — thin black stroke, not grey
-struct ThemedDivider: View {
-    let theme: AppTheme
-    
-    var body: some View {
-        Rectangle()
-            .fill(theme.stroke.opacity(theme.strokeOpacity))
-            .frame(height: 1)
-    }
-}
-
-/// Empty state view — "Empty states are allowed. Observation, not instruction."
-struct EmptyStateView: View {
-    let message: String
-    let theme: AppTheme
-    var subMessage: String? = nil  // Optional: "or don't", "you can skip this", "nothing breaks"
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            Text(message)
-                .font(.subheadline)
-                .foregroundColor(theme.textSecondary)
-            
-            if let sub = subMessage {
-                Text(sub)
-                    .font(.caption)
-                    .foregroundColor(theme.textSecondary.opacity(0.7))
-                    .italic()
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-    }
-}

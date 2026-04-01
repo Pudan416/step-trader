@@ -4,7 +4,6 @@ import SwiftUI
 struct InlineTicketSettingsView: View {
     @ObservedObject var model: AppModel
     @Binding var group: TicketGroup
-    let appLanguage: String = "en"
     let onEditApps: () -> Void
     var onAfterDelete: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
@@ -29,7 +28,7 @@ struct InlineTicketSettingsView: View {
                     showEditSettings.toggle()
                 }
             } label: {
-                rowButtonLabel(icon: "gearshape.fill", title: "Edit settings", showChevron: true, expanded: showEditSettings, surface: surface, separator: separator)
+                rowButtonLabel(icon: "gearshape.fill", title: String(localized: "Edit settings"), showChevron: true, expanded: showEditSettings, surface: surface, separator: separator)
             }
             .buttonStyle(.plain)
 
@@ -45,7 +44,7 @@ struct InlineTicketSettingsView: View {
             Button {
                 onEditApps()
             } label: {
-                rowButtonLabel(icon: "square.grid.2x2", title: "Edit Apps", showChevron: true, expanded: false, surface: surface, separator: separator)
+                rowButtonLabel(icon: "square.grid.2x2", title: String(localized: "Edit Apps"), showChevron: true, expanded: false, surface: surface, separator: separator)
             }
             .buttonStyle(.plain)
 
@@ -59,7 +58,7 @@ struct InlineTicketSettingsView: View {
                         .font(.body)
                         .foregroundColor(.red)
                         .frame(width: 24)
-                    Text("Delete")
+                    Text(String(localized: "Delete"))
                         .font(.subheadline.weight(.medium))
                         .foregroundColor(.red)
                     Spacer()
@@ -113,14 +112,10 @@ struct InlineTicketSettingsView: View {
         )
     }
 
-    private var appsCount: Int {
-        group.selection.applicationTokens.count + group.selection.categoryTokens.count
-    }
-
     // MARK: - Time intervals
     private var inlineIntervalsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Time options")
+            Text(String(localized: "Time options"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
 
@@ -159,39 +154,37 @@ struct InlineTicketSettingsView: View {
 
     @ViewBuilder
     private var unlockButtonsSection: some View {
-        if model.isGroupUnlocked(group.id) {
-            if let remaining = model.remainingUnlockTime(for: group.id) {
-                HStack(spacing: 12) {
-                    Image(systemName: "lock.open.fill")
-                        .font(.title2)
-                        .foregroundColor(accent)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Open")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        Text("\(formatRemainingTime(remaining)) left")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
+        if model.isGroupUsageBudgetActive(group.id) {
+            let budget = model.remainingUsageBudget(for: group.id)
+            HStack(spacing: 12) {
+                Image(systemName: "lock.open.fill")
+                    .font(.title2)
+                    .foregroundColor(accent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Open", comment: "Unlock status label"))
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text(String(localized: "\(budget) min remaining"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                .padding(.vertical, 16)
-                .padding(.horizontal, 16)
-                .background(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(accent.opacity(0.12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(accent.opacity(0.3), lineWidth: 2)
-                        )
-                )
+                Spacer()
             }
+            .padding(.vertical, 16)
+            .padding(.horizontal, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(accent.opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(accent.opacity(0.3), lineWidth: 2)
+                    )
+            )
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Spend rays on")
+                Text(String(localized: "Spend colors on", comment: "Unlock section header"))
                     .font(.caption.weight(.semibold))
                     .foregroundColor(.secondary)
-
                 ForEach(intervals, id: \.self) { interval in
                     if group.enabledIntervals.contains(interval) {
                         quickUnlockButton(interval: interval)
@@ -228,7 +221,7 @@ struct InlineTicketSettingsView: View {
                     Text("\(cost)")
                         .font(.headline)
                         .monospacedDigit()
-                    Text("rays")
+                    Text(String(localized: "colors"))
                         .font(.subheadline)
                 }
                 .foregroundStyle(canAfford ? Color.primary : Color.primary.opacity(0.5))

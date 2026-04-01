@@ -13,8 +13,8 @@ extension AppModel {
         // so it can be restored in both the main app and extensions.
         do {
             let data = try JSONEncoder().encode(appSelection)
-            userDefaults.set(data, forKey: "appSelection_v1")
-            userDefaults.set(Date(), forKey: "appSelectionSavedDate")
+            userDefaults.set(data, forKey: SharedKeys.appSelection)
+            userDefaults.set(Date(), forKey: SharedKeys.appSelectionSavedDate)
             AppLogger.familyControls.debug("💾 Saved app selection (appSelection_v1): \(self.appSelection.applicationTokens.count) apps, \(self.appSelection.categoryTokens.count) categories")
         } catch {
             AppLogger.familyControls.debug("Failed to save app selection (appSelection_v1): \(error.localizedDescription)")
@@ -27,7 +27,7 @@ extension AppModel {
         var newSelection = FamilyActivitySelection()
 
         // Try the new storage scheme first (appSelection_v1).
-        if let data = userDefaults.data(forKey: "appSelection_v1"),
+        if let data = userDefaults.data(forKey: SharedKeys.appSelection),
            let decoded = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data),
            !decoded.applicationTokens.isEmpty || !decoded.categoryTokens.isEmpty {
             newSelection = decoded
@@ -76,7 +76,7 @@ extension AppModel {
             rebuildFamilyControlsShield()
 
             // Check save date
-            if let savedDate = userDefaults.object(forKey: "appSelectionSavedDate") as? Date {
+            if let savedDate = userDefaults.object(forKey: SharedKeys.appSelectionSavedDate) as? Date {
                 AppLogger.familyControls.debug("📅 App selection was saved on: \(CachedFormatters.mediumDateTime.string(from: savedDate))")
             }
         } else {
@@ -123,7 +123,6 @@ extension AppModel {
             
             if !stillSelected {
                 settings.familyControlsModeEnabled = false
-                settings.minuteTariffEnabled = false
                 updatedUnlock[cardId] = settings
             }
         }

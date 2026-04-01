@@ -28,7 +28,6 @@ extension AppModel {
             entryCostSteps: entryCostSteps,
             dayPassCostSteps: defaultDayPassCost(forEntryCost: entryCostSteps),
             allowedWindows: [.minutes10, .minutes30, .hour1],
-            minuteTariffEnabled: false,
             familyControlsModeEnabled: true
         )
         let themeIndex = stickerThemeIndex ?? 0
@@ -72,15 +71,21 @@ extension AppModel {
         let bundleIdLower = bundleId.lowercased()
         for group in ticketGroups {
             for token in group.selection.applicationTokens {
-                guard let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) else { continue }
+                let tokenData: Data
+                do {
+                    tokenData = try NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true)
+                } catch {
+                    AppLogger.familyControls.error("Failed to archive application token in group \(group.id): \(error.localizedDescription)")
+                    continue
+                }
                 let base64 = tokenData.base64EncodedString()
                 // Prefer exact bundleId match (avoids "Mail" matching "Gmail")
-                if let storedBundleId = defaults.string(forKey: "fc_bundleId_" + base64) {
+                if let storedBundleId = defaults.string(forKey: SharedKeys.fcBundleIdKey(base64)) {
                     if bundleIdLower == storedBundleId.lowercased() { return group }
                     continue
                 }
                 // Legacy: only exact match on stored name (no substring)
-                if let storedName = defaults.string(forKey: "fc_appName_" + base64),
+                if let storedName = defaults.string(forKey: SharedKeys.fcAppNameKey(base64)),
                    bundleIdLower == storedName.lowercased() {
                     return group
                 }

@@ -4,14 +4,12 @@ struct AppUnlockSettings: Codable, Equatable {
     var entryCostSteps: Int
     var dayPassCostSteps: Int
     var allowedWindows: Set<AccessWindow> = [.minutes10, .minutes30, .hour1]
-    var minuteTariffEnabled: Bool = false
     var familyControlsModeEnabled: Bool = false
     
-    init(entryCostSteps: Int, dayPassCostSteps: Int, allowedWindows: Set<AccessWindow> = [.minutes10, .minutes30, .hour1], minuteTariffEnabled: Bool = false, familyControlsModeEnabled: Bool = false) {
+    init(entryCostSteps: Int, dayPassCostSteps: Int, allowedWindows: Set<AccessWindow> = [.minutes10, .minutes30, .hour1], familyControlsModeEnabled: Bool = false) {
         self.entryCostSteps = entryCostSteps
         self.dayPassCostSteps = dayPassCostSteps
         self.allowedWindows = allowedWindows.isEmpty ? [.minutes10, .minutes30, .hour1] : allowedWindows
-        self.minuteTariffEnabled = minuteTariffEnabled
         self.familyControlsModeEnabled = familyControlsModeEnabled
     }
     
@@ -23,8 +21,12 @@ struct AppUnlockSettings: Codable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         entryCostSteps = try c.decode(Int.self, forKey: .entryCostSteps)
         dayPassCostSteps = try c.decode(Int.self, forKey: .dayPassCostSteps)
-        minuteTariffEnabled = try c.decodeIfPresent(Bool.self, forKey: .minuteTariffEnabled) ?? false
         familyControlsModeEnabled = try c.decodeIfPresent(Bool.self, forKey: .familyControlsModeEnabled) ?? false
+        // Backward compat: treat old minuteTariffEnabled as familyControlsModeEnabled
+        if !familyControlsModeEnabled,
+           let mt = try? c.decodeIfPresent(Bool.self, forKey: .minuteTariffEnabled), mt {
+            familyControlsModeEnabled = true
+        }
         if let rawArray = try? c.decode([String].self, forKey: .allowedWindows) {
             allowedWindows = Set(rawArray.compactMap { AccessWindow(rawValue: $0) })
         }
@@ -38,7 +40,6 @@ struct AppUnlockSettings: Codable, Equatable {
         try c.encode(entryCostSteps, forKey: .entryCostSteps)
         try c.encode(dayPassCostSteps, forKey: .dayPassCostSteps)
         try c.encode(allowedWindows, forKey: .allowedWindows)
-        try c.encode(minuteTariffEnabled, forKey: .minuteTariffEnabled)
         try c.encode(familyControlsModeEnabled, forKey: .familyControlsModeEnabled)
     }
 }

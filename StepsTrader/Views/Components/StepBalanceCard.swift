@@ -5,8 +5,6 @@ struct StepBalanceCard: View {
     let totalSteps: Int
     let spentSteps: Int
     let healthKitSteps: Int
-    let outerWorldSteps: Int
-    let grantedSteps: Int
     let dayEndHour: Int
     let dayEndMinute: Int
     let showDetails: Bool
@@ -25,8 +23,7 @@ struct StepBalanceCard: View {
     var onMoveTap: (() -> Void)? = nil
     var onRebootTap: (() -> Void)? = nil
     var onJoyTap: (() -> Void)? = nil
-    var onOuterWorldTap: (() -> Void)? = nil
-    var onRaysHelpTap: (() -> Void)? = nil
+    var onColorsHelpTap: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var isExpanded = false
@@ -64,9 +61,9 @@ struct StepBalanceCard: View {
     
     var body: some View {
         VStack(spacing: 10) {
-            // ── Header: TODAY'S RAYS + balance + timer ──
+            // ── Header: TODAY'S COLORS + balance + timer ──
             HStack(alignment: .center, spacing: 4) {
-                Image("rays")
+                Image("colors")
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
@@ -151,6 +148,9 @@ struct StepBalanceCard: View {
                 }
             }
             .frame(height: 10)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: "Steps balance", comment: "StepBalanceCard – progress bar VoiceOver label"))
+            .accessibilityValue(String(localized: "\(Int(progress * 100)) percent, \(currentEnergy) of \(maxEnergy) colors", comment: "StepBalanceCard – progress bar VoiceOver value"))
             .animation(.spring(response: 0.4), value: progress)
             .animation(.spring(response: 0.4), value: earnedTodayProgress)
             
@@ -158,7 +158,7 @@ struct StepBalanceCard: View {
             if showDetails {
                 HStack(spacing: 8) {
                     Button {
-                        onRaysHelpTap?()
+                        onColorsHelpTap?()
                     } label: {
                         Image(systemName: "questionmark.circle")
                             .font(.system(size: 18))
@@ -167,7 +167,7 @@ struct StepBalanceCard: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("About rays")
+                    .accessibilityLabel(String(localized: "About colors", comment: "StepBalanceCard – info button VoiceOver label"))
                     Spacer(minLength: 0)
                     Button {
                         withAnimation(.spring(response: 0.3)) {
@@ -181,7 +181,7 @@ struct StepBalanceCard: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(isExpanded ? "Collapse categories" : "Expand categories")
+                    .accessibilityLabel(isExpanded ? String(localized: "Collapse categories", comment: "StepBalanceCard – toggle categories VoiceOver label") : String(localized: "Expand categories", comment: "StepBalanceCard – toggle categories VoiceOver label"))
                 }
                 .frame(minHeight: 30)
             }
@@ -192,7 +192,7 @@ struct StepBalanceCard: View {
                     // Row 1: HealthKit auto-tracked
                     HStack(spacing: 8) {
                         metricChip(
-                            icon: "figure.walk",
+                            icon: "shoeprints.fill",
                             value: stepsPoints,
                             max: EnergyDefaults.stepsMaxPoints,
                             accessibilityId: "chip_steps",
@@ -308,8 +308,6 @@ private func metricChip(icon: String, value: Int, max: Int, accessibilityId: Str
             totalSteps: 100,
             spentSteps: 15,
             healthKitSteps: 60,
-            outerWorldSteps: 25,
-            grantedSteps: 0,
             dayEndHour: 0,
             dayEndMinute: 0,
             showDetails: true,
@@ -326,8 +324,6 @@ private func metricChip(icon: String, value: Int, max: Int, accessibilityId: Str
             totalSteps: 100,
             spentSteps: 55,
             healthKitSteps: 40,
-            outerWorldSteps: 5,
-            grantedSteps: 0,
             dayEndHour: 0,
             dayEndMinute: 0,
             showDetails: false,

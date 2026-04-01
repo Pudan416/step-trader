@@ -67,67 +67,16 @@ final class CustomActivityTests: XCTestCase {
     private func clearDefaults() {
         let keys = [
             "customEnergyOptions_v1",
-            "energyOptionsOrder_activity",
-            "energyOptionsOrder_rest",
-            "energyOptionsOrder_joys",
-            "preferredEnergyOptions_v1_activity",
-            "preferredEnergyOptions_v1_rest",
-            "preferredEnergyOptions_v1_joys",
-            "dailyEnergySelections_v1_activity",
-            "dailyEnergySelections_v1_rest",
-            "dailyEnergySelections_v1_joys"
+            "energyOptionsOrder_body",
+            "energyOptionsOrder_mind",
+            "energyOptionsOrder_heart",
+            "preferredEnergyOptions_v1_body",
+            "preferredEnergyOptions_v1_mind",
+            "preferredEnergyOptions_v1_heart",
+            "dailyEnergySelections_v1_body",
+            "dailyEnergySelections_v1_mind",
+            "dailyEnergySelections_v1_heart"
         ]
         keys.forEach { defaults.removeObject(forKey: $0) }
     }
-}
-
-// MARK: - Mocks
-
-private final class MockHealthKitService: HealthKitServiceProtocol {
-    func fetchSleep(from: Date, to: Date) async throws -> Double { 0 }
-    @MainActor func requestAuthorization() async throws {}
-    @MainActor func authorizationStatus() -> HKAuthorizationStatus { .sharingAuthorized }
-    @MainActor func sleepAuthorizationStatus() -> HKAuthorizationStatus { .sharingAuthorized }
-    func fetchSteps(from: Date, to: Date) async throws -> Double { 0 }
-    func startObservingSteps(updateHandler: @escaping (Double) -> Void) {}
-    func stopObservingSteps() {}
-}
-
-@MainActor
-private final class MockFamilyControlsService: FamilyControlsServiceProtocol {
-    var isAuthorized: Bool = false
-    var selection: FamilyActivitySelection = FamilyActivitySelection()
-    func requestAuthorization() async throws {}
-    func updateSelection(_ newSelection: FamilyActivitySelection) {}
-    func updateMinuteModeMonitoring() {}
-    func updateShieldSchedule() {}
-}
-
-private final class MockNotificationService: NotificationServiceProtocol {
-    func requestPermission() async throws {}
-    func sendTimeExpiredNotification() {}
-    func sendUnblockNotification(remainingMinutes: Int) {}
-    func sendRemainingTimeNotification(remainingMinutes: Int) {}
-    func sendMinuteModeSummary(bundleId: String, minutesUsed: Int, stepsCharged: Int) {}
-    func sendTestNotification() {}
-    func sendAccessWindowReminder(remainingSeconds: Int, bundleId: String) {}
-    func scheduleAccessWindowStatus(remainingSeconds: Int, bundleId: String) {}
-}
-
-private final class MockBudgetEngine: BudgetEngineProtocol {
-    var tariff: Tariff = .medium
-    var stepsPerMinute: Double { tariff.stepsPerMinute }
-    var dailyBudgetMinutes: Int = 0
-    var remainingMinutes: Int = 0
-
-    func minutes(from steps: Double) -> Int { max(0, Int(steps / stepsPerMinute)) }
-    func setBudget(minutes: Int) {
-        dailyBudgetMinutes = minutes
-        remainingMinutes = minutes
-    }
-    func consume(mins: Int) { remainingMinutes = max(0, remainingMinutes - mins) }
-    func resetIfNeeded() {}
-    func updateTariff(_ newTariff: Tariff) { tariff = newTariff }
-    func updateDayEnd(hour: Int, minute: Int) {}
-    func reloadFromStorage() {}
 }

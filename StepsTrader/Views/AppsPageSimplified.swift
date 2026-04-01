@@ -11,7 +11,7 @@ struct TicketGroupId: Identifiable {
 /// Single accent for primary actions (Create Ticket, unlock). Rest uses system colors.
 enum TicketsPalette {
     // Accent yellow: #FFD369
-    static let accent = Color(red: 0xFF/255.0, green: 0xD3/255.0, blue: 0x69/255.0)
+    static let accent = AppColors.brandAccent
 
     // Theme accents (used on the flipped side for controls).
     static let themes: [Color] = [
@@ -40,8 +40,8 @@ struct AppsPageSimplified: View {
     @State private var showPicker = false
     @State private var selectedGroupId: TicketGroupId? = nil
     @State private var showTemplatePicker = false
-    private let appLanguage = "en"
     @State private var expandedSheetGroupId: TicketGroupId? = nil
+    @State private var isReordering = false
 
     /// Tint for the + button: dark in daylight, light at night, so it stays visible on the gradient.
     private var buttonTint: Color {
@@ -51,42 +51,64 @@ struct AppsPageSimplified: View {
         case .system: return colorScheme == .dark ? AppColors.Night.textPrimary : theme.textPrimary
         }
     }
-    @State private var flippedTicketId: String? = nil
     @State private var showCustomNamePrompt = false
     @State private var customTicketName = ""
 
     var body: some View {
         NavigationStack {
             ZStack {
-                EnergyGradientBackground(
-                    stepsPoints: model.stepsPointsToday,
-                    sleepPoints: model.sleepPointsToday,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData
-                )
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-
                 VStack(spacing: 0) {
                     HStack {
-                        Text("My Feeds")
+                        Text(String(localized: "My Feeds", comment: "Feeds page title"))
                             .font(.system(size: 17, weight: .light, design: .rounded))
                             .foregroundStyle(Color.primary.opacity(0.7))
                         Spacer()
-                        Button {
-                            showTemplatePicker = true
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .opacity(0.5)
-                                    .frame(width: 36, height: 36)
-                                Circle()
-                                    .strokeBorder(buttonTint.opacity(0.4), lineWidth: 1)
-                                    .frame(width: 36, height: 36)
-                                Image(systemName: "plus")
-                                    .font(.system(size: 16, weight: .ultraLight))
+                        if isReordering {
+                            Button {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    isReordering = false
+                                }
+                            } label: {
+                                Text(String(localized: "Done"))
+                                    .font(.system(size: 15, weight: .regular, design: .rounded))
                                     .foregroundStyle(buttonTint)
+                            }
+                        } else {
+                            if visibleGroups.count > 1 {
+                                Button {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        isReordering = true
+                                    }
+                                } label: {
+                                    ZStack {
+                                        Circle()
+                                            .fill(.ultraThinMaterial)
+                                            .opacity(0.5)
+                                            .frame(width: 36, height: 36)
+                                        Circle()
+                                            .strokeBorder(buttonTint.opacity(0.4), lineWidth: 1)
+                                            .frame(width: 36, height: 36)
+                                        Image(systemName: "arrow.up.arrow.down")
+                                            .font(.system(size: 14, weight: .ultraLight))
+                                            .foregroundStyle(buttonTint)
+                                    }
+                                }
+                            }
+                            Button {
+                                showTemplatePicker = true
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .opacity(0.5)
+                                        .frame(width: 36, height: 36)
+                                    Circle()
+                                        .strokeBorder(buttonTint.opacity(0.4), lineWidth: 1)
+                                        .frame(width: 36, height: 36)
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 16, weight: .ultraLight))
+                                        .foregroundStyle(buttonTint)
+                                }
                             }
                         }
                     }
@@ -119,11 +141,12 @@ struct AppsPageSimplified: View {
                     .blendMode(.overlay)
                     .zIndex(10)
             }
+            .energyGradientBackground(model: model)
             .background(Color.clear)
             .safeAreaInset(edge: .top, spacing: 0) {
                 Color.clear.frame(height: topCardHeight)
             }
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $expandedSheetGroupId) { groupId in
                 if model.blockingStore.ticketGroups.contains(where: { $0.id == groupId.id }) {
                     let groupBinding = Binding<TicketGroup>(
@@ -166,7 +189,7 @@ struct AppsPageSimplified: View {
                     }
                 )
                 #else
-                Text("Family Controls not available").padding()
+                Text(String(localized: "Family Controls not available")).padding()
                 #endif
             }
             .sheet(isPresented: $showTemplatePicker) {
@@ -188,19 +211,22 @@ struct AppsPageSimplified: View {
                 )
             }
             .onAppear { selection = model.appSelection }
-            .alert("Name your ticket", isPresented: $showCustomNamePrompt) {
-                TextField("e.g. Social, Games…", text: $customTicketName)
-                Button("Create") {
+            .onChange(of: model.blockingStore.ticketGroups.count) {
+                if visibleGroups.count <= 1 { isReordering = false }
+            }
+            .alert(String(localized: "Name your ticket"), isPresented: $showCustomNamePrompt) {
+                TextField(String(localized: "e.g. Social, Games…", comment: "Placeholder for ticket name"), text: $customTicketName)
+                Button(String(localized: "Create")) {
                     let name = customTicketName.trimmingCharacters(in: .whitespacesAndNewlines)
                     let group = model.createTicketGroup(
-                        name: name.isEmpty ? "New Ticket" : name,
+                        name: name.isEmpty ? String(localized: "New Ticket") : name,
                         stickerThemeIndex: 0
                     )
                     selection = FamilyActivitySelection()
                     selectedGroupId = TicketGroupId(id: group.id)
                     showPicker = true
                 }
-                Button("Cancel", role: .cancel) {}
+                Button(String(localized: "Cancel"), role: .cancel) {}
             }
         }
     }
@@ -210,39 +236,62 @@ struct AppsPageSimplified: View {
     private var ticketStack: some View {
         LazyVStack(spacing: 14) {
             ForEach(visibleGroups) { group in
-                let isFlipped = flippedTicketId == group.id
-
                 PaperTicketView(
                     model: model,
                     group: group,
                     colorScheme: colorScheme,
-                    isFlipped: isFlipped,
                     onSettings: {
+                        guard !isReordering else { return }
                         expandedSheetGroupId = TicketGroupId(id: group.id)
-                    },
-                    onFlip: {
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                            if isFlipped {
-                                flippedTicketId = nil
-                            } else {
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                flippedTicketId = group.id
-                            }
-                        }
                     }
                 )
-                .zIndex(isFlipped ? 10 : 0)
-                .contextMenu {
-                    Button {
-                        expandedSheetGroupId = TicketGroupId(id: group.id)
-                    } label: {
-                        Label("Settings", systemImage: "gearshape")
+                .overlay(alignment: .trailing) {
+                    if isReordering {
+                        VStack(spacing: 0) {
+                            Button {
+                                moveTicket(group.id, up: true)
+                            } label: {
+                                Image(systemName: "chevron.up")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .frame(width: 34, height: 28)
+                                    .contentShape(Rectangle())
+                            }
+                            .disabled(visibleGroups.first?.id == group.id)
+
+                            Divider().frame(width: 20)
+
+                            Button {
+                                moveTicket(group.id, up: false)
+                            } label: {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .frame(width: 34, height: 28)
+                                    .contentShape(Rectangle())
+                            }
+                            .disabled(visibleGroups.last?.id == group.id)
+                        }
+                        .foregroundStyle(Color.primary.opacity(0.5))
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(.ultraThinMaterial)
+                        )
+                        .padding(.trailing, 10)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
-                    Button(role: .destructive) {
-                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                        deleteAndCleanup(group.id)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
+                }
+                .contextMenu {
+                    if !isReordering {
+                        Button {
+                            expandedSheetGroupId = TicketGroupId(id: group.id)
+                        } label: {
+                            Label(String(localized: "Settings", comment: "Context menu action"), systemImage: "gearshape")
+                        }
+                        Button(role: .destructive) {
+                            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                            deleteAndCleanup(group.id)
+                        } label: {
+                            Label(String(localized: "Delete"), systemImage: "trash")
+                        }
                     }
                 }
             }
@@ -257,10 +306,10 @@ struct AppsPageSimplified: View {
                 .font(.system(size: 52, weight: .ultraLight))
                 .foregroundStyle(Color.primary.opacity(0.25))
             VStack(spacing: 8) {
-                Text("No feeds connected yet")
+                Text(String(localized: "No feeds connected yet"))
                     .font(.system(size: 20, weight: .light, design: .rounded))
                     .foregroundStyle(Color.primary.opacity(0.7))
-                Text("Create one when you're ready.")
+                Text(String(localized: "Create one when you're ready."))
                     .font(.system(size: 14, weight: .light, design: .rounded))
                     .foregroundStyle(Color.primary.opacity(0.4))
                     .multilineTextAlignment(.center)
@@ -272,7 +321,7 @@ struct AppsPageSimplified: View {
                 HStack(spacing: 6) {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .ultraLight))
-                    Text("New Ticket")
+                    Text(String(localized: "New Ticket"))
                         .font(.system(size: 15, weight: .light, design: .rounded))
                 }
                 .foregroundStyle(Color.primary.opacity(0.7))
@@ -310,13 +359,13 @@ struct AppsPageSimplified: View {
                 .padding()
             }
             .background(theme.backgroundColor)
-            .navigationTitle(group.wrappedValue.name.isEmpty ? "Ticket" : group.wrappedValue.name)
+            .navigationTitle(group.wrappedValue.name.isEmpty ? String(localized: "Ticket") : group.wrappedValue.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(theme.backgroundColor, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { onDismiss() }
+                    Button(String(localized: "Done")) { onDismiss() }
                 }
             }
         }
@@ -328,8 +377,25 @@ struct AppsPageSimplified: View {
         }
     }
 
+    private func moveTicket(_ groupId: String, up: Bool) {
+        let visible = visibleGroups
+        guard let visibleIdx = visible.firstIndex(where: { $0.id == groupId }) else { return }
+        let targetIdx = up ? visibleIdx - 1 : visibleIdx + 1
+        guard targetIdx >= 0, targetIdx < visible.count else { return }
+
+        let targetId = visible[targetIdx].id
+        guard let fromIdx = model.blockingStore.ticketGroups.firstIndex(where: { $0.id == groupId }),
+              let toIdx = model.blockingStore.ticketGroups.firstIndex(where: { $0.id == targetId })
+        else { return }
+
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            model.blockingStore.ticketGroups.swapAt(fromIdx, toIdx)
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        model.blockingStore.persistTicketGroups()
+    }
+
     private func deleteAndCleanup(_ groupId: String) {
-        if flippedTicketId == groupId { flippedTicketId = nil }
         if expandedSheetGroupId?.id == groupId { expandedSheetGroupId = nil }
         model.deleteTicketGroup(groupId)
     }

@@ -9,9 +9,9 @@ struct TimeAccessPickerSheet: View {
     let appName: String
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Choose app for \(appName)")
+                Text(String(localized: "Choose app for \(appName)", comment: "TimeAccessPicker – title with app name"))
                     .font(.headline)
                     .padding(.horizontal)
 
@@ -19,14 +19,14 @@ struct TimeAccessPickerSheet: View {
                 FamilyActivityPicker(selection: $selection)
                     .ignoresSafeArea(edges: .bottom)
                 #else
-                Text("Family Controls not available on this build.")
+                Text(String(localized: "Family Controls not available on this build.", comment: "TimeAccessPicker – unavailable message"))
                     .padding()
                 #endif
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(String(localized: "Done", comment: "TimeAccessPicker – dismiss button")) {
                         dismiss()
                     }
                 }

@@ -68,7 +68,6 @@ final class HealthKitService: HealthKitServiceProtocol {
         defer { isRequestingAuthorization = false }
 
         log.info("requestAuthorization started on main actor")
-        logHealthKitEntitlement()
         logEmbeddedProfileHealthKit()
         log.info("isHealthDataAvailable: \(HKHealthStore.isHealthDataAvailable())")
         guard HKHealthStore.isHealthDataAvailable() else {
@@ -83,7 +82,11 @@ final class HealthKitService: HealthKitServiceProtocol {
             log.error("Sleep analysis type not available")
             throw HealthKitServiceError.sleepTypeNotAvailable
         }
-        let readTypes: Set<HKObjectType> = [stepType, sleepType]
+        var readTypes: Set<HKObjectType> = [stepType, sleepType]
+        readTypes.insert(HKObjectType.workoutType())
+        if let mindfulType = HKObjectType.categoryType(forIdentifier: .mindfulSession) {
+            readTypes.insert(mindfulType)
+        }
         let status = try await store.statusForAuthorizationRequest(toShare: [], read: readTypes)
         log.info("Request status: \(status.rawValue)")
         logAuthorizationStatus(context: "requestAuthorization:pre-flight")
@@ -184,10 +187,12 @@ final class HealthKitService: HealthKitServiceProtocol {
             return lastStepCount
         }
         
-        // Ensure authorization is determined before querying
+        // Never trigger system permission prompts from passive data reads.
+        // Onboarding controls when authorization is requested.
         let stepAuthStatus = store.authorizationStatus(for: stepType)
         if stepAuthStatus == .notDetermined {
-            try await requestAuthorization()
+            log.debug("Step authorization not determined; skipping fetch until explicit onboarding consent")
+            return lastStepCount
         }
 
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
@@ -228,6 +233,86 @@ final class HealthKitService: HealthKitServiceProtocol {
         }
     }
     
+    // MARK: - Workouts
+    func fetchWorkouts(from start: Date, to end: Date) async throws -> [DetectedWorkout] {
+        guard HKHealthStore.isHealthDataAvailable() else { return [] }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: .workoutType(),
+                predicate: predicate,
+                limit: 20,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error {
+                    log.error("fetchWorkouts error: \(error.localizedDescription)")
+                    continuation.resume(returning: [])
+                    return
+                }
+                guard let workouts = samples as? [HKWorkout] else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                let results = workouts.map { w in
+                    DetectedWorkout(
+                        id: w.uuid,
+                        activityType: w.workoutActivityType.rawValue,
+                        startDate: w.startDate,
+                        endDate: w.endDate,
+                        durationMinutes: Int(w.duration / 60),
+                        caloriesBurned: w.totalEnergyBurned?.doubleValue(for: .kilocalorie()),
+                        distance: w.totalDistance?.doubleValue(for: .meter())
+                    )
+                }
+                log.info("Fetched \(results.count) workouts for period")
+                continuation.resume(returning: results)
+            }
+            store.execute(query)
+        }
+    }
+
+    // MARK: - Mindful Minutes
+    func fetchMindfulMinutes(from start: Date, to end: Date) async throws -> Double {
+        guard HKHealthStore.isHealthDataAvailable() else { return 0 }
+        guard let mindfulType = HKObjectType.categoryType(forIdentifier: .mindfulSession) else {
+            return 0
+        }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: mindfulType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+            ) { _, samples, error in
+                if let error {
+                    log.error("fetchMindfulMinutes error: \(error.localizedDescription)")
+                    continuation.resume(returning: 0)
+                    return
+                }
+                guard let sessions = samples as? [HKCategorySample] else {
+                    continuation.resume(returning: 0)
+                    return
+                }
+                var intervals: [(start: Date, end: Date)] = []
+                for session in sessions {
+                    let overlapStart = max(session.startDate, start)
+                    let overlapEnd = min(session.endDate, end)
+                    if overlapEnd > overlapStart {
+                        intervals.append((start: overlapStart, end: overlapEnd))
+                    }
+                }
+                let totalMinutes = Self.mergedDuration(of: intervals) / 60.0
+                log.info("Fetched mindful minutes: \(String(format: "%.1f", totalMinutes)) from \(sessions.count) sessions")
+                continuation.resume(returning: totalMinutes)
+            }
+            store.execute(query)
+        }
+    }
+
     // MARK: - Background Updates
     @MainActor
     func startObservingSteps(updateHandler: @escaping (Double) -> Void) {
@@ -347,11 +432,6 @@ final class HealthKitService: HealthKitServiceProtocol {
         }
         
         log.debug("[\(context)] steps=\(stepStatusDescription), sleep=\(sleepStatusDescription)")
-    }
-
-    private func logHealthKitEntitlement() {
-        // SecTask* APIs can be unavailable in some build configs; skip detailed entitlement check.
-        log.debug("Entitlement check skipped (SecTask APIs unavailable in this build)")
     }
 
     private func logEmbeddedProfileHealthKit() {

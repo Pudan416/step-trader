@@ -14,15 +14,6 @@ struct ManualsPage: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                EnergyGradientBackground(
-                    stepsPoints: model.stepsPointsToday,
-                    sleepPoints: model.sleepPointsToday,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData
-                )
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-
                 VStack(spacing: 0) {
                     Spacer(minLength: 20)
 
@@ -44,12 +35,13 @@ struct ManualsPage: View {
                 }
                 .padding(.horizontal, 0)
             }
+            .energyGradientBackground(model: model)
             .safeAreaInset(edge: .top, spacing: 0) {
                 Color.clear.frame(height: topCardHeight)
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showAllNotes) {
                 AllNotesListView(readTracker: readTracker) { note in
                     if let idx = notes.firstIndex(where: { $0.id == note.id }) {
@@ -129,7 +121,7 @@ struct ManualsPage: View {
                 HStack(spacing: 6) {
                     Image(systemName: "list.bullet")
                         .font(.system(size: 13, weight: .medium))
-                    Text("all")
+                    Text(String(localized: "all", comment: "ManualsPage – filter showing all notes"))
                         .font(.system(size: 13, weight: .medium))
 
                     if readTracker.unreadCount > 0 {
@@ -207,11 +199,11 @@ struct AllNotesListView: View {
                     }
                 }
             }
-            .navigationTitle("all notes")
+            .navigationTitle(String(localized: "all notes", comment: "ManualsPage – accessibility label for all filter"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
+                    Button(String(localized: "Done", comment: "ManualsPage – dismiss button")) {
                         dismiss()
                     }
                     .font(.system(size: 15, weight: .regular))

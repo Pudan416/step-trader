@@ -54,12 +54,8 @@ extension EnergyCategory {
         }
     }
 
-    /// The default hex color for new options in this category.
+    /// A random palette color for new options (each addition gets a different tint).
     var defaultColorHex: String {
-        switch self {
-        case .body:  return "#C3143B"
-        case .mind:  return "#7652AF"
-        case .heart: return "#FEAAC2"
-        }
+        CanvasColorPalette.paletteHex.randomElement() ?? "#FFD369"
     }
 }

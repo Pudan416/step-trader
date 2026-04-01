@@ -6,10 +6,18 @@ private struct TopCardHeightKey: EnvironmentKey {
     static let defaultValue: CGFloat = 0
 }
 
+private struct TabBarHeightKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 80
+}
+
 extension EnvironmentValues {
     var topCardHeight: CGFloat {
         get { self[TopCardHeightKey.self] }
         set { self[TopCardHeightKey.self] = newValue }
+    }
+    var tabBarHeight: CGFloat {
+        get { self[TabBarHeightKey.self] }
+        set { self[TabBarHeightKey.self] = newValue }
     }
 }
 
@@ -21,7 +29,12 @@ struct MainTabView: View {
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
     @State private var isLabelMode: Bool = false
-    @State private var showRaysHelp: Bool = false
+    @State private var isWideCanvas: Bool = false
+    @State private var showColorsHelp: Bool = false
+    @State private var tabBarHeight: CGFloat = 0
+    private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
+    @ScaledMetric(relativeTo: .caption2) private var tabIconSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .caption2) private var selectedTabIconSize: CGFloat = 24
 
     private enum Tab: Int, CaseIterable {
         case canvas = 0
@@ -42,11 +55,11 @@ struct MainTabView: View {
 
         var title: String {
             switch self {
-            case .feeds: return "Feeds"
-            case .canvas: return "Canvas"
-            case .me: return "Me"
-            case .notes: return "Notes"
-            case .settings: return "Settings"
+            case .feeds: return String(localized: "Feeds", comment: "Tab bar title")
+            case .canvas: return String(localized: "Canvas", comment: "Tab bar title")
+            case .me: return String(localized: "Now", comment: "Tab bar title")
+            case .notes: return String(localized: "Notes", comment: "Tab bar title")
+            case .settings: return String(localized: "Settings", comment: "Tab bar title")
             }
         }
         
@@ -70,12 +83,28 @@ struct MainTabView: View {
         }
     }
 
+    private struct TabBarHeightPreferenceKey: PreferenceKey {
+        static let defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = max(value, nextValue())
+        }
+    }
+
     var body: some View {
         ZStack {
             TabView(selection: $selection) {
                 // 0: My Canvas (default) — canvas goes full-bleed behind card
-                NavigationStack {
-                    GalleryView(model: model, metricOverlay: $metricOverlay, isLabelMode: $isLabelMode)
+                Group {
+                    if isUITest {
+                        // Keep UI tests deterministic: avoid heavy animated/Metal canvas surfaces
+                        // that can block XCTest idling and snapshot collection.
+                        Color.clear
+                            .ignoresSafeArea()
+                    } else {
+                        NavigationStack {
+                            GalleryView(model: model, metricOverlay: $metricOverlay, isLabelMode: $isLabelMode, isWideCanvas: $isWideCanvas)
+                        }
+                    }
                 }
                 .safeAreaInset(edge: .top, spacing: 0) {
                     Color.clear.frame(height: topCardHeight)
@@ -104,14 +133,21 @@ struct MainTabView: View {
                     .tag(Tab.settings.rawValue)
             }
             .environment(\.topCardHeight, topCardHeight)
+            .environment(\.tabBarHeight, tabBarHeight)
             .animation(.easeInOut(duration: 0.2), value: selection)
             .safeAreaInset(edge: .bottom) {
-                if !isLabelMode {
+                if !isLabelMode && !isWideCanvas {
                     customTabBar
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear.preference(key: TabBarHeightPreferenceKey.self, value: geo.size.height)
+                            }
+                        )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: isLabelMode)
+            .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
             .background(Color.clear)
             .onAppear {
                 model.recalculateDailyEnergy()
@@ -125,14 +161,12 @@ struct MainTabView: View {
             }
         }
         .overlay(alignment: .top) {
-            if !isLabelMode {
+            if !isLabelMode && !isWideCanvas {
             StepBalanceCard(
                 remainingSteps: model.userEconomyStore.totalStepsBalance,
                 totalSteps: model.healthStore.baseEnergyToday,
                 spentSteps: model.spentStepsToday,
                 healthKitSteps: model.userEconomyStore.stepsBalance,
-                outerWorldSteps: 0,
-                grantedSteps: 0,
                 dayEndHour: model.dayEndHour,
                 dayEndMinute: model.dayEndMinute,
                 showDetails: selection == Tab.canvas.rawValue,
@@ -173,7 +207,7 @@ struct MainTabView: View {
                         selectedCategory = .heart
                     }
                 },
-                onRaysHelpTap: { showRaysHelp = true }
+                onColorsHelpTap: { showColorsHelp = true }
             )
             .padding(.horizontal)
             .padding(.top, 8)
@@ -188,11 +222,12 @@ struct MainTabView: View {
             }
         }
         .overlay {
-            if showRaysHelp {
-                raysHelpOverlay
+            if showColorsHelp {
+                colorsHelpOverlay
             }
         }
         .onPreferenceChange(TopCardHeightPreferenceKey.self) { topCardHeight = $0 }
+        .onPreferenceChange(TabBarHeightPreferenceKey.self) { tabBarHeight = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in
             selection = Tab.feeds.rawValue
         }
@@ -220,28 +255,28 @@ struct MainTabView: View {
         }
     }
 
-    private var raysHelpOverlay: some View {
+    private var colorsHelpOverlay: some View {
         ZStack {
             Color.black.opacity(0.35)
                 .ignoresSafeArea()
-                .onTapGesture { showRaysHelp = false }
+                .onTapGesture { showColorsHelp = false }
 
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("About rays")
+                    Text(String(localized: "About colors", comment: "Help overlay title"))
                         .font(.headline)
                     Spacer()
-                    Button { showRaysHelp = false } label: {
+                    Button { showColorsHelp = false } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title3)
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
                 }
-                Text("Each of the five areas — steps, sleep, body, mind and heart — contributes up to 20 rays (100 rays total).")
+                Text(String(localized: "Each of the five areas — steps, sleep, body, mind and heart — contributes up to 20 colors (100 colors total)."))
                     .font(.subheadline)
                     .foregroundColor(.primary)
-                Text("Steps and sleep come from the Health app and are the same for everyone. Body, mind and heart are activities you add by tapping the + button at the bottom of the screen.")
+                Text(String(localized: "Steps and sleep come from the Health app and are the same for everyone. Body, mind and heart are activities you add by tapping the + button at the bottom of the screen."))
                     .font(.subheadline)
                     .foregroundColor(.primary)
             }
@@ -284,13 +319,21 @@ struct MainTabView: View {
                     }
                 } label: {
                     VStack(spacing: 4) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: isSelected ? 24 : 22))
-                            .fontWeight(isSelected ? .semibold : .regular)
-                            .symbolRenderingMode(.hierarchical)
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: isSelected ? selectedTabIconSize : tabIconSize))
+                                .fontWeight(isSelected ? .semibold : .regular)
+                                .symbolRenderingMode(.hierarchical)
+                            if tab == .settings && model.hasPermissionIssues {
+                                Circle()
+                                    .fill(.orange)
+                                    .frame(width: 7, height: 7)
+                                    .offset(x: 3, y: -2)
+                            }
+                        }
                         
                         Text(tab.title)
-                            .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                            .font(.caption2.weight(isSelected ? .semibold : .regular))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
@@ -318,13 +361,21 @@ struct MainTabView: View {
                     selection = tab.rawValue
                 } label: {
                     VStack(spacing: 4) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: isSelected ? 24 : 22))
-                            .fontWeight(isSelected ? .semibold : .regular)
-                            .symbolRenderingMode(.hierarchical)
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: isSelected ? selectedTabIconSize : tabIconSize))
+                                .fontWeight(isSelected ? .semibold : .regular)
+                                .symbolRenderingMode(.hierarchical)
+                            if tab == .settings && model.hasPermissionIssues {
+                                Circle()
+                                    .fill(.orange)
+                                    .frame(width: 7, height: 7)
+                                    .offset(x: 3, y: -2)
+                            }
+                        }
                         
                         Text(tab.title)
-                            .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                            .font(.caption2.weight(isSelected ? .semibold : .regular))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }

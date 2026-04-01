@@ -1,5 +1,6 @@
 import AppIntents
 import SwiftUI
+import WidgetKit
 
 // MARK: - Errors
 
@@ -40,8 +41,8 @@ enum GradientStyleOption: String, AppEnum {
     func resolved() -> GradientStyle {
         switch self {
         case .appDefault:
-            let raw = UserDefaults(suiteName: SharedKeys.appGroupId)?.string(forKey: "gradientStyle_v1")
-                ?? UserDefaults.standard.string(forKey: "gradientStyle_v1")
+            let raw = UserDefaults(suiteName: SharedKeys.appGroupId)?.string(forKey: SharedKeys.gradientStyle)
+                ?? UserDefaults.standard.string(forKey: SharedKeys.gradientStyle)
                 ?? GradientStyle.radial.rawValue
             return GradientStyle(rawValue: raw) ?? .radial
         case .radial:          return .radial
@@ -70,8 +71,8 @@ enum ColorPaletteOption: String, AppEnum {
     func resolved() -> GradientPalette {
         switch self {
         case .appDefault:
-            let raw = UserDefaults(suiteName: SharedKeys.appGroupId)?.string(forKey: "gradientPalette_v1")
-                ?? UserDefaults.standard.string(forKey: "gradientPalette_v1")
+            let raw = UserDefaults(suiteName: SharedKeys.appGroupId)?.string(forKey: SharedKeys.gradientPalette)
+                ?? UserDefaults.standard.string(forKey: SharedKeys.gradientPalette)
                 ?? GradientPalette.warmSunset.rawValue
             return GradientPalette(rawValue: raw) ?? .warmSunset
         case .warmSunset: return .warmSunset
@@ -106,7 +107,9 @@ struct ExportCanvasWallpaperIntent: AppIntent {
         let canvas = CanvasStorageService.shared.loadOrCreateCanvas(for: dayKey)
         let theme = Self.resolvedTheme()
 
-        let screen = UIScreen.main
+        let screen = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.screen ?? UIScreen.main
         let baseWidth: CGFloat = screen.bounds.width
         let baseHeight: CGFloat = screen.bounds.height
 
@@ -141,7 +144,8 @@ struct ExportCanvasWallpaperIntent: AppIntent {
                 showsOutlinedLabels: false,
                 showsBackgroundGradient: false,
                 hasStepsData: hasSteps,
-                hasSleepData: hasSleep
+                hasSleepData: hasSleep,
+                fixedTime: Date()
             )
 
             Image("grain 1")
@@ -164,8 +168,25 @@ struct ExportCanvasWallpaperIntent: AppIntent {
             throw ExportCanvasError.renderFailed
         }
 
+        Self.saveWallpaperToWidgetContainer(image: image)
+
         let file = IntentFile(data: data, filename: "canvas-wallpaper.png", type: .png)
         return .result(value: file)
+    }
+
+    private static func saveWallpaperToWidgetContainer(image: UIImage) {
+        guard let containerURL = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
+        ) else { return }
+
+        let dir = containerURL.appendingPathComponent("widget_snapshots", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        let url = dir.appendingPathComponent("wallpaper_bg.jpg")
+        guard let data = image.jpegData(compressionQuality: 0.85) else { return }
+        try? data.write(to: url, options: .atomic)
+
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Shortcut Usage Tracking

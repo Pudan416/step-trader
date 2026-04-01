@@ -92,7 +92,6 @@ npm run deploy   # Deploy to Cloudflare
 The bot reads/writes these Supabase tables:
 - `users` — User profiles
 - `shields` — Shield configurations
-- `energy_ledger` — Energy grants/transactions
 
 ## Security
 

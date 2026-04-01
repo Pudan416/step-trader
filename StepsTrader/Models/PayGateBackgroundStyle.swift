@@ -21,17 +21,6 @@ enum PayGateBackgroundStyle: String, CaseIterable, Identifiable {
         }
     }
     
-    var displayNameRU: String {
-        switch self {
-        case .midnight: return "Midnight"
-        case .aurora: return "Aurora"
-        case .sunset: return "Sunset"
-        case .ocean: return "Ocean"
-        case .neon: return "Neon"
-        case .minimal: return "Minimal"
-        }
-    }
-    
     var colors: [Color] {
         switch self {
         case .midnight:

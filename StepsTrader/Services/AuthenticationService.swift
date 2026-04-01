@@ -11,16 +11,10 @@ struct AppUser: Codable {
     let email: String?
     var nickname: String?
     var country: String?
-    var avatarData: Data?  // Local cache
-    var avatarURL: String? // Supabase Storage URL
+    var avatarData: Data?
     let createdAt: Date
     
-    // Synced stats
-    var energySpentLifetime: Int
-    
-    // Local-only: name from Apple ID (stored in UserDefaults, only sent on first sign-in)
     var appleDisplayName: String?
-    // Local-only: true once the user explicitly saves a nickname in the profile editor
     var hasSetCustomNickname: Bool
     
     var displayName: String {
@@ -51,15 +45,13 @@ struct AppUser: Codable {
         return result.isEmpty ? nil : result
     }
     
-    init(id: String, email: String?, nickname: String? = nil, country: String? = nil, avatarData: Data? = nil, avatarURL: String? = nil, createdAt: Date, energySpentLifetime: Int = 0, appleDisplayName: String? = nil, hasSetCustomNickname: Bool = false) {
+    init(id: String, email: String?, nickname: String? = nil, country: String? = nil, avatarData: Data? = nil, createdAt: Date, appleDisplayName: String? = nil, hasSetCustomNickname: Bool = false) {
         self.id = id
         self.email = email
         self.nickname = nickname
         self.country = country
         self.avatarData = avatarData
-        self.avatarURL = avatarURL
         self.createdAt = createdAt
-        self.energySpentLifetime = energySpentLifetime
         self.appleDisplayName = appleDisplayName
         self.hasSetCustomNickname = hasSetCustomNickname
     }
@@ -83,8 +75,7 @@ class AuthenticationService: NSObject, ObservableObject {
     
     /// Current access token for API requests (nil if not authenticated)
     var accessToken: String? {
-        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else { return nil }
-        // Try both decoders for backward compatibility
+        guard let data = SessionKeychain.loadSession() else { return nil }
         if let session = try? supabaseDecoder.decode(SupabaseSessionResponse.self, from: data) {
             return session.accessToken
         }
@@ -94,6 +85,8 @@ class AuthenticationService: NSObject, ObservableObject {
         return nil
     }
     
+    // Auth data intentionally stored in .standard — not shared with extensions.
+    // Avatar bytes live on disk (Documents dir) to avoid bloating UserDefaults.
     private let userDefaultsKey = "supabaseSession_v1"
     private let avatarDefaultsPrefix = "userAvatarData_v1_"
     private let appleNamePrefix = "appleDisplayName_v1_"
@@ -134,6 +127,42 @@ class AuthenticationService: NSObject, ObservableObject {
         isAuthenticated = false
     }
     
+    /// Permanently deletes the user's account and all associated server-side data
+    /// via Supabase Edge Function, then wipes local caches.
+    func deleteAccount() async throws {
+        guard let session = loadStoredSession() else {
+            throw AuthError.supabaseError("No active session")
+        }
+        
+        let cfg = try SupabaseConfig.load()
+        let url = cfg.baseURL.appendingPathComponent("functions/v1/delete-user")
+        
+        let (data, http) = try await makeJSONRequest(
+            url: url,
+            method: "POST",
+            headers: [
+                "apikey": cfg.anonKey,
+                "authorization": "Bearer \(session.accessToken)"
+            ]
+        )
+        
+        if http.statusCode >= 400 {
+            let msg = String(data: data, encoding: .utf8) ?? "Account deletion failed"
+            throw AuthError.supabaseError(msg)
+        }
+        
+        let userId = session.user.id
+        clearStoredSession()
+        storeAvatarData(nil, for: userId)
+        UserDefaults.standard.removeObject(forKey: appleNamePrefix + userId)
+        UserDefaults.standard.removeObject(forKey: customNicknamePrefix + userId)
+        
+        currentUser = nil
+        isAuthenticated = false
+        
+        AppLogger.auth.debug("🗑️ Account deleted successfully for user \(userId)")
+    }
+    
     /// Handle authorization result from SignInWithAppleButton
     func handleAuthorization(_ authorization: ASAuthorization) {
         guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
@@ -158,6 +187,9 @@ class AuthenticationService: NSObject, ObservableObject {
         // Apple only delivers fullName on the very first sign-in — capture it now
         let appleFullName: String? = {
             guard let fn = credential.fullName else { return nil }
+            let formatter = PersonNameComponentsFormatter()
+            let formatted = formatter.string(from: fn).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !formatted.isEmpty { return formatted }
             let parts = [fn.givenName, fn.familyName].compactMap { $0 }.filter { !$0.isEmpty }
             return parts.isEmpty ? nil : parts.joined(separator: " ")
         }()
@@ -172,6 +204,9 @@ class AuthenticationService: NSObject, ObservableObject {
                     self.storeAppleDisplayName(name, for: session.user.id)
                 }
                 try await self.loadCurrentUserFromSupabase(session: session)
+                if let name = appleFullName {
+                    await self.promoteAppleNameAsDefaultProfileNameIfNeeded(name, session: session)
+                }
                 self.isAuthenticated = (self.currentUser != nil)
                 self.currentNonce = nil
             } catch {
@@ -181,31 +216,6 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     func checkAuthenticationState() async { await loadStoredSessionAndRefreshUser() }
-    
-    // MARK: - Stats Sync
-    
-    /// Call this when energy is spent or batteries collected to sync to server
-    func syncStats() {
-        guard isAuthenticated, let user = currentUser else { return }
-        
-        let energy = totalLocalEnergySpent()
-        
-        // Only sync if changed
-        if energy == user.energySpentLifetime { return }
-        
-        Task { @MainActor in
-            guard let session = loadStoredSession() else { return }
-            do {
-                try await syncStatsToSupabase(session: session, userId: user.id, energy: energy)
-                // Update local user
-                var updatedUser = user
-                updatedUser.energySpentLifetime = energy
-                currentUser = updatedUser
-            } catch {
-                AppLogger.auth.error("❌ Stats sync failed: \(error.localizedDescription)")
-            }
-        }
-    }
     
     // MARK: - Profile Update Methods
     
@@ -231,18 +241,13 @@ class AuthenticationService: NSObject, ObservableObject {
             do {
                 guard let session = loadStoredSession() else { return }
                 
-                // Upload avatar to Supabase Storage if provided
-                var avatarUrl: String? = nil
                 if let data = avatarData, !data.isEmpty {
-                    avatarUrl = try await uploadAvatarToStorage(session: session, userId: user.id, imageData: data)
-                    AppLogger.auth.debug("📸 Avatar uploaded: \(avatarUrl ?? "nil")")
+                    _ = try await uploadAvatarToStorage(session: session, userId: user.id, imageData: data)
                 } else if avatarData == nil {
-                    // Avatar was removed - delete from storage
                     try? await deleteAvatarFromStorage(session: session, userId: user.id)
-                    avatarUrl = "" // Empty string to clear the URL in DB
                 }
                 
-                try await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: country, avatarUrl: avatarUrl)
+                try await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: country)
                 // Refresh from DB to keep canonical values
                 try await loadCurrentUserFromSupabase(session: session)
             } catch {
@@ -277,17 +282,13 @@ class AuthenticationService: NSObject, ObservableObject {
         
         guard let session = loadStoredSession() else { return }
         
-        // Upload avatar to Supabase Storage if provided
-        var avatarUrl: String? = nil
         if let data = avatarData, !data.isEmpty {
-            avatarUrl = try await uploadAvatarToStorage(session: session, userId: user.id, imageData: data)
+            _ = try await uploadAvatarToStorage(session: session, userId: user.id, imageData: data)
         } else if avatarData == nil {
-            // Avatar was removed
             try? await deleteAvatarFromStorage(session: session, userId: user.id)
-            avatarUrl = ""
         }
         
-        try await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: country, avatarUrl: avatarUrl)
+        try await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: country)
         try await loadCurrentUserFromSupabase(session: session)
     }
     
@@ -305,17 +306,42 @@ class AuthenticationService: NSObject, ObservableObject {
         }
     }
     
+    private static func avatarFileURL(for userId: String) -> URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("avatar_\(userId).png")
+    }
+
     private func storeAvatarData(_ data: Data?, for userId: String) {
-        let key = avatarDefaultsPrefix + userId
+        let fileURL = Self.avatarFileURL(for: userId)
         if let data, !data.isEmpty {
-            UserDefaults.standard.set(data, forKey: key)
+            do {
+                try data.write(to: fileURL, options: .atomic)
+            } catch {
+                AppLogger.auth.error("Failed to write avatar to disk: \(error.localizedDescription)")
+            }
         } else {
-            UserDefaults.standard.removeObject(forKey: key)
+            try? FileManager.default.removeItem(at: fileURL)
         }
+        UserDefaults.standard.removeObject(forKey: avatarDefaultsPrefix + userId)
     }
     
     private func loadAvatarData(for userId: String) -> Data? {
-        UserDefaults.standard.data(forKey: avatarDefaultsPrefix + userId)
+        let fileURL = Self.avatarFileURL(for: userId)
+        if let data = try? Data(contentsOf: fileURL) {
+            return data
+        }
+        // Migration: move legacy UserDefaults avatar to file
+        let key = avatarDefaultsPrefix + userId
+        if let legacyData = UserDefaults.standard.data(forKey: key) {
+            do {
+                try legacyData.write(to: fileURL, options: .atomic)
+            } catch {
+                AppLogger.auth.error("Failed to migrate avatar to disk: \(error.localizedDescription)")
+            }
+            UserDefaults.standard.removeObject(forKey: key)
+            return legacyData
+        }
+        return nil
     }
     
     func storeAppleDisplayName(_ name: String, for userId: String) {
@@ -326,8 +352,42 @@ class AuthenticationService: NSObject, ObservableObject {
         UserDefaults.standard.string(forKey: appleNamePrefix + userId)
     }
     
-    func storeHasCustomNickname(_ value: Bool, for userId: String) {
+    private func storeHasCustomNickname(_ value: Bool, for userId: String) {
         UserDefaults.standard.set(value, forKey: customNicknamePrefix + userId)
+    }
+
+    private func promoteAppleNameAsDefaultProfileNameIfNeeded(_ name: String, session: SupabaseSessionResponse) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, var user = currentUser else { return }
+
+        // Never override a nickname the user explicitly chose.
+        guard !user.hasSetCustomNickname else {
+            if user.appleDisplayName != trimmed {
+                user.appleDisplayName = trimmed
+                currentUser = user
+            }
+            return
+        }
+
+        var didMutateLocalUser = false
+        if user.appleDisplayName != trimmed {
+            user.appleDisplayName = trimmed
+            didMutateLocalUser = true
+        }
+        if user.nickname != trimmed {
+            user.nickname = trimmed
+            didMutateLocalUser = true
+        }
+        if didMutateLocalUser {
+            currentUser = user
+        }
+
+        do {
+            try await patchUserProfile(session: session, userId: user.id, nickname: trimmed, country: user.country)
+        } catch {
+            // Keep local Apple name for UI even if profile PATCH fails.
+            AppLogger.auth.error("⚠️ Failed to promote Apple name as nickname: \(error.localizedDescription)")
+        }
     }
     
     private func loadHasCustomNickname(for userId: String) -> Bool {
@@ -335,9 +395,14 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     private func loadStoredSession() -> SupabaseSessionResponse? {
-        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else { return nil }
-        // Backward-compatible: older builds may have encoded Date as numeric timestamps (default JSONEncoder),
-        // while we currently decode ISO8601 from Supabase responses.
+        // One-time migration: move session from UserDefaults to Keychain
+        if let legacyData = UserDefaults.standard.data(forKey: userDefaultsKey) {
+            SessionKeychain.saveSession(legacyData)
+            UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+            AppLogger.auth.debug("🔐 Migrated session from UserDefaults to Keychain")
+        }
+
+        guard let data = SessionKeychain.loadSession() else { return nil }
         if let s = try? supabaseDecoder.decode(SupabaseSessionResponse.self, from: data) {
             return s
         }
@@ -349,17 +414,18 @@ class AuthenticationService: NSObject, ObservableObject {
     
     private func storeSession(_ session: SupabaseSessionResponse) {
         guard let data = try? supabaseEncoder.encode(session) else { return }
-        UserDefaults.standard.set(data, forKey: userDefaultsKey)
+        SessionKeychain.saveSession(data)
     }
     
     private func clearStoredSession() {
+        SessionKeychain.deleteSession()
         UserDefaults.standard.removeObject(forKey: userDefaultsKey)
     }
 
     private func loadStoredSessionAndRefreshUser() async {
         AppLogger.auth.debug("🔐 loadStoredSessionAndRefreshUser called")
         guard let session = loadStoredSession() else {
-            AppLogger.auth.debug("🔐 No stored session found in UserDefaults")
+            AppLogger.auth.debug("🔐 No stored session found in Keychain")
             currentUser = nil
             isAuthenticated = false
             return
@@ -490,7 +556,7 @@ class AuthenticationService: NSObject, ObservableObject {
         }
         let uid = session.user.id
         comps.queryItems = [
-            URLQueryItem(name: "select", value: "id,email,nickname,country,created_at,is_banned,ban_reason,ban_until,energy_spent_lifetime"),
+            URLQueryItem(name: "select", value: "id,email,nickname,country,created_at,is_banned,ban_reason,ban_until"),
             URLQueryItem(name: "id", value: "eq.\(uid)")
         ]
         
@@ -516,68 +582,33 @@ class AuthenticationService: NSObject, ObservableObject {
         
         let rows = try supabaseDecoder.decode([SupabasePublicUserRow].self, from: data)
         guard let row = rows.first else {
-            // Trigger might not have created the row yet; fallback to auth user
-            // Generate a unique nickname for new users
-            let generatedNickname = await generateUniqueNickname(session: session)
-            
-            let user = AppUser(
+            // Trigger might not have created the row yet; fallback to auth user.
+            // Do not auto-generate nicknames; prefer Apple name or email fallback in UI.
+            currentUser = AppUser(
                 id: session.user.id,
                 email: session.user.email,
-                nickname: generatedNickname,
+                nickname: nil,
                 country: nil,
                 avatarData: loadAvatarData(for: session.user.id),
-                avatarURL: nil,
                 createdAt: session.user.createdAt ?? Date(),
-                energySpentLifetime: 0,
                 appleDisplayName: loadAppleDisplayName(for: session.user.id),
                 hasSetCustomNickname: loadHasCustomNickname(for: session.user.id)
             )
-            currentUser = user
-            
-            // Push the generated nickname to Supabase
-            if let nickname = generatedNickname {
-                Task {
-                    try? await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: nil)
-                }
-            }
             return
         }
         
-        // If user exists but has no nickname, generate one
-        if row.nickname == nil || row.nickname?.isEmpty == true {
-            let generatedNickname = await generateUniqueNickname(session: session)
-            if let nickname = generatedNickname {
-                Task {
-                    try? await patchUserProfile(session: session, userId: row.id, nickname: nickname, country: row.country)
-                }
-            }
-        }
+        let avatarData = loadAvatarData(for: row.id)
         
-        // Load avatar: prefer local cache, fallback to URL
-        var avatarData = loadAvatarData(for: row.id)
-        if avatarData == nil, let urlString = row.avatarUrl, !urlString.isEmpty,
-           let url = URL(string: urlString) {
-            // Download avatar from Supabase Storage
-            avatarData = try? await downloadAvatar(from: url)
-            if let data = avatarData {
-                storeAvatarData(data, for: row.id)
-            }
-        }
-        
-        // Ban gating (client-side visibility; server-side should still enforce via RLS if needed)
         if row.isBanned {
-            // If ban_until is nil => permanent. If future => active.
             let until = row.banUntil
-            if until == nil || until! > Date() {
+            if until == nil || (until.map { $0 > Date() } ?? true) {
                 currentUser = AppUser(
                     id: row.id,
                     email: row.email,
                     nickname: row.nickname,
                     country: row.country,
                     avatarData: avatarData,
-                    avatarURL: row.avatarUrl,
                     createdAt: row.createdAt,
-                    energySpentLifetime: row.energySpentLifetime ?? 0,
                     appleDisplayName: loadAppleDisplayName(for: row.id),
                     hasSetCustomNickname: loadHasCustomNickname(for: row.id)
                 )
@@ -587,248 +618,19 @@ class AuthenticationService: NSObject, ObservableObject {
             }
         }
         
-        let serverEnergy = row.energySpentLifetime ?? 0
-        
-        // Merge with local data - take maximum to prevent losing progress
-        let localEnergy = totalLocalEnergySpent()
-        let mergedEnergy = max(serverEnergy, localEnergy)
-        
         currentUser = AppUser(
             id: row.id,
             email: row.email,
             nickname: row.nickname,
             country: row.country,
             avatarData: avatarData,
-            avatarURL: row.avatarUrl,
             createdAt: row.createdAt,
-            energySpentLifetime: mergedEnergy,
             appleDisplayName: loadAppleDisplayName(for: row.id),
             hasSetCustomNickname: loadHasCustomNickname(for: row.id)
         )
-        
-        // If local has more, push to server
-        if localEnergy > serverEnergy {
-            Task {
-                try? await syncStatsToSupabase(session: session, userId: row.id, energy: mergedEnergy)
-            }
-        }
-        
-        // Apply server data to local storage if server has more
-        if serverEnergy > localEnergy {
-            applyEnergySpentToLocal(serverEnergy)
-            
-            // Notify AppModel to reload data
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(name: .init("StatsRestoredFromServer"), object: nil)
-            }
-        }
     }
     
-    // MARK: - Stats Sync Helpers
-    
-    private func totalLocalEnergySpent() -> Int {
-        // Sum of all energy spent lifetime from UserDefaults
-        guard let data = UserDefaults.stepsTrader().data(forKey: "appStepsSpentLifetime_v1"),
-              let dict = try? JSONDecoder().decode([String: Int].self, from: data) else {
-            return 0
-        }
-        return dict.values.reduce(0, +)
-    }
-    
-    private func applyEnergySpentToLocal(_ total: Int) {
-        AppLogger.auth.debug("📊 Applying server energy to local: \(total)")
-        
-        // Load existing data
-        let defaults = UserDefaults.stepsTrader()
-        var dict: [String: Int] = [:]
-        if let data = defaults.data(forKey: "appStepsSpentLifetime_v1"),
-           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
-            dict = decoded
-        }
-        
-        // Calculate current total
-        let currentTotal = dict.values.reduce(0, +)
-        
-        // If server has more, add the difference to a _restored key
-        if total > currentTotal {
-            let diff = total - currentTotal
-            dict["_restored", default: 0] += diff
-            AppLogger.auth.debug("📊 Restored \(diff) energy from server (total now: \(total))")
-            
-            if let encoded = try? JSONEncoder().encode(dict) {
-                defaults.set(encoded, forKey: "appStepsSpentLifetime_v1")
-            }
-        }
-    }
-    
-    private func syncStatsToSupabase(session: SupabaseSessionResponse, userId: String, energy: Int) async throws {
-        let cfg = try SupabaseConfig.load()
-        let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
-        guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
-            throw AuthError.supabaseError("Invalid users URL")
-        }
-        comps.queryItems = [URLQueryItem(name: "id", value: "eq.\(userId)")]
-        
-        guard let finalURL = comps.url else {
-            throw AuthError.supabaseError("Failed to construct sync URL")
-        }
-        
-        let patch = ["energy_spent_lifetime": energy]
-        let body = try JSONEncoder().encode(patch)
-        
-        let (_, http) = try await makeJSONRequest(
-            url: finalURL,
-            method: "PATCH",
-            headers: [
-                "apikey": cfg.anonKey,
-                "authorization": "Bearer \(session.accessToken)",
-                "prefer": "return=minimal",
-                "accept": "application/json"
-            ],
-            body: body
-        )
-        
-        if http.statusCode < 400 {
-            AppLogger.auth.debug("✅ Stats synced to Supabase: energy=\(energy)")
-        }
-    }
-    
-    // MARK: - Energy Balance Logging
-    
-    /// Logs lifetime energy spent to Supabase
-    func logEnergyState(energySpent: Int) async {
-        guard isAuthenticated,
-              let userId = currentUser?.id,
-              let session = loadStoredSession() else {
-            AppLogger.auth.debug("📊 Energy log skipped: not authenticated or no session")
-            return
-        }
-        
-        AppLogger.auth.debug("📊 Logging energy spent: \(energySpent)")
-        
-        do {
-            let cfg = try SupabaseConfig.load()
-            let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
-            guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
-                AppLogger.auth.error("❌ Invalid users URL")
-                return
-            }
-            comps.queryItems = [URLQueryItem(name: "id", value: "eq.\(userId)")]
-            
-            guard let finalURL = comps.url else {
-                AppLogger.auth.error("❌ Failed to construct energy log URL")
-                return
-            }
-            
-            let patch = SupabasePublicUserPatch(
-                energySpentLifetime: energySpent
-            )
-            let body = try JSONEncoder().encode(patch)
-            
-            let (data, http) = try await makeJSONRequest(
-                url: finalURL,
-                method: "PATCH",
-                headers: [
-                    "apikey": cfg.anonKey,
-                    "authorization": "Bearer \(session.accessToken)",
-                    "prefer": "return=representation",
-                    "accept": "application/json"
-                ],
-                body: body
-            )
-            
-            if http.statusCode < 400 {
-                AppLogger.auth.debug("✅ Energy state logged successfully")
-            } else {
-                let responseBody = String(data: data, encoding: .utf8) ?? "empty"
-                AppLogger.auth.error("❌ Energy state log failed: HTTP \(http.statusCode), body: \(responseBody)")
-            }
-        } catch {
-            AppLogger.auth.error("❌ Energy state log error: \(error.localizedDescription)")
-        }
-    }
-    
-    // MARK: - Nickname Generation
-    
-    private func generateUniqueNickname(session: SupabaseSessionResponse) async -> String? {
-        // Word pools for generating fun nicknames
-        let prefixes = [
-            // Doom-themed
-            "Doom", "Dark", "Shadow", "Chaos", "Void", "Cyber", "Neo", "Night", "Storm", "Iron",
-            // Walk-themed
-            "Swift", "Step", "Stride", "Path", "Trail", "Road", "Walk", "Run", "Sprint", "Dash",
-            // Social-themed
-            "Scroll", "Swipe", "Tap", "Click", "Like", "Share", "Post", "Feed", "Viral", "Trend"
-        ]
-        
-        let suffixes = [
-            // Doom-themed
-            "Slayer", "Hunter", "Rider", "Walker", "Master", "Lord", "Knight", "Warrior", "Phantom", "Reaper",
-            // Walk-themed  
-            "Stepper", "Runner", "Mover", "Pacer", "Tracker", "Chaser", "Seeker", "Finder", "Blazer", "Cruiser",
-            // Social-themed
-            "Scroller", "Surfer", "Diver", "Lurker", "Poster", "Sharer", "Viewer", "Watcher", "Browser", "Streamer"
-        ]
-        
-        // Try up to 10 times to find a unique nickname
-        for _ in 0..<10 {
-            let prefix = prefixes.randomElement() ?? "User"
-            let suffix = suffixes.randomElement() ?? "One"
-            let number = Int.random(in: 10...99)
-            let candidate = "\(prefix)\(suffix)\(number)"
-            
-            // Check if this nickname is already taken
-            if await isNicknameAvailable(candidate, session: session) {
-                return candidate
-            }
-        }
-        
-        // Fallback: use UUID-based name
-        let shortId = UUID().uuidString.prefix(6).uppercased()
-        return "User\(shortId)"
-    }
-    
-    private func isNicknameAvailable(_ nickname: String, session: SupabaseSessionResponse) async -> Bool {
-        do {
-            let cfg = try SupabaseConfig.load()
-            let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
-            guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
-                return true // Assume available on error
-            }
-            comps.queryItems = [
-                URLQueryItem(name: "select", value: "id"),
-                URLQueryItem(name: "nickname", value: "eq.\(nickname)"),
-                URLQueryItem(name: "limit", value: "1")
-            ]
-            
-            guard let finalURL = comps.url else {
-                return true // Assume available on error
-            }
-            
-            var request = URLRequest(url: finalURL)
-            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-            request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
-            
-            let (data, httpResponse) = try await network.data(for: request)
-            
-            guard httpResponse.statusCode == 200 else {
-                return true // Assume available on error
-            }
-            
-            // If array is empty, nickname is available
-            if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                return jsonArray.isEmpty
-            }
-            
-            return true
-        } catch {
-            AppLogger.auth.error("⚠️ Nickname check failed: \(error.localizedDescription)")
-            return true // Assume available on error
-        }
-    }
-    
-    private func patchUserProfile(session: SupabaseSessionResponse, userId: String, nickname: String?, country: String?, avatarUrl: String? = nil) async throws {
+    private func patchUserProfile(session: SupabaseSessionResponse, userId: String, nickname: String?, country: String?) async throws {
         let cfg = try SupabaseConfig.load()
         let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
         guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
@@ -840,10 +642,10 @@ class AuthenticationService: NSObject, ObservableObject {
             throw AuthError.supabaseError("Failed to construct profile URL")
         }
         
-        let patch = SupabasePublicUserPatch(nickname: nickname, country: country, avatarUrl: avatarUrl)
+        let patch = SupabasePublicUserPatch(nickname: nickname, country: country)
         let body = try JSONEncoder().encode(patch)
         
-        AppLogger.auth.debug("🔄 PATCH profile: userId=\(userId), nickname=\(nickname ?? "nil"), country=\(country ?? "nil"), avatarUrl=\(avatarUrl ?? "nil")")
+        AppLogger.auth.debug("🔄 PATCH profile: userId=\(userId), nickname=\(nickname ?? "nil"), country=\(country ?? "nil")")
         AppLogger.auth.debug("🔄 PATCH URL: \(finalURL.absoluteString)")
         
         let (data, http) = try await makeJSONRequest(
@@ -934,25 +736,13 @@ class AuthenticationService: NSObject, ObservableObject {
         }
     }
     
-    /// Downloads avatar from URL
-    private func downloadAvatar(from url: URL) async throws -> Data {
-        let (data, http) = try await network.data(from: url)
-        guard http.statusCode < 400 else {
-            throw AuthError.supabaseError("Failed to download avatar")
-        }
-        return data
-    }
-    
     // MARK: - Fetch all users for Resistance screen
     
-    /// Public user info for Resistance display (no sensitive data)
     struct ResistanceUser: Identifiable {
         let id: String
         let nickname: String
-        let energySpentLifetime: Int
     }
     
-    /// Fetches list of users from Supabase for Resistance screen (randomized, limited)
     func fetchResistanceUsers(limit: Int = 20) async throws -> [ResistanceUser] {
         let cfg = try SupabaseConfig.load()
         let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
@@ -960,7 +750,7 @@ class AuthenticationService: NSObject, ObservableObject {
             throw AuthError.supabaseError("Invalid users URL")
         }
         comps.queryItems = [
-            URLQueryItem(name: "select", value: "id,nickname,energy_spent_lifetime"),
+            URLQueryItem(name: "select", value: "id,nickname"),
             URLQueryItem(name: "nickname", value: "neq."),
             URLQueryItem(name: "limit", value: "\(limit)")
         ]
@@ -982,20 +772,13 @@ class AuthenticationService: NSObject, ObservableObject {
         let rows = try supabaseDecoder.decode([ResistanceUserRow].self, from: data)
         return rows.shuffled().compactMap { row in
             guard let nick = row.nickname, !nick.isEmpty else { return nil }
-            return ResistanceUser(id: row.id, nickname: nick, energySpentLifetime: row.energySpentLifetime ?? 0)
+            return ResistanceUser(id: row.id, nickname: nick)
         }
     }
     
     private struct ResistanceUserRow: Codable {
         let id: String
         let nickname: String?
-        let energySpentLifetime: Int?
-        
-        enum CodingKeys: String, CodingKey {
-            case id
-            case nickname
-            case energySpentLifetime = "energy_spent_lifetime"
-        }
     }
     
     // MARK: - Nonce helpers (Apple Sign In)
@@ -1031,6 +814,51 @@ class AuthenticationService: NSObject, ObservableObject {
         let inputData = Data(input.utf8)
         let hashed = SHA256.hash(data: inputData)
         return hashed.compactMap { String(format: "%02x", $0) }.joined()
+    }
+}
+
+// MARK: - Session Keychain Helper
+
+private enum SessionKeychain {
+    private static let service = "com.stepstrader.supabase-session"
+    private static let account = "session_v1"
+
+    private static var baseQuery: [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+    }
+
+    @discardableResult
+    static func saveSession(_ data: Data) -> Bool {
+        var query = baseQuery
+        query[kSecValueData as String] = data
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+
+        let status = SecItemAdd(query as CFDictionary, nil)
+        if status == errSecDuplicateItem {
+            let update: [String: Any] = [kSecValueData as String: data]
+            let updateStatus = SecItemUpdate(baseQuery as CFDictionary, update as CFDictionary)
+            return updateStatus == errSecSuccess
+        }
+        return status == errSecSuccess
+    }
+
+    static func loadSession() -> Data? {
+        var query = baseQuery
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess else { return nil }
+        return result as? Data
+    }
+
+    static func deleteSession() {
+        SecItemDelete(baseQuery as CFDictionary)
     }
 }
 
@@ -1137,47 +965,29 @@ private struct SupabasePublicUserRow: Codable {
     let email: String?
     let nickname: String?
     let country: String?
-    let avatarUrl: String?
     let createdAt: Date
     let isBanned: Bool
     let banReason: String?
     let banUntil: Date?
-    let energySpentLifetime: Int?
     
     enum CodingKeys: String, CodingKey {
         case id
         case email
         case nickname
         case country
-        case avatarUrl = "avatar_url"
         case createdAt = "created_at"
         case isBanned = "is_banned"
         case banReason = "ban_reason"
         case banUntil = "ban_until"
-        case energySpentLifetime = "energy_spent_lifetime"
     }
 }
 
 private struct SupabasePublicUserPatch: Codable {
     let nickname: String?
     let country: String?
-    let avatarUrl: String?
-    let energySpentLifetime: Int?
-    let lastSyncAt: String?
     
-    enum CodingKeys: String, CodingKey {
-        case nickname
-        case country
-        case avatarUrl = "avatar_url"
-        case energySpentLifetime = "energy_spent_lifetime"
-        case lastSyncAt = "last_sync_at"
-    }
-    
-    init(nickname: String? = nil, country: String? = nil, avatarUrl: String? = nil, energySpentLifetime: Int? = nil) {
+    init(nickname: String? = nil, country: String? = nil) {
         self.nickname = nickname
         self.country = country
-        self.avatarUrl = avatarUrl
-        self.energySpentLifetime = energySpentLifetime
-        self.lastSyncAt = CachedFormatters.iso8601Basic.string(from: Date())
     }
 }

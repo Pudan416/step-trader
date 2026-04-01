@@ -234,6 +234,7 @@ enum EnergyDefaults {
         "body_resting": ("Allowing the body to recover.", "good sleep, lying down, intentional break, power nap"),
         "body_breathing": ("Returning to your physical rhythm.", "breathing pause, calming breath, mindful inhale"),
         "body_touch": ("Feeling the world through contact.", "water, grass, sunlight, physical grounding"),
+        "body_balance": ("Finding equilibrium and coordination.", "yoga, balance exercises, standing on one leg, tai chi"),
         "body_healing": ("Taking care of your body through medical attention.", "visiting a doctor, taking medication, therapy, antidepressants"),
         "body_repetition": ("Doing simple physical actions with presence.", "cleaning, tidying, daily routines"),
         "body_warming": ("Feeling heat and comfort in the body.", "hot shower, sun exposure, warm drink"),
@@ -265,6 +266,182 @@ enum EnergyDefaults {
     ]
 }
 
+// MARK: - Detected Workout (from HealthKit HKWorkout)
+
+struct DetectedWorkout: Identifiable, Equatable {
+    let id: UUID
+    let activityType: UInt
+    let startDate: Date
+    let endDate: Date
+    let durationMinutes: Int
+    let caloriesBurned: Double?
+    let distance: Double?
+
+    /// Best-match EnergyOption ID for this workout type, if one exists.
+    var suggestedOptionId: String? { Self.mapToOptionId(activityType: activityType) }
+
+    /// Best-match EnergyCategory for this workout type.
+    var suggestedCategory: EnergyCategory { Self.mapToCategory(activityType: activityType) }
+
+    var activityName: String { Self.displayName(for: activityType) }
+
+    // HKWorkoutActivityType raw values → EnergyOption IDs
+    private static func mapToOptionId(activityType: UInt) -> String? {
+        switch activityType {
+        case 37: return "body_walking"          // .walking
+        case 52: return "body_walking"          // .running
+        case 13: return "body_physical_effort"  // .cycling
+        case 46: return "body_physical_effort"  // .functionalStrengthTraining
+        case 50: return "body_physical_effort"  // .traditionalStrengthTraining
+        case 20: return "body_physical_effort"  // .crossTraining
+        case 35: return "body_physical_effort"  // .stairClimbing
+        case 16: return "body_physical_effort"  // .coreTraining
+        case 56: return "body_physical_effort"  // .swimming
+        case 24: return "body_balance"          // .yoga
+        case 36: return "body_balance"          // .pilates
+        case 57: return "body_balance"          // .taiChi
+        case 63: return "body_stretching"       // .flexibility
+        case 38: return "body_physical_effort"  // .hiking
+        case 17: return "body_physical_effort"  // .dance
+        case 47: return "body_physical_effort"  // .highIntensityIntervalTraining
+        case 62: return "body_breathing"        // .mindAndBody
+        case 6:  return "body_physical_effort"  // .boxing
+        case 25: return "body_physical_effort"  // .tennis
+        case 32: return "body_physical_effort"  // .rowing
+        case 10: return "body_physical_effort"  // .climbing
+        case 55: return "body_physical_effort"  // .soccer
+        case 4:  return "body_physical_effort"  // .basketball
+        default: return "body_physical_effort"
+        }
+    }
+
+    private static func mapToCategory(activityType: UInt) -> EnergyCategory {
+        switch activityType {
+        case 62: return .body  // mindAndBody still maps to body
+        default: return .body
+        }
+    }
+
+    static func displayName(for activityType: UInt) -> String {
+        switch activityType {
+        case 37: return "Walking"
+        case 52: return "Running"
+        case 13: return "Cycling"
+        case 46: return "Strength Training"
+        case 50: return "Strength Training"
+        case 20: return "Cross Training"
+        case 35: return "Stair Climbing"
+        case 16: return "Core Training"
+        case 56: return "Swimming"
+        case 24: return "Yoga"
+        case 36: return "Pilates"
+        case 57: return "Tai Chi"
+        case 63: return "Flexibility"
+        case 38: return "Hiking"
+        case 17: return "Dance"
+        case 47: return "HIIT"
+        case 62: return "Mind & Body"
+        case 6:  return "Boxing"
+        case 25: return "Tennis"
+        case 32: return "Rowing"
+        case 10: return "Climbing"
+        case 55: return "Soccer"
+        case 4:  return "Basketball"
+        case 15: return "Cooldown"
+        case 3000: return "Other"
+        default: return "Workout"
+        }
+    }
+}
+
+// MARK: - Activity Suggestion (unified model for all proactive suggestions)
+
+enum SuggestionSource: Equatable {
+    case workout(DetectedWorkout)
+    case mindfulSession(minutes: Double)
+    case lowScreenTime
+
+    var isWorkout: Bool {
+        if case .workout = self { return true }
+        return false
+    }
+}
+
+struct ActivitySuggestion: Identifiable, Equatable {
+    let id: String
+    let optionId: String
+    let category: EnergyCategory
+    let source: SuggestionSource
+    let title: String
+    let subtitle: String
+    let icon: String
+
+    static func fromWorkout(_ workout: DetectedWorkout) -> ActivitySuggestion? {
+        guard let optionId = workout.suggestedOptionId else { return nil }
+        var subtitle = "\(workout.durationMinutes) min"
+        if let cal = workout.caloriesBurned, cal > 0 {
+            subtitle += " · \(Int(cal)) kcal"
+        }
+        return ActivitySuggestion(
+            id: "workout_\(workout.id.uuidString)",
+            optionId: optionId,
+            category: workout.suggestedCategory,
+            source: .workout(workout),
+            title: workout.activityName,
+            subtitle: subtitle,
+            icon: workoutIcon(for: workout.activityType)
+        )
+    }
+
+    static func fromMindfulMinutes(_ minutes: Double) -> ActivitySuggestion {
+        let mins = Int(minutes)
+        return ActivitySuggestion(
+            id: "mindful_\(mins)",
+            optionId: "body_breathing",
+            category: .body,
+            source: .mindfulSession(minutes: minutes),
+            title: "Mindful Session",
+            subtitle: "\(mins) min today",
+            icon: "brain.head.profile.fill"
+        )
+    }
+
+    static func fromLowScreenTime() -> ActivitySuggestion {
+        ActivitySuggestion(
+            id: "low_screen_time",
+            optionId: "mind_letting_go",
+            category: .mind,
+            source: .lowScreenTime,
+            title: "Letting Go",
+            subtitle: "Low screen time today",
+            icon: "leaf.fill"
+        )
+    }
+
+    private static func workoutIcon(for activityType: UInt) -> String {
+        switch activityType {
+        case 37: return "figure.walk"
+        case 52: return "figure.run"
+        case 13: return "figure.outdoor.cycle"
+        case 56: return "figure.pool.swim"
+        case 24: return "figure.yoga"
+        case 36: return "figure.pilates"
+        case 38: return "figure.hiking"
+        case 17: return "figure.dance"
+        case 47: return "flame.fill"
+        case 46, 50: return "dumbbell.fill"
+        case 10: return "figure.climbing"
+        case 25: return "figure.tennis"
+        case 55: return "soccerball"
+        case 4:  return "figure.basketball"
+        case 32: return "figure.rowing"
+        case 6:  return "figure.boxing"
+        case 57: return "figure.taichi"
+        default: return "figure.run"
+        }
+    }
+}
+
 // MARK: - Custom (user-added) activity option, persisted in UserDefaults
 struct CustomEnergyOption: Identifiable, Codable, Equatable, Hashable {
     let id: String
@@ -287,6 +464,25 @@ struct CustomEnergyOption: Identifiable, Codable, Equatable, Hashable {
     
     func asEnergyOption() -> EnergyOption {
         EnergyOption(id: id, titleEn: titleEn, titleRu: titleRu, category: category, icon: icon)
+    }
+}
+
+// MARK: - Reusable preset for Body/Mind/Heart selections
+struct EnergyRoutine: Identifiable, Codable, Equatable, Hashable {
+    let id: String
+    var name: String
+    var bodyIds: [String]
+    var mindIds: [String]
+    var heartIds: [String]
+    var lastUsed: Date?
+
+    init(id: String = UUID().uuidString, name: String, bodyIds: [String], mindIds: [String], heartIds: [String], lastUsed: Date? = nil) {
+        self.id = id
+        self.name = name
+        self.bodyIds = bodyIds
+        self.mindIds = mindIds
+        self.heartIds = heartIds
+        self.lastUsed = lastUsed
     }
 }
 

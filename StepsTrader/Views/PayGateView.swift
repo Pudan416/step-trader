@@ -9,7 +9,7 @@ import FamilyControls
 /// PayGate palette: black background, yellow accent.
 fileprivate enum PayGatePalette {
     static let background = Color.black
-    static let accent = Color(red: 0xFF/255.0, green: 0xD3/255.0, blue: 0x69/255.0) // #FFD369
+    static let accent = AppColors.brandAccent
     static let surface = Color(white: 0.12)
     static let textPrimary = Color.white
     static let textSecondary = Color.white.opacity(0.6)
@@ -20,6 +20,8 @@ struct PayGateView: View {
     @State private var didForfeitSessions: Set<String> = []
     @State private var showTransitionCircle: Bool = false
     @State private var transitionScale: CGFloat = 0.01
+    @ScaledMetric(relativeTo: .headline) private var unlockButtonHeight: CGFloat = 56
+    @ScaledMetric(relativeTo: .body) private var compactThreshold: CGFloat = 700
     
     private var activeSession: PayGateSession? {
         if let id = model.userEconomyStore.currentPayGateSessionId, let session = model.userEconomyStore.payGateSessions[id] {
@@ -38,7 +40,7 @@ struct PayGateView: View {
     
     var body: some View {
         GeometryReader { geometry in
-            let isCompact = geometry.size.height < 700
+            let isCompact = geometry.size.height < compactThreshold
             
             ZStack {
                 PayGatePalette.background
@@ -72,7 +74,9 @@ struct PayGateView: View {
             if let id = activeSession?.groupId {
                 didForfeitSessions.insert(id)
             }
-            model.dismissPayGate(reason: .programmatic)
+            if model.userEconomyStore.showPayGate {
+                model.dismissPayGate(reason: .programmatic)
+            }
         }
     }
     
@@ -81,7 +85,7 @@ struct PayGateView: View {
         HStack {
             Spacer()
             Text("\(model.userEconomyStore.totalStepsBalance)")
-                .font(.systemSerif(32, weight: .bold))
+                .font(.systemSerif(32, weight: .bold, relativeTo: .title))
                 .foregroundColor(PayGatePalette.textPrimary)
                 .monospacedDigit()
                 .padding(.vertical, 12)
@@ -107,8 +111,8 @@ struct PayGateView: View {
             
             // Text
             VStack(spacing: 8) {
-                Text("spend rays")
-                    .font(.systemSerif(28, weight: .bold))
+                Text(String(localized: "spend colors", comment: "PayGate title"))
+                    .font(.systemSerif(28, weight: .bold, relativeTo: .title2))
                     .foregroundColor(PayGatePalette.textPrimary)
                     .multilineTextAlignment(.center)
                 
@@ -144,7 +148,7 @@ struct PayGateView: View {
                     .shadow(color: .black.opacity(0.5), radius: 10, x: 0, y: 5)
             } else if appTokens.isEmpty {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 40))
+                    .font(.systemSerif(40, weight: .regular, relativeTo: .largeTitle))
                     .foregroundColor(PayGatePalette.accent)
             } else {
                 // Stacked icons
@@ -162,7 +166,7 @@ struct PayGateView: View {
         .frame(height: 120)
         #else
         Image(systemName: "lock.fill")
-            .font(.system(size: 60))
+            .font(.systemSerif(60, weight: .regular, relativeTo: .largeTitle))
             .foregroundColor(PayGatePalette.accent)
             .padding(30)
             .background(
@@ -177,24 +181,26 @@ struct PayGateView: View {
     private func actionSection(group: TicketGroup) -> some View {
         let windows = Array(group.enabledIntervals).sorted { $0.minutes < $1.minutes }
         let isForfeited = didForfeitSessions.contains(group.id)
+        let minsLeft = model.minutesUntilDayReset
         
         VStack(spacing: 16) {
-            // Unlock Buttons
+            if minsLeft <= 60 {
+                dayResetWarningBanner(minutesLeft: minsLeft)
+            }
+
             ForEach(windows.prefix(3), id: \.self) { window in
                 unlockButton(window: window, group: group, isForfeited: isForfeited)
             }
             
             Spacer().frame(height: 8)
             
-            // Close Button
             Button {
                 didForfeitSessions.insert(group.id)
                 performTransition(duration: 0.4) {
                     model.dismissPayGate(reason: .userDismiss)
-                    sendAppToBackground()
                 }
             } label: {
-                Text("keep it closed")
+                Text(String(localized: "keep it closed", comment: "PayGate dismiss button"))
                     .font(.subheadline.weight(.medium))
                     .foregroundColor(PayGatePalette.textSecondary)
                     .padding(.vertical, 12)
@@ -226,13 +232,13 @@ struct PayGateView: View {
                 
                 Spacer()
                 
-                Text("· \(cost) rays")
+                Text("· \(cost) " + String(localized: "colors"))
                     .font(.headline.weight(.bold))
                     .monospacedDigit()
                     .foregroundColor(isDisabled ? PayGatePalette.textSecondary.opacity(0.5) : .black)
             }
             .padding()
-            .frame(height: 56)
+            .frame(minHeight: unlockButtonHeight)
             .background(
                 RoundedRectangle(cornerRadius: 16)
                     .fill(isDisabled ? PayGatePalette.surface : PayGatePalette.accent)
@@ -244,13 +250,43 @@ struct PayGateView: View {
         }
         .disabled(isDisabled)
         .buttonStyle(ScaleButtonStyle())
+        .accessibilityLabel(String(localized: "Unlock for \(unlockLabel(window)), costs \(cost) colors"))
+        .accessibilityHint(canPay ? String(localized: "Double tap to unlock") : String(localized: "Not enough colors"))
     }
     
+    @ViewBuilder
+    private func dayResetWarningBanner(minutesLeft: Int) -> some View {
+        let text: String = if minutesLeft < 1 {
+            String(localized: "Day resets in less than a minute — unused time will be lost", comment: "PayGate reset warning")
+        } else {
+            String(localized: "Day resets in \(minutesLeft) min — unused time will be lost", comment: "PayGate reset warning")
+        }
+
+        HStack(spacing: 8) {
+            Image(systemName: "clock.badge.exclamationmark")
+                .foregroundColor(PayGatePalette.accent)
+            Text(text)
+                .font(.caption.weight(.medium))
+                .foregroundColor(PayGatePalette.textSecondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(PayGatePalette.accent.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(PayGatePalette.accent.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+
     private func unlockLabel(_ window: AccessWindow) -> String {
         switch window {
-        case .minutes10: return "10 min"
-        case .minutes30: return "30 min"
-        case .hour1: return "1 hour"
+        case .minutes10: return String(localized: "10 min")
+        case .minutes30: return String(localized: "30 min")
+        case .hour1: return String(localized: "1 hour")
         }
     }
     
@@ -268,11 +304,6 @@ struct PayGateView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + duration * 0.85) {
             action()
         }
-    }
-    
-    private func sendAppToBackground() {
-        // No-op: private API removed (App Store rejection risk).
-        // The user stays in-app after dismissing the pay gate.
     }
     
     @ViewBuilder

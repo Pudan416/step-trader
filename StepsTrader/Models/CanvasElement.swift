@@ -208,7 +208,7 @@ struct CanvasElement: Identifiable, Codable {
         ]
 
         for _ in 0..<maxAttempts {
-            let zone = edgeZones.randomElement()!
+            let zone = edgeZones[Int.random(in: 0..<edgeZones.count)]
             let candidate = CGPoint(
                 x: CGFloat.random(in: zone.xRange),
                 y: CGFloat.random(in: zone.yRange)
@@ -268,7 +268,7 @@ struct DayCanvas: Codable {
     let createdAt: Date
     var lastModified: Date
 
-    /// 0.0 = pristine (nothing spent), 1.0 = fully degraded (all rays spent)
+    /// 0.0 = pristine (nothing spent), 1.0 = fully degraded (all colors spent)
     var decayNorm: Double {
         guard inkEarned > 0 else { return 0 }
         return min(1.0, Double(inkSpent) / Double(inkEarned))

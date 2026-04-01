@@ -19,6 +19,8 @@ extension AppModel {
     
     @MainActor
     func startPayGateSession(for groupId: String) {
+        if showPayGate, payGateTargetGroupId == groupId { return }
+
         let g = UserDefaults.stepsTrader()
         if !showPayGate,
            let until = g.object(forKey: payGateDismissedUntilKey) as? Date,
@@ -36,7 +38,8 @@ extension AppModel {
         
         payGateTargetGroupId = groupId
         showPayGate = true
-        
+        g.set(Date(), forKey: SharedKeys.lastGroupPayGateOpen(groupId))
+
         // Create session
         let session = PayGateSession(id: groupId, groupId: groupId, startedAt: Date())
         payGateSessions[groupId] = session
@@ -62,41 +65,40 @@ extension AppModel {
             return
         }
         
-        // Get cost - use override if provided, otherwise use group's cost for the window
         let cost = costOverride ?? group.cost(for: window)
+        let minutes = window.minutes
         
-        AppLogger.shield.debug("💰 Attempting to pay \(cost) rays for group \(group.name)")
-        AppLogger.shield.debug("💰 Current balance: \(self.totalStepsBalance) (base: \(self.stepsBalance), bonus: \(self.bonusSteps))")
+        AppLogger.shield.debug("💰 Attempting to pay \(cost) colors for \(minutes) min (usage budget) for group \(group.name)")
         
-        // Pay the cost
         guard pay(cost: cost) else {
-            message = "Not enough rays"
-            AppLogger.shield.debug("❌ Payment failed - not enough rays")
+            AppLogger.shield.debug("❌ Payment failed - not enough colors")
             return
         }
         
-        AppLogger.shield.debug("✅ Payment successful! New balance: \(self.totalStepsBalance) (base: \(self.stepsBalance), bonus: \(self.bonusSteps))")
+        AppLogger.shield.debug("✅ Payment successful! New balance: \(self.totalStepsBalance)")
         
-        // Set group-level unlock timestamp
         let defaults = UserDefaults.stepsTrader()
-        let now = Date()
-        if let until = accessWindowExpiration(window, now: now) {
-            defaults.set(until, forKey: "groupUnlock_\(groupId)")
-            AppLogger.shield.debug("🔓 Group \(group.name) unlocked until \(until)")
-            
-            let remainingSeconds = Int(until.timeIntervalSince(now))
-            
-            // Schedule notification 1 minute before expiration
-            scheduleUnlockExpiryNotification(groupName: group.name, expiresAt: until)
-            
-            // Schedule shield rebuild when unlock expires
-            scheduleTicketRebuild(after: remainingSeconds, groupId: groupId)
+        let budgetKey = SharedKeys.usageBudgetKey(groupId)
+        let startedKey = SharedKeys.usageBudgetStartedKey(groupId)
+
+        let existingBudget = defaults.integer(forKey: budgetKey)
+        if existingBudget > 0 {
+            #if canImport(DeviceActivity)
+            DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(groupId)")])
+            #endif
         }
+        let totalMinutes = existingBudget + minutes
+        let initialKey = SharedKeys.usageBudgetInitialKey(groupId)
+
+        defaults.set(totalMinutes, forKey: budgetKey)
+        defaults.set(totalMinutes, forKey: initialKey)
+        defaults.set(Date(), forKey: startedKey)
+        defaults.set(Date().addingTimeInterval(TimeInterval(totalMinutes * 60)), forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+
+        startUsageBudgetMonitoring(groupId: groupId, minutes: totalMinutes)
         
-        // Track spent steps for analytics (use group id as identifier)
         addSpentSteps(cost, for: "group_\(groupId)")
         
-        // Log payment transaction for history (capture balance before payment)
         let balanceBeforePayment = self.totalStepsBalance + cost
         logPaymentTransaction(
             amount: cost,
@@ -107,203 +109,113 @@ extension AppModel {
             balanceAfter: self.totalStepsBalance
         )
         
-        // CRITICAL: Rebuild shield to actually remove the block from all apps in the group
+        ShieldRebuildHelper.rebuild()
         rebuildFamilyControlsShield()
-
-        // Schedule BGTask to re-block when unlock expires (reliable background fallback)
-        UnlockExpiryTaskManager.shared.scheduleIfNeeded()
-
-        // Dismiss pay gate
         dismissPayGate(reason: .programmatic)
     }
-    
-    // MARK: - Scheduled Ticket/Block Rebuild
-    private func scheduleTicketRebuild(after seconds: Int, groupId: String) {
-        // Cancel any existing rebuild task for this group
-        unlockExpiryTasks[groupId]?.cancel()
-        
-        // Schedule DeviceActivity interval that ends at unlock expiry
-        // This ensures the extension gets called even if app is in background
-        scheduleUnlockExpiryActivity(groupId: groupId, expiresInSeconds: seconds)
-        
-        // Also keep local Task for immediate rebuild when app is in foreground
-        let task = Task { @MainActor in
-            do {
-                // Wait until unlock expires
-                try await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
-                
-                guard !Task.isCancelled else { return }
-                
-                // Clear the unlock key
-                let defaults = UserDefaults.stepsTrader()
-                let unlockKey = "groupUnlock_\(groupId)"
-                defaults.removeObject(forKey: unlockKey)
-                
-                AppLogger.shield.debug("⏰ Unlock expired for group \(groupId), clearing unlock key and rebuilding block...")
-                
-                // Rebuild shield to restore blocking
-                rebuildFamilyControlsShield()
-                
-                // Clean up the task
-                unlockExpiryTasks.removeValue(forKey: groupId)
-            } catch {
-                // Task was cancelled
-                AppLogger.shield.debug("🚫 Block rebuild task cancelled for group \(groupId)")
-                unlockExpiryTasks.removeValue(forKey: groupId)
-            }
+
+    private func startUsageBudgetMonitoring(groupId: String, minutes: Int) {
+        let logDefaults = UserDefaults.stepsTrader()
+        let iso = ISO8601DateFormatter()
+
+        #if !canImport(DeviceActivity) || !canImport(FamilyControls)
+        logDefaults.set("[\(iso.string(from: Date()))] SKIP usageBudget_\(groupId) — DeviceActivity/FamilyControls not available", forKey: SharedKeys.lastStartMonitoringLog)
+        return
+        #else
+        guard let group = ticketGroups.first(where: { $0.id == groupId }) else {
+            logDefaults.set("[\(iso.string(from: Date()))] SKIP usageBudget_\(groupId) — group not found", forKey: SharedKeys.lastStartMonitoringLog)
+            return
         }
-        
-        unlockExpiryTasks[groupId] = task
-    }
-    
-    /// Schedule a DeviceActivity interval whose warningTime fires when the unlock expires.
-    /// Uses a padded window with warningTime for all durations to avoid midnight-crossing
-    /// edge cases with DateComponents-based intervalEnd (audit fix #11).
-    /// The extension's intervalWillEndWarning handler clears the unlock and rebuilds the shield.
-    private func scheduleUnlockExpiryActivity(groupId: String, expiresInSeconds: Int) {
-        #if canImport(DeviceActivity)
+
         let center = DeviceActivityCenter()
-        let activityName = DeviceActivityName("unlockExpiry_\(groupId)")
-        let calendar = Calendar.current
-        let now = Date()
+        let activityName = DeviceActivityName("usageBudget_\(groupId)")
 
-        // Start 5s in the future so the system has time to register the schedule.
-        let startBuffer = 5
-        let startDate = now.addingTimeInterval(TimeInterval(startBuffer))
-        let startComponents = calendar.dateComponents([.hour, .minute, .second], from: startDate)
+        var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
 
-        // Use a 5-minute warning buffer. Apple requires warningTime to be substantial
-        // (empirically >= 5 min) for intervalWillEndWarning to fire reliably. With 65s
-        // the system routinely skips it, leaving apps unblocked after expiry.
-        let minWarningBuffer = 300
-        let windowSeconds = max(expiresInSeconds + minWarningBuffer, 900)
-        let totalWindow = windowSeconds + startBuffer
-        let endDate = now.addingTimeInterval(TimeInterval(totalWindow))
-        let endComponents = calendar.dateComponents([.hour, .minute, .second], from: endDate)
+        // Milestone ticks instead of per-minute to avoid event explosion
+        let milestoneFractions: [Double] = [0.50, 0.75, 0.90]
+        var seen = Set<Int>()
+        for frac in milestoneFractions {
+            let m = Int(Double(minutes) * frac)
+            guard m >= 1, m < minutes, !seen.contains(m) else { continue }
+            seen.insert(m)
+            let tickName = DeviceActivityEvent.Name("usageBudgetTick_\(groupId)_\(m)")
+            events[tickName] = DeviceActivityEvent(
+                applications: group.selection.applicationTokens,
+                categories: group.selection.categoryTokens,
+                threshold: DateComponents(minute: m)
+            )
+        }
 
-        // warningTime fires relative to intervalEnd.
-        //   intervalEnd - warningTime = now + expiresInSeconds
-        //   warningTime = totalWindow - expiresInSeconds  (always >= minWarningBuffer + startBuffer)
-        let secondsBeforeEnd = totalWindow - expiresInSeconds
-        let warningTime = DateComponents(minute: secondsBeforeEnd / 60, second: secondsBeforeEnd % 60)
-
-        let schedule = DeviceActivitySchedule(
-            intervalStart: startComponents,
-            intervalEnd: endComponents,
-            repeats: false,
-            warningTime: warningTime
+        let doneName = DeviceActivityEvent.Name("usageBudgetDone_\(groupId)")
+        events[doneName] = DeviceActivityEvent(
+            applications: group.selection.applicationTokens,
+            categories: group.selection.categoryTokens,
+            threshold: DateComponents(minute: minutes)
         )
 
-        AppLogger.shield.debug("📅 Scheduled unlock expiry for group \(groupId) in \(expiresInSeconds)s (window=\(totalWindow)s, warning=\(secondsBeforeEnd)s before end)")
+        let dayEndH = logDefaults.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
+        let dayEndM = logDefaults.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
+        let endH = dayEndM > 0 ? dayEndH : (dayEndH + 23) % 24
+        let endM = dayEndM > 0 ? dayEndM - 1 : 59
+
+        let schedule = DeviceActivitySchedule(
+            intervalStart: DateComponents(hour: dayEndH, minute: dayEndM, second: 0),
+            intervalEnd: DateComponents(hour: endH, minute: endM, second: 59),
+            repeats: true
+        )
 
         center.stopMonitoring([activityName])
-        let defaults = UserDefaults.stepsTrader()
-        let iso = ISO8601DateFormatter()
+
+        let schedDesc = "start=\(dayEndH):\(dayEndM):0 end=\(endH):\(endM):59"
         do {
-            try center.startMonitoring(activityName, during: schedule)
-            let msg = "[\(iso.string(from: Date()))] OK: \(activityName.rawValue) window=\(totalWindow)s warn=\(secondsBeforeEnd)s | activities after: \(center.activities.map(\.rawValue))"
-            defaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
-            AppLogger.shield.debug("✅ startMonitoring succeeded for \(activityName.rawValue)")
+            try center.startMonitoring(activityName, during: schedule, events: events)
+            let msg = "[\(iso.string(from: Date()))] OK usageBudget_\(groupId) \(minutes)m events=\(events.count) apps=\(group.selection.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"
+            logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
         } catch {
-            let msg = "[\(iso.string(from: Date()))] FAIL: \(activityName.rawValue) — \(error.localizedDescription)"
-            defaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
-            AppLogger.shield.debug("Failed to schedule unlock expiry activity: \(error.localizedDescription)")
+            let msg = "[\(iso.string(from: Date()))] FAIL usageBudget_\(groupId) — \(error.localizedDescription) sched=[\(schedDesc)]"
+            logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
         }
         #endif
     }
-    
-    // MARK: - Expiry Notifications
-    private func scheduleUnlockExpiryNotification(groupName: String, expiresAt: Date) {
-        let now = Date()
-        let totalSeconds = Int(expiresAt.timeIntervalSince(now))
-        
-        // Schedule notification 1 minute before expiration (if unlock is longer than 1 min)
-        if totalSeconds > 60 {
-            let fireIn = totalSeconds - 60
-            scheduleGroupExpiryPush(groupName: groupName, fireInSeconds: fireIn, minutesRemaining: 1)
-        }
-        
-        // Also schedule at expiration
-        scheduleGroupExpiryPush(groupName: groupName, fireInSeconds: totalSeconds, minutesRemaining: 0)
-    }
-    
-    private func scheduleGroupExpiryPush(groupName: String, fireInSeconds: Int, minutesRemaining: Int) {
-        guard fireInSeconds > 0 else { return }
-        
-        let content = UNMutableNotificationContent()
-        content.sound = .default
-        content.categoryIdentifier = "ACCESS_EXPIRED"
-        
-        if minutesRemaining > 0 {
-            content.title = "⏱️ \(groupName)"
-            content.body = "Access ends in \(minutesRemaining) min."
-        } else {
-            content.title = "🔒 \(groupName)"
-            content.body = "Access ended. Apps are blocked again."
-            // Add action to rebuild shields when time expires
-            content.userInfo = [
-                "action": "expired",
-                "groupName": groupName
-            ]
-        }
-        
-        let trigger = UNTimeIntervalNotificationTrigger(
-            timeInterval: TimeInterval(fireInSeconds),
-            repeats: false
-        )
-        
-        let identifier = "groupUnlock-\(minutesRemaining)min-\(UUID().uuidString)"
-        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-        
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                AppLogger.shield.debug("Failed to schedule expiry notification: \(error.localizedDescription)")
-            } else {
-                AppLogger.shield.debug("📤 Scheduled \(groupName) expiry notification in \(fireInSeconds)s")
-            }
-        }
-    }
-    
-    @MainActor
-    func handlePayGatePayment(for bundleId: String, window: AccessWindow) async {
-        let cost = unlockSettings(for: bundleId).entryCostSteps
-        
-        AppLogger.shield.debug("💰 handlePayGatePayment for \(bundleId), cost: \(cost)")
-        AppLogger.shield.debug("💰 Current balance: \(self.totalStepsBalance) (base: \(self.stepsBalance), bonus: \(self.bonusSteps))")
-        
-        // Pay the cost
-        guard pay(cost: cost) else {
-            message = "Not enough rays"
-            AppLogger.shield.debug("❌ Payment failed - not enough rays")
-            return
-        }
-        
-        AppLogger.shield.debug("✅ Payment successful! New balance: \(self.totalStepsBalance) (base: \(self.stepsBalance), bonus: \(self.bonusSteps))")
-        
-        // Log payment transaction for history
-        let balanceBeforePayment = self.totalStepsBalance + cost
-        logPaymentTransaction(
-            amount: cost,
-            target: bundleId,
-            targetName: nil,
-            window: window,
-            balanceBefore: balanceBeforePayment,
-            balanceAfter: self.totalStepsBalance
-        )
-        
-        addSpentSteps(cost, for: bundleId)
-        applyAccessWindow(window, for: bundleId)
-        rebuildFamilyControlsShield()
-        
-        // Schedule BGTask to re-block when unlock expires (reliable background fallback)
-        UnlockExpiryTaskManager.shared.scheduleIfNeeded()
 
-        // Dismiss pay gate
-        dismissPayGate(reason: .programmatic)
-        
-        // Single UI update after all state changes
-        objectWillChange.send()
+    // MARK: - Pending Widget Budget Monitoring
+
+    func startPendingWidgetBudgetMonitoring() {
+        let defaults = UserDefaults.stepsTrader()
+        for group in ticketGroups {
+            let pendingKey = "pendingBudgetMonitoring_\(group.id)"
+            let minutesKey = "pendingBudgetMinutes_\(group.id)"
+            guard defaults.bool(forKey: pendingKey) else { continue }
+            let minutes = defaults.integer(forKey: minutesKey)
+            guard minutes > 0 else {
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+                continue
+            }
+            AppLogger.shield.debug("📡 Starting DeviceActivity monitoring for widget-initiated budget: \(group.name) \(minutes)m")
+            startUsageBudgetMonitoring(groupId: group.id, minutes: minutes)
+            defaults.removeObject(forKey: pendingKey)
+            defaults.removeObject(forKey: minutesKey)
+        }
+
+        for group in ticketGroups {
+            let spendTrackingKey = "pendingSpendTracking_\(group.id)"
+            let spendAmountKey = "pendingSpendAmount_\(group.id)"
+            guard defaults.bool(forKey: spendTrackingKey) else { continue }
+            let amount = defaults.integer(forKey: spendAmountKey)
+            guard amount > 0 else {
+                defaults.removeObject(forKey: spendTrackingKey)
+                defaults.removeObject(forKey: spendAmountKey)
+                continue
+            }
+            AppLogger.shield.debug("📡 Syncing widget spend tracking: \(group.name) \(amount) colors")
+            addSpentSteps(amount, for: "group_\(group.id)")
+            defaults.removeObject(forKey: spendTrackingKey)
+            defaults.removeObject(forKey: spendAmountKey)
+        }
     }
+
     
     // MARK: - PayGate Dismissal
     func dismissPayGate(reason: PayGateDismissReason = .userDismiss) {
@@ -318,9 +230,9 @@ extension AppModel {
             g.set(now.addingTimeInterval(10), forKey: payGateDismissedUntilKey)
             g.set(now, forKey: "lastPayGateAction")
         }
-        g.removeObject(forKey: "shouldShowPayGate")
-        g.removeObject(forKey: "payGateTargetGroupId")
-        g.removeObject(forKey: "payGateTargetBundleId_v1")
+        g.removeObject(forKey: SharedKeys.shouldShowPayGate)
+        g.removeObject(forKey: SharedKeys.payGateTargetGroupId)
+        g.removeObject(forKey: SharedKeys.payGateTargetBundleId)
     }
     
     // MARK: - Payment Transaction Logging
@@ -376,36 +288,4 @@ extension AppModel {
         }
     }
     
-    // MARK: - Automation Recording
-    func recordAutomationOpen(bundleId: String, spentSteps: Int? = nil) {
-        let defaults = UserDefaults.stepsTrader()
-        var dict: [String: Date] = [:]
-        if let data = defaults.data(forKey: "automationLastOpened_v1"),
-           let decoded = try? JSONDecoder().decode([String: Date].self, from: data) {
-            dict = decoded
-        }
-        dict[bundleId] = Date()
-        if let data = try? JSONEncoder().encode(dict) {
-            defaults.set(data, forKey: "automationLastOpened_v1")
-        }
-        
-        // Mark as configured and clear pending once opened
-        var configured = defaults.array(forKey: "automationConfiguredBundles") as? [String] ?? []
-        if !configured.contains(bundleId) {
-            configured.append(bundleId)
-            defaults.set(configured, forKey: "automationConfiguredBundles")
-        }
-        var pending = defaults.array(forKey: "automationPendingBundles") as? [String] ?? []
-        if let idx = pending.firstIndex(of: bundleId) {
-            pending.remove(at: idx)
-            defaults.set(pending, forKey: "automationPendingBundles")
-        }
-        if let pendingData = defaults.data(forKey: "automationPendingTimestamps_v1"),
-           var ts = try? JSONDecoder().decode([String: Date].self, from: pendingData) {
-            ts.removeValue(forKey: bundleId)
-            if let data = try? JSONEncoder().encode(ts) {
-                defaults.set(data, forKey: "automationPendingTimestamps_v1")
-            }
-        }
-    }
 }

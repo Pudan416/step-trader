@@ -3,42 +3,29 @@ import UIKit
 
 struct ProfileEditorView: View {
     @ObservedObject var authService: AuthenticationService
-    @StateObject private var locationManager = ProfileLocationManager()
     @Environment(\.dismiss) private var dismiss
     @State private var nickname: String = ""
-    @State private var selectedCountryCode: String = ""
-    @State private var showCountryPicker: Bool = false
     @State private var avatarImage: UIImage?
     @State private var showImagePicker: Bool = false
-    @State private var showImageSourcePicker: Bool = false
-    @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
     @State private var isSaving: Bool = false
     @State private var saveError: String?
-    
-    private static let countries: [(code: String, name: String)] = {
-        let codes = Locale.Region.isoRegions.map { $0.identifier }
-        let locale = Locale(identifier: "en_US")
-        return codes.compactMap { code -> (String, String)? in
-            guard let name = locale.localizedString(forRegionCode: code), !name.isEmpty else { return nil }
-            return (code, name)
-        }.sorted { $0.name < $1.name }
-    }()
-    
-    private var selectedCountryName: String {
-        if selectedCountryCode.isEmpty { return "" }
-        let locale = Locale(identifier: "en_US")
-        return locale.localizedString(forRegionCode: selectedCountryCode) ?? selectedCountryCode
-    }
+    @State private var imagePickerError: String?
+    @State private var showDeleteConfirmation: Bool = false
+    @State private var isDeleting: Bool = false
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 // Photo section
                 Section {
                     HStack {
                         Spacer()
                         Button {
-                            showImageSourcePicker = true
+                            guard UIImagePickerController.isSourceTypeAvailable(.photoLibrary) else {
+                                imagePickerError = "Photo library is not available right now."
+                                return
+                            }
+                            showImagePicker = true
                         } label: {
                             ZStack {
                                 if let image = avatarImage {
@@ -85,7 +72,7 @@ struct ProfileEditorView: View {
                         } label: {
                             HStack {
                                 Spacer()
-                                Text("Remove Photo")
+                                Text(String(localized: "Remove Photo", comment: "ProfileEditor – remove avatar button"))
                                 Spacer()
                             }
                         }
@@ -98,67 +85,14 @@ struct ProfileEditorView: View {
                         Image(systemName: "at")
                             .foregroundColor(.secondary)
                             .frame(width: 24)
-                        TextField("Nickname", text: $nickname)
-                            .autocapitalization(.none)
+                        TextField(String(localized: "Nickname", comment: "ProfileEditor – nickname field"), text: $nickname)
+                            .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
                 } header: {
-                    Text("Nickname")
+                    Text(String(localized: "Nickname", comment: "ProfileEditor – nickname field"))
                 } footer: {
-                    Text("This name will be displayed instead of my real name")
-                }
-                
-                // Location section
-                Section {
-                    // Use my location button
-                    Button {
-                        locationManager.requestCountryCode { detectedCountryCode in
-                            if let cc = detectedCountryCode { selectedCountryCode = cc }
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "location.fill")
-                                .foregroundColor(.blue)
-                            Text("Detect my country")
-                                .foregroundColor(.blue)
-                            Spacer()
-                            if locationManager.isLoading {
-                                ProgressView()
-                            }
-                        }
-                    }
-                    .disabled(locationManager.isLoading)
-                    
-                    // Country picker
-                    Button {
-                        showCountryPicker = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "globe")
-                                .foregroundColor(.secondary)
-                                .frame(width: 24)
-                            Text("Country")
-                                .foregroundColor(.primary)
-                            Spacer()
-                            if !selectedCountryCode.isEmpty {
-                                Text(selectedCountryName)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("Select")
-                                    .foregroundColor(.secondary)
-                            }
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                } header: {
-                    Text("Location")
-                } footer: {
-                    if let error = locationManager.errorMessage {
-                        Text(error)
-                            .foregroundColor(.red)
-                    }
+                    Text(String(localized: "This name will be displayed instead of my real name", comment: "ProfileEditor – nickname hint"))
                 }
                 
                 // Email (read-only)
@@ -172,17 +106,36 @@ struct ProfileEditorView: View {
                                 .foregroundColor(.secondary)
                         }
                     } header: {
-                        Text("Email")
+                        Text(String(localized: "Email", comment: "ProfileEditor – email label"))
                     } footer: {
-                        Text("Email is managed by Apple ID")
+                        Text(String(localized: "Email is managed by Apple ID", comment: "ProfileEditor – email hint"))
                     }
                 }
+                
+                Section {
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isDeleting {
+                                ProgressView()
+                            } else {
+                                Text(String(localized: "Delete Account", comment: "ProfileEditor – delete account button"))
+                            }
+                            Spacer()
+                        }
+                    }
+                    .disabled(isDeleting || isSaving)
+                } footer: {
+                    Text(String(localized: "Permanently deletes your account, profile, and all associated data. This cannot be undone.", comment: "ProfileEditor – delete warning text"))
+                }
             }
-            .navigationTitle("Edit Profile")
+            .navigationTitle(String(localized: "Edit Profile", comment: "ProfileEditor – navigation title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(String(localized: "Cancel", comment: "ProfileEditor – dismiss button")) {
                         dismiss()
                     }
                     .disabled(isSaving)
@@ -191,7 +144,7 @@ struct ProfileEditorView: View {
                     if isSaving {
                         ProgressView()
                     } else {
-                        Button("Save") {
+                        Button(String(localized: "Save", comment: "ProfileEditor – save button")) {
                             Task {
                                 await saveProfileAsync()
                             }
@@ -203,37 +156,36 @@ struct ProfileEditorView: View {
             .onAppear {
                 loadCurrentProfile()
             }
-            .alert("Error", isPresented: .init(
+            .alert(String(localized: "Error", comment: "ProfileEditor – error alert title"), isPresented: .init(
                 get: { saveError != nil },
                 set: { if !$0 { saveError = nil } }
             )) {
-                Button("OK") { saveError = nil }
+                Button(String(localized: "OK", comment: "ProfileEditor – alert dismiss button")) { saveError = nil }
             } message: {
                 Text(saveError ?? "")
             }
-            .confirmationDialog(
-                "Choose Photo",
-                isPresented: $showImageSourcePicker,
-                titleVisibility: .visible
-            ) {
-                Button("Camera") {
-                    imageSourceType = .camera
-                    showImagePicker = true
-                }
-                Button("Photo Library") {
-                    imageSourceType = .photoLibrary
-                    showImagePicker = true
-                }
-                Button("Cancel", role: .cancel) { }
+            .alert(String(localized: "Photo Access", comment: "ProfileEditor – photo permission alert title"), isPresented: .init(
+                get: { imagePickerError != nil },
+                set: { if !$0 { imagePickerError = nil } }
+            )) {
+                Button(String(localized: "OK", comment: "ProfileEditor – alert dismiss button")) { imagePickerError = nil }
+            } message: {
+                Text(imagePickerError ?? "")
             }
             .sheet(isPresented: $showImagePicker) {
-                ImagePicker(image: $avatarImage, sourceType: imageSourceType)
+                ImagePicker(image: $avatarImage, sourceType: .photoLibrary)
             }
-            .sheet(isPresented: $showCountryPicker) {
-                CountryPickerView(
-                    selectedCountryCode: $selectedCountryCode,
-                    countries: Self.countries
-                )
+            .confirmationDialog(
+                String(localized: "Delete Account", comment: "ProfileEditor – delete confirmation title"),
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(String(localized: "Delete Account", comment: "ProfileEditor – delete confirmation title"), role: .destructive) {
+                    Task { await performAccountDeletion() }
+                }
+                Button(String(localized: "Cancel", comment: "ProfileEditor – dismiss button"), role: .cancel) {}
+            } message: {
+                Text(String(localized: "This will permanently delete your account, profile, and all data. This action cannot be undone.", comment: "ProfileEditor – delete confirmation message"))
             }
         }
     }
@@ -241,11 +193,6 @@ struct ProfileEditorView: View {
     private func loadCurrentProfile() {
         if let user = authService.currentUser {
             nickname = user.nickname ?? ""
-            if let storedCountry = user.country, Self.countries.contains(where: { $0.code == storedCountry }) {
-                selectedCountryCode = storedCountry
-            } else {
-                selectedCountryCode = user.country ?? ""
-            }
             if let data = user.avatarData, let image = UIImage(data: data) {
                 avatarImage = image
             } else {
@@ -265,7 +212,7 @@ struct ProfileEditorView: View {
         do {
             try await authService.updateProfileAsync(
                 nickname: trimmedNickname.isEmpty ? nil : trimmedNickname,
-                country: selectedCountryCode.isEmpty ? nil : selectedCountryCode,
+                country: nil,
                 avatarData: avatarData
             )
             dismiss()
@@ -274,5 +221,17 @@ struct ProfileEditorView: View {
         }
         
         isSaving = false
+    }
+    
+    @MainActor
+    private func performAccountDeletion() async {
+        isDeleting = true
+        do {
+            try await authService.deleteAccount()
+            dismiss()
+        } catch {
+            saveError = error.localizedDescription
+            isDeleting = false
+        }
     }
 }

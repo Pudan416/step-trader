@@ -6,10 +6,20 @@ struct ImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     let sourceType: UIImagePickerController.SourceType
     @Environment(\.dismiss) private var dismiss
+
+    private var resolvedSourceType: UIImagePickerController.SourceType {
+        if UIImagePickerController.isSourceTypeAvailable(sourceType) {
+            return sourceType
+        }
+        if UIImagePickerController.isSourceTypeAvailable(.photoLibrary) {
+            return .photoLibrary
+        }
+        return .savedPhotosAlbum
+    }
     
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
-        picker.sourceType = sourceType
+        picker.sourceType = resolvedSourceType
         picker.delegate = context.coordinator
         picker.allowsEditing = true
         return picker

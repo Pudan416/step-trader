@@ -9,11 +9,6 @@ export type PublicUserRow = {
   is_banned: boolean;
   ban_reason: string | null;
   ban_until: string | null;
-  // Extended fields (not in admin-panel type)
-  energy_spent_lifetime?: number;
-  batteries_collected?: number;
-  current_steps_today?: number;
-  current_energy_balance?: number;
 };
 
 export type ShieldRow = {
@@ -26,10 +21,3 @@ export type ShieldRow = {
   updated_at: string | null;
 };
 
-export type EnergyLedgerRow = {
-  id?: string;
-  user_id: string;
-  delta: number;
-  created_at?: string;
-  reason?: string | null;
-};

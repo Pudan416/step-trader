@@ -6,10 +6,9 @@ Internal admin UI for inspecting **global stats** and drilling down **per user**
 - Dashboard:
   - total users
   - total shields
-  - energy ledger totals (sum of `energy_ledger.delta`)
 - Users:
   - list of users from `public.users`
-  - user detail: profile, shields, and energy ledger breakdown
+  - user detail: profile, shields, moderation
 
 ## Config
 Set environment variables (locally via `.env.local`, in CI via secrets):
