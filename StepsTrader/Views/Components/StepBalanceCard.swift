@@ -71,7 +71,6 @@ struct StepBalanceCard: View {
                     .frame(width: 51, height: 51)
                 
                 HStack(spacing: 4) {
-                    // Current balance — yellow pill
                     Text("\(currentEnergy)")
                         .font(.title3.bold())
                         .foregroundColor(.black)
@@ -84,7 +83,6 @@ struct StepBalanceCard: View {
                         .font(.footnote.weight(.medium))
                         .foregroundColor(.secondary)
                     
-                    // Today's earned — outlined pill
                     Text("\(baseEnergyToday)")
                         .font(.footnote.weight(.semibold))
                         .foregroundColor(.primary)
@@ -117,6 +115,8 @@ struct StepBalanceCard: View {
                     }
                 }
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: "\(currentEnergy) of \(baseEnergyToday) earned, \(maxEnergy) maximum colors", comment: "StepBalanceCard – header VoiceOver label"))
             
             // ── Progress bar ──
             GeometryReader { proxy in
@@ -130,8 +130,8 @@ struct StepBalanceCard: View {
                     // Earned outline (full earned width, sits behind fill)
                     if earnedWidth > 0 {
                         RoundedRectangle(cornerRadius: 5)
-                            .stroke(balanceYellow, lineWidth: 1.5)
-                            .frame(width: max(4, earnedWidth))
+                            .strokeBorder(balanceYellow, lineWidth: 1.5)
+                            .frame(width: max(6, earnedWidth))
                     }
                     // Remaining fill (overlaps the left portion seamlessly)
                     if fillWidth > 0 {
@@ -264,11 +264,11 @@ private struct StepBalanceCardBackgroundModifier: ViewModifier {
             content
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(white: 0.10))
+                        .fill(Color(.secondarySystemGroupedBackground))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
         }
     }

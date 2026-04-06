@@ -46,7 +46,7 @@ struct MainTabView: View {
         var icon: String {
             switch self {
             case .feeds: return "square.grid.2x2"
-            case .canvas: return "hand.point.up.left.fill"
+            case .canvas: return "paintbrush.fill"
             case .me: return "person.circle"
             case .notes: return "book.fill"
             case .settings: return "gearshape"

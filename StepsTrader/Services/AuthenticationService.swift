@@ -107,10 +107,12 @@ class AuthenticationService: NSObject, ObservableObject {
         }
     }
     
-    /// Wait for the initial session restore to complete
+    /// Wait for the initial session restore to complete.
+    /// The check-and-append is atomic within a single MainActor turn,
+    /// preventing the continuation from being appended after init already drained the array.
     func waitForInitialization() async {
-        if isInitialized { return }
-        await withCheckedContinuation { continuation in
+        guard !isInitialized else { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             if isInitialized {
                 continuation.resume()
             } else {
@@ -160,7 +162,9 @@ class AuthenticationService: NSObject, ObservableObject {
         currentUser = nil
         isAuthenticated = false
         
-        AppLogger.auth.debug("🗑️ Account deleted successfully for user \(userId)")
+        #if DEBUG
+        AppLogger.auth.debug("🗑️ Account deleted successfully for user \(userId.prefix(8))…")
+        #endif
     }
     
     /// Handle authorization result from SignInWithAppleButton
@@ -217,10 +221,39 @@ class AuthenticationService: NSObject, ObservableObject {
     
     func checkAuthenticationState() async { await loadStoredSessionAndRefreshUser() }
     
+    // MARK: - Input Validation
+
+    private static let nicknameMaxLength = 30
+    private static let nicknameAllowedPattern = try! NSRegularExpression(pattern: "^[\\p{L}\\p{N}\\s._\\-]+$")
+    private static let countryCodePattern = try! NSRegularExpression(pattern: "^[A-Z]{2}$")
+
+    private func sanitizedNickname(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return raw }
+        let trimmed = String(raw.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.nicknameMaxLength))
+        guard !trimmed.isEmpty else { return nil }
+        let range = NSRange(trimmed.startIndex..., in: trimmed)
+        guard Self.nicknameAllowedPattern.firstMatch(in: trimmed, range: range) != nil else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private func validatedCountry(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return raw }
+        let upper = raw.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let range = NSRange(upper.startIndex..., in: upper)
+        guard Self.countryCodePattern.firstMatch(in: upper, range: range) != nil else {
+            return nil
+        }
+        return upper
+    }
+
     // MARK: - Profile Update Methods
     
     func updateProfile(nickname: String?, country: String?, avatarData: Data?) {
         guard var user = currentUser else { return }
+        let nickname = sanitizedNickname(nickname)
+        let country = validatedCountry(country)
         
         // Store avatar locally for immediate display
         user.avatarData = avatarData
@@ -264,7 +297,9 @@ class AuthenticationService: NSObject, ObservableObject {
     /// Async version for awaiting completion
     func updateProfileAsync(nickname: String?, country: String?, avatarData: Data?) async throws {
         guard var user = currentUser else { return }
-        
+        let nickname = sanitizedNickname(nickname)
+        let country = validatedCountry(country)
+
         // Store avatar locally
         user.avatarData = avatarData
         storeAvatarData(avatarData, for: user.id)
@@ -306,13 +341,18 @@ class AuthenticationService: NSObject, ObservableObject {
         }
     }
     
-    private static func avatarFileURL(for userId: String) -> URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("avatar_\(userId).png")
+    private static func avatarFileURL(for userId: String) -> URL? {
+        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        return docs.appendingPathComponent("avatar_\(userId).png")
     }
 
     private func storeAvatarData(_ data: Data?, for userId: String) {
-        let fileURL = Self.avatarFileURL(for: userId)
+        guard let fileURL = Self.avatarFileURL(for: userId) else {
+            AppLogger.auth.error("Failed to resolve documents directory for avatar storage")
+            return
+        }
         if let data, !data.isEmpty {
             do {
                 try data.write(to: fileURL, options: .atomic)
@@ -326,11 +366,10 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     private func loadAvatarData(for userId: String) -> Data? {
-        let fileURL = Self.avatarFileURL(for: userId)
+        guard let fileURL = Self.avatarFileURL(for: userId) else { return nil }
         if let data = try? Data(contentsOf: fileURL) {
             return data
         }
-        // Migration: move legacy UserDefaults avatar to file
         let key = avatarDefaultsPrefix + userId
         if let legacyData = UserDefaults.standard.data(forKey: key) {
             do {
@@ -397,9 +436,13 @@ class AuthenticationService: NSObject, ObservableObject {
     private func loadStoredSession() -> SupabaseSessionResponse? {
         // One-time migration: move session from UserDefaults to Keychain
         if let legacyData = UserDefaults.standard.data(forKey: userDefaultsKey) {
-            SessionKeychain.saveSession(legacyData)
-            UserDefaults.standard.removeObject(forKey: userDefaultsKey)
-            AppLogger.auth.debug("🔐 Migrated session from UserDefaults to Keychain")
+            let saved = SessionKeychain.saveSession(legacyData)
+            if saved {
+                UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+                AppLogger.auth.debug("🔐 Migrated session from UserDefaults to Keychain")
+            } else {
+                AppLogger.auth.error("🔐 Keychain save failed during migration — keeping UserDefaults copy to prevent session loss")
+            }
         }
 
         guard let data = SessionKeychain.loadSession() else { return nil }
@@ -431,7 +474,9 @@ class AuthenticationService: NSObject, ObservableObject {
             return
         }
         
-        AppLogger.auth.debug("🔐 Found stored session, user: \(session.user.id), expires: \(session.expiresAt)")
+        #if DEBUG
+        AppLogger.auth.debug("🔐 Found stored session, user: \(session.user.id.prefix(8))…, expires: \(session.expiresAt)")
+        #endif
         
         do {
             let validSession = try await ensureValidSession(session)
@@ -442,7 +487,9 @@ class AuthenticationService: NSObject, ObservableObject {
             }
             try await loadCurrentUserFromSupabase(session: validSession)
             isAuthenticated = (currentUser != nil)
-            AppLogger.auth.debug("🔐 Final state: isAuthenticated=\(self.isAuthenticated), user=\(self.currentUser?.id ?? "nil")")
+            #if DEBUG
+            AppLogger.auth.debug("🔐 Final state: isAuthenticated=\(self.isAuthenticated)")
+            #endif
         } catch {
             AppLogger.auth.error("🔐 Session restore failed: \(error.localizedDescription)")
             // Session likely invalid/revoked
@@ -515,8 +562,7 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     private func ensureValidSession(_ session: SupabaseSessionResponse) async throws -> SupabaseSessionResponse {
-        // Refresh if expires within 60 seconds
-        let threshold = Date().addingTimeInterval(60)
+        let threshold = Date().addingTimeInterval(AppConstants.Timing.sessionRefreshThreshold)
         if session.expiresAt > threshold { return session }
         
         let cfg = try SupabaseConfig.load()
@@ -645,8 +691,9 @@ class AuthenticationService: NSObject, ObservableObject {
         let patch = SupabasePublicUserPatch(nickname: nickname, country: country)
         let body = try JSONEncoder().encode(patch)
         
-        AppLogger.auth.debug("🔄 PATCH profile: userId=\(userId), nickname=\(nickname ?? "nil"), country=\(country ?? "nil")")
-        AppLogger.auth.debug("🔄 PATCH URL: \(finalURL.absoluteString)")
+        #if DEBUG
+        AppLogger.auth.debug("🔄 PATCH profile: userId=\(userId.prefix(8))…, nickname=\(nickname != nil ? "<set>" : "nil"), country=\(country ?? "nil")")
+        #endif
         
         let (data, http) = try await makeJSONRequest(
             url: finalURL,
@@ -661,7 +708,9 @@ class AuthenticationService: NSObject, ObservableObject {
         )
         
         let responseString = String(data: data, encoding: .utf8) ?? "(empty)"
+        #if DEBUG
         AppLogger.auth.debug("🔄 PATCH response: status=\(http.statusCode), body=\(responseString)")
+        #endif
         
         if http.statusCode >= 400 {
             let msg = String(data: data, encoding: .utf8) ?? "Failed to update profile"
@@ -687,7 +736,9 @@ class AuthenticationService: NSObject, ObservableObject {
             .appendingPathComponent("storage/v1/object/avatars")
             .appendingPathComponent(fileName)
         
+        #if DEBUG
         AppLogger.auth.debug("📸 Uploading avatar to: \(storageURL.absoluteString)")
+        #endif
         
         var request = URLRequest(url: storageURL)
         request.httpMethod = "POST"
@@ -699,8 +750,10 @@ class AuthenticationService: NSObject, ObservableObject {
         
         let (data, http) = try await network.data(for: request)
         
+        #if DEBUG
         let responseString = String(data: data, encoding: .utf8) ?? "(empty)"
         AppLogger.auth.debug("📸 Upload response: status=\(http.statusCode), body=\(responseString)")
+        #endif
         
         if http.statusCode >= 400 {
             throw AuthError.supabaseError("Avatar upload failed: \(responseString)")
@@ -744,6 +797,10 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     func fetchResistanceUsers(limit: Int = 20) async throws -> [ResistanceUser] {
+        guard let session = loadStoredSession() else {
+            throw AuthError.supabaseError("No active session")
+        }
+
         let cfg = try SupabaseConfig.load()
         let usersURL = cfg.baseURL.appendingPathComponent("rest/v1/users")
         guard var comps = URLComponents(url: usersURL, resolvingAgainstBaseURL: false) else {
@@ -762,6 +819,7 @@ class AuthenticationService: NSObject, ObservableObject {
         var request = URLRequest(url: finalURL)
         request.httpMethod = "GET"
         request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "authorization")
         request.setValue("application/json", forHTTPHeaderField: "accept")
         
         let (data, http) = try await network.data(for: request)

@@ -96,6 +96,7 @@ struct ManualsPage: View {
                 .stroke(theme.stroke.opacity(theme.strokeOpacity * 0.5), lineWidth: 0.5)
         )
         .padding(.horizontal, 28)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Page indicator

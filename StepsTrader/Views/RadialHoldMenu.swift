@@ -90,7 +90,7 @@ struct RadialHoldMenu: View {
         return ZStack {
             Circle()
                 .fill(.ultraThinMaterial)
-                .opacity(isActive ? 0.7 : 0.5)
+                .opacity(isActive ? 0.85 : 0.7)
                 .frame(width: 56, height: 56)
             Circle()
                 .strokeBorder(labelColor.opacity(isActive ? 0.5 : 0.3), lineWidth: 1)
@@ -101,7 +101,8 @@ struct RadialHoldMenu: View {
                 .foregroundStyle(labelColor.opacity(isActive ? 0.7 : 0.85))
                 .rotationEffect(.degrees(isFanOpen ? 45 : 0))
         }
-        .contentShape(Circle().size(width: 72, height: 72))
+        .frame(width: 72, height: 72)
+        .contentShape(Circle())
         .gesture(holdAndDrag)
         .simultaneousGesture(
             TapGesture().onEnded {
@@ -135,7 +136,7 @@ struct RadialHoldMenu: View {
                 Image(systemName: icon)
                     .font(.system(size: isHovered ? 20 : 16, weight: .medium))
                     .foregroundStyle(labelColor.opacity(isHovered ? 1.0 : 0.85))
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .background(
                         Circle()
                             .fill(.ultraThinMaterial)
@@ -151,8 +152,10 @@ struct RadialHoldMenu: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(labelColor.opacity(isHovered ? 0.9 : 0.7))
             }
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
         .offset(offset)
     }
 

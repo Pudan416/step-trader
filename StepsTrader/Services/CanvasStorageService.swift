@@ -16,46 +16,57 @@ final class CanvasStorageService {
 
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "StepsTrader", category: "CanvasStorage")
 
-    private lazy var storageDirectory: URL = {
-        let paths = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        guard let appSupport = paths.first else {
-            return FileManager.default.temporaryDirectory
+    private let storageDirectory: URL
+    private let snapshotDirectory: URL
+
+    private init() {
+        let fm = FileManager.default
+
+        let storagePaths = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        if let appSupport = storagePaths.first {
+            let bundleID = Bundle.main.bundleIdentifier ?? "StepsTrader"
+            let dir = appSupport
+                .appendingPathComponent(bundleID, isDirectory: true)
+                .appendingPathComponent("canvases", isDirectory: true)
+            do {
+                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            } catch {
+                Self.log.error("Failed to create canvas storage directory: \(error.localizedDescription)")
+            }
+            self.storageDirectory = dir
+        } else {
+            let fallback = fm.temporaryDirectory
                 .appendingPathComponent("StepsTrader", isDirectory: true)
                 .appendingPathComponent("canvases", isDirectory: true)
+            do {
+                try fm.createDirectory(at: fallback, withIntermediateDirectories: true)
+            } catch {
+                Self.log.error("Failed to create canvas storage fallback directory: \(error.localizedDescription)")
+            }
+            self.storageDirectory = fallback
         }
-        let bundleID = Bundle.main.bundleIdentifier ?? "StepsTrader"
-        let dir = appSupport
-            .appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("canvases", isDirectory: true)
-        do {
-            try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-        } catch {
-            Self.log.error("Failed to create canvas storage directory: \(error.localizedDescription)")
-        }
-        return dir
-    }()
 
-    private lazy var snapshotDirectory: URL = {
-        let paths = fileManager.urls(for: .documentDirectory, in: .userDomainMask)
-        guard let docDir = paths.first else {
-            let fallback = FileManager.default.temporaryDirectory
+        let docPaths = fm.urls(for: .documentDirectory, in: .userDomainMask)
+        if let docDir = docPaths.first {
+            let dir = docDir.appendingPathComponent("canvas_snapshots", isDirectory: true)
+            do {
+                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            } catch {
+                Self.log.error("Failed to create snapshot directory: \(error.localizedDescription)")
+            }
+            self.snapshotDirectory = dir
+        } else {
+            let fallback = fm.temporaryDirectory
                 .appendingPathComponent("StepsTrader", isDirectory: true)
                 .appendingPathComponent("canvas_snapshots", isDirectory: true)
             do {
-                try fileManager.createDirectory(at: fallback, withIntermediateDirectories: true)
+                try fm.createDirectory(at: fallback, withIntermediateDirectories: true)
             } catch {
                 Self.log.error("Failed to create snapshot fallback directory: \(error.localizedDescription)")
             }
-            return fallback
+            self.snapshotDirectory = fallback
         }
-        let dir = docDir.appendingPathComponent("canvas_snapshots", isDirectory: true)
-        do {
-            try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-        } catch {
-            Self.log.error("Failed to create snapshot directory: \(error.localizedDescription)")
-        }
-        return dir
-    }()
+    }
 
     // MARK: - Canvas CRUD
 
@@ -144,8 +155,16 @@ final class CanvasStorageService {
 
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2.0
-        guard let image = renderer.uiImage,
-              let data = image.jpegData(compressionQuality: 0.8) else { return }
+        guard let rendered = renderer.uiImage else { return }
+        let opaqueRenderer = UIGraphicsImageRenderer(size: rendered.size, format: {
+            let fmt = UIGraphicsImageRendererFormat()
+            fmt.scale = rendered.scale
+            fmt.opaque = true
+            return fmt
+        }())
+        let data = opaqueRenderer.jpegData(withCompressionQuality: 0.8) { ctx in
+            rendered.draw(at: .zero)
+        }
 
         guard let containerURL = fileManager.containerURL(
             forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId

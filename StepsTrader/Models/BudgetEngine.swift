@@ -15,8 +15,6 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     var stepsPerMinute: Double { tariff.stepsPerMinute }
     
     @Published private(set) var todayAnchor: Date
-    @Published private(set) var dailyBudgetMinutes: Int = 0
-    @Published private(set) var remainingMinutes: Int = 0
     @Published private(set) var dayEndHour: Int
     @Published private(set) var dayEndMinute: Int
 
@@ -43,28 +41,19 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         let resolvedAnchor = savedAnchor
             ?? DayBoundary.currentDayStart(for: Date(), dayEndHour: dayEndHourValue, dayEndMinute: dayEndMinuteValue)
         
-        let savedDaily = g.integer(forKey: SharedKeys.dailyBudgetMinutes)
-        let savedRemaining = g.integer(forKey: SharedKeys.remainingMinutes)
-        
         self.dayEndHour = dayEndHourValue
         self.dayEndMinute = dayEndMinuteValue
-        self.dailyBudgetMinutes = savedDaily
-        self.remainingMinutes = savedRemaining
         self.todayAnchor = resolvedAnchor
         
         AppLogger.energy.debug("💰 BudgetEngine initialized with tariff: \(self.tariff.displayName)")
     }
 
-    func minutes(from steps: Double) -> Int { max(0, Int(steps / stepsPerMinute)) }
-
-    func setBudget(minutes: Int) {
-        dailyBudgetMinutes = minutes
-        remainingMinutes = minutes
-        persist()
+    func minutes(from steps: Double) -> Int {
+        guard stepsPerMinute > 0 else { return 1440 }
+        return max(0, Int(steps / stepsPerMinute))
     }
 
-    func consume(mins: Int) {
-        remainingMinutes = max(0, remainingMinutes - mins)
+    func setBudget(minutes: Int) {
         persist()
     }
 
@@ -75,8 +64,6 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
 
     private func resetForToday(_ anchor: Date? = nil) {
         todayAnchor = anchor ?? currentDayAnchor(for: Date())
-        dailyBudgetMinutes = 0
-        remainingMinutes = 0
         persist()
     }
 
@@ -95,10 +82,10 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     private func persist() {
         let g = sharedDefaults
         g.set(todayAnchor, forKey: SharedKeys.todayAnchor)
-        g.set(dailyBudgetMinutes, forKey: SharedKeys.dailyBudgetMinutes)
-        g.set(remainingMinutes, forKey: SharedKeys.remainingMinutes)
         g.set(dayEndHour, forKey: SharedKeys.dayEndHour)
         g.set(dayEndMinute, forKey: SharedKeys.dayEndMinute)
+        UserDefaults.standard.set(dayEndHour, forKey: SharedKeys.dayEndHour)
+        UserDefaults.standard.set(dayEndMinute, forKey: SharedKeys.dayEndMinute)
     }
 
     // Force re-read values from App Group (for syncing with snippet/intent)
@@ -107,31 +94,15 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         if let anchor = g.object(forKey: SharedKeys.todayAnchor) as? Date {
             todayAnchor = anchor
         }
-        dailyBudgetMinutes = g.integer(forKey: SharedKeys.dailyBudgetMinutes)
-        remainingMinutes = g.integer(forKey: SharedKeys.remainingMinutes)
         let savedHour = g.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
         let savedMinute = g.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
         dayEndHour = max(0, min(23, savedHour))
         dayEndMinute = max(0, min(59, savedMinute))
-        AppLogger.energy.debug("🔄 BudgetEngine reloaded: daily=\(self.dailyBudgetMinutes), remaining=\(self.remainingMinutes)")
+        AppLogger.energy.debug("🔄 BudgetEngine reloaded: tariff=\(self.tariff.displayName), dayEnd=\(self.dayEndHour):\(self.dayEndMinute)")
     }
     
     // MARK: - Day boundary helpers
     private func currentDayAnchor(for date: Date) -> Date {
-        let cal = Calendar.current
-        guard let cutoffToday = cal.date(
-            bySettingHour: dayEndHour,
-            minute: dayEndMinute,
-            second: 0,
-            of: date)
-        else { return cal.startOfDay(for: date) }
-        
-        if date >= cutoffToday {
-            return cutoffToday
-        } else if let prevCutoff = cal.date(byAdding: .day, value: -1, to: cutoffToday) {
-            return prevCutoff
-        } else {
-            return cal.startOfDay(for: date)
-        }
+        DayBoundary.currentDayStart(for: date, dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
     }
 }

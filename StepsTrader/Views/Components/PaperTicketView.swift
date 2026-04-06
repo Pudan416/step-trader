@@ -21,13 +21,21 @@ struct PaperTicketView: View {
     @State private var liveBudget: Int = 0
     @State private var liveBudgetInitial: Int = 0
 
-    private let budgetTimer = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
+    // MARK: - Thread-safe title cache
 
     private static let titleCacheLock = NSLock()
     private static var _titleCache: [String: String] = [:]
-    private static var titleCache: [String: String] {
-        get { titleCacheLock.withLock { _titleCache } }
-        set { titleCacheLock.withLock { _titleCache = newValue } }
+
+    private static func cachedTitle(forGroupId id: String) -> String? {
+        titleCacheLock.withLock { _titleCache[id] }
+    }
+
+    private static func setCachedTitle(_ title: String, forGroupId id: String) {
+        titleCacheLock.withLock { _titleCache[id] = title }
+    }
+
+    static func removeCachedTitle(forGroupId id: String) {
+        titleCacheLock.withLock { _titleCache[id] = nil }
     }
 
     private let accent = AppColors.brandAccent
@@ -41,6 +49,10 @@ struct PaperTicketView: View {
         group.selection.applicationTokens.count + group.selection.categoryTokens.count
     }
     private let intervals: [AccessWindow] = [.minutes10, .minutes30, .hour1]
+
+    private var displayTitle: String {
+        resolvedTitle ?? (group.name.isEmpty ? String(localized: "Ticket") : group.name)
+    }
 
     var body: some View {
         ZStack {
@@ -65,14 +77,14 @@ struct PaperTicketView: View {
 
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text(ticketTitle)
+                            Text(displayTitle)
                                 .font(.system(size: 15, weight: .regular, design: .rounded))
-                                .foregroundStyle(.black)
+                                .foregroundStyle(Color(.label))
                                 .lineLimit(1)
                             Spacer()
                             Image(systemName: isUnlocked ? "lock.open" : "lock.fill")
-                                .font(.system(size: 8, weight: .regular))
-                                .foregroundStyle(isUnlocked ? accent : .black.opacity(0.35))
+                                .font(.system(size: 10, weight: .regular))
+                                .foregroundStyle(isUnlocked ? accent : Color(.label).opacity(0.35))
                         }
 
                         if isUnlocked {
@@ -86,7 +98,7 @@ struct PaperTicketView: View {
                 .padding(.leading, 14)
                 .padding(.trailing, 8)
                 .contentShape(Rectangle())
-                .onTapGesture { openTargetApp() }
+                .onTapGesture { handleCardTap() }
 
                 Button {
                     onSettings()
@@ -98,14 +110,20 @@ struct PaperTicketView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Ticket settings", comment: "PaperTicket – ellipsis button VoiceOver label"))
             }
         }
         .frame(height: 80)
         .accessibilityElement(children: .combine)
         .onAppear { refreshBudget() }
-        .onReceive(budgetTimer) { _ in refreshBudget() }
-        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
-            refreshBudget()
+        .task(id: group.id) {
+            resolvedTitle = computeTicketTitle()
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                refreshBudget()
+            }
         }
     }
 
@@ -115,12 +133,15 @@ struct PaperTicketView: View {
         liveBudgetInitial = defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(group.id))
     }
 
-    private func openTargetApp() {
-        guard let bundleId = group.templateApp,
-              let scheme = TargetResolver.primaryAndFallbackSchemes(for: bundleId).first,
-              let url = URL(string: scheme) else { return }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        openURL(url)
+    private func handleCardTap() {
+        if let bundleId = group.templateApp,
+           let scheme = TargetResolver.primaryAndFallbackSchemes(for: bundleId).first,
+           let url = URL(string: scheme) {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            openURL(url)
+        } else {
+            onSettings()
+        }
     }
 
     // MARK: - Unlock pills (locked state)
@@ -188,7 +209,7 @@ struct PaperTicketView: View {
             }
             .frame(height: 5)
 
-            Text("\(remaining)m")
+            Text(String(localized: "\(remaining)m", comment: "PaperTicket – remaining budget in minutes, e.g. '42m'"))
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .foregroundStyle(.black.opacity(0.5))
                 .monospacedDigit()
@@ -221,16 +242,13 @@ struct PaperTicketView: View {
         }
     }
 
-    private var ticketTitle: String {
-        if let cached = resolvedTitle { return cached }
-        if let cached = Self.titleCache[group.id] { return cached }
-        return computeTicketTitle()
-    }
-
     private func computeTicketTitle() -> String {
+        if let cached = Self.cachedTitle(forGroupId: group.id) {
+            return cached
+        }
         if let templateApp = group.templateApp {
             let name = TargetResolver.displayName(for: templateApp)
-            Self.titleCache[group.id] = name
+            Self.setCachedTitle(name, forGroupId: group.id)
             return name
         }
         #if canImport(FamilyControls)
@@ -239,14 +257,13 @@ struct PaperTicketView: View {
            let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: firstToken, requiringSecureCoding: true) {
             let tokenKey = SharedKeys.fcAppNameKey(tokenData.base64EncodedString())
             if let name = defaults.string(forKey: tokenKey) {
-                Self.titleCache[group.id] = name
+                Self.setCachedTitle(name, forGroupId: group.id)
                 return name
             }
         }
         #endif
         if appsCount == 0 { return String(localized: "Empty Ticket", comment: "PaperTicket – empty ticket placeholder title") }
-        let fallback = group.name.isEmpty ? String(localized: "\(appsCount) \(appsCount == 1 ? "app" : "apps")", comment: "PaperTicket – app count subtitle") : group.name
-        return fallback
+        return group.name.isEmpty ? String(localized: "\(appsCount) apps", comment: "PaperTicket – app count subtitle") : group.name
     }
 
 }

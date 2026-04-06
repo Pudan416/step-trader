@@ -32,7 +32,7 @@
 		2061EB842F269C99009FEC24 /* PayGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB802F269C99009FEC24 /* PayGateView.swift */; };
 		2061EB852F269C99009FEC24 /* HandoffProtectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB7D2F269C99009FEC24 /* HandoffProtectionView.swift */; };
 		2061EB862F269C99009FEC24 /* OnboardingStoriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB7F2F269C99009FEC24 /* OnboardingStoriesView.swift */; };
-		2061EB892F269CC7009FEC24 /* LocationPermissionRequester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB872F269CC7009FEC24 /* LocationPermissionRequester.swift */; };
+
 		2061EB8A2F269CC7009FEC24 /* NotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */; };
 		2061EB8C2F269CD5009FEC24 /* PayGateBackgroundStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */; };
 		2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */; };
@@ -104,8 +104,9 @@
 		20DB000E2F85000000000005 /* ShieldRebuildHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AA247F2F70BD6F002F2F2C /* ShieldRebuildHelper.swift */; };
 		20DB000F2F85000000000006 /* ShieldRebuildHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AA247F2F70BD6F002F2F2C /* ShieldRebuildHelper.swift */; };
 		20DE0E652F2B78970016EEAE /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DE0E642F2B78970016EEAE /* AppLogger.swift */; };
+		AC000001300400000000AC01 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000002300400000000AC02 /* AppConstants.swift */; };
 		20E3AE142F3F6C1C007CF1EC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 20E3AE132F3F6C1B007CF1EC /* Assets.xcassets */; };
-		20E3AE162F3FAA1E007CF1EC /* OptionEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E3AE152F3FAA1E007CF1EC /* OptionEntrySheet.swift */; };
+
 		20F0NT022FFF040000000002 /* Font+Custom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F0NT012FFF040000000001 /* Font+Custom.swift */; };
 		20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0012FFF000100000001 /* AutomationUIModels.swift */; };
 		20F5A0052FFF000100000005 /* AppsPageSimplified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0062FFF000100000006 /* AppsPageSimplified.swift */; };
@@ -128,7 +129,7 @@
 		30CA0001300000000000CA01 /* CanvasElement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0002300000000000CA02 /* CanvasElement.swift */; };
 		30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0004300000000000CA04 /* GenerativeCanvasView.swift */; };
 		30CA0005300000000000CA05 /* RadialHoldMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0006300000000000CA06 /* RadialHoldMenu.swift */; };
-		30CA0007300000000000CA07 /* ColorPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0008300000000000CA08 /* ColorPaletteView.swift */; };
+
 		30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA000A300000000000CA0A /* CanvasStorageService.swift */; };
 		30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EA00013001000000EA0001 /* EnergyGradientBackground.swift */; };
 		31E56CC97BFC4B2EB6CAA2A8 /* AppModel+PayGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E8B78AD65E54737AA7CA90F /* AppModel+PayGate.swift */; };
@@ -140,6 +141,7 @@
 		7006BD0F3FCF41D192D99AB8 /* ManagedSettings.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 200AC4892F1402CF0018004E /* ManagedSettings.framework */; };
 		70DB3A6D3B5C4A1A9E0F0001 /* NetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */; };
 		7C1A1D2E3F4A5B6C7D8E9F02 /* OnboardingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1A1D2E3F4A5B6C7D8E9F01 /* OnboardingFlowView.swift */; };
+		7C2B2D3E4F5A6B7C8D9E0F10 /* OnboardingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2B2D3E4F5A6B7C8D9E0F11 /* OnboardingDemoView.swift */; };
 		AA000001AA000001AA000002 /* SharedMocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AA000001AA000001 /* SharedMocks.swift */; };
 		AA000001AAAA000100000001 /* TariffDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AAAA000100000002 /* TariffDecodingTests.swift */; };
 		AA000002AAAA000200000001 /* TicketGroupCostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002AAAA000200000002 /* TicketGroupCostTests.swift */; };
@@ -252,7 +254,7 @@
 		2061EB7F2F269C99009FEC24 /* OnboardingStoriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStoriesView.swift; sourceTree = "<group>"; };
 		2061EB802F269C99009FEC24 /* PayGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayGateView.swift; sourceTree = "<group>"; };
 		2061EB812F269C99009FEC24 /* QuickStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickStatusView.swift; sourceTree = "<group>"; };
-		2061EB872F269CC7009FEC24 /* LocationPermissionRequester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPermissionRequester.swift; sourceTree = "<group>"; };
+
 		2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDelegate.swift; sourceTree = "<group>"; };
 		2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayGateBackgroundStyle.swift; sourceTree = "<group>"; };
 		2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileEditorView.swift; sourceTree = "<group>"; };
@@ -320,8 +322,9 @@
 		20DE0E612F2B62230016EEAE /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		20DE0E622F2B62230016EEAE /* Secrets.xcconfig.template */ = {isa = PBXFileReference; lastKnownFileType = text; path = Secrets.xcconfig.template; sourceTree = "<group>"; };
 		20DE0E642F2B78970016EEAE /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
+		AC000002300400000000AC02 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
 		20E3AE132F3F6C1B007CF1EC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		20E3AE152F3FAA1E007CF1EC /* OptionEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptionEntrySheet.swift; sourceTree = "<group>"; };
+
 		20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
 		20F0NT012FFF040000000001 /* Font+Custom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Font+Custom.swift"; sourceTree = "<group>"; };
 		20F5A0012FFF000100000001 /* AutomationUIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationUIModels.swift; sourceTree = "<group>"; };
@@ -344,7 +347,7 @@
 		30CA0002300000000000CA02 /* CanvasElement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasElement.swift; sourceTree = "<group>"; };
 		30CA0004300000000000CA04 /* GenerativeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeCanvasView.swift; sourceTree = "<group>"; };
 		30CA0006300000000000CA06 /* RadialHoldMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadialHoldMenu.swift; sourceTree = "<group>"; };
-		30CA0008300000000000CA08 /* ColorPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPaletteView.swift; sourceTree = "<group>"; };
+
 		30CA000A300000000000CA0A /* CanvasStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStorageService.swift; sourceTree = "<group>"; };
 		30EA00013001000000EA0001 /* EnergyGradientBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyGradientBackground.swift; sourceTree = "<group>"; };
 		40IN00012FFF050000000001 /* ExportCanvasWallpaperIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCanvasWallpaperIntent.swift; sourceTree = "<group>"; };
@@ -355,6 +358,7 @@
 		554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeviceActivityMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkClient.swift; sourceTree = "<group>"; };
 		7C1A1D2E3F4A5B6C7D8E9F01 /* OnboardingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowView.swift; sourceTree = "<group>"; };
+		7C2B2D3E4F5A6B7C8D9E0F11 /* OnboardingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingDemoView.swift; sourceTree = "<group>"; };
 		A9E0A6EF05154A91AA51F820 /* AppModel+CloudKit.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+CloudKit.swift"; sourceTree = "<group>"; };
 		AA000001AA000001AA000001 /* SharedMocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMocks.swift; sourceTree = "<group>"; };
 		AA000001AAAA000100000002 /* TariffDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TariffDecodingTests.swift; sourceTree = "<group>"; };
@@ -563,7 +567,7 @@
 				2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */,
 				201A0FBB2F2CDEE8001BB105 /* SupabaseSyncService.swift */,
 				70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */,
-				2061EB872F269CC7009FEC24 /* LocationPermissionRequester.swift */,
+
 				2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */,
 				2061EB942F269CE6009FEC24 /* ProfileLocationManager.swift */,
 				30CA000A300000000000CA0A /* CanvasStorageService.swift */,
@@ -587,6 +591,7 @@
 				207AE91A2F32293A00925680 /* DayBoundary+App.swift */,
 				20AA247A2F70BCF5002F2F2C /* SharedKeys.swift */,
 				20DE0E642F2B78970016EEAE /* AppLogger.swift */,
+				AC000002300400000000AC02 /* AppConstants.swift */,
 				20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */,
 				20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */,
 				20F5A0122FFF030000000003 /* Localization.swift */,
@@ -667,9 +672,10 @@
 				2061EB7E2F269C99009FEC24 /* MainTabView.swift */,
 				2061EB7F2F269C99009FEC24 /* OnboardingStoriesView.swift */,
 				7C1A1D2E3F4A5B6C7D8E9F01 /* OnboardingFlowView.swift */,
+				7C2B2D3E4F5A6B7C8D9E0F11 /* OnboardingDemoView.swift */,
 				2061EB802F269C99009FEC24 /* PayGateView.swift */,
 				2061EB812F269C99009FEC24 /* QuickStatusView.swift */,
-				20E3AE152F3FAA1E007CF1EC /* OptionEntrySheet.swift */,
+
 				2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */,
 				2061EB982F269CF7009FEC24 /* ManualsPage.swift */,
 				30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */,
@@ -677,7 +683,7 @@
 				20F5A0062FFF000100000006 /* AppsPageSimplified.swift */,
 				30CA0004300000000000CA04 /* GenerativeCanvasView.swift */,
 				30CA0006300000000000CA06 /* RadialHoldMenu.swift */,
-				30CA0008300000000000CA08 /* ColorPaletteView.swift */,
+
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1090,6 +1096,7 @@
 				201DF6FB2F377E5E007D716B /* AppModel+TicketManagement.swift in Sources */,
 				2061EB862F269C99009FEC24 /* OnboardingStoriesView.swift in Sources */,
 				7C1A1D2E3F4A5B6C7D8E9F02 /* OnboardingFlowView.swift in Sources */,
+				7C2B2D3E4F5A6B7C8D9E0F10 /* OnboardingDemoView.swift in Sources */,
 				2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */,
 				2061EB912F269CE6009FEC24 /* ImagePicker.swift in Sources */,
 				2061EB932F269CE6009FEC24 /* ProfileLocationManager.swift in Sources */,
@@ -1106,7 +1113,7 @@
 				2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */,
 				200AC5AA2F16E8370018004E /* CloudKitService.swift in Sources */,
 				20AA24892F70BEEA002F2F2C /* AccessWindow.swift in Sources */,
-				2061EB892F269CC7009FEC24 /* LocationPermissionRequester.swift in Sources */,
+
 				2061EB8A2F269CC7009FEC24 /* NotificationDelegate.swift in Sources */,
 				2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */,
 				20AA24812F70BD6F002F2F2C /* ShieldRebuildHelper.swift in Sources */,
@@ -1126,7 +1133,7 @@
 				30CA0001300000000000CA01 /* CanvasElement.swift in Sources */,
 				30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */,
 				30CA0005300000000000CA05 /* RadialHoldMenu.swift in Sources */,
-				30CA0007300000000000CA07 /* ColorPaletteView.swift in Sources */,
+
 				30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */,
 				2061EBF32F269D50009FEC24 /* MeView.swift in Sources */,
 				20F5A0112FFF030000000002 /* Localization.swift in Sources */,
@@ -1153,7 +1160,7 @@
 				209424CC2E85952D00904A0A /* AppModel+DailyEnergy.swift in Sources */,
 				209424CF2E85952D00904A0A /* AppModel+BudgetTracking.swift in Sources */,
 				201DF6D72F377E28007D716B /* LiteTicketConfig.swift in Sources */,
-				20E3AE162F3FAA1E007CF1EC /* OptionEntrySheet.swift in Sources */,
+
 				209424D52E85952D00904A0D /* AppModel+HealthKit.swift in Sources */,
 				WK000001AAAA000100000001 /* AppModel+WorkoutSuggestions.swift in Sources */,
 				209424D72E85952D00904A0E /* AppModel+AppSettings.swift in Sources */,
@@ -1164,6 +1171,7 @@
 				20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */,
 				200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */,
 				20DE0E652F2B78970016EEAE /* AppLogger.swift in Sources */,
+				AC000001300400000000AC01 /* AppConstants.swift in Sources */,
 				40IN00022FFF050000000002 /* ExportCanvasWallpaperIntent.swift in Sources */,
 				40IN00042FFF050000000004 /* AppShortcuts.swift in Sources */,
 				50SM00013002000050SM0001 /* SmudgeShaders.metal in Sources */,

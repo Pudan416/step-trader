@@ -8,27 +8,54 @@ struct ActivitySuggestionBanner: View {
 
     @Environment(\.appTheme) private var theme
 
+    @State private var isExpanded = false
+
     var body: some View {
         VStack(spacing: 8) {
-            ForEach(suggestions.prefix(3)) { suggestion in
-                suggestionCard(suggestion)
+            if let first = suggestions.first {
+                suggestionCard(first)
                     .transition(.asymmetric(
                         insertion: .move(edge: .top).combined(with: .opacity),
                         removal: .move(edge: .trailing).combined(with: .opacity)
                     ))
             }
 
-            if suggestions.count > 1 {
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        onDismissAll()
-                    }
-                } label: {
-                    Text(String(localized: "Dismiss all"))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
+            if isExpanded {
+                ForEach(suggestions.dropFirst().prefix(2)) { suggestion in
+                    suggestionCard(suggestion)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .move(edge: .trailing).combined(with: .opacity)
+                        ))
                 }
-                .buttonStyle(.plain)
+            }
+
+            HStack(spacing: 16) {
+                if suggestions.count > 1 && !isExpanded {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            isExpanded = true
+                        }
+                    } label: {
+                        Text(String(localized: "+\(suggestions.count - 1) more", comment: "ActivitySuggestionBanner – show more"))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if suggestions.count > 1 {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            onDismissAll()
+                        }
+                    } label: {
+                        Text(String(localized: "Dismiss all"))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
         .padding(.horizontal, 20)
@@ -77,9 +104,11 @@ struct ActivitySuggestionBanner: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Dismiss suggestion", comment: "ActivitySuggestionBanner – dismiss VoiceOver label"))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

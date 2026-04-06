@@ -15,7 +15,7 @@ struct StepsTraderApp: App {
     @AppStorage("hasSeenEnergySetup_v1") private var hasSeenEnergySetup: Bool = false
     @AppStorage("hasCompletedOnboarding_v1") private var hasCompletedOnboarding: Bool = false
     @AppStorage("hasMigratedOnboarding_v1") private var hasMigratedOnboarding: Bool = false
-    private let cleanupTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+    private let cleanupTimer = Timer.publish(every: AppConstants.Timing.cleanupTimerInterval, on: .main, in: .common).autoconnect()
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
 
     init() {
@@ -210,7 +210,7 @@ struct StepsTraderApp: App {
                         AppLogger.app.debug("🚫 PayGate local notification suppressed after dismiss")
                         return
                     }
-                    let lastOpen = g.object(forKey: "lastAppOpenedFromStepsTrader_\(bundleId)") as? Date
+                    let lastOpen = g.object(forKey: SharedKeys.lastAppOpenedFromStepsTrader(bundleId)) as? Date
                     if let lastOpen {
                         let elapsed = Date().timeIntervalSince(lastOpen)
                         if elapsed < 10 {
@@ -256,7 +256,7 @@ struct StepsTraderApp: App {
         )
 
         // Check for handoff token
-        if let tokenData = userDefaults.data(forKey: "handoffToken") {
+        if let tokenData = userDefaults.data(forKey: SharedKeys.handoffToken) {
             AppLogger.app.debug("🎫 Found handoff token data, decoding...")
             do {
                 let token = try JSONDecoder().decode(HandoffToken.self, from: tokenData)
@@ -265,7 +265,7 @@ struct StepsTraderApp: App {
                 // Check if token has expired
                 if token.isExpired {
                     AppLogger.app.debug("⏰ Handoff token expired, removing")
-                    userDefaults.removeObject(forKey: "handoffToken")
+                    userDefaults.removeObject(forKey: SharedKeys.handoffToken)
                     return
                 }
 
@@ -283,7 +283,7 @@ struct StepsTraderApp: App {
 
             } catch {
                 AppLogger.app.debug("Failed to decode handoff token: \(error.localizedDescription)")
-                userDefaults.removeObject(forKey: "handoffToken")
+                userDefaults.removeObject(forKey: SharedKeys.handoffToken)
             }
         } else {
             AppLogger.app.debug("ℹ️ No handoff token found")
@@ -339,11 +339,11 @@ struct StepsTraderApp: App {
     }
 
     private func isRecentPayGateOpen(groupId: String, userDefaults: UserDefaults) -> Bool {
-        if let last = userDefaults.object(forKey: "lastPayGateAction") as? Date,
+        if let last = userDefaults.object(forKey: SharedKeys.lastPayGateAction) as? Date,
            Date().timeIntervalSince(last) < 5 {
             return true
         }
-        if let last = userDefaults.object(forKey: "lastGroupPayGateOpen_\(groupId)") as? Date,
+        if let last = userDefaults.object(forKey: SharedKeys.lastGroupPayGateOpen(groupId)) as? Date,
            Date().timeIntervalSince(last) < 5 {
             return true
         }

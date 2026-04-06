@@ -33,6 +33,8 @@ final class AppModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var sleepRefetchTask: Task<Void, Never>?
 
+    // Intentionally nonisolated: called from actor contexts (SupabaseSyncService, extensions).
+    // UserDefaults is thread-safe for reads, so this is safe outside @MainActor.
     nonisolated static func storedDayEnd() -> (hour: Int, minute: Int) {
         let g = UserDefaults.stepsTrader()
         let h = (g.object(forKey: SharedKeys.dayEndHour) as? Int)
@@ -44,6 +46,7 @@ final class AppModel: ObservableObject {
         return (h, m)
     }
 
+    // Intentionally nonisolated: same rationale as storedDayEnd() above.
     nonisolated static func dayKey(for date: Date) -> String {
         let de = storedDayEnd()
         return DayBoundary.dayKey(for: date, dayEndHour: de.hour, dayEndMinute: de.minute)
@@ -288,6 +291,7 @@ final class AppModel: ObservableObject {
             defaults.removeObject(forKey: budgetKey)
             defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
             defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
+            defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
 
             #if canImport(DeviceActivity)
             DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(group.id)")])
@@ -364,13 +368,16 @@ final class AppModel: ObservableObject {
         checkDayBoundary()
         scheduleDayBoundaryTimer()
         startPendingWidgetBudgetMonitoring()
+        reconcileOrphanUsageBudgetMonitors()
+        ensureUsageBudgetMonitoringForActiveGroups()
         rebuildFamilyControlsShield()
         Task {
-            await refreshStepsBalance()
-            await refreshSleepIfAuthorized()
+            async let stepsResult: () = refreshStepsBalance()
+            async let sleepResult: () = refreshSleepIfAuthorized()
+            async let workoutResult: () = refreshWorkoutSuggestions()
+            async let notifResult: () = refreshNotificationAuthorizationStatus()
+            _ = await (stepsResult, sleepResult, workoutResult, notifResult)
             scheduleDelayedSleepRefetchIfMorning()
-            await refreshWorkoutSuggestions()
-            await refreshNotificationAuthorizationStatus()
         }
     }
     
@@ -447,6 +454,12 @@ final class AppModel: ObservableObject {
         
         // 3. Check day boundary BEFORE fetching so stale state is cleared first
         checkDayBoundary()
+
+        // Widget unlock may run before ticket groups are in memory; foreground can beat bootstrap.
+        // Drain pending widget budget + spend handoff after groups are loaded.
+        startPendingWidgetBudgetMonitoring()
+        reconcileOrphanUsageBudgetMonitors()
+        ensureUsageBudgetMonitoringForActiveGroups()
         
         // Schedule daily notifications (canvas reminder + day reset warning)
         if let nm = notificationService as? NotificationManager {
@@ -476,8 +489,12 @@ final class AppModel: ObservableObject {
     }
     
     deinit {
-        dayBoundaryTimer?.invalidate()
-        sleepRefetchTask?.cancel()
+        let timer = dayBoundaryTimer
+        let task = sleepRefetchTask
+        MainActor.assumeIsolated {
+            timer?.invalidate()
+            task?.cancel()
+        }
     }
 }
 

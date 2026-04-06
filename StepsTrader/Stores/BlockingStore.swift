@@ -72,9 +72,7 @@ final class BlockingStore: ObservableObject {
             self.saveAppSelection()
             self.lastSavedAppSelection = self.appSelection
             
-            if let service = self.familyControlsService as? FamilyControlsService {
-                service.updateSelection(self.appSelection)
-            }
+            self.familyControlsService.updateSelection(self.appSelection)
         }
     }
     
@@ -124,29 +122,35 @@ final class BlockingStore: ObservableObject {
     func persistTicketGroups() {
         let startTime = CFAbsoluteTimeGetCurrent()
         let g = UserDefaults.stepsTrader()
-        if let data = try? JSONEncoder().encode(ticketGroups) {
+        do {
+            let data = try JSONEncoder().encode(ticketGroups)
             g.set(data, forKey: ticketGroupsKey)
+        } catch {
+            AppLogger.shield.error("Failed to encode ticketGroups — user config not persisted: \(error.localizedDescription)")
         }
 
         // Build Lite Config
-        if let lite = buildLiteTicketConfig(),
-           let liteData = try? JSONEncoder().encode(lite) {
-            g.set(liteData, forKey: LiteTicketConfig.storageKey)
+        if let lite = buildLiteTicketConfig() {
+            do {
+                let liteData = try JSONEncoder().encode(lite)
+                g.set(liteData, forKey: LiteTicketConfig.storageKey)
+            } catch {
+                AppLogger.shield.error("Failed to encode LiteTicketConfig: \(error.localizedDescription)")
+            }
         }
-
-        WidgetCenter.shared.reloadAllTimelines()
 
         let persistTime = CFAbsoluteTimeGetCurrent() - startTime
         if persistTime > 0.05 {
             AppLogger.shield.debug("⏱️ persistTicketGroups took \(String(format: "%.3f", persistTime))s")
         }
 
-        // Use a separate task so persist-triggered rebuilds don't collide
-        // with direct rebuildFamilyControlsShield() calls (audit fix #8)
+        // Debounce widget reload and shield rebuild together to avoid spamming
+        // on rapid successive persists (reorder, batch updates, etc.)
         persistAndRebuildTask?.cancel()
         persistAndRebuildTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 500_000_000) // 500ms debounce
             guard !Task.isCancelled else { return }
+            WidgetCenter.shared.reloadAllTimelines()
             self.rebuildFamilyControlsShield()
         }
     }

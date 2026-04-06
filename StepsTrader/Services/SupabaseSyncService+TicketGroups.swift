@@ -92,32 +92,30 @@ extension SupabaseSyncService {
             let cfg = try SupabaseConfig.load()
             let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/shields")
 
-            guard var deleteComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return }
-            deleteComps.queryItems = [
-                URLQueryItem(name: "user_id", value: "eq.\(userId)"),
-                URLQueryItem(name: "bundle_id", value: "like.group:%")
-            ]
-            guard let deleteURL = deleteComps.url else { return }
-
-            var deleteRequest = URLRequest(url: deleteURL)
-            deleteRequest.httpMethod = "DELETE"
-            deleteRequest.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-            deleteRequest.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
-            deleteRequest.setValue("return=minimal", forHTTPHeaderField: "prefer")
-
-            let (deleteData, deleteResponse) = try await network.data(for: deleteRequest)
-            guard deleteResponse.statusCode < 400 else {
-                let body = String(data: deleteData, encoding: .utf8) ?? "no body"
-                AppLogger.network.error("📡 Ticket groups delete-before-insert failed: HTTP \(deleteResponse.statusCode) - \(body)")
-                return
-            }
-
+            // If rows is empty, just delete all group rows and return.
             if rows.isEmpty {
-                lastSentTicketGroupsPayload = []
-                AppLogger.network.debug("📡 Ticket groups synced: cleared")
+                guard var deleteComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return }
+                deleteComps.queryItems = [
+                    URLQueryItem(name: "user_id", value: "eq.\(userId)"),
+                    URLQueryItem(name: "bundle_id", value: "like.group:%")
+                ]
+                guard let deleteURL = deleteComps.url else { return }
+
+                var deleteRequest = URLRequest(url: deleteURL)
+                deleteRequest.httpMethod = "DELETE"
+                deleteRequest.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+                deleteRequest.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+                deleteRequest.setValue("return=minimal", forHTTPHeaderField: "prefer")
+
+                let (_, deleteResponse) = try await network.data(for: deleteRequest)
+                if deleteResponse.statusCode < 400 {
+                    lastSentTicketGroupsPayload = []
+                    AppLogger.network.debug("📡 Ticket groups synced: cleared")
+                }
                 return
             }
 
+            // Upsert all current rows (atomic — no gap between delete and insert)
             let payload = rows.map { row -> TicketGroupSyncInsertRow in
                 let settingsDict: [String: AnyCodableValue]?
                 if let obj = try? JSONSerialization.jsonObject(with: row.settingsJson) as? [String: Any] {
@@ -144,21 +142,33 @@ extension SupabaseSyncService {
                 )
             }
 
-            var insertRequest = URLRequest(url: endpoint)
-            insertRequest.httpMethod = "POST"
-            insertRequest.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-            insertRequest.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
-            insertRequest.setValue("application/json", forHTTPHeaderField: "content-type")
-            insertRequest.setValue("return=minimal", forHTTPHeaderField: "prefer")
-            insertRequest.httpBody = try JSONEncoder().encode(payload)
+            guard var upsertComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return }
+            upsertComps.queryItems = [URLQueryItem(name: "on_conflict", value: "user_id,bundle_id")]
+            guard let upsertURL = upsertComps.url else { return }
 
-            let (insertData, insertResponse) = try await network.data(for: insertRequest)
-            if insertResponse.statusCode < 400 {
+            var upsertRequest = URLRequest(url: upsertURL)
+            upsertRequest.httpMethod = "POST"
+            upsertRequest.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            upsertRequest.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+            upsertRequest.setValue("application/json", forHTTPHeaderField: "content-type")
+            upsertRequest.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "prefer")
+            upsertRequest.httpBody = try JSONEncoder().encode(payload)
+
+            let (upsertData, upsertResponse) = try await network.data(for: upsertRequest)
+            if upsertResponse.statusCode < 400 {
+                // Clean up stale rows that no longer exist locally
+                let currentBundleIds = Set(rows.map(\.bundleId))
+                if let lastSent = lastSentTicketGroupsPayload as [TicketGroupSyncRow]? {
+                    let removed = lastSent.filter { !currentBundleIds.contains($0.bundleId) }
+                    for stale in removed {
+                        await deleteTicket(bundleId: stale.bundleId)
+                    }
+                }
                 lastSentTicketGroupsPayload = rows
-                AppLogger.network.debug("📡 Ticket groups synced: \(rows.count) rows")
+                AppLogger.network.debug("📡 Ticket groups synced: \(rows.count) rows (upsert)")
             } else {
-                let body = String(data: insertData, encoding: .utf8) ?? "no body"
-                AppLogger.network.error("📡 Ticket groups insert failed: HTTP \(insertResponse.statusCode) - \(body)")
+                let body = String(data: upsertData, encoding: .utf8) ?? "no body"
+                AppLogger.network.error("📡 Ticket groups upsert failed: HTTP \(upsertResponse.statusCode) - \(body)")
             }
         } catch {
             AppLogger.network.error("📡 Ticket groups sync error: \(error.localizedDescription)")

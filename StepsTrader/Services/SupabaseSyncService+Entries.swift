@@ -90,6 +90,7 @@ extension SupabaseSyncService {
             guard response.statusCode < 400 else { return nil }
             
             let rows = try JSONDecoder().decode([OptionEntryRow].self, from: data)
+            let formatter = ISO8601DateFormatter()
             return rows.map { row in
                 OptionEntry(
                     id: "\(row.optionId)_\(row.dayKey)",
@@ -98,7 +99,7 @@ extension SupabaseSyncService {
                     category: EnergyCategory(rawValue: row.category) ?? .body,
                     colorHex: row.colorHex,
                     text: row.note,
-                    timestamp: ISO8601DateFormatter().date(from: row.createdAt) ?? Date(),
+                    timestamp: formatter.date(from: row.createdAt) ?? Date(),
                     assetVariant: row.assetVariant
                 )
             }

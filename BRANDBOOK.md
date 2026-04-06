@@ -1,7 +1,7 @@
 # Nowhere — Brand Book & Product Guide
 
-**Last updated:** March 25, 2026
-**Version:** v1.0
+**Last updated:** April 2, 2026
+**Version:** v1.1
 **Author:** Konstantin Pudan
 
 ---
@@ -75,7 +75,7 @@ Every morning you wake up with an empty canvas. Walking adds bright color. Sleep
 
 We all know the loop: pick up the phone, open a feed, twenty minutes vanish. Screen Time limits? You just tap "Ignore." Nowhere takes a different approach. Instead of shaming you or setting timers you'll dismiss, it builds a simple economy around your real life:
 
-1. **Earn colors by living.** Steps from HealthKit, sleep from your watch, plus activities you choose across body (yoga, gym, walk), mind (reading, journaling, deep work), and heart (calling a friend, cooking, quality time). Each category fills a 20-point bucket. Steps and sleep fill another 20 each. Max: 100 colors/day.
+1. **Earn colors by living.** Steps and sleep from HealthKit (each up to 20 colors toward the 100 cap), plus **pieces** you choose across **body, mind, and heart** (preset catalog + custom activities, up to 20 each). Max: **100 colors/day**.
 
 2. **Spend colors to scroll.** Pick the apps that drain you — we call them "feeds." They get blocked via Apple's Screen Time API. To open one, you spend colors: 4 for 10 minutes, 10 for 30 minutes, 20 for an hour. Once your budget runs out, the shield goes back up.
 
@@ -86,17 +86,24 @@ No subscription required. No in-app purchases for colors. The friction is real, 
 ### How it works (user flow)
 
 ```
-Onboarding → Set step/sleep targets → Grant HealthKit + Family Controls
-    → Pick first "feed" app to block → Land on Canvas tab
-    
+Onboarding (v5, 13 slides) → Interactive paint + color-cap + spend demos
+    → Set step/sleep targets → HealthKit → Pick first feed (or skip) → Sign in with Apple → Canvas tab
+
 Daily loop:
-    Wake up → Canvas is empty → Walk (steps auto-tracked) → Sleep (auto-tracked)
-    → Add body/mind/heart activities manually → Colors accumulate
-    → Try to open blocked app → Shield appears → "Unlock with colors"
-    → Choose 10/30/60 min window → Colors deducted → Timer starts
-    → Timer ends → Shield returns → Canvas reflects the day
-    → Day resets at custom boundary (default midnight)
+    Wake up → Canvas is empty (“Today is uncolored”) → Walk + sleep (HealthKit)
+    → Add body/mind/heart pieces → Colors accumulate (up to 100)
+    → Open blocked app → Shield → PayGate → choose 10/30/60 min → colors spent, canvas decays
+    → Timer ends → shield returns → day rolls at custom boundary (default midnight)
+
+Side paths: Home Screen widgets (Energy Status, App Groups), wallpaper shortcut, deep links from shield/notifications.
 ```
+
+### What feels different (product soul)
+
+- **Canvas as mirror, not dashboard** — Generative art from real inputs; **Metal smudge** lets you physically “move” paint on top of the generative layer.
+- **v5 onboarding** — Lowercase, first-person poetry *before* the product name appears; you paint and spend in demos before permissions.
+- **Honest economy** — Same default tariffs everywhere: **4 / 10 / 20 colors** for **10 min / 30 min / 1 h**; “keep it closed” is always explicit.
+- **Voice** — One person (`TONE_OF_VOICE.md`), Notes as essays, shields as facts.
 
 ---
 
@@ -169,51 +176,47 @@ The "day" doesn't have to start/end at midnight. Users can set a custom reset ti
 
 ### Canvas (default tab)
 
-- Generative, data-driven daily visualization
-- Elements spawn from steps, sleep, and activity selections
-- "Ink earned" (from living) vs "ink spent" (from feeds) creates visual decay
-- Canvas resets every day boundary
-- Exportable as image, settable as wallpaper via Shortcuts
-- Past canvases stored for 90 days
+- **SwiftUI `Canvas`** engine (`GenerativeCanvasView`): timeline-driven motion, steps/sleep tint, body / mind / heart geometry (breathing masses, drifting circles, heart beams).
+- **Metal smudge overlay** — finger painting on the live canvas (`SmudgeOverlayView` / `MetalSmudgeRenderer`); separate from the data-driven layer, same emotional “this is mine” feeling.
+- Earned vs spent energy drives **decay** (feeds drain the picture).
+- Resets at day boundary; persist + **Supabase** canvas sync; **~90 days** local snapshot history.
+- Share sheet export; **Shortcuts** intent for wallpaper pipeline (see Settings).
 
 ### Feeds (app blocking)
 
-- Ticket groups: named bundles of apps/categories to block
-- Shield UI when blocked app is opened: dark blur + gold accent
-- PayGate: full-screen spend interface (black + gold, serif typography)
-- Usage budget: countdown timer monitored by iOS device activity framework
-- Re-blocks automatically when time expires
+- **Ticket groups** with paper-ticket UI; **template picker** for common apps (Instagram, TikTok, YouTube, etc.).
+- Shield: system blur + **brand gold** primary button.
+- **PayGate:** serif headline “spend colors”, interval rows, optional styled backgrounds (`PayGateBackgroundStyle`).
+- **DeviceActivity** monitors usage windows; shields return when time is up.
 
-### Me (personal dashboard)
+### Now (personal dashboard — tab label)
 
-- 7-day ring visualization (how "full" each day was)
-- Weekly stats: earned / spent / kept colors
-- Average sleep and steps
-- Body / Mind / Heart — "mostly from" breakdown
-- Top energy consumers (which feeds cost the most)
-- Day tap → detailed canvas snapshot
+- Tab bar says **“Now”** (weekly you-state, not “Me”).
+- 7-day rings, earned / spent / kept, averages, body/mind/heart mix, top feed consumers, day drill-in.
 
 ### Notes (editorial content)
 
-- Paged serif/italic cards explaining the philosophy behind each feature
-- Topics: Canvas, Body/Mind/Heart, Shapes, Sleep, Steps, Feeds, Limits, Wallpaper, Colors, About Kosta
-- Unread dot indicator
+- Eleven cards, **ten topics** — two separate essays both filed under **About Colors** (palette vs economy).
+- Topics: Canvas; Body, Mind, and Heart; **Shapes**; Sleep; Steps; Feeds; Limits; Wallpaper; Colors (×2); About Kosta.
+- **Unread tracking** (`NoteReadTracker`); presentation is literary, not instructional.
 
 ### Settings
 
-- **Appearance:** Theme (Daylight/Night), gradient palette (Warm Sunset, Rose Garden, Ember, Dusk), gradient style
-- **Notifications:** Canvas reminder, day reset warning, access window alerts
-- **Limits:** Steps goal, sleep goal, day reset time
-- **Wallpaper:** Shortcuts integration for automatic wallpaper updates
-- **Widget:** Solid vs wallpaper background
-- **About:** Developer, version, contact
+- **Appearance:** Daylight / Night, energy gradient palettes (Warm Sunset, Rose Garden, Ember, Dusk).
+- **Notifications:** Reminders, reset warnings, access-window alerts.
+- **Limits:** Steps, sleep, **day boundary** (when “today” flips).
+- **Wallpaper / Shortcuts:** Guided setup for pushing canvas to lock screen.
+- **Widget:** **Solid** vs **wallpaper** thumbnail background (App Group snapshot).
+- **About:** Contact, version, founder context.
 
-### Widgets
+### Widgets (`UnlockWidgetExtension`)
 
-| Widget | Size | Content |
-|--------|------|---------|
-| Energy Status | Medium | Today's colors balance, energy breakdown |
-| App Groups | Large | Unlock/manage ticket groups from Home Screen |
+Home Screen **WidgetKit** (not a separate Lock Screen–only target in the current project).
+
+| Widget | Size | Configuration | Content |
+|--------|------|---------------|---------|
+| Energy Status | Medium | Static | Today’s colors + breakdown |
+| App Groups | Large | **App Intent** (`SelectGroupIntent`) | Pick a ticket group; unlock / manage from the widget |
 
 ### Shield (system-level block screen)
 
@@ -223,71 +226,63 @@ Appears when a blocked app is opened:
 - Primary CTA: "Unlock with colors" (gold button)
 - Dark blur material background, brand yellow accent
 
+Notifications echo the same neutral facts (“An app is closed…”) — see `TONE_OF_VOICE.md`.
+
 ---
 
 ## 6. Information Architecture
 
 ### Tab structure
 
-| Tab | Icon | Content |
-|-----|------|---------|
-| **Canvas** (default) | `hand.point.up.left.fill` | Generative day canvas + radial menu |
-| **Feeds** | `square.grid.2x2` | Ticket groups (blocked apps) |
-| **Me** | `person.circle` | Weekly dashboard + stats |
-| **Notes** | `book.fill` | Editorial notes about the app |
-| **Settings** | `gearshape` | Configuration + about |
+| Tab | Icon | Label in app | Content |
+|-----|------|--------------|---------|
+| **Canvas** (default) | `hand.point.up.left.fill` | Canvas | Generative canvas + radial hold menu + smudge layer |
+| **Feeds** | `square.grid.2x2` | Feeds | Tickets, templates, tariffs, time windows |
+| **Now** | `person.circle` | **Now** | Weekly dashboard + stats (same surface as legacy “Me”) |
+| **Notes** | `book.fill` | Notes | Editorial cards + shuffle |
+| **Settings** | `gearshape` | Settings | Appearance, limits, widget, account |
 
 ### Persistent overlay
 
-**StepBalanceCard** sits at the top across all tabs:
-- Shows current colors balance
-- Expandable to show category breakdown (steps, sleep, body, mind, heart chips)
-- Countdown timer to day reset
+**StepBalanceCard** (name is legacy; user sees **colors**):
+- Colors glyph + **current / earned today / 100** + progress strip + time to reset
+- Expandable chips: steps, sleep, body, mind, heart
+- “About colors” help affordance
 
 ---
 
 ## 7. Tone of Voice
 
-### Principles
+**Source of truth:** `TONE_OF_VOICE.md` — rules, surface-by-surface examples, templates, anti-patterns.
+
+### Principles (summary)
 
 | Principle | Description |
 |-----------|-------------|
-| **First-person** | The app speaks as one person to another, not a brand to a user |
-| **Reflective** | Observations, not commands. "Lately I've felt stuck" not "Stop wasting time" |
-| **Anti-prescriptive** | No shoulds. "I feel best around 7k steps. How about you?" |
-| **Warm but honest** | Acknowledges imperfection. Never preachy or motivational-poster tone |
-| **Philosophical, not technical** | "Each day is a canvas you color by living" not "Track your daily metrics" |
-| **Rebellious** | The daylight theme is described internally as "resistance." The accent color is a "rebellious marker" |
+| **First-person** | Especially onboarding and Notes — “i keep ending days i never touched.” |
+| **Lowercase bias** | UI labels and short phrases often lowercase (“spend colors”, “keep it closed”) per `TONE_OF_VOICE.md` |
+| **Anti-hype** | No cheerleading, no streaks, no guilt |
+| **Metaphor over metric** | Canvas, colors, threshold — not “optimization” |
+| **Shield = facts** | Short, neutral, no moralizing |
 
-### Voice examples
+### Voice examples (still on-brand)
 
 **Do say:**
-- "Lately I've felt stuck in nowhere."
-- "So I decided to turn Nowhere into Now Here."
-- "Each day is a canvas you color by living real life."
-- "Walking adds bright color."
-- "Sleep adds the dark tones."
+- "i wanted a mirror / that could hold a whole day."
+- "spend what you lived / to open what you chose to close."
+- "walking brightens the canvas." / "sleep lays down the dark."
 - "You can't buy colors."
-- "Steps are not a fitness metric. They're proof the body moved through the world."
 - "Feeds are where minutes disappear. Not evil, not good — just expensive."
-- "Colors are not a currency. I mean they are, but I'm not planning to sell them in microtransactions or whatever. Colors are yours."
 - "It's not perfect, but neither am I — and neither are you."
 
 **Don't say:**
-- "Optimize your screen time habits"
-- "Set limits and stick to them!"
-- "You've been on your phone too long"
-- "Great job! You earned 50 colors today!"
-- "Unlock premium features"
-- "Share your progress with friends"
+- Productivity-coach clichés, fake enthusiasm, premium upsell for colors
 
 ### Copy style guide
 
-- Sentence case for headers and buttons
-- No exclamation marks in UI copy (the rare exception: onboarding slides)
-- Ellipses are okay to create pause ("You can't buy colors, but...")
-- Line breaks within strings for rhythm, not space constraints
-- Localization-ready but English-only for v1
+- Navigation titles may use title case (“Settings”); body/button copy follows `TONE_OF_VOICE.md`
+- Onboarding v5 is the most literary surface; routine chrome stays quiet
+- Strings live in **`Localizable.xcstrings`** — English ships first; structure supports more locales later
 
 ---
 
@@ -435,25 +430,25 @@ The eye represents awareness, presence, seeing the day as it is.
 
 ## 11. Key Screens & Copy
 
-### Onboarding (13 slides)
+### Onboarding (v5 — 13 slides)
 
-The onboarding is a philosophical narrative, not a feature tour:
+Interactive narrative: you **feel** canvas → colors → spend **before** the app asks for HealthKit. Flow identifier in analytics: `flow: v5`.
 
-| # | Copy | Action |
-|---|------|--------|
-| 1 | "Lately I've felt stuck in nowhere." / "Working, scrolling, staring at a screen." | — |
-| 2 | "So I decided to turn Nowhere into Now Here." / "And built this app." | — |
-| 3 | "Each day is a canvas you color by living real life." / "Every 24 hours, it resets." | Canvas demo |
-| 4 | "Walking adds bright color." / "I feel best around 7k steps." / "How about you?" | Steps slider (5k–15k) |
-| 5 | "Sleep adds the dark tones." / "For me, 9 hours is the sweet spot." / "What about you?" | Sleep slider (6–10h) |
-| 6 | "To color your canvas, share your steps and sleep data." | HealthKit permission |
-| 7 | "Hit your sleep and steps targets to earn colors." / "Add body, mind, and heart activities to earn even more." | Colors demo chips |
-| 8 | "What are colors?" / "They show how intentionally you lived your day." / "You can't buy colors, but..." | Family Controls permission |
-| 9 | "...you can spend them to unlock apps." / "Pick your first one." | App selection grid |
-| 10 | "To unlock the chosen app you'll get a notification from Nowhere." / "Better to allow them." | Notification permission |
-| 11 | "Your canvas changes every day." / "From Settings, you can set it as your wallpaper." / "Practical and pretty." | — |
-| 12 | "By the way, I'm Kosta." / "Who are you?" | Sign in with Apple |
-| 13 | "Welcome to Nowhere, [Name]" | — |
+| # | Theme | Representative copy (English) | Interaction |
+|---|--------|-------------------------------|-------------|
+| 1 | Cold open | "i keep ending days i never touched." | — |
+| 2 | Canvas idea | "i wanted a mirror" / "that could hold a whole day." / "not a dashboard. not a score." | — |
+| 3 | Paint demo | "swipe to color it." | User paints sample canvas |
+| 4 | 100 cap | "one hundred colors. that's a full day." / "tap each to see." | Tap orbs |
+| 5 | Spend demo | "spend what you lived" / "to open what you chose to close." | Tap apps, watch pool drain |
+| 6 | Loop | "every morning, empty." / "earn colors by living." / "spend them to scroll." | Animated summary |
+| 7 | Steps | "walking brightens the canvas." / "set your target." | Steps target |
+| 8 | Sleep | "sleep lays down the dark." / "how much rest colors the night?" | Sleep target |
+| 9 | HealthKit | "to paint your real day," / "share what your body already knows." | Allow Health |
+| 10 | Feeds | "what pulls you when you're tired?" / "pick an app to close — or skip for now." | App picker + Family Controls + notifications as needed |
+| 11 | Name | "i called it nowhere." / "i still read it as now here." | — |
+| 12 | Identity | "i'm kosta." / "who are you?" | Sign in with Apple |
+| 13 | Welcome | "welcome to nowhere" | — |
 
 ### Shield (blocked app)
 
@@ -481,9 +476,9 @@ The onboarding is a philosophical narrative, not a feature tour:
 
 ### Empty states
 
-- Canvas: "Hold + to color up the canvas"
-- Feeds: "No feeds connected yet" / "Create one when you're ready."
-- Notifications: "Get a nudge to fill your canvas..." / "A heads-up before your canvas resets..."
+- Canvas: **"Today is uncolored"** (hint to add pieces / paint)
+- Feeds: **"No feeds connected yet"** / **"Create one when you're ready."**
+- Notifications settings: gentle opt-in copy (see `Localizable.xcstrings`)
 
 ---
 
@@ -519,7 +514,7 @@ The absence of IAP is the story. In a world of engagement hacking and microtrans
 | **Sign in with Apple** | Authentication | Yes — onboarding + settings |
 | **Supabase** | Backend sync, analytics, canvas backup | Background |
 | **CloudKit** | Legacy sync (ticket settings, spent data) | Background |
-| **WidgetKit** | Home screen widgets | Yes — Energy Status, App Groups |
+| **WidgetKit** | Home Screen widgets + App Intents | Yes — `UnlockWidgetExtension` |
 | **App Intents / Shortcuts** | Canvas wallpaper export automation | Yes — Settings-guided setup |
 | **UserNotifications** | Canvas reminders, reset warnings, unlock prompts | Yes — configurable in settings |
 
@@ -540,15 +535,17 @@ The absence of IAP is the story. In a world of engagement hacking and microtrans
 
 ### Unique differentiators
 
-1. **Currency you can't buy.** Every competitor either has IAP or relies on willpower. Colors are earned exclusively through HealthKit-verified movement, tracked sleep, and declared daily activities.
+1. **Currency you can't buy.** Colors come from living (HealthKit + declared pieces), not IAP.
 
-2. **Living daily canvas.** No competitor creates a personal, generative artwork from your day's data that you can set as your wallpaper.
+2. **Living canvas + paint.** Generative visualization **plus** optional **Metal smudge** interaction — not just a chart.
 
-3. **Category system (Body/Mind/Heart).** Goes beyond steps — encourages a holistic view of daily living, inspired by Tibetan Buddhism's body-mind-heart harmony.
+3. **Body / Mind / Heart.** Holistic buckets with distinct **visual grammar** on the canvas (documented in Notes → Shapes).
 
-4. **Family Controls enforcement.** Uses Apple's strongest blocking API. You can't just tap "Ignore for 15 minutes."
+4. **Family Controls enforcement.** Strongest Apple path for self-imposed blocks.
 
-5. **Anti-corporate brand voice.** Built by one person, written in first person, openly imperfect. The "About Kosta" note is a founder letter inside the app.
+5. **Voice and onboarding as art direction.** v5 story flow, lowercase poetry, name reveal late — feels like a zine, not a utility.
+
+6. **Widgets that participate in the economy.** Large widget uses **App Intents** to tie Home Screen to ticket groups and unlock flow.
 
 ---
 
@@ -570,12 +567,12 @@ The absence of IAP is the story. In a world of engagement hacking and microtrans
 
 ### Key stats to mention
 
-- 100 colors max per day — perfectly balanced across 5 categories
-- 13-slide onboarding that reads like a personal letter
-- Uses Apple Family Controls API (same as parental controls — can't be bypassed)
-- Generative daily canvas that becomes your wallpaper
-- Zero in-app purchases — the entire economy is earned
-- Home screen widgets for colors balance and quick unlock
+- 100 colors max per day — five buckets × 20 (steps, sleep, body, mind, heart)
+- 13-slide **v5** onboarding — interactive demos, then permissions
+- Apple Family Controls + DeviceActivity — self-chosen blocks
+- Generative canvas + optional **Metal smudge** + wallpaper shortcut
+- No StoreKit for colors — economy is earned
+- **UnlockWidgetExtension** — medium “Energy Status”, large “App Groups” with App Intents
 
 ### Story beats for a pitch deck
 
@@ -611,7 +608,8 @@ The absence of IAP is the story. In a world of engagement hacking and microtrans
 | **Energy** | The daily points system (0–100) derived from steps, sleep, and category activities |
 | **Body / Mind / Heart** | The three categories of daily activities that earn colors beyond steps and sleep |
 | **Day boundary** | The customizable time when "today" resets (default midnight, configurable 9 PM–3 AM) |
-| **Ink** | Internal/canvas term for energy — earned ink adds color, spent ink (from feeds) drains it |
+| **Ink** | Internal persistence/analytics field (`inkEarned` / `inkSpent`); user-facing word is **colors** |
+| **Now** | Tab bar name for the weekly profile / stats surface (implementation: `MeView`, etc.) |
 | **Usage budget** | The timed window (10/30/60 min) of access purchased with colors |
 | **Daylight** | Light theme — "paper" aesthetic with high contrast, no shadows, printed feel |
 | **Night** | Dark theme — same gold accent, deep blue-grey background |

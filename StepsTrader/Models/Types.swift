@@ -18,7 +18,7 @@ struct HandoffToken: Codable {
     let tokenId: String
     
     var isExpired: Bool {
-        Date().timeIntervalSince(createdAt) > 60 // Token valid for 1 minute
+        Date().timeIntervalSince(createdAt) > AppConstants.Timing.handoffTokenExpiry
     }
 }
 
@@ -77,12 +77,9 @@ protocol NotificationServiceProtocol {
 protocol BudgetEngineProtocol: ObservableObject {
     var tariff: Tariff { get set }
     var stepsPerMinute: Double { get }
-    var dailyBudgetMinutes: Int { get }
-    var remainingMinutes: Int { get }
     
     func minutes(from steps: Double) -> Int
     func setBudget(minutes: Int)
-    func consume(mins: Int)
     func resetIfNeeded()
     func updateTariff(_ newTariff: Tariff)
     func updateDayEnd(hour: Int, minute: Int)
@@ -109,20 +106,10 @@ enum Tariff: String, CaseIterable, Codable {
     
     var stepsPerMinute: Double {
         switch self {
-        case .free: return 100 // avoid divide-by-zero; treat as easy for tracking
+        case .free: return 0
         case .easy: return 100
         case .medium: return 500
         case .hard: return 1000
-        }
-    }
-    
-    // Cost per entry (steps per entry)
-    var entryCostSteps: Int {
-        switch self {
-        case .free: return 0
-        case .easy: return 10
-        case .medium: return 50
-        case .hard: return 100
         }
     }
     
@@ -132,6 +119,15 @@ enum Tariff: String, CaseIterable, Codable {
         case .easy: return "Easy"
         case .medium: return "Medium"
         case .hard: return "Hard"
+        }
+    }
+    
+    var entryCostSteps: Int {
+        switch self {
+        case .free: return 0
+        case .easy: return 10
+        case .medium: return 50
+        case .hard: return 100
         }
     }
     

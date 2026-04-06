@@ -57,7 +57,13 @@ private enum MonitorLogger {
         #endif
     }
     
+    private static var lastErrorLogWrite: Date = .distantPast
+
     private static func storeErrorLog(function: String, message: String, context: [String: String]?) {
+        let now = Date()
+        guard now.timeIntervalSince(lastErrorLogWrite) >= 5 else { return }
+        lastErrorLogWrite = now
+
         let defaults = SharedKeys.appGroupDefaults()
         var logs: [MonitorErrorLog] = []
         
@@ -69,7 +75,6 @@ private enum MonitorLogger {
         let entry = MonitorErrorLog(function: function, message: message, context: context)
         logs.append(entry)
         
-        // Keep only last 30 errors to avoid bloat (extension memory ~6MB)
         if logs.count > 30 {
             logs = Array(logs.suffix(30))
         }
@@ -78,20 +83,20 @@ private enum MonitorLogger {
             defaults.set(data, forKey: SharedKeys.monitorErrorLogs)
         }
         
-        // Also increment error counter for quick health check
         let errorCount = defaults.integer(forKey: SharedKeys.monitorErrorCount) + 1
         defaults.set(errorCount, forKey: SharedKeys.monitorErrorCount)
         defaults.set(Date(), forKey: SharedKeys.monitorLastErrorAt)
     }
 }
 
-private func makeISO8601Formatter() -> ISO8601DateFormatter {
-    ISO8601DateFormatter()
-}
+private let sharedISO8601Formatter: ISO8601DateFormatter = {
+    let f = ISO8601DateFormatter()
+    return f
+}()
 
 private func appendMonitorLog(_ message: String) {
     let defaults = SharedKeys.appGroupDefaults()
-    let now = makeISO8601Formatter().string(from: Date())
+    let now = sharedISO8601Formatter.string(from: Date())
     var logs = defaults.stringArray(forKey: SharedKeys.monitorLogs) ?? []
     logs.append("[\(now)] \(message)")
     if logs.count > 30 {
@@ -123,14 +128,15 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         
         if activityRaw.hasPrefix("usageBudget_") {
             let groupId = String(activityRaw.dropFirst("usageBudget_".count))
-            let defaults = SharedKeys.appGroupDefaults()
-            defaults.removeObject(forKey: SharedKeys.usageBudgetKey(groupId))
-            defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(groupId))
-            defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(groupId))
-            defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(groupId))
-            MonitorLogger.info("usageBudget interval ended for \(groupId) — cleared budget, re-shielding")
-            appendMonitorLog("usageBudget intervalEnd cleared: \(groupId)")
-            rebuildBlockFromExtension()
+            // Do NOT stopMonitoring or rebuild here. intervalDidEnd fires for two reasons:
+            // 1. Race condition: stopMonitoring() before startMonitoring() in the main app
+            //    generates a deferred intervalDidEnd that kills the newly registered monitor.
+            // 2. Daily schedule boundary (23:59:59). The repeating schedule handles this;
+            //    the monitor stays alive for the next day automatically.
+            // Budget expiration is handled solely by usageBudgetDone events. Day boundary
+            // cleanup is handled by clearAllUsageBudgets in the main app.
+            MonitorLogger.info("usageBudget daily interval ended for \(groupId) — no action (repeating schedule)")
+            appendMonitorLog("usageBudget intervalEnd (no-op): \(groupId)")
             return
         }
     }
@@ -164,11 +170,23 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         
         let groups = ShieldRebuildHelper.loadGroups(defaults: defaults)
         MonitorLogger.info("Found \(groups.count) ticket groups")
+
+        // Single pass: collect shielded apps/categories AND build firstApp→bundleId mapping
+        var firstAppBundleId: String? = nil
+        var firstAppResolved = false
+
         for group in groups where group.active {
             let budgetKey = SharedKeys.usageBudgetKey(group.id)
             if defaults.integer(forKey: budgetKey) > 0 {
-                MonitorLogger.info("Skipping group \(group.name) - usage budget active")
-                continue
+                if ShieldRebuildHelper.isUsageBudgetWallClockActive(defaults: defaults, groupId: group.id) {
+                    MonitorLogger.info("Skipping group \(group.name) - usage budget active (wall clock valid)")
+                    continue
+                }
+                MonitorLogger.info("Budget expired for group \(group.name) — clearing stale keys")
+                defaults.removeObject(forKey: budgetKey)
+                defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
+                defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
+                defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
             }
             guard let selectionData = group.selectionData else {
                 MonitorLogger.warning("Group \(group.name) has no selectionData")
@@ -179,6 +197,18 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                 allApps.formUnion(sel.applicationTokens)
                 allCategories.formUnion(sel.categoryTokens)
                 MonitorLogger.info("Added \(sel.applicationTokens.count) apps from group: \(group.name)")
+
+                // Resolve firstApp bundleId during this same pass (avoids second iteration)
+                if !firstAppResolved, let firstApp = allApps.first, sel.applicationTokens.contains(firstApp) {
+                    if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: firstApp, requiringSecureCoding: true) {
+                        let tokenKey = SharedKeys.fcAppNameKey(tokenData.base64EncodedString())
+                        if let appName = defaults.string(forKey: tokenKey) {
+                            firstAppBundleId = appName
+                            firstAppResolved = true
+                            MonitorLogger.info("Found app in shield group: \(appName)")
+                        }
+                    }
+                }
             } catch {
                 MonitorLogger.error("Failed to decode selection for group \(group.name): \(error.localizedDescription)", context: [
                     "groupId": group.id,
@@ -222,34 +252,10 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         store.shield.applicationCategories = allCategories.isEmpty ? nil : .specific(allCategories)
         
         // Save blocked apps info for ShieldActionExtension to use
-        // We'll save the first app's bundleId as the "last blocked app"
         if let firstApp = allApps.first {
-            var foundBundleId: String? = nil
+            var foundBundleId = firstAppBundleId
             
-            let groups = ShieldRebuildHelper.loadGroups(defaults: defaults)
-            for group in groups {
-                guard let selectionData = group.selectionData else { continue }
-                do {
-                    let sel = try JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
-                    if sel.applicationTokens.contains(firstApp) {
-                        do {
-                            let tokenData = try NSKeyedArchiver.archivedData(withRootObject: firstApp, requiringSecureCoding: true)
-                            let tokenKey = SharedKeys.fcAppNameKey(tokenData.base64EncodedString())
-                            if let appName = defaults.string(forKey: tokenKey) {
-                                foundBundleId = appName
-                                MonitorLogger.info("Found app in shield group: \(appName)")
-                                break
-                            }
-                        } catch {
-                            MonitorLogger.warning("Failed to archive app token: \(error.localizedDescription)")
-                        }
-                    }
-                } catch {
-                    MonitorLogger.error("Failed to decode selection during bundleId resolution: \(error.localizedDescription)", context: ["error": error.localizedDescription])
-                }
-            }
-            
-            // 2) If not found in groups, check legacy settings
+            // If not found in groups during the single pass, check legacy settings
             if foundBundleId == nil {
                 if let globalSelectionData = defaults.data(forKey: SharedKeys.appSelection) {
                     do {
@@ -302,6 +308,28 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     private func handleMinuteEvent(_ event: DeviceActivityEvent.Name) {
         let raw = event.rawValue
 
+        if raw.hasPrefix("ticketGroup_") {
+            checkAndClearExpiredBudgets()
+            return
+        }
+
+        if raw.hasPrefix("usageBudgetWidgetTick_") {
+            let parts = raw.dropFirst("usageBudgetWidgetTick_".count)
+            if let lastUnderscore = parts.lastIndex(of: "_") {
+                let groupId = String(parts[parts.startIndex..<lastUnderscore])
+                let minuteReached = Int(parts[parts.index(after: lastUnderscore)...]) ?? 0
+                let defaults = SharedKeys.appGroupDefaults()
+                let initialBudget = defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(groupId))
+                let remaining = max(0, initialBudget - minuteReached)
+                defaults.set(remaining, forKey: SharedKeys.usageBudgetKey(groupId))
+                defaults.synchronize()
+                MonitorLogger.info("Widget milestone for \(groupId): minute \(minuteReached), remaining \(remaining)m")
+                appendMonitorLog("usageBudgetWidgetTick \(groupId): \(remaining)m left")
+                reloadWidgets()
+            }
+            return
+        }
+
         if raw.hasPrefix("usageBudgetTick_") {
             let parts = raw.dropFirst("usageBudgetTick_".count)
             if let lastUnderscore = parts.lastIndex(of: "_") {
@@ -311,9 +339,11 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                 let initialBudget = defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(groupId))
                 let remaining = max(0, initialBudget - minuteReached)
                 defaults.set(remaining, forKey: SharedKeys.usageBudgetKey(groupId))
+                defaults.synchronize()
                 MonitorLogger.info("Usage tick for \(groupId): minute \(minuteReached), remaining \(remaining)m")
                 appendMonitorLog("usageBudgetTick \(groupId): \(remaining)m left")
             }
+            return
         }
 
         if raw.hasPrefix("usageBudgetDone_") {
@@ -323,10 +353,38 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(groupId))
             defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(groupId))
             defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+            defaults.synchronize()
             MonitorLogger.info("Usage budget exhausted for group \(groupId) — re-shielding")
             appendMonitorLog("usageBudget exhausted: \(groupId)")
             rebuildBlockFromExtension()
             DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(groupId)")])
+            reloadWidgets()
+        }
+    }
+
+    private func checkAndClearExpiredBudgets() {
+        let defaults = SharedKeys.appGroupDefaults()
+        let groups = ShieldRebuildHelper.loadGroups(defaults: defaults)
+        var didClear = false
+
+        for group in groups where group.active {
+            let budgetKey = SharedKeys.usageBudgetKey(group.id)
+            guard defaults.integer(forKey: budgetKey) > 0 else { continue }
+
+            if !ShieldRebuildHelper.isUsageBudgetWallClockActive(defaults: defaults, groupId: group.id) {
+                defaults.removeObject(forKey: budgetKey)
+                defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
+                defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
+                defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
+                DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(group.id)")])
+                MonitorLogger.info("Budget wall-clock expired for \(group.name) — re-shielding")
+                appendMonitorLog("budget wallclock expired: \(group.id)")
+                didClear = true
+            }
+        }
+
+        if didClear {
+            rebuildBlockFromExtension()
             reloadWidgets()
         }
     }

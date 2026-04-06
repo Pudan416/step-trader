@@ -82,6 +82,9 @@ struct SmudgeOverlayView: UIViewRepresentable {
         let scale = view.contentScaleFactor
         let coord = context.coordinator
 
+        let touchHaptic = UIImpactFeedbackGenerator(style: .medium)
+        touchHaptic.prepare()
+
         view.onTouchBegan = { [weak coord, weak view] id, point in
             guard let coord = coord, let renderer = coord.renderer else { return }
             view?.isPaused = false
@@ -89,15 +92,14 @@ struct SmudgeOverlayView: UIViewRepresentable {
                 coord.snapshotCanvas(scale: scale)
             }
             renderer.handleTouchBegan(id: id, at: point, scale: scale)
+            touchHaptic.impactOccurred(intensity: 0.7)
         }
         view.onTouchMoved = { [weak coord] id, previous, current in
             coord?.renderer?.addStrokeSegment(id: id, from: previous, to: current, scale: scale)
         }
         view.onTouchEnded = { [weak coord] id in
             coord?.renderer?.handleTouchEnded(id: id)
-            // DON'T pause here — let the render loop continue so
-            // relaxation + age-based fade can run to completion.
-            // The renderer will pause the view in draw() once fully faded.
+            touchHaptic.impactOccurred(intensity: 0.5)
         }
 
         context.coordinator.mtkView = view

@@ -4,9 +4,6 @@
     "" : {
 
     },
-    "-%lld" : {
-
-    },
     "—" : {
 
     },
@@ -28,6 +25,16 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ · %2$lld"
+          }
+        }
+      }
+    },
+    "%@ for %lld colors. that's the deal." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ for %2$lld colors. that's the deal."
           }
         }
       }
@@ -54,6 +61,19 @@
         }
       }
     },
+    "%@ removed" : {
+      "comment" : "Canvas – undo toast message"
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
     "%@, %lld earned, %lld remaining" : {
       "localizations" : {
         "en" : {
@@ -70,22 +90,28 @@
     "%lld" : {
 
     },
-    "%lld %@" : {
-      "comment" : "PaperTicket – app count subtitle",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld %2$@"
-          }
-        }
-      }
+    "%lld apps" : {
+      "comment" : "PaperTicket – app count subtitle"
+    },
+    "%lld colors" : {
+
     },
     "%lld hours" : {
 
     },
     "%lld min remaining" : {
 
+    },
+    "%lld of %lld earned, %lld maximum colors" : {
+      "comment" : "StepBalanceCard – header VoiceOver label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld earned, %3$lld maximum colors"
+          }
+        }
+      }
     },
     "%lld percent, %lld of %lld colors" : {
       "comment" : "StepBalanceCard – progress bar VoiceOver value",
@@ -98,6 +124,9 @@
         }
       }
     },
+    "%lld steps" : {
+      "comment" : "QuickStatus – balance value"
+    },
     "%lld/%lld" : {
       "localizations" : {
         "en" : {
@@ -108,17 +137,20 @@
         }
       }
     },
-    "%lld/200" : {
-
-    },
     "%lldm" : {
-
+      "comment" : "PaperTicket – remaining budget in minutes, e.g. '42m'"
+    },
+    "+%lld more" : {
+      "comment" : "ActivitySuggestionBanner – show more"
     },
     "+20" : {
 
     },
     "⏱️ %@" : {
       "comment" : "Notification – timer title with app name"
+    },
+    "📊" : {
+
     },
     "🛡️" : {
 
@@ -228,6 +260,9 @@
     "Add to canvas" : {
       "comment" : "OptionEntry – add to canvas button"
     },
+    "add widgets — they update on their own." : {
+
+    },
     "Add your own" : {
       "comment" : "CategoryDetail – add custom activity button"
     },
@@ -245,6 +280,15 @@
     },
     "An app is closed. Open Nowhere to unlock it." : {
       "comment" : "Notification – app blocked body"
+    },
+    "an economy between online and offline." : {
+
+    },
+    "and" : {
+
+    },
+    "and also" : {
+
     },
     "App blocking & limits" : {
       "comment" : "Permission row – Family Controls detail"
@@ -323,8 +367,20 @@
     "Choose your own apps" : {
       "comment" : "TemplatePicker – custom apps subtitle"
     },
-    "Circle" : {
-      "comment" : "OptionEntry – shape picker options"
+    "Clear" : {
+
+    },
+    "Close" : {
+      "comment" : "PayGate – close button VoiceOver label\nQuickStatus – dismiss button"
+    },
+    "close one — or skip for now." : {
+
+    },
+    "Close quick status" : {
+      "comment" : "QuickStatus – close VoiceOver label"
+    },
+    "Closes the quick status view" : {
+      "comment" : "QuickStatus – close VoiceOver hint"
     },
     "Collapse categories" : {
       "comment" : "StepBalanceCard – toggle categories VoiceOver label"
@@ -332,20 +388,17 @@
     "Collect energy drops by exploring the Outer World" : {
       "comment" : "CategoryDetail – outer world hint text"
     },
-    "Color" : {
-      "comment" : "OptionEntry – color section header"
-    },
     "Color Palette" : {
 
     },
     "colors" : {
-
+      "comment" : "Category overlay – unit"
     },
     "COLORS" : {
       "comment" : "Appearance section header"
     },
     "Colors are not a currency. I mean they are, but I'm not planning to sell them in microtransactions or whatever. Colors are yours. You deserve them, you earn them, you can always add more. Within limits, of course." : {
-      "comment" : "Note body: about_colors"
+      "comment" : "Note body: about_colors_economy"
     },
     "colors earned" : {
       "comment" : "CategoryDetail – points subtitle"
@@ -359,6 +412,9 @@
     "continue without signing in" : {
 
     },
+    "Copy All" : {
+
+    },
     "Create" : {
       "comment" : "CategoryDetail – create custom activity button"
     },
@@ -367,6 +423,9 @@
     },
     "Custom Apps" : {
       "comment" : "TemplatePicker – custom apps option title"
+    },
+    "Customize element" : {
+      "comment" : "Repaint sheet – title"
     },
     "Daily canvas reminder" : {
 
@@ -395,32 +454,35 @@
     "Daylight" : {
       "comment" : "GradientPreview – time-of-day label"
     },
+    "Decrease %@" : {
+      "comment" : "MeTargetsSheet – stepper VoiceOver label"
+    },
     "Delete" : {
 
     },
     "Delete Account" : {
       "comment" : "ProfileEditor – delete account button\nProfileEditor – delete confirmation title"
     },
-    "Deleted ticket" : {
+    "Delete this ticket?" : {
 
     },
     "Developer" : {
 
     },
-    "Diamond" : {
-      "comment" : "OptionEntry – shape picker options"
-    },
     "Dismiss all" : {
 
     },
+    "Dismiss suggestion" : {
+      "comment" : "ActivitySuggestionBanner – dismiss VoiceOver label"
+    },
     "Done" : {
-      "comment" : "AppSelection – done button\nManualsPage – dismiss button\nOptionEntry – done button\nRepaint sheet – dismiss\nTimeAccessPicker – dismiss button"
+      "comment" : "AppSelection – done button\nManualsPage – dismiss button\nRepaint sheet – dismiss\nTimeAccessPicker – dismiss button"
+    },
+    "Double tap to change" : {
+      "comment" : "MeView – interactive pill VoiceOver hint"
     },
     "Double tap to unlock" : {
       "comment" : "PaperTicket – unlock pill VoiceOver hint"
-    },
-    "e.g." : {
-      "comment" : "OptionEntry – example text prefix"
     },
     "e.g. Gym Day" : {
       "comment" : "Placeholder for routine name"
@@ -434,10 +496,7 @@
     "earn" : {
 
     },
-    "earn colors by living." : {
-
-    },
-    "earned" : {
+    "earn by living. spend to scroll." : {
 
     },
     "Edit Apps" : {
@@ -467,14 +526,20 @@
     "End of day" : {
       "comment" : "Picker label"
     },
+    "Enter label mode" : {
+      "comment" : "GalleryView – label toggle VoiceOver label"
+    },
     "Entries left today: %@" : {
 
+    },
+    "Entry balance:" : {
+      "comment" : "QuickStatus – balance label"
     },
     "Error" : {
       "comment" : "ProfileEditor – error alert title"
     },
-    "every morning, empty." : {
-
+    "Exit label mode" : {
+      "comment" : "GalleryView – label toggle VoiceOver label"
     },
     "Expand categories" : {
       "comment" : "StepBalanceCard – toggle categories VoiceOver label"
@@ -571,16 +636,16 @@
     "hours slept" : {
 
     },
-    "how much rest colors the night?" : {
+    "how far do you go?" : {
+
+    },
+    "how many hours feel right?" : {
 
     },
     "I actually liked how the canvases look. And I tried setting one as a wallpaper. It made me see my day constantly and think, what can I add to it. The sad part is that you need to open the app to update the wallpaper. But once you set enough apps in the Feeds section, you'll be opening it anyway. Seemed like a good compromise." : {
       "comment" : "Note body: about_wallpaper"
     },
-    "i called it nowhere." : {
-
-    },
-    "i keep ending days i never touched." : {
+    "i found that i live one day over and over." : {
 
     },
     "I like green. But that's just me. I tried to find the colors most people like and want to see and came up with this set. Hopefully you'll find what fits your liking. You can always change them if you don't." : {
@@ -588,12 +653,6 @@
     },
     "I spent a long time thinking about these categories and there is no one way to categorize a human being. But I liked the Tibetan Buddhism, which sees a human as a harmony of body (physical form), mind (thoughts and perceptions), and heart (pure awareness, emotions, and compassion center). I don't know much about Buddhism, but this idea resonates with me. Maybe I should start digging deeper one day." : {
       "comment" : "Note body"
-    },
-    "i still read it as now here." : {
-
-    },
-    "i wanted a mirror" : {
-
     },
     "i'll nudge you when colors are ready to spend." : {
 
@@ -604,11 +663,23 @@
     "If a permission was denied, tap it to open Settings where you can enable it." : {
       "comment" : "Permissions – footer hint"
     },
+    "if they feel behind, tap refresh. ios thing." : {
+
+    },
+    "Increase %@" : {
+      "comment" : "MeTargetsSheet – stepper VoiceOver label"
+    },
+    "Instagram is closed." : {
+
+    },
+    "it felt like being stuck in" : {
+
+    },
     "keep it closed" : {
       "comment" : "PayGate dismiss button"
     },
-    "Learn how to automate it" : {
-      "comment" : "Wide canvas – wallpaper prompt subtitle"
+    "let your phone see what your body already knows." : {
+
     },
     "Let's go" : {
 
@@ -651,11 +722,20 @@
         }
       }
     },
+    "Mostly from" : {
+
+    },
+    "Mostly on" : {
+
+    },
     "My Apps" : {
 
     },
     "My Feeds" : {
       "comment" : "Feeds page title"
+    },
+    "My progress overview" : {
+      "comment" : "QuickStatus – subtitle"
     },
     "N/A" : {
       "comment" : "Permission – not available badge"
@@ -675,6 +755,9 @@
     "Night" : {
       "comment" : "GradientPreview – time-of-day label"
     },
+    "No activities selected yet" : {
+      "comment" : "Category overlay – empty hint"
+    },
     "No canvas found for today. Open the app and add some activities first." : {
 
     },
@@ -687,17 +770,11 @@
     "No feeds connected yet" : {
 
     },
-    "not a dashboard. not a score." : {
-
-    },
     "Not enough colors" : {
       "comment" : "PaperTicket – unlock pill VoiceOver hint"
     },
-    "not enough. comes back at midnight." : {
+    "not selected" : {
 
-    },
-    "Note" : {
-      "comment" : "OptionEntry – note field label"
     },
     "Notes" : {
       "comment" : "Tab bar title"
@@ -720,9 +797,6 @@
     "one hundred colors. that's a full day." : {
 
     },
-    "open" : {
-
-    },
     "Open" : {
       "comment" : "Unlock status label"
     },
@@ -731,9 +805,6 @@
     },
     "Opens the app %@ after confirming access" : {
       "comment" : "Handoff – open button accessibility hint"
-    },
-    "optional" : {
-      "comment" : "OptionEntry – optional field hint"
     },
     "Organic" : {
 
@@ -750,13 +821,10 @@
     "Photo Access" : {
       "comment" : "ProfileEditor – photo permission alert title"
     },
-    "Pick a color" : {
-      "comment" : "ColorPalette – sheet title"
+    "pick a window to unlock it." : {
+
     },
-    "Pick a new color" : {
-      "comment" : "Repaint sheet – title"
-    },
-    "pick an app to close — or skip for now." : {
+    "pick how long." : {
 
     },
     "Progress" : {
@@ -764,6 +832,9 @@
     },
     "Protection Screen" : {
 
+    },
+    "Quick Status" : {
+      "comment" : "QuickStatus – title"
     },
     "Radial" : {
 
@@ -773,9 +844,6 @@
     },
     "Remind at" : {
 
-    },
-    "Remove" : {
-      "comment" : "OptionEntry – remove option button"
     },
     "Remove Photo" : {
       "comment" : "ProfileEditor – remove avatar button"
@@ -810,6 +878,9 @@
     "Select Apps" : {
       "comment" : "AppSelection – navigation title"
     },
+    "selected" : {
+
+    },
     "Set this canvas as your wallpaper" : {
       "comment" : "Wide canvas – wallpaper prompt"
     },
@@ -819,16 +890,16 @@
     "Set up the wallpaper shortcut first" : {
 
     },
-    "set your target." : {
+    "set your canvas as a wallpaper." : {
 
     },
     "Settings" : {
       "comment" : "Context menu action\nSettings page title\nTab bar title"
     },
-    "Shape" : {
-      "comment" : "OptionEntry – shape section header"
+    "Share canvas" : {
+      "comment" : "GalleryView – share button VoiceOver label"
     },
-    "share what your body already knows." : {
+    "ShieldAction Logs" : {
 
     },
     "Sign in" : {
@@ -849,6 +920,15 @@
     "Sleep" : {
       "comment" : "Onboarding – energy source labels"
     },
+    "sleep and" : {
+
+    },
+    "sleep data may lag a bit — ios updates it on its own schedule." : {
+
+    },
+    "sleep deepens the dark." : {
+
+    },
     "Sleep goal" : {
 
     },
@@ -858,11 +938,11 @@
     "Sleep is what we all have. This is the beginning and the end of the day. And its amount and quality influence us the most. On the canvas the more you sleep, the darker it becomes. That's not a bad thing, it just shows that rest today is a priority. Oh, btw, it is taken from the Health app and sometimes it is slow to upload. Thanks, Apple." : {
       "comment" : "Note body"
     },
-    "sleep lays down the dark." : {
-
-    },
     "Sleep only" : {
       "comment" : "GradientPreview – preview mode sleep data only"
+    },
+    "sleep." : {
+
     },
     "Sleeping for 8 hours or making 10k steps a day is not a must. It's personal, you set your own threshold. But setting it gives a bit more motivation to get there." : {
       "comment" : "Note body: about_limits"
@@ -877,6 +957,9 @@
           }
         }
       }
+    },
+    "so i made this app." : {
+
     },
     "Solid" : {
       "comment" : "Widget background style"
@@ -899,13 +982,7 @@
     "Spend colors on" : {
       "comment" : "Unlock section header"
     },
-    "spend them to scroll." : {
-
-    },
-    "spend what you lived" : {
-
-    },
-    "spent" : {
+    "spend them on the apps that pull you away." : {
 
     },
     "Spent" : {
@@ -920,7 +997,7 @@
     "Steps" : {
       "comment" : "Onboarding – energy source labels"
     },
-    "steps and sleep — you can change this later" : {
+    "steps a day." : {
 
     },
     "Steps and sleep come from the Health app and are the same for everyone. Body, mind and heart are activities you add by tapping the + button at the bottom of the screen." : {
@@ -941,23 +1018,20 @@
     "steps today" : {
 
     },
+    "Steps today:" : {
+      "comment" : "QuickStatus – steps label"
+    },
+    "steps, sleep, and the things you notice." : {
+
+    },
     "Steps, sleep, workouts" : {
       "comment" : "Permission row – HealthKit detail"
-    },
-    "swipe to color it." : {
-
     },
     "Synced with wallpaper shortcut" : {
 
     },
-    "tap an app to spend colors." : {
-
-    },
     "Tap an element to edit it" : {
       "comment" : "Label mode – discoverability hint"
-    },
-    "tap another." : {
-
     },
     "tap each to see." : {
 
@@ -977,7 +1051,7 @@
     "Test notification." : {
       "comment" : "Notification – test notification body"
     },
-    "that could hold a whole day." : {
+    "the background comes from steps and sleep." : {
 
     },
     "The canvas is a reflection of each day. How full and colorful it was. I like the idea that even though each day is limited by 24 hours, there are so many little things that make them different. And to distinguish one day from another we need to notice them." : {
@@ -988,6 +1062,9 @@
     },
     "The sense of being present" : {
       "comment" : "App tagline"
+    },
+    "the time runs only when the app is being used." : {
+
     },
     "THEME" : {
       "comment" : "Appearance section header"
@@ -1001,11 +1078,20 @@
     "THIS WEEK" : {
 
     },
+    "This week you earned" : {
+
+    },
+    "This week you spent" : {
+
+    },
     "This will permanently delete your account, profile, and all data. This action cannot be undone." : {
       "comment" : "ProfileEditor – delete confirmation message"
     },
     "Ticket" : {
 
+    },
+    "Ticket settings" : {
+      "comment" : "PaperTicket – ellipsis button VoiceOver label"
     },
     "Time options" : {
 
@@ -1013,14 +1099,11 @@
     "Timers, reminders, alerts" : {
       "comment" : "Permission row – Notifications detail"
     },
-    "to open what you chose to close." : {
-
-    },
-    "to paint your real day," : {
-
-    },
     "Today is uncolored" : {
       "comment" : "Canvas empty state hint"
+    },
+    "tomorrow, it resets." : {
+
     },
     "touch and drag" : {
 
@@ -1028,11 +1111,11 @@
     "Track what matters" : {
 
     },
-    "Triangle" : {
-      "comment" : "OptionEntry – shape picker options"
-    },
     "Turn movement into energy" : {
 
+    },
+    "Undo" : {
+      "comment" : "Canvas – undo button"
     },
     "Unlimited" : {
 
@@ -1078,7 +1161,7 @@
     "Version" : {
 
     },
-    "walking brightens the canvas." : {
+    "walking fills the canvas." : {
 
     },
     "Wallpaper" : {
@@ -1093,10 +1176,13 @@
     "welcome to nowhere" : {
 
     },
-    "what pulls you when you're tired?" : {
+    "what colors it are the things you notice." : {
 
     },
     "When the timer is over" : {
+
+    },
+    "where does your reality fade?" : {
 
     },
     "who are you?" : {
@@ -1105,10 +1191,19 @@
     "Widget" : {
       "comment" : "Settings section title"
     },
+    "working. scrolling. staring at a screen." : {
+
+    },
+    "You are aiming for" : {
+
+    },
     "You are not nowhere. You are now here." : {
       "comment" : "App philosophy tagline"
     },
     "you can't buy them — only live them." : {
+
+    },
+    "you'll add activities after." : {
 
     },
     "You're about to open %@" : {
@@ -1122,6 +1217,15 @@
     },
     "Your canvas resets in 1 hour." : {
       "comment" : "Notification – canvas reset 1 hour warning"
+    },
+    "Your clock and widgets will overlay this canvas" : {
+      "comment" : "Wide canvas – wallpaper prompt subtitle"
+    },
+    "your day lives on a canvas." : {
+
+    },
+    "Your day resets at" : {
+
     }
   },
   "version" : "1.0"

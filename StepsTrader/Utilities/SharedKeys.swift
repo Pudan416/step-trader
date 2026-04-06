@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 import WidgetKit
 
 // MARK: - Widget Data File (bypasses UserDefaults caching)
@@ -42,7 +43,14 @@ enum WidgetDataFile {
 enum SharedKeys {
     static let appGroupId = "group.personal-project.StepsTrader"
     static func appGroupDefaults() -> UserDefaults {
-        UserDefaults(suiteName: appGroupId) ?? .standard
+        if let defaults = UserDefaults(suiteName: appGroupId) {
+            return defaults
+        }
+        #if DEBUG
+        assertionFailure("App Group container '\(appGroupId)' unavailable — check entitlements")
+        #endif
+        Logger(subsystem: "com.personalproject.StepsTrader", category: "SharedKeys").error("appGroupDefaults(): App Group container '\(appGroupId)' unavailable, falling back to .standard")
+        return .standard
     }
 
     // MARK: - Day boundary
@@ -84,6 +92,7 @@ enum SharedKeys {
     static let payGateTargetBundleId = "payGateTargetBundleId_v1"
     static let payGateRequestedAt = "payGateRequestedAt_v1"
     static let payGateDismissedUntil = "payGateDismissedUntil_v1"
+    static let lastPayGateAction = "lastPayGateAction"
     static let blockedPaygateBundleId = "blockedPaygateBundleId"
     static let blockedPaygateTimestamp = "blockedPaygateTimestamp"
 
@@ -179,4 +188,6 @@ enum SharedKeys {
     // MARK: - Pending budget (widget → main app handoff)
     static let pendingBudgetMonitoringPrefix = "pendingBudgetMonitoring_"
     static let pendingBudgetMinutesPrefix = "pendingBudgetMinutes_"
+    static func pendingSpendAmountKey(_ groupId: String) -> String { "pendingSpendAmount_\(groupId)" }
+    static func pendingSpendTrackingKey(_ groupId: String) -> String { "pendingSpendTracking_\(groupId)" }
 }

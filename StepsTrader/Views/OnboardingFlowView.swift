@@ -74,7 +74,7 @@ struct OnboardingFlowView: View {
             await SupabaseSyncService.shared.trackAnalyticsEvent(
                 name: "onboarding_completed",
                 properties: [
-                    "flow": "v5",
+                    "flow": "v7",
                     "steps_target": String(Int(stepsTarget)),
                     "sleep_target": String(format: "%.1f", sleepTarget),
                     "selected_feed": selectedFeedApp ?? "none",
@@ -95,37 +95,37 @@ struct OnboardingFlowView: View {
         }
     }
     
-    // MARK: - v5 Onboarding (13 slides — interactive demo-first flow)
+    // MARK: - v7 Onboarding (13 slides)
     
     private func mainSlides() -> [OnboardingSlide] {
         return [
-            // 1 — cold open (emotional hook)
+            // 0 — recognition
             OnboardingSlide(
                 lines: [
-                    String(localized: "i keep ending days i never touched.")
+                    String(localized: "i found that i live one day over and over."),
+                    String(localized: "working. scrolling. staring at a screen.")
                 ],
                 slideType: .coldOpen
             ),
             
-            // 2 — the canvas (concept)
+            // 1 — nowhere → now here (the turn)
             OnboardingSlide(
                 lines: [
-                    String(localized: "i wanted a mirror"),
-                    String(localized: "that could hold a whole day."),
-                    String(localized: "not a dashboard. not a score.")
+                    String(localized: "it felt like being stuck in")
                 ],
-                slideType: .theCanvas
+                slideType: .nowHereReveal
             ),
             
-            // 3 — paint demo (interactive — user paints their first canvas)
+            // 2 — the canvas concept
             OnboardingSlide(
                 lines: [
-                    String(localized: "swipe to color it.")
-                ],
-                slideType: .paintDemo
+                    String(localized: "your day lives on a canvas."),
+                    String(localized: "the background comes from steps and sleep."),
+                    String(localized: "what colors it are the things you notice.")
+                ]
             ),
             
-            // 4 — the cap (interactive — tap 5 orbs to discover 100 colors)
+            // 3 — color cap (interactive — tap 5 orbs)
             OnboardingSlide(
                 lines: [
                     String(localized: "one hundred colors. that's a full day."),
@@ -134,72 +134,65 @@ struct OnboardingFlowView: View {
                 slideType: .colorCap
             ),
             
-            // 5 — spend demo (interactive — tap to unlock, see depletion)
+            // 4 — spend demo (feeds-style — the cost)
             OnboardingSlide(
                 lines: [
-                    String(localized: "spend what you lived"),
-                    String(localized: "to open what you chose to close.")
+                    String(localized: "spend them on the apps that pull you away."),
+                    String(localized: "pick how long."),
+                    String(localized: "the time runs only when the app is being used.")
                 ],
                 slideType: .spendDemo
             ),
             
-            // 6 — the loop (animated summary: earn → spend → reset)
+            // 5 — the economy
             OnboardingSlide(
                 lines: [
-                    String(localized: "every morning, empty."),
-                    String(localized: "earn colors by living."),
-                    String(localized: "spend them to scroll.")
+                    String(localized: "an economy between online and offline."),
+                    String(localized: "earn by living. spend to scroll."),
+                    String(localized: "tomorrow, it resets.")
                 ],
                 slideType: .howItWorks
             ),
             
-            // 7 — steps setup
+            // 6 — steps target
             OnboardingSlide(
                 lines: [
-                    String(localized: "walking brightens the canvas."),
-                    String(localized: "set your target.")
+                    String(localized: "walking fills the canvas."),
+                    String(localized: "how far do you go?")
                 ],
                 slideType: .stepsSetup
             ),
             
-            // 8 — sleep setup
+            // 7 — sleep target
             OnboardingSlide(
                 lines: [
-                    String(localized: "sleep lays down the dark."),
-                    String(localized: "how much rest colors the night?")
+                    String(localized: "sleep deepens the dark."),
+                    String(localized: "how many hours feel right?")
                 ],
-                slideType: .sleepSetup
+                slideType: .sleepSetup,
+                microcopy: String(localized: "sleep data may lag a bit — ios updates it on its own schedule.")
             ),
             
-            // 9 — health permission
+            // 8 — health permission
             OnboardingSlide(
                 lines: [
-                    String(localized: "to paint your real day,"),
-                    String(localized: "share what your body already knows.")
+                    String(localized: "let your phone see what your body already knows."),
+                    String(localized: "steps, sleep, and the things you notice.")
                 ],
                 action: .requestHealth,
-                microcopy: String(localized: "steps and sleep — you can change this later")
+                microcopy: String(localized: "you'll add activities after.")
             ),
             
-            // 10 — feed selection (skippable, bundles Family Controls + Notifications)
+            // 9 — feed selection (skippable)
             OnboardingSlide(
                 lines: [
-                    String(localized: "what pulls you when you're tired?"),
-                    String(localized: "pick an app to close — or skip for now.")
+                    String(localized: "where does your reality fade?"),
+                    String(localized: "close one — or skip for now.")
                 ],
                 slideType: .feedSelection
             ),
             
-            // 11 — nowhere → now here (earned reveal)
-            OnboardingSlide(
-                lines: [
-                    String(localized: "i called it nowhere."),
-                    String(localized: "i still read it as now here.")
-                ],
-                slideType: .nowHereReveal
-            ),
-            
-            // 12 — identity
+            // 10 — identity
             OnboardingSlide(
                 lines: [
                     String(localized: "i'm kosta."),
@@ -208,7 +201,16 @@ struct OnboardingFlowView: View {
                 slideType: .appleLogin
             ),
             
-            // 13 — welcome
+            // 11 — make it yours
+            OnboardingSlide(
+                lines: [
+                    String(localized: "set your canvas as a wallpaper."),
+                    String(localized: "add widgets — they update on their own."),
+                    String(localized: "if they feel behind, tap refresh. ios thing.")
+                ]
+            ),
+            
+            // 12 — welcome
             OnboardingSlide(
                 lines: [String(localized: "welcome to nowhere")],
                 slideType: .welcome

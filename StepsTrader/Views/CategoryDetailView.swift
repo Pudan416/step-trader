@@ -194,7 +194,7 @@ struct CategoryDetailView: View {
                         Circle().fill(isSelected ? activeColor : .primary.opacity(0.06))
                     )
 
-                Text(option.title(for: "en"))
+                Text(option.title(for: Locale.current.language.languageCode?.identifier ?? "en"))
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.primary)
 
@@ -221,6 +221,7 @@ struct CategoryDetailView: View {
         .buttonStyle(.plain)
         .disabled(isDisabled && !isSelected)
         .opacity(isDisabled && !isSelected ? 0.3 : 1.0)
+        .accessibilityLabel(Text("\(option.title(for: Locale.current.language.languageCode?.identifier ?? "en")), \(isSelected ? String(localized: "selected") : String(localized: "not selected"))"))
     }
 
     // MARK: - Inline Editor
@@ -697,7 +698,8 @@ struct CategoryDetailView: View {
     private func loadEntry(for optionId: String) -> OptionEntry? {
         let dayKey = AppModel.dayKey(for: Date())
         let entryId = "\(optionId)_\(dayKey)"
-        guard let data = UserDefaults.standard.data(forKey: "option_entry_\(entryId)"),
+        let g = UserDefaults.stepsTrader()
+        guard let data = g.data(forKey: "option_entry_\(entryId)"),
               let entry = try? JSONDecoder().decode(OptionEntry.self, from: data) else { return nil }
         return entry
     }
@@ -705,7 +707,7 @@ struct CategoryDetailView: View {
     private func saveEntry(_ entry: OptionEntry, for option: EnergyOption) {
         guard let category else { return }
         if let data = try? JSONEncoder().encode(entry) {
-            UserDefaults.standard.set(data, forKey: "option_entry_\(entry.id)")
+            UserDefaults.stepsTrader().set(data, forKey: "option_entry_\(entry.id)")
         }
         if !model.isDailySelected(option.id, category: category) {
             model.toggleDailySelection(optionId: option.id, category: category)
@@ -719,9 +721,10 @@ struct CategoryDetailView: View {
         let allOpts = model.orderedOptions(for: cat)
         let dayKey = AppModel.dayKey(for: Date())
         var entries: [OptionEntry] = []
+        let g = UserDefaults.stepsTrader()
         for opt in allOpts {
             let entryId = "\(opt.id)_\(dayKey)"
-            if let data = UserDefaults.standard.data(forKey: "option_entry_\(entryId)"),
+            if let data = g.data(forKey: "option_entry_\(entryId)"),
                let entry = try? JSONDecoder().decode(OptionEntry.self, from: data) {
                 entries.append(entry)
             }
@@ -733,7 +736,7 @@ struct CategoryDetailView: View {
     private func deleteEntry(for optionId: String) {
         let dayKey = AppModel.dayKey(for: Date())
         let entryId = "\(optionId)_\(dayKey)"
-        UserDefaults.standard.removeObject(forKey: "option_entry_\(entryId)")
+        UserDefaults.stepsTrader().removeObject(forKey: "option_entry_\(entryId)")
     }
 
     private func getEntryColor(for optionId: String) -> Color {
@@ -761,21 +764,23 @@ struct CategoryDetailView: View {
     // MARK: - Last-Used Preferences
 
     private func saveLastUsedPreferences(optionId: String, colorHex: String, assetVariant: Int?) {
-        UserDefaults.standard.set(colorHex, forKey: "lastColor_\(optionId)")
+        let g = UserDefaults.stepsTrader()
+        g.set(colorHex, forKey: "lastColor_\(optionId)")
         if let variant = assetVariant {
-            UserDefaults.standard.set(variant, forKey: "lastVariant_\(optionId)")
+            g.set(variant, forKey: "lastVariant_\(optionId)")
         }
     }
 
     private func lastUsedColor(for optionId: String) -> Color? {
-        guard let hex = UserDefaults.standard.string(forKey: "lastColor_\(optionId)") else { return nil }
+        guard let hex = UserDefaults.stepsTrader().string(forKey: "lastColor_\(optionId)") else { return nil }
         return Color(hex: hex)
     }
 
     private func lastUsedAssetVariant(for optionId: String) -> Int? {
         let key = "lastVariant_\(optionId)"
-        guard UserDefaults.standard.object(forKey: key) != nil else { return nil }
-        return UserDefaults.standard.integer(forKey: key)
+        let g = UserDefaults.stepsTrader()
+        guard g.object(forKey: key) != nil else { return nil }
+        return g.integer(forKey: key)
     }
 }
 

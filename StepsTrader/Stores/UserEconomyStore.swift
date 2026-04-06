@@ -18,12 +18,14 @@ final class UserEconomyStore: ObservableObject {
     private let udAppStepsSpentByDayKey = SharedKeys.appStepsSpentByDay
     private let udAppStepsSpentLifetimeKey = SharedKeys.appStepsSpentLifetime
     
+    private var needsFlush = false
+
     // Published State
     @Published var entryCostSteps: Int = Tariff.medium.entryCostSteps
     @Published var stepsBalance: Int = 0 {
         didSet {
             updateTotalStepsBalance()
-            UserDefaults.stepsTrader().set(stepsBalance, forKey: SharedKeys.stepsBalance)
+            setNeedsFlush()
         }
     }
     @Published var bonusSteps: Int = 0 {
@@ -33,7 +35,19 @@ final class UserEconomyStore: ObservableObject {
     @Published var totalStepsBalance: Int = 0
     
     @Published var spentSteps: Int = 0 {
-        didSet { UserDefaults.stepsTrader().set(spentSteps, forKey: SharedKeys.spentStepsToday) }
+        didSet { setNeedsFlush() }
+    }
+
+    private func setNeedsFlush() {
+        guard !needsFlush else { return }
+        needsFlush = true
+        Task { @MainActor [weak self] in
+            guard let self, self.needsFlush else { return }
+            self.needsFlush = false
+            let g = UserDefaults.stepsTrader()
+            g.set(self.stepsBalance, forKey: SharedKeys.stepsBalance)
+            g.set(self.spentSteps, forKey: SharedKeys.spentStepsToday)
+        }
     }
     
     // PayGate
@@ -141,11 +155,11 @@ final class UserEconomyStore: ObservableObject {
                 let decoded = try JSONDecoder().decode(T.self, from: data)
                 do {
                     try await persistence.save(decoded, to: filename)
+                    g.removeObject(forKey: defaultsKey)
+                    AppLogger.app.debug("📦 Migrated \(defaultsKey) from AppGroup to \(filename)")
                 } catch {
                     AppLogger.app.error("Failed to migrate \(defaultsKey) to \(filename): \(error.localizedDescription)")
                 }
-                g.removeObject(forKey: defaultsKey)
-                AppLogger.app.debug("📦 Migrated \(defaultsKey) from AppGroup to \(filename)")
                 return decoded
             } catch {
                 AppLogger.app.error("Failed to decode \(defaultsKey) from AppGroup defaults: \(error.localizedDescription)")
@@ -159,11 +173,11 @@ final class UserEconomyStore: ObservableObject {
                 let decoded = try JSONDecoder().decode(T.self, from: data)
                 do {
                     try await persistence.save(decoded, to: filename)
+                    s.removeObject(forKey: defaultsKey)
+                    AppLogger.app.debug("📦 Migrated \(defaultsKey) from Standard to \(filename)")
                 } catch {
                     AppLogger.app.error("Failed to migrate \(defaultsKey) to \(filename): \(error.localizedDescription)")
                 }
-                s.removeObject(forKey: defaultsKey)
-                AppLogger.app.debug("📦 Migrated \(defaultsKey) from Standard to \(filename)")
                 return decoded
             } catch {
                 AppLogger.app.error("Failed to decode \(defaultsKey) from Standard defaults: \(error.localizedDescription)")

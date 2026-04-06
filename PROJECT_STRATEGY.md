@@ -1,46 +1,48 @@
-# Nowhere — Strategic Blueprint (Updated February 24, 2026)
+# Nowhere — Strategic Blueprint (Updated April 2, 2026)
 
-> Reconciled with the actual codebase as of late February 2026. All claims verified against shipped code.
+> Reconciled with the actual codebase. Claims below were checked against the repo (Swift sources, widget extension, shield extension, `NoteCatalog`, onboarding v5).
 
 ---
 
 ## 1. Executive Summary
 
-**What Nowhere is**: A SwiftUI iOS app where your real life — steps, sleep, and daily choices across three categories (body, mind, heart) — produces colors. Colors are what you spend to open your feeds. The canvas is the soul of the product; screen time is what you trade to leave your own canvas and enter someone else's feed.
+**What Nowhere is**: A SwiftUI iOS app where your real life — steps, sleep, and daily choices across three categories (body, mind, heart) — produces **colors**. Colors are what you spend to open your **feeds** (blocked apps). The **canvas** is the soul of the product: a generative, animated picture of the day; opening feeds spends colors and visibly drains that picture.
 
-**Current state**: ~95% feature-complete for beta. Branded as **Nowhere**, uses canvas/colors language throughout, 12-entry Notes tab, 7-slide onboarding, and a 5-tab layout. The codebase has been through a full audit with 60+ fixes landed.
+**Current state**: Feature-complete for a serious beta. Branded **Nowhere** end-to-end (shield, notifications, onboarding). **v5 onboarding** (13 slides) is interactive and poetic — paint demo, 100-color cap, spend demo, then permissions and identity. **Notes** holds 11 editorial cards across 10 topics (two essays both titled “About Colors”). **Home Screen widgets** ship via **UnlockWidgetExtension** (Energy Status + configurable App Groups). The canvas combines **SwiftUI `Canvas`** drawing with an optional **Metal smudge** overlay for tactile “painting.”
 
-**What remains for beta launch**: Final QA, TestFlight build, beta tester recruitment, fix remaining "Proof" references in shield copy.
+**What remains for beta launch**: Device QA, TestFlight distribution, tester cohort, App Store Connect assets — not a single known “wrong app name on shield” blocker (shield subtitle is Nowhere).
 
 ---
 
-## 2. Current State (As of Feb 24, 2026)
+## 2. Current State (As of Apr 2, 2026)
 
 ### Completed — Identity & Vocabulary
 
 | Goal | Status |
 |------|--------|
-| App name = "Nowhere" | Done. Notifications, onboarding, StepBalanceCard header ("NOW / HERE") all say Nowhere. |
-| Currency = "colors" | Done in UI. PayGate reads "spend colors", "N colors". Internal model uses `ink` (inkEarned/inkSpent). |
-| Three categories = body / mind / heart | Done. Canvas headers, balance card chips, onboarding, notes all use body / mind / heart. |
-| 10+ activities per category | Done. Body (11), Mind (10), Heart (10). Custom user-added activities supported. |
-| Shield copy = canvas tone | Partial. Copy reads "[app] is closed. Open Nowhere to spend colors." |
-| PayGate = choice framing | Done. "keep it closed", "spend colors", cost as "N colors". |
-| English-only for v1 | Done. All `loc()` wrappers stripped. `titleRu` fields remain in models for backward compat but are unused. |
-| Difficulty labels | Done. Neutral "Level 1" through "Level 5". |
+| App name = "Nowhere" | Done. Shield: “Spend colors in Nowhere to unlock it.” Notifications match. Onboarding reveals the name late (“nowhere” / “now here”). |
+| Currency = "colors" | Done in UI. PayGate: “spend colors”, “N colors”. Snapshots/events use `inkEarned` / `inkSpent` (and legacy keys for decode). |
+| Three categories = body / mind / heart | Done. Canvas, chips, onboarding, notes. |
+| 10+ preset pieces per category | Done. `EnergyOption.options`: body 11, mind 10, heart 10. Plus user-defined custom activities. |
+| Shield copy | Done. Consistent Nowhere + colors language (`ShieldConfigurationExtension`). |
+| PayGate = choice framing | Done. “keep it closed”, interval lines like “10 min · 4 colors” (defaults 4 / 10 / 20 for 10m / 30m / 1h). |
+| Copy pipeline | Primary English strings live in **`Localizable.xcstrings`** via `String(localized:)`. `titleRu` still on `EnergyOption` for backward compatibility. |
+| Difficulty labels | Done. Neutral level labels where used. |
 
 ### Completed — Architecture & UX
 
 | Goal | Status |
 |------|--------|
-| Canvas = default tab | Done. Tab 0, default selection on launch. |
-| Onboarding = 7 slides, canvas-first | Done. Welcome, heart picks, body picks, mind picks, steps setup, sleep setup, permissions. |
-| Notes tab = 12 wall texts | Done. Topics: canvas, body/mind/heart, sleep, steps, feeds, limits, wallpaper, colors, proof, threshold, time. |
-| Me tab = weekly reflection | Done. 7-day ring row, reflection line, dimension breakdown (body/mind/heart), average stats, top consumers. |
-| Lock Screen widget | Done. ProofLockScreenWidget extension — inline/circular/rectangular accessories showing colors. |
-| Rest day override | Done. Toggle in Settings, floors base energy to 30 when enabled. |
-| SharedKeys.swift | Done. Single enum shared across app + 3 extensions. |
-| Privacy manifest | Done. PrivacyInfo.xcprivacy with UserDefaults API declaration. |
+| Canvas = default tab | Done. Tab 0 (`MainTabView`). |
+| Onboarding = v5, 13 slides | Done. Cold open → canvas concept → **paint demo** → **color cap** → **spend demo** → loop summary → steps/sleep → HealthKit → feed selection (skippable) → nowhere/now here → Sign in with Apple → welcome. Analytics: `onboarding_completed` with `flow: v5`. |
+| Notes tab | Done. `NoteCatalog.all`: About the Canvas; Body, Mind, and Heart; **Shapes**; Sleep; Steps; Feeds; Limits; Wallpaper; **two** “About Colors” cards (different bodies; same `id` in code — see debt); About Kosta. Unread tracking via `NoteReadTracker`. |
+| **Now** tab (profile / week) | Done. Tab bar label is **“Now”** (not “Me”); 7-day rings, reflection, breakdown, top consumers. |
+| Home Screen widgets | Done. **UnlockWidgetExtension**: **Energy Status** (medium), **App Groups** (large, `AppIntentConfiguration` + `SelectGroupIntent`). Widget background: solid vs wallpaper snapshot (Settings → Widget). |
+| Canvas tech | Done. `GenerativeCanvasView` (SwiftUI Canvas, Timeline animation) + `SmudgeOverlayView` / `MetalSmudgeRenderer` for paint-like interaction on the gallery canvas. |
+| Feeds UX | Done. Paper ticket metaphor, **ticket templates** for common apps (`TicketTemplatePickerView` + `TargetResolver`). |
+| Rest day override | Done. Settings toggle; floors base energy when enabled. |
+| SharedKeys.swift | Done. App group + extensions. |
+| Privacy manifest | Done. `PrivacyInfo.xcprivacy`. |
 
 ### Completed — Backend & Data
 
@@ -71,22 +73,21 @@
 
 | Item | Severity | Notes |
 |------|----------|-------|
-| Shield copy says "Proof" instead of "Nowhere" | Medium | `ShieldConfigurationExtension.swift` — "Open Proof to spend colors." should be "Open Nowhere to spend colors." |
-| ProofLockScreenWidget target name | Low | Code target is still named `ProofLockScreenWidget`. Renaming requires Xcode project changes. User-facing display name may differ. |
-| Internal variable names still use "steps" vocabulary | Low | `stepsBalance`, `spentStepsToday`, etc. Deliberate deferral — large mechanical rename, no user impact. |
-| AppModel forwarding layer | Medium | ~65 computed properties forward to stores. Remove incrementally. |
-| A few `print()` calls remain | Low | Debug logging in tab bar and notification handlers. |
+| Duplicate `Note.id` for two “About Colors” entries | Low | Both use `about_colors` in `NoteCatalog` — shuffle/read logic can treat them as one note for unread counts; consider distinct ids. |
+| Internal names still say “steps” in places | Low | e.g. `totalStepsBalance`, `StepBalanceCard`, “Steps balance” a11y label — user sees “colors”; rename is mechanical. |
+| AppModel forwarding layer | Medium | Coordinator still forwards heavily to stores; thin incrementally. |
+| Residual `print()` in extensions/models | Low | Some encode paths and legacy logging; prefer `AppLogger` everywhere over time. |
 
 ---
 
 ## 3. Architecture Overview
 
 ### Targets (7)
-1. **StepsTrader** — Main app
-2. **DeviceActivityMonitor** — Extension: tracks app usage events
-3. **ShieldAction** — Extension: handles shield button taps
-4. **ShieldConfiguration** — Extension: provides shield UI content
-5. **ProofLockScreenWidget** — WidgetKit extension: Lock Screen colors display
+1. **Steps4** — Main app target (bundle hosts SwiftUI app code under **StepsTrader/**)
+2. **DeviceActivityMonitor** — Extension: app usage events, shield rebuild hooks
+3. **ShieldAction** — Extension: shield button → deep link / unlock flow
+4. **ShieldConfiguration** — Extension: shield UI (title, subtitle, brand gold button)
+5. **UnlockWidgetExtension** — WidgetKit: **Energy Status** + **App Groups** (App Intents)
 6. **Steps4Tests** — Unit tests
 7. **Steps4UITests** — UI tests
 
@@ -102,7 +103,7 @@ HealthKit (steps, sleep)
   (balance, spending)          |                     ManagedSettings
        |                       v                     DeviceActivity
        v              5 tabs: Canvas, Feeds,
-  Supabase sync        Me, Notes, Settings
+  Supabase sync        Now (week), Notes, Settings
   (selections, stats,
    tickets, analytics)
 ```
@@ -114,9 +115,10 @@ HealthKit (steps, sleep)
 - **No CoreData or SwiftData**
 
 ### Key Technical Moats
-- **FamilyControls + DeviceActivity + ManagedSettings + 3 extensions** — months of integration work
-- **Generative canvas** — real-time animated visualization of daily colors (circles for body/mind, beams for heart)
-- **Energy gradient background** — ambient background that shifts with steps/sleep points
+- **FamilyControls + DeviceActivity + ManagedSettings + shield extensions** — hard to replicate; strongest iOS enforcement path
+- **Generative canvas** — SwiftUI `Canvas` + timeline-driven motion; body / mind / heart visual grammar (breathing forms, drifting circles, heart beams); **Metal smudge** layer for direct manipulation
+- **Energy gradient background** — full-screen ambient gradient driven by steps/sleep points
+- **Widget + Intent surface** — spend/unlock path from Home Screen via `UnlockWidgetExtension`
 
 ---
 
@@ -132,8 +134,8 @@ HealthKit (steps, sleep)
 |-----|------|---------|
 | 0 (default) | Canvas | The soul. Generative canvas + daily piece selection via radial menu. |
 | 1 | Feeds | App blocking groups. Create tickets, set tariffs, configure time windows. |
-| 2 | Me | Profile, 7-day ring row, weekly reflection, dimension breakdown, top consumers. |
-| 3 | Notes | 12 wall texts — philosophy, not instructions. Shuffle + browse. |
+| 2 | Now | Same as legacy “Me”: profile, 7-day ring row, weekly reflection, dimension breakdown, top consumers. |
+| 3 | Notes | 11 cards, 10 topics — philosophy + founder letter; shuffle + browse. |
 | 4 | Settings | Theme, targets, account, rest day override. |
 
 ### Vocabulary Contract (Enforced)
@@ -162,43 +164,42 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 | **mind** | Arendt's *work* | Focusing, Learning, Thinking, Planning, Writing, Observing, Questioning, Ordering, Remembering, Letting Go |
 | **heart** | Epicurus's *hedone* | Joy, Calm, Gratitude, Connection, Care, Wonder, Trust, Vulnerability, Belonging, Peace |
 
-### Notes Tab Content (12 Entries)
-| Note | Opening line |
-|------|-------------|
-| on canvas | "The canvas is not a to-do list. It is a mirror of the day..." |
-| on body, mind and heart | "Three rooms. You don't rank them..." |
-| on sleep | "Sleep is not a reward. It is the opening act..." |
-| on steps | "Steps are the raw currency. Not a fitness metric..." |
-| on feeds | "Feeds are the places where minutes disappear..." |
-| on limits | "A limit is not a punishment. It is a threshold..." |
-| on wallpaper | "The wallpaper is proof that today happened..." |
-| on colors | "Colors shift with energy. They are not decoration — they are weather..." |
-| on colors | "Colors are energy made visible..." |
-| on proof | "Proof is not self-improvement. It is a record of what you chose to trade..." |
-| on the threshold | "Tickets are thresholds, not punishments. You pause..." |
-| on time | "Time doesn't refill. Steps do..." |
+### Notes Tab Content (shipped `NoteCatalog`)
+
+| Topic (title) | What it covers |
+|---------------|----------------|
+| About the Canvas | Day as reflection; noticing what makes days different |
+| About Body, Mind, and Heart | Tibetan-inspired three-part framing, humble voice |
+| About Shapes | Why body = breathing shapes, mind = drifting circles, heart = beams |
+| About Sleep | Sleep on canvas (darker = more rest), HealthKit sync honesty |
+| About Steps | Steps as proof of moving through the world, not fitness flex |
+| About Feeds | Minutes disappear; spending colors drains the canvas |
+| About Limits | Personal thresholds, not universal musts |
+| About Wallpaper | Canvas as lock-screen mirror; shortcut tradeoff |
+| About Colors (×2) | Palette intent + “not for sale” economy stance (two separate essays) |
+| About Kosta | Founder letter — nowhere → now here, burnout, contact in Settings |
 
 ---
 
 ## 6. Tone of Voice
 
-**Model**: Canvas wall text. Observational. Brief. Trusting.
+**Canonical reference**: `TONE_OF_VOICE.md` (principles, surface-by-surface examples, anti-patterns).
+
+**Model**: One human speaking to another. Onboarding and Notes lean **lowercase and literary**; shields and notifications stay **short and factual**.
 
 | Trait | How it sounds | Anti-pattern |
 |-------|--------------|--------------|
-| Observational | "Today: 6,200 steps. 7h sleep. 3 pieces." | "Great job! You're crushing it!" |
-| Respectful | "You chose this. Change it anytime." | "Don't give up! Stay strong!" |
-| Dry | Empty state: "No tickets yet. Create one when you're ready." | "Oops! Looks like you haven't started!" |
-| Economical | "10 min · 4 colors" | "Unlock for 10 minutes at a cost of 4 colors" |
-| Honest | "spend colors" — then the number, no decoration | "Enjoy your well-deserved break!" |
+| Observational | Me tab: compact numbers, “earned · spent · kept” | Trophy language, streak hype |
+| Respectful | “Create one when you're ready.” | Guilt, urgency |
+| Dry | Canvas empty: “Today is uncolored” | Busy placeholders |
+| Economical | “10 min · 4 colors”, “keep it closed” | Marketing padding |
+| Honest | “spend colors” with the number | Fake rewards |
 
-**Rules**:
-- No exclamation marks in UI
-- No lightning bolt icons/emojis
-- Empty states are canvas silence, not panic
-- Shield copy is the firmest the voice gets
-- Notes tab copy is poetry, not advice
-- StepBalanceCard header splits the name: "NOW" over "HERE"
+**Rules** (summary):
+- No exclamation marks in routine UI (onboarding can use rare emphasis sparingly — follow `TONE_OF_VOICE.md`)
+- Shield: “[App] is closed.” / spend colors in Nowhere
+- Notes: essay tone, not help docs
+- **StepBalanceCard**: colors glyph + balance **current / earned-today / 100** + reset timer + expandable category chips (no “NOW/HERE” split header in current UI)
 
 ---
 
@@ -244,33 +245,33 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 
 | Task | Status |
 |------|--------|
-| Fix shield copy: "Proof" → "Nowhere" | Pending |
 | Final QA pass on device | Pending |
 | TestFlight build | Pending |
 | Recruit 30-50 beta testers | Pending |
-| App Store Connect setup (name reservation, screenshots) | Pending |
+| App Store Connect setup (name reservation, screenshots, widget screenshots) | Pending |
+| Fix `NoteCatalog` duplicate `id` for two color essays | Optional polish |
 
 ### Post-Beta (Month 2-3)
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Beta feedback analysis | P0 | Act on D7 retention data and user explanations |
-| Onboarding A/B test | P1 | Canvas-first vs permissions-first |
-| More notes entries | P1 | "on the spectacle" (Debord), "on imperfection" (wabi-sabi) |
-| Internal variable rename | P2 | stepsBalance -> colorsBalance, etc. (dedicated PR) |
-| AppModel forwarding cleanup | P2 | Remove remaining forwarding layer incrementally |
-| Premium tier implementation | P1 | 3 free tickets, then $3.99/mo |
-| Landing page | P1 | "Your life makes colors. Your feeds cost them." |
+| Beta feedback analysis | P0 | D7 retention; can users explain the loop (canvas → colors → feeds)? |
+| Onboarding A/B test | P1 | v5 interactive flow vs shorter permission-first variant |
+| More notes entries | P1 | e.g. spectacle, imperfection — match existing voice |
+| Internal variable rename | P2 | `totalStepsBalance` → colors naming (dedicated PR) |
+| AppModel forwarding cleanup | P2 | Incremental |
+| Premium / tip jar | P1 | Strategy doc historically floated $3.99/mo — **no StoreKit in repo yet**; align with “can’t buy colors” promise |
+| Landing page | P1 | Hero: canvas + one line pitch |
 
 ### Medium-Term (Months 4-6)
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Home Screen widgets | P1 | Expand beyond Lock Screen |
-| Shortcuts integration | P2 | |
-| Apple Watch (colors display) | P2 | |
-| Re-enable minute mode as opt-in | P3 | Code exists, gated behind flag |
-| Social exploration | P3 | Anonymous weekly canvas leaderboard |
+| Lock Screen–native complications | P2 | If desired — current widgets are Home Screen medium/large |
+| Shortcuts | P2 | Canvas wallpaper export intent exists — expand if needed |
+| Apple Watch (glance at colors) | P2 | |
+| Minute-based tariffs | P3 | Legacy hooks in `FamilyControlsService`; core UX is color windows |
+| Social exploration | P3 | Speculative — only if it fits anti-gamification stance |
 
 ### Checkpoints
 
@@ -289,17 +290,17 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 
 | Item | Impact | Effort |
 |------|--------|--------|
-| Shield copy still says "Proof" | User-facing inconsistency — shield is the most visible surface | Small (2 string changes in ShieldConfigurationExtension.swift) |
-| Internal "steps" vocabulary rename | Cognitive dissonance for devs working on the codebase | Large (mechanical, touches many files) |
-| AppModel forwarding layer cleanup | Indirection, stale-data risk, god-object pattern | Medium (incremental) |
+| Device + shield + widget QA on release OS | Extensions are fragile across iOS updates | Ongoing |
+| Internal "steps" vocabulary rename | Dev clarity; optional a11y string tweaks | Large (mechanical) |
+| AppModel forwarding layer cleanup | Maintainability | Medium (incremental) |
 
 ### Low Priority (Post-Launch)
 
 | Item | Impact | Effort |
 |------|--------|--------|
-| ProofLockScreenWidget target rename | Target name says "Proof", user-facing display may differ | Medium (Xcode project changes) |
-| `titleRu` fields in models | Dead weight — no Russian UI path exists | Small (remove field, migration) |
-| Test coverage expansion | Only core logic tested; no view model or service tests | Large |
+| Note duplicate `id` | Edge cases for read/shuffle | Tiny |
+| `titleRu` on `EnergyOption` | Unused in UI | Small migration |
+| Test coverage expansion | Beyond BudgetEngine, DailyEnergy, DayBoundary, etc. | Large |
 
 ---
 
@@ -326,22 +327,25 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 - `HealthKitService.swift`, `FamilyControlsService.swift`, `NotificationManager.swift`, `SupabaseSyncService.swift`, `CloudKitService.swift`, `AuthenticationService.swift`, `PersistenceManager.swift`, `ErrorManager.swift`, `NetworkClient.swift`, `CanvasStorageService.swift`, `ProfileLocationManager.swift`, `UnlockExpiryTaskManager.swift`
 
 ### Views — Primary
-- `MainTabView.swift`, `GalleryView.swift`, `AppsPageSimplified.swift`, `MeView.swift`, `ManualsPage.swift`, `SettingsSheet.swift`, `OnboardingFlowView.swift`, `OnboardingStoriesView.swift`, `PayGateView.swift`, `HandoffProtectionView.swift`, `LoginView.swift`, `GenerativeCanvasView.swift`
+- `MainTabView.swift`, `GalleryView.swift`, `AppsPageSimplified.swift`, `MeView.swift`, `ManualsPage.swift`, `SettingsSheet.swift`, `OnboardingFlowView.swift`, `OnboardingStoriesView.swift`, `PayGateView.swift`, `HandoffProtectionView.swift`, `LoginView.swift`, `GenerativeCanvasView.swift`, `TicketTemplatePickerView.swift`
 
 ### Views — Components
-- `StepBalanceCard.swift`, `DailyEnergyCard.swift`, `TariffOptionView.swift`, `StatusRow.swift`, `StatMiniCard.swift`, `AppSelectionComponents.swift`, `TimeAccessPickerSheet.swift`, `ImagePicker.swift`, `EnergyGradientBackground.swift`, `PaperTicketView.swift`
+- `StepBalanceCard.swift`, `SmudgeCanvasView.swift` / `SmudgeOverlayView`, `DailyEnergyCard.swift`, `TariffOptionView.swift`, `StatusRow.swift`, `StatMiniCard.swift`, `AppSelectionComponents.swift`, `TimeAccessPickerSheet.swift`, `ImagePicker.swift`, `EnergyGradientBackground.swift`, `PaperTicketView.swift`
 
 ### Views — Secondary
 - `RadialHoldMenu.swift`, `ColorPaletteView.swift`, `CategoryDetailView.swift`, `EnergySetupView.swift`, `OptionEntrySheet.swift`, `CustomActivityEditorView.swift`, `TicketGroupSettingsView.swift`, `InlineTicketSettingsView.swift`, `AutomationGuideView.swift`
 
-### Utilities
-- `SharedKeys.swift`, `UserDefaults+StepsTrader.swift`, `DayBoundary.swift`, `Date+Today.swift`, `ColorConstants.swift`, `Font+Custom.swift`, `AppLogger.swift`
+### Utilities & strings
+- `SharedKeys.swift`, `UserDefaults+StepsTrader.swift`, `DayBoundary.swift`, `Date+Today.swift`, `ColorConstants.swift`, `Font+Custom.swift`, `AppLogger.swift`, `Localizable.xcstrings`
 
 ### Extensions (4 targets)
 - `DeviceActivityMonitorExtension.swift`
 - `ShieldActionExtension.swift`
 - `ShieldConfigurationExtension.swift`
-- `ProofLockScreenWidget.swift`
+- **UnlockWidget/** — `UnlockWidgetBundle.swift`, `UnlockWidgetViews.swift`, `UnlockTimelineProvider.swift`, `UnlockGroupWidgetIntent.swift`
+
+### Metal
+- `MetalSmudgeRenderer.swift`, `SmudgeShaders.metal`
 
 ### Tests
 - Unit tests: BudgetEngine, DailyEnergy, MinuteCharge, CustomActivity, DayBoundary
@@ -349,4 +353,4 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 
 ---
 
-*Last updated: February 24, 2026. Verified against actual codebase. All vocabulary, tab names, note content, and UI copy reflect current shipped state.*
+*Last updated: April 2, 2026. Verified against this repository (app, shield, widgets, onboarding v5, `NoteCatalog`, `MainTabView` tab titles).*

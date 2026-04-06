@@ -228,13 +228,15 @@ struct CanvasElement: Identifiable, Codable {
         )
     }
 
-    /// Find an open position avoiding overlap with existing elements
+    /// Find an open position avoiding overlap with existing elements.
+    /// Uses progressive distance relaxation: starts strict, relaxes if space is tight.
     private static func findOpenPosition(existing: [CanvasElement]) -> CGPoint {
         let margin: CGFloat = 0.12
-        let maxAttempts = 20
-        let minDistance: CGFloat = 0.15
+        let maxAttempts = 40
+        let idealDistance: CGFloat = 0.15
 
-        for _ in 0..<maxAttempts {
+        // Phase 1: strict spacing
+        for _ in 0..<maxAttempts / 2 {
             let candidate = CGPoint(
                 x: CGFloat.random(in: margin...(1.0 - margin)),
                 y: CGFloat.random(in: margin...(1.0 - margin))
@@ -242,15 +244,46 @@ struct CanvasElement: Identifiable, Codable {
             let tooClose = existing.contains { el in
                 let dx = el.basePosition.x - candidate.x
                 let dy = el.basePosition.y - candidate.y
-                return sqrt(dx * dx + dy * dy) < minDistance
+                return sqrt(dx * dx + dy * dy) < idealDistance
             }
             if !tooClose { return candidate }
         }
-        // Fallback: random within safe area
-        return CGPoint(
-            x: CGFloat.random(in: margin...(1.0 - margin)),
-            y: CGFloat.random(in: margin...(1.0 - margin))
-        )
+
+        // Phase 2: relaxed spacing for crowded canvases
+        let relaxedDistance: CGFloat = max(0.08, idealDistance - CGFloat(existing.count) * 0.01)
+        for _ in 0..<maxAttempts / 2 {
+            let candidate = CGPoint(
+                x: CGFloat.random(in: margin...(1.0 - margin)),
+                y: CGFloat.random(in: margin...(1.0 - margin))
+            )
+            let tooClose = existing.contains { el in
+                let dx = el.basePosition.x - candidate.x
+                let dy = el.basePosition.y - candidate.y
+                return sqrt(dx * dx + dy * dy) < relaxedDistance
+            }
+            if !tooClose { return candidate }
+        }
+
+        // Fallback: pick the position that maximizes minimum distance to existing elements
+        var bestCandidate = CGPoint(x: 0.5, y: 0.5)
+        var bestMinDist: CGFloat = 0
+        for _ in 0..<10 {
+            let candidate = CGPoint(
+                x: CGFloat.random(in: margin...(1.0 - margin)),
+                y: CGFloat.random(in: margin...(1.0 - margin))
+            )
+            let minDist = existing.map { el -> CGFloat in
+                let dx = el.basePosition.x - candidate.x
+                let dy = el.basePosition.y - candidate.y
+                return sqrt(dx * dx + dy * dy)
+            }.min() ?? .greatestFiniteMagnitude
+
+            if minDist > bestMinDist {
+                bestMinDist = minDist
+                bestCandidate = candidate
+            }
+        }
+        return bestCandidate
     }
 }
 
@@ -279,7 +312,7 @@ struct DayCanvas: Codable {
         self.elements = []
         self.sleepPoints = 0
         self.stepsPoints = 0
-        self.sleepColorHex = "#8B5CF6"
+        self.sleepColorHex = "#000000"
         self.stepsColorHex = "#FED415"
         self.inkEarned = 0
         self.inkSpent = 0

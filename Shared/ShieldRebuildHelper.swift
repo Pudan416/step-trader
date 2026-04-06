@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 #if canImport(ManagedSettings)
 import ManagedSettings
 #endif
@@ -63,12 +64,88 @@ struct GroupTuple {
 /// applies the result to `ManagedSettingsStore(named: "shield")`.
 enum ShieldRebuildHelper {
 
+    // MARK: - Decoded Selection Cache
+    #if canImport(FamilyControls)
+    private static let cacheLock = NSLock()
+    private static var decodedSelectionCache: [String: FamilyActivitySelection] = [:]
+    private static var cacheDataBytes: [String: Data] = [:]
+
+    static func cachedSelection(for groupId: String, data: Data) -> FamilyActivitySelection? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cached = cacheDataBytes[groupId], cached == data {
+            return decodedSelectionCache[groupId]
+        }
+        guard let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data) else {
+            return nil
+        }
+        decodedSelectionCache[groupId] = sel
+        cacheDataBytes[groupId] = data
+        return sel
+    }
+
+    static func invalidateSelectionCache() {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        decodedSelectionCache.removeAll()
+        cacheDataBytes.removeAll()
+    }
+    #endif
+
+    // MARK: - Usage budget (wall clock)
+
+    /// Interprets plist values from App Group UserDefaults (any process).
+    private static func coercedDate(from object: Any?) -> Date? {
+        switch object {
+        case let d as Date:
+            return d
+        case let d as NSDate:
+            return d as Date
+        case let n as NSNumber:
+            return Date(timeIntervalSince1970: n.doubleValue)
+        default:
+            return nil
+        }
+    }
+
+    /// True while a positive usage budget should keep the group unshielded (wall-clock purchase window).
+    /// - Important: If `usageBudgetExpiry` is missing (CFPreferences lag after widget unlock, or legacy data),
+    ///   we infer the window from `usageBudgetStarted` + `usageBudgetInitial` instead of wiping the budget.
+    ///   Previously, nil expiry was treated as expired and keys were removed — main app then showed 0 min.
+    private static func shouldSkipShieldingDueToActiveUsageBudget(defaults: UserDefaults, groupId: String) -> Bool {
+        let budgetKey = SharedKeys.usageBudgetKey(groupId)
+        guard defaults.integer(forKey: budgetKey) > 0 else { return false }
+
+        let expiryObj = defaults.object(forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        if let expiry = coercedDate(from: expiryObj) {
+            return Date() < expiry
+        }
+
+        let started = coercedDate(from: defaults.object(forKey: SharedKeys.usageBudgetStartedKey(groupId)))
+        let initial = defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(groupId))
+        if let started, initial > 0 {
+            return Date() < started.addingTimeInterval(TimeInterval(initial * 60))
+        }
+
+        // Budget > 0 but no usable timing metadata — default to shielded to prevent bypass.
+        return false
+    }
+
+    /// Whether prefs show an active usage budget whose wall-clock window has not passed (Screen Time budget may still apply separately).
+    static func isUsageBudgetWallClockActive(defaults: UserDefaults, groupId: String) -> Bool {
+        guard defaults.integer(forKey: SharedKeys.usageBudgetKey(groupId)) > 0 else { return false }
+        return shouldSkipShieldingDueToActiveUsageBudget(defaults: defaults, groupId: groupId)
+    }
+
     // MARK: - Public
 
     /// Rebuild the shield from any process that links ManagedSettings.
     static func rebuild() {
         #if canImport(ManagedSettings) && canImport(FamilyControls)
-        let defaults = UserDefaults(suiteName: SharedKeys.appGroupId) ?? .standard
+        guard let defaults = UserDefaults(suiteName: SharedKeys.appGroupId) else {
+            Logger(subsystem: "com.personalproject.StepsTrader", category: "ShieldRebuild").error("App group unavailable — skipping rebuild to preserve existing shields")
+            return
+        }
 
         var allApps = Set<ApplicationToken>()
         var allCategories = Set<ActivityCategoryToken>()
@@ -76,21 +153,19 @@ enum ShieldRebuildHelper {
         let groups = loadGroups(defaults: defaults)
 
         for group in groups where group.active {
-            if defaults.integer(forKey: SharedKeys.usageBudgetKey(group.id)) > 0 {
-                if let expiry = defaults.object(forKey: SharedKeys.usageBudgetExpiryKey(group.id)) as? Date,
-                   Date() < expiry {
+            let budgetKey = SharedKeys.usageBudgetKey(group.id)
+            if defaults.integer(forKey: budgetKey) > 0 {
+                if shouldSkipShieldingDueToActiveUsageBudget(defaults: defaults, groupId: group.id) {
                     continue
                 }
-                defaults.removeObject(forKey: SharedKeys.usageBudgetKey(group.id))
+                defaults.removeObject(forKey: budgetKey)
                 defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
                 defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
                 defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
             }
 
             guard let selectionData = group.selectionData else { continue }
-            guard let sel = try? JSONDecoder().decode(
-                FamilyActivitySelection.self, from: selectionData
-            ) else { continue }
+            guard let sel = cachedSelection(for: group.id, data: selectionData) else { continue }
 
             allApps.formUnion(sel.applicationTokens)
             allCategories.formUnion(sel.categoryTokens)
@@ -116,7 +191,25 @@ enum ShieldRebuildHelper {
             : .specific(allCategories)
 
         defaults.set(0, forKey: SharedKeys.shieldState)
+
+        logDiagnostic(defaults: defaults, apps: allApps.count, categories: allCategories.count)
         #endif
+    }
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        return f
+    }()
+
+    private static func logDiagnostic(defaults: UserDefaults, apps: Int, categories: Int) {
+        let ts = isoFormatter.string(from: Date())
+        let entry = "[\(ts)] [helper] apps=\(apps) cats=\(categories)"
+
+        var history = defaults.stringArray(forKey: SharedKeys.shieldDiagHistory) ?? []
+        history.append(entry)
+        if history.count > 20 { history = Array(history.suffix(20)) }
+        defaults.set(history, forKey: SharedKeys.shieldDiagHistory)
+        defaults.set(entry, forKey: SharedKeys.shieldDiagLastRebuild)
     }
 
     // MARK: - Group Loading

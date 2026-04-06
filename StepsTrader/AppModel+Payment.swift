@@ -100,6 +100,16 @@ extension AppModel {
         return true
     }
 
+    @MainActor
+    func refund(cost: Int) {
+        guard cost > 0 else { return }
+        let refundToBase = min(cost, spentStepsToday)
+        spentStepsToday = max(0, spentStepsToday - refundToBase)
+        stepsBalance = max(0, baseEnergyToday - spentStepsToday)
+        writeWidgetSnapshot()
+        AppLogger.payment.debug("Refunded \(cost) colors (spentStepsToday now \(self.spentStepsToday))")
+    }
+
     // MARK: - Steps Balance Management
     func loadSpentStepsBalance() {
         let g = UserDefaults.stepsTrader()

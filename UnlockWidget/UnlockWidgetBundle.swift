@@ -13,6 +13,7 @@ struct UnlockWidgetBundle: WidgetBundle {
     var body: some Widget {
         StatusWidget()
         GroupsWidget()
+        ComboWidget()
     }
 }
 
@@ -46,5 +47,22 @@ struct GroupsWidget: Widget {
         .configurationDisplayName("App Groups")
         .description("Unlock and manage app groups.")
         .supportedFamilies([.systemLarge])
+    }
+}
+
+struct ComboWidget: Widget {
+    let kind = WidgetKind.combo
+
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(
+            kind: kind,
+            intent: SelectSingleGroupIntent.self,
+            provider: ComboTimelineProvider()
+        ) { entry in
+            ComboWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("Energy + App")
+        .description("Energy bar with one app group for quick unlock.")
+        .supportedFamilies([.systemMedium])
     }
 }

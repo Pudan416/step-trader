@@ -7,11 +7,10 @@ import FamilyControls
 import DeviceActivity
 #endif
 
+private let _payGateDismissedUntilKey = "payGateDismissedUntil_v1"
+
 // MARK: - PayGate Management
 extension AppModel {
-    // MARK: - PayGate Keys
-    private var payGateDismissedUntilKey: String { "payGateDismissedUntil_v1" }
-    
     // MARK: - PayGate Opening
     func openPayGate(for groupId: String) {
         startPayGateSession(for: groupId)
@@ -23,7 +22,7 @@ extension AppModel {
 
         let g = UserDefaults.stepsTrader()
         if !showPayGate,
-           let until = g.object(forKey: payGateDismissedUntilKey) as? Date,
+           let until = g.object(forKey: _payGateDismissedUntilKey) as? Date,
            Date() < until
         {
             AppLogger.shield.debug("🚫 PayGate suppressed after dismiss (\(String(format: "%.1f", until.timeIntervalSinceNow))s left), ignoring start for group \(groupId)")
@@ -93,10 +92,27 @@ extension AppModel {
         defaults.set(totalMinutes, forKey: budgetKey)
         defaults.set(totalMinutes, forKey: initialKey)
         defaults.set(Date(), forKey: startedKey)
-        defaults.set(Date().addingTimeInterval(TimeInterval(totalMinutes * 60)), forKey: SharedKeys.usageBudgetExpiryKey(groupId))
 
-        startUsageBudgetMonitoring(groupId: groupId, minutes: totalMinutes)
+        let dayEndH = defaults.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
+        let dayEndM = defaults.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
+        let endOfDay = DayBoundary.nextBoundary(after: Date(), dayEndHour: dayEndH, dayEndMinute: dayEndM)
+        defaults.set(endOfDay, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+
+        let monitoringStarted = startUsageBudgetMonitoring(groupId: groupId, minutes: totalMinutes)
+        if !monitoringStarted {
+            AppLogger.shield.error("❌ Monitoring failed after payment — refunding \(cost) colors")
+            refund(cost: cost)
+            defaults.removeObject(forKey: budgetKey)
+            defaults.removeObject(forKey: initialKey)
+            defaults.removeObject(forKey: startedKey)
+            defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+            return
+        }
         
+        // NOTE: addSpentSteps records full `cost` (base + bonus) in per-app/per-day
+        // dictionaries for analytics. This differs from spentStepsToday (set in pay())
+        // which only tracks base-energy consumption. Both are intentional:
+        // per-app = "total cost of this group", spentStepsToday = "base energy used".
         addSpentSteps(cost, for: "group_\(groupId)")
         
         let balanceBeforePayment = self.totalStepsBalance + cost
@@ -114,17 +130,18 @@ extension AppModel {
         dismissPayGate(reason: .programmatic)
     }
 
-    private func startUsageBudgetMonitoring(groupId: String, minutes: Int) {
+    @discardableResult
+    private func startUsageBudgetMonitoring(groupId: String, minutes: Int) -> Bool {
         let logDefaults = UserDefaults.stepsTrader()
         let iso = ISO8601DateFormatter()
 
         #if !canImport(DeviceActivity) || !canImport(FamilyControls)
         logDefaults.set("[\(iso.string(from: Date()))] SKIP usageBudget_\(groupId) — DeviceActivity/FamilyControls not available", forKey: SharedKeys.lastStartMonitoringLog)
-        return
+        return true
         #else
         guard let group = ticketGroups.first(where: { $0.id == groupId }) else {
             logDefaults.set("[\(iso.string(from: Date()))] SKIP usageBudget_\(groupId) — group not found", forKey: SharedKeys.lastStartMonitoringLog)
-            return
+            return false
         }
 
         let center = DeviceActivityCenter()
@@ -132,15 +149,25 @@ extension AppModel {
 
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
 
-        // Milestone ticks instead of per-minute to avoid event explosion
-        let milestoneFractions: [Double] = [0.50, 0.75, 0.90]
-        var seen = Set<Int>()
-        for frac in milestoneFractions {
-            let m = Int(Double(minutes) * frac)
-            guard m >= 1, m < minutes, !seen.contains(m) else { continue }
-            seen.insert(m)
+        // Per-minute ticks so the in-app display updates every minute of actual usage
+        for m in 1..<minutes {
             let tickName = DeviceActivityEvent.Name("usageBudgetTick_\(groupId)_\(m)")
             events[tickName] = DeviceActivityEvent(
+                applications: group.selection.applicationTokens,
+                categories: group.selection.categoryTokens,
+                threshold: DateComponents(minute: m)
+            )
+        }
+
+        // Widget milestone ticks at 25/50/75/90% — only these trigger widget reloads
+        let widgetMilestoneFractions: [Double] = [0.25, 0.50, 0.75, 0.90]
+        var seenWidgetMinutes = Set<Int>()
+        for frac in widgetMilestoneFractions {
+            let m = Int(Double(minutes) * frac)
+            guard m >= 1, m < minutes, !seenWidgetMinutes.contains(m) else { continue }
+            seenWidgetMinutes.insert(m)
+            let widgetTickName = DeviceActivityEvent.Name("usageBudgetWidgetTick_\(groupId)_\(m)")
+            events[widgetTickName] = DeviceActivityEvent(
                 applications: group.selection.applicationTokens,
                 categories: group.selection.categoryTokens,
                 threshold: DateComponents(minute: m)
@@ -154,27 +181,39 @@ extension AppModel {
             threshold: DateComponents(minute: minutes)
         )
 
-        let dayEndH = logDefaults.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
-        let dayEndM = logDefaults.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
-        let endH = dayEndM > 0 ? dayEndH : (dayEndH + 23) % 24
-        let endM = dayEndM > 0 ? dayEndM - 1 : 59
-
+        // Use a non-wrapping 0:0:0–23:59:59 schedule. The previous day-boundary-aligned
+        // schedule (e.g. start=1:0:0 end=0:59:59) wraps around midnight; DeviceActivity
+        // interprets end < start as "already ended" and fires intervalDidEnd immediately,
+        // killing the monitor before any usage events can fire. Custom day boundary resets
+        // are handled separately by clearAllUsageBudgets.
         let schedule = DeviceActivitySchedule(
-            intervalStart: DateComponents(hour: dayEndH, minute: dayEndM, second: 0),
-            intervalEnd: DateComponents(hour: endH, minute: endM, second: 59),
+            intervalStart: DateComponents(hour: 0, minute: 0, second: 0),
+            intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
             repeats: true
         )
 
-        center.stopMonitoring([activityName])
-
-        let schedDesc = "start=\(dayEndH):\(dayEndM):0 end=\(endH):\(endM):59"
+        // Start-first pattern: avoid calling stopMonitoring before startMonitoring because
+        // stopMonitoring generates an async intervalDidEnd callback that can arrive AFTER
+        // the new startMonitoring's intervalDidStart, creating a race condition.
+        // handlePayGatePaymentForGroup already stops the existing monitor when extending.
+        let schedDesc = "start=0:0:0 end=23:59:59"
         do {
             try center.startMonitoring(activityName, during: schedule, events: events)
             let msg = "[\(iso.string(from: Date()))] OK usageBudget_\(groupId) \(minutes)m events=\(events.count) apps=\(group.selection.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"
             logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
+            return true
         } catch {
-            let msg = "[\(iso.string(from: Date()))] FAIL usageBudget_\(groupId) — \(error.localizedDescription) sched=[\(schedDesc)]"
-            logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
+            center.stopMonitoring([activityName])
+            do {
+                try center.startMonitoring(activityName, during: schedule, events: events)
+                let msg = "[\(iso.string(from: Date()))] OK (retry) usageBudget_\(groupId) \(minutes)m events=\(events.count) apps=\(group.selection.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"
+                logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
+                return true
+            } catch {
+                let msg = "[\(iso.string(from: Date()))] FAIL usageBudget_\(groupId) — \(error.localizedDescription) sched=[\(schedDesc)]"
+                logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
+                return false
+            }
         }
         #endif
     }
@@ -193,6 +232,13 @@ extension AppModel {
                 defaults.removeObject(forKey: minutesKey)
                 continue
             }
+            let budgetInPrefs = defaults.integer(forKey: SharedKeys.usageBudgetKey(group.id))
+            guard budgetInPrefs > 0 else {
+                AppLogger.shield.debug("📡 Dropping stale widget pending for \(group.name) — no usageBudget in prefs (extension cleared keys?)")
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+                continue
+            }
             AppLogger.shield.debug("📡 Starting DeviceActivity monitoring for widget-initiated budget: \(group.name) \(minutes)m")
             startUsageBudgetMonitoring(groupId: group.id, minutes: minutes)
             defaults.removeObject(forKey: pendingKey)
@@ -200,8 +246,8 @@ extension AppModel {
         }
 
         for group in ticketGroups {
-            let spendTrackingKey = "pendingSpendTracking_\(group.id)"
-            let spendAmountKey = "pendingSpendAmount_\(group.id)"
+            let spendTrackingKey = SharedKeys.pendingSpendTrackingKey(group.id)
+            let spendAmountKey = SharedKeys.pendingSpendAmountKey(group.id)
             guard defaults.bool(forKey: spendTrackingKey) else { continue }
             let amount = defaults.integer(forKey: spendAmountKey)
             guard amount > 0 else {
@@ -216,6 +262,67 @@ extension AppModel {
         }
     }
 
+    /// Stops `usageBudget_*` DeviceActivity names when UserDefaults has no active budget for that group.
+    /// Orphans appear when prefs were cleared (e.g. `usageBudgetDone`) but stopMonitoring failed,
+    /// or pending-widget handoff started monitoring without matching prefs.
+    func reconcileOrphanUsageBudgetMonitors() {
+        #if canImport(DeviceActivity)
+        let center = DeviceActivityCenter()
+        let defaults = UserDefaults.stepsTrader()
+        let prefix = "usageBudget_"
+        var toStop: [DeviceActivityName] = []
+        for activity in center.activities {
+            let raw = activity.rawValue
+            guard raw.hasPrefix(prefix) else { continue }
+            let groupId = String(raw.dropFirst(prefix.count))
+            if defaults.integer(forKey: SharedKeys.usageBudgetKey(groupId)) <= 0 {
+                toStop.append(activity)
+            }
+        }
+        guard !toStop.isEmpty else { return }
+        center.stopMonitoring(toStop)
+        AppLogger.shield.debug("🧹 Stopped orphan usageBudget monitor(s): \(toStop.map(\.rawValue).joined(separator: ", "))")
+        #endif
+    }
+
+    /// After `intervalDidEnd` stops monitors without clearing prefs, restart DeviceActivity for any group
+    /// that still has budget + valid wall clock but no registered `usageBudget_*` activity.
+    func ensureUsageBudgetMonitoringForActiveGroups() {
+        #if canImport(DeviceActivity) && canImport(FamilyControls)
+        let defaults = UserDefaults.stepsTrader()
+        let center = DeviceActivityCenter()
+        for group in ticketGroups {
+            let gid = group.id
+            let remaining = defaults.integer(forKey: SharedKeys.usageBudgetKey(gid))
+            if remaining <= 0 { continue }
+
+            if !ShieldRebuildHelper.isUsageBudgetWallClockActive(defaults: defaults, groupId: gid) {
+                AppLogger.shield.debug("🧹 Clearing expired wall-clock usage budget for \(group.name)")
+                clearUsageBudgetPrefsForGroup(gid)
+                continue
+            }
+
+            let activityName = DeviceActivityName("usageBudget_\(gid)")
+            if center.activities.contains(activityName) { continue }
+
+            defaults.set(remaining, forKey: SharedKeys.usageBudgetInitialKey(gid))
+            AppLogger.shield.debug("🔁 Resuming usageBudget monitor for \(group.name) (\(remaining)m)")
+            startUsageBudgetMonitoring(groupId: gid, minutes: remaining)
+        }
+        #endif
+    }
+
+    private func clearUsageBudgetPrefsForGroup(_ groupId: String) {
+        let defaults = UserDefaults.stepsTrader()
+        defaults.removeObject(forKey: SharedKeys.usageBudgetKey(groupId))
+        defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(groupId))
+        defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(groupId))
+        defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        #if canImport(DeviceActivity)
+        DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(groupId)")])
+        #endif
+    }
+
     
     // MARK: - PayGate Dismissal
     func dismissPayGate(reason: PayGateDismissReason = .userDismiss) {
@@ -227,8 +334,8 @@ extension AppModel {
         let now = Date()
         if reason == .userDismiss {
             // Cooldown to prevent instant re-open loops when the user dismisses PayGate.
-            g.set(now.addingTimeInterval(10), forKey: payGateDismissedUntilKey)
-            g.set(now, forKey: "lastPayGateAction")
+            g.set(now.addingTimeInterval(10), forKey: _payGateDismissedUntilKey)
+            g.set(now, forKey: SharedKeys.lastPayGateAction)
         }
         g.removeObject(forKey: SharedKeys.shouldShowPayGate)
         g.removeObject(forKey: SharedKeys.payGateTargetGroupId)

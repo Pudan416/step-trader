@@ -49,9 +49,14 @@ struct GalleryView: View {
     @State private var rotationAtGestureStart: Double = 0
     @State private var showLabelModeHint: Bool = false
     @AppStorage("labelModeHintShown") private var labelModeHintShown: Bool = false
+    @State private var undoElement: CanvasElement? = nil
+    @State private var showUndoToast: Bool = false
     @Binding var isWideCanvas: Bool
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.topCardHeight) private var topCardHeight
+
+    @State private var safeAreaTop: CGFloat = 0
+    @State private var safeAreaBottom: CGFloat = 0
 
     private var canvasBackground: Color { theme.backgroundColor }
     private var labelColor: Color { theme.textPrimary }
@@ -65,39 +70,40 @@ struct GalleryView: View {
     }
     private var todayKey: String { AppModel.dayKey(for: Date()) }
 
-    private var deviceTopInset: CGFloat {
-        (UIApplication.shared.connectedScenes.first as? UIWindowScene)?
-            .keyWindow?.safeAreaInsets.top ?? 59
-    }
-
-    private var deviceBottomInset: CGFloat {
-        (UIApplication.shared.connectedScenes.first as? UIWindowScene)?
-            .keyWindow?.safeAreaInsets.bottom ?? 34
-    }
-
     private var bottomControlsPadding: CGFloat {
-        let base = deviceBottomInset + 24
+        let base = max(safeAreaBottom, 34) + 12
         if isLabelMode || isWideCanvas { return base }
-        return base + tabBarHeight
+        return base + tabBarHeight + 12
     }
 
-    private var canvasSyncTrigger: [String] {
-        [
-            "\(model.sleepPointsToday)",
-            "\(model.stepsPointsToday)",
-            "\(model.baseEnergyToday)",
-            "\(model.spentStepsToday)",
-            "\(model.isBootstrapping)",
-            model.dailyActivitySelections.joined(separator: ","),
-            model.dailyRestSelections.joined(separator: ","),
-            model.dailyJoysSelections.joined(separator: ","),
-        ]
+    private struct CanvasSyncState: Equatable {
+        let sleepPoints: Int
+        let stepsPoints: Int
+        let baseEnergy: Int
+        let spentSteps: Int
+        let isBootstrapping: Bool
+        let activitySelections: [String]
+        let restSelections: [String]
+        let joysSelections: [String]
+    }
+
+    private var canvasSyncState: CanvasSyncState {
+        CanvasSyncState(
+            sleepPoints: model.sleepPointsToday,
+            stepsPoints: model.stepsPointsToday,
+            baseEnergy: model.baseEnergyToday,
+            spentSteps: model.spentStepsToday,
+            isBootstrapping: model.isBootstrapping,
+            activitySelections: model.dailyActivitySelections,
+            restSelections: model.dailyRestSelections,
+            joysSelections: model.dailyJoysSelections
+        )
     }
 
     private var isCanvasEmpty: Bool { dayCanvas.elements.isEmpty }
 
-    /// Show routines/repeat/hint when fewer than 2 elements on canvas
-    private var showQuickStartArea: Bool { dayCanvas.elements.count < 2 }
+    /// Show routines/repeat/hint when canvas is empty
+    private var showQuickStartArea: Bool { isCanvasEmpty }
 
     private var decayNorm: Double {
         guard dayCanvas.inkEarned > 0 else { return 0 }
@@ -178,6 +184,10 @@ struct GalleryView: View {
                         let wide = w > GenerativeCanvasView.canonicalPortraitSize.width + 20
                         if wide != isWideCanvas { isWideCanvas = wide }
                     }
+                    .onChange(of: geo.safeAreaInsets, initial: true) { _, insets in
+                        safeAreaTop = insets.top
+                        safeAreaBottom = insets.bottom
+                    }
             }
         )
         .animation(.easeInOut(duration: 0.2), value: metricOverlay != nil)
@@ -194,7 +204,7 @@ struct GalleryView: View {
                 )
             }
         }
-        .onChange(of: canvasSyncTrigger) {
+        .onChange(of: canvasSyncState) {
             syncCanvasWithModel()
         }
         .onChange(of: scenePhase) {
@@ -221,7 +231,7 @@ struct GalleryView: View {
                 }
             )
         }
-        .sheet(isPresented: $showShareSheet) {
+        .sheet(isPresented: $showShareSheet, onDismiss: { shareImage = nil }) {
             if let image = shareImage {
                 CanvasShareSheet(items: [image])
             }
@@ -281,7 +291,7 @@ struct GalleryView: View {
                     )
                     Spacer()
                 }
-                .padding(.top, deviceTopInset + topCardHeight)
+                .padding(.top, safeAreaTop + topCardHeight + 8)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
@@ -307,6 +317,39 @@ struct GalleryView: View {
                 .allowsHitTesting(false)
             }
 
+            // Undo toast (element removal)
+            if showUndoToast, let removed = undoElement {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 12) {
+                        Text(String(localized: "\(removed.displayLabel) removed", comment: "Canvas – undo toast message"))
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(buttonColor)
+                        Button {
+                            withAnimation(.spring(response: 0.3)) {
+                                dayCanvas.elements.append(removed)
+                                dayCanvas.lastModified = Date()
+                                saveCanvasLocally()
+                                showUndoToast = false
+                                undoElement = nil
+                            }
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            Text(String(localized: "Undo", comment: "Canvas – undo button"))
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(buttonColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.bottom, bottomControlsPadding + 80)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .allowsHitTesting(true)
+            }
+
             // Bottom section — always visible, sits above tab bar
             VStack {
                 Spacer(minLength: 0)
@@ -322,7 +365,10 @@ struct GalleryView: View {
 
     private var bottomControlsBar: some View {
         HStack(alignment: .center) {
+            labelToggleButton
+
             Spacer()
+
             if !isLabelMode {
                 RadialHoldMenu(
                     labelColor: buttonColor,
@@ -330,19 +376,17 @@ struct GalleryView: View {
                 )
                 .transition(.opacity)
             }
+
             Spacer()
-        }
-        .overlay(alignment: .leading) {
-            labelToggleButton
-                .padding(.leading, 24)
-        }
-        .overlay(alignment: .trailing) {
+
             if !isLabelMode {
                 shareButton
-                    .padding(.trailing, 24)
                     .transition(.opacity)
+            } else {
+                Color.clear.frame(width: 72, height: 72)
             }
         }
+        .padding(.horizontal, 24)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -356,7 +400,7 @@ struct GalleryView: View {
             ZStack {
                 Circle()
                     .fill(.ultraThinMaterial)
-                    .opacity(0.5)
+                    .opacity(0.7)
                     .frame(width: 56, height: 56)
                 Circle()
                     .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
@@ -365,10 +409,11 @@ struct GalleryView: View {
                     .font(.system(size: 22, weight: .ultraLight))
                     .foregroundStyle(buttonColor.opacity(0.85))
             }
-            .frame(width: 56, height: 56)
-            .contentShape(Circle().size(width: 72, height: 72))
+            .frame(width: 72, height: 72)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "Share canvas", comment: "GalleryView – share button VoiceOver label"))
         .opacity(isCanvasEmpty ? 0.35 : 1.0)
         .disabled(isCanvasEmpty)
         .contextMenu {
@@ -377,6 +422,31 @@ struct GalleryView: View {
                     showSaveRoutine = true
                 } label: {
                     Label(String(localized: "Save as Routine"), systemImage: "square.and.arrow.down")
+                }
+            }
+
+            if !model.savedRoutines.isEmpty {
+                Divider()
+                ForEach(model.savedRoutines) { routine in
+                    Button {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            model.applyRoutine(routine)
+                        }
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    } label: {
+                        Label(routine.name, systemImage: "arrow.counterclockwise")
+                    }
+                }
+            }
+
+            if model.canRepeatYesterday {
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                        model.repeatYesterday()
+                    }
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                } label: {
+                    Label(String(localized: "Repeat Yesterday"), systemImage: "arrow.counterclockwise")
                 }
             }
         }
@@ -407,7 +477,8 @@ struct GalleryView: View {
                     if !labelModeHintShown {
                         showLabelModeHint = true
                         labelModeHintShown = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(2500))
                             withAnimation(.easeOut(duration: 0.4)) { showLabelModeHint = false }
                         }
                     }
@@ -418,7 +489,7 @@ struct GalleryView: View {
             ZStack {
                 Circle()
                     .fill(.ultraThinMaterial)
-                    .opacity(0.5)
+                    .opacity(0.7)
                     .frame(width: 56, height: 56)
                 Circle()
                     .strokeBorder(buttonColor.opacity(isLabelMode ? 0.4 : 0.3), lineWidth: 1)
@@ -427,10 +498,13 @@ struct GalleryView: View {
                     .font(.system(size: 22, weight: .ultraLight))
                     .foregroundStyle(buttonColor.opacity(isLabelMode ? 0.9 : 0.85))
             }
-            .frame(width: 56, height: 56)
-            .contentShape(Circle().size(width: 72, height: 72))
+            .frame(width: 72, height: 72)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(isLabelMode
+            ? String(localized: "Exit label mode", comment: "GalleryView – label toggle VoiceOver label")
+            : String(localized: "Enter label mode", comment: "GalleryView – label toggle VoiceOver label"))
         .opacity(isCanvasEmpty ? 0.35 : 1.0)
         .disabled(isCanvasEmpty)
     }
@@ -444,14 +518,19 @@ struct GalleryView: View {
             SettingsShortcutPage(model: model)
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(buttonColor.opacity(0.8))
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(buttonColor.opacity(0.08))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "lock.screen")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(buttonColor.opacity(0.8))
+                }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Set this canvas as your wallpaper", comment: "Wide canvas – wallpaper prompt"))
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(buttonColor)
-                    Text(String(localized: "Learn how to automate it", comment: "Wide canvas – wallpaper prompt subtitle"))
+                    Text(String(localized: "Your clock and widgets will overlay this canvas", comment: "Wide canvas – wallpaper prompt subtitle"))
                         .font(.system(size: 11, weight: .regular, design: .rounded))
                         .foregroundStyle(buttonColor.opacity(0.5))
                 }
@@ -557,15 +636,21 @@ struct GalleryView: View {
             canvasLoaded = true
             syncCanvasWithModel()
         } else {
-            // No local data — try restoring from Supabase, fall back to empty canvas
+            // No local data — try restoring from Supabase, fall back to empty canvas.
+            // Don't mark canvasLoaded until the remote check completes to prevent
+            // syncCanvasWithModel() from saving an empty canvas over the real one.
             dayCanvas = DayCanvas(dayKey: dayKey)
-            canvasLoaded = true
-            syncCanvasWithModel()
             Task {
                 if let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey) {
                     await MainActor.run {
                         dayCanvas = remote
                         CanvasStorageService.shared.saveCanvas(remote)
+                        canvasLoaded = true
+                        syncCanvasWithModel()
+                    }
+                } else {
+                    await MainActor.run {
+                        canvasLoaded = true
                         syncCanvasWithModel()
                     }
                 }
@@ -653,10 +738,11 @@ struct GalleryView: View {
         saveCanvasLocally()
     }
 
-    /// Save locally + sync to Supabase (debounced)
+    /// Save locally + sync to Supabase (debounced via SupabaseSyncService)
     private func saveCanvasLocally() {
         CanvasStorageService.shared.saveCanvas(dayCanvas)
-        Task { await SupabaseSyncService.shared.syncDayCanvas(dayCanvas) }
+        let canvasCopy = dayCanvas
+        Task { await SupabaseSyncService.shared.syncDayCanvas(canvasCopy) }
         Task { @MainActor in
             CanvasStorageService.shared.saveWidgetSnapshot(
                 for: dayCanvas.dayKey,
@@ -729,7 +815,7 @@ struct GalleryView: View {
                     }
                 }
                 .simultaneousGesture(
-                    DragGesture(minimumDistance: 8)
+                    DragGesture(minimumDistance: 14)
                         .onChanged { value in
                             handleLabelDrag(value: value, canvasSize: refSize)
                         }
@@ -738,7 +824,7 @@ struct GalleryView: View {
                         }
                 )
                 .simultaneousGesture(
-                    RotationGesture()
+                    RotationGesture(minimumAngleDelta: .degrees(8))
                         .onChanged { angle in handleRotation(angle: angle) }
                         .onEnded { _ in handleRotationEnd() }
                 )
@@ -764,7 +850,7 @@ struct GalleryView: View {
                 ("trash", "Remove", .pi * 0.25),
             ]
 
-            TimelineView(.animation(minimumInterval: 1.0 / 10.0)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
                 let liveT = timeline.date.timeIntervalSinceReferenceDate
                 let liveCenter: CGPoint = {
                     guard let el = element else { return center }
@@ -819,13 +905,22 @@ struct GalleryView: View {
             }
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         case "Remove":
+            guard let removed = dayCanvas.elements.first(where: { $0.id == elementId }) else { break }
             withAnimation(.spring(response: 0.3)) {
                 dayCanvas.elements.removeAll { $0.id == elementId }
                 activeElementId = nil
                 dayCanvas.lastModified = Date()
                 saveCanvasLocally()
+                undoElement = removed
+                showUndoToast = true
             }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                withAnimation(.easeOut(duration: 0.3)) {
+                    if undoElement?.id == removed.id { showUndoToast = false; undoElement = nil }
+                }
+            }
         default:
             break
         }
@@ -886,16 +981,66 @@ struct GalleryView: View {
 
     // MARK: - Repaint Sheet
 
+    private static let bodyAssetNames = ["body 1", "body 2", "body 3"]
+
     private func repaintSheet(for elementId: UUID) -> some View {
         let elementIndex = dayCanvas.elements.firstIndex { $0.id == elementId }
-        let currentHex = elementIndex.map { dayCanvas.elements[$0].hexColor } ?? "#FFFFFF"
+        let element = elementIndex.map { dayCanvas.elements[$0] }
+        let currentHex = element?.hexColor ?? "#FFFFFF"
+        let isBody = element?.category == .body
+        let currentVariant = element?.assetVariant ?? 0
         let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 6)
 
         return NavigationStack {
             VStack(spacing: 16) {
-                Text(String(localized: "Pick a new color", comment: "Repaint sheet – title"))
+                Text(String(localized: "Customize element", comment: "Repaint sheet – title"))
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(.primary)
+
+                // Shape picker (body elements have 3 variants)
+                if isBody {
+                    HStack(spacing: 8) {
+                        ForEach(0..<Self.bodyAssetNames.count, id: \.self) { index in
+                            let isActive = index == currentVariant
+                            Button {
+                                if let idx = elementIndex {
+                                    withAnimation(.spring(response: 0.2)) {
+                                        dayCanvas.elements[idx].assetVariant = index
+                                        dayCanvas.lastModified = Date()
+                                        saveCanvasLocally()
+                                    }
+                                }
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                Group {
+                                    if let uiImage = UIImage(named: Self.bodyAssetNames[index])?.withRenderingMode(.alwaysTemplate) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fit)
+                                            .foregroundStyle(Color(hex: currentHex).opacity(isActive ? 1.0 : 0.3))
+                                            .frame(width: 28, height: 28)
+                                    } else {
+                                        Image(systemName: "circle.fill")
+                                            .font(.system(size: 18))
+                                            .foregroundStyle(Color(hex: currentHex).opacity(isActive ? 1.0 : 0.3))
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(Color(hex: currentHex).opacity(isActive ? 0.1 : 0.03))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(isActive ? Color(hex: currentHex).opacity(0.35) : .clear, lineWidth: 1.5)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
 
                 LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(Array(CanvasColorPalette.paletteHex.enumerated()), id: \.offset) { _, hex in
@@ -934,7 +1079,7 @@ struct GalleryView: View {
                 }
             }
         }
-        .presentationDetents([.height(280)])
+        .presentationDetents([.height(isBody ? 370 : 280)])
         .presentationDragIndicator(.visible)
         .presentationBackground(.ultraThinMaterial)
     }
@@ -966,7 +1111,7 @@ struct GalleryView: View {
         case .mind:
             return mindHitPosition(e, canvasSize: canvasSize, t: t)
         case .heart:
-            return heartHitPosition(e, canvasSize: canvasSize)
+            return heartHitPosition(e, canvasSize: canvasSize, t: t)
         }
     }
 
@@ -998,25 +1143,29 @@ struct GalleryView: View {
         )
     }
 
-    private func heartHitPosition(_ e: CanvasElement, canvasSize: CGSize) -> CGPoint {
+    private func heartHitPosition(_ e: CanvasElement, canvasSize: CGSize, t: TimeInterval = Date().timeIntervalSinceReferenceDate) -> CGPoint {
         let base = heartEdgeAnchor(e, canvasSize: canvasSize)
         let dim = Double(min(canvasSize.width, canvasSize.height))
         let radius = Double(e.size) * dim * 2.2
 
-        // Must match GenerativeCanvasView.rayDrawCenter clamping exactly
         let center = CGPoint(
             x: min(max(Double(base.x), radius), Double(canvasSize.width) - radius),
             y: min(max(Double(base.y), radius), Double(canvasSize.height) - radius)
         )
 
-        // Must match GenerativeCanvasView.elementCenter for .heart
         let dx = Double(canvasSize.width) * 0.5 - center.x
         let dy = Double(canvasSize.height) * 0.5 - center.y
         let baseAngle = atan2(dy, dx)
+
+        // Include sweep animation offset to match visual position
+        let sweepRange = (10.0 + e.rotationSpeed * 0.2) * hitTestAmpScale
+        let sweepSpeed = 0.012 + e.driftSpeed * 0.01
+        let sweepRad = sin(t * sweepSpeed + e.phaseOffset * 2.1) * sweepRange * .pi / 180.0
+
         let oriented = baseAngle + .pi / 2 + e.userRotation
         let outwardDist = radius * 0.55
-        let tipX = center.x - outwardDist * sin(oriented)
-        let tipY = center.y + outwardDist * cos(oriented)
+        let tipX = center.x - outwardDist * sin(oriented + sweepRad)
+        let tipY = center.y + outwardDist * cos(oriented + sweepRad)
         return CGPoint(
             x: min(max(tipX, 24), Double(canvasSize.width) - 24),
             y: min(max(tipY, 24), Double(canvasSize.height) - 24)
@@ -1046,24 +1195,35 @@ struct GalleryView: View {
     // ═══════════════════════════════════════════════════════════
 
     private func exportCanvas() {
-        let view = GenerativeCanvasView(
-            elements: dayCanvas.elements,
-            sleepPoints: model.sleepPointsToday,
-            stepsPoints: model.stepsPointsToday,
-            sleepColor: Color(hex: sleepColorHex),
-            stepsColor: Color(hex: stepsColorHex),
-            decayNorm: decayNorm,
-            backgroundColor: canvasBackground,
-            labelColor: labelColor,
-            showLabelsOnCanvas: true,
-            showsOutlinedLabels: false,
-            hasStepsData: model.hasStepsData,
-            hasSleepData: model.hasSleepData,
-            fixedTime: Date()
-        )
-        .frame(width: 390, height: 500)
+        let canvasSize = GenerativeCanvasView.canonicalPortraitSize
+        let composite = ZStack {
+            EnergyGradientBackground(
+                stepsPoints: model.stepsPointsToday,
+                sleepPoints: model.sleepPointsToday,
+                hasStepsData: model.hasStepsData,
+                hasSleepData: model.hasSleepData
+            )
 
-        let renderer = ImageRenderer(content: view)
+            GenerativeCanvasView(
+                elements: dayCanvas.elements,
+                sleepPoints: model.sleepPointsToday,
+                stepsPoints: model.stepsPointsToday,
+                sleepColor: Color(hex: sleepColorHex),
+                stepsColor: Color(hex: stepsColorHex),
+                decayNorm: decayNorm,
+                backgroundColor: .clear,
+                labelColor: labelColor,
+                showLabelsOnCanvas: true,
+                showsOutlinedLabels: false,
+                showsBackgroundGradient: false,
+                hasStepsData: model.hasStepsData,
+                hasSleepData: model.hasSleepData,
+                fixedTime: Date()
+            )
+        }
+        .frame(width: canvasSize.width, height: canvasSize.height)
+
+        let renderer = ImageRenderer(content: composite)
         renderer.scale = 3.0
         if let image = renderer.uiImage {
             shareImage = image
@@ -1127,9 +1287,73 @@ struct GalleryView: View {
         case .sleep:
             sleepOverlayBody
         case .category(let c):
-            Text(breakdownText(for: c))
-                .font(.subheadline)
-                .foregroundColor(.primary)
+            categoryOverlayBody(for: c)
+        }
+    }
+
+    private func categoryAccentColor(_ category: EnergyCategory) -> Color {
+        switch category {
+        case .body:  return .orange
+        case .mind:  return .purple
+        case .heart: return .pink
+        }
+    }
+
+    private func categoryOverlayBody(for category: EnergyCategory) -> some View {
+        let maxPts = EnergyDefaults.maxSelectionsPerCategory * EnergyDefaults.selectionPoints
+        let total: Int = {
+            switch category {
+            case .body: return model.activityPointsToday
+            case .mind: return model.creativityPointsToday
+            case .heart: return model.joysCategoryPointsToday
+            }
+        }()
+        let titles = selectionTitles(for: category)
+        let progress = maxPts > 0 ? Double(total) / Double(maxPts) : 0
+        let accent = categoryAccentColor(category)
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("\(total)")
+                    .font(.title2.bold())
+                Text("/\(maxPts)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text(String(localized: "colors", comment: "Category overlay – unit"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            GeometryReader { proxy in
+                let w = proxy.size.width
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.primary.opacity(0.08))
+                        .frame(height: 8)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(accent)
+                        .frame(width: max(4, w * progress), height: 8)
+                }
+            }
+            .frame(height: 8)
+
+            if titles.isEmpty {
+                Text(String(localized: "No activities selected yet", comment: "Category overlay – empty hint"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                FlowLayout(spacing: 6) {
+                    ForEach(titles, id: \.self) { title in
+                        Text(title)
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(accent.opacity(0.12)))
+                            .foregroundColor(accent)
+                    }
+                }
+            }
         }
     }
 
@@ -1217,9 +1441,10 @@ struct GalleryView: View {
         case .mind: ids = model.dailyRestSelections
         case .heart: ids = model.dailyJoysSelections
         }
+        let lang = Locale.current.language.languageCode?.identifier ?? "en"
         return ids.map { id in
-            EnergyDefaults.options.first(where: { $0.id == id })?.title(for: "en")
-                ?? model.customOptionTitle(for: id, lang: "en")
+            EnergyDefaults.options.first(where: { $0.id == id })?.title(for: lang)
+                ?? model.customOptionTitle(for: id, lang: lang)
                 ?? id
         }
     }

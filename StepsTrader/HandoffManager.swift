@@ -10,6 +10,12 @@ extension AppModel {
             return
         }
 
+        guard !token.isExpired else {
+            AppLogger.app.warning("⏰ Handoff token expired, cancelling")
+            handleHandoffCancel()
+            return
+        }
+
         AppLogger.app.debug("🚀 User continued with handoff for \(token.targetAppName)")
         AppLogger.app.debug(
             "🚀 Before - showHandoffProtection: \(self.showHandoffProtection), handoffToken: \(self.handoffToken?.targetAppName ?? "nil")"
@@ -34,7 +40,7 @@ extension AppModel {
     }
 
     func handleHandoffCancel() {
-        AppLogger.app.error("❌ User cancelled handoff")
+        AppLogger.app.info("User cancelled handoff")
 
         // Hide protection screen
         showHandoffProtection = false
@@ -75,7 +81,9 @@ extension AppModel {
                 AppLogger.app.debug("✅ Opened \(bundleId) via \(schemes[index])")
             } else {
                 AppLogger.app.debug("⚠️ Scheme \(schemes[index]) failed for \(bundleId), trying next")
-                self?.attemptOpenScheme(schemes: schemes, index: index + 1, bundleId: bundleId)
+                Task { @MainActor in
+                    self?.attemptOpenScheme(schemes: schemes, index: index + 1, bundleId: bundleId)
+                }
             }
         }
     }

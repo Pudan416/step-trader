@@ -17,72 +17,8 @@ extension AppModel {
             userDefaults.set(Date(), forKey: SharedKeys.appSelectionSavedDate)
             AppLogger.familyControls.debug("💾 Saved app selection (appSelection_v1): \(self.appSelection.applicationTokens.count) apps, \(self.appSelection.categoryTokens.count) categories")
         } catch {
-            AppLogger.familyControls.debug("Failed to save app selection (appSelection_v1): \(error.localizedDescription)")
-        }
-    }
-
-    func loadAppSelection() {
-        let userDefaults = UserDefaults.stepsTrader()
-        var hasSelection = false
-        var newSelection = FamilyActivitySelection()
-
-        // Try the new storage scheme first (appSelection_v1).
-        if let data = userDefaults.data(forKey: SharedKeys.appSelection),
-           let decoded = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data),
-           !decoded.applicationTokens.isEmpty || !decoded.categoryTokens.isEmpty {
-            newSelection = decoded
-            hasSelection = true
-            AppLogger.familyControls.debug("📱 Restored app selection from appSelection_v1: \(decoded.applicationTokens.count) apps, \(decoded.categoryTokens.count) categories")
-        }
-
-        // Fallback to legacy storage (persistentApplicationTokens/persistentCategoryTokens)
-        // in case user has data in the old format.
-        // Restore ApplicationTokens
-        if !hasSelection, let tokensData = userDefaults.data(forKey: "persistentApplicationTokens") {
-            do {
-                let obj = try NSKeyedUnarchiver.unarchivedObject(
-                    ofClass: NSSet.self, from: tokensData)
-                if let applicationTokens = obj as? Set<ApplicationToken> {
-                    newSelection.applicationTokens = applicationTokens
-                    hasSelection = true
-                    AppLogger.familyControls.debug("📱 Restored app selection: \(applicationTokens.count) apps")
-                }
-            } catch {
-                AppLogger.familyControls.debug("Failed to restore app selection: \(error.localizedDescription)")
-            }
-        }
-
-        // Restore CategoryTokens
-        if !hasSelection, let categoriesData = userDefaults.data(forKey: "persistentCategoryTokens") {
-            do {
-                let obj = try NSKeyedUnarchiver.unarchivedObject(
-                    ofClass: NSSet.self, from: categoriesData)
-                if let categoryTokens = obj as? Set<ActivityCategoryToken> {
-                    newSelection.categoryTokens = categoryTokens
-                    hasSelection = true
-                    AppLogger.familyControls.debug("📱 Restored category selection: \(categoryTokens.count) categories")
-                }
-            } catch {
-                AppLogger.familyControls.debug("Failed to restore category selection: \(error.localizedDescription)")
-            }
-        }
-
-        if hasSelection {
-            // Update selection without triggering didSet (to avoid re-saving)
-            self.appSelection = newSelection
-            AppLogger.familyControls.debug("✅ App selection restored successfully")
-            
-            // Apply shield immediately after loading
-            rebuildFamilyControlsShield()
-
-            // Check save date
-            if let savedDate = userDefaults.object(forKey: SharedKeys.appSelectionSavedDate) as? Date {
-                AppLogger.familyControls.debug("📅 App selection was saved on: \(CachedFormatters.mediumDateTime.string(from: savedDate))")
-            }
-        } else {
-            AppLogger.familyControls.debug("📱 No saved app selection found")
-            // Still apply shield in case there are per-app selections
-            rebuildFamilyControlsShield()
+            AppLogger.familyControls.error("Failed to save app selection (appSelection_v1): \(error.localizedDescription)")
+            ErrorManager.shared.handle(AppError.persistenceError(error))
         }
     }
 
@@ -101,30 +37,29 @@ extension AppModel {
         
         for (cardId, _) in updatedUnlock {
             let sel = timeAccessSelection(for: cardId)
-            if sel.applicationTokens.count == 1, let t = sel.applicationTokens.first {
+            for t in sel.applicationTokens {
                 appTokenToCard[t] = cardId
             }
-            if sel.categoryTokens.count == 1, let c = sel.categoryTokens.first {
+            for c in sel.categoryTokens {
                 categoryTokenToCard[c] = cardId
             }
         }
         
-        // Disable cards whose tokens are no longer selected.
+        // Disable cards whose tokens are no longer selected; remove fully disabled cards.
+        var cardIdsToRemove: [String] = []
         for (cardId, var settings) in updatedUnlock {
             let sel = timeAccessSelection(for: cardId)
-            var stillSelected = false
+            let hasApp = sel.applicationTokens.contains(where: { newAppTokens.contains($0) })
+            let hasCat = sel.categoryTokens.contains(where: { newCategoryTokens.contains($0) })
             
-            if sel.applicationTokens.count == 1, let t = sel.applicationTokens.first {
-                if newAppTokens.contains(t) { stillSelected = true }
-            }
-            if sel.categoryTokens.count == 1, let c = sel.categoryTokens.first {
-                if newCategoryTokens.contains(c) { stillSelected = true }
-            }
-            
-            if !stillSelected {
+            if !hasApp && !hasCat {
                 settings.familyControlsModeEnabled = false
                 updatedUnlock[cardId] = settings
+                cardIdsToRemove.append(cardId)
             }
+        }
+        for cardId in cardIdsToRemove {
+            updatedUnlock.removeValue(forKey: cardId)
         }
         
         // Ensure each selected app has an enabled card.

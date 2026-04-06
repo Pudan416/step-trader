@@ -13,13 +13,30 @@ import UIKit
 // The system provides a default appearance for any methods that your subclass doesn't override.
 // Make sure that your class name matches the NSExtensionPrincipalClass in your Info.plist.
 class ShieldConfigurationExtension: ShieldConfigurationDataSource {
-    
+
+    /// Cache token → base64 to avoid repeated NSKeyedArchiver calls on every shield display.
+    /// Protected by cacheLock because configuration(shielding:) can be called on any thread.
+    private static var tokenBase64Cache: [ApplicationToken: String] = [:]
+    private static let cacheLock = NSLock()
+
+    private static func base64(for token: ApplicationToken) -> String? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cached = tokenBase64Cache[token] { return cached }
+        guard let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) else {
+            return nil
+        }
+        let b64 = data.base64EncodedString()
+        tokenBase64Cache[token] = b64
+        return b64
+    }
+
     /// Shared UserDefaults from App Group
     private func sharedDefaults() -> UserDefaults {
-        if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId) != nil,
-           let appGroup = UserDefaults(suiteName: SharedKeys.appGroupId) {
+        if let appGroup = UserDefaults(suiteName: SharedKeys.appGroupId) {
             return appGroup
         }
+        assertionFailure("ShieldConfigurationExtension: App group unavailable")
         return .standard
     }
     
@@ -62,14 +79,19 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     override func configuration(shielding application: Application) -> ShieldConfiguration {
         let appName = getAppName(for: application)
         
-        // Save human-readable name and bundleId for token so PayGate/findTicketGroup can resolve
         if let token = application.token,
-           let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-            let base64 = tokenData.base64EncodedString()
+           let base64 = Self.base64(for: token) {
             let defaults = sharedDefaults()
-            defaults.set(appName, forKey: SharedKeys.fcAppNameKey(base64))
-            if let bid = application.bundleIdentifier {
+            if defaults.string(forKey: SharedKeys.fcAppNameKey(base64)) != appName {
+                defaults.set(appName, forKey: SharedKeys.fcAppNameKey(base64))
+            }
+            if let bid = application.bundleIdentifier,
+               defaults.string(forKey: SharedKeys.fcBundleIdKey(base64)) != bid {
                 defaults.set(bid, forKey: SharedKeys.fcBundleIdKey(base64))
+            }
+            if defaults.string(forKey: SharedKeys.fcAppNameKey(base64)) != appName
+                || (application.bundleIdentifier != nil && defaults.string(forKey: SharedKeys.fcBundleIdKey(base64)) != application.bundleIdentifier) {
+                defaults.synchronize()
             }
         }
         

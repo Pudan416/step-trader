@@ -79,9 +79,19 @@ struct GenerativeCanvasView: View {
     /// to pin the canvas to a fixed frame so it never resizes on rotation /
     /// split-view changes — elements stay at their exact pixel positions.
     static let canonicalPortraitSize: CGSize = {
-        let b = UIScreen.main.bounds.size
-        return b.width <= b.height ? b : CGSize(width: b.height, height: b.width)
+        if let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first {
+            let b = scene.screen.bounds.size
+            return b.width <= b.height ? b : CGSize(width: b.height, height: b.width)
+        }
+        return CGSize(width: 393, height: 852)
     }()
+
+    static func sortedForRendering(_ elements: [CanvasElement]) -> [CanvasElement] {
+        let circles = elements.filter { $0.kind == .circle }.sorted { $0.size > $1.size }
+        let nonCircles = elements.filter { $0.kind != .circle }
+        return circles + nonCircles
+    }
 
     private func renderCanvas(context: inout GraphicsContext, size: CGSize, t: Double) {
         let decay = decayNorm
@@ -94,9 +104,7 @@ struct GenerativeCanvasView: View {
             drawUnifiedGradient(context: &context, size: size, t: t)
         }
 
-        let circles = elements.filter { $0.kind == .circle }.sorted { $0.size > $1.size }
-        let nonCircles = elements.filter { $0.kind != .circle }
-        let sortedElements = circles + nonCircles
+        let sortedElements = Self.sortedForRendering(elements)
 
         for element in sortedElements {
             drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode)
@@ -127,19 +135,28 @@ struct GenerativeCanvasView: View {
         return abs(mixed) % count
     }
 
-    private static let tintedImageCacheMax = 400
-    private static var tintedImageCache: [String: Image] = [:]
+    /// NSCache-compatible wrapper for SwiftUI Image (NSCache requires class types).
+    private final class CachedImage {
+        let image: Image
+        init(_ image: Image) { self.image = image }
+    }
+
+    private static let tintedImageCache: NSCache<NSString, CachedImage> = {
+        let cache = NSCache<NSString, CachedImage>()
+        cache.countLimit = 900
+        return cache
+    }()
     private static let tintedImageCacheLock = NSLock()
     private static var assetAspectRatioCache: [String: CGFloat] = [:]
 
     /// Renders an asset tinted with the user's color. Cached by (name, hex, decayBucket).
     private func tintedAssetImage(name: String, color: Color, hex: String, decay: Double) -> Image? {
         let decayBucket = min(10, max(0, Int(round(decay * 10))))
-        let key = "\(name)|\(hex)|\(decayBucket)"
+        let key = "\(name)|\(hex)|\(decayBucket)" as NSString
         Self.tintedImageCacheLock.lock()
-        if let cached = Self.tintedImageCache[key] {
+        if let cached = Self.tintedImageCache.object(forKey: key) {
             Self.tintedImageCacheLock.unlock()
-            return cached
+            return cached.image
         }
         Self.tintedImageCacheLock.unlock()
 
@@ -154,10 +171,7 @@ struct GenerativeCanvasView: View {
         let image = Image(uiImage: tinted)
 
         Self.tintedImageCacheLock.lock()
-        if Self.tintedImageCache.count >= Self.tintedImageCacheMax {
-            Self.tintedImageCache.removeAll()
-        }
-        Self.tintedImageCache[key] = image
+        Self.tintedImageCache.setObject(CachedImage(image), forKey: key)
         Self.tintedImageCacheLock.unlock()
         return image
     }
@@ -330,9 +344,10 @@ struct GenerativeCanvasView: View {
         decay: Double,
         blendMode: GraphicsContext.BlendMode
     ) {
+        let breathePhase = sin(t * (0.25 + e.phaseOffset * 0.1) + e.phaseOffset * 3.7)
         let pulse: Double = e.category == .body
             ? (1.0 + sin(t * (0.7 + e.pulseFrequency * 0.8) + e.phaseOffset) * 0.05 * ampScale)
-            : 1.0
+            : (1.0 + breathePhase * 0.015 * ampScale)
         let center = circleCenter(e, size: size, t: t)
         let dim = Double(min(size.width, size.height))
         let scale = e.category == .body ? 1.05 : 1.1
@@ -352,8 +367,9 @@ struct GenerativeCanvasView: View {
         if e.category == .mind {
             let vel = mindDriftVelocity(e, size: size, t: t)
             let rotation = Angle.radians(atan2(vel.y, vel.x) + e.userRotation) + .degrees(180)
+            let idleOpacity = 0.85 + breathePhase * 0.04
             context.drawLayer { ctx in
-                ctx.opacity = 0.85
+                ctx.opacity = idleOpacity
                 ctx.blendMode = blendMode
                 ctx.translateBy(x: center.x, y: center.y)
                 ctx.rotate(by: rotation)

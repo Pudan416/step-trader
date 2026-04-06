@@ -6,6 +6,7 @@ struct MeView: View {
     @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var pastDays: [String: PastDaySnapshot] = [:]
     @State private var selectedDayKey: String? = nil
     @State private var showLogin = false
@@ -24,16 +25,31 @@ struct MeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 0) {
-                    weekRow
-                        .padding(.top, 8)
-                        .padding(.bottom, 24)
-
-                    contentSection
-                        .padding(.bottom, 120)
+            Group {
+                if useTightMeLayout {
+                    GeometryReader { geo in
+                        VStack(alignment: .leading, spacing: 0) {
+                            weekRow
+                                .padding(.top, 2)
+                                .padding(.bottom, 6)
+                            contentSection
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                    }
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: 0) {
+                            weekRow
+                                .padding(.top, 8)
+                                .padding(.bottom, 20)
+                            contentSection
+                                .padding(.bottom, 24)
+                        }
+                        .padding(.horizontal, 20)
+                    }
                 }
-                .padding(.horizontal, 20)
             }
             .energyGradientBackground(model: model)
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -45,6 +61,13 @@ struct MeView: View {
                 hasLoadedSnapshots = true
                 cachedDayKeys = Self.computeDayKeys()
                 loadAllSnapshots()
+            }
+            .onChange(of: model.baseEnergyToday) { _, _ in
+                let newKeys = Self.computeDayKeys()
+                if newKeys != cachedDayKeys {
+                    cachedDayKeys = newKeys
+                    loadAllSnapshots()
+                }
             }
             .sheet(isPresented: $showLogin) {
                 LoginView(authService: authService)
@@ -82,7 +105,22 @@ struct MeView: View {
 
     // MARK: - Content
 
-    private let prose: Font = .system(size: 18)
+    /// One-screen layout for default type sizes; scroll when accessibility sizes need more room.
+    private var useTightMeLayout: Bool {
+        dynamicTypeSize < .accessibility1
+    }
+
+    private var meProse: Font {
+        useTightMeLayout ? .subheadline : .body
+    }
+
+    private var meNumberProse: Font {
+        (useTightMeLayout ? Font.subheadline : Font.body).weight(.semibold)
+    }
+
+    private var weekRingOuter: CGFloat { useTightMeLayout ? 32 : 40 }
+    private var weekRingInner: CGFloat { useTightMeLayout ? 29 : 37 }
+    private var weekDayLabelSize: CGFloat { useTightMeLayout ? 8 : 9 }
 
     private var contentSection: some View {
         let snaps = cachedDayKeys.compactMap { pastDays[$0] }
@@ -97,75 +135,103 @@ struct MeView: View {
         let sleepStr = sleepTarget.truncatingRemainder(dividingBy: 1) == 0
             ? "\(Int(sleepTarget))" : String(format: "%.1f", sleepTarget)
 
-        return VStack(alignment: .leading, spacing: 20) {
+        let greetingLineSpacing: CGFloat = useTightMeLayout ? 5 : 8
 
-            // Single flowing paragraph
-            MeFlowLayout(spacing: 5, lineSpacing: 8) {
-                label(greetingString + ",")
-                valuePill("person.fill", userName) {
-                    if authService.isAuthenticated { showProfileEditor = true }
-                    else { showLogin = true }
+        return VStack(alignment: .leading, spacing: useTightMeLayout ? CGFloat(10) : CGFloat(20)) {
+
+            // Four fixed lines so "and … sleep" never wraps with a lone "and" at line end.
+            VStack(alignment: .leading, spacing: greetingLineSpacing) {
+                MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
+                    label(greetingString + ",")
+                    valuePill("person.fill", userName) {
+                        if authService.isAuthenticated { showProfileEditor = true }
+                        else { showLogin = true }
+                    }
                 }
-                label("You are aiming for")
-                valuePill("figure.walk", formatCompactNumber(Int(stepsTarget))) {
-                    showTargetsEditor = true
+                MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
+                    label(String(localized: "You are aiming for"))
+                    valuePill("figure.walk", formatCompactNumber(Int(stepsTarget))) {
+                        showTargetsEditor = true
+                    }
+                    label(String(localized: "steps"))
                 }
-                label("steps and")
-                valuePill("moon.zzz.fill", sleepStr + "h") {
-                    showTargetsEditor = true
+                MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
+                    label(String(localized: "and"))
+                    valuePill("moon.zzz.fill", sleepStr + "h") {
+                        showTargetsEditor = true
+                    }
+                    label(String(localized: "sleep."))
                 }
-                label("sleep. Day resets at")
-                valuePill("clock", formattedDayEnd) {
-                    showDayEndSettings = true
+                MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
+                    label(String(localized: "Your day resets at"))
+                    valuePill("clock", formattedDayEnd) {
+                        showDayEndSettings = true
+                    }
                 }
             }
 
             // This week card
             if !snaps.isEmpty {
-                let hasData = weekEarned > 0 || avgSteps > 0 || !topActivities.isEmpty || !topConsumerNames.isEmpty
+                let hasData = weekEarned > 0 || weekSpent > 0 || avgSteps > 0 || !topActivities.isEmpty || !topConsumerNames.isEmpty
 
                 if hasData {
                     let sleepAvg = String(format: "%.1f", avgSleep)
                     let stepsAvg = formatCompactNumber(avgSteps)
+                    let showHealthLine = avgSteps > 0 || avgSleep > 0
+                    let showEarnSection = weekEarned > 0 || !topActivities.isEmpty || showHealthLine
+                    let showSpentSection = weekSpent > 0 || !topConsumerNames.isEmpty
 
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: useTightMeLayout ? 7 : 14) {
                         Text(String(localized: "THIS WEEK"))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.primary.opacity(0.35))
+                            .font(.system(size: useTightMeLayout ? 10 : 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
                             .tracking(1.5)
 
-                        if avgSteps > 0 {
-                            MeFlowLayout(spacing: 5, lineSpacing: 8) {
-                                label("On average you have")
-                                dataPill("figure.walk", stepsAvg)
-                                label("steps and")
-                                dataPill("moon.zzz.fill", sleepAvg + "h")
-                                label("sleep a day.")
+                        if weekEarned > 0 {
+                            MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
+                                label(String(localized: "This week you earned"))
+                                weekSummaryNumber(weekEarned)
+                                label(String(localized: "colors"))
                             }
                         }
 
                         if !topActivities.isEmpty {
-                            MeFlowLayout(spacing: 5, lineSpacing: 8) {
-                                label("You get most colors from")
+                            MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
+                                label(String(localized: "Mostly from"))
                                 inlinePillList(topActivities, icon: "paintpalette")
                             }
                         }
 
-                        if weekEarned > 0 {
-                            HStack(spacing: 0) {
-                                statBadge(value: "+\(weekEarned)", label: String(localized: "earned"), isAccent: true)
-                                statBadge(value: "–\(weekSpent)", label: String(localized: "spent"), isAccent: false)
+                        if showHealthLine {
+                            MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
+                                label(String(localized: "and also"))
+                                dataPill("moon.zzz.fill", sleepAvg + "h")
+                                label(String(localized: "sleep and"))
+                                dataPill("figure.walk", stepsAvg)
+                                label(String(localized: "steps a day."))
+                            }
+                        }
+
+                        if showEarnSection && showSpentSection {
+                            Spacer().frame(height: useTightMeLayout ? 2 : 4)
+                        }
+
+                        if weekSpent > 0 {
+                            MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
+                                label(String(localized: "This week you spent"))
+                                weekSummaryNumber(weekSpent)
+                                label(String(localized: "colors"))
                             }
                         }
 
                         if !topConsumerNames.isEmpty {
-                            MeFlowLayout(spacing: 5, lineSpacing: 8) {
-                                label("Mostly on")
+                            MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
+                                label(String(localized: "Mostly on"))
                                 inlinePillList(topConsumerNames, icon: "play.fill")
                             }
                         }
                     }
-                    .padding(16)
+                    .padding(useTightMeLayout ? 12 : 16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -181,8 +247,8 @@ struct MeView: View {
 
     private func label(_ text: String) -> some View {
         Text(text)
-            .font(prose)
-            .foregroundColor(.primary)
+            .font(meProse)
+            .foregroundStyle(theme.textPrimary)
     }
 
     private func valuePill(_ icon: String, _ text: String, action: @escaping () -> Void) -> some View {
@@ -197,68 +263,51 @@ struct MeView: View {
                     .font(.system(size: 9, weight: .medium))
                     .opacity(0.4)
             }
-            .font(prose)
-            .foregroundColor(.primary)
-            .padding(.horizontal, 12)
+            .font(meProse)
+            .foregroundStyle(theme.textPrimary)
+            .padding(.horizontal, 11)
             .padding(.vertical, 4)
             .background(
                 Capsule(style: .continuous)
-                    .fill(theme.accentColor)
-                    .mask(
+                    .fill(theme.backgroundSecondary)
+                    .overlay(
                         Capsule(style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    stops: [
-                                        .init(color: .white, location: 0.0),
-                                        .init(color: .white.opacity(0.6), location: 0.35),
-                                        .init(color: .white.opacity(0.2), location: 0.65),
-                                        .init(color: .clear, location: 1.0)
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
+                            .strokeBorder(theme.stroke.opacity(0.45), lineWidth: 0.5)
                     )
             )
         }
         .buttonStyle(.plain)
+        .accessibilityHint(String(localized: "Double tap to change", comment: "MeView – interactive pill VoiceOver hint"))
     }
 
     private func dataPill(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 13))
-                .foregroundColor(theme.accentColor)
+                .font(.system(size: 12))
+                .foregroundStyle(theme.textSecondary)
             Text(text)
                 .fontWeight(.semibold)
                 .lineLimit(1)
+                .foregroundStyle(theme.textPrimary)
         }
-        .font(prose)
-        .foregroundColor(.primary)
-        .padding(.horizontal, 10)
+        .font(meProse)
+        .padding(.horizontal, 9)
         .padding(.vertical, 3)
         .background(
             Capsule(style: .continuous)
                 .fill(.thinMaterial)
+                .overlay(
+                    Capsule(style: .continuous)
+                        .strokeBorder(theme.stroke.opacity(0.35), lineWidth: 0.5)
+                )
         )
     }
 
-    private func statBadge(value: String, label: String, isAccent: Bool) -> some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundColor(isAccent ? theme.accentColor : .primary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isAccent ? theme.accentColor.opacity(0.15) : .primary.opacity(0.06))
-                )
-            Text(label)
-                .font(.system(size: 10))
-                .foregroundColor(.primary.opacity(0.4))
-        }
-        .frame(maxWidth: .infinity)
+    private func weekSummaryNumber(_ value: Int) -> some View {
+        Text("\(value)")
+            .font(meNumberProse)
+            .foregroundStyle(theme.textPrimary)
+            .monospacedDigit()
     }
 
     @ViewBuilder
@@ -336,36 +385,37 @@ struct MeView: View {
                 ZStack {
                     Circle()
                         .stroke(theme.stroke.opacity(theme.strokeOpacity * 0.4), lineWidth: 0.5)
-                        .frame(width: 40, height: 40)
+                        .frame(width: weekRingOuter, height: weekRingOuter)
 
                     if let snap = snapshot {
                         let maxE = 100.0
                         let gained = min(1.0, Double(snap.inkEarned) / maxE)
                         let remaining = min(1.0, Double(max(0, snap.inkEarned - snap.inkSpent)) / maxE)
+                        let ringLine: CGFloat = useTightMeLayout ? 2 : 2.5
 
                         Circle()
                             .trim(from: 0, to: remaining)
-                            .stroke(theme.accentColor, lineWidth: 2.5)
-                            .frame(width: 37, height: 37)
+                            .stroke(theme.accentColor, lineWidth: ringLine)
+                            .frame(width: weekRingInner, height: weekRingInner)
                             .rotationEffect(.degrees(-90))
 
                         if gained > remaining {
                             Circle()
                                 .trim(from: remaining, to: gained)
-                                .stroke(theme.accentColor.opacity(0.2), lineWidth: 2.5)
-                                .frame(width: 37, height: 37)
+                                .stroke(theme.accentColor.opacity(0.2), lineWidth: ringLine)
+                                .frame(width: weekRingInner, height: weekRingInner)
                                 .rotationEffect(.degrees(-90))
                         }
                     }
                 }
 
                 Text(shortDayLabel(dayKey))
-                    .font(.system(size: 9, weight: today ? .bold : .regular))
-                    .foregroundColor(today ? theme.textPrimary : theme.adaptiveSecondaryText)
+                    .font(.system(size: weekDayLabelSize, weight: today ? .bold : .regular))
+                    .foregroundStyle(today ? theme.textPrimary : theme.adaptiveSecondaryText)
 
                 Circle()
                     .fill(today ? theme.accentColor : .clear)
-                    .frame(width: 3, height: 3)
+                    .frame(width: useTightMeLayout ? 2.5 : 3, height: useTightMeLayout ? 2.5 : 3)
             }
         }
         .buttonStyle(.plain)
@@ -448,7 +498,10 @@ struct MeView: View {
         for (key, value) in allSpending.sorted(by: { $0.key < $1.key }) where !claimedKeys.contains(key) {
             let name: String
             if key.hasPrefix("group_") {
-                name = txNames[key] ?? txNames[String(key.dropFirst(6))] ?? String(localized: "Deleted ticket")
+                guard let n = txNames[key] ?? txNames[String(key.dropFirst(6))], !n.isEmpty else {
+                    continue
+                }
+                name = n
             } else {
                 name = txNames[key] ?? TargetResolver.displayName(for: key)
             }
@@ -602,15 +655,17 @@ private struct MeTargetsSheet: View {
 
             Spacer()
 
-            HStack(spacing: 20) {
+            HStack(spacing: 16) {
                 Button(action: onMinus) {
                     Image(systemName: "minus")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(theme.adaptiveSecondaryText)
-                        .frame(width: 30, height: 30)
+                        .frame(width: 44, height: 44)
                         .background(Circle().fill(theme.backgroundSecondary.opacity(0.8)))
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Decrease \(label)", comment: "MeTargetsSheet – stepper VoiceOver label"))
 
                 Text(value)
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
@@ -622,10 +677,12 @@ private struct MeTargetsSheet: View {
                     Image(systemName: "plus")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(theme.adaptiveSecondaryText)
-                        .frame(width: 30, height: 30)
+                        .frame(width: 44, height: 44)
                         .background(Circle().fill(theme.backgroundSecondary.opacity(0.8)))
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Increase \(label)", comment: "MeTargetsSheet – stepper VoiceOver label"))
             }
         }
         .padding(.vertical, 12)

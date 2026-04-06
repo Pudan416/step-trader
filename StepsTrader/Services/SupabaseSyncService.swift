@@ -8,6 +8,16 @@ actor SupabaseSyncService {
     nonisolated static let shared = SupabaseSyncService()
     
     let network = NetworkClient.shared
+
+    private init() {
+        let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? .standard
+        let ttl = g.double(forKey: SharedKeys.supabaseTodayCacheTTLSeconds)
+        self.todayCacheTTL = ttl > 0 ? ttl : 30
+        let pageSize = g.integer(forKey: SharedKeys.supabaseHistoryPageSize)
+        self.historicalPageSize = pageSize > 0 ? pageSize : 500
+        let refreshTTL = g.double(forKey: SharedKeys.supabaseHistoryRefreshTTLSeconds)
+        self.historicalRefreshTTL = refreshTTL > 0 ? refreshTTL : 86_400
+    }
     
     // MARK: - Debounce Timers
     
@@ -39,28 +49,16 @@ actor SupabaseSyncService {
         let timestamp: Date
     }
     
-    var todayCacheTTL: TimeInterval {
-        let g = UserDefaults.stepsTrader()
-        let stored = g.double(forKey: SharedKeys.supabaseTodayCacheTTLSeconds)
-        return stored > 0 ? stored : 30
-    }
+    // Cached at init to avoid reading UserDefaults from actor context on every call.
+    let todayCacheTTL: TimeInterval
     var cachedTodaySelections: CachedTodayValue<(activity: [String], rest: [String], joys: [String])>?
     var cachedTodayStats: CachedTodayValue<(steps: Int, sleepHours: Double, baseEnergy: Int, bonusEnergy: Int, remainingBalance: Int)>?
     var cachedTodaySpent: CachedTodayValue<(totalSpent: Int, spentByApp: [String: Int])>?
     
     // MARK: - Historical Pagination
     
-    var historicalPageSize: Int {
-        let g = UserDefaults.stepsTrader()
-        let stored = g.integer(forKey: SharedKeys.supabaseHistoryPageSize)
-        return stored > 0 ? stored : 500
-    }
-    
-    var historicalRefreshTTL: TimeInterval {
-        let g = UserDefaults.stepsTrader()
-        let stored = g.double(forKey: SharedKeys.supabaseHistoryRefreshTTLSeconds)
-        return stored > 0 ? stored : 86_400 // 24h
-    }
+    let historicalPageSize: Int
+    let historicalRefreshTTL: TimeInterval
     var historicalLastFullSyncKey: String { "supabaseHistoryLastFullSync_v1" }
     var historicalLastDayKeyKey: String { "supabaseHistoryLastDayKey_v1" }
     
@@ -144,8 +142,8 @@ actor SupabaseSyncService {
     private struct PendingSyncRequest: Codable {
         let urlString: String
         let method: String
-        let headers: [String: String]
         let body: Data?
+        let preferHeader: String?
         let createdAt: Date
         
         var isExpired: Bool { Date().timeIntervalSince(createdAt) > 86_400 * 3 } // 3 days TTL
@@ -159,8 +157,8 @@ actor SupabaseSyncService {
         let entry = PendingSyncRequest(
             urlString: url,
             method: request.httpMethod ?? "POST",
-            headers: request.allHTTPHeaderFields ?? [:],
             body: request.httpBody,
+            preferHeader: request.value(forHTTPHeaderField: "prefer"),
             createdAt: Date()
         )
         var queue = loadRetryQueue()
@@ -183,9 +181,8 @@ actor SupabaseSyncService {
     
     private func saveRetryQueue(_ queue: [PendingSyncRequest]) {
         guard let data = try? JSONEncoder().encode(queue) else { return }
-        Task { @MainActor in
-            UserDefaults.stepsTrader().set(data, forKey: Self.retryQueueKey)
-        }
+        let g = UserDefaults.stepsTrader()
+        g.set(data, forKey: Self.retryQueueKey)
     }
     
     /// Drain the offline retry queue. Call on app launch or when connectivity is restored.
@@ -194,12 +191,31 @@ actor SupabaseSyncService {
         guard !queue.isEmpty else { return }
         AppLogger.network.debug("📡 Draining \(queue.count) queued sync requests")
         
+        await AuthenticationService.shared.waitForInitialization()
+        guard let freshToken = await AuthenticationService.shared.accessToken else {
+            AppLogger.network.debug("📡 Retry queue drain skipped: no auth token")
+            return
+        }
+        
+        let anonKey: String
+        do {
+            anonKey = try SupabaseConfig.load().anonKey
+        } catch {
+            AppLogger.network.error("📡 Retry queue drain skipped: config unavailable")
+            return
+        }
+        
         var remaining: [PendingSyncRequest] = []
         for entry in queue {
             guard let url = URL(string: entry.urlString) else { continue }
             var request = URLRequest(url: url)
             request.httpMethod = entry.method
-            for (k, v) in entry.headers { request.setValue(v, forHTTPHeaderField: k) }
+            request.setValue("Bearer \(freshToken)", forHTTPHeaderField: "Authorization")
+            request.setValue(anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("application/json", forHTTPHeaderField: "content-type")
+            if let prefer = entry.preferHeader {
+                request.setValue(prefer, forHTTPHeaderField: "prefer")
+            }
             request.httpBody = entry.body
             
             do {
@@ -315,71 +331,76 @@ actor SupabaseSyncService {
             )
         }
         
-        await performCustomActivitiesSync(snapshot.customEnergyOptions)
-        
         let today = AppModel.dayKey(for: Date())
-        
-        await performDailySelectionsSync(
-            payload: DailySelectionsPayload(
-                dayKey: today,
-                activityIds: snapshot.dailyActivitySelections,
-                recoveryIds: snapshot.dailyRestSelections,
-                joysIds: snapshot.dailyJoysSelections
-            )
-        )
-        
-        await performDailyStatsSync(
-            payload: DailyStatsPayload(
-                dayKey: today,
-                steps: Int(snapshot.stepsToday),
-                sleepHours: snapshot.dailySleepHours,
-                baseEnergy: snapshot.baseEnergyToday,
-                bonusEnergy: 0,
-                remainingBalance: snapshot.totalStepsBalance
-            )
-        )
-        
         let todaySpent = snapshot.appStepsSpentByDay[today] ?? [:]
         let totalSpent = todaySpent.values.reduce(0, +)
-        await performDailySpentSync(
-            payload: DailySpentPayload(
-                dayKey: today,
-                totalSpent: totalSpent,
-                spentByApp: todaySpent
-            )
-        )
-        
         let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? UserDefaults.standard
-        await performPreferencesSync(
-            payload: UserPreferencesPayload(
-                stepsTarget: snapshot.stepsTarget,
-                sleepTarget: snapshot.sleepTarget,
-                dayEndHour: snapshot.dayEndHour,
-                dayEndMinute: snapshot.dayEndMinute,
-                restDayOverride: snapshot.restDayOverride,
-                preferredBody: snapshot.preferredBody,
-                preferredMind: snapshot.preferredMind,
-                preferredHeart: snapshot.preferredHeart,
-                canvasSlots: snapshot.canvasSlots,
-                hasWallpaperShortcut: g.bool(forKey: "hasWallpaperShortcut"),
-                wallpaperShortcutUses: g.integer(forKey: "wallpaperShortcutUses"),
-                notifyOneMinBefore: g.object(forKey: SharedKeys.notifyOneMinBefore) as? Bool ?? true,
-                notifyWhenTimerOver: g.object(forKey: SharedKeys.notifyWhenTimerOver) as? Bool ?? true,
-                notifyCanvasReminder: g.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? true,
-                canvasReminderHour: g.object(forKey: SharedKeys.canvasReminderHour) as? Int ?? 21,
-                canvasReminderMinute: g.object(forKey: SharedKeys.canvasReminderMinute) as? Int ?? 0,
-                notifyDayResetWarning: g.object(forKey: SharedKeys.notifyDayResetWarning) as? Bool ?? true,
-                dayResetWarningHours: g.object(forKey: SharedKeys.dayResetWarningHours) as? Int ?? 1,
-                hasMediumWidget: g.bool(forKey: SharedKeys.hasMediumWidget),
-                hasLargeWidget: g.bool(forKey: SharedKeys.hasLargeWidget),
-                lastOpenedAt: Date()
-            )
-        )
-        
         let ticketRows = snapshot.ticketGroups
             .map { TicketGroupSyncRow.from(group: $0) }
             .sorted { $0.bundleId < $1.bundleId }
-        await performTicketGroupsSync(rows: ticketRows)
+
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.performCustomActivitiesSync(snapshot.customEnergyOptions) }
+            group.addTask {
+                await self.performDailySelectionsSync(
+                    payload: DailySelectionsPayload(
+                        dayKey: today,
+                        activityIds: snapshot.dailyActivitySelections,
+                        recoveryIds: snapshot.dailyRestSelections,
+                        joysIds: snapshot.dailyJoysSelections
+                    )
+                )
+            }
+            group.addTask {
+                await self.performDailyStatsSync(
+                    payload: DailyStatsPayload(
+                        dayKey: today,
+                        steps: Int(snapshot.stepsToday),
+                        sleepHours: snapshot.dailySleepHours,
+                        baseEnergy: snapshot.baseEnergyToday,
+                        bonusEnergy: 0,
+                        remainingBalance: snapshot.totalStepsBalance
+                    )
+                )
+            }
+            group.addTask {
+                await self.performDailySpentSync(
+                    payload: DailySpentPayload(
+                        dayKey: today,
+                        totalSpent: totalSpent,
+                        spentByApp: todaySpent
+                    )
+                )
+            }
+            group.addTask {
+                await self.performPreferencesSync(
+                    payload: UserPreferencesPayload(
+                        stepsTarget: snapshot.stepsTarget,
+                        sleepTarget: snapshot.sleepTarget,
+                        dayEndHour: snapshot.dayEndHour,
+                        dayEndMinute: snapshot.dayEndMinute,
+                        restDayOverride: snapshot.restDayOverride,
+                        preferredBody: snapshot.preferredBody,
+                        preferredMind: snapshot.preferredMind,
+                        preferredHeart: snapshot.preferredHeart,
+                        canvasSlots: snapshot.canvasSlots,
+                        hasWallpaperShortcut: g.bool(forKey: "hasWallpaperShortcut"),
+                        wallpaperShortcutUses: g.integer(forKey: "wallpaperShortcutUses"),
+                        notifyOneMinBefore: g.object(forKey: SharedKeys.notifyOneMinBefore) as? Bool ?? true,
+                        notifyWhenTimerOver: g.object(forKey: SharedKeys.notifyWhenTimerOver) as? Bool ?? true,
+                        notifyCanvasReminder: g.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? true,
+                        canvasReminderHour: g.object(forKey: SharedKeys.canvasReminderHour) as? Int ?? 21,
+                        canvasReminderMinute: g.object(forKey: SharedKeys.canvasReminderMinute) as? Int ?? 0,
+                        notifyDayResetWarning: g.object(forKey: SharedKeys.notifyDayResetWarning) as? Bool ?? true,
+                        dayResetWarningHours: g.object(forKey: SharedKeys.dayResetWarningHours) as? Int ?? 1,
+                        hasMediumWidget: g.bool(forKey: SharedKeys.hasMediumWidget),
+                        hasLargeWidget: g.bool(forKey: SharedKeys.hasLargeWidget),
+                        lastOpenedAt: Date()
+                    )
+                )
+            }
+            group.addTask { await self.performTicketGroupsSync(rows: ticketRows) }
+        }
         
         AppLogger.network.debug("📡 Full sync completed")
     }

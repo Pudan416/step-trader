@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Network Client
 /// Centralized networking with retries, backoff, jitter, and connectivity handling.
-final class NetworkClient: Sendable {
+final class NetworkClient: @unchecked Sendable {
     static let shared = NetworkClient()
     
     struct RetryPolicy: Equatable {
@@ -138,14 +138,22 @@ struct SupabaseConfig {
 
     enum ConfigError: Error { case misconfigured }
 
-    static func load() throws -> SupabaseConfig {
+    private static let cached: SupabaseConfig? = {
         let urlString = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String
         let anonKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String
-
         guard let urlString, let anonKey, let url = URL(string: urlString), !anonKey.isEmpty else {
+            return nil
+        }
+        return SupabaseConfig(baseURL: url, anonKey: anonKey)
+    }()
+
+    static func load() throws -> SupabaseConfig {
+        guard let config = cached else {
+            let urlString = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String
+            let anonKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String
             AppLogger.network.error("SupabaseConfig: url=\(urlString ?? "nil"), anonKey=\(anonKey != nil ? "set" : "nil")")
             throw ConfigError.misconfigured
         }
-        return SupabaseConfig(baseURL: url, anonKey: anonKey)
+        return config
     }
 }

@@ -17,20 +17,19 @@ struct QuickStatusView: View {
                     Text("📊")
                         .font(.systemSerif(60))
 
-                    Text("Quick Status")
+                    Text(String(localized: "Quick Status", comment: "QuickStatus – title"))
                         .font(.largeTitle)
                         .fontWeight(.bold)
 
-                    Text("My progress overview")
+                    Text(String(localized: "My progress overview", comment: "QuickStatus – subtitle"))
                         .font(.title3)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
 
                 VStack(spacing: 20) {
-                    // Steps today
                     HStack {
-                        Text("Steps today:")
+                        Text(String(localized: "Steps today:", comment: "QuickStatus – steps label"))
                             .font(.title2)
                         Spacer()
                         Text("\(Int(model.stepsToday))")
@@ -41,12 +40,11 @@ struct QuickStatusView: View {
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
 
-                    // Step balance for entry
                     HStack {
-                        Text("Entry balance:")
+                        Text(String(localized: "Entry balance:", comment: "QuickStatus – balance label"))
                             .font(.title2)
                         Spacer()
-                        Text("\(model.userEconomyStore.totalStepsBalance) steps")
+                        Text(String(localized: "\(model.userEconomyStore.totalStepsBalance) steps", comment: "QuickStatus – balance value"))
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(
@@ -57,7 +55,7 @@ struct QuickStatusView: View {
                 }
                 .padding(.horizontal, 20)
 
-                Button("Close") {
+                Button(String(localized: "Close", comment: "QuickStatus – dismiss button")) {
                     model.showQuickStatusPage = false
                 }
                 .frame(maxWidth: .infinity, minHeight: 50)
@@ -66,8 +64,8 @@ struct QuickStatusView: View {
                 .font(.headline)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 20)
-                .accessibilityLabel("Close quick status")
-                .accessibilityHint("Closes the quick status view")
+                .accessibilityLabel(String(localized: "Close quick status", comment: "QuickStatus – close VoiceOver label"))
+                .accessibilityHint(String(localized: "Closes the quick status view", comment: "QuickStatus – close VoiceOver hint"))
             }
         }
     }

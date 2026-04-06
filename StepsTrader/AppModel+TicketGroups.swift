@@ -5,6 +5,13 @@ import FamilyControls
 
 // MARK: - Ticket Groups Management
 extension AppModel {
+    /// Cached bundle-ID → TicketGroup lookup. Invalidated whenever groups change.
+    private static var _bundleIdGroupCache: [String: TicketGroup]?
+
+    private func invalidateBundleIdCache() {
+        Self._bundleIdGroupCache = nil
+    }
+
     private func scheduleTicketGroupsSupabaseSync() {
         let snapshot = ticketGroups
         Task {
@@ -15,11 +22,13 @@ extension AppModel {
     // MARK: - Ticket Groups Management Functions
     func loadTicketGroups() {
         blockingStore.loadTicketGroups()
+        invalidateBundleIdCache()
         scheduleTicketGroupsSupabaseSync()
     }
 
     func persistTicketGroups() {
         blockingStore.persistTicketGroups()
+        invalidateBundleIdCache()
         scheduleTicketGroupsSupabaseSync()
     }
 
@@ -47,16 +56,19 @@ extension AppModel {
 
     func updateTicketGroup(_ group: TicketGroup) {
         blockingStore.updateTicketGroup(group)
+        invalidateBundleIdCache()
         scheduleTicketGroupsSupabaseSync()
     }
 
     func deleteTicketGroup(_ groupId: String) {
         blockingStore.deleteTicketGroup(groupId)
+        invalidateBundleIdCache()
         scheduleTicketGroupsSupabaseSync()
     }
 
     func addAppsToGroup(_ groupId: String, selection: FamilyActivitySelection) {
         blockingStore.addAppsToGroup(groupId, selection: selection)
+        invalidateBundleIdCache()
         scheduleTicketGroupsSupabaseSync()
     }
 
@@ -65,10 +77,13 @@ extension AppModel {
         guard let bundleId else { return nil }
 
         #if canImport(FamilyControls)
-        let defaults = UserDefaults.stepsTrader()
+        if let cache = Self._bundleIdGroupCache {
+            return cache[bundleId.lowercased()]
+        }
 
-        // Iterate through all groups to find the app
-        let bundleIdLower = bundleId.lowercased()
+        let defaults = UserDefaults.stepsTrader()
+        var lookup: [String: TicketGroup] = [:]
+
         for group in ticketGroups {
             for token in group.selection.applicationTokens {
                 let tokenData: Data
@@ -79,20 +94,18 @@ extension AppModel {
                     continue
                 }
                 let base64 = tokenData.base64EncodedString()
-                // Prefer exact bundleId match (avoids "Mail" matching "Gmail")
                 if let storedBundleId = defaults.string(forKey: SharedKeys.fcBundleIdKey(base64)) {
-                    if bundleIdLower == storedBundleId.lowercased() { return group }
-                    continue
-                }
-                // Legacy: only exact match on stored name (no substring)
-                if let storedName = defaults.string(forKey: SharedKeys.fcAppNameKey(base64)),
-                   bundleIdLower == storedName.lowercased() {
-                    return group
+                    lookup[storedBundleId.lowercased()] = group
+                } else if let storedName = defaults.string(forKey: SharedKeys.fcAppNameKey(base64)) {
+                    lookup[storedName.lowercased()] = group
                 }
             }
         }
-        #endif
 
+        Self._bundleIdGroupCache = lookup
+        return lookup[bundleId.lowercased()]
+        #else
         return nil
+        #endif
     }
 }

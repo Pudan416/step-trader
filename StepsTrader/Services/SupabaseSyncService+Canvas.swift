@@ -133,6 +133,7 @@ extension SupabaseSyncService {
             } else {
                 let body = String(data: data, encoding: .utf8) ?? "no body"
                 AppLogger.network.error("📡 Day canvas sync failed for \(payload.dayKey): HTTP \(response.statusCode) - \(body)")
+                enqueueForRetry(request)
             }
         } catch {
             AppLogger.network.error("📡 Day canvas sync error: \(error.localizedDescription)")

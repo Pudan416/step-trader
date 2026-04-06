@@ -9,7 +9,8 @@ struct RefreshWidgetIntent: AppIntent {
     static var isDiscoverable: Bool = false
 
     func perform() async throws -> some IntentResult {
-        WidgetCenter.shared.reloadAllTimelines()
+        UserDefaults(suiteName: SharedKeys.appGroupId)?.synchronize()
+        WidgetKind.reloadAllKinds()
         return .result()
     }
 }
@@ -43,17 +44,34 @@ struct UnlockGroupWidgetIntent: AppIntent {
 
         let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? .standard
 
-        let stepsBalance = g.integer(forKey: SharedKeys.stepsBalance)
+        // Debounce: reject rapid duplicate taps (same pattern as ShieldActionExtension)
+        let debounceKey = "widgetUnlockLastRequestedAt_\(groupId)"
+        let now = Date()
+        if let last = g.object(forKey: debounceKey) as? Date,
+           now.timeIntervalSince(last) < 3 {
+            WidgetKind.reloadAllKinds()
+            return .result()
+        }
+        g.set(now, forKey: debounceKey)
+
+        let dayEndHour = g.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
+        let dayEndMinute = g.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
+        let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date
+        let defaultsStale = DayBoundary.isPersistedDayBehind(
+            anchor: anchor, relativeTo: Date(), dayEndHour: dayEndHour, dayEndMinute: dayEndMinute
+        )
+
+        let stepsBalance = defaultsStale ? 0 : g.integer(forKey: SharedKeys.stepsBalance)
         let bonusSteps = g.integer(forKey: SharedKeys.bonusSteps)
         let totalBalance = stepsBalance + bonusSteps
 
         guard totalBalance >= cost else {
-            WidgetCenter.shared.reloadAllTimelines()
+            WidgetKind.reloadAllKinds()
             return .result()
         }
 
-        let baseEnergy = g.integer(forKey: SharedKeys.baseEnergyToday)
-        let spentToday = g.integer(forKey: SharedKeys.spentStepsToday)
+        let baseEnergy = defaultsStale ? 0 : g.integer(forKey: SharedKeys.baseEnergyToday)
+        let spentToday = defaultsStale ? 0 : g.integer(forKey: SharedKeys.spentStepsToday)
 
         let consumeFromBase = min(stepsBalance, cost)
         let newSpent = spentToday + consumeFromBase
@@ -74,14 +92,16 @@ struct UnlockGroupWidgetIntent: AppIntent {
         g.set(totalMinutes, forKey: SharedKeys.usageBudgetKey(groupId))
         g.set(totalMinutes, forKey: SharedKeys.usageBudgetInitialKey(groupId))
         g.set(Date(), forKey: SharedKeys.usageBudgetStartedKey(groupId))
-        g.set(Date().addingTimeInterval(TimeInterval(totalMinutes * 60)), forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+
+        let endOfDay = DayBoundary.nextBoundary(after: Date(), dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
+        g.set(endOfDay, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
 
         g.set(true, forKey: SharedKeys.pendingBudgetMonitoringPrefix + groupId)
         g.set(totalMinutes, forKey: SharedKeys.pendingBudgetMinutesPrefix + groupId)
 
-        let existingPendingSpend = g.integer(forKey: "pendingSpendAmount_\(groupId)")
-        g.set(existingPendingSpend + cost, forKey: "pendingSpendAmount_\(groupId)")
-        g.set(true, forKey: "pendingSpendTracking_\(groupId)")
+        let existingPendingSpend = g.integer(forKey: SharedKeys.pendingSpendAmountKey(groupId))
+        g.set(existingPendingSpend + cost, forKey: SharedKeys.pendingSpendAmountKey(groupId))
+        g.set(true, forKey: SharedKeys.pendingSpendTrackingKey(groupId))
 
         let updatedBonus = remainingCost > 0 ? max(0, bonusSteps - remainingCost) : bonusSteps
         let prev = WidgetDataFile.read()
@@ -96,9 +116,11 @@ struct UnlockGroupWidgetIntent: AppIntent {
             timestamp: Date()
         ))
 
+        g.synchronize()
+
         ShieldRebuildHelper.rebuild()
 
-        WidgetCenter.shared.reloadAllTimelines()
+        WidgetKind.reloadAllKinds()
 
         return .result()
     }

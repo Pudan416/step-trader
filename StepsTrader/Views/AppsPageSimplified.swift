@@ -53,6 +53,8 @@ struct AppsPageSimplified: View {
     }
     @State private var showCustomNamePrompt = false
     @State private var customTicketName = ""
+    @State private var showPickerAfterDismiss = false
+    @State private var groupIdToDelete: String? = nil
 
     var body: some View {
         NavigationStack {
@@ -147,12 +149,19 @@ struct AppsPageSimplified: View {
                 Color.clear.frame(height: topCardHeight)
             }
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(item: $expandedSheetGroupId) { groupId in
+            .sheet(item: $expandedSheetGroupId, onDismiss: {
+                if showPickerAfterDismiss {
+                    showPickerAfterDismiss = false
+                    showPicker = true
+                }
+            }) { groupId in
                 if model.blockingStore.ticketGroups.contains(where: { $0.id == groupId.id }) {
                     let groupBinding = Binding<TicketGroup>(
                         get: {
-                            model.blockingStore.ticketGroups.first(where: { $0.id == groupId.id })
-                                ?? TicketGroup(name: "", settings: AppUnlockSettings(entryCostSteps: 10, dayPassCostSteps: 100))
+                            guard let group = model.blockingStore.ticketGroups.first(where: { $0.id == groupId.id }) else {
+                                return TicketGroup(name: "", settings: AppUnlockSettings(entryCostSteps: 10, dayPassCostSteps: 100))
+                            }
+                            return group
                         },
                         set: { updated in model.updateTicketGroup(updated) }
                     )
@@ -228,6 +237,21 @@ struct AppsPageSimplified: View {
                 }
                 Button(String(localized: "Cancel"), role: .cancel) {}
             }
+            .alert(String(localized: "Delete this ticket?"), isPresented: Binding(
+                get: { groupIdToDelete != nil },
+                set: { if !$0 { groupIdToDelete = nil } }
+            )) {
+                Button(String(localized: "Delete"), role: .destructive) {
+                    if let id = groupIdToDelete {
+                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                        deleteAndCleanup(id)
+                    }
+                    groupIdToDelete = nil
+                }
+                Button(String(localized: "Cancel"), role: .cancel) {
+                    groupIdToDelete = nil
+                }
+            }
         }
     }
 
@@ -287,8 +311,7 @@ struct AppsPageSimplified: View {
                             Label(String(localized: "Settings", comment: "Context menu action"), systemImage: "gearshape")
                         }
                         Button(role: .destructive) {
-                            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                            deleteAndCleanup(group.id)
+                            groupIdToDelete = group.id
                         } label: {
                             Label(String(localized: "Delete"), systemImage: "trash")
                         }
@@ -347,12 +370,8 @@ struct AppsPageSimplified: View {
                     onEditApps: {
                         selectedGroupId = TicketGroupId(id: group.wrappedValue.id)
                         selection = group.wrappedValue.selection
+                        showPickerAfterDismiss = true
                         expandedSheetGroupId = nil
-                        // Delay picker presentation to let the settings sheet fully dismiss,
-                        // avoiding "presenting while dismissing" warnings (audit fix #34)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                            showPicker = true
-                        }
                     },
                     onAfterDelete: onDismiss
                 )
@@ -397,6 +416,7 @@ struct AppsPageSimplified: View {
 
     private func deleteAndCleanup(_ groupId: String) {
         if expandedSheetGroupId?.id == groupId { expandedSheetGroupId = nil }
+        PaperTicketView.removeCachedTitle(forGroupId: groupId)
         model.deleteTicketGroup(groupId)
     }
 }

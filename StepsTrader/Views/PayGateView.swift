@@ -18,6 +18,7 @@ fileprivate enum PayGatePalette {
 struct PayGateView: View {
     @ObservedObject var model: AppModel
     @State private var didForfeitSessions: Set<String> = []
+    @State private var hasDismissed: Bool = false
     @State private var showTransitionCircle: Bool = false
     @State private var transitionScale: CGFloat = 0.01
     @ScaledMetric(relativeTo: .headline) private var unlockButtonHeight: CGFloat = 56
@@ -47,9 +48,28 @@ struct PayGateView: View {
                     .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    // Header: Balance
+                    HStack {
+                        Spacer()
+                        Button {
+                            if let id = activeSession?.groupId {
+                                didForfeitSessions.insert(id)
+                            }
+                            model.dismissPayGate(reason: .userDismiss)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(PayGatePalette.textSecondary)
+                                .frame(minWidth: 44, minHeight: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(String(localized: "Close", comment: "PayGate – close button VoiceOver label"))
+                    }
+                    .padding(.top, isCompact ? 8 : 16)
+                    .padding(.trailing, 8)
+
                     headerSection
-                        .padding(.top, isCompact ? 20 : 40)
+                        .padding(.top, isCompact ? 4 : 16)
                     
                     Spacer()
                     
@@ -71,6 +91,8 @@ struct PayGateView: View {
         }
         .overlay(transitionOverlay)
         .onDisappear {
+            guard !hasDismissed else { return }
+            hasDismissed = true
             if let id = activeSession?.groupId {
                 didForfeitSessions.insert(id)
             }
@@ -196,6 +218,7 @@ struct PayGateView: View {
             
             Button {
                 didForfeitSessions.insert(group.id)
+                hasDismissed = true
                 performTransition(duration: 0.4) {
                     model.dismissPayGate(reason: .userDismiss)
                 }
@@ -301,7 +324,8 @@ struct PayGateView: View {
         withAnimation(.easeInOut(duration: duration)) {
             transitionScale = 12
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration * 0.85) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(Int(duration * 850)))
             action()
         }
     }

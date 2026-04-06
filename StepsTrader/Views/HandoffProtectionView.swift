@@ -45,39 +45,52 @@ struct HandoffProtectionView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)
 
-                    HStack(spacing: 20) {
-                        Button(String(localized: "Cancel")) {
-                            onCancel()
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 16) {
+                            handoffCancelButton
+                            handoffOpenButton
                         }
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .background(Color.gray.opacity(0.3))
-                        .foregroundColor(.white)
-                        .font(.headline)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .accessibilityLabel(String(localized: "Cancel opening \(token.targetAppName)", comment: "Handoff – cancel button accessibility"))
-
-                        Button(String(localized: "Open \(token.targetAppName)")) {
-                            AppLogger.app.debug("🛡️ User clicked Continue button for \(token.targetAppName)")
-                            onContinue()
+                        VStack(spacing: 12) {
+                            handoffOpenButton
+                            handoffCancelButton
                         }
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .font(.headline)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .accessibilityLabel(String(localized: "Open \(token.targetAppName)", comment: "Handoff – open button accessibility"))
-                        .accessibilityHint(String(localized: "Opens the app \(token.targetAppName) after confirming access", comment: "Handoff – open button accessibility hint"))
                     }
                     .padding(.horizontal, 20)
                 }
             }
             .padding(30)
             .background(RoundedRectangle(cornerRadius: 20).fill(.ultraThinMaterial))
-            .padding(.horizontal, 40)
+            .padding(.horizontal, 24)
         }
         .onAppear {
             AppLogger.app.debug("🛡️ HandoffProtectionView appeared for \(token.targetAppName)")
             AppLogger.app.debug("🛡️ Token ID: \(token.tokenId), Created: \(token.createdAt)")
         }
+    }
+
+    private var handoffCancelButton: some View {
+        Button(String(localized: "Cancel")) {
+            onCancel()
+        }
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .background(Color.gray.opacity(0.3))
+        .foregroundColor(.white)
+        .font(.headline)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityLabel(String(localized: "Cancel opening \(token.targetAppName)", comment: "Handoff – cancel button accessibility"))
+    }
+
+    private var handoffOpenButton: some View {
+        Button(String(localized: "Open \(token.targetAppName)")) {
+            AppLogger.app.debug("🛡️ User clicked Continue button for \(token.targetAppName)")
+            onContinue()
+        }
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .background(Color.blue)
+        .foregroundColor(.white)
+        .font(.headline)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityLabel(String(localized: "Open \(token.targetAppName)", comment: "Handoff – open button accessibility"))
+        .accessibilityHint(String(localized: "Opens the app \(token.targetAppName) after confirming access", comment: "Handoff – open button accessibility hint"))
     }
 }

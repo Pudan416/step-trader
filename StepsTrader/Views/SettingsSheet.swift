@@ -96,6 +96,19 @@ struct SettingsSheet: View {
             .sheet(isPresented: $showProfileEditor) {
                 ProfileEditorView(authService: authService)
             }
+            #if DEBUG
+            .fullScreenCover(isPresented: $showOnboardingDemo) {
+                OnboardingDemoView()
+            }
+            .fullScreenCover(isPresented: $replayOnboardingLive) {
+                OnboardingFlowView(
+                    model: model,
+                    authService: authService
+                ) {
+                    replayOnboardingLive = false
+                }
+            }
+            #endif
         }
     }
 
@@ -223,6 +236,8 @@ struct SettingsSheet: View {
     @State private var diagCopied = false
     @State private var budgetsReset = false
     @State private var colorsRestored = false
+    @State private var showOnboardingDemo = false
+    @State private var replayOnboardingLive = false
 
     @State private var shieldActionLogs: [String] = []
     @State private var showShieldActionLogs = false
@@ -291,6 +306,7 @@ struct SettingsSheet: View {
                         defaults.removeObject(forKey: SharedKeys.usageBudgetKey(group.id))
                         defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
                         defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
+                        defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
                     }
                     #if canImport(DeviceActivity)
                     let center = DeviceActivityCenter()
@@ -326,6 +342,34 @@ struct SettingsSheet: View {
                         color: .yellow,
                         highlight: colorsRestored,
                         trailing: "arrow.counterclockwise"
+                    )
+                }
+                .buttonStyle(.plain)
+
+                diagDivider
+
+                Button {
+                    showOnboardingDemo = true
+                } label: {
+                    diagButton(
+                        icon: "play.rectangle",
+                        text: "Preview Onboarding (Demo)",
+                        color: .purple,
+                        trailing: "eye"
+                    )
+                }
+                .buttonStyle(.plain)
+
+                diagDivider
+
+                Button {
+                    replayOnboardingLive = true
+                } label: {
+                    diagButton(
+                        icon: "arrow.counterclockwise.circle",
+                        text: "Replay Onboarding (Live)",
+                        color: .mint,
+                        trailing: "restart"
                     )
                 }
                 .buttonStyle(.plain)

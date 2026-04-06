@@ -4,7 +4,8 @@ import UserNotifications
 import FamilyControls
 #endif
 
-final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+@MainActor
+final class NotificationDelegate: NSObject, @preconcurrency UNUserNotificationCenterDelegate {
     static let shared = NotificationDelegate()
     weak var model: AppModel?
 
@@ -30,9 +31,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         // Handle expired notification - rebuild shields
         if let action = userInfo["action"] as? String, action == "expired" {
             AppLogger.notifications.debug("🔒 Access expired notification tapped - rebuilding shields")
-            Task { @MainActor in
-                self.model?.rebuildFamilyControlsShield()
-            }
+            self.model?.rebuildFamilyControlsShield()
             completionHandler()
             return
         }
@@ -48,9 +47,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             if let directGroupId = userInfo["groupId"] as? String {
                 AppLogger.notifications.debug("📲 Push notification: opening PayGate for group \(directGroupId)")
                 persistPayGateIntent(groupId: directGroupId)
-                Task { @MainActor in
-                    self.model?.openPayGate(for: directGroupId)
-                }
+                self.model?.openPayGate(for: directGroupId)
                 completionHandler()
                 return
             }
@@ -64,9 +61,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             if let groupId = sharedGroupId, directBundleId == nil {
                 AppLogger.notifications.debug("📲 Push notification: using saved groupId \(groupId)")
                 persistPayGateIntent(groupId: groupId)
-                Task { @MainActor in
-                    self.model?.openPayGate(for: groupId)
-                }
+                self.model?.openPayGate(for: groupId)
                 completionHandler()
                 return
             }
@@ -80,26 +75,21 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                 
                 // Open paygate — find group by bundleId
                 persistPayGateIntent(bundleId: bundleId)
-                Task { @MainActor in
-                    self.model?.openPayGateForBundleId(bundleId)
-                }
+                self.model?.openPayGateForBundleId(bundleId)
             } else {
                 AppLogger.notifications.debug("⚠️ Push notification tapped for unlock, but bundleId not found")
                 
                 // Last fallback: open the first ticket group
                 persistPayGateIntent(groupId: nil, bundleId: nil)
-                Task { @MainActor in
-                    guard let model = self.model else { 
-                        AppLogger.notifications.debug("⚠️ Fallback: Model is nil")
-                        return 
-                    }
-                    
+                if let model = self.model {
                     if let firstGroup = model.blockingStore.ticketGroups.first {
                         AppLogger.notifications.debug("🔄 Fallback: Using first shield group: \(firstGroup.name) (id: \(firstGroup.id))")
                         model.openPayGate(for: firstGroup.id)
                     } else {
                         AppLogger.notifications.debug("⚠️ Fallback: No shield groups available")
                     }
+                } else {
+                    AppLogger.notifications.debug("⚠️ Fallback: Model is nil")
                 }
             }
         }
@@ -112,9 +102,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         
         if let action = userInfo["action"] as? String, action == "expired" {
             AppLogger.notifications.debug("🔒 Access expired notification delivered - rebuilding shields")
-            Task { @MainActor in
-                self.model?.rebuildFamilyControlsShield()
-            }
+            self.model?.rebuildFamilyControlsShield()
         }
         
         // Show notification even when app is in foreground

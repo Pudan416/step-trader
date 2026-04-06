@@ -70,6 +70,20 @@ struct SelectGroupIntent: WidgetConfigurationIntent {
     }
 }
 
+// MARK: - Single Group Intent (Combo Medium Widget)
+
+struct SelectSingleGroupIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Select Group"
+    static var description: IntentDescription = "Choose one app group to display alongside the energy bar."
+
+    @Parameter(title: "App Group")
+    var group: TicketGroupEntity?
+
+    init() {}
+
+    var selectedId: String? { group?.id }
+}
+
 // MARK: - Medium Widget Mode
 
 enum MediumWidgetMode: String {
