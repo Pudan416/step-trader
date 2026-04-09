@@ -29,21 +29,21 @@ enum EnergyGradientRenderer {
                 dark:   Color(hex: "#002646"),
                 daylightBase: Color(hex: "#F2DCC8")
             )
-        case .roseGarden:
+        case .ocean:
             return Palette(
-                bright: Color(hex: "#FFB0C4"),
-                warm:   Color(hex: "#D4627A"),
-                cool:   Color(hex: "#1B5E3B"),
-                dark:   Color(hex: "#0C2318"),
-                daylightBase: Color(hex: "#F5E0E6")
+                bright: Color(hex: "#7FDBDA"),
+                warm:   Color(hex: "#3A9FBF"),
+                cool:   Color(hex: "#1A4B6E"),
+                dark:   Color(hex: "#0B1E33"),
+                daylightBase: Color(hex: "#E0F0F5")
             )
-        case .ember:
+        case .aurora:
             return Palette(
-                bright: Color(hex: "#FFF0A0"),
-                warm:   Color(hex: "#E8864A"),
-                cool:   Color(hex: "#7A1A1A"),
-                dark:   Color(hex: "#2A0808"),
-                daylightBase: Color(hex: "#FFF5E0")
+                bright: Color(hex: "#C4B5FD"),
+                warm:   Color(hex: "#7C6FBF"),
+                cool:   Color(hex: "#1F6E5C"),
+                dark:   Color(hex: "#0F1B2D"),
+                daylightBase: Color(hex: "#EDE8F8")
             )
         case .dusk:
             return Palette(
@@ -473,6 +473,7 @@ struct EnergyGradientBackground: View {
     let sleepPoints: Int
     let hasStepsData: Bool
     let hasSleepData: Bool
+    var showGrain: Bool = true
 
     @Environment(\.appTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -492,7 +493,7 @@ struct EnergyGradientBackground: View {
     }
 
     private var gradientPaletteValue: GradientPalette {
-        GradientPalette(rawValue: gradientPaletteRaw) ?? .warmSunset
+        GradientPalette.normalized(rawValue: gradientPaletteRaw)
     }
 
     private var stepsNorm: Double {
@@ -520,15 +521,17 @@ struct EnergyGradientBackground: View {
             .animation(.easeInOut(duration: 0.8), value: isDaylight)
             .ignoresSafeArea()
             .overlay {
-                Image("grain 1")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .opacity(0.4)
-                    .blendMode(.overlay)
+                if showGrain {
+                    Image("grain 1")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .opacity(0.4)
+                        .blendMode(.overlay)
+                }
             }
     }
 }
@@ -538,13 +541,14 @@ struct EnergyGradientBackground: View {
 extension View {
     /// Applies the shared energy gradient background behind this view.
     /// Replaces the repeated ZStack + EnergyGradientBackground boilerplate.
-    func energyGradientBackground(model: AppModel) -> some View {
+    func energyGradientBackground(model: AppModel, showGrain: Bool = true) -> some View {
         background {
             EnergyGradientBackground(
                 stepsPoints: model.stepsPointsToday,
                 sleepPoints: model.sleepPointsToday,
                 hasStepsData: model.hasStepsData,
-                hasSleepData: model.hasSleepData
+                hasSleepData: model.hasSleepData,
+                showGrain: showGrain
             )
             .ignoresSafeArea()
             .allowsHitTesting(false)

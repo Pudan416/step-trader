@@ -174,16 +174,24 @@ final class ActivityCategoryToken: NSObject, NSSecureCoding {
 // MARK: - Gradient color palette
 enum GradientPalette: String, CaseIterable {
     case warmSunset   // gold → dark blue (original)
-    case roseGarden   // pink → dark green
-    case ember        // light yellow → dark red
+    case ocean        // teal → midnight blue
+    case aurora       // soft violet → emerald
     case dusk         // warm cream → slate blue
 
     var displayName: String {
         switch self {
-        case .warmSunset: return "Warm Sunset"
-        case .roseGarden: return "Rose Garden"
-        case .ember:      return "Ember"
+        case .warmSunset: return "Sunset"
+        case .ocean:      return "Ocean"
+        case .aurora:     return "Aurora"
         case .dusk:       return "Dusk"
+        }
+    }
+
+    static func normalized(rawValue: String) -> GradientPalette {
+        switch rawValue {
+        case "roseGarden": return .ocean
+        case "ember":      return .aurora
+        default:           return GradientPalette(rawValue: rawValue) ?? .warmSunset
         }
     }
 }

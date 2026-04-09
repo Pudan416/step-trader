@@ -10,9 +10,6 @@
     "!" : {
 
     },
-    "@pudan416" : {
-
-    },
     "/" : {
 
     },
@@ -60,9 +57,6 @@
           }
         }
       }
-    },
-    "%@ removed" : {
-      "comment" : "Canvas – undo toast message"
     },
     "%@, %@" : {
       "localizations" : {
@@ -113,6 +107,9 @@
         }
       }
     },
+    "%lld of 3 not granted" : {
+      "comment" : "Permissions – missing count"
+    },
     "%lld percent, %lld of %lld colors" : {
       "comment" : "StepBalanceCard – progress bar VoiceOver value",
       "localizations" : {
@@ -161,41 +158,20 @@
     "1 min before time is over" : {
 
     },
-    "1. Tap the button to add the wallpaper shortcut" : {
-
-    },
-    "2. Open Shortcuts → Automation → + → App" : {
-
-    },
-    "3. Select this app, pick \"Is Closed\"" : {
-
-    },
-    "4. Set the action to the wallpaper shortcut" : {
-
-    },
     "5,000" : {
       "comment" : "Onboarding – steps slider minimum"
     },
-    "5. Turn off \"Ask Before Running\"" : {
-
-    },
-    "5K" : {
-      "comment" : "Steps slider minimum"
-    },
     "6h" : {
-      "comment" : "Onboarding – sleep slider minimum\nSleep slider minimum"
+      "comment" : "Onboarding – sleep slider minimum"
     },
     "10 min" : {
 
     },
     "10h" : {
-      "comment" : "Onboarding – sleep slider maximum\nSleep slider maximum"
+      "comment" : "Onboarding – sleep slider maximum"
     },
     "15,000" : {
       "comment" : "Onboarding – steps slider maximum"
-    },
-    "15K" : {
-      "comment" : "Steps slider maximum"
     },
     "30 min" : {
 
@@ -305,11 +281,17 @@
     "at midnight, it resets." : {
 
     },
+    "Aurora" : {
+
+    },
+    "Auto-wallpaper" : {
+
+    },
     "Back" : {
       "comment" : "SettingsComponents – back button label"
     },
-    "Background" : {
-      "comment" : "Widget background setting"
+    "BACKGROUND" : {
+      "comment" : "Widget section header"
     },
     "Body" : {
       "comment" : "CategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label"
@@ -358,6 +340,9 @@
     "Choose a time between 21:00 and 03:00." : {
 
     },
+    "Choose App → select Nowhere → pick \"Is Closed\"" : {
+
+    },
     "Choose app for %@" : {
       "comment" : "TimeAccessPicker – title with app name"
     },
@@ -382,6 +367,9 @@
     "Closes the quick status view" : {
       "comment" : "QuickStatus – close VoiceOver hint"
     },
+    "Collapse canvas" : {
+      "comment" : "GalleryView – collapse button VoiceOver label"
+    },
     "Collapse categories" : {
       "comment" : "StepBalanceCard – toggle categories VoiceOver label"
     },
@@ -394,9 +382,6 @@
     "colors" : {
       "comment" : "Category overlay – unit"
     },
-    "COLORS" : {
-      "comment" : "Appearance section header"
-    },
     "Colors are not a currency. I mean they are, but I'm not planning to sell them in microtransactions or whatever. Colors are yours. You deserve them, you earn them, you can always add more. Within limits, of course." : {
       "comment" : "Note body: about_colors_economy"
     },
@@ -408,6 +393,9 @@
     },
     "Colors restored. %lld min." : {
       "comment" : "Notification – budget restored body"
+    },
+    "CONTACT" : {
+      "comment" : "About section header"
     },
     "continue without signing in" : {
 
@@ -424,9 +412,6 @@
     "Custom Apps" : {
       "comment" : "TemplatePicker – custom apps option title"
     },
-    "Customize element" : {
-      "comment" : "Repaint sheet – title"
-    },
     "Daily canvas reminder" : {
 
     },
@@ -436,10 +421,13 @@
     "DAILY RESET TIME" : {
       "comment" : "Section header"
     },
+    "DAILY TARGETS" : {
+      "comment" : "Limits section header"
+    },
     "Day reset" : {
       "comment" : "Navigation title"
     },
-    "DAY RESET WARNING" : {
+    "DAY RESET" : {
       "comment" : "Notification section header"
     },
     "Day resets at" : {
@@ -463,7 +451,7 @@
     "Delete Account" : {
       "comment" : "ProfileEditor – delete account button\nProfileEditor – delete confirmation title"
     },
-    "Delete this ticket?" : {
+    "Delete this feed?" : {
 
     },
     "Developer" : {
@@ -476,7 +464,7 @@
       "comment" : "ActivitySuggestionBanner – dismiss VoiceOver label"
     },
     "Done" : {
-      "comment" : "AppSelection – done button\nManualsPage – dismiss button\nRepaint sheet – dismiss\nTimeAccessPicker – dismiss button"
+      "comment" : "AppSelection – done button\nManualsPage – dismiss button\nTimeAccessPicker – dismiss button"
     },
     "Double tap to change" : {
       "comment" : "MeView – interactive pill VoiceOver hint"
@@ -484,11 +472,14 @@
     "Double tap to unlock" : {
       "comment" : "PaperTicket – unlock pill VoiceOver hint"
     },
+    "Dusk" : {
+
+    },
     "e.g. Gym Day" : {
       "comment" : "Placeholder for routine name"
     },
     "e.g. Social, Games…" : {
-      "comment" : "Placeholder for ticket name"
+      "comment" : "Placeholder for feed name"
     },
     "Each of the five areas — steps, sleep, body, mind and heart — contributes up to 20 colors (100 colors total)." : {
 
@@ -514,20 +505,14 @@
     "Email is managed by Apple ID" : {
       "comment" : "ProfileEditor – email hint"
     },
-    "Ember" : {
-
-    },
-    "Empty Ticket" : {
-      "comment" : "PaperTicket – empty ticket placeholder title"
+    "Empty Feed" : {
+      "comment" : "PaperTicket – empty feed placeholder title"
     },
     "Enable" : {
       "comment" : "Permission – enable button"
     },
     "End of day" : {
       "comment" : "Picker label"
-    },
-    "Enter label mode" : {
-      "comment" : "GalleryView – label toggle VoiceOver label"
     },
     "Entries left today: %@" : {
 
@@ -538,8 +523,8 @@
     "Error" : {
       "comment" : "ProfileEditor – error alert title"
     },
-    "Exit label mode" : {
-      "comment" : "GalleryView – label toggle VoiceOver label"
+    "Expand canvas" : {
+      "comment" : "GalleryView – expand button VoiceOver label"
     },
     "Expand categories" : {
       "comment" : "StepBalanceCard – toggle categories VoiceOver label"
@@ -586,14 +571,8 @@
     "Good night" : {
 
     },
-    "GRADIENT" : {
-      "comment" : "Appearance section header"
-    },
     "Gradient Style" : {
 
-    },
-    "Grant all permissions for the full experience." : {
-      "comment" : "Permissions – missing banner subtitle"
     },
     "Health" : {
       "comment" : "Permission row – HealthKit"
@@ -620,9 +599,6 @@
           }
         }
       }
-    },
-    "hello@itsnowhere.net" : {
-
     },
     "HERE" : {
 
@@ -740,10 +716,10 @@
     "N/A" : {
       "comment" : "Permission – not available badge"
     },
-    "Name your ticket" : {
+    "Name your feed" : {
 
     },
-    "New Ticket" : {
+    "New Feed" : {
       "comment" : "TemplatePicker – navigation title"
     },
     "Next" : {
@@ -791,6 +767,9 @@
     "Nowhere" : {
       "comment" : "App name\nNotification – app name used as title"
     },
+    "Ocean" : {
+
+    },
     "OK" : {
       "comment" : "ProfileEditor – alert dismiss button"
     },
@@ -803,6 +782,9 @@
     "Open %@" : {
       "comment" : "Handoff – open button accessibility"
     },
+    "Open Shortcuts → Automation → +" : {
+
+    },
     "Opens the app %@ after confirming access" : {
       "comment" : "Handoff – open button accessibility hint"
     },
@@ -811,6 +793,9 @@
     },
     "Outer World" : {
       "comment" : "CategoryDetail – location-based category name"
+    },
+    "PALETTE" : {
+      "comment" : "Appearance section header"
     },
     "Permanently deletes your account, profile, and all associated data. This cannot be undone." : {
       "comment" : "ProfileEditor – delete warning text"
@@ -857,9 +842,6 @@
     "reset" : {
 
     },
-    "Rose Garden" : {
-
-    },
     "Save" : {
       "comment" : "OptionEntry – save/add button\nProfileEditor – save button"
     },
@@ -881,6 +863,9 @@
     "selected" : {
 
     },
+    "Set the action to the wallpaper shortcut" : {
+
+    },
     "Set this canvas as your wallpaper" : {
       "comment" : "Wide canvas – wallpaper prompt"
     },
@@ -895,6 +880,9 @@
     },
     "Settings" : {
       "comment" : "Context menu action\nSettings page title\nTab bar title"
+    },
+    "SETUP" : {
+      "comment" : "Wallpaper section header"
     },
     "Share canvas" : {
       "comment" : "GalleryView – share button VoiceOver label"
@@ -1027,13 +1015,19 @@
     "Steps, sleep, workouts" : {
       "comment" : "Permission row – HealthKit detail"
     },
+    "STYLE" : {
+      "comment" : "Appearance section header"
+    },
+    "Sunset" : {
+
+    },
     "Synced with wallpaper shortcut" : {
 
     },
-    "Tap an element to edit it" : {
-      "comment" : "Label mode – discoverability hint"
-    },
     "tap each to see." : {
+
+    },
+    "Tap the button below to add the wallpaper shortcut" : {
 
     },
     "Target: %@ steps" : {
@@ -1087,10 +1081,10 @@
     "This will permanently delete your account, profile, and all data. This action cannot be undone." : {
       "comment" : "ProfileEditor – delete confirmation message"
     },
-    "Ticket" : {
+    "Feed" : {
 
     },
-    "Ticket settings" : {
+    "Feed settings" : {
       "comment" : "PaperTicket – ellipsis button VoiceOver label"
     },
     "Time options" : {
@@ -1114,8 +1108,8 @@
     "Turn movement into energy" : {
 
     },
-    "Undo" : {
-      "comment" : "Canvas – undo button"
+    "Turn off \"Ask Before Running\"" : {
+
     },
     "Unlimited" : {
 
@@ -1167,10 +1161,10 @@
     "Wallpaper" : {
       "comment" : "Settings section title\nWidget background style"
     },
-    "Warm Sunset" : {
+    "Warn before reset" : {
 
     },
-    "Warn before reset" : {
+    "Website" : {
 
     },
     "welcome to nowhere" : {
@@ -1210,6 +1204,9 @@
 
     },
     "you're here." : {
+
+    },
+    "Your canvas and colors reset at this time each day." : {
 
     },
     "Your canvas resets in %lld hours." : {

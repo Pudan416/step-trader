@@ -202,7 +202,7 @@ The "day" doesn't have to start/end at midnight. Users can set a custom reset ti
 
 ### Settings
 
-- **Appearance:** Daylight / Night, energy gradient palettes (Warm Sunset, Rose Garden, Ember, Dusk).
+- **Appearance:** Daylight / Night, energy gradient palettes (Sunset, Ocean, Aurora, Dusk).
 - **Notifications:** Reminders, reset warnings, access-window alerts.
 - **Limits:** Steps, sleep, **day boundary** (when “today” flips).
 - **Wallpaper / Shortcuts:** Guided setup for pushing canvas to lock screen.
@@ -326,8 +326,8 @@ The background of the entire app is a living, data-driven gradient that responds
 | Palette | Bright (steps) | Warm (mid) | Cool (sleep) | Dark (deep sleep) |
 |---------|---------------|------------|-------------|-------------------|
 | **Warm Sunset** (default) | `#FFBF65` gold | `#FD8973` coral | `#003A6C` navy | `#002646` night |
-| **Rose Garden** | `#FFB0C4` pink | `#D4627A` rose | `#1B5E3B` forest | `#0C2318` deep green |
-| **Ember** | `#FFF0A0` cream | `#E8864A` orange | `#7A1A1A` crimson | `#2A0808` dark red |
+| **Ocean** | `#7FDBDA` teal | `#3A9FBF` cerulean | `#1A4B6E` deep blue | `#0B1E33` midnight |
+| **Aurora** | `#C4B5FD` lavender | `#7C6FBF` violet | `#1F6E5C` emerald | `#0F1B2D` dark slate |
 | **Dusk** | Warm beige | Dusty rose | Deep teal | Near-black |
 
 The gradient uses organic blob shapes, grain texture overlay, and smooth transitions. More steps = brighter warm tones. More sleep = deeper cool tones. No data = neutral state.

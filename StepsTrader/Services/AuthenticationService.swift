@@ -750,8 +750,8 @@ class AuthenticationService: NSObject, ObservableObject {
         
         let (data, http) = try await network.data(for: request)
         
-        #if DEBUG
         let responseString = String(data: data, encoding: .utf8) ?? "(empty)"
+        #if DEBUG
         AppLogger.auth.debug("📸 Upload response: status=\(http.statusCode), body=\(responseString)")
         #endif
         

@@ -51,7 +51,7 @@ struct PaperTicketView: View {
     private let intervals: [AccessWindow] = [.minutes10, .minutes30, .hour1]
 
     private var displayTitle: String {
-        resolvedTitle ?? (group.name.isEmpty ? String(localized: "Ticket") : group.name)
+        resolvedTitle ?? (group.name.isEmpty ? String(localized: "Feed") : group.name)
     }
 
     var body: some View {
@@ -110,7 +110,7 @@ struct PaperTicketView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "Ticket settings", comment: "PaperTicket – ellipsis button VoiceOver label"))
+                .accessibilityLabel(String(localized: "Feed settings", comment: "PaperTicket – ellipsis button VoiceOver label"))
             }
         }
         .frame(height: 80)
@@ -262,7 +262,7 @@ struct PaperTicketView: View {
             }
         }
         #endif
-        if appsCount == 0 { return String(localized: "Empty Ticket", comment: "PaperTicket – empty ticket placeholder title") }
+        if appsCount == 0 { return String(localized: "Empty Feed", comment: "PaperTicket – empty feed placeholder title") }
         return group.name.isEmpty ? String(localized: "\(appsCount) apps", comment: "PaperTicket – app count subtitle") : group.name
     }
 

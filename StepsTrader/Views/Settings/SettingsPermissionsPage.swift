@@ -28,29 +28,26 @@ struct SettingsPermissionsPage: View {
         notificationStatus == .authorized
     }
 
+    private var missingPermissionCount: Int {
+        var count = 0
+        if !hasHealthData { count += 1 }
+        if !isFamilyControlsAuthorized { count += 1 }
+        if !isNotificationsGranted { count += 1 }
+        return count
+    }
+
     var body: some View {
         ZStack {
+            SettingsGradientBG(model: model)
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     DetailHeader(title: String(localized: "Permissions", comment: "Permissions page title"))
+                        .padding(.horizontal, 16)
 
                     if missingPermissionCount > 0 {
-                        HStack(spacing: 10) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
-                                .font(.title3)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(String(localized: "Some permissions are missing", comment: "Permissions – missing banner title"))
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(theme.adaptivePrimaryText)
-                                Text(String(localized: "Grant all permissions for the full experience.", comment: "Permissions – missing banner subtitle"))
-                                    .font(.caption)
-                                    .foregroundStyle(theme.adaptiveSecondaryText)
-                            }
-                            Spacer()
-                        }
-                        .padding(14)
-                        .glassCard()
+                        statusBanner
+                            .padding(.horizontal, 16)
                     }
 
                     VStack(spacing: 0) {
@@ -115,17 +112,14 @@ struct SettingsPermissionsPage: View {
                         )
                     }
                     .glassCard()
+                    .padding(.horizontal, 16)
 
-                    Text(String(localized: "If a permission was denied, tap it to open Settings where you can enable it.", comment: "Permissions – footer hint"))
-                        .font(.caption)
-                        .foregroundStyle(theme.adaptiveSecondaryText)
-                        .padding(.horizontal, 4)
+                    SettingsFooter(text: String(localized: "If a permission was denied, tap it to open Settings where you can enable it.", comment: "Permissions – footer hint"))
+                        .padding(.horizontal, 16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 96)
+                .padding(.bottom, 80)
             }
         }
-        .energyGradientBackground(model: model)
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
@@ -133,6 +127,27 @@ struct SettingsPermissionsPage: View {
         .task {
             await refreshNotificationStatus()
         }
+    }
+
+    // MARK: - Status Banner
+
+    private var statusBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .font(.title3)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(localized: "Some permissions are missing", comment: "Permissions – missing banner title"))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(theme.adaptivePrimaryText)
+                Text(String(localized: "\(missingPermissionCount) of 3 not granted", comment: "Permissions – missing count"))
+                    .font(.caption)
+                    .foregroundStyle(theme.adaptiveSecondaryText)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .glassCard()
     }
 
     // MARK: - Permission row
@@ -194,14 +209,6 @@ struct SettingsPermissionsPage: View {
     }
 
     // MARK: - Helpers
-
-    private var missingPermissionCount: Int {
-        var count = 0
-        if !hasHealthData { count += 1 }
-        if !isFamilyControlsAuthorized { count += 1 }
-        if !isNotificationsGranted { count += 1 }
-        return count
-    }
 
     private func refreshNotificationStatus() async {
         let settings = await UNUserNotificationCenter.current().notificationSettings()

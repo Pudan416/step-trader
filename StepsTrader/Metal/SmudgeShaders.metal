@@ -79,9 +79,8 @@ fragment float4 smudgeDisplayFragment(
 
     // ── 1. Smudge: AGE-BASED visibility (works on any theme) ────
     float age     = ageTex.sample(sn, in.texCoord).r;
-    float ageFade = saturate(1.0 - age / 3.0);  // 1→0 over 3 seconds, never-smudged (99) = 0
+    float ageFade = saturate(1.0 - age / 3.0);
 
-    // Amplify the natural color displacement direction
     float3 colorShift = interactive.rgb - base.rgb;
     float3 smudgeColor = saturate(interactive.rgb + colorShift * 5.0 + float3(ageFade * 0.07));
     float  smudgeAlpha = ageFade * 0.55;

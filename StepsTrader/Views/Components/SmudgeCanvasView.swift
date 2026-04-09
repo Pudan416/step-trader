@@ -54,7 +54,6 @@ struct SmudgeOverlayView: UIViewRepresentable {
     var labelColor: Color? = nil
     var hasStepsData: Bool = true
     var hasSleepData: Bool = true
-
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> SmudgeMTKView {
@@ -133,30 +132,12 @@ struct SmudgeOverlayView: UIViewRepresentable {
             let pointW = drawableSize.width  / scale
             let pointH = drawableSize.height / scale
 
-            let composite = ZStack {
-                EnergyGradientBackground(
-                    stepsPoints: cfg.stepsPoints,
-                    sleepPoints: cfg.sleepPoints,
-                    hasStepsData: cfg.hasStepsData,
-                    hasSleepData: cfg.hasSleepData
-                )
-
-                GenerativeCanvasView(
-                    elements: cfg.elements,
-                    sleepPoints: cfg.sleepPoints,
-                    stepsPoints: cfg.stepsPoints,
-                    sleepColor: cfg.sleepColor,
-                    stepsColor: cfg.stepsColor,
-                    decayNorm: cfg.decayNorm,
-                    backgroundColor: cfg.backgroundColor,
-                    labelColor: cfg.labelColor,
-                    showLabelsOnCanvas: false,
-                    showsBackgroundGradient: false,
-                    hasStepsData: cfg.hasStepsData,
-                    hasSleepData: cfg.hasSleepData,
-                    fixedTime: Date()
-                )
-            }
+            let composite = EnergyGradientBackground(
+                stepsPoints: cfg.stepsPoints,
+                sleepPoints: cfg.sleepPoints,
+                hasStepsData: cfg.hasStepsData,
+                hasSleepData: cfg.hasSleepData
+            )
             .frame(width: pointW, height: pointH)
 
             let imageRenderer = ImageRenderer(content: composite)

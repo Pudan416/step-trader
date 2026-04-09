@@ -226,19 +226,41 @@ extension AppModel {
             let pendingKey = "pendingBudgetMonitoring_\(group.id)"
             let minutesKey = "pendingBudgetMinutes_\(group.id)"
             guard defaults.bool(forKey: pendingKey) else { continue }
-            let minutes = defaults.integer(forKey: minutesKey)
+            var minutes = defaults.integer(forKey: minutesKey)
             guard minutes > 0 else {
                 defaults.removeObject(forKey: pendingKey)
                 defaults.removeObject(forKey: minutesKey)
                 continue
             }
-            let budgetInPrefs = defaults.integer(forKey: SharedKeys.usageBudgetKey(group.id))
+            var budgetInPrefs = defaults.integer(forKey: SharedKeys.usageBudgetKey(group.id))
             guard budgetInPrefs > 0 else {
                 AppLogger.shield.debug("📡 Dropping stale widget pending for \(group.name) — no usageBudget in prefs (extension cleared keys?)")
                 defaults.removeObject(forKey: pendingKey)
                 defaults.removeObject(forKey: minutesKey)
                 continue
             }
+
+            // Wall-clock correction: the widget set the budget N minutes ago but couldn't
+            // start DeviceActivity monitoring. Subtract elapsed time so the budget is accurate.
+            if let started = defaults.object(forKey: SharedKeys.usageBudgetStartedKey(group.id)) as? Date {
+                let elapsedMinutes = Int(Date().timeIntervalSince(started) / 60)
+                if elapsedMinutes > 0 {
+                    minutes = max(0, minutes - elapsedMinutes)
+                    budgetInPrefs = max(0, budgetInPrefs - elapsedMinutes)
+                    defaults.set(budgetInPrefs, forKey: SharedKeys.usageBudgetKey(group.id))
+                    defaults.set(minutes, forKey: SharedKeys.usageBudgetInitialKey(group.id))
+                    AppLogger.shield.debug("📡 Wall-clock correction for widget budget \(group.name): elapsed \(elapsedMinutes)m, adjusted to \(minutes)m")
+                }
+            }
+
+            guard minutes > 0, budgetInPrefs > 0 else {
+                AppLogger.shield.debug("📡 Widget budget fully elapsed for \(group.name) after wall-clock correction — clearing")
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+                clearUsageBudgetPrefsForGroup(group.id)
+                continue
+            }
+
             AppLogger.shield.debug("📡 Starting DeviceActivity monitoring for widget-initiated budget: \(group.name) \(minutes)m")
             startUsageBudgetMonitoring(groupId: group.id, minutes: minutes)
             defaults.removeObject(forKey: pendingKey)
@@ -293,7 +315,7 @@ extension AppModel {
         let center = DeviceActivityCenter()
         for group in ticketGroups {
             let gid = group.id
-            let remaining = defaults.integer(forKey: SharedKeys.usageBudgetKey(gid))
+            var remaining = defaults.integer(forKey: SharedKeys.usageBudgetKey(gid))
             if remaining <= 0 { continue }
 
             if !ShieldRebuildHelper.isUsageBudgetWallClockActive(defaults: defaults, groupId: gid) {
@@ -304,6 +326,24 @@ extension AppModel {
 
             let activityName = DeviceActivityName("usageBudget_\(gid)")
             if center.activities.contains(activityName) { continue }
+
+            // Wall-clock correction: DeviceActivity wasn't running (e.g. monitor lost
+            // after intervalDidEnd race, or widget unlock before app foregrounded).
+            // Subtract elapsed wall-clock minutes so the budget reflects real time passed.
+            if let started = defaults.object(forKey: SharedKeys.usageBudgetStartedKey(gid)) as? Date {
+                let elapsedMinutes = Int(Date().timeIntervalSince(started) / 60)
+                if elapsedMinutes > 0 {
+                    remaining = max(0, remaining - elapsedMinutes)
+                    defaults.set(remaining, forKey: SharedKeys.usageBudgetKey(gid))
+                    AppLogger.shield.debug("🔁 Wall-clock correction for \(group.name): elapsed \(elapsedMinutes)m, adjusted remaining to \(remaining)m")
+                }
+            }
+
+            guard remaining > 0 else {
+                AppLogger.shield.debug("🔁 Budget fully elapsed for \(group.name) after wall-clock correction — clearing")
+                clearUsageBudgetPrefsForGroup(gid)
+                continue
+            }
 
             defaults.set(remaining, forKey: SharedKeys.usageBudgetInitialKey(gid))
             AppLogger.shield.debug("🔁 Resuming usageBudget monitor for \(group.name) (\(remaining)m)")

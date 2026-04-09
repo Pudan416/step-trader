@@ -215,7 +215,7 @@ extension Image {
 // MARK: - EnergyGradientRenderer
 
 enum GradientPalette: String, CaseIterable {
-    case warmSunset, roseGarden, ember, dusk
+    case warmSunset, ocean, aurora, dusk
 }
 
 enum EnergyGradientRenderer {

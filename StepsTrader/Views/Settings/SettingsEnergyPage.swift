@@ -16,97 +16,112 @@ struct SettingsEnergyPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     DetailHeader(title: String(localized: "Limits", comment: "Settings section title"))
+                        .padding(.horizontal, 16)
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Image(systemName: "figure.walk")
-                                .font(.subheadline)
-                                .foregroundColor(theme.adaptiveSecondaryText)
-                                .frame(width: 24)
-                            Text(String(localized: "Steps goal"))
-                                .font(.subheadline)
-                                .foregroundColor(theme.adaptivePrimaryText)
-                            Spacer()
-                            Text(formatCompactNumber(Int(stepsTarget)))
-                                .font(.subheadline.weight(.semibold).monospacedDigit())
-                                .foregroundColor(theme.adaptivePrimaryText)
+                    // MARK: - Targets
+                    VStack(alignment: .leading, spacing: 0) {
+                        SettingsSectionLabel(text: String(localized: "DAILY TARGETS", comment: "Limits section header"))
+                            .padding(.horizontal, 14)
+                            .padding(.top, 14)
+                            .padding(.bottom, 10)
+
+                        sliderRow(
+                            icon: "figure.walk",
+                            title: String(localized: "Steps goal"),
+                            value: formatCompactNumber(Int(stepsTarget)),
+                            sliderValue: $stepsTarget,
+                            range: 5_000...15_000,
+                            step: 500,
+                            minLabel: "5K",
+                            maxLabel: "15K"
+                        )
+                        .onChange(of: stepsTarget) { _, _ in
+                            UserDefaults.stepsTrader().set(stepsTarget, forKey: "userStepsTarget")
+                            model.recalculateDailyEnergy()
                         }
-                        Slider(value: $stepsTarget, in: 5_000...15_000, step: 500)
-                            .tint(AppColors.brandAccent)
-                        HStack {
-                            Text(String(localized: "5K", comment: "Steps slider minimum")).font(.caption2).foregroundColor(theme.adaptiveSecondaryText)
-                            Spacer()
-                            Text(String(localized: "15K", comment: "Steps slider maximum")).font(.caption2).foregroundColor(theme.adaptiveSecondaryText)
+
+                        DetailDivider()
+
+                        sliderRow(
+                            icon: "bed.double.fill",
+                            title: String(localized: "Sleep goal"),
+                            value: String(format: "%.1fh", sleepTarget),
+                            sliderValue: $sleepTarget,
+                            range: 6...10,
+                            step: 0.5,
+                            minLabel: "6h",
+                            maxLabel: "10h"
+                        )
+                        .onChange(of: sleepTarget) { _, _ in
+                            UserDefaults.stepsTrader().set(sleepTarget, forKey: "userSleepTarget")
+                            model.recalculateDailyEnergy()
                         }
                     }
-                    .padding(14)
                     .glassCard()
-                    .onChange(of: stepsTarget) { _, _ in
-                        UserDefaults.stepsTrader().set(stepsTarget, forKey: "userStepsTarget")
-                        model.recalculateDailyEnergy()
-                    }
+                    .padding(.horizontal, 16)
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Image(systemName: "bed.double.fill")
-                                .font(.subheadline)
-                                .foregroundColor(theme.adaptiveSecondaryText)
-                                .frame(width: 24)
-                            Text(String(localized: "Sleep goal"))
-                                .font(.subheadline)
-                                .foregroundColor(theme.adaptivePrimaryText)
-                            Spacer()
-                            Text(String(format: "%.1fh", sleepTarget))
-                                .font(.subheadline.weight(.semibold).monospacedDigit())
-                                .foregroundColor(theme.adaptivePrimaryText)
-                        }
-                        Slider(value: $sleepTarget, in: 6...10, step: 0.5)
-                            .tint(AppColors.brandAccent)
-                        HStack {
-                            Text(String(localized: "6h", comment: "Sleep slider minimum")).font(.caption2).foregroundColor(theme.adaptiveSecondaryText)
-                            Spacer()
-                            Text(String(localized: "10h", comment: "Sleep slider maximum")).font(.caption2).foregroundColor(theme.adaptiveSecondaryText)
-                        }
-                    }
-                    .padding(14)
-                    .glassCard()
-                    .onChange(of: sleepTarget) { _, _ in
-                        UserDefaults.stepsTrader().set(sleepTarget, forKey: "userSleepTarget")
-                        model.recalculateDailyEnergy()
-                    }
-
+                    // MARK: - Day Boundary
                     NavigationLink {
                         DayEndSettingsView(model: model)
                     } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .font(.subheadline)
-                                .foregroundColor(theme.adaptiveSecondaryText)
-                                .frame(width: 24)
-                            Text(String(localized: "Day resets at"))
-                                .font(.subheadline)
-                                .foregroundColor(theme.adaptivePrimaryText)
-                            Spacer()
-                            Text(formattedDayEnd)
-                                .font(.subheadline.monospacedDigit())
-                                .foregroundColor(theme.adaptiveSecondaryText)
-                            Image(systemName: "chevron.right")
-                                .font(.caption2)
-                                .foregroundColor(theme.adaptiveMutedText)
-                        }
-                        .padding(14)
+                        SettingsNavRow(
+                            icon: "clock.arrow.circlepath",
+                            title: String(localized: "Day resets at"),
+                            value: formattedDayEnd
+                        )
                         .glassCard()
                     }
                     .buttonStyle(.plain)
+                    .padding(.horizontal, 16)
+
+                    SettingsFooter(text: String(localized: "Your canvas and colors reset at this time each day."))
+                        .padding(.horizontal, 16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 32)
+                .padding(.bottom, 80)
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    // MARK: - Slider Row
+
+    private func sliderRow(
+        icon: String,
+        title: String,
+        value: String,
+        sliderValue: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double,
+        minLabel: String,
+        maxLabel: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 15))
+                    .foregroundColor(theme.adaptiveSecondaryText)
+                    .frame(width: 24)
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundColor(theme.adaptivePrimaryText)
+                Spacer()
+                Text(value)
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundColor(theme.adaptivePrimaryText)
+            }
+            Slider(value: sliderValue, in: range, step: step)
+                .tint(AppColors.brandAccent)
+            HStack {
+                Text(minLabel).font(.caption2).foregroundColor(theme.adaptiveSecondaryText)
+                Spacer()
+                Text(maxLabel).font(.caption2).foregroundColor(theme.adaptiveSecondaryText)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 
     private var formattedDayEnd: String {
@@ -116,5 +131,4 @@ struct SettingsEnergyPage: View {
         let date = Calendar.current.date(from: comps) ?? Date()
         return CachedFormatters.hourMinute.string(from: date)
     }
-
 }

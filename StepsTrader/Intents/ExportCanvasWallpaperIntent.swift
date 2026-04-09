@@ -57,15 +57,17 @@ enum GradientStyleOption: String, AppEnum {
 enum ColorPaletteOption: String, AppEnum {
     case appDefault = "default"
     case warmSunset
-    case roseGarden
-    case ember
+    case ocean
+    case aurora
+    case dusk
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Color Palette"
     static var caseDisplayRepresentations: [ColorPaletteOption: DisplayRepresentation] = [
         .appDefault:  "App Default",
-        .warmSunset:  "Warm Sunset",
-        .roseGarden:  "Rose Garden",
-        .ember:       "Ember",
+        .warmSunset:  "Sunset",
+        .ocean:       "Ocean",
+        .aurora:      "Aurora",
+        .dusk:        "Dusk",
     ]
 
     func resolved() -> GradientPalette {
@@ -74,10 +76,11 @@ enum ColorPaletteOption: String, AppEnum {
             let raw = UserDefaults(suiteName: SharedKeys.appGroupId)?.string(forKey: SharedKeys.gradientPalette)
                 ?? UserDefaults.standard.string(forKey: SharedKeys.gradientPalette)
                 ?? GradientPalette.warmSunset.rawValue
-            return GradientPalette(rawValue: raw) ?? .warmSunset
+            return GradientPalette.normalized(rawValue: raw)
         case .warmSunset: return .warmSunset
-        case .roseGarden: return .roseGarden
-        case .ember:      return .ember
+        case .ocean:      return .ocean
+        case .aurora:     return .aurora
+        case .dusk:       return .dusk
         }
     }
 }

@@ -29,6 +29,14 @@ struct GenerativeCanvasView: View {
     /// TimelineView animation.  Used for ImageRenderer snapshots (e.g. canvas export).
     var fixedTime: Date? = nil
 
+    /// Procedural shapes are the default. Set `useProceduralShapes` to false in UserDefaults to revert to legacy PNG assets.
+    static let useProceduralShapes: Bool = {
+        if UserDefaults.standard.object(forKey: "useProceduralShapes") != nil {
+            return UserDefaults.standard.bool(forKey: "useProceduralShapes")
+        }
+        return true
+    }()
+
     @State private var ampScale: Double = 1.0
 
     private var isDarkBackground: Bool {
@@ -75,23 +83,32 @@ struct GenerativeCanvasView: View {
         }
     }
 
-    /// Portrait screen bounds captured once at launch. Used by GalleryView
-    /// to pin the canvas to a fixed frame so it never resizes on rotation /
-    /// split-view changes — elements stay at their exact pixel positions.
-    static let canonicalPortraitSize: CGSize = {
-        if let scene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene }).first {
-            let b = scene.screen.bounds.size
-            return b.width <= b.height ? b : CGSize(width: b.height, height: b.width)
+    /// Portrait screen bounds used by GalleryView to pin the canvas to a fixed
+    /// frame so it never resizes on rotation / split-view changes.
+    /// Re-queried lazily so it always reflects the actual main screen, even when
+    /// the first scene wasn't ready at static-init time.
+    static var canonicalPortraitSize: CGSize {
+        if _canonicalPortraitSizeOverride == .zero {
+            if let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene }).first {
+                let b = scene.screen.bounds.size
+                _canonicalPortraitSizeOverride = b.width <= b.height
+                    ? b
+                    : CGSize(width: b.height, height: b.width)
+            }
         }
-        return CGSize(width: 393, height: 852)
-    }()
+        return _canonicalPortraitSizeOverride == .zero
+            ? CGSize(width: 393, height: 852)
+            : _canonicalPortraitSizeOverride
+    }
+    private static var _canonicalPortraitSizeOverride: CGSize = .zero
 
     static func sortedForRendering(_ elements: [CanvasElement]) -> [CanvasElement] {
         let circles = elements.filter { $0.kind == .circle }.sorted { $0.size > $1.size }
         let nonCircles = elements.filter { $0.kind != .circle }
         return circles + nonCircles
     }
+
 
     private func renderCanvas(context: inout GraphicsContext, size: CGSize, t: Double) {
         let decay = decayNorm
@@ -106,9 +123,50 @@ struct GenerativeCanvasView: View {
 
         let sortedElements = Self.sortedForRendering(elements)
 
-        for element in sortedElements {
-            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode)
+        let interactions: [UUID: ElementInteraction]
+        if Self.useProceduralShapes {
+            interactions = computeInteractions(elements: sortedElements, size: size, t: t)
+        } else {
+            interactions = [:]
+        }
 
+        // Pass 1: Mind elements (rendered under grain)
+        let mindElements = sortedElements.filter { $0.category == .mind }
+        for element in mindElements {
+            let interaction = interactions[element.id]
+            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction)
+            if showLabelsOnCanvas {
+                let center = elementCenter(element, size: size, t: t)
+                drawLabel(element, at: center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
+            }
+        }
+
+        // Pass 2: Body clusters + body/heart elements
+        var clusteredBodyIds = Set<UUID>()
+        var allBodyBlobInfos = [BodyBlobInfo]()
+        if Self.useProceduralShapes {
+            let (clusters, solos) = collectBodyClusters(
+                elements: sortedElements, size: size, t: t, decay: decay
+            )
+            for cluster in clusters {
+                drawBodyCluster(cluster, context: &context, size: size, t: t, blendMode: blendMode)
+                for blob in cluster {
+                    clusteredBodyIds.insert(blob.element.id)
+                    allBodyBlobInfos.append(blob)
+                    if showLabelsOnCanvas {
+                        drawLabel(blob.element, at: blob.center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
+                    }
+                }
+            }
+            allBodyBlobInfos.append(contentsOf: solos)
+        }
+
+        for element in sortedElements {
+            if element.category == .mind { continue }
+            if clusteredBodyIds.contains(element.id) { continue }
+
+            let interaction = interactions[element.id]
+            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction)
             if showLabelsOnCanvas {
                 let center = elementCenter(element, size: size, t: t)
                 drawLabel(element, at: center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
@@ -116,13 +174,76 @@ struct GenerativeCanvasView: View {
         }
     }
 
+    // MARK: - Cross-Element Interaction Model
+
+    struct ElementInteraction {
+        var noiseBoost: Double = 0
+        var attractionOffset: CGVector = .zero
+        var stretchFactor: Double = 1.0
+    }
+
+    /// Normalized (0…1) position for interaction checks — uses animated
+    /// position for mind (which drifts far from basePosition).
+    private func interactionPosition(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
+        if e.category == .mind {
+            let pos = mindDriftPosition(e, size: size, t: t)
+            return CGPoint(x: pos.x / Double(size.width), y: pos.y / Double(size.height))
+        }
+        return e.basePosition
+    }
+
+    private func computeInteractions(
+        elements: [CanvasElement],
+        size: CGSize,
+        t: Double
+    ) -> [UUID: ElementInteraction] {
+        var result = [UUID: ElementInteraction]()
+        let interactionRadius: CGFloat = 0.25
+
+        for i in 0..<elements.count {
+            let a = elements[i]
+            var interaction = ElementInteraction()
+            let posA = interactionPosition(a, size: size, t: t)
+
+            for j in 0..<elements.count where i != j {
+                let b = elements[j]
+                let posB = interactionPosition(b, size: size, t: t)
+                let dx = posA.x - posB.x
+                let dy = posA.y - posB.y
+                let dist = sqrt(dx * dx + dy * dy)
+                guard dist < interactionRadius else { continue }
+                let proximity = 1.0 - Double(dist / interactionRadius)
+
+                switch (a.category, b.category) {
+                case (.body, .mind):
+                    interaction.noiseBoost += proximity * 0.4
+                case (.mind, .mind):
+                    let repulsion = CGFloat(proximity) * 8.0
+                    let len = max(dist, 0.001)
+                    interaction.attractionOffset.dx += (dx / len) * repulsion
+                    interaction.attractionOffset.dy += (dy / len) * repulsion
+                default:
+                    break
+                }
+            }
+
+            if interaction.noiseBoost > 0.001
+                || abs(interaction.attractionOffset.dx) > 0.01
+                || abs(interaction.attractionOffset.dy) > 0.01
+                || abs(interaction.stretchFactor - 1.0) > 0.001 {
+                result[a.id] = interaction
+            }
+        }
+        return result
+    }
+
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Asset Pipeline
+    // MARK: - Asset Pipeline (legacy — retained for rollback, will be removed)
     // ═══════════════════════════════════════════════════════════
 
-    private static let bodyCircleAssetNames = ["body 1", "body 2", "body 3"]
-    private static let mindCircleAssetNames = ["mind 1"]
-    private static let heartAssetNames = ["heart 1"]
+    private static let bodyCircleAssetNames = CanvasImageCatalog.body
+    private static let mindCircleAssetNames = CanvasImageCatalog.mind
+    private static let heartAssetNames = CanvasImageCatalog.heart
 
     /// Returns the asset index for an element. Prefers the persisted `assetVariant` (round-robin,
     /// guarantees variety). Falls back to UUID-based hash for legacy elements saved before the field existed.
@@ -218,7 +339,9 @@ struct GenerativeCanvasView: View {
         size: CGSize,
         t: Double,
         decay: Double,
-        blendMode: GraphicsContext.BlendMode
+        blendMode: GraphicsContext.BlendMode,
+        interaction: ElementInteraction? = nil,
+        bodyBlobInfos: [BodyBlobInfo] = []
     ) {
         let spawn = spawnFactor(for: element, t: t)
         guard spawn > 0.001 else { return }
@@ -232,12 +355,11 @@ struct GenerativeCanvasView: View {
                 ctx.scaleBy(x: scale, y: scale)
                 ctx.translateBy(x: -center.x, y: -center.y)
             }
-            // Enforce category-driven behavior (works for legacy saved elements too).
             switch element.category {
             case .body, .mind:
-                drawCircle(element, context: &ctx, size: size, t: t, decay: decay, blendMode: blendMode)
+                drawCircle(element, context: &ctx, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction, bodyBlobInfos: bodyBlobInfos)
             case .heart:
-                drawRay(element, context: &ctx, size: size, t: t, decay: decay, blendMode: blendMode)
+                drawRay(element, context: &ctx, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction)
             }
         }
     }
@@ -275,38 +397,72 @@ struct GenerativeCanvasView: View {
         let cx = Double(e.basePosition.x) * w
         let cy = Double(e.basePosition.y) * h
         let amp = ampScale
-        let wobbleX = sin(t * 0.04 + e.phaseOffset) * w * 0.008 * amp
-            + sin(t * 0.017 + e.phaseOffset * 2.3) * w * 0.005 * amp
-        let wobbleY = cos(t * 0.035 + e.phaseOffset * 1.3) * h * 0.008 * amp
-            + cos(t * 0.02 + e.phaseOffset * 0.7) * h * 0.005 * amp
+        let wobbleX = sin(t * 0.015 + e.phaseOffset) * w * 0.003 * amp
+            + sin(t * 0.008 + e.phaseOffset * 2.3) * w * 0.002 * amp
+        let wobbleY = cos(t * 0.013 + e.phaseOffset * 1.3) * h * 0.003 * amp
+            + cos(t * 0.009 + e.phaseOffset * 0.7) * h * 0.002 * amp
         return CGPoint(x: cx + wobbleX, y: cy + wobbleY)
     }
 
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Mind Drift — slow fly-around across full canvas
+    // MARK: - Mind Drift — unique per-element Lissajous with variable speed
     // ═══════════════════════════════════════════════════════════
 
-    /// Multi-frequency Lissajous drift that covers the full canvas slowly.
-    /// Each mind element gets unique paths via phaseOffset + driftSpeed.
+    /// Per-element frequency ratios derived from phaseOffset so every mind
+    /// element traces a qualitatively different Lissajous figure.
+    private struct MindFrequencyProfile {
+        let fx1, fx2, fx3: Double
+        let fy1, fy2, fy3: Double
+
+        init(phase p: Double) {
+            let s = p * 1000.0
+            fx1 = 1.0  + sin(s * 0.11) * 0.15
+            fx2 = 2.2  + sin(s * 0.23) * 0.3
+            fx3 = 3.8  + sin(s * 0.37) * 0.5
+            fy1 = 0.85 + cos(s * 0.17) * 0.15
+            fy2 = 2.0  + cos(s * 0.31) * 0.3
+            fy3 = 3.5  + cos(s * 0.43) * 0.5
+        }
+    }
+
+    /// Smooth amplitude envelope — modulates *range* of drift instead of
+    /// time, so the path stays continuous. Creates breathing: wide sweeps
+    /// alternate with tight hovering.
+    private func mindAmplitudeEnvelope(_ e: CanvasElement, speed: Double, t: Double) -> Double {
+        let p = e.phaseOffset
+        let mod = sin(t * speed * 0.13 + p * 3.7) * sin(t * speed * 0.07 + p * 1.3)
+        return 0.7 + 0.3 * mod
+    }
+
+    /// Drifting home zone — the orbit center itself wanders slowly, so the
+    /// element stays in a neighbourhood but the neighbourhood shifts.
+    private func mindHomePosition(_ e: CanvasElement, speed: Double, t: Double) -> (Double, Double) {
+        let p = e.phaseOffset
+        let hx = Double(e.basePosition.x) + sin(t * speed * 0.05 + p) * 0.12
+        let hy = Double(e.basePosition.y) + cos(t * speed * 0.04 + p * 1.3) * 0.12
+        return (hx, hy)
+    }
+
     private func mindDriftPosition(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
         let w = Double(size.width)
         let h = Double(size.height)
         let p = e.phaseOffset
         let speed = 0.03 + e.driftSpeed * 0.06
         let amp = ampScale
+        let freq = MindFrequencyProfile(phase: p)
+        let env = mindAmplitudeEnvelope(e, speed: speed, t: t)
 
-        let dx1 = sin(t * speed * 1.00 + p) * 0.34 * amp
-        let dx2 = sin(t * speed * 2.37 + p * 2.3) * 0.12 * amp
-        let dx3 = sin(t * speed * 4.13 + p * 4.1) * 0.04 * amp
-        let dx4 = sin(t * speed * 6.71 + p * 6.7) * 0.015 * amp
+        let dx1 = sin(t * speed * freq.fx1 + p) * 0.24 * amp * env
+        let dx2 = sin(t * speed * freq.fx2 + p * 2.3) * 0.09 * amp * env
+        let dx3 = sin(t * speed * freq.fx3 + p * 4.1) * 0.03 * amp
 
-        let dy1 = cos(t * speed * 0.83 + p * 1.7) * 0.32 * amp
-        let dy2 = cos(t * speed * 1.97 + p * 3.1) * 0.11 * amp
-        let dy3 = cos(t * speed * 3.61 + p * 5.3) * 0.04 * amp
-        let dy4 = cos(t * speed * 5.89 + p * 7.9) * 0.015 * amp
+        let dy1 = cos(t * speed * freq.fy1 + p * 1.7) * 0.22 * amp * env
+        let dy2 = cos(t * speed * freq.fy2 + p * 3.1) * 0.08 * amp * env
+        let dy3 = cos(t * speed * freq.fy3 + p * 5.3) * 0.03 * amp
 
-        let nx = Double(e.basePosition.x) + dx1 + dx2 + dx3 + dx4
-        let ny = Double(e.basePosition.y) + dy1 + dy2 + dy3 + dy4
+        let (hx, hy) = mindHomePosition(e, speed: speed, t: t)
+        let nx = hx + dx1 + dx2 + dx3
+        let ny = hy + dy1 + dy2 + dy3
 
         let margin = 0.06
         let cx = min(1.0 - margin, max(margin, nx)) * w
@@ -315,24 +471,25 @@ struct GenerativeCanvasView: View {
         return CGPoint(x: cx, y: cy)
     }
 
-    /// Velocity vector for mind drift — used to orient the asset in the travel direction.
+    /// Analytical velocity — derivative of mindDriftPosition w.r.t. t.
     private func mindDriftVelocity(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
         let p = e.phaseOffset
         let speed = 0.03 + e.driftSpeed * 0.06
+        let amp = ampScale
+        let freq = MindFrequencyProfile(phase: p)
+        let env = mindAmplitudeEnvelope(e, speed: speed, t: t)
 
-        let vx1 = cos(t * speed * 1.00 + p) * speed * 1.00 * 0.34
-        let vx2 = cos(t * speed * 2.37 + p * 2.3) * speed * 2.37 * 0.12
-        let vx3 = cos(t * speed * 4.13 + p * 4.1) * speed * 4.13 * 0.04
-        let vx4 = cos(t * speed * 6.71 + p * 6.7) * speed * 6.71 * 0.015
+        let vx1 = cos(t * speed * freq.fx1 + p) * speed * freq.fx1 * 0.24 * amp * env
+        let vx2 = cos(t * speed * freq.fx2 + p * 2.3) * speed * freq.fx2 * 0.09 * amp * env
+        let vx3 = cos(t * speed * freq.fx3 + p * 4.1) * speed * freq.fx3 * 0.03 * amp
 
-        let vy1 = -sin(t * speed * 0.83 + p * 1.7) * speed * 0.83 * 0.32
-        let vy2 = -sin(t * speed * 1.97 + p * 3.1) * speed * 1.97 * 0.11
-        let vy3 = -sin(t * speed * 3.61 + p * 5.3) * speed * 3.61 * 0.04
-        let vy4 = -sin(t * speed * 5.89 + p * 7.9) * speed * 5.89 * 0.015
+        let vy1 = -sin(t * speed * freq.fy1 + p * 1.7) * speed * freq.fy1 * 0.22 * amp * env
+        let vy2 = -sin(t * speed * freq.fy2 + p * 3.1) * speed * freq.fy2 * 0.08 * amp * env
+        let vy3 = -sin(t * speed * freq.fy3 + p * 5.3) * speed * freq.fy3 * 0.03 * amp
 
         return CGPoint(
-            x: vx1 + vx2 + vx3 + vx4,
-            y: vy1 + vy2 + vy3 + vy4
+            x: vx1 + vx2 + vx3,
+            y: vy1 + vy2 + vy3
         )
     }
 
@@ -342,19 +499,75 @@ struct GenerativeCanvasView: View {
         size: CGSize,
         t: Double,
         decay: Double,
-        blendMode: GraphicsContext.BlendMode
+        blendMode: GraphicsContext.BlendMode,
+        interaction: ElementInteraction? = nil,
+        bodyBlobInfos: [BodyBlobInfo] = []
     ) {
         let breathePhase = sin(t * (0.25 + e.phaseOffset * 0.1) + e.phaseOffset * 3.7)
         let pulse: Double = e.category == .body
-            ? (1.0 + sin(t * (0.7 + e.pulseFrequency * 0.8) + e.phaseOffset) * 0.05 * ampScale)
+            ? (1.0 + sin(t * (0.3 + e.pulseFrequency * 0.3) + e.phaseOffset) * 0.02 * ampScale)
             : (1.0 + breathePhase * 0.015 * ampScale)
         let center = circleCenter(e, size: size, t: t)
         let dim = Double(min(size.width, size.height))
-        let scale = e.category == .body ? 1.05 : 1.1
-        let radius = Double(e.size) * dim * scale * pulse
-        let circleAssets = e.category == .body ? Self.bodyCircleAssetNames : Self.mindCircleAssetNames
-        let name = circleAssets[Self.assetIndex(for: e, count: circleAssets.count)]
+        let effectiveSize = e.userSize ?? e.size
+        let scale: Double = switch e.category {
+        case .body:  1.05
+        case .mind:  1.1
+        case .heart: 1.1
+        }
+        let radius = Double(effectiveSize) * dim * scale * pulse
         let color = decayedColor(e.hexColor, decay: decay)
+
+        if e.category == .mind {
+            let mindAssets = Self.mindCircleAssetNames
+            let name = mindAssets[Self.assetIndex(for: e, count: mindAssets.count)]
+            let image: Image? = UIImage(named: name).map { Image(uiImage: $0) }
+            let aspect = assetAspectRatio(name: name)
+            let halfW = radius * aspect
+            let halfH = radius
+
+            let vel = mindDriftVelocity(e, size: size, t: t)
+            let rotation = Angle.radians(atan2(vel.y, vel.x) + e.userRotation) + .degrees(270)
+
+            if let image {
+                drawMindAssetTrail(e, image: image, aspect: aspect, radius: radius, t: t, rotation: rotation, blendMode: blendMode, size: size, context: &context)
+            }
+
+            let idleOpacity = 0.76 + breathePhase * 0.04
+            let assetRect = CGRect(
+                x: center.x - halfW, y: center.y - halfH,
+                width: halfW * 2, height: halfH * 2
+            )
+            context.drawLayer { ctx in
+                ctx.opacity = idleOpacity
+                ctx.blendMode = blendMode
+                ctx.translateBy(x: center.x, y: center.y)
+                ctx.rotate(by: rotation)
+                ctx.translateBy(x: -center.x, y: -center.y)
+                if let image {
+                    ctx.draw(image, in: assetRect)
+                } else {
+                    drawFallbackBlob(context: &ctx, in: assetRect, color: color)
+                }
+            }
+            return
+        }
+
+        if Self.useProceduralShapes, let seed = e.shapeSeed {
+            let baseComplexity = min(1.0, Double(e.activityCount ?? 1) / 30.0)
+            let complexity = min(1.0, baseComplexity + (interaction?.noiseBoost ?? 0))
+            let rect = CGRect(
+                x: center.x - radius, y: center.y - radius,
+                width: radius * 2, height: radius * 2
+            )
+
+            drawProceduralBody(e, seed: seed, complexity: complexity, color: color, center: center, rect: rect, t: t, blendMode: blendMode, context: &context)
+            return
+        }
+
+        // Legacy PNG fallback
+        let circleAssets = Self.bodyCircleAssetNames
+        let name = circleAssets[Self.assetIndex(for: e, count: circleAssets.count)]
         let image = tintedAssetImage(name: name, color: color, hex: e.hexColor, decay: decay)
         let aspect = image != nil ? assetAspectRatio(name: name) : 1.0
         let halfW = radius * aspect
@@ -364,35 +577,17 @@ struct GenerativeCanvasView: View {
             width: halfW * 2, height: halfH * 2
         )
 
-        if e.category == .mind {
-            let vel = mindDriftVelocity(e, size: size, t: t)
-            let rotation = Angle.radians(atan2(vel.y, vel.x) + e.userRotation) + .degrees(180)
-            let idleOpacity = 0.85 + breathePhase * 0.04
-            context.drawLayer { ctx in
-                ctx.opacity = idleOpacity
-                ctx.blendMode = blendMode
-                ctx.translateBy(x: center.x, y: center.y)
-                ctx.rotate(by: rotation)
-                ctx.translateBy(x: -center.x, y: -center.y)
-                if let image {
-                    ctx.draw(image, in: rect)
-                } else {
-                    drawFallbackBlob(context: &ctx, in: rect, color: color)
-                }
-            }
-        } else {
-            let rotation = Angle.radians(e.phaseOffset + e.userRotation)
-            context.drawLayer { ctx in
-                ctx.opacity = 0.85
-                ctx.blendMode = blendMode
-                ctx.translateBy(x: center.x, y: center.y)
-                ctx.rotate(by: rotation)
-                ctx.translateBy(x: -center.x, y: -center.y)
-                if let image {
-                    ctx.draw(image, in: rect)
-                } else {
-                    drawFallbackBlob(context: &ctx, in: rect, color: color)
-                }
+        let rotation = Angle.radians(e.phaseOffset + e.userRotation)
+        context.drawLayer { ctx in
+            ctx.opacity = 0.85
+            ctx.blendMode = blendMode
+            ctx.translateBy(x: center.x, y: center.y)
+            ctx.rotate(by: rotation)
+            ctx.translateBy(x: -center.x, y: -center.y)
+            if let image {
+                ctx.draw(image, in: rect)
+            } else {
+                drawFallbackBlob(context: &ctx, in: rect, color: color)
             }
         }
     }
@@ -464,51 +659,9 @@ struct GenerativeCanvasView: View {
         )
     }
 
-    /// Keep heart anchors visually close to edges/corners, even for legacy positions.
-    private func edgeAnchoredCenter(_ e: CanvasElement, size: CGSize) -> CGPoint {
-        let nx = Double(e.basePosition.x)
-        let ny = Double(e.basePosition.y)
-
-        let edgeInset = 0.08
-        let minN = edgeInset
-        let maxN = 1.0 - edgeInset
-
-        let distLeft = nx
-        let distRight = 1.0 - nx
-        let distTop = ny
-        let distBottom = 1.0 - ny
-        let minDist = min(distLeft, distRight, distTop, distBottom)
-
-        var ax = nx
-        var ay = ny
-        if minDist == distLeft {
-            ax = minN
-            ay = min(max(ny, minN), maxN)
-        } else if minDist == distRight {
-            ax = maxN
-            ay = min(max(ny, minN), maxN)
-        } else if minDist == distTop {
-            ay = minN
-            ax = min(max(nx, minN), maxN)
-        } else {
-            ay = maxN
-            ax = min(max(nx, minN), maxN)
-        }
-
-        return CGPoint(x: ax * Double(size.width), y: ay * Double(size.height))
-    }
-
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Heart (Ray) — angled rays pointing toward center
+    // MARK: - Heart (Ray) — asset-based, pointing toward center
     // ═══════════════════════════════════════════════════════════
-
-    /// Base inward angle — always points from the heart's position toward canvas center.
-    private func rayBaseAngle(_ e: CanvasElement, size: CGSize) -> Angle {
-        let center = rayDrawCenter(e, size: size)
-        let dx = Double(size.width) * 0.5 - center.x
-        let dy = Double(size.height) * 0.5 - center.y
-        return Angle.radians(atan2(dy, dx))
-    }
 
     /// Slow oscillating sweep that pivots around the solid tip.
     private func raySweepAngle(_ e: CanvasElement, t: Double) -> Angle {
@@ -518,16 +671,17 @@ struct GenerativeCanvasView: View {
         return Angle.degrees(sweep)
     }
 
-    /// Clamped draw center for a heart ray — keeps the asset rect inside the canvas.
-    /// Shared by both `drawRay` (visual) and `elementCenter` (label placement).
-    private func rayDrawCenter(_ e: CanvasElement, size: CGSize) -> CGPoint {
-        let dim = Double(min(size.width, size.height))
-        let radius = Double(e.size) * dim * 2.2
-        let base = edgeAnchoredCenter(e, size: size)
-        return CGPoint(
-            x: min(max(base.x, radius), Double(size.width) - radius),
-            y: min(max(base.y, radius), Double(size.height) - radius)
-        )
+    private func heartCenter(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
+        let w = Double(size.width)
+        let h = Double(size.height)
+        let cx = Double(e.basePosition.x) * w
+        let cy = Double(e.basePosition.y) * h
+        let amp = ampScale
+        let wobbleX = sin(t * 0.012 + e.phaseOffset) * w * 0.004 * amp
+            + sin(t * 0.007 + e.phaseOffset * 2.3) * w * 0.002 * amp
+        let wobbleY = cos(t * 0.010 + e.phaseOffset * 1.3) * h * 0.004 * amp
+            + cos(t * 0.006 + e.phaseOffset * 0.7) * h * 0.002 * amp
+        return CGPoint(x: cx + wobbleX, y: cy + wobbleY)
     }
 
     private func drawRay(
@@ -536,38 +690,54 @@ struct GenerativeCanvasView: View {
         size: CGSize,
         t: Double,
         decay: Double,
-        blendMode: GraphicsContext.BlendMode
+        blendMode: GraphicsContext.BlendMode,
+        interaction: ElementInteraction? = nil
     ) {
         let dim = Double(min(size.width, size.height))
-        let radius = Double(e.size) * dim * 2.2
-        let center = rayDrawCenter(e, size: size)
+        let effectiveSize = e.userSize ?? e.size
+        let radius = Double(effectiveSize) * dim * 2.2
         let breathe = 0.92 + sin(t * e.pulseFrequency * 0.5 + e.phaseOffset) * 0.06
-        let color = decayedColor(e.hexColor, decay: decay)
-        let baseAngle = rayBaseAngle(e, size: size)
         let sweep = raySweepAngle(e, t: t)
-        let name = Self.heartAssetNames[Self.assetIndex(for: e, count: Self.heartAssetNames.count)]
-        let image = tintedAssetImage(name: name, color: color, hex: e.hexColor, decay: decay)
-        let aspect = image != nil ? assetAspectRatio(name: name) : 0.35
-        let rect = CGRect(
-            x: -radius * aspect,
-            y: -radius,
-            width: radius * 2 * aspect,
-            height: radius * 2
+
+        let attrOffset = interaction?.attractionOffset ?? .zero
+        let center = heartCenter(e, size: size, t: t)
+        let anchor = CGPoint(
+            x: center.x + attrOffset.dx,
+            y: center.y + attrOffset.dy
         )
-        let baseOriented = baseAngle + .degrees(90) + Angle.radians(e.userRotation)
+
+        let canvasCenter = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
+        let dx = canvasCenter.x - anchor.x
+        let dy = canvasCenter.y - anchor.y
+        let inwardAngle = Angle.radians(atan2(Double(dy), Double(dx)))
+
+        let heartAssets = Self.heartAssetNames
+        let name = heartAssets[Self.assetIndex(for: e, count: heartAssets.count)]
+        let image: Image? = UIImage(named: name).map { Image(uiImage: $0) }
+        let aspect = assetAspectRatio(name: name)
+
+        let halfW = radius * Double(aspect)
+        let halfH = radius
+        let assetRect = CGRect(
+            x: anchor.x - halfW,
+            y: anchor.y - halfH,
+            width: halfW * 2,
+            height: halfH * 2
+        )
+
+        let rotation = inwardAngle + .degrees(90) + Angle.radians(e.userRotation) + sweep
 
         context.drawLayer { ctx in
             ctx.opacity = breathe
             ctx.blendMode = blendMode
-            ctx.translateBy(x: center.x, y: center.y)
-            ctx.rotate(by: baseOriented)
-            ctx.translateBy(x: 0, y: -radius)
-            ctx.rotate(by: sweep)
-            ctx.translateBy(x: 0, y: radius)
+            ctx.translateBy(x: anchor.x, y: anchor.y)
+            ctx.rotate(by: rotation)
+            ctx.translateBy(x: -anchor.x, y: -anchor.y)
             if let image {
-                ctx.draw(image, in: rect)
+                ctx.draw(image, in: assetRect)
             } else {
-                drawFallbackRay(context: &ctx, in: rect, color: color)
+                let color = decayedColor(e.hexColor, decay: decay)
+                drawFallbackRay(context: &ctx, in: assetRect, color: color)
             }
         }
     }
@@ -604,6 +774,265 @@ struct GenerativeCanvasView: View {
     }
 
     // ═══════════════════════════════════════════════════════════
+    // MARK: - Procedural Shape Rendering
+    // ═══════════════════════════════════════════════════════════
+
+    private func drawProceduralBody(
+        _ e: CanvasElement,
+        seed: UInt64,
+        complexity: Double,
+        color: Color,
+        center: CGPoint,
+        rect: CGRect,
+        t: Double,
+        blendMode: GraphicsContext.BlendMode,
+        context: inout GraphicsContext
+    ) {
+        let path = ProceduralShapeGenerator.bodyPath(
+            seed: seed, complexity: complexity, time: t, in: rect
+        )
+        drawBodyFill(path: path, color: color, center: center, rect: rect, phase: e.phaseOffset, userRotation: e.userRotation, seed: seed, blendMode: blendMode, context: &context)
+    }
+
+    /// Renders a solo body blob as a bubble — nearly transparent with a thin visible rim.
+    private func drawBodyFill(
+        path: Path,
+        color: Color,
+        center: CGPoint,
+        rect: CGRect,
+        phase: Double,
+        userRotation: Double,
+        seed: UInt64,
+        blendMode: GraphicsContext.BlendMode,
+        context: inout GraphicsContext
+    ) {
+        let rotation = Angle.radians(phase + userRotation)
+
+        let r = min(rect.width, rect.height) / 2
+        let innerR = max(0, r - 40)
+        let edgeLoc = r > 0 ? Double(innerR / r) : 0
+
+        let rimGrad = Gradient(stops: [
+            .init(color: color.opacity(0.03), location: 0),
+            .init(color: color.opacity(0.03), location: edgeLoc),
+            .init(color: color.opacity(0.25), location: edgeLoc + (1.0 - edgeLoc) * 0.5),
+            .init(color: color.opacity(0.45), location: 1.0),
+        ])
+
+        context.drawLayer { ctx in
+            ctx.blendMode = blendMode
+            ctx.translateBy(x: center.x, y: center.y)
+            ctx.rotate(by: rotation)
+            ctx.translateBy(x: -center.x, y: -center.y)
+
+            ctx.clip(to: path)
+            let ellipse = CGRect(x: center.x - r, y: center.y - r,
+                                  width: r * 2, height: r * 2)
+            ctx.fill(
+                Path(ellipseIn: ellipse),
+                with: .radialGradient(rimGrad, center: center,
+                                      startRadius: 0, endRadius: r)
+            )
+
+            ctx.stroke(
+                path,
+                with: .color(color.opacity(0.55)),
+                style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round)
+            )
+        }
+    }
+
+    // MARK: - Metaball Body Cluster Rendering
+
+    struct BodyBlobInfo {
+        let element: CanvasElement
+        let center: CGPoint
+        let radius: CGFloat
+        let color: Color
+        let seed: UInt64
+    }
+
+    /// Collects all body elements with their animated centers and groups nearby ones for metaball merging.
+    private func collectBodyClusters(
+        elements: [CanvasElement],
+        size: CGSize,
+        t: Double,
+        decay: Double
+    ) -> (clusters: [[BodyBlobInfo]], solos: [BodyBlobInfo]) {
+        let bodyElements = elements.filter {
+            $0.category == .body && Self.useProceduralShapes && $0.shapeSeed != nil
+        }
+        guard !bodyElements.isEmpty else { return ([], []) }
+
+        var infos = [BodyBlobInfo]()
+        for e in bodyElements {
+            let center = circleCenter(e, size: size, t: t)
+            let dim = min(size.width, size.height)
+            let effectiveSize = e.userSize ?? e.size
+            let pulse = 1.0 + sin(t * (0.3 + e.pulseFrequency * 0.3) + e.phaseOffset) * 0.02 * ampScale
+            let radius = effectiveSize * dim * 1.05 * pulse
+            let color = decayedColor(e.hexColor, decay: decay)
+            infos.append(BodyBlobInfo(element: e, center: center, radius: radius, color: color, seed: e.shapeSeed ?? 0))
+        }
+
+        let mergeThreshold: CGFloat = 1.6
+        var visited = Set<Int>()
+        var clusters = [[BodyBlobInfo]]()
+        var solos = [BodyBlobInfo]()
+
+        for i in 0..<infos.count {
+            guard !visited.contains(i) else { continue }
+
+            var cluster = [infos[i]]
+            visited.insert(i)
+
+            var frontier = [i]
+            while !frontier.isEmpty {
+                let current = frontier.removeFirst()
+                for j in 0..<infos.count where !visited.contains(j) {
+                    let dx = infos[current].center.x - infos[j].center.x
+                    let dy = infos[current].center.y - infos[j].center.y
+                    let dist = sqrt(dx * dx + dy * dy)
+                    let sumR = (infos[current].radius + infos[j].radius) * mergeThreshold
+                    if dist < sumR {
+                        cluster.append(infos[j])
+                        visited.insert(j)
+                        frontier.append(j)
+                    }
+                }
+            }
+
+            if cluster.count > 1 {
+                clusters.append(cluster)
+            } else {
+                solos.append(cluster[0])
+            }
+        }
+
+        return (clusters, solos)
+    }
+
+    /// Draws a cluster of body blobs merged by unioning their procedural paths.
+    /// Each blob keeps its animated position and organic breathing shape.
+    private func drawBodyCluster(
+        _ cluster: [BodyBlobInfo],
+        context: inout GraphicsContext,
+        size: CGSize,
+        t: Double,
+        blendMode: GraphicsContext.BlendMode
+    ) {
+        var blobPaths = [(blob: BodyBlobInfo, path: Path)]()
+        for blob in cluster {
+            let e = blob.element
+            let complexity = min(1.0, Double(e.activityCount ?? 1) / 30.0)
+            let rect = CGRect(
+                x: blob.center.x - blob.radius,
+                y: blob.center.y - blob.radius,
+                width: blob.radius * 2,
+                height: blob.radius * 2
+            )
+            let rawPath = ProceduralShapeGenerator.bodyPath(
+                seed: blob.seed, complexity: complexity, time: t, in: rect
+            )
+            let rotation = CGAffineTransform(translationX: -blob.center.x, y: -blob.center.y)
+                .concatenating(.init(rotationAngle: e.phaseOffset + e.userRotation))
+                .concatenating(.init(translationX: blob.center.x, y: blob.center.y))
+            let transformed = Path(rawPath.cgPath.copy(using: [rotation])!)
+            blobPaths.append((blob, transformed))
+        }
+
+        var mergedCG = blobPaths[0].path.cgPath
+        for i in 1..<blobPaths.count {
+            mergedCG = mergedCG.union(blobPaths[i].path.cgPath)
+        }
+        let mergedPath = Path(mergedCG)
+
+        context.drawLayer { ctx in
+            ctx.blendMode = blendMode
+            ctx.clip(to: mergedPath)
+
+            for (blob, _) in blobPaths {
+                let r = blob.radius
+                let innerR = max(0, r - 40)
+                let edgeLoc = r > 0 ? Double(innerR / r) : 0
+
+                let rimGrad = Gradient(stops: [
+                    .init(color: blob.color.opacity(0.03), location: 0),
+                    .init(color: blob.color.opacity(0.03), location: edgeLoc),
+                    .init(color: blob.color.opacity(0.25), location: edgeLoc + (1.0 - edgeLoc) * 0.5),
+                    .init(color: blob.color.opacity(0.45), location: 1.0),
+                ])
+                let ellipse = CGRect(x: blob.center.x - r, y: blob.center.y - r,
+                                      width: r * 2, height: r * 2)
+                ctx.fill(
+                    Path(ellipseIn: ellipse),
+                    with: .radialGradient(rimGrad, center: blob.center,
+                                          startRadius: 0, endRadius: r)
+                )
+            }
+        }
+
+        for (blob, _) in blobPaths {
+            let clipRect = CGRect(
+                x: blob.center.x - blob.radius * 1.3,
+                y: blob.center.y - blob.radius * 1.3,
+                width: blob.radius * 2.6,
+                height: blob.radius * 2.6
+            )
+            context.drawLayer { ctx in
+                ctx.clip(to: Path(ellipseIn: clipRect))
+                ctx.stroke(
+                    mergedPath,
+                    with: .color(blob.color.opacity(0.55)),
+                    style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round)
+                )
+            }
+        }
+    }
+
+    private static let mindTrailGhosts = 4
+    private static let mindTrailSpacing: Double = 0.8
+
+    /// Draws fading ghost copies of the mind asset image behind the element,
+    /// spanning ~100px and dissolving to transparent.
+    private func drawMindAssetTrail(
+        _ e: CanvasElement,
+        image: Image,
+        aspect: Double,
+        radius: Double,
+        t: Double,
+        rotation: Angle,
+        blendMode: GraphicsContext.BlendMode,
+        size: CGSize,
+        context: inout GraphicsContext
+    ) {
+        for i in (1...Self.mindTrailGhosts).reversed() {
+            let pastT = t - Double(i) * Self.mindTrailSpacing
+            let ghostCenter = mindDriftPosition(e, size: size, t: pastT)
+            let progress = Double(i) / Double(Self.mindTrailGhosts)
+            let ghostOpacity = 0.35 * (1.0 - progress)
+            let ghostScale = 1.0 - progress * 0.15
+
+            let gr = radius * ghostScale
+            let hw = gr * aspect
+            let hh = gr
+            let ghostRect = CGRect(
+                x: ghostCenter.x - hw, y: ghostCenter.y - hh,
+                width: hw * 2, height: hh * 2
+            )
+
+            context.drawLayer { ctx in
+                ctx.opacity = ghostOpacity
+                ctx.blendMode = blendMode
+                ctx.translateBy(x: ghostCenter.x, y: ghostCenter.y)
+                ctx.rotate(by: rotation)
+                ctx.translateBy(x: -ghostCenter.x, y: -ghostCenter.y)
+                ctx.draw(image, in: ghostRect)
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // MARK: - Element labels + centers
     // ═══════════════════════════════════════════════════════════
 
@@ -612,21 +1041,7 @@ struct GenerativeCanvasView: View {
         case .body, .mind:
             return circleCenter(element, size: size, t: t)
         case .heart:
-            // The colored narrow tip points OUTWARD (local 0, +radius).
-            // The broad pivot end aims inward at (0, -radius).
-            // Place the label near the visible outward-facing colored tip.
-            let center = rayDrawCenter(element, size: size)
-            let dim = Double(min(size.width, size.height))
-            let radius = Double(element.size) * dim * 2.2
-            let baseAngle = rayBaseAngle(element, size: size)
-            let oriented = baseAngle + .degrees(90) + Angle.radians(element.userRotation)
-            let outwardDist = radius * 0.55
-            let tipX = center.x - outwardDist * sin(oriented.radians)
-            let tipY = center.y + outwardDist * cos(oriented.radians)
-            return CGPoint(
-                x: min(max(tipX, 24), Double(size.width) - 24),
-                y: min(max(tipY, 24), Double(size.height) - 24)
-            )
+            return heartCenter(element, size: size, t: t)
         }
     }
 

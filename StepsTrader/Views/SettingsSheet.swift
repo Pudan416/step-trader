@@ -27,63 +27,70 @@ struct SettingsSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        Text(String(localized: "Settings", comment: "Settings page title"))
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundStyle(theme.adaptivePrimaryText)
-                            .padding(.top, 8)
+                VStack(alignment: .leading, spacing: 20) {
+                    Text(String(localized: "Settings", comment: "Settings page title"))
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundStyle(theme.adaptivePrimaryText)
+                        .padding(.top, 8)
 
-                        accountRow
+                    accountRow
 
-                        VStack(spacing: 0) {
-                            permissionsRow
-                            rowDivider
-                            settingsRow(icon: "paintpalette", title: String(localized: "Appearance")) {
-                                SettingsAppearancePage(model: model)
-                            }
-                            rowDivider
-                            settingsRow(icon: "bell", title: String(localized: "Notifications")) {
-                                NotificationSettingsView(model: model)
-                            }
-                            rowDivider
-                            settingsRow(icon: "bolt", title: String(localized: "Limits")) {
-                                SettingsEnergyPage(model: model)
-                            }
-                            rowDivider
-                            settingsRow(icon: "photo.on.rectangle.angled", title: String(localized: "Wallpaper")) {
-                                SettingsShortcutPage(model: model)
-                            }
-                            rowDivider
-                            settingsRow(icon: "square.stack.3d.up", title: String(localized: "Widget")) {
-                                SettingsWidgetPage(model: model)
-                            }
+                    // MARK: - Permissions + Look & Feel
+                    VStack(spacing: 0) {
+                        permissionsRow
+                        rowDivider
+                        settingsRow(icon: "paintpalette", title: String(localized: "Appearance")) {
+                            SettingsAppearancePage(model: model)
                         }
-                        .glassCard()
-
-                        VStack(spacing: 0) {
-                            settingsRow(icon: "info.circle", title: String(localized: "About", comment: "Settings row label")) {
-                                SettingsAboutPage(model: model)
-                            }
+                        rowDivider
+                        settingsRow(icon: "bell", title: String(localized: "Notifications")) {
+                            NotificationSettingsView(model: model)
                         }
-                        .glassCard()
-
-                        #if DEBUG
-                        shieldDiagnosticsRow
-                        #endif
-
-                        VStack(spacing: 4) {
-                            Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))
-                                .font(.caption)
-                                .foregroundColor(theme.adaptiveMutedText)
-                            Text("v\(appVersion) (\(buildNumber))")
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundColor(theme.adaptiveMutedText.opacity(0.5))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 4)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 96)
+                    .glassCard()
+
+                    // MARK: - Targets & Integrations
+                    VStack(spacing: 0) {
+                        settingsRow(icon: "bolt", title: String(localized: "Limits")) {
+                            SettingsEnergyPage(model: model)
+                        }
+                        rowDivider
+                        settingsRow(icon: "photo.on.rectangle.angled", title: String(localized: "Wallpaper")) {
+                            SettingsShortcutPage(model: model)
+                        }
+                        rowDivider
+                        settingsRow(icon: "square.stack.3d.up", title: String(localized: "Widget")) {
+                            SettingsWidgetPage(model: model)
+                        }
+                    }
+                    .glassCard()
+
+                    // MARK: - About
+                    VStack(spacing: 0) {
+                        settingsRow(icon: "info.circle", title: String(localized: "About", comment: "Settings row label")) {
+                            SettingsAboutPage(model: model)
+                        }
+                    }
+                    .glassCard()
+
+                    #if DEBUG
+                    shieldDiagnosticsRow
+                    #endif
+
+                    VStack(spacing: 4) {
+                        Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))
+                            .font(.caption)
+                            .italic()
+                            .foregroundColor(theme.adaptiveMutedText)
+                        Text("v\(appVersion) (\(buildNumber))")
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundColor(theme.adaptiveMutedText.opacity(0.5))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 4)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 96)
             }
             .energyGradientBackground(model: model)
             .safeAreaInset(edge: .top, spacing: 0) {

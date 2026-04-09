@@ -223,12 +223,12 @@ struct AppsPageSimplified: View {
             .onChange(of: model.blockingStore.ticketGroups.count) {
                 if visibleGroups.count <= 1 { isReordering = false }
             }
-            .alert(String(localized: "Name your ticket"), isPresented: $showCustomNamePrompt) {
-                TextField(String(localized: "e.g. Social, Games…", comment: "Placeholder for ticket name"), text: $customTicketName)
+            .alert(String(localized: "Name your feed"), isPresented: $showCustomNamePrompt) {
+                TextField(String(localized: "e.g. Social, Games…", comment: "Placeholder for feed name"), text: $customTicketName)
                 Button(String(localized: "Create")) {
                     let name = customTicketName.trimmingCharacters(in: .whitespacesAndNewlines)
                     let group = model.createTicketGroup(
-                        name: name.isEmpty ? String(localized: "New Ticket") : name,
+                        name: name.isEmpty ? String(localized: "New Feed") : name,
                         stickerThemeIndex: 0
                     )
                     selection = FamilyActivitySelection()
@@ -237,7 +237,7 @@ struct AppsPageSimplified: View {
                 }
                 Button(String(localized: "Cancel"), role: .cancel) {}
             }
-            .alert(String(localized: "Delete this ticket?"), isPresented: Binding(
+            .alert(String(localized: "Delete this feed?"), isPresented: Binding(
                 get: { groupIdToDelete != nil },
                 set: { if !$0 { groupIdToDelete = nil } }
             )) {
@@ -344,7 +344,7 @@ struct AppsPageSimplified: View {
                 HStack(spacing: 6) {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .ultraLight))
-                    Text(String(localized: "New Ticket"))
+                    Text(String(localized: "New Feed"))
                         .font(.system(size: 15, weight: .light, design: .rounded))
                 }
                 .foregroundStyle(Color.primary.opacity(0.7))
@@ -378,7 +378,7 @@ struct AppsPageSimplified: View {
                 .padding()
             }
             .background(theme.backgroundColor)
-            .navigationTitle(group.wrappedValue.name.isEmpty ? String(localized: "Ticket") : group.wrappedValue.name)
+            .navigationTitle(group.wrappedValue.name.isEmpty ? String(localized: "Feed") : group.wrappedValue.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(theme.backgroundColor, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)

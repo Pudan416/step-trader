@@ -12,7 +12,22 @@ extension AppModel {
     }
 
     func remainingUsageBudget(for groupId: String) -> Int {
-        UserDefaults.stepsTrader().integer(forKey: SharedKeys.usageBudgetKey(groupId))
+        let defaults = UserDefaults.stepsTrader()
+        let stored = defaults.integer(forKey: SharedKeys.usageBudgetKey(groupId))
+        guard stored > 0,
+              let started = defaults.object(forKey: SharedKeys.usageBudgetStartedKey(groupId)) as? Date
+        else { return stored }
+
+        let initial = defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(groupId))
+        guard initial > 0 else { return stored }
+
+        // Wall-clock floor: never show more remaining than wall-clock allows.
+        // DeviceActivity ticks may lag (e.g. monitoring not yet started after
+        // widget unlock, or monitor lost and restarted), so use wall-clock as
+        // a lower bound on elapsed time.
+        let wallClockElapsed = Int(Date().timeIntervalSince(started) / 60)
+        let wallClockRemaining = max(0, initial - wallClockElapsed)
+        return min(stored, wallClockRemaining)
     }
 
     /// Seconds until the custom day boundary fires and all unused budgets are wiped.

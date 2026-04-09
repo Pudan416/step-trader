@@ -9,13 +9,13 @@ struct CategoryDetailView: View {
 
     var onActivityConfirmed: ((String, EnergyCategory, String, Int?) -> Void)? = nil
     var onActivityUndo: ((String, EnergyCategory) -> Void)? = nil
+    var onReroll: ((String, EnergyCategory) -> Void)? = nil
 
     @State private var expandedOptionId: String? = nil
     @State private var entryColorCache: [String: Color] = [:]
     @State private var showAddCustom = false
 
     @State private var editColorHex: String = CanvasColorPalette.paletteHex[0]
-    @State private var editAssetVariant: Int = 0
     @State private var editText: String = ""
     @State private var editSaveForFuture: Bool = false
     @FocusState private var isNoteFieldFocused: Bool
@@ -26,14 +26,6 @@ struct CategoryDetailView: View {
 
     private var accent: Color { category?.color ?? .cyan }
 
-    private var categoryAssets: [String] {
-        guard let category else { return [] }
-        switch category {
-        case .body: return ["body 1", "body 2", "body 3"]
-        case .mind: return ["mind 1"]
-        case .heart: return ["heart 1"]
-        }
-    }
 
     var body: some View {
         NavigationStack {
@@ -187,35 +179,35 @@ struct CategoryDetailView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: option.icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(isSelected ? .white : .secondary.opacity(0.6))
-                    .frame(width: 32, height: 32)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(isSelected ? .white : .primary.opacity(0.5))
+                    .frame(width: 34, height: 34)
                     .background(
-                        Circle().fill(isSelected ? activeColor : .primary.opacity(0.06))
+                        Circle().fill(isSelected ? activeColor : .primary.opacity(0.07))
                     )
 
                 Text(option.title(for: Locale.current.language.languageCode?.identifier ?? "en"))
-                    .font(.subheadline.weight(.medium))
+                    .font(.subheadline.weight(isSelected ? .semibold : .medium))
                     .foregroundStyle(.primary)
 
                 Spacer()
 
                 if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(activeColor)
                 } else if expandedOptionId == option.id {
                     Image(systemName: "chevron.up")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary.opacity(0.4))
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.secondary.opacity(0.5))
                 } else {
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary.opacity(0.25))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary.opacity(0.35))
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 11)
+            .padding(.vertical, 12)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -292,12 +284,7 @@ struct CategoryDetailView: View {
                 }
             }
 
-            // Shape picker (body only)
-            if category == .body {
-                shapePicker
-            }
-
-            // Color grid (only when editing an existing entry)
+            // Color grid only for editing an already-added entry (not for initial add)
             if isSelected {
                 colorGrid(binding: $editColorHex)
             }
@@ -316,10 +303,22 @@ struct CategoryDetailView: View {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } label: {
                         Image(systemName: "trash")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.red.opacity(0.7))
-                            .frame(width: 38, height: 38)
-                            .background(Circle().fill(.red.opacity(0.08)))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.red.opacity(0.85))
+                            .frame(width: 40, height: 40)
+                            .background(Circle().fill(.red.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        onReroll?(option.id, category)
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Image(systemName: "dice")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(accent.opacity(0.85))
+                            .frame(width: 40, height: 40)
+                            .background(Circle().fill(accent.opacity(0.12)))
                     }
                     .buttonStyle(.plain)
                 }
@@ -334,10 +333,10 @@ struct CategoryDetailView: View {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } label: {
                         Image(systemName: "xmark.circle")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary.opacity(0.5))
-                            .frame(width: 38, height: 38)
-                            .background(Circle().fill(.primary.opacity(0.04)))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary.opacity(0.7))
+                            .frame(width: 40, height: 40)
+                            .background(Circle().fill(.primary.opacity(0.06)))
                     }
                     .buttonStyle(.plain)
                 }
@@ -347,14 +346,16 @@ struct CategoryDetailView: View {
                 Button {
                     commitEntry(option: option, category: category, isCustom: isCustom)
                 } label: {
+                    let buttonColor = isSelected ? Color(hex: editColorHex) : accent
                     Text(isSelected
                          ? String(localized: "Save", comment: "OptionEntry – save/add button")
                          : String(localized: "Add to canvas", comment: "OptionEntry – add to canvas button"))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color(.systemBackground))
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(Capsule().fill(Color(hex: editColorHex)))
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 11)
+                        .background(Capsule().fill(buttonColor))
+                        .shadow(color: buttonColor.opacity(0.3), radius: 4, y: 2)
                 }
                 .buttonStyle(.plain)
             }
@@ -362,47 +363,6 @@ struct CategoryDetailView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 14)
         .background(.primary.opacity(0.02))
-    }
-
-    // MARK: - Shape Picker
-
-    private var shapePicker: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<3, id: \.self) { index in
-                let isActive = index == editAssetVariant
-                let assetName = categoryAssets[index]
-
-                Button {
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) { editAssetVariant = index }
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                } label: {
-                    Group {
-                        if let uiImage = UIImage(named: assetName)?.withRenderingMode(.alwaysTemplate) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .foregroundStyle(Color(hex: editColorHex).opacity(isActive ? 1.0 : 0.3))
-                                .frame(width: 30, height: 30)
-                        } else {
-                            Image(systemName: "circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(Color(hex: editColorHex).opacity(isActive ? 1.0 : 0.3))
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color(hex: editColorHex).opacity(isActive ? 0.1 : 0.03))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(isActive ? Color(hex: editColorHex).opacity(0.35) : .clear, lineWidth: 1.5)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
     }
 
     // MARK: - Color Grid (reusable)
@@ -450,17 +410,17 @@ struct CategoryDetailView: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary.opacity(0.5))
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(accent.opacity(0.8))
                         .frame(width: 32, height: 32)
-                        .background(Circle().fill(.primary.opacity(0.05)))
+                        .background(Circle().fill(accent.opacity(0.1)))
                     Text(String(localized: "Add your own", comment: "CategoryDetail – add custom activity button"))
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary.opacity(0.7))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary.opacity(0.7))
                     Spacer()
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 11)
+                .padding(.vertical, 12)
             }
             .buttonStyle(.plain)
             .glassCard()
@@ -534,6 +494,9 @@ struct CategoryDetailView: View {
                     Text(String(localized: "Cancel", comment: "OptionEntry – dismiss button"))
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(.primary.opacity(0.06)))
                 }
                 .buttonStyle(.plain)
 
@@ -543,11 +506,12 @@ struct CategoryDetailView: View {
                     createCustomActivity(category: category)
                 } label: {
                     Text(String(localized: "Create", comment: "CategoryDetail – create custom activity button"))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color(.systemBackground))
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(Capsule().fill(Color(hex: customColorHex)))
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 11)
+                        .background(Capsule().fill(accent))
+                        .shadow(color: accent.opacity(0.3), radius: 4, y: 2)
                 }
                 .buttonStyle(.plain)
                 .disabled(customName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -619,26 +583,23 @@ struct CategoryDetailView: View {
             if let entry = loadEntry(for: optionId) {
                 editColorHex = entry.colorHex
                 editText = entry.text
-                editAssetVariant = entry.assetVariant ?? (category == .body ? Int.random(in: 0...2) : 0)
             } else {
                 editColorHex = CanvasColorPalette.paletteHex.randomElement()!
                 editText = ""
-                editAssetVariant = lastUsedAssetVariant(for: optionId) ?? (category == .body ? Int.random(in: 0...2) : 0)
             }
             editSaveForFuture = false
         }
     }
 
     private func quickAdd(option: EnergyOption, category: EnergyCategory, color: String) {
-        let variant = lastUsedAssetVariant(for: option.id) ?? (category == .body ? Int.random(in: 0...2) : nil)
         let dayKey = AppModel.dayKey(for: Date())
         let entry = OptionEntry(
             id: "\(option.id)_\(dayKey)", dayKey: dayKey, optionId: option.id,
-            category: category, colorHex: color, text: "", timestamp: Date(), assetVariant: variant
+            category: category, colorHex: color, text: "", timestamp: Date(), assetVariant: nil
         )
         saveEntry(entry, for: option)
         entryColorCache[option.id] = Color(hex: color)
-        saveLastUsedPreferences(optionId: option.id, colorHex: color, assetVariant: variant)
+        saveLastUsedPreferences(optionId: option.id, colorHex: color)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
@@ -648,11 +609,11 @@ struct CategoryDetailView: View {
             id: "\(option.id)_\(dayKey)", dayKey: dayKey, optionId: option.id,
             category: category, colorHex: editColorHex,
             text: editText.trimmingCharacters(in: .whitespacesAndNewlines),
-            timestamp: Date(), assetVariant: category == .body ? editAssetVariant : nil
+            timestamp: Date(), assetVariant: nil
         )
         saveEntry(newEntry, for: option)
         entryColorCache[option.id] = Color(hex: editColorHex)
-        saveLastUsedPreferences(optionId: option.id, colorHex: editColorHex, assetVariant: category == .body ? editAssetVariant : nil)
+        saveLastUsedPreferences(optionId: option.id, colorHex: editColorHex)
 
         if editSaveForFuture && !isCustom {
             let cleanName = editText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -660,7 +621,7 @@ struct CategoryDetailView: View {
                 .trimmingCharacters(in: .whitespacesAndNewlines).capitalized ?? ""
             if !cleanName.isEmpty {
                 let newId = model.addCustomOption(category: category, titleEn: cleanName, titleRu: cleanName, icon: option.icon)
-                saveLastUsedPreferences(optionId: newId, colorHex: editColorHex, assetVariant: category == .body ? editAssetVariant : nil)
+                saveLastUsedPreferences(optionId: newId, colorHex: editColorHex)
             }
         }
 
@@ -674,7 +635,7 @@ struct CategoryDetailView: View {
         guard !name.isEmpty else { return }
 
         let newId = model.addCustomOption(category: category, titleEn: name, titleRu: name, icon: customIcon)
-        saveLastUsedPreferences(optionId: newId, colorHex: customColorHex, assetVariant: nil)
+        saveLastUsedPreferences(optionId: newId, colorHex: customColorHex)
 
         let dayKey = AppModel.dayKey(for: Date())
         let entry = OptionEntry(
@@ -763,24 +724,13 @@ struct CategoryDetailView: View {
 
     // MARK: - Last-Used Preferences
 
-    private func saveLastUsedPreferences(optionId: String, colorHex: String, assetVariant: Int?) {
-        let g = UserDefaults.stepsTrader()
-        g.set(colorHex, forKey: "lastColor_\(optionId)")
-        if let variant = assetVariant {
-            g.set(variant, forKey: "lastVariant_\(optionId)")
-        }
+    private func saveLastUsedPreferences(optionId: String, colorHex: String) {
+        UserDefaults.stepsTrader().set(colorHex, forKey: "lastColor_\(optionId)")
     }
 
     private func lastUsedColor(for optionId: String) -> Color? {
         guard let hex = UserDefaults.stepsTrader().string(forKey: "lastColor_\(optionId)") else { return nil }
         return Color(hex: hex)
-    }
-
-    private func lastUsedAssetVariant(for optionId: String) -> Int? {
-        let key = "lastVariant_\(optionId)"
-        let g = UserDefaults.stepsTrader()
-        guard g.object(forKey: key) != nil else { return nil }
-        return g.integer(forKey: key)
     }
 }
 

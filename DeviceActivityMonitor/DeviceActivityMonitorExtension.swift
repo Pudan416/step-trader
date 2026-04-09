@@ -128,15 +128,17 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         
         if activityRaw.hasPrefix("usageBudget_") {
             let groupId = String(activityRaw.dropFirst("usageBudget_".count))
-            // Do NOT stopMonitoring or rebuild here. intervalDidEnd fires for two reasons:
-            // 1. Race condition: stopMonitoring() before startMonitoring() in the main app
-            //    generates a deferred intervalDidEnd that kills the newly registered monitor.
-            // 2. Daily schedule boundary (23:59:59). The repeating schedule handles this;
-            //    the monitor stays alive for the next day automatically.
-            // Budget expiration is handled solely by usageBudgetDone events. Day boundary
-            // cleanup is handled by clearAllUsageBudgets in the main app.
-            MonitorLogger.info("usageBudget daily interval ended for \(groupId) — no action (repeating schedule)")
-            appendMonitorLog("usageBudget intervalEnd (no-op): \(groupId)")
+            // intervalDidEnd fires for two reasons:
+            // 1. Race: stopMonitoring() before startMonitoring() in the main app — we must not
+            //    stopMonitoring here (still true). A rebuild only reapplies ManagedSettings.
+            // 2. Daily schedule boundary (23:59:59 local): repeating schedule keeps the monitor,
+            //    but prefs + ManagedSettings can be stale until the main app foregrounds OR we
+            //    refresh here. clearAllUsageBudgets in the main app does not run if the app
+            //    never wakes at the custom day boundary, so the extension must resync shields.
+            MonitorLogger.info("usageBudget interval ended for \(groupId) — resync shields from prefs")
+            appendMonitorLog("usageBudget intervalEnd: resync \(groupId)")
+            checkAndClearExpiredBudgets()
+            rebuildBlockFromExtension()
             return
         }
     }

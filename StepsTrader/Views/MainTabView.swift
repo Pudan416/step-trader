@@ -28,7 +28,6 @@ struct MainTabView: View {
     @State private var selectedCategory: EnergyCategory? = nil
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
-    @State private var isLabelMode: Bool = false
     @State private var isWideCanvas: Bool = false
     @State private var showColorsHelp: Bool = false
     @State private var tabBarHeight: CGFloat = 0
@@ -102,7 +101,7 @@ struct MainTabView: View {
                             .ignoresSafeArea()
                     } else {
                         NavigationStack {
-                            GalleryView(model: model, metricOverlay: $metricOverlay, isLabelMode: $isLabelMode, isWideCanvas: $isWideCanvas)
+                            GalleryView(model: model, metricOverlay: $metricOverlay, isWideCanvas: $isWideCanvas)
                         }
                     }
                 }
@@ -136,7 +135,7 @@ struct MainTabView: View {
             .environment(\.tabBarHeight, tabBarHeight)
             .animation(.easeInOut(duration: 0.2), value: selection)
             .safeAreaInset(edge: .bottom) {
-                if !isLabelMode && !isWideCanvas {
+                if !isWideCanvas {
                     customTabBar
                         .background(
                             GeometryReader { geo in
@@ -146,7 +145,6 @@ struct MainTabView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.easeInOut(duration: 0.25), value: isLabelMode)
             .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
             .background(Color.clear)
             .onAppear {
@@ -161,7 +159,7 @@ struct MainTabView: View {
             }
         }
         .overlay(alignment: .top) {
-            if !isLabelMode && !isWideCanvas {
+            if !isWideCanvas {
             StepBalanceCard(
                 remainingSteps: model.userEconomyStore.totalStepsBalance,
                 totalSteps: model.healthStore.baseEnergyToday,

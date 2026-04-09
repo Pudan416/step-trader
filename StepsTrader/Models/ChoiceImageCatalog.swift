@@ -14,21 +14,16 @@ enum CanvasImageCatalog {
     ]
 
     static let mind: [String] = [
-        "mind 1"
+        "mind 1", "mind 2", "mind 3", "mind 4", "mind 5",
+        "mind 6", "mind 7", "mind 8", "mind 9", "mind 10",
+        "mind 11", "mind 12", "mind 13", "mind 14", "mind 15",
+        "mind 16", "mind 17", "mind 18", "mind 19"
     ]
 
     static let heart: [String] = [
-        "heart_cringe",
-        "heart_embrase",
-        "heart_emotional",
-        "heart_friends",
-        "heart_happy_tears",
-        "heart_in_love",
-        "heart_kiss",
-        "heart_love_myself",
-        "heart_range",
-        "heart_rebel",
-        "heart_junkfood"
+        "heart 1", "heart 2", "heart 3", "heart 4", "heart 5",
+        "heart 6", "heart 7", "heart 8", "heart 9", "heart 10",
+        "heart 11", "heart 12", "heart 13"
     ]
 
     static func imageNames(for category: EnergyCategory) -> [String] {

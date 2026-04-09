@@ -127,6 +127,8 @@
 		30A1D1B12F3C000100000003 /* DayEndSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */; };
 		30A1D1B32F3C000100000005 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */; };
 		30CA0001300000000000CA01 /* CanvasElement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0002300000000000CA02 /* CanvasElement.swift */; };
+		30CA00A1300000000000CAA1 /* ProceduralShapeGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA00A2300000000000CAA2 /* ProceduralShapeGenerator.swift */; };
+
 		30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0004300000000000CA04 /* GenerativeCanvasView.swift */; };
 		30CA0005300000000000CA05 /* RadialHoldMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0006300000000000CA06 /* RadialHoldMenu.swift */; };
 
@@ -345,6 +347,8 @@
 		30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayEndSettingsView.swift; sourceTree = "<group>"; };
 		30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		30CA0002300000000000CA02 /* CanvasElement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasElement.swift; sourceTree = "<group>"; };
+		30CA00A2300000000000CAA2 /* ProceduralShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProceduralShapeGenerator.swift; sourceTree = "<group>"; };
+
 		30CA0004300000000000CA04 /* GenerativeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeCanvasView.swift; sourceTree = "<group>"; };
 		30CA0006300000000000CA06 /* RadialHoldMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadialHoldMenu.swift; sourceTree = "<group>"; };
 
@@ -542,6 +546,8 @@
 				2061EB732F253EBD009FEC24 /* DailyEnergy.swift */,
 				AA00NOTE2F3A000100000002 /* Note.swift */,
 				30CA0002300000000000CA02 /* CanvasElement.swift */,
+				30CA00A2300000000000CAA2 /* ProceduralShapeGenerator.swift */,
+
 				201DF6D82F377E3B007D716B /* TicketGroup.swift */,
 				2061ED042F277020009FEC24 /* ChoiceImageCatalog.swift */,
 				201DF6D62F377E28007D716B /* LiteTicketConfig.swift */,
@@ -1131,6 +1137,8 @@
 				DD000004DDDD000400000001 /* SettingsSheet.swift in Sources */,
 				2061EBD02F269D30009FEC24 /* GalleryView.swift in Sources */,
 				30CA0001300000000000CA01 /* CanvasElement.swift in Sources */,
+				30CA00A1300000000000CAA1 /* ProceduralShapeGenerator.swift in Sources */,
+
 				30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */,
 				30CA0005300000000000CA05 /* RadialHoldMenu.swift in Sources */,
 

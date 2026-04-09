@@ -113,7 +113,7 @@ struct TicketTemplatePickerView: View {
                 .padding()
             }
             .background(theme.backgroundColor)
-            .navigationTitle(String(localized: "New Ticket", comment: "TemplatePicker – navigation title"))
+            .navigationTitle(String(localized: "New Feed", comment: "TemplatePicker – navigation title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(theme.backgroundColor, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)

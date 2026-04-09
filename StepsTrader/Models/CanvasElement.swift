@@ -41,13 +41,23 @@ struct CanvasElement: Identifiable, Codable {
     /// User-applied rotation in radians (from move mode). 0 = default orientation.
     var userRotation: Double
 
+    /// Deterministic seed for procedural shape generation.
+    /// Nil for legacy elements saved before procedural shapes existed.
+    var shapeSeed: UInt64?
+
+    /// User-overridden size from pinch gesture. Nil = use the random `size`.
+    var userSize: CGFloat?
+
+    /// How many times this activity has been logged historically (drives shape complexity).
+    var activityCount: Int?
+
     // Timestamps
     let createdAt: Date
 
     /// Title to draw on the canvas; falls back to optionId for legacy elements.
     var displayLabel: String { label ?? optionId }
 
-    init(id: UUID, kind: ElementKind, category: EnergyCategory, optionId: String, label: String?, hexColor: String, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0) {
+    init(id: UUID, kind: ElementKind, category: EnergyCategory, optionId: String, label: String?, hexColor: String, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0, shapeSeed: UInt64? = nil, userSize: CGFloat? = nil, activityCount: Int? = nil) {
         self.id = id
         self.kind = kind
         self.category = category
@@ -66,9 +76,35 @@ struct CanvasElement: Identifiable, Codable {
         self.createdAt = createdAt
         self.assetVariant = assetVariant
         self.userRotation = userRotation
+        self.shapeSeed = shapeSeed
+        self.userSize = userSize
+        self.activityCount = activityCount
     }
 
     // MARK: - Factory
+
+    /// Generates a deterministic seed from the element's identity.
+    static func makeSeed(optionId: String, dayKey: String, index: Int) -> UInt64 {
+        var hasher = Hasher()
+        hasher.combine(optionId)
+        hasher.combine(dayKey)
+        hasher.combine(index)
+        return UInt64(bitPattern: Int64(hasher.finalize()))
+    }
+
+    mutating func reroll() {
+        let current = assetVariant ?? 0
+        let count = CanvasImageCatalog.imageNames(for: category).count
+        switch category {
+        case .mind, .heart:
+            guard count > 1 else { return }
+            var next = Int.random(in: 0..<count)
+            while next == current { next = Int.random(in: 0..<count) }
+            assetVariant = next
+        case .body:
+            shapeSeed = UInt64.random(in: UInt64.min...UInt64.max)
+        }
+    }
 
     static func spawn(
         optionId: String,
@@ -76,7 +112,9 @@ struct CanvasElement: Identifiable, Codable {
         color: String,
         label: String,
         existingElements: [CanvasElement],
-        forcedVariant: Int? = nil
+        forcedVariant: Int? = nil,
+        dayKey: String? = nil,
+        activityCount: Int? = nil
     ) -> CanvasElement {
         let kind: ElementKind = switch category {
             case .body:  .circle   // body: floating circles
@@ -84,16 +122,9 @@ struct CanvasElement: Identifiable, Codable {
             case .heart: .ray      // heart: angled rays
         }
 
-        let position = (category == .heart)
-            ? findEdgePosition(existing: existingElements)
-            : findOpenPosition(existing: existingElements)
+        let position = findOpenPosition(existing: existingElements)
 
-        // Asset variant: use user's pick when provided, otherwise round-robin.
-        let assetCount: Int = switch category {
-        case .body:  3   // body 1, body 2, body 3
-        case .mind:  1   // mind 1
-        case .heart: 1   // heart 1
-        }
+        let assetCount = CanvasImageCatalog.imageNames(for: category).count
         let variant: Int
         if let forced = forcedVariant, forced >= 0, forced < assetCount {
             variant = forced
@@ -105,7 +136,7 @@ struct CanvasElement: Identifiable, Codable {
         // Body: M–L stable pulsing. Mind: S–M wandering. Heart: M rays.
         let size: CGFloat = switch category {
         case .body:  .random(in: 0.16...0.32)   // M–L (1.5× smaller)
-        case .mind:  .random(in: 0.12...0.26)   // S–M
+        case .mind:  .random(in: 0.10...0.18)   // S — drifting stars
         case .heart: .random(in: 0.20...0.28)   // M
         }
         let isBody = category == .body
@@ -115,6 +146,9 @@ struct CanvasElement: Identifiable, Codable {
         let opacity = isBody
             ? Double.random(in: 0.20...0.45)    // almost invisible
             : Double.random(in: 0.35...0.75)
+
+        let seed = dayKey.map { makeSeed(optionId: optionId, dayKey: $0, index: existingElements.count) }
+            ?? UInt64.random(in: UInt64.min...UInt64.max)
 
         return CanvasElement(
             id: UUID(),
@@ -133,7 +167,9 @@ struct CanvasElement: Identifiable, Codable {
             rotationSpeed: Double.random(in: 3...10),
             opacity: opacity,
             createdAt: Date(),
-            assetVariant: variant
+            assetVariant: variant,
+            shapeSeed: seed,
+            activityCount: activityCount
         )
     }
 
@@ -141,6 +177,7 @@ struct CanvasElement: Identifiable, Codable {
         case id, kind, category, optionId, hexColor, size, basePosition
         case phaseOffset, driftSpeed, driftAmplitude, pulseFrequency, pulseAmplitude, rotationSpeed, opacity, createdAt
         case label, assetVariant, userRotation
+        case shapeSeed, userSize, activityCount
     }
 
     init(from decoder: Decoder) throws {
@@ -163,6 +200,9 @@ struct CanvasElement: Identifiable, Codable {
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         assetVariant = try c.decodeIfPresent(Int.self, forKey: .assetVariant)
         userRotation = try c.decodeIfPresent(Double.self, forKey: .userRotation) ?? 0
+        shapeSeed = try c.decodeIfPresent(UInt64.self, forKey: .shapeSeed)
+        userSize = try c.decodeIfPresent(CGFloat.self, forKey: .userSize)
+        activityCount = try c.decodeIfPresent(Int.self, forKey: .activityCount)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -185,47 +225,9 @@ struct CanvasElement: Identifiable, Codable {
         try c.encode(createdAt, forKey: .createdAt)
         try c.encodeIfPresent(assetVariant, forKey: .assetVariant)
         try c.encode(userRotation, forKey: .userRotation)
-    }
-
-    /// Place heart elements along edges / corners, biased toward the frame perimeter.
-    /// They stay within 0.02…0.25 or 0.75…0.98 on each axis so they hug the border.
-    private static func findEdgePosition(existing: [CanvasElement]) -> CGPoint {
-        let maxAttempts = 20
-        let minDistance: CGFloat = 0.15
-
-        // 4 corners + 4 edge midpoints as anchor zones (normalized coords)
-        let edgeZones: [(xRange: ClosedRange<CGFloat>, yRange: ClosedRange<CGFloat>)] = [
-            // corners
-            (0.02...0.22, 0.02...0.22),   // top-left
-            (0.78...0.98, 0.02...0.22),   // top-right
-            (0.02...0.22, 0.78...0.98),   // bottom-left
-            (0.78...0.98, 0.78...0.98),   // bottom-right
-            // edge midpoints
-            (0.35...0.65, 0.02...0.15),   // top-center
-            (0.35...0.65, 0.85...0.98),   // bottom-center
-            (0.02...0.15, 0.35...0.65),   // left-center
-            (0.85...0.98, 0.35...0.65),   // right-center
-        ]
-
-        for _ in 0..<maxAttempts {
-            let zone = edgeZones[Int.random(in: 0..<edgeZones.count)]
-            let candidate = CGPoint(
-                x: CGFloat.random(in: zone.xRange),
-                y: CGFloat.random(in: zone.yRange)
-            )
-            let tooClose = existing.contains { el in
-                let dx = el.basePosition.x - candidate.x
-                let dy = el.basePosition.y - candidate.y
-                return sqrt(dx * dx + dy * dy) < minDistance
-            }
-            if !tooClose { return candidate }
-        }
-        // Fallback: random corner
-        let zone = edgeZones[Int.random(in: 0...3)]
-        return CGPoint(
-            x: CGFloat.random(in: zone.xRange),
-            y: CGFloat.random(in: zone.yRange)
-        )
+        try c.encodeIfPresent(shapeSeed, forKey: .shapeSeed)
+        try c.encodeIfPresent(userSize, forKey: .userSize)
+        try c.encodeIfPresent(activityCount, forKey: .activityCount)
     }
 
     /// Find an open position avoiding overlap with existing elements.

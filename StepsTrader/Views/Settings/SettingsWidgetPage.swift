@@ -27,11 +27,14 @@ struct SettingsWidgetPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     DetailHeader(title: String(localized: "Widget", comment: "Settings section title"))
+                        .padding(.horizontal, 16)
 
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text(String(localized: "Background", comment: "Widget background setting"))
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(theme.adaptivePrimaryText)
+                    // MARK: - Background Picker
+                    VStack(alignment: .leading, spacing: 0) {
+                        SettingsSectionLabel(text: String(localized: "BACKGROUND", comment: "Widget section header"))
+                            .padding(.horizontal, 14)
+                            .padding(.top, 14)
+                            .padding(.bottom, 10)
 
                         HStack(spacing: 12) {
                             bgCard(
@@ -72,33 +75,34 @@ struct SettingsWidgetPage: View {
                                 }
                             }
                         }
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 14)
 
                         if backgroundMode == "wallpaper" {
-                            VStack(alignment: .leading, spacing: 8) {
-                                if wallpaperThumbnail != nil {
-                                    Label(String(localized: "Synced with wallpaper shortcut"), systemImage: "checkmark.circle.fill")
-                                        .font(.caption)
-                                        .foregroundStyle(.green)
-                                } else {
-                                    Label(String(localized: "Set up the wallpaper shortcut first"), systemImage: "arrow.right.circle")
-                                        .font(.caption)
-                                        .foregroundStyle(AppColors.brandAccent)
-                                }
-
-                                Text(String(localized: "Updates automatically each time the wallpaper shortcut runs."))
-                                    .font(.caption2)
-                                    .foregroundStyle(theme.adaptiveSecondaryText)
-                            }
-                            .padding(.top, 2)
+                            DetailDivider()
+                            wallpaperStatus
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
                         }
+                    }
+                    .glassCard()
+                    .padding(.horizontal, 16)
+
+                    // MARK: - Configuration Hint
+                    HStack(spacing: 10) {
+                        Image(systemName: "hand.tap")
+                            .font(.system(size: 15))
+                            .foregroundStyle(theme.adaptiveSecondaryText)
+                            .frame(width: 24)
+                        Text(String(localized: "Long-press the widget → Edit to choose which group to display."))
+                            .font(.caption)
+                            .foregroundStyle(theme.adaptiveSecondaryText)
                     }
                     .padding(14)
                     .glassCard()
-
-                    widgetConfigSection
+                    .padding(.horizontal, 16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 32)
+                .padding(.bottom, 80)
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -110,15 +114,27 @@ struct SettingsWidgetPage: View {
         }
     }
 
-    // MARK: - Widget Config Section
+    // MARK: - Wallpaper Status
 
-    private var widgetConfigSection: some View {
-        Label(String(localized: "Long-press the widget → Edit to choose which group to display."), systemImage: "hand.tap")
-            .font(.caption)
-            .foregroundStyle(theme.adaptiveSecondaryText)
-            .padding(14)
-            .glassCard()
+    @ViewBuilder
+    private var wallpaperStatus: some View {
+        if wallpaperThumbnail != nil {
+            Label(String(localized: "Synced with wallpaper shortcut"), systemImage: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.green)
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                Label(String(localized: "Set up the wallpaper shortcut first"), systemImage: "arrow.right.circle")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.brandAccent)
+                Text(String(localized: "Updates automatically each time the wallpaper shortcut runs."))
+                    .font(.caption2)
+                    .foregroundStyle(theme.adaptiveSecondaryText)
+            }
+        }
     }
+
+    // MARK: - Background Card
 
     private func bgCard<Preview: View>(
         title: String,

@@ -397,7 +397,14 @@ final class BlockingStore: ObservableObject {
             let started = defaults.object(forKey: SharedKeys.usageBudgetStartedKey(g.id)) as? Date
             if remaining > 0 || initial > 0 || started != nil {
                 let startedStr = started.map { iso.string(from: $0) } ?? "nil"
-                lines.append("  \(g.name): \(remaining)/\(initial)m remaining | started: \(startedStr)")
+                var extra = ""
+                if let s = started, initial > 0 {
+                    let wallElapsed = Int(now.timeIntervalSince(s) / 60)
+                    let wallRemaining = max(0, initial - wallElapsed)
+                    let effective = min(remaining, wallRemaining)
+                    extra = " | wallClock=\(wallElapsed)m elapsed, effective=\(effective)m"
+                }
+                lines.append("  \(g.name): \(remaining)/\(initial)m remaining | started: \(startedStr)\(extra)")
                 budgetCount += 1
             }
         }

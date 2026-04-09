@@ -23,8 +23,6 @@ struct GalleryView: View {
     @Environment(\.appTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @Binding var metricOverlay: MetricOverlayKind?
-    @Binding var isLabelMode: Bool
-
     @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader()) private var userStepsTarget: Double = 10_000
     @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var userSleepTarget: Double = 8.0
     @AppStorage("gallery_sleep_color") private var sleepColorHex: String = "#000000"
@@ -42,16 +40,16 @@ struct GalleryView: View {
     @State private var shareImage: UIImage? = nil
     @State private var showSaveRoutine = false
     @State private var routineName = ""
-    @State private var activeElementId: UUID? = nil
+    @Binding var isWideCanvas: Bool
+    @State private var isManuallyExpanded: Bool = false
+    @State private var isNaturallyWide: Bool = false
+    /// Tracks whether the user explicitly collapsed wide mode so we don't
+    /// re-expand just because the geometry still qualifies as "naturally wide".
+    @State private var userCollapsedWide: Bool = false
+    @State private var isEditMode: Bool = false
     @State private var isDraggingElement: Bool = false
     @State private var dragStartBasePosition: CGPoint? = nil
-    @State private var rotationGestureActive: Bool = false
-    @State private var rotationAtGestureStart: Double = 0
-    @State private var showLabelModeHint: Bool = false
-    @AppStorage("labelModeHintShown") private var labelModeHintShown: Bool = false
-    @State private var undoElement: CanvasElement? = nil
-    @State private var showUndoToast: Bool = false
-    @Binding var isWideCanvas: Bool
+    @State private var activeElementId: UUID? = nil
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.topCardHeight) private var topCardHeight
 
@@ -71,9 +69,14 @@ struct GalleryView: View {
     private var todayKey: String { AppModel.dayKey(for: Date()) }
 
     private var bottomControlsPadding: CGFloat {
-        let base = max(safeAreaBottom, 34) + 12
-        if isLabelMode || isWideCanvas { return base }
-        return base + tabBarHeight + 12
+        if isWideCanvas || isEditMode {
+            return max(safeAreaBottom, 34) + 16
+        }
+        // Anchor relative to device geometry:
+        // safeAreaBottom covers the home indicator (34pt on Face ID, 0 on SE),
+        // tabBarHeight is the measured custom tab bar (~80pt),
+        // +20 is the visual breathing room above the tab bar.
+        return safeAreaBottom + tabBarHeight + 60
     }
 
     private struct CanvasSyncState: Equatable {
@@ -115,7 +118,7 @@ struct GalleryView: View {
     // ═══════════════════════════════════════════════════════════
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack {
             // Layer 1: Fixed-size canvas — never resizes, so the backing
             // buffer stays identical when the viewport gets wider.
             GenerativeCanvasView(
@@ -127,11 +130,11 @@ struct GalleryView: View {
                 decayNorm: decayNorm,
                 backgroundColor: canvasBackground,
                 labelColor: labelColor,
-                showLabelsOnCanvas: isLabelMode,
+                showLabelsOnCanvas: isWideCanvas,
                 showsBackgroundGradient: false,
                 hasStepsData: model.hasStepsData,
                 hasSleepData: model.hasSleepData,
-                timeScale: isLabelMode ? 0.25 : 1.0
+                timeScale: isEditMode ? 0.0 : 1.0
             )
             .frame(
                 width: GenerativeCanvasView.canonicalPortraitSize.width,
@@ -140,49 +143,92 @@ struct GalleryView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            // Layer 2: Fixed-size smudge overlay — same pinned frame.
-            SmudgeOverlayView(
-                elements: dayCanvas.elements,
-                sleepPoints: model.sleepPointsToday,
-                stepsPoints: model.stepsPointsToday,
-                sleepColor: Color(hex: sleepColorHex),
-                stepsColor: Color(hex: stepsColorHex),
-                decayNorm: decayNorm,
-                backgroundColor: canvasBackground,
-                labelColor: labelColor,
-                hasStepsData: model.hasStepsData,
-                hasSleepData: model.hasSleepData
-            )
-            .frame(
-                width: GenerativeCanvasView.canonicalPortraitSize.width,
-                height: GenerativeCanvasView.canonicalPortraitSize.height
-            )
-            .ignoresSafeArea()
-            .allowsHitTesting(!isLabelMode)
+            // Layer 2: Smudge overlay — interactive when not in edit mode.
+            if !isEditMode {
+                SmudgeOverlayView(
+                    elements: dayCanvas.elements,
+                    sleepPoints: model.sleepPointsToday,
+                    stepsPoints: model.stepsPointsToday,
+                    sleepColor: Color(hex: sleepColorHex),
+                    stepsColor: Color(hex: stepsColorHex),
+                    decayNorm: decayNorm,
+                    backgroundColor: canvasBackground,
+                    labelColor: labelColor,
+                    hasStepsData: model.hasStepsData,
+                    hasSleepData: model.hasSleepData
+                )
+                .frame(
+                    width: GenerativeCanvasView.canonicalPortraitSize.width,
+                    height: GenerativeCanvasView.canonicalPortraitSize.height
+                )
+                .ignoresSafeArea()
+            }
 
-            // Layer 2b: Tap-to-select + drag gesture overlay (label mode)
-            if isLabelMode && !isWideCanvas {
-                labelModeGestureOverlay
+            // Grain layer — above canvas elements + smudge, below controls
+            Image("grain 1")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .opacity(0.4)
+                .blendMode(.overlay)
+
+            // Layer 2b: Edit mode drag overlay (wide canvas only)
+            if isEditMode {
+                editModeGestureOverlay
+                    .frame(
+                        width: GenerativeCanvasView.canonicalPortraitSize.width,
+                        height: GenerativeCanvasView.canonicalPortraitSize.height
+                    )
                     .ignoresSafeArea()
             }
 
-            // Layer 3: Interactive controls (respect safe area — stay above tab bar)
-            canvasControls
+            // Layer 2c: Edit mode element overlays (circle outlines + dice buttons)
+            if isEditMode {
+                editModeElementOverlays
+                    .frame(
+                        width: GenerativeCanvasView.canonicalPortraitSize.width,
+                        height: GenerativeCanvasView.canonicalPortraitSize.height
+                    )
+                    .ignoresSafeArea()
+            }
 
-            // Layer 4: Metric popover
+            // Layer 3: Interactive controls — hidden in wide canvas mode
+            if !isWideCanvas {
+                canvasControls
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
+            // Layer 4: Wide canvas edit button
+            if isWideCanvas {
+                wideCanvasOverlay
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea()
+            }
+
+            // Layer 5: Metric popover
             if let kind = metricOverlay, !isWideCanvas {
                 metricPopover(kind: kind)
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
             }
         }
-        .energyGradientBackground(model: model)
+        .energyGradientBackground(model: model, showGrain: false)
         .toolbar(.hidden, for: .navigationBar)
         .background(
             GeometryReader { geo in
                 Color.clear
                     .onChange(of: geo.size.width, initial: true) { _, w in
-                        let wide = w > GenerativeCanvasView.canonicalPortraitSize.width + 20
-                        if wide != isWideCanvas { isWideCanvas = wide }
+                        let isIPad = UIDevice.current.userInterfaceIdiom == .pad
+                        if isIPad {
+                            let canvasW = GenerativeCanvasView.canonicalPortraitSize.width
+                            let wide = w > canvasW * 1.15
+                            if wide != isNaturallyWide { isNaturallyWide = wide }
+                            if wide && !userCollapsedWide && !isManuallyExpanded {
+                                if !isWideCanvas { isWideCanvas = true }
+                            }
+                        }
                     }
                     .onChange(of: geo.safeAreaInsets, initial: true) { _, insets in
                         safeAreaTop = insets.top
@@ -228,6 +274,9 @@ struct GalleryView: View {
                 },
                 onActivityUndo: { optionId, cat in
                     removeElement(optionId: optionId, category: cat)
+                },
+                onReroll: { optionId, cat in
+                    rerollElement(optionId: optionId, category: cat)
                 }
             )
         }
@@ -236,16 +285,18 @@ struct GalleryView: View {
                 CanvasShareSheet(items: [image])
             }
         }
-        .sheet(isPresented: Binding(
-            get: { repaintElementId != nil },
-            set: { if !$0 { repaintElementId = nil } }
-        )) {
-            if let elementId = repaintElementId {
-                repaintSheet(for: elementId)
+        .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
+        .animation(.easeInOut(duration: 0.3), value: isEditMode)
+        .onChange(of: isWideCanvas) { _, wide in
+            if !wide {
+                isEditMode = false
+                activeElementId = nil
+                isDraggingElement = false
+                isManuallyExpanded = false
+            } else {
+                userCollapsedWide = false
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: isLabelMode)
-        .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -257,14 +308,14 @@ struct GalleryView: View {
     /// Gradients are confined to top/bottom strips so the canvas stays visible in the center.
     private var canvasControls: some View {
         ZStack {
-            if showQuickStartArea && !isLabelMode && !isWideCanvas {
+            if showQuickStartArea && !isWideCanvas {
                 emptyStateView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
             // Wide-canvas wallpaper suggestion
-            if isWideCanvas && !model.hasWallpaperShortcut && !isLabelMode {
+            if isWideCanvas && !model.hasWallpaperShortcut {
                 VStack {
                     Spacer()
                     wallpaperPromptBanner
@@ -274,8 +325,8 @@ struct GalleryView: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            // Proactive activity suggestions (workouts, mindful minutes, behavioral signals)
-            if !model._pendingActivitySuggestions.isEmpty && !isLabelMode && !isWideCanvas {
+            // Proactive activity suggestions
+            if !model._pendingActivitySuggestions.isEmpty && !isWideCanvas {
                 VStack {
                     ActivitySuggestionBanner(
                         suggestions: model._pendingActivitySuggestions,
@@ -295,61 +346,6 @@ struct GalleryView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            // Contextual orbit for selected element (label mode)
-            if isLabelMode && !isWideCanvas, let selectedId = activeElementId {
-                elementContextOrbit(elementId: selectedId)
-                    .transition(.scale.combined(with: .opacity))
-            }
-
-            // Discoverability hint on first label mode entry
-            if showLabelModeHint && isLabelMode && !isWideCanvas {
-                VStack {
-                    Spacer()
-                    Text(String(localized: "Tap an element to edit it", comment: "Label mode – discoverability hint"))
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(buttonColor.opacity(0.7))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .padding(.bottom, 140)
-                }
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                .allowsHitTesting(false)
-            }
-
-            // Undo toast (element removal)
-            if showUndoToast, let removed = undoElement {
-                VStack {
-                    Spacer()
-                    HStack(spacing: 12) {
-                        Text(String(localized: "\(removed.displayLabel) removed", comment: "Canvas – undo toast message"))
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(buttonColor)
-                        Button {
-                            withAnimation(.spring(response: 0.3)) {
-                                dayCanvas.elements.append(removed)
-                                dayCanvas.lastModified = Date()
-                                saveCanvasLocally()
-                                showUndoToast = false
-                                undoElement = nil
-                            }
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        } label: {
-                            Text(String(localized: "Undo", comment: "Canvas – undo button"))
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundStyle(buttonColor)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .padding(.bottom, bottomControlsPadding + 80)
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .allowsHitTesting(true)
-            }
-
             // Bottom section — always visible, sits above tab bar
             VStack {
                 Spacer(minLength: 0)
@@ -365,28 +361,52 @@ struct GalleryView: View {
 
     private var bottomControlsBar: some View {
         HStack(alignment: .center) {
-            labelToggleButton
+            expandCanvasButton
 
             Spacer()
 
-            if !isLabelMode {
-                RadialHoldMenu(
-                    labelColor: buttonColor,
-                    onCategorySelected: { category in pickerCategory = category }
-                )
-                .transition(.opacity)
-            }
+            RadialHoldMenu(
+                labelColor: buttonColor,
+                onCategorySelected: { category in pickerCategory = category }
+            )
 
             Spacer()
 
-            if !isLabelMode {
-                shareButton
-                    .transition(.opacity)
-            } else {
-                Color.clear.frame(width: 72, height: 72)
-            }
+            shareButton
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 66)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Expand Canvas Button
+    // ═══════════════════════════════════════════════════════════
+
+    private var expandCanvasButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.35)) {
+                userCollapsedWide = false
+                isManuallyExpanded = true
+                isWideCanvas = true
+            }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.7)
+                    .frame(width: 56, height: 56)
+                Circle()
+                    .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
+                    .frame(width: 56, height: 56)
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 20, weight: .ultraLight))
+                    .foregroundStyle(buttonColor.opacity(0.85))
+            }
+            .frame(width: 72, height: 72)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "Expand canvas", comment: "GalleryView – expand button VoiceOver label"))
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -462,51 +482,6 @@ struct GalleryView: View {
         } message: {
             Text(String(localized: "Give this combination a name to reuse it later."))
         }
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // MARK: - Label Toggle Button
-    // ═══════════════════════════════════════════════════════════
-
-    private var labelToggleButton: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                isLabelMode.toggle()
-                if isLabelMode {
-                    metricOverlay = nil
-                    if !labelModeHintShown {
-                        showLabelModeHint = true
-                        labelModeHintShown = true
-                        Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(2500))
-                            withAnimation(.easeOut(duration: 0.4)) { showLabelModeHint = false }
-                        }
-                    }
-                }
-                if !isLabelMode { activeElementId = nil; isDraggingElement = false }
-            }
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.7)
-                    .frame(width: 56, height: 56)
-                Circle()
-                    .strokeBorder(buttonColor.opacity(isLabelMode ? 0.4 : 0.3), lineWidth: 1)
-                    .frame(width: 56, height: 56)
-                Image(systemName: isLabelMode ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 22, weight: .ultraLight))
-                    .foregroundStyle(buttonColor.opacity(isLabelMode ? 0.9 : 0.85))
-            }
-            .frame(width: 72, height: 72)
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isLabelMode
-            ? String(localized: "Exit label mode", comment: "GalleryView – label toggle VoiceOver label")
-            : String(localized: "Enter label mode", comment: "GalleryView – label toggle VoiceOver label"))
-        .opacity(isCanvasEmpty ? 0.35 : 1.0)
-        .disabled(isCanvasEmpty)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -707,7 +682,7 @@ struct GalleryView: View {
                     color: color,
                     label: label,
                     existingElements: dayCanvas.elements,
-                    forcedVariant: cat == .body ? Int.random(in: 0...2) : nil
+                    forcedVariant: cat == .body ? Int.random(in: 0..<CanvasImageCatalog.body.count) : (cat == .mind ? Int.random(in: 0..<CanvasImageCatalog.mind.count) : nil)
                 )
                 dayCanvas.elements.append(element)
                 didChange = true
@@ -757,10 +732,14 @@ struct GalleryView: View {
     }
 
     private func spawnElement(optionId: String, category: EnergyCategory, color: String, assetVariant: Int? = nil) {
+        let effectiveVariant = category == .mind ? (assetVariant ?? Int.random(in: 0..<CanvasImageCatalog.mind.count)) : assetVariant
+
         if let index = dayCanvas.elements.firstIndex(where: { $0.optionId == optionId && $0.category == category }) {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                dayCanvas.elements[index].hexColor = color
-                if let variant = assetVariant {
+                if category != .mind {
+                    dayCanvas.elements[index].hexColor = color
+                }
+                if let variant = effectiveVariant {
                     dayCanvas.elements[index].assetVariant = variant
                 }
             }
@@ -772,7 +751,7 @@ struct GalleryView: View {
                 color: color,
                 label: label,
                 existingElements: dayCanvas.elements,
-                forcedVariant: assetVariant
+                forcedVariant: effectiveVariant
             )
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 dayCanvas.elements.append(element)
@@ -791,159 +770,203 @@ struct GalleryView: View {
         saveCanvasLocally()
     }
 
+    private func rerollElement(optionId: String, category: EnergyCategory) {
+        guard let index = dayCanvas.elements.firstIndex(where: { $0.optionId == optionId && $0.category == category }) else { return }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            dayCanvas.elements[index].reroll()
+            if category == .body {
+                dayCanvas.elements[index].hexColor = CanvasColorPalette.paletteHex.randomElement() ?? dayCanvas.elements[index].hexColor
+            }
+        }
+        dayCanvas.lastModified = Date()
+        saveCanvasLocally()
+    }
+
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Label Mode Gesture Overlay (tap to select, drag to move)
+    // MARK: - Wide Canvas Overlay (edit button)
     // ═══════════════════════════════════════════════════════════
 
-    private var labelModeGestureOverlay: some View {
+    private var wideCanvasOverlay: some View {
+        VStack {
+            Spacer()
+            HStack {
+                // Collapse button (bottom-left)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        isEditMode = false
+                        activeElementId = nil
+                        isDraggingElement = false
+                        isManuallyExpanded = false
+                        userCollapsedWide = true
+                        isWideCanvas = false
+                    }
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.7)
+                            .frame(width: 56, height: 56)
+                        Circle()
+                            .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
+                            .frame(width: 56, height: 56)
+                        Image(systemName: "arrow.down.right.and.arrow.up.left")
+                            .font(.system(size: 20, weight: .ultraLight))
+                            .foregroundStyle(buttonColor.opacity(0.85))
+                    }
+                    .frame(width: 72, height: 72)
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Collapse canvas", comment: "GalleryView – collapse button VoiceOver label"))
+
+                Spacer()
+
+                // Edit button (bottom-right)
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        isEditMode.toggle()
+                        if !isEditMode {
+                            activeElementId = nil
+                            isDraggingElement = false
+                            saveCanvasLocally()
+                        }
+                    }
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.7)
+                            .frame(width: 56, height: 56)
+                        Circle()
+                            .strokeBorder(buttonColor.opacity(isEditMode ? 0.5 : 0.3), lineWidth: 1)
+                            .frame(width: 56, height: 56)
+                        Image(systemName: isEditMode ? "checkmark" : "hand.draw")
+                            .font(.system(size: 22, weight: .ultraLight))
+                            .foregroundStyle(buttonColor.opacity(0.85))
+                    }
+                    .frame(width: 72, height: 72)
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: isEditMode ? "Done editing" : "Edit canvas", comment: "GalleryView – edit button VoiceOver label"))
+            }
+            .padding(.horizontal, 50)
+            .padding(.bottom, safeAreaBottom + 50)
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Edit Mode Element Overlays (circle outlines + dice)
+    // ═══════════════════════════════════════════════════════════
+
+    private var editModeElementOverlays: some View {
+        let refSize = GenerativeCanvasView.canonicalPortraitSize
+        let dim = min(refSize.width, refSize.height)
+
+        return ZStack {
+            ForEach(dayCanvas.elements) { element in
+                let cx = element.basePosition.x * refSize.width
+                let cy = element.basePosition.y * refSize.height
+                let effectiveSize = element.userSize ?? element.size
+                let diameter = effectiveSize * dim
+                let isActive = activeElementId == element.id
+
+                ZStack {
+                    Circle()
+                        .strokeBorder(
+                            buttonColor.opacity(isActive ? 0.6 : 0.3),
+                            lineWidth: isActive ? 1.5 : 0.75
+                        )
+                        .frame(width: diameter, height: diameter)
+
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Button {
+                                rerollElement(optionId: element.optionId, category: element.category)
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                Image(systemName: "dice")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(buttonColor.opacity(0.85))
+                                    .frame(width: 24, height: 24)
+                                    .background(
+                                        Circle()
+                                            .fill(.ultraThinMaterial)
+                                            .opacity(0.9)
+                                    )
+                                    .overlay(
+                                        Circle()
+                                            .strokeBorder(buttonColor.opacity(0.3), lineWidth: 0.5)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .allowsHitTesting(true)
+                        }
+                        Spacer()
+                    }
+                    .frame(width: diameter, height: diameter)
+                }
+                .position(x: cx, y: cy)
+                .transition(.opacity)
+            }
+        }
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: activeElementId)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Edit Mode Gesture Overlay
+    // ═══════════════════════════════════════════════════════════
+
+    private var editModeGestureOverlay: some View {
         GeometryReader { _ in
             let refSize = GenerativeCanvasView.canonicalPortraitSize
             Color.clear
                 .contentShape(Rectangle())
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 6)
+                        .onChanged { value in
+                            handleEditDrag(value: value, canvasSize: refSize)
+                        }
+                        .onEnded { _ in
+                            handleEditDragEnd()
+                        }
+                )
                 .onTapGesture { location in
-                    let t = Date().timeIntervalSinceReferenceDate
-                    if let hit = findClosestElement(to: location, canvasSize: refSize, t: t),
-                       hit.distance < 80 {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    let hit = findClosestElement(to: location, canvasSize: refSize)
+                    if let hit, hit.distance < 80 {
+                        withAnimation(.spring(response: 0.2)) {
                             activeElementId = (activeElementId == hit.element.id) ? nil : hit.element.id
                         }
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     } else {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                            activeElementId = nil
-                        }
+                        withAnimation(.spring(response: 0.2)) { activeElementId = nil }
                     }
                 }
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 14)
-                        .onChanged { value in
-                            handleLabelDrag(value: value, canvasSize: refSize)
-                        }
-                        .onEnded { _ in
-                            handleLabelDragEnd()
-                        }
-                )
-                .simultaneousGesture(
-                    RotationGesture(minimumAngleDelta: .degrees(8))
-                        .onChanged { angle in handleRotation(angle: angle) }
-                        .onEnded { _ in handleRotationEnd() }
-                )
         }
     }
 
-    // MARK: - Contextual Orbit (shows around selected element)
-
-    private func elementContextOrbit(elementId: UUID) -> some View {
-        GeometryReader { _ in
-            let refSize = GenerativeCanvasView.canonicalPortraitSize
-            let t = Date().timeIntervalSinceReferenceDate
-            let element = dayCanvas.elements.first { $0.id == elementId }
-            let center: CGPoint = {
-                guard let el = element else { return CGPoint(x: refSize.width / 2, y: refSize.height / 2) }
-                return hitTestCenter(for: el, canvasSize: refSize, t: t)
-            }()
-
-            let orbitRadius: CGFloat = 52
-            let actions: [(icon: String, label: String, angle: Double)] = [
-                ("paintpalette", "Repaint", -.pi * 0.75),
-                ("arrow.up.and.down.and.arrow.left.and.right", "Move", -.pi * 0.25),
-                ("trash", "Remove", .pi * 0.25),
-            ]
-
-            TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
-                let liveT = timeline.date.timeIntervalSinceReferenceDate
-                let liveCenter: CGPoint = {
-                    guard let el = element else { return center }
-                    return hitTestCenter(for: el, canvasSize: refSize, t: liveT)
-                }()
-
-                ZStack {
-                    Circle()
-                        .stroke(buttonColor.opacity(0.15), lineWidth: 1)
-                        .frame(width: orbitRadius * 2, height: orbitRadius * 2)
-                        .position(liveCenter)
-
-                    ForEach(0..<actions.count, id: \.self) { i in
-                        let action = actions[i]
-                        let btnX = liveCenter.x + orbitRadius * cos(action.angle)
-                        let btnY = liveCenter.y + orbitRadius * sin(action.angle)
-
-                        Button {
-                            handleOrbitAction(action.label, elementId: elementId)
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .frame(width: 36, height: 36)
-                                Circle()
-                                    .stroke(buttonColor.opacity(0.2), lineWidth: 0.5)
-                                    .frame(width: 36, height: 36)
-                                Image(systemName: action.icon)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(action.label == "Remove" ? .red.opacity(0.8) : buttonColor.opacity(0.8))
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .position(x: btnX, y: btnY)
-                    }
-                }
-            }
-        }
-        .allowsHitTesting(true)
-    }
-
-    @State private var repaintElementId: UUID? = nil
-
-    private func handleOrbitAction(_ action: String, elementId: UUID) {
-        switch action {
-        case "Repaint":
-            repaintElementId = elementId
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        case "Move":
-            withAnimation(.spring(response: 0.25)) {
+    private func handleEditDrag(value: DragGesture.Value, canvasSize: CGSize) {
+        if !isDraggingElement {
+            if let id = activeElementId,
+               let el = dayCanvas.elements.first(where: { $0.id == id }) {
                 isDraggingElement = true
-            }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        case "Remove":
-            guard let removed = dayCanvas.elements.first(where: { $0.id == elementId }) else { break }
-            withAnimation(.spring(response: 0.3)) {
-                dayCanvas.elements.removeAll { $0.id == elementId }
-                activeElementId = nil
-                dayCanvas.lastModified = Date()
-                saveCanvasLocally()
-                undoElement = removed
-                showUndoToast = true
-            }
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(3))
-                withAnimation(.easeOut(duration: 0.3)) {
-                    if undoElement?.id == removed.id { showUndoToast = false; undoElement = nil }
+                dragStartBasePosition = el.basePosition
+            } else {
+                let hit = findClosestElement(to: value.startLocation, canvasSize: canvasSize)
+                if let hit, hit.distance < 80 {
+                    activeElementId = hit.element.id
+                    isDraggingElement = true
+                    dragStartBasePosition = hit.element.basePosition
                 }
-            }
-        default:
-            break
-        }
-    }
-
-    // MARK: - Label Mode Drag to Move
-
-    private func handleLabelDrag(value: DragGesture.Value, canvasSize: CGSize) {
-        if activeElementId == nil || !isDraggingElement {
-            let t = Date().timeIntervalSinceReferenceDate
-            if let hit = findClosestElement(to: value.startLocation, canvasSize: canvasSize, t: t),
-               hit.distance < 80 {
-                activeElementId = hit.element.id
-                isDraggingElement = true
-                dragStartBasePosition = hit.element.basePosition
             }
         }
 
         guard let id = activeElementId,
-              let startPos = dragStartBasePosition ?? dayCanvas.elements.first(where: { $0.id == id })?.basePosition,
+              let startPos = dragStartBasePosition,
               let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
-
-        if dragStartBasePosition == nil { dragStartBasePosition = startPos }
 
         let dx = value.translation.width / canvasSize.width
         let dy = value.translation.height / canvasSize.height
@@ -953,241 +976,29 @@ struct GalleryView: View {
         )
     }
 
-    private func handleLabelDragEnd() {
+    private func handleEditDragEnd() {
         isDraggingElement = false
         dragStartBasePosition = nil
         dayCanvas.lastModified = Date()
         saveCanvasLocally()
     }
 
-    // MARK: - Two-Finger Rotate
+    // MARK: - Edit Mode Hit Testing
 
-    private func handleRotation(angle: Angle) {
-        guard let id = activeElementId,
-              let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
-
-        if !rotationGestureActive {
-            rotationGestureActive = true
-            rotationAtGestureStart = dayCanvas.elements[index].userRotation
-        }
-        dayCanvas.elements[index].userRotation = rotationAtGestureStart + angle.radians
-    }
-
-    private func handleRotationEnd() {
-        rotationGestureActive = false
-        dayCanvas.lastModified = Date()
-        saveCanvasLocally()
-    }
-
-    // MARK: - Repaint Sheet
-
-    private static let bodyAssetNames = ["body 1", "body 2", "body 3"]
-
-    private func repaintSheet(for elementId: UUID) -> some View {
-        let elementIndex = dayCanvas.elements.firstIndex { $0.id == elementId }
-        let element = elementIndex.map { dayCanvas.elements[$0] }
-        let currentHex = element?.hexColor ?? "#FFFFFF"
-        let isBody = element?.category == .body
-        let currentVariant = element?.assetVariant ?? 0
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 6)
-
-        return NavigationStack {
-            VStack(spacing: 16) {
-                Text(String(localized: "Customize element", comment: "Repaint sheet – title"))
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary)
-
-                // Shape picker (body elements have 3 variants)
-                if isBody {
-                    HStack(spacing: 8) {
-                        ForEach(0..<Self.bodyAssetNames.count, id: \.self) { index in
-                            let isActive = index == currentVariant
-                            Button {
-                                if let idx = elementIndex {
-                                    withAnimation(.spring(response: 0.2)) {
-                                        dayCanvas.elements[idx].assetVariant = index
-                                        dayCanvas.lastModified = Date()
-                                        saveCanvasLocally()
-                                    }
-                                }
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            } label: {
-                                Group {
-                                    if let uiImage = UIImage(named: Self.bodyAssetNames[index])?.withRenderingMode(.alwaysTemplate) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fit)
-                                            .foregroundStyle(Color(hex: currentHex).opacity(isActive ? 1.0 : 0.3))
-                                            .frame(width: 28, height: 28)
-                                    } else {
-                                        Image(systemName: "circle.fill")
-                                            .font(.system(size: 18))
-                                            .foregroundStyle(Color(hex: currentHex).opacity(isActive ? 1.0 : 0.3))
-                                    }
-                                }
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 44)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color(hex: currentHex).opacity(isActive ? 0.1 : 0.03))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(isActive ? Color(hex: currentHex).opacity(0.35) : .clear, lineWidth: 1.5)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                }
-
-                LazyVGrid(columns: columns, spacing: 10) {
-                    ForEach(Array(CanvasColorPalette.paletteHex.enumerated()), id: \.offset) { _, hex in
-                        let isActive = hex == currentHex
-                        Button {
-                            if let idx = elementIndex {
-                                withAnimation(.spring(response: 0.2)) {
-                                    dayCanvas.elements[idx].hexColor = hex
-                                    dayCanvas.lastModified = Date()
-                                    saveCanvasLocally()
-                                }
-                            }
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        } label: {
-                            Circle()
-                                .fill(Color(hex: hex))
-                                .frame(width: 40, height: 40)
-                                .overlay(
-                                    Circle().stroke(Color.primary.opacity(isActive ? 0.6 : 0), lineWidth: 2.5)
-                                        .padding(-3)
-                                )
-                                .scaleEffect(isActive ? 1.12 : 1.0)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
-            .padding(.vertical, 24)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(String(localized: "Done", comment: "Repaint sheet – dismiss")) {
-                        repaintElementId = nil
-                    }
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                }
-            }
-        }
-        .presentationDetents([.height(isBody ? 370 : 280)])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(.ultraThinMaterial)
-    }
-
-    // MARK: - Hit Testing (mirrors GenerativeCanvasView positions)
-
-    private func findClosestElement(to point: CGPoint, canvasSize: CGSize, t: TimeInterval)
+    private func findClosestElement(to point: CGPoint, canvasSize: CGSize)
         -> (element: CanvasElement, distance: CGFloat)? {
         var closest: (element: CanvasElement, distance: CGFloat)? = nil
         for element in dayCanvas.elements {
-            let center = hitTestCenter(for: element, canvasSize: canvasSize, t: t)
-            let dx = point.x - center.x
-            let dy = point.y - center.y
+            let cx = element.basePosition.x * canvasSize.width
+            let cy = element.basePosition.y * canvasSize.height
+            let dx = point.x - cx
+            let dy = point.y - cy
             let dist = sqrt(dx * dx + dy * dy)
             if closest == nil || dist < (closest?.distance ?? .greatestFiniteMagnitude) {
                 closest = (element, dist)
             }
         }
         return closest
-    }
-
-    private func hitTestCenter(for e: CanvasElement, canvasSize: CGSize, t: TimeInterval) -> CGPoint {
-        switch e.category {
-        case .body:
-            return CGPoint(
-                x: e.basePosition.x * canvasSize.width,
-                y: e.basePosition.y * canvasSize.height
-            )
-        case .mind:
-            return mindHitPosition(e, canvasSize: canvasSize, t: t)
-        case .heart:
-            return heartHitPosition(e, canvasSize: canvasSize, t: t)
-        }
-    }
-
-    private var hitTestAmpScale: Double {
-        isLabelMode ? 0.25 : 1.0
-    }
-
-    private func mindHitPosition(_ e: CanvasElement, canvasSize: CGSize, t: TimeInterval) -> CGPoint {
-        let p = e.phaseOffset
-        let speed = 0.03 + e.driftSpeed * 0.06
-        let amp = hitTestAmpScale
-
-        let nx = Double(e.basePosition.x)
-            + sin(t * speed * 1.00 + p) * 0.34 * amp
-            + sin(t * speed * 2.37 + p * 2.3) * 0.12 * amp
-            + sin(t * speed * 4.13 + p * 4.1) * 0.04 * amp
-            + sin(t * speed * 6.71 + p * 6.7) * 0.015 * amp
-
-        let ny = Double(e.basePosition.y)
-            + cos(t * speed * 0.83 + p * 1.7) * 0.32 * amp
-            + cos(t * speed * 1.97 + p * 3.1) * 0.11 * amp
-            + cos(t * speed * 3.61 + p * 5.3) * 0.04 * amp
-            + cos(t * speed * 5.89 + p * 7.9) * 0.015 * amp
-
-        let margin = 0.06
-        return CGPoint(
-            x: min(1.0 - margin, max(margin, nx)) * canvasSize.width,
-            y: min(1.0 - margin, max(margin, ny)) * canvasSize.height
-        )
-    }
-
-    private func heartHitPosition(_ e: CanvasElement, canvasSize: CGSize, t: TimeInterval = Date().timeIntervalSinceReferenceDate) -> CGPoint {
-        let base = heartEdgeAnchor(e, canvasSize: canvasSize)
-        let dim = Double(min(canvasSize.width, canvasSize.height))
-        let radius = Double(e.size) * dim * 2.2
-
-        let center = CGPoint(
-            x: min(max(Double(base.x), radius), Double(canvasSize.width) - radius),
-            y: min(max(Double(base.y), radius), Double(canvasSize.height) - radius)
-        )
-
-        let dx = Double(canvasSize.width) * 0.5 - center.x
-        let dy = Double(canvasSize.height) * 0.5 - center.y
-        let baseAngle = atan2(dy, dx)
-
-        // Include sweep animation offset to match visual position
-        let sweepRange = (10.0 + e.rotationSpeed * 0.2) * hitTestAmpScale
-        let sweepSpeed = 0.012 + e.driftSpeed * 0.01
-        let sweepRad = sin(t * sweepSpeed + e.phaseOffset * 2.1) * sweepRange * .pi / 180.0
-
-        let oriented = baseAngle + .pi / 2 + e.userRotation
-        let outwardDist = radius * 0.55
-        let tipX = center.x - outwardDist * sin(oriented + sweepRad)
-        let tipY = center.y + outwardDist * cos(oriented + sweepRad)
-        return CGPoint(
-            x: min(max(tipX, 24), Double(canvasSize.width) - 24),
-            y: min(max(tipY, 24), Double(canvasSize.height) - 24)
-        )
-    }
-
-    private func heartEdgeAnchor(_ e: CanvasElement, canvasSize: CGSize) -> CGPoint {
-        let nx = Double(e.basePosition.x)
-        let ny = Double(e.basePosition.y)
-        let edgeInset = 0.08
-        let minN = edgeInset
-        let maxN = 1.0 - edgeInset
-
-        let dL = nx, dR = 1.0 - nx, dT = ny, dB = 1.0 - ny
-        let minDist = min(dL, dR, dT, dB)
-        var ax = nx, ay = ny
-        if minDist == dL      { ax = minN; ay = min(max(ny, minN), maxN) }
-        else if minDist == dR { ax = maxN; ay = min(max(ny, minN), maxN) }
-        else if minDist == dT { ay = minN; ax = min(max(nx, minN), maxN) }
-        else                  { ay = maxN; ax = min(max(nx, minN), maxN) }
-
-        return CGPoint(x: ax * canvasSize.width, y: ay * canvasSize.height)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1610,6 +1421,6 @@ struct FlowLayout: Layout {
 
 #Preview {
     NavigationStack {
-        GalleryView(model: DIContainer.shared.makeAppModel(), metricOverlay: .constant(nil), isLabelMode: .constant(false), isWideCanvas: .constant(false))
+        GalleryView(model: DIContainer.shared.makeAppModel(), metricOverlay: .constant(nil), isWideCanvas: .constant(false))
     }
 }

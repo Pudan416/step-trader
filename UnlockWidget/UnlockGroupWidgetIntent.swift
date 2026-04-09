@@ -21,7 +21,7 @@ struct RefreshWidgetIntent: AppIntent {
 /// Runs entirely in the widget extension process — no app launch required.
 struct UnlockGroupWidgetIntent: AppIntent {
     static var title: LocalizedStringResource = "Unlock App Group"
-    static var description: IntentDescription = "Spend colors to unlock a ticket group for a chosen duration."
+    static var description: IntentDescription = "Spend colors to unlock a feed group for a chosen duration."
     static var isDiscoverable: Bool = false
 
     @Parameter(title: "Group ID")
