@@ -6,6 +6,9 @@ import ManagedSettings
 #if canImport(FamilyControls)
 import FamilyControls
 #endif
+#if canImport(DeviceActivity)
+import DeviceActivity
+#endif
 
 // MARK: - Shared Codable Types
 // Canonical definitions used by DeviceActivityMonitor, ShieldAction, and
@@ -192,7 +195,96 @@ enum ShieldRebuildHelper {
 
         defaults.set(0, forKey: SharedKeys.shieldState)
 
+        startPendingWidgetBudgets(defaults: defaults, groups: groups)
+
         logDiagnostic(defaults: defaults, apps: allApps.count, categories: allCategories.count)
+        #endif
+    }
+
+    // MARK: - Pending Widget Budget Monitoring
+
+    /// Starts DeviceActivity monitoring for widget-initiated budgets. Called from rebuild()
+    /// so monitoring begins immediately when the widget removes the shield, rather than
+    /// waiting for the main app to foreground (which may be minutes/hours later).
+    private static func startPendingWidgetBudgets(defaults: UserDefaults, groups: [GroupTuple]) {
+        #if canImport(DeviceActivity) && canImport(FamilyControls)
+        let center = DeviceActivityCenter()
+
+        for group in groups where group.active {
+            let pendingKey = SharedKeys.pendingBudgetMonitoringPrefix + group.id
+            let minutesKey = SharedKeys.pendingBudgetMinutesPrefix + group.id
+            guard defaults.bool(forKey: pendingKey) else { continue }
+
+            let minutes = defaults.integer(forKey: minutesKey)
+            guard minutes > 0 else {
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+                continue
+            }
+
+            guard defaults.integer(forKey: SharedKeys.usageBudgetKey(group.id)) > 0 else {
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+                continue
+            }
+
+            guard let selectionData = group.selectionData,
+                  let sel = cachedSelection(for: group.id, data: selectionData)
+            else { continue }
+
+            let activityName = DeviceActivityName("usageBudget_\(group.id)")
+            guard !center.activities.contains(activityName) else {
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+                continue
+            }
+
+            var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
+            for m in 1..<minutes {
+                events[DeviceActivityEvent.Name("usageBudgetTick_\(group.id)_\(m)")] = DeviceActivityEvent(
+                    applications: sel.applicationTokens,
+                    categories: sel.categoryTokens,
+                    threshold: DateComponents(minute: m)
+                )
+            }
+
+            let widgetMilestones: [Double] = [0.25, 0.50, 0.75, 0.90]
+            var seenWidgetMinutes = Set<Int>()
+            for frac in widgetMilestones {
+                let m = Int(Double(minutes) * frac)
+                guard m >= 1, m < minutes, !seenWidgetMinutes.contains(m) else { continue }
+                seenWidgetMinutes.insert(m)
+                events[DeviceActivityEvent.Name("usageBudgetWidgetTick_\(group.id)_\(m)")] = DeviceActivityEvent(
+                    applications: sel.applicationTokens,
+                    categories: sel.categoryTokens,
+                    threshold: DateComponents(minute: m)
+                )
+            }
+
+            events[DeviceActivityEvent.Name("usageBudgetDone_\(group.id)")] = DeviceActivityEvent(
+                applications: sel.applicationTokens,
+                categories: sel.categoryTokens,
+                threshold: DateComponents(minute: minutes)
+            )
+
+            let schedule = DeviceActivitySchedule(
+                intervalStart: DateComponents(hour: 0, minute: 0, second: 0),
+                intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
+                repeats: true
+            )
+
+            do {
+                try center.startMonitoring(activityName, during: schedule, events: events)
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+
+                let ts = isoFormatter.string(from: Date())
+                let msg = "[\(ts)] OK usageBudget_\(group.id) \(minutes)m events=\(events.count) apps=\(sel.applicationTokens.count) sched=[start=0:0:0 end=23:59:59] activities=\(center.activities.map(\.rawValue))"
+                defaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
+            } catch {
+                // Don't clear pending keys on failure — the extension or main app will retry
+            }
+        }
         #endif
     }
 

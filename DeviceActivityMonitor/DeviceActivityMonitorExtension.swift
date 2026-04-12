@@ -111,6 +111,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         appendMonitorLog("intervalDidStart: \(activity.rawValue)")
         
         if activity == DeviceActivityName("minuteMode") {
+            startPendingWidgetBudgets()
             setupBlockForMinuteMode()
         }
     }
@@ -307,10 +308,104 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     private func setupBlockForMinuteMode() {}
     #endif
 
+    #if canImport(FamilyControls)
+    /// Start DeviceActivity monitoring for any widget-initiated budgets that the main app
+    /// hasn't picked up yet. The widget extension can't call startMonitoring() itself, so
+    /// it writes pending keys. This extension picks them up on the next minuteMode event.
+    private func startPendingWidgetBudgets() {
+        let defaults = SharedKeys.appGroupDefaults()
+        let groups = ShieldRebuildHelper.loadGroups(defaults: defaults)
+        let center = DeviceActivityCenter()
+
+        for group in groups where group.active {
+            let pendingKey = SharedKeys.pendingBudgetMonitoringPrefix + group.id
+            let minutesKey = SharedKeys.pendingBudgetMinutesPrefix + group.id
+            guard defaults.bool(forKey: pendingKey) else { continue }
+
+            let minutes = defaults.integer(forKey: minutesKey)
+            guard minutes > 0 else {
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+                continue
+            }
+
+            let budgetInPrefs = defaults.integer(forKey: SharedKeys.usageBudgetKey(group.id))
+            guard budgetInPrefs > 0 else {
+                MonitorLogger.info("Dropping stale widget pending for \(group.name) — no budget in prefs")
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+                continue
+            }
+
+            guard let selectionData = group.selectionData,
+                  let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
+            else {
+                MonitorLogger.warning("Cannot start pending budget for \(group.name) — no selection data")
+                continue
+            }
+
+            let activityName = DeviceActivityName("usageBudget_\(group.id)")
+            if center.activities.contains(activityName) {
+                MonitorLogger.info("Pending budget for \(group.name) already has active monitor — clearing pending keys")
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+                continue
+            }
+
+            var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
+            for m in 1..<minutes {
+                events[DeviceActivityEvent.Name("usageBudgetTick_\(group.id)_\(m)")] = DeviceActivityEvent(
+                    applications: sel.applicationTokens,
+                    categories: sel.categoryTokens,
+                    threshold: DateComponents(minute: m)
+                )
+            }
+
+            let widgetMilestones: [Double] = [0.25, 0.50, 0.75, 0.90]
+            var seenWidgetMinutes = Set<Int>()
+            for frac in widgetMilestones {
+                let m = Int(Double(minutes) * frac)
+                guard m >= 1, m < minutes, !seenWidgetMinutes.contains(m) else { continue }
+                seenWidgetMinutes.insert(m)
+                events[DeviceActivityEvent.Name("usageBudgetWidgetTick_\(group.id)_\(m)")] = DeviceActivityEvent(
+                    applications: sel.applicationTokens,
+                    categories: sel.categoryTokens,
+                    threshold: DateComponents(minute: m)
+                )
+            }
+
+            events[DeviceActivityEvent.Name("usageBudgetDone_\(group.id)")] = DeviceActivityEvent(
+                applications: sel.applicationTokens,
+                categories: sel.categoryTokens,
+                threshold: DateComponents(minute: minutes)
+            )
+
+            let schedule = DeviceActivitySchedule(
+                intervalStart: DateComponents(hour: 0, minute: 0, second: 0),
+                intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
+                repeats: true
+            )
+
+            do {
+                try center.startMonitoring(activityName, during: schedule, events: events)
+                MonitorLogger.info("Started pending widget budget for \(group.name): \(minutes)m, \(events.count) events")
+                appendMonitorLog("pendingBudgetStarted \(group.id): \(minutes)m")
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+            } catch {
+                MonitorLogger.error("Failed to start pending widget budget for \(group.name): \(error.localizedDescription)")
+            }
+        }
+    }
+    #else
+    private func startPendingWidgetBudgets() {}
+    #endif
+
     private func handleMinuteEvent(_ event: DeviceActivityEvent.Name) {
         let raw = event.rawValue
 
         if raw.hasPrefix("ticketGroup_") {
+            startPendingWidgetBudgets()
             checkAndClearExpiredBudgets()
             return
         }

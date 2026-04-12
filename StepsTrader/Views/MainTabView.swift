@@ -29,11 +29,17 @@ struct MainTabView: View {
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
     @State private var isWideCanvas: Bool = false
+    @State private var uiTestPickerCategory: EnergyCategory? = nil
     @State private var showColorsHelp: Bool = false
     @State private var tabBarHeight: CGFloat = 0
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
     @ScaledMetric(relativeTo: .caption2) private var tabIconSize: CGFloat = 22
     @ScaledMetric(relativeTo: .caption2) private var selectedTabIconSize: CGFloat = 24
+
+    #if DEBUG
+    @EnvironmentObject private var coachMarkManager: CoachMarkManager
+    @State private var coachAnchors: [CoachMarkAnchor] = []
+    #endif
 
     private enum Tab: Int, CaseIterable {
         case canvas = 0
@@ -95,10 +101,29 @@ struct MainTabView: View {
                 // 0: My Canvas (default) — canvas goes full-bleed behind card
                 Group {
                     if isUITest {
-                        // Keep UI tests deterministic: avoid heavy animated/Metal canvas surfaces
-                        // that can block XCTest idling and snapshot collection.
-                        Color.clear
-                            .ignoresSafeArea()
+                        ZStack {
+                            Color.clear.ignoresSafeArea()
+                            VStack(spacing: 16) {
+                                Spacer()
+                                ForEach(EnergyCategory.allCases) { cat in
+                                    Button(cat.rawValue) {
+                                        uiTestPickerCategory = cat
+                                    }
+                                    .accessibilityIdentifier("uitest_open_\(cat.rawValue)")
+                                }
+                                .padding(.bottom, 40)
+                            }
+                        }
+                        .sheet(item: $uiTestPickerCategory) { category in
+                            CategoryDetailView(
+                                model: model,
+                                category: category,
+                                outerWorldSteps: 0,
+                                onActivityConfirmed: { _, _, _, _ in },
+                                onActivityUndo: { _, _ in },
+                                onReroll: { _, _ in }
+                            )
+                        }
                     } else {
                         NavigationStack {
                             GalleryView(model: model, metricOverlay: $metricOverlay, isWideCanvas: $isWideCanvas)
@@ -224,6 +249,36 @@ struct MainTabView: View {
                 colorsHelpOverlay
             }
         }
+        #if DEBUG
+        .onPreferenceChange(CoachMarkAnchorKey.self) { coachAnchors = $0 }
+        .overlay {
+            CoachMarkOverlay(manager: coachMarkManager, anchors: coachAnchors)
+        }
+        .onChange(of: coachMarkManager.currentStep) { _, newStep in
+            guard let step = newStep,
+                  let tabRaw = coachMarkManager.tabRawValue(for: step) else { return }
+            if selection != tabRaw {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    selection = tabRaw
+                }
+            }
+        }
+        .onAppear {
+            coachMarkManager.configure {
+                !model.blockingStore.ticketGroups.isEmpty
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: CoachMarkManager.actionNotification)) { notification in
+            if let step = notification.object as? CoachMarkStep {
+                coachMarkManager.completeAction(for: step)
+            }
+        }
+        .onChange(of: selection) { _, newValue in
+            if coachMarkManager.currentStep == .tapFeedsTab && newValue == Tab.feeds.rawValue {
+                coachMarkManager.completeAction(for: .tapFeedsTab)
+            }
+        }
+        #endif
         .onPreferenceChange(TopCardHeightPreferenceKey.self) { topCardHeight = $0 }
         .onPreferenceChange(TabBarHeightPreferenceKey.self) { tabBarHeight = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in
@@ -342,6 +397,9 @@ struct MainTabView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier(tab.accessibilityId)
+                #if DEBUG
+                .modifier(FeedsTabCoachAnchor(tab: tab))
+                #endif
             }
         }
         .padding(.horizontal, 8)
@@ -383,6 +441,9 @@ struct MainTabView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier(tab.accessibilityId)
+                #if DEBUG
+                .modifier(FeedsTabCoachAnchor(tab: tab))
+                #endif
             }
         }
         .padding(.horizontal, 8)
@@ -391,6 +452,20 @@ struct MainTabView: View {
         .padding(.horizontal, 12)
         .padding(.bottom, 4)
     }
+
+    #if DEBUG
+    private struct FeedsTabCoachAnchor: ViewModifier {
+        let tab: Tab
+
+        func body(content: Content) -> some View {
+            if tab == .feeds {
+                content.coachMarkAnchor(.tapFeedsTab)
+            } else {
+                content
+            }
+        }
+    }
+    #endif
 }
 
 // EnergyGradientBackground is now in Components/EnergyGradientBackground.swift

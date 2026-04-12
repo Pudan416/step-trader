@@ -112,6 +112,9 @@ struct AppsPageSimplified: View {
                                         .foregroundStyle(buttonTint)
                                 }
                             }
+                            #if DEBUG
+                            .coachMarkAnchor(.unlockSuccess)
+                            #endif
                         }
                     }
                     .padding(.horizontal, 16)
@@ -317,6 +320,9 @@ struct AppsPageSimplified: View {
                         }
                     }
                 }
+                #if DEBUG
+                .modifier(FirstFeedAnchor(groupId: group.id, firstId: visibleGroups.first?.id))
+                #endif
             }
         }
     }
@@ -420,3 +426,17 @@ struct AppsPageSimplified: View {
         model.deleteTicketGroup(groupId)
     }
 }
+
+#if DEBUG
+private struct FirstFeedAnchor: ViewModifier {
+    let groupId: String
+    let firstId: String?
+    func body(content: Content) -> some View {
+        if groupId == firstId {
+            content.coachMarkAnchor(.feedsExplain)
+        } else {
+            content
+        }
+    }
+}
+#endif

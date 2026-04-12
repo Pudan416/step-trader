@@ -79,6 +79,13 @@ extension AppModel {
     }
     
     func loadCustomEnergyOptions() {
+        if let envJSON = ProcessInfo.processInfo.environment["UITEST_CUSTOM_ENERGY_OPTIONS"],
+           let data = envJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([CustomEnergyOption].self, from: data) {
+            customEnergyOptions = decoded
+            return
+        }
+
         let g = UserDefaults.stepsTrader()
         guard let data = g.data(forKey: _customEnergyOptionsKey),
               let decoded = try? JSONDecoder().decode([CustomEnergyOption].self, from: data) else {
@@ -933,36 +940,7 @@ extension AppModel {
         ))
     }
 
-    // MARK: - Repeat Yesterday
 
-    /// Returns yesterday's snapshot if available.
-    func yesterdaySnapshot() -> PastDaySnapshot? {
-        let cal = Calendar.current
-        guard let yesterday = cal.date(byAdding: .day, value: -1, to: Date()) else { return nil }
-        let key = Self.dayKey(for: yesterday)
-        let all = loadPastDaySnapshots()
-        return all[key]
-    }
-
-    /// Whether today has no Body/Mind/Heart selections yet and yesterday had some.
-    /// Note: disk I/O only occurs when all selections are empty (fresh day).
-    var canRepeatYesterday: Bool {
-        let todayEmpty = dailyActivitySelections.isEmpty
-            && dailyRestSelections.isEmpty
-            && dailyJoysSelections.isEmpty
-        guard todayEmpty else { return false }
-        guard let snap = yesterdaySnapshot() else { return false }
-        return !snap.bodyIds.isEmpty || !snap.mindIds.isEmpty || !snap.heartIds.isEmpty
-    }
-
-    /// Apply yesterday's Body/Mind/Heart selections to today.
-    func repeatYesterday() {
-        guard let snap = yesterdaySnapshot() else { return }
-        let validBody = snap.bodyIds.filter { optionExists($0, category: .body) }
-        let validMind = snap.mindIds.filter { optionExists($0, category: .mind) }
-        let validHeart = snap.heartIds.filter { optionExists($0, category: .heart) }
-        applySelections(body: validBody, mind: validMind, heart: validHeart)
-    }
 
     /// Check if an option ID still exists (built-in or custom, not hidden).
     private func optionExists(_ id: String, category: EnergyCategory) -> Bool {

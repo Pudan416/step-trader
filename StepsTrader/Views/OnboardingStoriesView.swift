@@ -7,149 +7,10 @@ import AuthenticationServices
 import FamilyControls
 #endif
 
-// MARK: - Slide Types
-
-enum OnboardingSlideAction: Equatable {
-    case none
-    case requestHealth
-    case requestNotifications
-    case requestFamilyControls
-}
-
-enum OnboardingSlideType: Equatable {
-    case coldOpen
-    case theCanvas
-    case paintDemo
-    case colorCap
-    case spendDemo
-    case howItWorks
-    case stepsSetup
-    case sleepSetup
-    case text
-    case feedSelection
-    case nowHereReveal
-    case appleLogin
-    case welcome
-}
-
-struct OnboardingSlide: Identifiable {
-    let id = UUID()
-    let lines: [String]
-    let symbol: String
-    let gradient: [Color]
-    let action: OnboardingSlideAction
-    let slideType: OnboardingSlideType
-    let microcopy: String?
-    
-    init(
-        lines: [String],
-        symbol: String = "",
-        gradient: [Color] = [],
-        action: OnboardingSlideAction = .none,
-        slideType: OnboardingSlideType = .text,
-        microcopy: String? = nil
-    ) {
-        self.lines = lines
-        self.symbol = symbol
-        self.gradient = gradient
-        self.action = action
-        self.slideType = slideType
-        self.microcopy = microcopy
-    }
-}
-
-// MARK: - Onboarding Phases (for progress bar grouping)
-
-private enum OnboardingPhase {
-    case story, setup, action
-    
-    static func phase(for index: Int) -> OnboardingPhase {
-        switch index {
-        case 0...5: return .story
-        case 6...9: return .setup
-        default:    return .action
-        }
-    }
-}
-
-// MARK: - Floating Elements
-
-private enum FloaterKind { case body, mind, heart }
-
-private struct OnboardingFloater: Identifiable {
-    let id: Int
-    let asset: String
-    let kind: FloaterKind
-    let baseX: CGFloat
-    let baseY: CGFloat
-    let size: CGFloat
-    let phase: Double
-    let speed: Double
-    let rotation: Double
-    let tintColor: Color
-    let appearsAtSlide: Int
-}
-
-private let interactiveSlideIndices: Set<Int> = [3, 4, 6, 7, 9, 10]
-
-private func generateFloaters(count: Int, totalSlides: Int) -> [OnboardingFloater] {
-    let bodyAssets = ["body 1", "body 2", "body 3"]
-    let mindAssets = ["mind 1"]
-    let heartAssets = ["heart 1"]
-    let kinds: [FloaterKind] = [.body, .mind, .heart, .body, .mind, .heart, .body, .mind, .body]
-    let tintColors: [Color] = [
-        Color(red: 0.3, green: 0.8, blue: 0.5),
-        Color(red: 0.4, green: 0.6, blue: 1.0),
-        Color(red: 1.0, green: 0.45, blue: 0.55),
-        Color(red: 1.0, green: 0.75, blue: 0.3),
-        Color(red: 0.6, green: 0.4, blue: 0.9),
-        Color(red: 0.9, green: 0.35, blue: 0.4),
-        Color(red: 0.3, green: 0.75, blue: 0.85),
-        Color(red: 0.85, green: 0.6, blue: 0.3),
-        Color(red: 0.5, green: 0.9, blue: 0.6),
-    ]
-    
-    var floaters: [OnboardingFloater] = []
-    var seed: UInt64 = 42
-    
-    let nextRandom: () -> Double = {
-        seed = seed &* 6364136223846793005 &+ 1442695040888963407
-        return Double(seed >> 11) / Double(1 << 53)
-    }
-    
-    for i in 0..<count {
-        let slide = (i % totalSlides) + 1
-        let kind = kinds[i % kinds.count]
-        let asset: String
-        switch kind {
-        case .body:  asset = bodyAssets[Int(nextRandom() * Double(bodyAssets.count)) % bodyAssets.count]
-        case .mind:  asset = mindAssets[0]
-        case .heart: asset = heartAssets[0]
-        }
-        
-        let positions: [(CGFloat, CGFloat)] = [
-            (0.15, 0.18), (0.82, 0.35), (0.25, 0.65),
-            (0.75, 0.12), (0.50, 0.80), (0.10, 0.42),
-            (0.88, 0.60), (0.35, 0.25), (0.65, 0.72),
-        ]
-        let pos = positions[i % positions.count]
-        
-        floaters.append(OnboardingFloater(
-            id: i,
-            asset: asset,
-            kind: kind,
-            baseX: pos.0,
-            baseY: pos.1,
-            size: CGFloat(120 + nextRandom() * 140),
-            phase: nextRandom() * .pi * 2,
-            speed: 0.3 + nextRandom() * 0.5,
-            rotation: nextRandom() * .pi * 2,
-            tintColor: tintColors[i % tintColors.count],
-            appearsAtSlide: slide
-        ))
-    }
-    return floaters.sorted { $0.appearsAtSlide < $1.appearsAtSlide }
-}
+// Models, floaters, and Apple Sign In are in:
+//   Onboarding/OnboardingModels.swift
+//   Onboarding/OnboardingFloaters.swift
+//   Onboarding/AppleSignInCoordinator.swift
 
 // MARK: - Main View
 
@@ -161,6 +22,7 @@ struct OnboardingStoriesView: View {
     let nextText: String
     let startText: String
     let allowText: String
+    let flowVersion: String
     let onHealthSlide: (() -> Void)?
     let onNotificationSlide: (() -> Void)?
     let onFamilyControlsSlide: (() -> Void)?
@@ -172,28 +34,25 @@ struct OnboardingStoriesView: View {
     var authService: AuthenticationService?
     @Binding var onboardingSelection: FamilyActivitySelection
     @Binding var selectedFeedApp: String?
-    
+    var bedtimeMinutes: Binding<Int>?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var index: Int = 0
     @State private var showOnboardingPicker = false
     @State private var floaters: [OnboardingFloater] = []
     @State private var didTriggerHealthRequest = false
     @State private var didTriggerNotificationRequest = false
     @State private var didTriggerFamilyControlsRequest = false
+    @State private var needsNotificationAfterFeed = false
+    @State private var showFeedHint = false
+    @State private var showTourPrompt = false
     
     // Analytics
     @State private var slideAppearedAt: Date = Date()
-    @State private var onboardingStartedAt: Date = Date()
     
     // Cold open
     @State private var coldOpenVisible: Int = 0
-    
-    // The canvas
-    @State private var canvasAppeared = false
-    
-    // Paint demo
-    @State private var paintStrokes: [[CGPoint]] = []
-    @State private var currentStroke: [CGPoint] = []
-    @State private var paintDarkPhase = false
     
     // Color cap
     @State private var tappedOrbs: Set<Int> = []
@@ -212,17 +71,64 @@ struct OnboardingStoriesView: View {
     
     // Welcome name animation
     @State private var welcomeNameVisible = false
+    
+    // v8: Canvas animation phases
+    @State private var canvasSleepProgress: Double = 0
+    @State private var canvasStepsProgress: Double = 0
+    @State private var resetBedtimeReady: Bool = false
+    @State private var balancePhase: Int = 0
+    @State private var bodyMindHeartVisible: Int = 0
+    @State private var welcomeV8Phase: Int = 0
+    @State private var welcomeV8Split: CGFloat = 0
 
     var body: some View {
         ZStack {
             Canvas { context, size in
-                let progress = slides.isEmpty ? 0 : Double(index) / Double(max(slides.count - 1, 1))
+                let baseProgress = slides.isEmpty ? 0 : Double(index) / Double(max(slides.count - 1, 1))
+                let currentType = slides[safe: index]?.slideType ?? .text
+
+                let v8SlideTypes: Set<OnboardingSlideType> = [
+                    .coldOpen, .theApp, .canvasSleep, .canvasSteps, .balance,
+                    .resetBedtime, .bodyMindHeart, .colorCapV8,
+                    .notificationPermission, .welcomeV8
+                ]
+                let isV8 = v8SlideTypes.contains(currentType)
+
+                let sleepVal: Double
+                let stepsVal: Double
+                switch currentType {
+                case .coldOpen, .theApp:
+                    sleepVal = baseProgress * 0.15
+                    stepsVal = baseProgress * 0.15
+                case .canvasSleep:
+                    sleepVal = 0.08 + canvasSleepProgress * 0.17
+                    stepsVal = 0.06
+                case .canvasSteps:
+                    sleepVal = 0.10
+                    stepsVal = 0.08 + canvasStepsProgress * 0.20
+                case .resetBedtime:
+                    sleepVal = 0.14
+                    stepsVal = 0.16
+                case .balance:
+                    let p = min(Double(balancePhase) / 3.0, 1.0)
+                    sleepVal = 0.18 + p * 0.10
+                    stepsVal = 0.15 + p * 0.13
+                default:
+                    if isV8 || currentType == .text || currentType == .feedSelection || currentType == .appleLogin {
+                        sleepVal = 0.35
+                        stepsVal = 0.35
+                    } else {
+                        sleepVal = baseProgress
+                        stepsVal = baseProgress
+                    }
+                }
+
                 let pal = EnergyGradientRenderer.palette(for: .warmSunset)
                 let opacities = EnergyGradientRenderer.computeOpacities(
-                    smoothedS: progress,
-                    smoothedL: progress,
-                    hasStepsData: progress > 0,
-                    hasSleepData: progress > 0,
+                    smoothedS: stepsVal,
+                    smoothedL: sleepVal,
+                    hasStepsData: stepsVal > 0,
+                    hasSleepData: sleepVal > 0,
                     isDaylight: false
                 )
                 EnergyGradientRenderer.draw(
@@ -235,61 +141,141 @@ struct OnboardingStoriesView: View {
                 )
             }
             .ignoresSafeArea()
+            .animation(.easeInOut(duration: 1.2), value: index)
+            .animation(.easeInOut(duration: 1.0), value: canvasSleepProgress)
+            .animation(.easeInOut(duration: 1.0), value: canvasStepsProgress)
+            .animation(.easeInOut(duration: 1.0), value: balancePhase)
             
             VStack(spacing: 0) {
                 Spacer()
-                Image("onboarding_figuer_1")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity)
-                    .opacity(index == 0 ? 0.3 : 1)
-                    .animation(.easeInOut(duration: 0.8), value: index)
+                let hideImage: Set<OnboardingSlideType> = [.canvasSleep, .canvasSteps, .balance, .bodyMindHeart, .colorCapV8]
+                let currentSlideType = slides[safe: index]?.slideType ?? .text
+                #if canImport(UIKit)
+                if UIImage(named: "onboarding_figuer_1") != nil {
+                    Image("onboarding_figuer_1")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .opacity(hideImage.contains(currentSlideType) ? 0 : (index == 0 ? 0.3 : 1))
+                        .animation(.easeInOut(duration: 0.8), value: index)
+                        .animation(.easeInOut(duration: 0.8), value: currentSlideType)
+                }
+                #endif
             }
             .ignoresSafeArea(edges: .bottom)
             
-            if !interactiveSlideIndices.contains(index) {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-                    let t = timeline.date.timeIntervalSinceReferenceDate
-                    GeometryReader { geo in
-                        let visible = floaters.filter { $0.appearsAtSlide <= index }
-                        ForEach(visible) { f in
-                            floaterView(f: f, t: t, size: geo.size)
+            if !reduceMotion, !(slides[safe: index]?.slideType.isInteractive ?? false) {
+                if index >= 7 {
+                    GenerativeCanvasView(
+                        elements: Self.onboardingCanvasElements,
+                        sleepPoints: 80,
+                        stepsPoints: 80,
+                        sleepColor: Color(hex: "#4A6FA5"),
+                        stepsColor: Color(hex: "#FED415"),
+                        decayNorm: 0,
+                        backgroundColor: .clear,
+                        showLabelsOnCanvas: false,
+                        showsOutlinedLabels: false,
+                        showsBackgroundGradient: false,
+                        timeScale: 0.25
+                    )
+                    .blur(radius: index > 7 ? 20 : 0)
+                    .animation(.easeInOut(duration: 0.5), value: index)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+                } else {
+                    TimelineView(.animation(minimumInterval: 1.0 / 15.0)) { timeline in
+                        let t = timeline.date.timeIntervalSinceReferenceDate
+                        GeometryReader { geo in
+                            let visible = floaters.filter { $0.appearsAtSlide <= index }
+                            ForEach(visible) { f in
+                                floaterView(f: f, t: t, size: geo.size)
+                            }
                         }
                     }
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
                 }
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-                .transition(.opacity)
             }
             
             VStack(spacing: 0) {
                 progressBar
+                    .overlay(alignment: .leading) {
+                        if index > 0 {
+                            Button {
+                                goBack()
+                            } label: {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.5))
+                                    .frame(width: 28, height: 28)
+                            }
+                            .accessibilityLabel(String(localized: "Back"))
+                            .transition(.opacity)
+                            .offset(x: -36)
+                        }
+                    }
                     .padding(.top, 60)
                     .padding(.bottom, 24)
+                    .animation(.easeInOut(duration: 0.25), value: index)
 
-                TabView(selection: $index) {
-                    ForEach(Array(slides.enumerated()), id: \.offset) { idx, slide in
-                        slideContent(slide: slide, slideIndex: idx)
+                Group {
+                    if slides.indices.contains(index) {
+                        slideContent(slide: slides[index], slideIndex: index)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .tag(idx)
+                            .id(index)
+                            .transition(.opacity)
                     }
                 }
-                #if os(iOS)
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                #endif
-                .scrollDisabled(true)
                 .animation(.easeInOut, value: index)
 
-                Button(action: next) {
-                    Text(primaryButtonTitle)
-                        .font(.headline)
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                        .background(accent)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                VStack(spacing: 8) {
+                    if showFeedHint {
+                        Text(String(localized: "first you need to add any one app"))
+                            .font(.systemSerif(13, weight: .light, relativeTo: .footnote))
+                            .foregroundColor(accent)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+
+                    Button(action: next) {
+                        Text(primaryButtonTitle)
+                            .font(.headline)
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity, minHeight: 56)
+                            .background(isFeedSlideWithoutSelection ? accent.opacity(0.35) : accent)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .disabled(isFeedSlideWithoutSelection)
+                    .overlay {
+                        if isFeedSlideWithoutSelection {
+                            Color.clear.contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation(.easeInOut(duration: 0.3)) { showFeedHint = true }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                                        withAnimation(.easeInOut(duration: 0.3)) { showFeedHint = false }
+                                    }
+                                }
+                        }
+                    }
                 }
+                .animation(.easeInOut(duration: 0.3), value: showFeedHint)
                 .padding(.horizontal, 24)
-                .padding(.bottom, 40)
+                .padding(.bottom, isInStoryPhase ? 8 : 40)
+
+                if isInStoryPhase {
+                    Button {
+                        trackSlideCompleted(action: "skipped_intro")
+                        withAnimation(.easeInOut) { index = firstSetupSlideIndex }
+                    } label: {
+                        Text(skipText)
+                            .font(.systemSerif(15, weight: .light, relativeTo: .subheadline))
+                            .foregroundColor(.white.opacity(0.4))
+                    }
+                    .padding(.bottom, 16)
+                    .transition(.opacity)
+                }
             }
             
             Image("grain 1")
@@ -310,7 +296,6 @@ struct OnboardingStoriesView: View {
         )
         .onAppear {
             floaters = generateFloaters(count: 9, totalSlides: slides.count)
-            onboardingStartedAt = Date()
             slideAppearedAt = Date()
             trackSlideViewed()
             triggerSlideEntryEffects()
@@ -319,6 +304,14 @@ struct OnboardingStoriesView: View {
             slideAppearedAt = Date()
             trackSlideViewed()
             triggerSlideEntryEffects()
+            showFeedHint = false
+        }
+        .alert(
+            String(localized: "do you want me to show you around?"),
+            isPresented: $showTourPrompt
+        ) {
+            Button(String(localized: "yes, please")) { finish(wantsTour: true) }
+            Button(String(localized: "no, thanks"), role: .cancel) { finish(wantsTour: false) }
         }
     }
 
@@ -341,7 +334,7 @@ struct OnboardingStoriesView: View {
                 properties: [
                     "slide_index": String(index),
                     "slide_name": slideName,
-                    "flow_version": "v7"
+                    "flow_version": flowVersion
                 ]
             )
         }
@@ -357,7 +350,7 @@ struct OnboardingStoriesView: View {
                 properties: [
                     "slide_index": String(index),
                     "slide_name": slideName,
-                    "flow_version": "v7",
+                    "flow_version": flowVersion,
                     "duration_ms": String(durationMs),
                     "action_taken": action
                 ]
@@ -385,17 +378,6 @@ struct OnboardingStoriesView: View {
                     withAnimation(.easeIn(duration: 0.6)) { coldOpenVisible = i + 1 }
                 }
             }
-        case .theCanvas:
-            canvasAppeared = false
-            slideEffectTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(600))
-                guard !Task.isCancelled else { return }
-                withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) { canvasAppeared = true }
-            }
-        case .paintDemo:
-            paintStrokes = []
-            currentStroke = []
-            paintDarkPhase = false
         case .colorCap:
             tappedOrbs = []
             ringProgress = 0
@@ -441,6 +423,81 @@ struct OnboardingStoriesView: View {
                 guard !Task.isCancelled else { return }
                 withAnimation(.easeOut(duration: 0.5)) { welcomeNameVisible = true }
             }
+        case .theApp:
+            coldOpenVisible = 0
+            let lineCount = slide.lines.count
+            slideEffectTask = Task { @MainActor in
+                for i in 0..<lineCount {
+                    try? await Task.sleep(for: .milliseconds(Int(Double(i) * 700 + 400)))
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.easeIn(duration: 0.5)) { coldOpenVisible = i + 1 }
+                }
+            }
+        case .canvasSleep:
+            canvasSleepProgress = 0
+            slideEffectTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 1.5)) { canvasSleepProgress = 1.0 }
+            }
+        case .canvasSteps:
+            canvasStepsProgress = 0
+            slideEffectTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 1.5)) { canvasStepsProgress = 1.0 }
+            }
+        case .resetBedtime:
+            resetBedtimeReady = false
+            slideEffectTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.6)) { resetBedtimeReady = true }
+                lightHaptic()
+            }
+        case .balance:
+            balancePhase = 0
+            slideEffectTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 1.0)) { balancePhase = 1 }
+                try? await Task.sleep(for: .milliseconds(1200))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 1.0)) { balancePhase = 2 }
+                try? await Task.sleep(for: .milliseconds(1200))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 1.0)) { balancePhase = 3 }
+                successHaptic()
+            }
+        case .bodyMindHeart:
+            bodyMindHeartVisible = 0
+            slideEffectTask = Task { @MainActor in
+                for i in 1...3 {
+                    try? await Task.sleep(for: .milliseconds(i * 600))
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { bodyMindHeartVisible = i }
+                    lightHaptic()
+                }
+            }
+        case .welcomeV8:
+            welcomeV8Phase = 0
+            welcomeV8Split = 0
+            welcomeNameVisible = false
+            slideEffectTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeIn(duration: 0.6)) { welcomeV8Phase = 1 }
+                try? await Task.sleep(for: .milliseconds(1200))
+                guard !Task.isCancelled else { return }
+                withAnimation(.spring(response: 1.0, dampingFraction: 0.75)) {
+                    welcomeV8Phase = 2
+                    welcomeV8Split = 20
+                }
+                heavyHaptic()
+                try? await Task.sleep(for: .milliseconds(800))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.5)) { welcomeNameVisible = true }
+            }
         default:
             break
         }
@@ -478,47 +535,65 @@ struct OnboardingStoriesView: View {
         #endif
     }
 
-    // MARK: - Floater Rendering
+    // MARK: - App Icon Helper
 
-    private func floaterTransform(f: OnboardingFloater, t: Double, size: CGSize) -> (dx: CGFloat, dy: CGFloat, scale: CGFloat, rot: Double) {
-        let w = size.width
-        let h = size.height
-        switch f.kind {
-        case .body:
-            let scale = 1.0 + sin(t * (0.7 + f.speed * 0.5) + f.phase) * 0.08
-            return (0, 0, scale, f.rotation)
-        case .mind:
-            let s = 0.03 + f.speed * 0.04
-            let dx = sin(t * s + f.phase) * w * 0.15
-                + sin(t * s * 2.37 + f.phase * 2.3) * w * 0.06
-            let dy = cos(t * s * 0.83 + f.phase * 1.7) * h * 0.12
-                + cos(t * s * 1.97 + f.phase * 3.1) * h * 0.05
-            let rot = f.rotation + atan2(
-                cos(t * s * 0.83 + f.phase * 1.7) * (-s * 0.83),
-                cos(t * s + f.phase) * s
-            ) + .pi
-            return (dx, dy, 1.0, rot)
-        case .heart:
-            return (0, 0, 1.0, f.rotation)
-        }
-    }
-    
     @ViewBuilder
-    private func floaterView(f: OnboardingFloater, t: Double, size: CGSize) -> some View {
-        let tr = floaterTransform(f: f, t: t, size: size)
-        Image(f.asset)
-            .renderingMode(.template)
+    private var appIconView: some View {
+        #if canImport(UIKit)
+        if let img = Self.resolvedAppIcon {
+            Image(uiImage: img)
+                .resizable()
+                .scaledToFit()
+        } else {
+            Image(systemName: "app.fill")
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(.white.opacity(0.3))
+        }
+        #else
+        Image(systemName: "app.fill")
             .resizable()
             .scaledToFit()
-            .frame(width: f.size * tr.scale, height: f.size * tr.scale)
-            .foregroundColor(f.tintColor)
-            .opacity(0.8)
-            .rotationEffect(.radians(tr.rot))
-            .position(
-                x: f.baseX * size.width + tr.dx,
-                y: f.baseY * size.height + tr.dy
-            )
+            .foregroundStyle(.white.opacity(0.3))
+        #endif
     }
+
+    #if canImport(UIKit)
+    private static let resolvedAppIcon: UIImage? = {
+        if let named = Bundle.main.object(forInfoDictionaryKey: "CFBundleIconName") as? String,
+           let img = UIImage(named: named), img.size.width > 0 {
+            return img
+        }
+        if let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+           let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+           let files = primary["CFBundleIconFiles"] as? [String] {
+            var best: UIImage?
+            var bestArea: CGFloat = 0
+            for name in files {
+                guard let img = UIImage(named: name) else { continue }
+                let area = img.size.width * img.size.height
+                if area > bestArea { bestArea = area; best = img }
+            }
+            if let best { return best }
+        }
+        for candidate in ["AppIcon60x60", "AppIcon76x76", "AppIcon"] {
+            if let img = UIImage(named: candidate), img.size.width > 0 { return img }
+        }
+        let pngCandidates = [
+            "Icon-iOS-Default-60x60@3x",
+            "Icon-iOS-Default-1024x1024@1x",
+            "AppIcon60x60@3x",
+        ]
+        for name in pngCandidates {
+            if let url = Bundle.main.url(forResource: name, withExtension: "png"),
+               let data = try? Data(contentsOf: url),
+               let img = UIImage(data: data) {
+                return img
+            }
+        }
+        return nil
+    }()
+    #endif
 
     // MARK: - Text Helpers
 
@@ -526,7 +601,7 @@ struct OnboardingStoriesView: View {
     private func onboardingLineText(_ line: String, size: CGFloat, relativeTo textStyle: Font.TextStyle = .body) -> some View {
         Text(line)
             .font(.systemSerif(size, weight: .light, relativeTo: textStyle))
-            .foregroundColor(.white.opacity(0.74))
+            .foregroundColor(.white.opacity(0.9))
             .multilineTextAlignment(.center)
             .lineSpacing(size >= 20 ? 4 : 3)
             .minimumScaleFactor(0.88)
@@ -536,19 +611,12 @@ struct OnboardingStoriesView: View {
     // MARK: - Progress Bar (3 phases)
     
     private var progressBar: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 4) {
             ForEach(slides.indices, id: \.self) { i in
-                let currentPhase = OnboardingPhase.phase(for: i)
-                let prevPhase: OnboardingPhase? = i > 0 ? OnboardingPhase.phase(for: i - 1) : nil
-                let isNewPhase = prevPhase != nil && prevPhase != currentPhase
-                
-                if isNewPhase {
-                    Spacer().frame(width: 6)
-                }
-                
                 Capsule()
                     .fill(i <= index ? accent : accent.opacity(0.12))
-                    .frame(height: 3)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 2.5)
                     .animation(.easeInOut(duration: 0.25), value: index)
             }
         }
@@ -565,10 +633,6 @@ struct OnboardingStoriesView: View {
         switch slide.slideType {
         case .coldOpen:
             coldOpenSlide(slide: slide)
-        case .theCanvas:
-            theCanvasSlide(slide: slide)
-        case .paintDemo:
-            paintDemoSlide(slide: slide)
         case .colorCap:
             colorCapSlide(slide: slide)
         case .spendDemo:
@@ -589,6 +653,24 @@ struct OnboardingStoriesView: View {
             appleLoginSlide(slide: slide)
         case .welcome:
             welcomeSlide(slide: slide)
+        case .theApp:
+            theAppSlide(slide: slide)
+        case .canvasSleep:
+            canvasSleepSlide(slide: slide)
+        case .canvasSteps:
+            canvasStepsSlide(slide: slide)
+        case .balance:
+            balanceSlide(slide: slide)
+        case .resetBedtime:
+            resetBedtimeSlide(slide: slide)
+        case .bodyMindHeart:
+            bodyMindHeartSlide(slide: slide)
+        case .colorCapV8:
+            colorCapV8Slide(slide: slide)
+        case .notificationPermission:
+            notificationPermissionSlide(slide: slide)
+        case .welcomeV8:
+            welcomeV8Slide(slide: slide)
         }
     }
 
@@ -616,183 +698,7 @@ struct OnboardingStoriesView: View {
         }
     }
 
-    // MARK: - Slide 2: The Canvas
-
-    @ViewBuilder
-    private func theCanvasSlide(slide: OnboardingSlide) -> some View {
-        VStack(spacing: 0) {
-            Spacer()
-            
-            VStack(spacing: 12) {
-                ForEach(Array(slide.lines.enumerated()), id: \.offset) { _, line in
-                    onboardingLineText(line, size: 20, relativeTo: .title3)
-                }
-            }
-            .padding(.horizontal, 36)
-            .padding(.bottom, 32)
-            
-            RoundedRectangle(cornerRadius: 20)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.06, green: 0.06, blue: 0.12),
-                            Color(red: 0.04, green: 0.04, blue: 0.08)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: 200, height: 200)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.white.opacity(canvasAppeared ? 0.12 : 0), lineWidth: 1)
-                )
-                .shadow(color: accent.opacity(canvasAppeared ? 0.1 : 0), radius: 30, x: 0, y: 10)
-                .scaleEffect(canvasAppeared ? 1 : 0.85)
-                .opacity(canvasAppeared ? 1 : 0)
-            
-            Spacer()
-            Spacer()
-        }
-    }
-
-    // MARK: - Slide 3: Paint Demo (interactive)
-
-    @ViewBuilder
-    private func paintDemoSlide(slide: OnboardingSlide) -> some View {
-        VStack(spacing: 0) {
-            Spacer()
-            
-            VStack(spacing: 12) {
-                ForEach(Array(slide.lines.enumerated()), id: \.offset) { _, line in
-                    onboardingLineText(line, size: 20, relativeTo: .title3)
-                }
-            }
-            .padding(.horizontal, 36)
-            .padding(.bottom, 24)
-            
-            GeometryReader { geo in
-                let canvasSide = min(geo.size.width - 40, 280)
-                ZStack {
-                    Canvas { context, size in
-                        let rect = CGRect(origin: .zero, size: size)
-                        context.fill(
-                            Path(roundedRect: rect, cornerRadius: 20),
-                            with: .color(Color(red: 0.04, green: 0.04, blue: 0.08))
-                        )
-                        
-                        if paintDarkPhase {
-                            let navyGradient = Gradient(colors: [
-                                .clear,
-                                Color(red: 0, green: 0.15, blue: 0.27).opacity(0.4),
-                                Color(red: 0, green: 0.23, blue: 0.42).opacity(0.6),
-                            ])
-                            context.fill(
-                                Path(roundedRect: rect, cornerRadius: 20),
-                                with: .linearGradient(
-                                    navyGradient,
-                                    startPoint: CGPoint(x: size.width / 2, y: 0),
-                                    endPoint: CGPoint(x: size.width / 2, y: size.height)
-                                )
-                            )
-                        }
-                        
-                        let goldColor = Color(red: 1, green: 0.83, blue: 0.41)
-                        
-                        for stroke in paintStrokes {
-                            drawStroke(stroke, in: &context, color: goldColor)
-                        }
-                        if !currentStroke.isEmpty {
-                            drawStroke(currentStroke, in: &context, color: goldColor)
-                        }
-                    }
-                    .frame(width: canvasSide, height: canvasSide)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                )
-                .overlay(
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    currentStroke.append(value.location)
-                                    if currentStroke.count % 6 == 0 { lightHaptic() }
-                                }
-                                .onEnded { _ in
-                                    if !currentStroke.isEmpty {
-                                        paintStrokes.append(currentStroke)
-                                        currentStroke = []
-                                    }
-                                    if !paintDarkPhase && paintStrokes.count >= 3 {
-                                        Task { @MainActor in
-                                            try? await Task.sleep(for: .milliseconds(300))
-                                            withAnimation(.easeInOut(duration: 1.5)) { paintDarkPhase = true }
-                                            mediumHaptic()
-                                        }
-                                    }
-                                }
-                        )
-                )
-                
-                    if paintStrokes.isEmpty && currentStroke.isEmpty {
-                        VStack(spacing: 8) {
-                            Image(systemName: "hand.draw")
-                                .font(.system(size: 28, weight: .ultraLight))
-                                .foregroundColor(.white.opacity(0.25))
-                            Text(String(localized: "touch and drag"))
-                                .font(.systemSerif(13, weight: .light, relativeTo: .caption))
-                                .foregroundColor(.white.opacity(0.25))
-                        }
-                        .allowsHitTesting(false)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .frame(height: 280)
-            
-            if paintDarkPhase {
-                onboardingLineText(
-                    String(localized: "the light from walking. the dark from rest."),
-                    size: 14,
-                    relativeTo: .footnote
-                )
-                .padding(.top, 16)
-                .transition(.opacity)
-            }
-            
-            Spacer()
-            Spacer()
-        }
-    }
-    
-    private func drawStroke(_ points: [CGPoint], in context: inout GraphicsContext, color: Color) {
-        guard points.count > 1 else {
-            if let p = points.first {
-                let rect = CGRect(x: p.x - 8, y: p.y - 8, width: 16, height: 16)
-                context.fill(Path(ellipseIn: rect), with: .color(color.opacity(0.6)))
-            }
-            return
-        }
-        var path = Path()
-        path.move(to: points[0])
-        for i in 1..<points.count {
-            let mid = CGPoint(
-                x: (points[i - 1].x + points[i].x) / 2,
-                y: (points[i - 1].y + points[i].y) / 2
-            )
-            path.addQuadCurve(to: mid, control: points[i - 1])
-        }
-        if let last = points.last {
-            path.addLine(to: last)
-        }
-        context.stroke(path, with: .color(color.opacity(0.65)), style: StrokeStyle(lineWidth: 14, lineCap: .round, lineJoin: .round))
-        context.stroke(path, with: .color(color.opacity(0.3)), style: StrokeStyle(lineWidth: 28, lineCap: .round, lineJoin: .round))
-    }
-
-    // MARK: - Slide 4: Color Cap (interactive ring)
+    // MARK: - Color Cap (interactive ring)
 
     private static let colorCategories: [(icon: String, label: String, color: Color)] = [
         ("figure.walk", "steps", Color(red: 1.0, green: 0.83, blue: 0.41)),
@@ -872,9 +778,17 @@ struct OnboardingStoriesView: View {
                     }
                     .buttonStyle(.plain)
                     .offset(x: x, y: y)
+                    .accessibilityLabel("\(categories[i].label), 20 colors")
+                    .accessibilityHint(isTapped
+                        ? String(localized: "Already added")
+                        : String(localized: "Tap to add to your daily total"))
+                    .accessibilityAddTraits(isTapped ? .isSelected : [])
                 }
             }
             .frame(width: 300, height: 300)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(String(localized: "Color sources"))
+            .accessibilityValue(String(localized: "\(tappedOrbs.count) of 5 tapped, \(tappedOrbs.count * 20) colors"))
             
             if tappedOrbs.count == 5 {
                 onboardingLineText(
@@ -1310,20 +1224,17 @@ struct OnboardingStoriesView: View {
                     .padding(.top, 16)
                     .transition(.opacity)
             }
+
+            if !hasSelection, let microcopy = slide.microcopy {
+                Text(microcopy)
+                    .font(.systemSerif(13, weight: .light, relativeTo: .footnote))
+                    .foregroundColor(.white.opacity(0.35))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
+            }
             
             Spacer()
-            
-            if !hasSelection {
-                Button {
-                    trackSlideCompleted(action: "skipped")
-                    withAnimation(.easeInOut) { index += 1 }
-                } label: {
-                    Text(String(localized: "skip for now"))
-                        .font(.systemSerif(15, weight: .light, relativeTo: .subheadline))
-                        .foregroundColor(.white.opacity(0.4))
-                }
-                .padding(.bottom, 8)
-            }
         }
         .sheet(isPresented: $showOnboardingPicker, onDismiss: {
             let picked = !onboardingSelection.applicationTokens.isEmpty
@@ -1334,19 +1245,11 @@ struct OnboardingStoriesView: View {
                 successHaptic()
             }
         }) {
-            #if canImport(FamilyControls) && os(iOS)
             AppSelectionSheet(
                 selection: $onboardingSelection,
                 templateApp: selectedFeedApp,
                 onDone: { showOnboardingPicker = false }
             )
-            #else
-            AppSelectionSheet(
-                selection: $onboardingSelection,
-                templateApp: selectedFeedApp,
-                onDone: { showOnboardingPicker = false }
-            )
-            #endif
         }
     }
 
@@ -1437,19 +1340,7 @@ struct OnboardingStoriesView: View {
             
             Spacer()
             
-            if authService?.isAuthenticated != true {
-                Button {
-                    trackSlideCompleted(action: "skipped")
-                    withAnimation(.easeInOut) { index += 1 }
-                } label: {
-                    Text(String(localized: "continue without signing in"))
-                        .font(.systemSerif(15, weight: .light, relativeTo: .subheadline))
-                        .foregroundColor(.white.opacity(0.4))
-                }
-                .padding(.bottom, 8)
-            } else {
-                Spacer()
-            }
+            Spacer()
         }
     }
 
@@ -1488,6 +1379,401 @@ struct OnboardingStoriesView: View {
         }
     }
 
+    // MARK: - v8 Slide: The App (slide 1)
+
+    @ViewBuilder
+    private func theAppSlide(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+            Spacer()
+
+            appIconView
+                .frame(width: 80, height: 80)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+                .shadow(color: accent.opacity(0.2), radius: 20, x: 0, y: 8)
+                .padding(.bottom, 32)
+
+            VStack(spacing: 16) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { idx, line in
+                    if coldOpenVisible > idx {
+                        onboardingLineText(line, size: 18, relativeTo: .body)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+                }
+            }
+            .padding(.horizontal, 44)
+
+            Spacer()
+            Spacer()
+            Spacer()
+        }
+    }
+
+    // MARK: - v8 Slide: Canvas + Sleep (slide 2)
+
+    @ViewBuilder
+    private func canvasSleepSlide(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 12) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { _, line in
+                    onboardingLineText(line, size: 18, relativeTo: .body)
+                }
+            }
+            .padding(.horizontal, 36)
+            .padding(.bottom, 36)
+
+            SleepDurationStepper(hours: $sleepTarget)
+                .padding(.horizontal, 40)
+
+            Spacer()
+            Spacer()
+        }
+    }
+
+    // MARK: - v8 Slide: Canvas + Steps (slide 3)
+
+    @ViewBuilder
+    private func canvasStepsSlide(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 12) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { _, line in
+                    onboardingLineText(line, size: 18, relativeTo: .body)
+                }
+            }
+            .padding(.horizontal, 36)
+            .padding(.bottom, 36)
+
+            StepGoalDrumPicker(value: $stepsTarget)
+                .padding(.horizontal, 40)
+
+            Spacer()
+            Spacer()
+        }
+    }
+
+    // MARK: - v8 Slide: Balance (index 5)
+
+    @ViewBuilder
+    private func balanceSlide(slide: OnboardingSlide) -> some View {
+        let bedtimeText: String = {
+            guard let mins = bedtimeMinutes?.wrappedValue else { return "23:00" }
+            let h = mins / 60
+            let m = mins % 60
+            return String(format: "%d:%02d", h == 24 ? 0 : h, m)
+        }()
+
+        VStack(spacing: 0) {
+            Spacer()
+
+            if balancePhase >= 3 {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 48, weight: .ultraLight))
+                    .foregroundColor(accent.opacity(0.6))
+                    .transition(.scale.combined(with: .opacity))
+                    .padding(.bottom, 32)
+            }
+
+            VStack(spacing: 16) {
+                onboardingLineText(
+                    String(localized: "\(String(format: "%.1f", sleepTarget)) hours of sleep and \(formatGroupedNumber(Int(stepsTarget))) steps will make your canvas fully balanced."),
+                    size: 18,
+                    relativeTo: .body
+                )
+
+                onboardingLineText(
+                    String(localized: "and your day ends at \(bedtimeText)."),
+                    size: 18,
+                    relativeTo: .body
+                )
+
+                Text(String(localized: "you can change this later."))
+                    .font(.systemSerif(13, weight: .light, relativeTo: .footnote))
+                    .foregroundColor(.white.opacity(0.4))
+                    .padding(.top, 4)
+            }
+            .padding(.horizontal, 36)
+
+            Spacer()
+            Spacer()
+        }
+    }
+
+    // MARK: - v8 Slide: Reset + Bedtime (index 4)
+
+    @ViewBuilder
+    private func resetBedtimeSlide(slide: OnboardingSlide) -> some View {
+        let allowedMinutes = Array(stride(from: 21 * 60, through: 23 * 60 + 45, by: 15))
+            + Array(stride(from: 0, through: 3 * 60, by: 15))
+
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 12) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { _, line in
+                    onboardingLineText(line, size: 18, relativeTo: .body)
+                }
+            }
+            .padding(.horizontal, 36)
+            .padding(.bottom, 36)
+            .opacity(resetBedtimeReady ? 1 : 0)
+            .offset(y: resetBedtimeReady ? 0 : 12)
+
+            if let binding = bedtimeMinutes {
+                DayResetTimePicker(selectedMinutes: binding, allowedMinutes: allowedMinutes)
+                    .opacity(resetBedtimeReady ? 1 : 0)
+                    .offset(y: resetBedtimeReady ? 0 : 20)
+            }
+
+            Spacer()
+            Spacer()
+        }
+    }
+
+    // MARK: - v8 Slide: Body, Mind, Heart (slide 6)
+
+    private static let v8BMHCategories: [(icon: String, label: String, color: Color, sample: String, desc: String)] = [
+        ("figure.run", "body", Color(red: 0.3, green: 0.8, blue: 0.5), "mind 3",
+         "movement, exercise, fresh air — anything physical."),
+        ("brain.head.profile", "mind", Color(red: 0.4, green: 0.6, blue: 1.0), "mind 7",
+         "reading, learning, creating — feeding your mind."),
+        ("heart", "heart", Color(red: 1.0, green: 0.45, blue: 0.55), "heart 4",
+         "people, kindness, connection — what you feel."),
+    ]
+
+    @ViewBuilder
+    private func bodyMindHeartSlide(slide: OnboardingSlide) -> some View {
+        let cats = Self.v8BMHCategories
+
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 12) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { _, line in
+                    onboardingLineText(line, size: 18, relativeTo: .body)
+                }
+            }
+            .padding(.horizontal, 36)
+            .padding(.bottom, 28)
+
+            VStack(spacing: 20) {
+                ForEach(Array(cats.enumerated()), id: \.offset) { i, cat in
+                    if bodyMindHeartVisible > i {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                Circle()
+                                    .fill(cat.color.opacity(0.15))
+                                    .frame(width: 56, height: 56)
+                                Image(systemName: cat.icon)
+                                    .font(.system(size: 22, weight: .light))
+                                    .foregroundColor(cat.color)
+                            }
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(cat.label)
+                                    .font(.systemSerif(16, weight: .medium, relativeTo: .body))
+                                    .foregroundColor(.white.opacity(0.85))
+                                Text(cat.desc)
+                                    .font(.systemSerif(13, weight: .light, relativeTo: .caption))
+                                    .foregroundColor(.white.opacity(0.45))
+                                    .lineLimit(2)
+                            }
+
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.white.opacity(0.06))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(cat.color.opacity(0.15), lineWidth: 1)
+                                )
+                        )
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+                }
+            }
+            .padding(.horizontal, 24)
+
+            Spacer()
+            Spacer()
+        }
+    }
+
+    // MARK: - Onboarding Canvas Elements (slide 8+)
+
+    private static let onboardingCanvasElements: [CanvasElement] = {
+        let palette = CanvasColorPalette.paletteHex
+        let specs: [(cat: EnergyCategory, optionId: String, kind: ElementKind, size: CGFloat, pos: CGPoint, variant: Int)] = [
+            (.body,  "stretching",      .circle, 0.26, CGPoint(x: 0.22, y: 0.08), 0),
+            (.body,  "physical effort",  .circle, 0.24, CGPoint(x: 0.72, y: 0.06), 1),
+            (.mind,  "calm",            .circle, 0.13, CGPoint(x: 0.10, y: 0.30), 0),
+            (.heart, "connection",       .ray,    0.20, CGPoint(x: 0.88, y: 0.28), 1),
+            (.body,  "walking",          .circle, 0.28, CGPoint(x: 0.50, y: 0.42), 2),
+            (.mind,  "focusing",         .circle, 0.12, CGPoint(x: 0.25, y: 0.50), 3),
+            (.heart, "gratitude",        .ray,    0.18, CGPoint(x: 0.75, y: 0.52), 4),
+            (.mind,  "learning",         .circle, 0.14, CGPoint(x: 0.45, y: 0.60), 5),
+            (.heart, "joy",              .ray,    0.16, CGPoint(x: 0.08, y: 0.62), 6),
+            (.body,  "resting",          .circle, 0.22, CGPoint(x: 0.40, y: 0.78), 0),
+            (.mind,  "thinking",         .circle, 0.15, CGPoint(x: 0.42, y: 0.90), 7),
+            (.heart, "observing",        .ray,    0.19, CGPoint(x: 0.88, y: 0.85), 8),
+        ]
+        let refDate = Date(timeIntervalSinceReferenceDate: 1000)
+        return specs.enumerated().map { (i, spec) in
+            CanvasElement(
+                id: UUID(),
+                kind: spec.kind,
+                category: spec.cat,
+                optionId: spec.optionId,
+                label: spec.optionId,
+                hexColor: palette[i % palette.count],
+                size: spec.size,
+                basePosition: spec.pos,
+                phaseOffset: Double(i) * 0.8,
+                driftSpeed: 0.15,
+                driftAmplitude: 0.02,
+                pulseFrequency: 0.2,
+                pulseAmplitude: 0.02,
+                rotationSpeed: 5,
+                opacity: 0.75,
+                createdAt: refDate,
+                assetVariant: spec.variant,
+                shapeSeed: UInt64(i * 7919 + 42),
+                activityCount: Int.random(in: 5...25)
+            )
+        }
+    }()
+
+    // MARK: - v8 Slide: Color Cap (slide 7)
+
+    @ViewBuilder
+    private func colorCapV8Slide(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 16) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { _, line in
+                    onboardingLineText(line, size: 18, relativeTo: .body)
+                }
+
+                HStack(spacing: 8) {
+                    Text("100")
+                        .font(.systemSerif(36, weight: .thin, relativeTo: .largeTitle))
+                        .foregroundColor(accent)
+                    Text(String(localized: "colors"))
+                        .font(.systemSerif(16, weight: .light, relativeTo: .body))
+                        .foregroundColor(.white.opacity(0.5))
+                }
+                .padding(.top, 8)
+            }
+            .padding(.horizontal, 36)
+            .padding(.vertical, 24)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(.ultraThinMaterial.opacity(0.6))
+            )
+            .padding(.horizontal, 24)
+
+            Spacer()
+        }
+    }
+
+    // MARK: - v8 Slide: Notification Permission (slide 11)
+
+    @ViewBuilder
+    private func notificationPermissionSlide(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            Image(systemName: "bell.badge")
+                .font(.system(size: 48, weight: .ultraLight))
+                .foregroundColor(accent.opacity(0.6))
+                .padding(.bottom, 32)
+
+            VStack(spacing: 12) {
+                ForEach(Array(slide.lines.enumerated()), id: \.offset) { _, line in
+                    onboardingLineText(line, size: 18, relativeTo: .body)
+                }
+            }
+            .padding(.horizontal, 36)
+
+            Spacer()
+            Spacer()
+        }
+    }
+
+    // MARK: - v8 Slide: Welcome (slide 13)
+
+    @ViewBuilder
+    private func welcomeV8Slide(slide: OnboardingSlide) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 24) {
+                Text(String(localized: "welcome to"))
+                    .font(.systemSerif(20, weight: .light, relativeTo: .title3))
+                    .foregroundColor(.white.opacity(0.5))
+                    .opacity(welcomeV8Phase >= 1 ? 1 : 0)
+
+                HStack(spacing: 0) {
+                    Text("NOW")
+                        .font(.systemSerif(48, weight: .thin, relativeTo: .largeTitle))
+                        .foregroundColor(welcomeV8Phase >= 2 ? accent : .white.opacity(0.74))
+                        .offset(x: -welcomeV8Split)
+
+                    Rectangle()
+                        .fill(accent.opacity(welcomeV8Split > 0 ? 0.4 : 0))
+                        .frame(width: max(welcomeV8Split * 0.15, 0), height: 40)
+
+                    Text("HERE")
+                        .font(.systemSerif(48, weight: .thin, relativeTo: .largeTitle))
+                        .foregroundColor(welcomeV8Phase >= 2 ? accent : .white.opacity(0.74))
+                        .offset(x: welcomeV8Split)
+                }
+
+                if welcomeNameVisible,
+                   let name = authService?.currentUser?.displayName,
+                   !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(name.trimmingCharacters(in: .whitespacesAndNewlines))
+                        .font(.systemSerif(28, weight: .thin, relativeTo: .title))
+                        .foregroundColor(accent.opacity(0.8))
+                        .transition(.opacity)
+                }
+            }
+            .padding(.horizontal, 36)
+
+            Spacer()
+            Spacer()
+        }
+    }
+
+    // MARK: - Skip Intro
+
+    private var isInStoryPhase: Bool {
+        guard slides.indices.contains(index) else { return false }
+        return OnboardingPhase.phase(for: slides[index].slideType) == .story
+    }
+
+    private var firstSetupSlideIndex: Int {
+        slides.firstIndex { OnboardingPhase.phase(for: $0.slideType) == .setup } ?? 0
+    }
+
+    private var isFeedSlideWithoutSelection: Bool {
+        guard slides.indices.contains(index),
+              slides[index].slideType == .feedSelection else { return false }
+        return onboardingSelection.applicationTokens.isEmpty
+            && onboardingSelection.categoryTokens.isEmpty
+    }
+
     // MARK: - Button Logic
 
     private var primaryButtonTitle: String {
@@ -1516,14 +1802,10 @@ struct OnboardingStoriesView: View {
                     successHaptic()
                 }
             case .requestNotifications:
-                if !didTriggerNotificationRequest {
+                if !didTriggerNotificationRequest || needsNotificationAfterFeed {
                     didTriggerNotificationRequest = true
+                    needsNotificationAfterFeed = false
                     onNotificationSlide?()
-                }
-            case .requestFamilyControls:
-                if !didTriggerFamilyControlsRequest {
-                    didTriggerFamilyControlsRequest = true
-                    onFamilyControlsSlide?()
                 }
             case .none:
                 break
@@ -1538,9 +1820,8 @@ struct OnboardingStoriesView: View {
             if slide.slideType == .feedSelection {
                 let hasApps = !onboardingSelection.applicationTokens.isEmpty
                     || !onboardingSelection.categoryTokens.isEmpty
-                if hasApps, !didTriggerNotificationRequest {
-                    didTriggerNotificationRequest = true
-                    onNotificationSlide?()
+                if hasApps {
+                    needsNotificationAfterFeed = true
                 }
             }
         }
@@ -1552,34 +1833,18 @@ struct OnboardingStoriesView: View {
             withAnimation(.easeInOut) { index += 1 }
         } else {
             mediumHaptic()
-            finish()
+            showTourPrompt = true
         }
     }
     
     private func triggerAppleSignIn(auth: AuthenticationService) {
-        let provider = ASAuthorizationAppleIDProvider()
-        let request = provider.createRequest()
-        auth.configureAppleRequest(request)
-        
-        let delegate = AppleSignInDelegate { result in
-            switch result {
-            case .success(let authorization):
-                auth.handleAuthorization(authorization)
-                successHaptic()
-            case .failure(let error):
-                AppLogger.auth.error("Apple Sign In failed: \(error.localizedDescription)")
-            }
+        AppleSignInCoordinator.trigger(auth: auth) {
+            successHaptic()
         }
-        
-        let controller = ASAuthorizationController(authorizationRequests: [request])
-        controller.delegate = delegate
-        controller.presentationContextProvider = delegate
-        
-        objc_setAssociatedObject(controller, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
-        controller.performRequests()
     }
 
-    private func finish() {
+    private func finish(wantsTour: Bool) {
+        UserDefaults.standard.set(wantsTour, forKey: "shouldStartCoachMark")
         withAnimation(.easeInOut) {
             isPresented = false
         }
@@ -1587,46 +1852,6 @@ struct OnboardingStoriesView: View {
     }
 }
 
-// MARK: - Safe Array Access
-
-private extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
-    }
-}
-
-// MARK: - Apple Sign In Delegate
-
-@MainActor
-private class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
-    let completion: (Result<ASAuthorization, Error>) -> Void
-    
-    init(completion: @escaping (Result<ASAuthorization, Error>) -> Void) {
-        self.completion = completion
-    }
-    
-    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        #if canImport(UIKit)
-        guard let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
-              let window = scene.windows.first(where: { $0.isKeyWindow }) else {
-            return UIWindow()
-        }
-        return window
-        #elseif canImport(AppKit)
-        return NSApplication.shared.keyWindow ?? NSWindow()
-        #else
-        return ASPresentationAnchor()
-        #endif
-    }
-    
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        completion(.success(authorization))
-    }
-    
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        completion(.failure(error))
-    }
-}
 
 // MARK: - Placeholder Extension
 
@@ -1690,6 +1915,7 @@ extension View {
         nextText: "Next",
         startText: "Let's go",
         allowText: "Allow",
+        flowVersion: "v7-preview",
         onHealthSlide: { },
         onNotificationSlide: { },
         onFamilyControlsSlide: { },

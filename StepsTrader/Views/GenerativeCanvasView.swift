@@ -103,6 +103,65 @@ struct GenerativeCanvasView: View {
     }
     private static var _canonicalPortraitSizeOverride: CGSize = .zero
 
+    static func frozenElementCenter(_ element: CanvasElement, size: CGSize, at date: Date) -> CGPoint {
+        let t = date.timeIntervalSinceReferenceDate
+        let w = Double(size.width)
+        let h = Double(size.height)
+
+        switch element.category {
+        case .mind:
+            let p = element.phaseOffset
+            let speed = 0.03 + element.driftSpeed * 0.06
+            let s = p * 1000.0
+            let freq = (
+                fx1: 1.0  + sin(s * 0.11) * 0.15,
+                fx2: 2.2  + sin(s * 0.23) * 0.3,
+                fx3: 3.8  + sin(s * 0.37) * 0.5,
+                fy1: 0.85 + cos(s * 0.17) * 0.15,
+                fy2: 2.0  + cos(s * 0.31) * 0.3,
+                fy3: 3.5  + cos(s * 0.43) * 0.5
+            )
+            let mod = sin(t * speed * 0.13 + p * 3.7) * sin(t * speed * 0.07 + p * 1.3)
+            let env = 0.7 + 0.3 * mod
+
+            let hx = Double(element.basePosition.x) + sin(t * speed * 0.05 + p) * 0.12
+            let hy = Double(element.basePosition.y) + cos(t * speed * 0.04 + p * 1.3) * 0.12
+
+            let nx = hx
+                + sin(t * speed * freq.fx1 + p) * 0.24 * env
+                + sin(t * speed * freq.fx2 + p * 2.3) * 0.09 * env
+                + sin(t * speed * freq.fx3 + p * 4.1) * 0.03
+            let ny = hy
+                + cos(t * speed * freq.fy1 + p * 1.7) * 0.22 * env
+                + cos(t * speed * freq.fy2 + p * 3.1) * 0.08 * env
+                + cos(t * speed * freq.fy3 + p * 5.3) * 0.03
+
+            let margin = 0.06
+            return CGPoint(
+                x: min(1.0 - margin, max(margin, nx)) * w,
+                y: min(1.0 - margin, max(margin, ny)) * h
+            )
+
+        case .body:
+            let cx = Double(element.basePosition.x) * w
+            let cy = Double(element.basePosition.y) * h
+            let wobbleX = sin(t * 0.015 + element.phaseOffset) * w * 0.003
+                + sin(t * 0.008 + element.phaseOffset * 2.3) * w * 0.002
+            let wobbleY = cos(t * 0.013 + element.phaseOffset * 1.3) * h * 0.003
+                + cos(t * 0.009 + element.phaseOffset * 0.7) * h * 0.002
+            return CGPoint(x: cx + wobbleX, y: cy + wobbleY)
+
+        case .heart:
+            let cx = Double(element.basePosition.x) * w
+            let cy = Double(element.basePosition.y) * h
+            let wobbleX = sin(t * 0.012 + element.phaseOffset) * w * 0.004
+                + sin(t * 0.007 + element.phaseOffset * 2.3) * w * 0.002
+            let wobbleY = cos(t * 0.010 + element.phaseOffset * 1.3) * h * 0.004
+                + cos(t * 0.006 + element.phaseOffset * 0.7) * h * 0.002
+            return CGPoint(x: cx + wobbleX, y: cy + wobbleY)
+        }
+    }
+
     static func sortedForRendering(_ elements: [CanvasElement]) -> [CanvasElement] {
         let circles = elements.filter { $0.kind == .circle }.sorted { $0.size > $1.size }
         let nonCircles = elements.filter { $0.kind != .circle }
@@ -813,10 +872,10 @@ struct GenerativeCanvasView: View {
         let edgeLoc = r > 0 ? Double(innerR / r) : 0
 
         let rimGrad = Gradient(stops: [
-            .init(color: color.opacity(0.03), location: 0),
-            .init(color: color.opacity(0.03), location: edgeLoc),
-            .init(color: color.opacity(0.25), location: edgeLoc + (1.0 - edgeLoc) * 0.5),
-            .init(color: color.opacity(0.45), location: 1.0),
+            .init(color: color.opacity(0.12), location: 0),
+            .init(color: color.opacity(0.10), location: edgeLoc),
+            .init(color: color.opacity(0.35), location: edgeLoc + (1.0 - edgeLoc) * 0.5),
+            .init(color: color.opacity(0.55), location: 1.0),
         ])
 
         context.drawLayer { ctx in
@@ -836,8 +895,8 @@ struct GenerativeCanvasView: View {
 
             ctx.stroke(
                 path,
-                with: .color(color.opacity(0.55)),
-                style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round)
+                with: .color(color.opacity(0.65)),
+                style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
             )
         }
     }
@@ -957,10 +1016,10 @@ struct GenerativeCanvasView: View {
                 let edgeLoc = r > 0 ? Double(innerR / r) : 0
 
                 let rimGrad = Gradient(stops: [
-                    .init(color: blob.color.opacity(0.03), location: 0),
-                    .init(color: blob.color.opacity(0.03), location: edgeLoc),
-                    .init(color: blob.color.opacity(0.25), location: edgeLoc + (1.0 - edgeLoc) * 0.5),
-                    .init(color: blob.color.opacity(0.45), location: 1.0),
+                    .init(color: blob.color.opacity(0.12), location: 0),
+                    .init(color: blob.color.opacity(0.10), location: edgeLoc),
+                    .init(color: blob.color.opacity(0.35), location: edgeLoc + (1.0 - edgeLoc) * 0.5),
+                    .init(color: blob.color.opacity(0.55), location: 1.0),
                 ])
                 let ellipse = CGRect(x: blob.center.x - r, y: blob.center.y - r,
                                       width: r * 2, height: r * 2)
@@ -983,8 +1042,8 @@ struct GenerativeCanvasView: View {
                 ctx.clip(to: Path(ellipseIn: clipRect))
                 ctx.stroke(
                     mergedPath,
-                    with: .color(blob.color.opacity(0.55)),
-                    style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round)
+                    with: .color(blob.color.opacity(0.65)),
+                    style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
                 )
             }
         }

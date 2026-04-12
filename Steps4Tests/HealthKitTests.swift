@@ -43,6 +43,10 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
         observerHandler = updateHandler
     }
 
+    func fetchWorkouts(from: Date, to: Date) async throws -> [DetectedWorkout] { [] }
+
+    func fetchMindfulMinutes(from: Date, to: Date) async throws -> Double { 0 }
+
     func stopObservingSteps() {
         observerStopped = true
         observerHandler = nil

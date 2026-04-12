@@ -7,6 +7,7 @@ import SwiftUI
 struct RadialHoldMenu: View {
     var labelColor: Color = .white
     let onCategorySelected: (EnergyCategory) -> Void
+    var onFanOpened: (() -> Void)? = nil
 
     @State private var isFanOpen = false
     @GestureState private var dragOffset: CGSize = .zero
@@ -103,6 +104,11 @@ struct RadialHoldMenu: View {
         }
         .frame(width: 72, height: 72)
         .contentShape(Circle())
+        .accessibilityIdentifier("radial_plus_button")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            if isFanOpen { isFanOpen = false } else { isFanOpen = true; onFanOpened?() }
+        }
         .gesture(holdAndDrag)
         .simultaneousGesture(
             TapGesture().onEnded {
@@ -111,6 +117,7 @@ struct RadialHoldMenu: View {
                     isFanOpen = false
                 } else {
                     isFanOpen = true
+                    onFanOpened?()
                 }
             }
         )
@@ -155,7 +162,11 @@ struct RadialHoldMenu: View {
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("radial_\(category.rawValue)")
         .accessibilityLabel(label)
+        #if DEBUG
+        .modifier(MindNodeAnchor(category: category))
+        #endif
         .offset(offset)
     }
 
@@ -184,6 +195,19 @@ struct RadialHoldMenu: View {
         }
     }
 }
+
+#if DEBUG
+private struct MindNodeAnchor: ViewModifier {
+    let category: EnergyCategory
+    func body(content: Content) -> some View {
+        if category == .mind {
+            content.coachMarkAnchor(.tapMind)
+        } else {
+            content
+        }
+    }
+}
+#endif
 
 // MARK: - Preview
 

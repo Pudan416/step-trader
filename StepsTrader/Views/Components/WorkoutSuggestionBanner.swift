@@ -58,28 +58,31 @@ struct ActivitySuggestionBanner: View {
                 }
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 60)
         .padding(.top, 8)
     }
 
     private func suggestionCard(_ suggestion: ActivitySuggestion) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Image(systemName: suggestion.icon)
                 .font(.system(size: 18))
                 .foregroundStyle(theme.accentColor)
-                .frame(width: 32)
+                .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(suggestion.title)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
 
                 Text(suggestion.subtitle)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            .layoutPriority(1)
 
-            Spacer()
+            Spacer(minLength: 4)
 
             Button {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
@@ -95,6 +98,7 @@ struct ActivitySuggestionBanner: View {
                     .background(theme.accentColor, in: Capsule())
             }
             .buttonStyle(.plain)
+            .fixedSize()
 
             Button {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -104,13 +108,14 @@ struct ActivitySuggestionBanner: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "Dismiss suggestion", comment: "ActivitySuggestionBanner – dismiss VoiceOver label"))
         }
-        .padding(.horizontal, 14)
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
         .padding(.vertical, 10)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }

@@ -14,22 +14,24 @@ struct OnboardingDemoView: View {
     @State private var sleepTarget: Double = 8.0
     @State private var onboardingSelection = FamilyActivitySelection()
     @State private var selectedFeedApp: String? = nil
+    @State private var bedtimeMinutes: Int = 23 * 60
 
     var body: some View {
         ZStack {
             OnboardingStoriesView(
                 isPresented: $isPresented,
-                slides: demoSlides(),
+                slides: demoV8Slides(),
                 accent: AppColors.brandAccent,
                 skipText: "Skip",
                 nextText: "Next",
                 startText: "Let's go",
                 allowText: "Allow",
+                flowVersion: "v8-demo",
                 onHealthSlide: { print("[Demo] HealthKit requested (no-op)") },
                 onNotificationSlide: { print("[Demo] Notifications requested (no-op)") },
                 onFamilyControlsSlide: { print("[Demo] Family Controls requested (no-op)") },
                 onFinish: {
-                    print("[Demo] Onboarding finished — steps: \(Int(stepsTarget)), sleep: \(sleepTarget)h, feed: \(selectedFeedApp ?? "none")")
+                    print("[Demo] Onboarding finished — steps: \(Int(stepsTarget)), sleep: \(sleepTarget)h, bedtime: \(bedtimeMinutes)m, feed: \(selectedFeedApp ?? "none")")
                     dismiss()
                 },
                 model: nil,
@@ -37,7 +39,8 @@ struct OnboardingDemoView: View {
                 sleepTarget: $sleepTarget,
                 authService: nil,
                 onboardingSelection: $onboardingSelection,
-                selectedFeedApp: $selectedFeedApp
+                selectedFeedApp: $selectedFeedApp,
+                bedtimeMinutes: $bedtimeMinutes
             )
 
             VStack {
@@ -59,97 +62,98 @@ struct OnboardingDemoView: View {
         .statusBarHidden()
     }
 
-    private func demoSlides() -> [OnboardingSlide] {
+    private func demoV8Slides() -> [OnboardingSlide] {
         [
             OnboardingSlide(
                 lines: [
-                    "i found that i live one day over and over.",
-                    "working. scrolling. staring at a screen."
+                    "i live mostly online. working. scrolling. staring at a screen.",
+                    "probably just like you."
                 ],
                 slideType: .coldOpen
             ),
             OnboardingSlide(
-                lines: ["it felt like being stuck in"],
-                slideType: .nowHereReveal
-            ),
-            OnboardingSlide(
                 lines: [
-                    "your day lives on a canvas.",
-                    "the background comes from steps and sleep.",
-                    "what colors it are the things you notice."
-                ]
-            ),
-            OnboardingSlide(
-                lines: [
-                    "one hundred colors. that's a full day.",
-                    "tap each to see."
+                    "for me it feels like being stuck in nowhere.",
+                    "so i made this app."
                 ],
-                slideType: .colorCap
+                slideType: .theApp
             ),
             OnboardingSlide(
                 lines: [
-                    "spend them on the apps that pull you away.",
-                    "pick how long.",
-                    "the clock runs only when the screen is on."
-                ],
-                slideType: .spendDemo
-            ),
-            OnboardingSlide(
-                lines: [
-                    "an economy between online and offline.",
-                    "earn by living. spend to scroll.",
-                    "tomorrow, it resets."
-                ],
-                slideType: .howItWorks
-            ),
-            OnboardingSlide(
-                lines: [
-                    "walking fills the canvas.",
-                    "how far do you go?"
-                ],
-                slideType: .stepsSetup
-            ),
-            OnboardingSlide(
-                lines: [
+                    "each day forms a canvas.",
                     "sleep deepens the dark.",
                     "how many hours feel right?"
                 ],
-                slideType: .sleepSetup,
-                microcopy: "sleep data may lag a bit — ios updates it on its own schedule."
+                slideType: .canvasSleep
             ),
             OnboardingSlide(
                 lines: [
-                    "let your phone see what your body already knows.",
-                    "steps, sleep, and the things you notice."
+                    "steps brighten it.",
+                    "how many steps a day is your goal?"
+                ],
+                slideType: .canvasSteps
+            ),
+            OnboardingSlide(
+                lines: [],
+                slideType: .balance
+            ),
+            OnboardingSlide(
+                lines: [
+                    "each day the canvas resets.",
+                    "when does your day end?"
+                ],
+                slideType: .resetBedtime
+            ),
+            OnboardingSlide(
+                lines: [
+                    "but the real color comes from what you do.",
+                    "body, mind, or heart."
+                ],
+                slideType: .bodyMindHeart
+            ),
+            OnboardingSlide(
+                lines: [
+                    "each day can bring you a maximum of 100 colors — your daily balance.",
+                    "20 from each source."
+                ],
+                slideType: .colorCapV8
+            ),
+            OnboardingSlide(
+                lines: [
+                    "to track your colors, the app needs access to apple health.",
+                    "we read steps, sleep, and workouts. nothing else."
                 ],
                 action: .requestHealth,
-                microcopy: "you'll add activities after."
+                microcopy: "you can change this in settings anytime."
             ),
             OnboardingSlide(
                 lines: [
-                    "where does your reality fade?",
-                    "close one — or skip for now."
+                    "you can spend your colors on screen time.",
+                    "pick the one app that drains you the most."
                 ],
-                slideType: .feedSelection
+                slideType: .feedSelection,
+                microcopy: "this uses apple's screen time. you'll see a system prompt."
             ),
             OnboardingSlide(
                 lines: [
-                    "i'm kosta.",
-                    "who are you?"
+                    "also, allow notifications.",
+                    "they're needed to unlock the apps.",
+                    "you can control them in settings later."
+                ],
+                action: .requestNotifications,
+                slideType: .notificationPermission
+            ),
+            OnboardingSlide(
+                lines: [
+                    "btw, my name is kosta.",
+                    "and who are you?"
                 ],
                 slideType: .appleLogin
             ),
             OnboardingSlide(
-                lines: [
-                    "set your canvas as a wallpaper.",
-                    "add widgets — they update on their own.",
-                    "if they feel behind, tap refresh. ios thing."
-                ]
+                lines: [],
+                slideType: .welcomeV8
             ),
-            OnboardingSlide(
-                lines: ["welcome to nowhere"],
-                slideType: .welcome
-            )
         ]
     }
 }

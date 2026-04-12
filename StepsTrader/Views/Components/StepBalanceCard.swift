@@ -173,6 +173,9 @@ struct StepBalanceCard: View {
                         withAnimation(.spring(response: 0.3)) {
                             isExpanded.toggle()
                         }
+                        #if DEBUG
+                        CoachMarkManager.postAction(for: .expandChevron)
+                        #endif
                     } label: {
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.caption2.weight(.semibold))
@@ -182,51 +185,57 @@ struct StepBalanceCard: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(isExpanded ? String(localized: "Collapse categories", comment: "StepBalanceCard – toggle categories VoiceOver label") : String(localized: "Expand categories", comment: "StepBalanceCard – toggle categories VoiceOver label"))
+                    #if DEBUG
+                    .coachMarkAnchor(.expandChevron)
+                    #endif
                 }
                 .frame(minHeight: 30)
             }
             
-            // ── Metric chips (two rows, icons only) ──
+            // ── Metric chips (two rows, labeled with fill bars) ──
             if showDetails && isExpanded {
-                VStack(spacing: 6) {
-                    // Row 1: HealthKit auto-tracked
+                VStack(spacing: 8) {
                     HStack(spacing: 8) {
                         metricChip(
                             icon: "shoeprints.fill",
+                            label: String(localized: "Steps", comment: "StepBalanceCard – steps chip label"),
                             value: stepsPoints,
-                            max: EnergyDefaults.stepsMaxPoints,
+                            maxValue: EnergyDefaults.stepsMaxPoints,
                             accessibilityId: "chip_steps",
                             onTap: { onStepsTap?() }
                         )
                         metricChip(
                             icon: "bed.double.fill",
+                            label: String(localized: "Sleep", comment: "StepBalanceCard – sleep chip label"),
                             value: sleepPoints,
-                            max: EnergyDefaults.sleepMaxPoints,
+                            maxValue: EnergyDefaults.sleepMaxPoints,
                             accessibilityId: "chip_sleep",
                             onTap: { onSleepTap?() }
                         )
                     }
                     
-                    // Row 2: Card-based categories
                     HStack(spacing: 8) {
                         metricChip(
                             icon: "figure.walk",
+                            label: String(localized: "Body", comment: "StepBalanceCard – body chip label"),
                             value: bodyPoints,
-                            max: 20,
+                            maxValue: 20,
                             accessibilityId: "chip_body",
                             onTap: { onMoveTap?() }
                         )
                         metricChip(
                             icon: "brain.head.profile",
+                            label: String(localized: "Mind", comment: "StepBalanceCard – mind chip label"),
                             value: mindPoints,
-                            max: 20,
+                            maxValue: 20,
                             accessibilityId: "chip_mind",
                             onTap: { onRebootTap?() }
                         )
                         metricChip(
                             icon: "heart.fill",
+                            label: String(localized: "Heart", comment: "StepBalanceCard – heart chip label"),
                             value: heartPoints,
-                            max: 20,
+                            maxValue: 20,
                             accessibilityId: "chip_heart",
                             onTap: { onJoyTap?() }
                         )
@@ -236,11 +245,17 @@ struct StepBalanceCard: View {
                     insertion: .move(edge: .top).combined(with: .opacity),
                     removal: .opacity
                 ))
+                #if DEBUG
+                .coachMarkAnchor(.categoriesRevealed)
+                #endif
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .modifier(StepBalanceCardBackgroundModifier())
+        #if DEBUG
+        .coachMarkAnchor(.colorBalance)
+        #endif
         .animation(.spring(response: 0.3), value: showDetails)
         .animation(.spring(response: 0.3), value: isExpanded)
     }
@@ -277,28 +292,39 @@ private struct StepBalanceCardBackgroundModifier: ViewModifier {
 // MARK: - Metric chip
 
 @ViewBuilder
-private func metricChip(icon: String, value: Int, max: Int, accessibilityId: String, onTap: @escaping () -> Void) -> some View {
+private func metricChip(icon: String, label: String, value: Int, maxValue: Int, accessibilityId: String, onTap: @escaping () -> Void) -> some View {
+    let fill = maxValue > 0 ? CGFloat(min(1.0, Double(value) / Double(maxValue))) : 0
+
     Button(action: onTap) {
         HStack(spacing: 5) {
             Image(systemName: icon)
-                .font(.caption2)
-                .foregroundColor(.primary.opacity(0.6))
-            Spacer(minLength: 0)
-            Text("\(value)/\(max)")
-                .font(.caption.weight(.bold))
+                .font(.footnote)
                 .foregroundColor(.primary)
-                .monospacedDigit()
+            Text(label)
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(.primary)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background {
+            GeometryReader { proxy in
+                let filledWidth = max(0, proxy.size.width * fill)
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(AppColors.brandAccent)
+                    .frame(width: filledWidth)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.primary.opacity(0.05))
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.primary.opacity(0.06))
         )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
     .buttonStyle(.plain)
     .accessibilityIdentifier(accessibilityId)
+    .accessibilityLabel("\(label), \(value) of \(maxValue)")
+    .animation(.spring(response: 0.4), value: value)
 }
 
 #Preview {

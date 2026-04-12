@@ -35,9 +35,11 @@ struct SettingsSheet: View {
 
                     accountRow
 
-                    // MARK: - Permissions + Look & Feel
+                    // MARK: - Limits + Look & Feel
                     VStack(spacing: 0) {
-                        permissionsRow
+                        settingsRow(icon: "bolt", title: String(localized: "Limits")) {
+                            SettingsEnergyPage(model: model)
+                        }
                         rowDivider
                         settingsRow(icon: "paintpalette", title: String(localized: "Appearance")) {
                             SettingsAppearancePage(model: model)
@@ -49,11 +51,9 @@ struct SettingsSheet: View {
                     }
                     .glassCard()
 
-                    // MARK: - Targets & Integrations
+                    // MARK: - Permissions & Integrations
                     VStack(spacing: 0) {
-                        settingsRow(icon: "bolt", title: String(localized: "Limits")) {
-                            SettingsEnergyPage(model: model)
-                        }
+                        permissionsRow
                         rowDivider
                         settingsRow(icon: "photo.on.rectangle.angled", title: String(localized: "Wallpaper")) {
                             SettingsShortcutPage(model: model)
@@ -245,6 +245,7 @@ struct SettingsSheet: View {
     @State private var colorsRestored = false
     @State private var showOnboardingDemo = false
     @State private var replayOnboardingLive = false
+    @EnvironmentObject private var coachMarkManager: CoachMarkManager
 
     @State private var shieldActionLogs: [String] = []
     @State private var showShieldActionLogs = false
@@ -377,6 +378,20 @@ struct SettingsSheet: View {
                         text: "Replay Onboarding (Live)",
                         color: .mint,
                         trailing: "restart"
+                    )
+                }
+                .buttonStyle(.plain)
+
+                diagDivider
+
+                Button {
+                    coachMarkManager.start()
+                } label: {
+                    diagButton(
+                        icon: "hand.point.up.left",
+                        text: "Preview Coach Marks",
+                        color: .orange,
+                        trailing: "questionmark.circle"
                     )
                 }
                 .buttonStyle(.plain)

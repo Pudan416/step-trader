@@ -7,6 +7,12 @@
     "—" : {
 
     },
+    "," : {
+
+    },
+    ":" : {
+
+    },
     "!" : {
 
     },
@@ -32,6 +38,16 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ for %2$lld colors. that's the deal."
+          }
+        }
+      }
+    },
+    "%@ hours of sleep and %@ steps will make your canvas fully balanced." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ hours of sleep and %2$@ steps will make your canvas fully balanced."
           }
         }
       }
@@ -78,6 +94,19 @@
         }
       }
     },
+    "%@, %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld of %3$lld"
+          }
+        }
+      }
+    },
+    "%@, 20 colors" : {
+
+    },
     "%@, no data" : {
 
     },
@@ -109,6 +138,16 @@
     },
     "%lld of 3 not granted" : {
       "comment" : "Permissions – missing count"
+    },
+    "%lld of 5 tapped, %lld colors" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of 5 tapped, %2$lld colors"
+          }
+        }
+      }
     },
     "%lld percent, %lld of %lld colors" : {
       "comment" : "StepBalanceCard – progress bar VoiceOver value",
@@ -176,6 +215,9 @@
     "30 min" : {
 
     },
+    "100" : {
+
+    },
     "A heads-up before your canvas resets for a new day." : {
 
     },
@@ -233,12 +275,6 @@
     "Add the things that colored up your day to the canvas." : {
       "comment" : "Notification – daily canvas reminder body"
     },
-    "Add to canvas" : {
-      "comment" : "OptionEntry – add to canvas button"
-    },
-    "add widgets — they update on their own." : {
-
-    },
     "Add your own" : {
       "comment" : "CategoryDetail – add custom activity button"
     },
@@ -254,6 +290,12 @@
     "Allow" : {
 
     },
+    "Already added" : {
+
+    },
+    "also, allow notifications." : {
+
+    },
     "An app is closed. Open Nowhere to unlock it." : {
       "comment" : "Notification – app blocked body"
     },
@@ -264,6 +306,12 @@
 
     },
     "and also" : {
+
+    },
+    "and who are you?" : {
+
+    },
+    "and your day ends at %@." : {
 
     },
     "App blocking & limits" : {
@@ -294,7 +342,7 @@
       "comment" : "Widget section header"
     },
     "Body" : {
-      "comment" : "CategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label"
+      "comment" : "CategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – body chip label"
     },
     "Body tracks physical activities you choose. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
@@ -315,6 +363,12 @@
           }
         }
       }
+    },
+    "btw, my name is kosta." : {
+
+    },
+    "but what truly colors your canvas is what you do for your body, mind, and heart." : {
+
     },
     "Cancel" : {
       "comment" : "AppSelection – dismiss button\nOptionEntry – dismiss button\nProfileEditor – dismiss button\nTemplatePicker – dismiss button"
@@ -337,9 +391,6 @@
     "Charged: %lld colors." : {
       "comment" : "Notification – charged colors only body"
     },
-    "Choose a time between 21:00 and 03:00." : {
-
-    },
     "Choose App → select Nowhere → pick \"Is Closed\"" : {
 
     },
@@ -357,9 +408,6 @@
     },
     "Close" : {
       "comment" : "PayGate – close button VoiceOver label\nQuickStatus – dismiss button"
-    },
-    "close one — or skip for now." : {
-
     },
     "Close quick status" : {
       "comment" : "QuickStatus – close VoiceOver label"
@@ -379,14 +427,17 @@
     "Color Palette" : {
 
     },
+    "Color sources" : {
+
+    },
     "colors" : {
-      "comment" : "Category overlay – unit"
+      "comment" : "Category overlay – unit\nCategoryDetail – points unit"
     },
     "Colors are not a currency. I mean they are, but I'm not planning to sell them in microtransactions or whatever. Colors are yours. You deserve them, you earn them, you can always add more. Within limits, of course." : {
       "comment" : "Note body: about_colors_economy"
     },
-    "colors earned" : {
-      "comment" : "CategoryDetail – points subtitle"
+    "colors are the currency you earn for living a real life." : {
+
     },
     "Colors left: %lld min." : {
       "comment" : "Notification – budget warning body"
@@ -396,9 +447,6 @@
     },
     "CONTACT" : {
       "comment" : "About section header"
-    },
-    "continue without signing in" : {
-
     },
     "Copy All" : {
 
@@ -415,22 +463,13 @@
     "Daily canvas reminder" : {
 
     },
-    "Daily reset time" : {
-      "comment" : "Accessibility label"
-    },
-    "DAILY RESET TIME" : {
-      "comment" : "Section header"
-    },
-    "DAILY TARGETS" : {
-      "comment" : "Limits section header"
-    },
-    "Day reset" : {
-      "comment" : "Navigation title"
+    "Daily Steps Goal" : {
+
     },
     "DAY RESET" : {
       "comment" : "Notification section header"
     },
-    "Day resets at" : {
+    "Day Resets At" : {
 
     },
     "Day resets in %lld min — unused time will be lost" : {
@@ -441,9 +480,6 @@
     },
     "Daylight" : {
       "comment" : "GradientPreview – time-of-day label"
-    },
-    "Decrease %@" : {
-      "comment" : "MeTargetsSheet – stepper VoiceOver label"
     },
     "Delete" : {
 
@@ -463,8 +499,14 @@
     "Dismiss suggestion" : {
       "comment" : "ActivitySuggestionBanner – dismiss VoiceOver label"
     },
+    "do you want me to show you around?" : {
+
+    },
+    "done" : {
+
+    },
     "Done" : {
-      "comment" : "AppSelection – done button\nManualsPage – dismiss button\nTimeAccessPicker – dismiss button"
+      "comment" : "AppSelection – done button\nManualsPage – dismiss button\nOptionEntry – done button\nTimeAccessPicker – dismiss button"
     },
     "Double tap to change" : {
       "comment" : "MeView – interactive pill VoiceOver hint"
@@ -481,6 +523,18 @@
     "e.g. Social, Games…" : {
       "comment" : "Placeholder for feed name"
     },
+    "each day can bring you a maximum of" : {
+
+    },
+    "each day forms a canvas." : {
+
+    },
+    "each day the canvas resets." : {
+
+    },
+    "each day you get 100 colors — your daily balance." : {
+
+    },
     "Each of the five areas — steps, sleep, body, mind and heart — contributes up to 20 colors (100 colors total)." : {
 
     },
@@ -488,6 +542,9 @@
 
     },
     "earn by living. spend to scroll." : {
+
+    },
+    "earn them by living. spend them to scroll." : {
 
     },
     "Edit Apps" : {
@@ -511,9 +568,6 @@
     "Enable" : {
       "comment" : "Permission – enable button"
     },
-    "End of day" : {
-      "comment" : "Picker label"
-    },
     "Entries left today: %@" : {
 
     },
@@ -535,6 +589,12 @@
     "Failed to render the canvas image." : {
 
     },
+    "Feed" : {
+
+    },
+    "Feed settings" : {
+      "comment" : "PaperTicket – ellipsis button VoiceOver label"
+    },
     "Feedback" : {
 
     },
@@ -543,6 +603,12 @@
     },
     "Feeds are where minutes disappear. Not evil, not good — just expensive. But the fact is that they drain the color from the day. In this app, the more you open your banned apps, the less colorful your canvas becomes. Note that." : {
       "comment" : "Note body"
+    },
+    "first you need to add any one app" : {
+
+    },
+    "for me it feels like being stuck in nowhere." : {
+
     },
     "Full" : {
       "comment" : "GradientPreview – preview mode showing all data"
@@ -578,7 +644,7 @@
       "comment" : "Permission row – HealthKit"
     },
     "Heart" : {
-      "comment" : "CategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label"
+      "comment" : "CategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – heart chip label"
     },
     "Heart tracks joys and things that make you feel alive. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
@@ -618,6 +684,12 @@
     "how many hours feel right?" : {
 
     },
+    "how many hours of sleep you need?" : {
+
+    },
+    "how many steps a day is your goal?" : {
+
+    },
     "I actually liked how the canvases look. And I tried setting one as a wallpaper. It made me see my day constantly and think, what can I add to it. The sad part is that you need to open the app to update the wallpaper. But once you set enough apps in the Feeds section, you'll be opening it anyway. Seemed like a good compromise." : {
       "comment" : "Note body: about_wallpaper"
     },
@@ -626,6 +698,9 @@
     },
     "I like green. But that's just me. I tried to find the colors most people like and want to see and came up with this set. Hopefully you'll find what fits your liking. You can always change them if you don't." : {
       "comment" : "Note body: about_colors"
+    },
+    "i live mostly online. working. scrolling. staring at a screen." : {
+
     },
     "I spent a long time thinking about these categories and there is no one way to categorize a human being. But I liked the Tibetan Buddhism, which sees a human as a harmony of body (physical form), mind (thoughts and perceptions), and heart (pure awareness, emotions, and compassion center). I don't know much about Buddhism, but this idea resonates with me. Maybe I should start digging deeper one day." : {
       "comment" : "Note body"
@@ -639,12 +714,6 @@
     "If a permission was denied, tap it to open Settings where you can enable it." : {
       "comment" : "Permissions – footer hint"
     },
-    "if they feel behind, tap refresh. ios thing." : {
-
-    },
-    "Increase %@" : {
-      "comment" : "MeTargetsSheet – stepper VoiceOver label"
-    },
     "Instagram is closed." : {
 
     },
@@ -653,9 +722,6 @@
     },
     "keep it closed" : {
       "comment" : "PayGate dismiss button"
-    },
-    "let your phone see what your body already knows." : {
-
     },
     "Let's go" : {
 
@@ -676,7 +742,7 @@
 
     },
     "Mind" : {
-      "comment" : "CategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label"
+      "comment" : "CategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – mind chip label"
     },
     "Mind tracks creativity and rest. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
@@ -722,6 +788,9 @@
     "New Feed" : {
       "comment" : "TemplatePicker – navigation title"
     },
+    "next" : {
+
+    },
     "Next" : {
 
     },
@@ -744,6 +813,9 @@
 
     },
     "No feeds connected yet" : {
+
+    },
+    "no, thanks" : {
 
     },
     "Not enough colors" : {
@@ -772,9 +844,6 @@
     },
     "OK" : {
       "comment" : "ProfileEditor – alert dismiss button"
-    },
-    "one hundred colors. that's a full day." : {
-
     },
     "Open" : {
       "comment" : "Unlock status label"
@@ -812,6 +881,15 @@
     "pick how long." : {
 
     },
+    "pick one to manage with your colors — or skip for now." : {
+
+    },
+    "pick the one app that drains you the most." : {
+
+    },
+    "probably just like you." : {
+
+    },
     "Progress" : {
       "comment" : "Onboarding – progress bar VoiceOver label"
     },
@@ -836,17 +914,11 @@
     "Renders today's energy canvas as a wallpaper image. Optionally override gradient style and color palette." : {
 
     },
-    "Repeat Yesterday" : {
-
-    },
     "reset" : {
 
     },
     "Save" : {
-      "comment" : "OptionEntry – save/add button\nProfileEditor – save button"
-    },
-    "Save \"%@\" for later" : {
-      "comment" : "CategoryDetail – save custom activity toggle"
+      "comment" : "ProfileEditor – save button"
     },
     "Save as Routine" : {
 
@@ -875,9 +947,6 @@
     "Set up the wallpaper shortcut first" : {
 
     },
-    "set your canvas as a wallpaper." : {
-
-    },
     "Settings" : {
       "comment" : "Context menu action\nSettings page title\nTab bar title"
     },
@@ -902,11 +971,14 @@
     "Skip" : {
 
     },
-    "skip for now" : {
+    "skip all" : {
 
     },
     "Sleep" : {
-      "comment" : "Onboarding – energy source labels"
+      "comment" : "StepBalanceCard – sleep chip label"
+    },
+    "Sleep & Reset" : {
+      "comment" : "Navigation title"
     },
     "sleep and" : {
 
@@ -917,7 +989,7 @@
     "sleep deepens the dark." : {
 
     },
-    "Sleep goal" : {
+    "Sleep Goal" : {
 
     },
     "Sleep hours" : {
@@ -983,7 +1055,7 @@
       "comment" : "Onboarding – steps unit label"
     },
     "Steps" : {
-      "comment" : "Onboarding – energy source labels"
+      "comment" : "StepBalanceCard – steps chip label"
     },
     "steps a day." : {
 
@@ -997,7 +1069,7 @@
     "Steps balance" : {
       "comment" : "StepBalanceCard – progress bar VoiceOver label"
     },
-    "Steps goal" : {
+    "steps brighten it." : {
 
     },
     "Steps only" : {
@@ -1008,9 +1080,6 @@
     },
     "Steps today:" : {
       "comment" : "QuickStatus – steps label"
-    },
-    "steps, sleep, and the things you notice." : {
-
     },
     "Steps, sleep, workouts" : {
       "comment" : "Permission row – HealthKit detail"
@@ -1030,6 +1099,9 @@
     "Tap the button below to add the wallpaper shortcut" : {
 
     },
+    "Tap to add to your daily total" : {
+
+    },
     "Target: %@ steps" : {
 
     },
@@ -1045,14 +1117,11 @@
     "Test notification." : {
       "comment" : "Notification – test notification body"
     },
-    "the background comes from steps and sleep." : {
+    "the app needs access to apple health." : {
 
     },
     "The canvas is a reflection of each day. How full and colorful it was. I like the idea that even though each day is limited by 24 hours, there are so many little things that make them different. And to distinguish one day from another we need to notice them." : {
       "comment" : "Note body"
-    },
-    "the light from walking. the dark from rest." : {
-
     },
     "The sense of being present" : {
       "comment" : "App tagline"
@@ -1063,11 +1132,17 @@
     "THEME" : {
       "comment" : "Appearance section header"
     },
+    "they're needed to unlock the apps." : {
+
+    },
     "Thinking about the body, mind and heart, I was looking for the best objects to represent them on the canvas. The body is represented by big constant breathing shapes. For the mind I chose drifting circles, that fly around like ideas. And the heart is represented by beams of light, that light the way and look around." : {
       "comment" : "Note body"
     },
     "This name will be displayed instead of my real name" : {
       "comment" : "ProfileEditor – nickname hint"
+    },
+    "this uses apple's screen time. you'll see a system prompt." : {
+
     },
     "THIS WEEK" : {
 
@@ -1081,25 +1156,19 @@
     "This will permanently delete your account, profile, and all data. This action cannot be undone." : {
       "comment" : "ProfileEditor – delete confirmation message"
     },
-    "Feed" : {
-
-    },
-    "Feed settings" : {
-      "comment" : "PaperTicket – ellipsis button VoiceOver label"
-    },
     "Time options" : {
 
     },
     "Timers, reminders, alerts" : {
       "comment" : "Permission row – Notifications detail"
     },
+    "to track your colors, the app needs access to apple health." : {
+
+    },
     "Today is uncolored" : {
       "comment" : "Canvas empty state hint"
     },
     "tomorrow, it resets." : {
-
-    },
-    "touch and drag" : {
 
     },
     "Track what matters" : {
@@ -1164,19 +1233,25 @@
     "Warn before reset" : {
 
     },
+    "we read steps, sleep, and workouts. nothing else." : {
+
+    },
     "Website" : {
+
+    },
+    "welcome to" : {
 
     },
     "welcome to nowhere" : {
 
     },
-    "what colors it are the things you notice." : {
+    "when does your day end?" : {
 
     },
     "When the timer is over" : {
 
     },
-    "where does your reality fade?" : {
+    "which app pulls you away the most?" : {
 
     },
     "who are you?" : {
@@ -1188,16 +1263,28 @@
     "working. scrolling. staring at a screen." : {
 
     },
+    "yes, please" : {
+
+    },
     "You are aiming for" : {
 
     },
     "You are not nowhere. You are now here." : {
       "comment" : "App philosophy tagline"
     },
-    "you can't buy them — only live them." : {
+    "you can change this in settings anytime." : {
 
     },
-    "you'll add activities after." : {
+    "you can change this later." : {
+
+    },
+    "you can control them in settings later." : {
+
+    },
+    "you can spend your colors on screen time." : {
+
+    },
+    "you can't buy them — only live them." : {
 
     },
     "You're about to open %@" : {
@@ -1217,9 +1304,6 @@
     },
     "Your clock and widgets will overlay this canvas" : {
       "comment" : "Wide canvas – wallpaper prompt subtitle"
-    },
-    "your day lives on a canvas." : {
-
     },
     "Your day resets at" : {
 
