@@ -79,11 +79,11 @@ struct CategoryDetailView: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground {
-            if #available(iOS 26.0, *) {
-                Rectangle().glassEffect(.regular)
-            } else {
-                Color(.systemBackground).opacity(0.97)
+            ZStack {
+                Rectangle().fill(.regularMaterial)
+                Rectangle().fill(Color(.systemBackground).opacity(0.55))
             }
+            .ignoresSafeArea()
         }
         .onAppear { refreshEntryColorCache() }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: editingOptionId)
@@ -164,8 +164,6 @@ struct CategoryDetailView: View {
                     #endif
             }
         }
-        .padding(12)
-        .glassCard(cornerRadius: 20)
     }
 
     private func chipView(option: EnergyOption, category: EnergyCategory, isCustom: Bool) -> some View {
