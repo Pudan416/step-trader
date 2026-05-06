@@ -26,7 +26,7 @@ struct SettingsAboutPage: View {
                     // MARK: - Brand Identity
                     VStack(spacing: 12) {
                         Text("Nowhere")
-                            .font(.system(size: 28, weight: .black, design: .serif))
+                            .font(.largeTitle.weight(.black))
                             .foregroundStyle(theme.adaptivePrimaryText)
 
                         Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))
@@ -35,7 +35,7 @@ struct SettingsAboutPage: View {
                             .multilineTextAlignment(.center)
 
                         Text("v\(appVersion) (\(buildNumber))")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .font(.caption2.weight(.medium).monospaced())
                             .foregroundColor(theme.adaptiveMutedText)
                     }
                     .frame(maxWidth: .infinity)

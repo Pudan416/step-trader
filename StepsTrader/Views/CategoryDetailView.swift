@@ -95,15 +95,15 @@ struct CategoryDetailView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(categoryTitle)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.title3.weight(.bold))
                     .foregroundStyle(.primary)
                 HStack(spacing: 4) {
                     Text("\(currentPoints)/\(maxPoints)")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(.caption.weight(.semibold))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                     Text(String(localized: "colors", comment: "CategoryDetail – points unit"))
-                        .font(.system(size: 12, weight: .regular, design: .rounded))
+                        .font(.caption.weight(.regular))
                         .foregroundStyle(.secondary.opacity(0.6))
                 }
             }
@@ -114,7 +114,7 @@ struct CategoryDetailView: View {
 
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary.opacity(0.6))
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(.primary.opacity(0.06)))
@@ -184,7 +184,7 @@ struct CategoryDetailView: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: option.icon)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(isSelected ? .white : .primary.opacity(0.45))
                     .frame(width: 28, height: 28)
                     .background(
@@ -192,7 +192,7 @@ struct CategoryDetailView: View {
                     )
 
                 Text(option.title(for: Locale.current.language.languageCode?.identifier ?? "en"))
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .medium, design: .rounded))
+                    .font(.footnote.weight(isSelected ? .semibold : .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
@@ -200,7 +200,7 @@ struct CategoryDetailView: View {
 
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.caption2.weight(.bold))
                         .foregroundStyle(activeColor)
                 }
             }
@@ -249,10 +249,10 @@ struct CategoryDetailView: View {
             HStack {
                 if let option {
                     Image(systemName: option.icon)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.footnote.weight(.semibold))
                         .foregroundStyle(accent)
                     Text(option.title(for: Locale.current.language.languageCode?.identifier ?? "en"))
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.body.weight(.semibold))
                 }
                 Spacer()
                 Button {
@@ -260,7 +260,7 @@ struct CategoryDetailView: View {
                     isNoteFieldFocused = false
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.caption2.weight(.bold))
                         .foregroundStyle(.secondary.opacity(0.5))
                         .frame(width: 26, height: 26)
                         .background(Circle().fill(.primary.opacity(0.06)))
@@ -334,7 +334,7 @@ struct CategoryDetailView: View {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } label: {
                         Image(systemName: "trash")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(.red.opacity(0.85))
                             .frame(width: 36, height: 36)
                             .background(Circle().fill(.red.opacity(0.1)))
@@ -346,7 +346,7 @@ struct CategoryDetailView: View {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     } label: {
                         Image(systemName: "dice")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(accent.opacity(0.85))
                             .frame(width: 36, height: 36)
                             .background(Circle().fill(accent.opacity(0.1)))
@@ -364,7 +364,7 @@ struct CategoryDetailView: View {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } label: {
                         Image(systemName: "xmark.circle")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary.opacity(0.7))
                             .frame(width: 36, height: 36)
                             .background(Circle().fill(.primary.opacity(0.06)))
@@ -384,7 +384,7 @@ struct CategoryDetailView: View {
                         commitEntry(option: option, category: category, isCustom: isCustom)
                     } label: {
                         Text(String(localized: "Done", comment: "OptionEntry – done button"))
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .font(.footnote.weight(.bold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
@@ -419,12 +419,12 @@ struct CategoryDetailView: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.caption.weight(.bold))
                         .foregroundStyle(accent.opacity(0.7))
                         .frame(width: 28, height: 28)
                         .background(Circle().fill(accent.opacity(0.1)))
                     Text(String(localized: "Add your own", comment: "CategoryDetail – add custom activity button"))
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(.footnote.weight(.medium))
                         .foregroundStyle(.primary.opacity(0.5))
                     Spacer()
                 }
@@ -453,7 +453,7 @@ struct CategoryDetailView: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 } label: {
                     Image(systemName: customIcon)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color(hex: customColorHex))
                         .frame(width: 32, height: 32)
                         .background(Circle().fill(Color(hex: customColorHex).opacity(0.12)))
@@ -465,7 +465,7 @@ struct CategoryDetailView: View {
                     text: $customName
                 )
                 .textFieldStyle(.plain)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .font(.footnote.weight(.medium))
             }
 
             let icons = CustomActivityIcons.icons(for: category)
@@ -478,7 +478,7 @@ struct CategoryDetailView: View {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     } label: {
                         Image(systemName: icon)
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.footnote.weight(.medium))
                             .foregroundStyle(isActive ? Color(hex: customColorHex) : .secondary.opacity(0.35))
                             .frame(width: 28, height: 28)
                             .background(
@@ -498,7 +498,7 @@ struct CategoryDetailView: View {
                     }
                 } label: {
                     Text(String(localized: "Cancel", comment: "OptionEntry – dismiss button"))
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.footnote.weight(.medium))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
@@ -512,7 +512,7 @@ struct CategoryDetailView: View {
                     createCustomActivity(category: category)
                 } label: {
                     Text(String(localized: "Create", comment: "CategoryDetail – create custom activity button"))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.footnote.weight(.bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)
@@ -552,7 +552,7 @@ struct CategoryDetailView: View {
                 .aspectRatio(contentMode: .fit)
         } else {
             Image(systemName: categoryIcon)
-                .font(.system(size: 20, weight: .medium))
+                .font(.title3.weight(.medium))
                 .foregroundStyle(.primary.opacity(0.25))
         }
     }
@@ -570,7 +570,7 @@ struct CategoryDetailView: View {
         switch category {
         case .body: return "figure.run"
         case .mind: return "sparkles"
-        case .heart: return "heart.fill"
+        case .heart: return "heart"
         case nil: return "battery.100.bolt"
         }
     }
@@ -792,8 +792,8 @@ private struct CheckboxToggleStyle: ToggleStyle {
             configuration.isOn.toggle()
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: configuration.isOn ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 16, weight: .medium))
+                Image(systemName: configuration.isOn ? "checkmark.square" : "square")
+                    .font(.callout.weight(.medium))
                     .foregroundStyle(configuration.isOn ? tint : .secondary.opacity(0.35))
                 configuration.label
             }

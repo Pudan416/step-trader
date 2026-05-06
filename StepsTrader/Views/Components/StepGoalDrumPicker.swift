@@ -3,6 +3,8 @@ import SwiftUI
 struct StepGoalDrumPicker: View {
     @Binding var value: Double
     @Environment(\.appTheme) private var theme
+    @ScaledMetric private var separatorSize: CGFloat = 24
+    @ScaledMetric private var labelSize: CGFloat = 10
 
     private let minSteps = 1000
     private let maxSteps = 99500
@@ -29,7 +31,7 @@ struct StepGoalDrumPicker: View {
                 )
 
                 Text(",")
-                    .font(.system(size: 24, weight: .medium, design: .rounded))
+                    .font(.system(size: separatorSize, weight: .medium, design: .rounded))
                     .foregroundStyle(theme.adaptiveMutedText)
                     .padding(.top, 16)
 
@@ -73,6 +75,8 @@ private struct DrumDigitColumn: View {
     let onChange: (Int) -> Void
     let theme: AppTheme
 
+    @ScaledMetric private var activeDigitSize: CGFloat = 30
+    @ScaledMetric private var inactiveDigitSize: CGFloat = 26
     @State private var dragOffset: CGFloat = 0
     @GestureState private var isDragging = false
 
@@ -103,7 +107,7 @@ private struct DrumDigitColumn: View {
 
     private func digitTile(active: Bool) -> some View {
         Text("\(digit)")
-            .font(.system(size: active ? 30 : 26, weight: active ? .bold : .semibold, design: .rounded))
+            .font(.system(size: active ? activeDigitSize : inactiveDigitSize, weight: active ? .bold : .semibold, design: .rounded))
             .monospacedDigit()
             .foregroundStyle(active ? theme.adaptivePrimaryText : theme.adaptiveMutedText)
             .offset(y: active ? dragOffset : 0)
@@ -136,7 +140,7 @@ private struct DrumDigitColumn: View {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } label: {
             Image(systemName: isUp ? "chevron.up" : "chevron.down")
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: labelSize, weight: .bold))
                 .foregroundStyle(canMove ? theme.adaptiveSecondaryText : theme.adaptiveMutedText.opacity(0.2))
                 .frame(width: 44, height: 24)
                 .contentShape(Rectangle())

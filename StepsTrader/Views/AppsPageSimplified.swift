@@ -33,6 +33,7 @@ enum TicketsPalette {
 
 struct AppsPageSimplified: View {
     @ObservedObject var model: AppModel
+    @ScaledMetric private var emptyIconSize: CGFloat = 52
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
@@ -62,7 +63,7 @@ struct AppsPageSimplified: View {
                 VStack(spacing: 0) {
                     HStack {
                         Text(String(localized: "My Feeds", comment: "Feeds page title"))
-                            .font(.system(size: 17, weight: .light, design: .rounded))
+                            .font(.callout.weight(.light))
                             .foregroundStyle(Color.primary.opacity(0.7))
                         Spacer()
                         if isReordering {
@@ -72,7 +73,7 @@ struct AppsPageSimplified: View {
                                 }
                             } label: {
                                 Text(String(localized: "Done"))
-                                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                                    .font(.body)
                                     .foregroundStyle(buttonTint)
                             }
                         } else {
@@ -91,7 +92,7 @@ struct AppsPageSimplified: View {
                                             .strokeBorder(buttonTint.opacity(0.4), lineWidth: 1)
                                             .frame(width: 36, height: 36)
                                         Image(systemName: "arrow.up.arrow.down")
-                                            .font(.system(size: 14, weight: .ultraLight))
+                                            .font(.footnote.weight(.ultraLight))
                                             .foregroundStyle(buttonTint)
                                     }
                                 }
@@ -108,7 +109,7 @@ struct AppsPageSimplified: View {
                                         .strokeBorder(buttonTint.opacity(0.4), lineWidth: 1)
                                         .frame(width: 36, height: 36)
                                     Image(systemName: "plus")
-                                        .font(.system(size: 16, weight: .ultraLight))
+                                        .font(.callout.weight(.ultraLight))
                                         .foregroundStyle(buttonTint)
                                 }
                             }
@@ -279,7 +280,7 @@ struct AppsPageSimplified: View {
                                 moveTicket(group.id, up: true)
                             } label: {
                                 Image(systemName: "chevron.up")
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(.caption.weight(.semibold))
                                     .frame(width: 34, height: 28)
                                     .contentShape(Rectangle())
                             }
@@ -291,17 +292,14 @@ struct AppsPageSimplified: View {
                                 moveTicket(group.id, up: false)
                             } label: {
                                 Image(systemName: "chevron.down")
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(.caption.weight(.semibold))
                                     .frame(width: 34, height: 28)
                                     .contentShape(Rectangle())
                             }
                             .disabled(visibleGroups.last?.id == group.id)
                         }
                         .foregroundStyle(Color.primary.opacity(0.5))
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(.ultraThinMaterial)
-                        )
+                        .glassCard(cornerRadius: 10)
                         .padding(.trailing, 10)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
@@ -332,14 +330,14 @@ struct AppsPageSimplified: View {
         VStack(spacing: 28) {
             Spacer()
             Image(systemName: "ticket")
-                .font(.system(size: 52, weight: .ultraLight))
+                .font(.system(size: emptyIconSize, weight: .ultraLight))
                 .foregroundStyle(Color.primary.opacity(0.25))
             VStack(spacing: 8) {
                 Text(String(localized: "No feeds connected yet"))
-                    .font(.system(size: 20, weight: .light, design: .rounded))
+                    .font(.title3.weight(.light))
                     .foregroundStyle(Color.primary.opacity(0.7))
                 Text(String(localized: "Create one when you're ready."))
-                    .font(.system(size: 14, weight: .light, design: .rounded))
+                    .font(.footnote.weight(.light))
                     .foregroundStyle(Color.primary.opacity(0.4))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
@@ -349,9 +347,9 @@ struct AppsPageSimplified: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .ultraLight))
+                        .font(.footnote.weight(.ultraLight))
                     Text(String(localized: "New Feed"))
-                        .font(.system(size: 15, weight: .light, design: .rounded))
+                        .font(.body.weight(.light))
                 }
                 .foregroundStyle(Color.primary.opacity(0.7))
                 .frame(maxWidth: .infinity)

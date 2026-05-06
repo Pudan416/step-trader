@@ -38,7 +38,7 @@ struct QuickStatusView: View {
                             .foregroundColor(.green)
                     }
                     .padding()
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+                    .glassCard()
 
                     HStack {
                         Text(String(localized: "Entry balance:", comment: "QuickStatus – balance label"))
@@ -51,7 +51,7 @@ struct QuickStatusView: View {
                                 model.userEconomyStore.totalStepsBalance >= model.userEconomyStore.entryCostSteps ? .green : .red)
                     }
                     .padding()
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial))
+                    .glassCard()
                 }
                 .padding(.horizontal, 20)
 

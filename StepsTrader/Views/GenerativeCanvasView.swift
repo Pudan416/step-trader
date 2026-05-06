@@ -1118,7 +1118,7 @@ struct GenerativeCanvasView: View {
                     ctx.opacity = 0.4
                     ctx.draw(
                         Text(labelText)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(.caption2.weight(.bold))
                             .foregroundStyle(shadowColor),
                         at: CGPoint(x: point.x + offset.0, y: point.y + offset.1),
                         anchor: .center
@@ -1128,7 +1128,7 @@ struct GenerativeCanvasView: View {
         }
 
         let text = Text(labelText)
-            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .font(.caption2.weight(.bold))
             .foregroundStyle(labelColor.opacity(0.9))
         context.draw(text, at: point, anchor: .center)
     }

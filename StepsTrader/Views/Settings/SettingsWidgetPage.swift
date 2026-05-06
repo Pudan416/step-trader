@@ -69,7 +69,7 @@ struct SettingsWidgetPage: View {
                                         )
                                         .overlay(
                                             Image(systemName: "photo")
-                                                .font(.system(size: 14, weight: .light))
+                                                .font(.footnote.weight(.light))
                                                 .foregroundStyle(.white.opacity(0.5))
                                         )
                                 }
@@ -91,7 +91,7 @@ struct SettingsWidgetPage: View {
                     // MARK: - Configuration Hint
                     HStack(spacing: 10) {
                         Image(systemName: "hand.tap")
-                            .font(.system(size: 15))
+                            .font(.body)
                             .foregroundStyle(theme.adaptiveSecondaryText)
                             .frame(width: 24)
                         Text(String(localized: "Long-press the widget → Edit to choose which group to display."))
@@ -119,7 +119,7 @@ struct SettingsWidgetPage: View {
     @ViewBuilder
     private var wallpaperStatus: some View {
         if wallpaperThumbnail != nil {
-            Label(String(localized: "Synced with wallpaper shortcut"), systemImage: "checkmark.circle.fill")
+            Label(String(localized: "Synced with wallpaper shortcut"), systemImage: "checkmark.circle")
                 .font(.caption)
                 .foregroundStyle(.green)
         } else {

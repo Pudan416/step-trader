@@ -22,6 +22,7 @@ struct OnboardingStoriesView: View {
     let nextText: String
     let startText: String
     let allowText: String
+    @ScaledMetric private var displayIconSize: CGFloat = 48
     let flowVersion: String
     let onHealthSlide: (() -> Void)?
     let onNotificationSlide: (() -> Void)?
@@ -208,7 +209,7 @@ struct OnboardingStoriesView: View {
                                 goBack()
                             } label: {
                                 Image(systemName: "chevron.left")
-                                    .font(.system(size: 14, weight: .medium))
+                                    .font(.footnote.weight(.medium))
                                     .foregroundColor(.white.opacity(0.5))
                                     .frame(width: 28, height: 28)
                             }
@@ -242,7 +243,7 @@ struct OnboardingStoriesView: View {
                     Button(action: next) {
                         Text(primaryButtonTitle)
                             .font(.headline)
-                            .foregroundColor(.black)
+                            .foregroundStyle(Color.primary)
                             .frame(maxWidth: .infinity, minHeight: 56)
                             .background(isFeedSlideWithoutSelection ? accent.opacity(0.35) : accent)
                             .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -545,13 +546,13 @@ struct OnboardingStoriesView: View {
                 .resizable()
                 .scaledToFit()
         } else {
-            Image(systemName: "app.fill")
+            Image(systemName: "app")
                 .resizable()
                 .scaledToFit()
                 .foregroundStyle(.white.opacity(0.3))
         }
         #else
-        Image(systemName: "app.fill")
+        Image(systemName: "app")
             .resizable()
             .scaledToFit()
             .foregroundStyle(.white.opacity(0.3))
@@ -759,7 +760,7 @@ struct OnboardingStoriesView: View {
                     } label: {
                         VStack(spacing: 4) {
                             Image(systemName: categories[i].icon)
-                                .font(.system(size: 18, weight: .light))
+                                .font(.body.weight(.light))
                                 .foregroundColor(isTapped ? categories[i].color : .white.opacity(0.25))
                             Text(String(localized: "+20"))
                                 .font(.systemSerif(10, weight: .light, relativeTo: .caption2))
@@ -858,8 +859,8 @@ struct OnboardingStoriesView: View {
                     .opacity(isUnlocked ? 1.0 : 0.4)
                 
                 if isUnlocked {
-                    Image(systemName: "lock.open.fill")
-                        .font(.system(size: 16, weight: .light))
+                    Image(systemName: "lock.open")
+                        .font(.callout.weight(.light))
                         .foregroundColor(.green.opacity(0.8))
                         .transition(.scale.combined(with: .opacity))
                 }
@@ -949,7 +950,7 @@ struct OnboardingStoriesView: View {
         let steps: [(icon: String, label: String)] = [
             ("figure.walk", String(localized: "earn")),
             ("lock.open", String(localized: "spend")),
-            ("moon.fill", String(localized: "reset")),
+            ("moon", String(localized: "reset")),
         ]
         
         VStack(spacing: 0) {
@@ -973,7 +974,7 @@ struct OnboardingStoriesView: View {
                                 .fill(Color.white.opacity(0.05))
                                 .frame(width: 64, height: 64)
                             Image(systemName: step.icon)
-                                .font(.system(size: 22, weight: .ultraLight))
+                                .font(.title2.weight(.ultraLight))
                                 .foregroundColor(visible ? accent : .white.opacity(0.15))
                         }
                         Text(step.label)
@@ -986,7 +987,7 @@ struct OnboardingStoriesView: View {
                     
                     if i < steps.count - 1 {
                         Image(systemName: "arrow.right")
-                            .font(.system(size: 12, weight: .ultraLight))
+                            .font(.caption.weight(.ultraLight))
                             .foregroundColor(.white.opacity(loopPhase > i ? 0.25 : 0.08))
                     }
                 }
@@ -1184,7 +1185,7 @@ struct OnboardingStoriesView: View {
                                     .overlay(RoundedRectangle(cornerRadius: 11).stroke(Color.white.opacity(0.08), lineWidth: 1))
                                 
                                 if isSelected {
-                                    Image(systemName: "checkmark.circle.fill")
+                                    Image(systemName: "checkmark.circle")
                                         .font(.systemSerif(16, relativeTo: .subheadline))
                                         .foregroundStyle(accent)
                                         .background(Circle().fill(.black).padding(2))
@@ -1475,7 +1476,7 @@ struct OnboardingStoriesView: View {
 
             if balancePhase >= 3 {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 48, weight: .ultraLight))
+                    .font(.system(size: displayIconSize, weight: .ultraLight))
                     .foregroundColor(accent.opacity(0.6))
                     .transition(.scale.combined(with: .opacity))
                     .padding(.bottom, 32)
@@ -1572,7 +1573,7 @@ struct OnboardingStoriesView: View {
                                     .fill(cat.color.opacity(0.15))
                                     .frame(width: 56, height: 56)
                                 Image(systemName: cat.icon)
-                                    .font(.system(size: 22, weight: .light))
+                                    .font(.title2.weight(.light))
                                     .foregroundColor(cat.color)
                             }
 
@@ -1695,7 +1696,7 @@ struct OnboardingStoriesView: View {
             Spacer()
 
             Image(systemName: "bell.badge")
-                .font(.system(size: 48, weight: .ultraLight))
+                .font(.system(size: displayIconSize, weight: .ultraLight))
                 .foregroundColor(accent.opacity(0.6))
                 .padding(.bottom, 32)
 

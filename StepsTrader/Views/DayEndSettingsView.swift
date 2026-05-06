@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DayEndSettingsView: View {
     @ObservedObject var model: AppModel
+    @ScaledMetric private var displayNumberSize: CGFloat = 36
     @AppStorage(SharedKeys.dayEndHour) private var dayEndHourSetting: Int = 0
     @AppStorage(SharedKeys.dayEndMinute) private var dayEndMinuteSetting: Int = 0
     @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var sleepTarget: Double = EnergyDefaults.sleepTargetHours
@@ -47,8 +48,8 @@ struct DayEndSettingsView: View {
                     // Sleep goal
                     VStack(spacing: 10) {
                         HStack(spacing: 8) {
-                            Image(systemName: "bed.double.fill")
-                                .font(.system(size: 14, weight: .semibold))
+                            Image(systemName: "bed.double")
+                                .font(.footnote.weight(.semibold))
                                 .foregroundStyle(Color.indigo)
                                 .frame(width: 28, height: 28)
                                 .background(Color.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
@@ -74,7 +75,7 @@ struct DayEndSettingsView: View {
                     VStack(spacing: 10) {
                         HStack(spacing: 8) {
                             Image(systemName: "clock.arrow.circlepath")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.footnote.weight(.semibold))
                                 .foregroundStyle(Color.orange)
                                 .frame(width: 28, height: 28)
                                 .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
@@ -87,7 +88,7 @@ struct DayEndSettingsView: View {
                         .padding(.top, 14)
 
                         Text(formatTime(selectedMinutes))
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .font(.system(size: displayNumberSize, weight: .bold, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(theme.adaptivePrimaryText)
                             .contentTransition(.numericText())

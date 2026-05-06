@@ -66,7 +66,7 @@ struct GradientPreviewSheet: View {
                         .foregroundColor(.white)
                     Spacer()
                     Button { dismiss() } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "xmark.circle")
                             .font(.title2)
                             .symbolRenderingMode(.hierarchical)
                             .foregroundColor(.white.opacity(0.7))
@@ -113,7 +113,7 @@ struct GradientPreviewSheet: View {
                                 )
 
                                 Text(state.label)
-                                    .font(.system(size: 10, weight: selectedState == index ? .bold : .medium))
+                                    .font(.caption2.weight(selectedState == index ? .bold : .medium))
                                     .foregroundColor(selectedState == index ? .white : .white.opacity(0.5))
                             }
                         }
@@ -123,10 +123,10 @@ struct GradientPreviewSheet: View {
                 .padding(.horizontal, 20)
 
                 HStack(spacing: 0) {
-                    modeButton(title: String(localized: "Night", comment: "GradientPreview – time-of-day label"), icon: "moon.fill", isActive: !isDaylight) {
+                    modeButton(title: String(localized: "Night", comment: "GradientPreview – time-of-day label"), icon: "moon", isActive: !isDaylight) {
                         withAnimation(.easeInOut(duration: 0.6)) { isDaylight = false }
                     }
-                    modeButton(title: String(localized: "Daylight", comment: "GradientPreview – time-of-day label"), icon: "sun.max.fill", isActive: isDaylight) {
+                    modeButton(title: String(localized: "Daylight", comment: "GradientPreview – time-of-day label"), icon: "sun.max", isActive: isDaylight) {
                         withAnimation(.easeInOut(duration: 0.6)) { isDaylight = true }
                     }
                 }
@@ -138,7 +138,7 @@ struct GradientPreviewSheet: View {
                 } label: {
                     Text(String(localized: "Apply", comment: "GradientPreview – apply gradient button"))
                         .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.black)
+                        .foregroundStyle(Color.primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Capsule().fill(AppColors.brandAccent))

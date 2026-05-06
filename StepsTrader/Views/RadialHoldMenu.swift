@@ -17,7 +17,7 @@ struct RadialHoldMenu: View {
     private let nodes: [(category: EnergyCategory, label: String, icon: String, angle: Double)] = [
         (.body,   String(localized: "Body", comment: "RadialMenu – energy category label"),  "figure.walk",       135),  // upper-left
         (.mind,   String(localized: "Mind", comment: "RadialMenu – energy category label"),  "brain.head.profile", 90),  // straight up
-        (.heart,  String(localized: "Heart", comment: "RadialMenu – energy category label"), "heart.fill",         45),  // upper-right
+        (.heart,  String(localized: "Heart", comment: "RadialMenu – energy category label"), "heart",         45),  // upper-right
     ]
 
     private let fanRadius: CGFloat = 80
@@ -98,13 +98,17 @@ struct RadialHoldMenu: View {
                 .frame(width: 56, height: 56)
 
             Image(systemName: isActive ? "xmark" : "plus")
-                .font(.system(size: 22, weight: .light))
+                .font(.title2.weight(.light))
                 .foregroundStyle(labelColor.opacity(isActive ? 0.7 : 0.85))
                 .rotationEffect(.degrees(isFanOpen ? 45 : 0))
         }
         .frame(width: 72, height: 72)
         .contentShape(Circle())
         .accessibilityIdentifier("radial_plus_button")
+        .accessibilityLabel(isFanOpen
+            ? String(localized: "Close activity menu", comment: "RadialHoldMenu – close state VoiceOver label")
+            : String(localized: "Open activity menu", comment: "RadialHoldMenu – open state VoiceOver label"))
+        .accessibilityHint(String(localized: "Tap to toggle, hold to drag", comment: "RadialHoldMenu – trigger VoiceOver hint"))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction {
             if isFanOpen { isFanOpen = false } else { isFanOpen = true; onFanOpened?() }
@@ -156,7 +160,7 @@ struct RadialHoldMenu: View {
                     .scaleEffect(isHovered ? 1.15 : 1.0)
 
                 Text(label)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(labelColor.opacity(isHovered ? 0.9 : 0.7))
             }
             .contentShape(Circle())

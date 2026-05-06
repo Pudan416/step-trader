@@ -73,7 +73,7 @@ struct StepBalanceCard: View {
                 HStack(spacing: 4) {
                     Text("\(currentEnergy)")
                         .font(.title3.bold())
-                        .foregroundColor(.black)
+                        .foregroundStyle(Color.primary)
                         .monospacedDigit()
                         .padding(.horizontal, 10)
                         .padding(.vertical, 3)
@@ -161,9 +161,9 @@ struct StepBalanceCard: View {
                         onColorsHelpTap?()
                     } label: {
                         Image(systemName: "questionmark.circle")
-                            .font(.system(size: 18))
+                            .font(.title3)
                             .foregroundColor(.secondary)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -180,7 +180,7 @@ struct StepBalanceCard: View {
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.caption2.weight(.semibold))
                             .foregroundColor(.secondary)
-                            .frame(minWidth: 80, minHeight: 32)
+                            .frame(minWidth: 80, minHeight: 44)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -197,7 +197,7 @@ struct StepBalanceCard: View {
                 VStack(spacing: 8) {
                     HStack(spacing: 8) {
                         metricChip(
-                            icon: "shoeprints.fill",
+                            icon: "shoeprints",
                             label: String(localized: "Steps", comment: "StepBalanceCard – steps chip label"),
                             value: stepsPoints,
                             maxValue: EnergyDefaults.stepsMaxPoints,
@@ -205,7 +205,7 @@ struct StepBalanceCard: View {
                             onTap: { onStepsTap?() }
                         )
                         metricChip(
-                            icon: "bed.double.fill",
+                            icon: "bed.double",
                             label: String(localized: "Sleep", comment: "StepBalanceCard – sleep chip label"),
                             value: sleepPoints,
                             maxValue: EnergyDefaults.sleepMaxPoints,
@@ -232,7 +232,7 @@ struct StepBalanceCard: View {
                             onTap: { onRebootTap?() }
                         )
                         metricChip(
-                            icon: "heart.fill",
+                            icon: "heart",
                             label: String(localized: "Heart", comment: "StepBalanceCard – heart chip label"),
                             value: heartPoints,
                             maxValue: 20,
@@ -320,6 +320,7 @@ private func metricChip(icon: String, label: String, value: Int, maxValue: Int, 
                 .fill(Color.primary.opacity(0.06))
         )
         .clipShape(RoundedRectangle(cornerRadius: 10))
+        .contentShape(RoundedRectangle(cornerRadius: 10))
     }
     .buttonStyle(.plain)
     .accessibilityIdentifier(accessibilityId)

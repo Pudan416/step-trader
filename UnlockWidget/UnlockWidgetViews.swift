@@ -130,7 +130,7 @@ struct UnlockWidgetEntryView: View {
                 .frame(width: 18, height: 18)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         } else {
-            Image(systemName: "bolt.fill")
+            Image(systemName: "bolt")
                 .font(.system(size: 14))
                 .foregroundStyle(WidgetColors.brandAccent)
         }
@@ -263,13 +263,13 @@ struct UnlockWidgetEntryView: View {
 
             VStack(spacing: 6) {
                 HStack(spacing: 8) {
-                    categoryChip(icon: "shoeprints.fill", value: e.stepsPoints, max: 20)
-                    categoryChip(icon: "bed.double.fill", value: e.sleepPoints, max: 20)
+                    categoryChip(icon: "shoeprints", value: e.stepsPoints, max: 20)
+                    categoryChip(icon: "bed.double", value: e.sleepPoints, max: 20)
                 }
                 HStack(spacing: 8) {
                     categoryChip(icon: "figure.walk", value: e.bodyPoints, max: 20)
                     categoryChip(icon: "brain.head.profile", value: e.mindPoints, max: 20)
-                    categoryChip(icon: "heart.fill", value: e.heartPoints, max: 20)
+                    categoryChip(icon: "heart", value: e.heartPoints, max: 20)
                 }
             }
 
@@ -365,7 +365,7 @@ struct UnlockWidgetEntryView: View {
                             .lineLimit(1)
                         Spacer()
 
-                        Image(systemName: group.isUnlocked ? "lock.open" : "lock.fill")
+                        Image(systemName: group.isUnlocked ? "lock.open" : "lock")
                             .font(.system(size: 8, weight: .regular))
                             .foregroundColor(group.isUnlocked ? WidgetColors.brandAccent : .black.opacity(0.35))
                     }
@@ -424,7 +424,7 @@ struct UnlockWidgetEntryView: View {
                 .resizable()
                 .scaledToFill()
         } else {
-            Image(systemName: "app.fill")
+            Image(systemName: "app")
                 .font(.system(size: 18))
                 .foregroundStyle(.white.opacity(0.6))
         }
@@ -463,7 +463,7 @@ struct UnlockWidgetEntryView: View {
 
     private var colorsChip: some View {
         HStack(spacing: 3) {
-            Image(systemName: "bolt.fill")
+            Image(systemName: "bolt")
                 .font(.system(size: 8))
             Text("\(entry.colorsBalance)")
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
@@ -474,7 +474,7 @@ struct UnlockWidgetEntryView: View {
 
     private var largeColorsChip: some View {
         HStack(spacing: 4) {
-            Image(systemName: "bolt.fill")
+            Image(systemName: "bolt")
                 .font(.system(size: 9))
             Text("\(entry.colorsBalance)")
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
@@ -672,7 +672,7 @@ struct ComboWidgetEntryView: View {
                             .lineLimit(1)
                         Spacer()
 
-                        Image(systemName: group.isUnlocked ? "lock.open" : "lock.fill")
+                        Image(systemName: group.isUnlocked ? "lock.open" : "lock")
                             .font(.system(size: 7, weight: .regular))
                             .foregroundColor(group.isUnlocked ? WidgetColors.brandAccent : .black.opacity(0.35))
                     }
@@ -713,7 +713,7 @@ struct ComboWidgetEntryView: View {
                 .resizable()
                 .scaledToFill()
         } else {
-            Image(systemName: "app.fill")
+            Image(systemName: "app")
                 .font(.system(size: 16))
                 .foregroundStyle(.white.opacity(0.6))
         }

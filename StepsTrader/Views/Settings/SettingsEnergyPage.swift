@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsEnergyPage: View {
     @ObservedObject var model: AppModel
+    @ScaledMetric private var displayNumberSize: CGFloat = 36
     @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader()) private var stepsTarget: Double = EnergyDefaults.stepsTarget
     @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var sleepTarget: Double = EnergyDefaults.sleepTargetHours
     @AppStorage(SharedKeys.dayEndHour) private var dayEndHourSetting: Int = 0
@@ -51,7 +52,7 @@ struct SettingsEnergyPage: View {
                     // MARK: - Sleep Goal
                     VStack(spacing: 12) {
                         sectionHeader(
-                            icon: "bed.double.fill",
+                            icon: "bed.double",
                             title: String(localized: "Sleep Goal"),
                             color: Color.indigo
                         )
@@ -76,7 +77,7 @@ struct SettingsEnergyPage: View {
                         )
 
                         Text(formatTime(bedtimeMinutes))
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .font(.system(size: displayNumberSize, weight: .bold, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(theme.adaptivePrimaryText)
                             .contentTransition(.numericText())
@@ -120,7 +121,7 @@ struct SettingsEnergyPage: View {
     private func sectionHeader(icon: String, title: String, color: Color, value: String? = nil) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.footnote.weight(.semibold))
                 .foregroundStyle(color)
                 .frame(width: 28, height: 28)
                 .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))

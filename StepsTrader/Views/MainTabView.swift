@@ -51,9 +51,9 @@ struct MainTabView: View {
         var icon: String {
             switch self {
             case .feeds: return "square.grid.2x2"
-            case .canvas: return "paintbrush.fill"
+            case .canvas: return "paintbrush"
             case .me: return "person.circle"
-            case .notes: return "book.fill"
+            case .notes: return "book"
             case .settings: return "gearshape"
             }
         }
@@ -96,7 +96,7 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             TabView(selection: $selection) {
                 // 0: My Canvas (default) — canvas goes full-bleed behind card
                 Group {
@@ -159,16 +159,12 @@ struct MainTabView: View {
             .environment(\.topCardHeight, topCardHeight)
             .environment(\.tabBarHeight, tabBarHeight)
             .animation(.easeInOut(duration: 0.2), value: selection)
-            .safeAreaInset(edge: .bottom) {
-                if !isWideCanvas {
-                    customTabBar
-                        .background(
-                            GeometryReader { geo in
-                                Color.clear.preference(key: TabBarHeightPreferenceKey.self, value: geo.size.height)
-                            }
-                        )
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                // Clear spacer — reserves the exact height the tab bar occupies
+                // so content is never hidden beneath it. The actual tab bar is
+                // rendered in the outer ZStack so glassEffect can refract the
+                // gradient content behind it.
+                Color.clear.frame(height: max(tabBarHeight, 80))
             }
             .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
             .background(Color.clear)
@@ -181,6 +177,21 @@ struct MainTabView: View {
                     AppLogger.ui.debug("🟢 MainTabView: Showing CategoryDetailView for category: \(category.rawValue)")
                     AppLogger.ui.debug("🟢 CategoryDetailView appeared for category: \(category.rawValue)")
                 }
+            }
+
+            // Tab bar sits inside the ZStack so .glassEffect() can refract
+            // the gradient content layer behind it. Rendering it in a
+            // .safeAreaInset creates a separate system layer that glass
+            // cannot see through, producing an opaque cream appearance.
+            if !isWideCanvas {
+                customTabBar
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: TabBarHeightPreferenceKey.self, value: geo.size.height)
+                        }
+                    )
+                    .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .overlay(alignment: .top) {
@@ -320,11 +331,12 @@ struct MainTabView: View {
                         .font(.headline)
                     Spacer()
                     Button { showColorsHelp = false } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "xmark.circle")
                             .font(.title3)
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "Close", comment: "MainTabView – close colors help overlay VoiceOver label"))
                 }
                 Text(String(localized: "Each of the five areas — steps, sleep, body, mind and heart — contributes up to 20 colors (100 colors total)."))
                     .font(.subheadline)
@@ -367,6 +379,8 @@ struct MainTabView: View {
             ForEach(Tab.allCases, id: \.rawValue) { tab in
                 let isSelected = selection == tab.rawValue
                 Button {
+                    guard selection != tab.rawValue else { return }
+                    UISelectionFeedbackGenerator().selectionChanged()
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         selection = tab.rawValue
                     }
@@ -414,6 +428,8 @@ struct MainTabView: View {
             ForEach(Tab.allCases, id: \.rawValue) { tab in
                 let isSelected = selection == tab.rawValue
                 Button {
+                    guard selection != tab.rawValue else { return }
+                    UISelectionFeedbackGenerator().selectionChanged()
                     selection = tab.rawValue
                 } label: {
                     VStack(spacing: 4) {

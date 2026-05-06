@@ -78,12 +78,12 @@ struct PaperTicketView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .firstTextBaseline) {
                             Text(displayTitle)
-                                .font(.system(size: 15, weight: .regular, design: .rounded))
+                                .font(.body)
                                 .foregroundStyle(Color(.label))
                                 .lineLimit(1)
                             Spacer()
-                            Image(systemName: isUnlocked ? "lock.open" : "lock.fill")
-                                .font(.system(size: 10, weight: .regular))
+                            Image(systemName: isUnlocked ? "lock.open" : "lock")
+                                .font(.caption2.weight(.regular))
                                 .foregroundStyle(isUnlocked ? accent : Color(.label).opacity(0.35))
                         }
 
@@ -104,7 +104,7 @@ struct PaperTicketView: View {
                     onSettings()
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.footnote.weight(.medium))
                         .foregroundStyle(.black.opacity(0.3))
                         .frame(width: 40, height: 80)
                         .contentShape(Rectangle())
@@ -178,7 +178,7 @@ struct PaperTicketView: View {
             }
         } label: {
             Text("\(label) · \(cost)")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.caption2.weight(.medium))
                 .monospacedDigit()
                 .lineLimit(1)
                 .foregroundStyle(Color.black)
@@ -216,7 +216,7 @@ struct PaperTicketView: View {
             .frame(height: 5)
 
             Text(String(localized: "\(remaining)m", comment: "PaperTicket – remaining budget in minutes, e.g. '42m'"))
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .font(.caption2.weight(.medium).monospaced())
                 .foregroundStyle(.black.opacity(0.5))
                 .monospacedDigit()
         }
@@ -238,12 +238,12 @@ struct PaperTicketView: View {
             } else if let firstCat = group.selection.categoryTokens.first {
                 CategoryIconView(token: firstCat)
             } else {
-                Image(systemName: "app.fill")
-                    .font(.system(size: 18)).foregroundStyle(.black.opacity(0.4))
+                Image(systemName: "app")
+                    .font(.title3).foregroundStyle(Color.primary.opacity(0.4))
             }
             #else
-            Image(systemName: "app.fill")
-                .font(.system(size: 18)).foregroundStyle(.black.opacity(0.4))
+            Image(systemName: "app")
+                .font(.title3).foregroundStyle(Color.primary.opacity(0.4))
             #endif
         }
     }

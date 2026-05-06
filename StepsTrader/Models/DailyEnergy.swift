@@ -189,39 +189,39 @@ enum EnergyDefaults {
     static let options: [EnergyOption] = [
         // BODY - Ways your body was truly present today
         EnergyOption(id: "body_walking", titleEn: "Walking", titleRu: "Ходьба", category: .body, icon: "figure.walk"),
-        EnergyOption(id: "body_physical_effort", titleEn: "Physical Effort", titleRu: "Физическое усилие", category: .body, icon: "dumbbell.fill"),
+        EnergyOption(id: "body_physical_effort", titleEn: "Physical Effort", titleRu: "Физическое усилие", category: .body, icon: "dumbbell"),
         EnergyOption(id: "body_stretching", titleEn: "Stretching", titleRu: "Растяжка", category: .body, icon: "figure.flexibility"),
-        EnergyOption(id: "body_resting", titleEn: "Resting", titleRu: "Отдых", category: .body, icon: "bed.double.fill"),
+        EnergyOption(id: "body_resting", titleEn: "Resting", titleRu: "Отдых", category: .body, icon: "bed.double"),
         EnergyOption(id: "body_breathing", titleEn: "Breathing", titleRu: "Дыхание", category: .body, icon: "wind"),
-        EnergyOption(id: "body_touch", titleEn: "Touch", titleRu: "Прикосновение", category: .body, icon: "hand.raised.fill"),
+        EnergyOption(id: "body_touch", titleEn: "Touch", titleRu: "Прикосновение", category: .body, icon: "hand.raised"),
         EnergyOption(id: "body_balance", titleEn: "Balance", titleRu: "Баланс", category: .body, icon: "figure.yoga"),
         EnergyOption(id: "body_repetition", titleEn: "Repetition", titleRu: "Повторение", category: .body, icon: "arrow.clockwise"),
-        EnergyOption(id: "body_warming", titleEn: "Warming", titleRu: "Согревание", category: .body, icon: "sun.max.fill"),
+        EnergyOption(id: "body_warming", titleEn: "Warming", titleRu: "Согревание", category: .body, icon: "sun.max"),
         EnergyOption(id: "body_stillness", titleEn: "Stillness", titleRu: "Неподвижность", category: .body, icon: "figure.stand"),
-        EnergyOption(id: "body_healing", titleEn: "Healing", titleRu: "Исцеление", category: .body, icon: "cross.case.fill"),
+        EnergyOption(id: "body_healing", titleEn: "Healing", titleRu: "Исцеление", category: .body, icon: "cross.case"),
 
         // MIND - Ways your attention shaped the day
-        EnergyOption(id: "mind_focusing", titleEn: "Focusing", titleRu: "Фокусировка", category: .mind, icon: "eye.fill"),
-        EnergyOption(id: "mind_learning", titleEn: "Learning", titleRu: "Обучение", category: .mind, icon: "book.fill"),
+        EnergyOption(id: "mind_focusing", titleEn: "Focusing", titleRu: "Фокусировка", category: .mind, icon: "eye"),
+        EnergyOption(id: "mind_learning", titleEn: "Learning", titleRu: "Обучение", category: .mind, icon: "book"),
         EnergyOption(id: "mind_thinking", titleEn: "Thinking", titleRu: "Размышление", category: .mind, icon: "brain.head.profile"),
         EnergyOption(id: "mind_planning", titleEn: "Planning", titleRu: "Планирование", category: .mind, icon: "calendar"),
         EnergyOption(id: "mind_writing", titleEn: "Writing", titleRu: "Письмо", category: .mind, icon: "pencil.line"),
-        EnergyOption(id: "mind_observing", titleEn: "Observing", titleRu: "Наблюдение", category: .mind, icon: "binoculars.fill"),
-        EnergyOption(id: "mind_questioning", titleEn: "Questioning", titleRu: "Вопрошание", category: .mind, icon: "questionmark.circle.fill"),
-        EnergyOption(id: "mind_ordering", titleEn: "Ordering", titleRu: "Упорядочивание", category: .mind, icon: "square.grid.2x2.fill"),
+        EnergyOption(id: "mind_observing", titleEn: "Observing", titleRu: "Наблюдение", category: .mind, icon: "binoculars"),
+        EnergyOption(id: "mind_questioning", titleEn: "Questioning", titleRu: "Вопрошание", category: .mind, icon: "questionmark.circle"),
+        EnergyOption(id: "mind_ordering", titleEn: "Ordering", titleRu: "Упорядочивание", category: .mind, icon: "square.grid.2x2"),
         EnergyOption(id: "mind_remembering", titleEn: "Remembering", titleRu: "Воспоминание", category: .mind, icon: "clock.arrow.circlepath"),
-        EnergyOption(id: "mind_letting_go", titleEn: "Letting Go", titleRu: "Отпускание", category: .mind, icon: "leaf.fill"),
+        EnergyOption(id: "mind_letting_go", titleEn: "Letting Go", titleRu: "Отпускание", category: .mind, icon: "leaf"),
 
         // HEART - Ways you felt and connected today
-        EnergyOption(id: "heart_joy", titleEn: "Joy", titleRu: "Радость", category: .heart, icon: "face.smiling.fill"),
-        EnergyOption(id: "heart_calm", titleEn: "Calm", titleRu: "Спокойствие", category: .heart, icon: "moon.zzz.fill"),
-        EnergyOption(id: "heart_gratitude", titleEn: "Gratitude", titleRu: "Благодарность", category: .heart, icon: "hands.sparkles.fill"),
-        EnergyOption(id: "heart_connection", titleEn: "Connection", titleRu: "Связь", category: .heart, icon: "person.2.fill"),
-        EnergyOption(id: "heart_care", titleEn: "Care", titleRu: "Забота", category: .heart, icon: "heart.circle.fill"),
+        EnergyOption(id: "heart_joy", titleEn: "Joy", titleRu: "Радость", category: .heart, icon: "face.smiling"),
+        EnergyOption(id: "heart_calm", titleEn: "Calm", titleRu: "Спокойствие", category: .heart, icon: "moon.zzz"),
+        EnergyOption(id: "heart_gratitude", titleEn: "Gratitude", titleRu: "Благодарность", category: .heart, icon: "hands.sparkles"),
+        EnergyOption(id: "heart_connection", titleEn: "Connection", titleRu: "Связь", category: .heart, icon: "person.2"),
+        EnergyOption(id: "heart_care", titleEn: "Care", titleRu: "Забота", category: .heart, icon: "heart.circle"),
         EnergyOption(id: "heart_wonder", titleEn: "Wonder", titleRu: "Удивление", category: .heart, icon: "sparkles"),
-        EnergyOption(id: "heart_trust", titleEn: "Trust", titleRu: "Доверие", category: .heart, icon: "lock.open.fill"),
-        EnergyOption(id: "heart_vulnerability", titleEn: "Vulnerability", titleRu: "Уязвимость", category: .heart, icon: "heart.slash.fill"),
-        EnergyOption(id: "heart_belonging", titleEn: "Belonging", titleRu: "Принадлежность", category: .heart, icon: "house.fill"),
+        EnergyOption(id: "heart_trust", titleEn: "Trust", titleRu: "Доверие", category: .heart, icon: "lock.open"),
+        EnergyOption(id: "heart_vulnerability", titleEn: "Vulnerability", titleRu: "Уязвимость", category: .heart, icon: "heart.slash"),
+        EnergyOption(id: "heart_belonging", titleEn: "Belonging", titleRu: "Принадлежность", category: .heart, icon: "house"),
         EnergyOption(id: "heart_peace", titleEn: "Peace", titleRu: "Мир", category: .heart, icon: "infinity")
     ]
     
@@ -402,7 +402,7 @@ struct ActivitySuggestion: Identifiable, Equatable {
             source: .mindfulSession(minutes: minutes),
             title: "Mindful Session",
             subtitle: "\(mins) min today",
-            icon: "brain.head.profile.fill"
+            icon: "brain.head.profile"
         )
     }
 
@@ -414,7 +414,7 @@ struct ActivitySuggestion: Identifiable, Equatable {
             source: .lowScreenTime,
             title: "Letting Go",
             subtitle: "Low screen time today",
-            icon: "leaf.fill"
+            icon: "leaf"
         )
     }
 
@@ -428,8 +428,8 @@ struct ActivitySuggestion: Identifiable, Equatable {
         case 36: return "figure.pilates"
         case 38: return "figure.hiking"
         case 17: return "figure.dance"
-        case 47: return "flame.fill"
-        case 46, 50: return "dumbbell.fill"
+        case 47: return "flame"
+        case 46, 50: return "dumbbell"
         case 10: return "figure.climbing"
         case 25: return "figure.tennis"
         case 55: return "soccerball"
@@ -492,23 +492,23 @@ enum CustomActivityIcons {
         "figure.run", "figure.walk", "figure.hiking", "figure.outdoor.cycle",
         "figure.pool.swim", "figure.yoga", "figure.dance", "figure.basketball",
         "figure.tennis", "figure.golf", "figure.skiing.downhill", "figure.climbing",
-        "sportscourt.fill", "dumbbell.fill", "bicycle", "skateboard.fill",
-        "soccerball", "football.fill", "baseball.fill", "volleyball.fill"
+        "sportscourt", "dumbbell", "bicycle", "skateboard",
+        "soccerball", "football", "baseball", "volleyball"
     ]
 
     static let mind: [String] = [
-        "moon.zzz.fill", "bed.double.fill", "cup.and.saucer.fill", "leaf.fill",
-        "drop.fill", "wind", "sparkles", "cloud.fill",
-        "sun.max.fill", "umbrella.fill", "flame.fill", "snowflake",
-        "bubble.left.and.bubble.right.fill", "heart.fill", "brain.head.profile", "eye.fill"
+        "moon.zzz", "bed.double", "cup.and.saucer", "leaf",
+        "drop", "wind", "sparkles", "cloud",
+        "sun.max", "umbrella", "flame", "snowflake",
+        "bubble.left.and.bubble.right", "heart", "brain.head.profile", "eye"
     ]
 
     static let heart: [String] = [
-        "paintbrush.fill", "music.note", "book.fill", "gamecontroller.fill",
-        "film.fill", "tv.fill", "headphones", "guitars.fill",
-        "camera.fill", "photo.fill", "heart.fill", "star.fill",
-        "gift.fill", "balloon.fill", "party.popper.fill", "birthday.cake.fill",
-        "face.smiling.fill", "hands.clap.fill", "hand.thumbsup.fill", "pawprint.fill"
+        "paintbrush", "music.note", "book", "gamecontroller",
+        "film", "tv", "headphones", "guitars",
+        "camera", "photo", "heart", "star",
+        "gift", "balloon", "party.popper", "birthday.cake",
+        "face.smiling", "hands.clap", "hand.thumbsup", "pawprint"
     ]
 
     static func icons(for category: EnergyCategory) -> [String] {

@@ -49,7 +49,7 @@ struct OnboardingDemoView: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "xmark.circle")
                             .font(.title2)
                             .foregroundStyle(.white.opacity(0.5))
                     }

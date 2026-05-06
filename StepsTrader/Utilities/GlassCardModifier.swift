@@ -25,4 +25,34 @@ extension View {
     func glassCard(cornerRadius: CGFloat = 16) -> some View {
         self.modifier(GlassCardModifier(cornerRadius: cornerRadius))
     }
+
+    func glassCircle(size: CGFloat, opacity: CGFloat = 1) -> some View {
+        self.modifier(GlassCircleModifier(size: size, opacity: opacity))
+    }
+}
+
+// MARK: - Circle variant
+
+private struct GlassCircleModifier: ViewModifier {
+    let size: CGFloat
+    let opacity: CGFloat
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .background {
+                    Circle()
+                        .fill(.clear)
+                        .glassEffect(.regular, in: Circle())
+                        .opacity(opacity)
+                }
+                .clipShape(Circle())
+        } else {
+            content
+                .background(
+                    Circle().fill(.ultraThinMaterial).opacity(opacity)
+                )
+                .clipShape(Circle())
+        }
+    }
 }

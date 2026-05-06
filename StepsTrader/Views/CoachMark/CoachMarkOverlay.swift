@@ -104,7 +104,7 @@ struct CoachMarkOverlay: View {
                         Button { manager.advance() } label: {
                             Text(step == .allSet ? "done" : "next")
                                 .font(.systemSerif(15, weight: .semibold, relativeTo: .subheadline))
-                                .foregroundColor(.black)
+                                .foregroundStyle(Color.primary)
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 10)
                                 .background(AppColors.brandAccent)
@@ -115,15 +115,7 @@ struct CoachMarkOverlay: View {
             }
             .padding(28)
             .frame(maxWidth: 320)
-            .background(
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(Color(.systemBackground).opacity(0.12))
-                    .background(
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(.ultraThinMaterial)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 24))
-            )
+            .glassCard(cornerRadius: 24)
             .scaleEffect(appearAnimation ? 1 : 0.9)
             .opacity(appearAnimation ? 1 : 0)
         }
@@ -154,7 +146,7 @@ struct CoachMarkOverlay: View {
                     Button { manager.advance() } label: {
                         Text("next")
                             .font(.systemSerif(15, weight: .semibold, relativeTo: .subheadline))
-                            .foregroundColor(.black)
+                            .foregroundStyle(Color.primary)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 8)
                             .background(AppColors.brandAccent)
@@ -165,15 +157,7 @@ struct CoachMarkOverlay: View {
         }
         .padding(20)
         .frame(maxWidth: 320)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.systemBackground).opacity(0.1))
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(.ultraThinMaterial)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-        )
+        .glassCard(cornerRadius: 20)
         .scaleEffect(appearAnimation ? 1 : 0.95)
         .opacity(appearAnimation ? 1 : 0)
     }
@@ -328,15 +312,7 @@ struct CoachMarkSheetOverlay: View {
         }
         .padding(18)
         .frame(maxWidth: 300)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color(.systemBackground).opacity(0.1))
-                .background(
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(.ultraThinMaterial)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-        )
+        .glassCard(cornerRadius: 18)
         .scaleEffect(appearAnimation ? 1 : 0.95)
         .opacity(appearAnimation ? 1 : 0)
     }

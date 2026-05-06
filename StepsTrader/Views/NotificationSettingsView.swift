@@ -97,7 +97,7 @@ struct NotificationSettingsView: View {
 
                             HStack {
                                 Image(systemName: "clock")
-                                    .font(.system(size: 15))
+                                    .font(.body)
                                     .foregroundStyle(theme.adaptiveSecondaryText)
                                     .frame(width: 24)
                                 Text(String(localized: "Remind at"))
@@ -135,7 +135,7 @@ struct NotificationSettingsView: View {
 
                             HStack {
                                 Image(systemName: "hourglass")
-                                    .font(.system(size: 15))
+                                    .font(.body)
                                     .foregroundStyle(theme.adaptiveSecondaryText)
                                     .frame(width: 24)
                                 Text(String(localized: "Warn before reset"))

@@ -29,7 +29,7 @@ struct SettingsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(String(localized: "Settings", comment: "Settings page title"))
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.largeTitle.weight(.bold))
                         .foregroundStyle(theme.adaptivePrimaryText)
                         .padding(.top, 8)
 
@@ -83,7 +83,7 @@ struct SettingsSheet: View {
                             .italic()
                             .foregroundColor(theme.adaptiveMutedText)
                         Text("v\(appVersion) (\(buildNumber))")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .font(.caption2.weight(.medium).monospaced())
                             .foregroundColor(theme.adaptiveMutedText.opacity(0.5))
                     }
                     .frame(maxWidth: .infinity)
@@ -128,7 +128,7 @@ struct SettingsSheet: View {
             HStack(spacing: 12) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "lock.shield")
-                        .font(.system(size: 15))
+                        .font(.body)
                         .foregroundStyle(theme.adaptiveSecondaryText)
                         .frame(width: 24)
                     if model.hasPermissionIssues {
@@ -150,7 +150,7 @@ struct SettingsSheet: View {
                         .background(Circle().fill(.orange))
                 }
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(theme.adaptiveMutedText)
             }
             .padding(.horizontal, 14)
@@ -166,7 +166,7 @@ struct SettingsSheet: View {
         NavigationLink(destination: destination) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 15))
+                    .font(.body)
                     .foregroundStyle(theme.adaptiveSecondaryText)
                     .frame(width: 24)
                 Text(title)
@@ -174,7 +174,7 @@ struct SettingsSheet: View {
                     .foregroundStyle(theme.adaptivePrimaryText)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(theme.adaptiveMutedText)
             }
             .padding(.horizontal, 14)
@@ -211,18 +211,22 @@ struct SettingsSheet: View {
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(theme.adaptiveMutedText)
                 }
                 .padding(14)
                 .glassCard()
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(authService.currentUser.flatMap { u in
+                u.email.map { "\(u.displayName), \($0)" } ?? u.displayName
+            } ?? String(localized: "Account", comment: "SettingsSheet – account row VoiceOver label"))
+            .accessibilityHint(String(localized: "Double tap to edit profile", comment: "SettingsSheet – account row VoiceOver hint"))
         } else {
             Button { showLogin = true } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "apple.logo")
-                        .font(.system(size: 16))
+                        .font(.callout)
                         .foregroundStyle(theme.adaptivePrimaryText)
                         .frame(width: 24)
                     Text(String(localized: "Sign in with Apple"))
@@ -409,7 +413,7 @@ struct SettingsSheet: View {
     private func diagButton(icon: String, text: String, color: Color, highlight: Bool = false, trailing: String? = nil) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 15))
+                .font(.body)
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .frame(width: 24)
 

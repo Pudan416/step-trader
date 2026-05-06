@@ -91,7 +91,7 @@ struct SettingsToggleRow: View {
         Toggle(isOn: $isOn) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 15))
+                    .font(.body)
                     .foregroundStyle(theme.adaptiveSecondaryText)
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
@@ -123,7 +123,7 @@ struct SettingsNavRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 15))
+                .font(.body)
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .frame(width: 24)
             Text(title)
@@ -136,7 +136,7 @@ struct SettingsNavRow: View {
                     .foregroundStyle(theme.adaptiveSecondaryText)
             }
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(theme.adaptiveMutedText)
         }
         .padding(.horizontal, 14)
@@ -157,7 +157,7 @@ struct SettingsLinkRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 15))
+                .font(.body)
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .frame(width: 24)
             Text(title)
@@ -170,7 +170,7 @@ struct SettingsLinkRow: View {
                     .foregroundStyle(theme.adaptiveSecondaryText)
             }
             Image(systemName: trailingIcon)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(theme.adaptiveMutedText)
         }
         .padding(.horizontal, 14)

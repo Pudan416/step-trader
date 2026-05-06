@@ -417,7 +417,7 @@ struct GalleryView: View {
                     .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
                     .frame(width: 56, height: 56)
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 20, weight: .ultraLight))
+                    .font(.title3.weight(.ultraLight))
                     .foregroundStyle(buttonColor.opacity(0.85))
             }
             .frame(width: 72, height: 72)
@@ -448,7 +448,7 @@ struct GalleryView: View {
                         .tint(buttonColor.opacity(0.85))
                 } else {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 22, weight: .ultraLight))
+                        .font(.title2.weight(.ultraLight))
                         .foregroundStyle(buttonColor.opacity(0.85))
                 }
             }
@@ -511,25 +511,25 @@ struct GalleryView: View {
                         .fill(buttonColor.opacity(0.08))
                         .frame(width: 40, height: 40)
                     Image(systemName: "lock.screen")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.body.weight(.medium))
                         .foregroundStyle(buttonColor.opacity(0.8))
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Set this canvas as your wallpaper", comment: "Wide canvas – wallpaper prompt"))
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.footnote.weight(.semibold))
                         .foregroundStyle(buttonColor)
                     Text(String(localized: "Your clock and widgets will overlay this canvas", comment: "Wide canvas – wallpaper prompt subtitle"))
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .font(.caption2.weight(.regular))
                         .foregroundStyle(buttonColor.opacity(0.5))
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(buttonColor.opacity(0.35))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .glassCard(cornerRadius: 14)
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(buttonColor.opacity(0.12), lineWidth: 0.5)
@@ -550,7 +550,7 @@ struct GalleryView: View {
 
             if isCanvasEmpty {
                 Text(String(localized: "Today is uncolored", comment: "Canvas empty state hint"))
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .font(.footnote.weight(.regular))
                     .foregroundStyle(labelColor.opacity(0.3))
             }
         }
@@ -568,11 +568,11 @@ struct GalleryView: View {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } label: {
                         Text(routine.name)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .font(.footnote.weight(.medium))
                             .foregroundStyle(labelColor)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
-                            .background(.ultraThinMaterial, in: Capsule())
+                            .glassCard(cornerRadius: 20)
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
@@ -800,7 +800,7 @@ struct GalleryView: View {
                             .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
                             .frame(width: 56, height: 56)
                         Image(systemName: "arrow.down.right.and.arrow.up.left")
-                            .font(.system(size: 20, weight: .ultraLight))
+                            .font(.title3.weight(.ultraLight))
                             .foregroundStyle(buttonColor.opacity(0.85))
                     }
                     .frame(width: 72, height: 72)
@@ -835,7 +835,7 @@ struct GalleryView: View {
                             .strokeBorder(buttonColor.opacity(isEditMode ? 0.5 : 0.3), lineWidth: 1)
                             .frame(width: 56, height: 56)
                         Image(systemName: isEditMode ? "checkmark" : "hand.draw")
-                            .font(.system(size: 22, weight: .ultraLight))
+                            .font(.title2.weight(.ultraLight))
                             .foregroundStyle(buttonColor.opacity(0.85))
                     }
                     .frame(width: 72, height: 72)
@@ -883,7 +883,7 @@ struct GalleryView: View {
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             } label: {
                                 Image(systemName: "dice")
-                                    .font(.system(size: 14, weight: .medium))
+                                    .font(.footnote.weight(.medium))
                                     .foregroundStyle(buttonColor.opacity(0.85))
                                     .frame(width: 34, height: 34)
                                     .background(
@@ -1065,7 +1065,7 @@ struct GalleryView: View {
                         .font(.headline)
                     Spacer()
                     Button { metricOverlay = nil } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "xmark.circle")
                             .font(.title3)
                             .foregroundColor(.secondary)
                     }
@@ -1305,9 +1305,9 @@ struct CanvasDayDetailSheet: View {
                     if let s = snapshot {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                             statCard(icon: "figure.walk", value: "\(s.steps)", label: String(localized: "Steps"), color: .green)
-                            statCard(icon: "bed.double.fill", value: String(format: "%.1f", s.sleepHours), label: String(localized: "Sleep hours"), color: .indigo)
-                            statCard(icon: "plus.circle.fill", value: "\(s.inkEarned)", label: String(localized: "Gained"), color: .blue)
-                            statCard(icon: "minus.circle.fill", value: "\(s.inkSpent)", label: String(localized: "Spent"), color: .orange)
+                            statCard(icon: "bed.double", value: String(format: "%.1f", s.sleepHours), label: String(localized: "Sleep hours"), color: .indigo)
+                            statCard(icon: "plus.circle", value: "\(s.inkEarned)", label: String(localized: "Gained"), color: .blue)
+                            statCard(icon: "minus.circle", value: "\(s.inkSpent)", label: String(localized: "Spent"), color: .orange)
                         }
                         canvasSection(s)
                     } else {

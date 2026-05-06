@@ -5,6 +5,7 @@ import SwiftUI
 struct DayResetTimePicker: View {
     @Binding var selectedMinutes: Int
     let allowedMinutes: [Int]
+    @ScaledMetric private var separatorSize: CGFloat = 44
 
     private var allowedHours: [Int] {
         Array(Set(allowedMinutes.map { ($0 / 60) % 24 })).sorted { a, b in
@@ -27,7 +28,7 @@ struct DayResetTimePicker: View {
             )
 
             Text(":")
-                .font(.system(size: 44, weight: .semibold, design: .rounded))
+                .font(.system(size: separatorSize, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.35))
                 .offset(y: -2)
 
@@ -90,6 +91,8 @@ private struct FlipClockPanel: View {
     let onIncrement: () -> Void
     let onDecrement: () -> Void
 
+    @ScaledMetric private var digitSize: CGFloat = 48
+    @ScaledMetric private var chevronSize: CGFloat = 12
     @State private var dragOffset: CGFloat = 0
     @GestureState private var isDragging = false
 
@@ -123,7 +126,7 @@ private struct FlipClockPanel: View {
                     .frame(height: 1)
 
                 Text(displayText)
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .font(.system(size: digitSize, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.white)
                     .contentTransition(.numericText())
@@ -156,7 +159,7 @@ private struct FlipClockPanel: View {
             if up { onIncrement() } else { onDecrement() }
         } label: {
             Image(systemName: up ? "chevron.up" : "chevron.down")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: chevronSize, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.35))
                 .frame(width: tileWidth, height: 28)
                 .contentShape(Rectangle())
@@ -170,6 +173,8 @@ private struct FlipClockPanel: View {
 struct SleepDurationStepper: View {
     @Binding var hours: Double
     @Environment(\.appTheme) private var theme
+    @ScaledMetric private var displaySize: CGFloat = 34
+    @ScaledMetric private var buttonIconSize: CGFloat = 15
 
     private let minHours: Double = 5
     private let maxHours: Double = 10
@@ -184,7 +189,7 @@ struct SleepDurationStepper: View {
 
             VStack(spacing: 1) {
                 Text(formattedHours)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .font(.system(size: displaySize, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(theme.adaptivePrimaryText)
                     .contentTransition(.numericText())
@@ -211,7 +216,7 @@ struct SleepDurationStepper: View {
     private func stepButton(icon: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: buttonIconSize, weight: .bold))
                 .foregroundStyle(enabled ? theme.adaptivePrimaryText : theme.adaptiveMutedText.opacity(0.3))
                 .frame(width: 48, height: 48)
                 .background(

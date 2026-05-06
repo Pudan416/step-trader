@@ -72,7 +72,7 @@ struct LoginView: View {
                             Button {
                                 dismiss()
                             } label: {
-                                Image(systemName: "xmark.circle.fill")
+                                Image(systemName: "xmark.circle")
                                     .font(.title2)
                                     .symbolRenderingMode(.hierarchical)
                                     .foregroundStyle(appTheme.textPrimary.opacity(0.45))
@@ -108,7 +108,7 @@ struct LoginView: View {
                             tint: Self.featureWalkTint
                         )
                         featureRow(
-                            icon: "eye.fill",
+                            icon: "eye",
                             title: String(localized: "Stay present, control screen time"),
                             tint: Self.featureAwarenessTint
                         )
@@ -185,7 +185,7 @@ struct LoginView: View {
     }
 
     private var loginAppIconFallbackMark: some View {
-        Image(systemName: "app.fill")
+        Image(systemName: "app")
             .resizable()
             .scaledToFit()
             .foregroundStyle(appTheme.adaptiveMutedText)
@@ -199,7 +199,7 @@ struct LoginView: View {
                     .fill(tint.opacity(0.22))
                     .frame(width: 44, height: 44)
                 Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(tint)
             }
             Text(title)
