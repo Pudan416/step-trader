@@ -48,11 +48,16 @@ struct CategoryDetailView: View {
                     .padding(.top, 16)
                     .padding(.bottom, 12)
 
+                Rectangle()
+                    .fill(.primary.opacity(0.06))
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 20)
+
                 ScrollView {
                     if let category {
                         chipGrid(category: category)
                             .padding(.horizontal, 16)
-                            .padding(.bottom, 8)
+                            .padding(.bottom, 10)
 
                         addCustomRow(category: category)
                             .padding(.horizontal, 16)
@@ -71,10 +76,15 @@ struct CategoryDetailView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .energyGradientBackground(model: model)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.ultraThinMaterial)
+        .presentationBackground {
+            if #available(iOS 26.0, *) {
+                Rectangle().glassEffect(.regular)
+            } else {
+                Color(.systemBackground).opacity(0.97)
+            }
+        }
         .onAppear { refreshEntryColorCache() }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: editingOptionId)
         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: showAddCustom)
@@ -146,7 +156,7 @@ struct CategoryDetailView: View {
 
         let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
 
-        return LazyVGrid(columns: columns, spacing: 10) {
+        return LazyVGrid(columns: columns, spacing: 8) {
             ForEach(allOptions, id: \.option.id) { item in
                 chipView(option: item.option, category: category, isCustom: item.isCustom)
                     #if DEBUG
@@ -154,6 +164,8 @@ struct CategoryDetailView: View {
                     #endif
             }
         }
+        .padding(12)
+        .glassCard(cornerRadius: 20)
     }
 
     private func chipView(option: EnergyOption, category: EnergyCategory, isCustom: Bool) -> some View {
@@ -208,13 +220,13 @@ struct CategoryDetailView: View {
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? activeColor.opacity(0.12) : .primary.opacity(0.03))
+                    .fill(isSelected ? activeColor.opacity(0.18) : .primary.opacity(0.07))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(
-                        isEditing ? activeColor.opacity(0.5) :
-                            (isSelected ? activeColor.opacity(0.2) : .primary.opacity(0.04)),
+                        isEditing ? activeColor.opacity(0.6) :
+                            (isSelected ? activeColor.opacity(0.3) : .primary.opacity(0.1)),
                         lineWidth: isEditing ? 1.5 : 0.5
                     )
             )
