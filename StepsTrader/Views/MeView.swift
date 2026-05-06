@@ -81,7 +81,7 @@ struct MeView: View {
                     stepsTarget: $stepsTarget,
                     sleepTarget: $sleepTarget
                 )
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $showDayEndSettings) {
                 NavigationStack {
@@ -143,7 +143,7 @@ struct MeView: View {
             VStack(alignment: .leading, spacing: greetingLineSpacing) {
                 MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
                     label(greetingString + ",")
-                    valuePill("person.fill", userName) {
+                    valuePill("person", userName) {
                         if authService.isAuthenticated { showProfileEditor = true }
                         else { showLogin = true }
                     }
@@ -157,7 +157,7 @@ struct MeView: View {
                 }
                 MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
                     label(String(localized: "and"))
-                    valuePill("moon.zzz.fill", sleepStr + "h") {
+                    valuePill("moon.zzz", sleepStr + "h") {
                         showTargetsEditor = true
                     }
                     label(String(localized: "sleep."))
@@ -183,7 +183,7 @@ struct MeView: View {
 
                     VStack(alignment: .leading, spacing: useTightMeLayout ? 7 : 14) {
                         Text(String(localized: "THIS WEEK"))
-                            .font(.system(size: useTightMeLayout ? 10 : 11, weight: .semibold))
+                            .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
                             .tracking(1.5)
 
@@ -205,7 +205,7 @@ struct MeView: View {
                         if showHealthLine {
                             MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
                                 label(String(localized: "and also"))
-                                dataPill("moon.zzz.fill", sleepAvg + "h")
+                                dataPill("moon.zzz", sleepAvg + "h")
                                 label(String(localized: "sleep and"))
                                 dataPill("figure.walk", stepsAvg)
                                 label(String(localized: "steps a day."))
@@ -227,7 +227,7 @@ struct MeView: View {
                         if !topConsumerNames.isEmpty {
                             MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
                                 label(String(localized: "Mostly on"))
-                                inlinePillList(topConsumerNames, icon: "play.fill")
+                                inlinePillList(topConsumerNames, icon: "play")
                             }
                         }
                     }
@@ -255,12 +255,12 @@ struct MeView: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 13))
+                    .font(.footnote)
                 Text(text)
                     .fontWeight(.semibold)
                     .lineLimit(1)
                 Image(systemName: "arrow.up.right")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .opacity(0.4)
             }
             .font(meProse)
@@ -277,13 +277,14 @@ struct MeView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(text)
         .accessibilityHint(String(localized: "Double tap to change", comment: "MeView – interactive pill VoiceOver hint"))
     }
 
     private func dataPill(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 12))
+                .font(.caption)
                 .foregroundStyle(theme.textSecondary)
             Text(text)
                 .fontWeight(.semibold)
@@ -601,40 +602,38 @@ private struct MeTargetsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
 
-    private let stepsOptions: [Double] = [3000, 5000, 6000, 7000, 8000, 10_000, 12_000, 15_000, 20_000]
-    private let sleepOptions: [Double] = [5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10]
-
     var body: some View {
         VStack(spacing: 0) {
             RoundedRectangle(cornerRadius: 2)
                 .fill(theme.stroke.opacity(theme.strokeOpacity))
                 .frame(width: 36, height: 4)
                 .padding(.top, 10)
-                .padding(.bottom, 28)
+                .padding(.bottom, 24)
 
-            targetRow(
-                icon: "figure.walk",
-                label: String(localized: "Steps"),
-                value: formatCompactNumber(Int(stepsTarget)),
-                onMinus: { stepValue(in: stepsOptions, current: &stepsTarget, by: -1) },
-                onPlus: { stepValue(in: stepsOptions, current: &stepsTarget, by: 1) }
-            )
+            VStack(spacing: 20) {
+                targetSection(
+                    icon: "figure.walk",
+                    label: String(localized: "Steps"),
+                    color: AppColors.brandAccent,
+                    value: formatCompactNumber(Int(stepsTarget))
+                ) {
+                    StepGoalDrumPicker(value: $stepsTarget)
+                }
 
-            Spacer().frame(height: 16)
+                Divider().padding(.horizontal, 24)
 
-            targetRow(
-                icon: "moon.zzz.fill",
-                label: String(localized: "Sleep"),
-                value: sleepTarget.truncatingRemainder(dividingBy: 1) == 0
-                    ? "\(Int(sleepTarget))h"
-                    : String(format: "%.1fh", sleepTarget),
-                onMinus: { stepValue(in: sleepOptions, current: &sleepTarget, by: -1) },
-                onPlus: { stepValue(in: sleepOptions, current: &sleepTarget, by: 1) }
-            )
+                targetSection(
+                    icon: "bed.double",
+                    label: String(localized: "Sleep"),
+                    color: Color.indigo,
+                    value: formattedSleep
+                ) {
+                    SleepDurationStepper(hours: $sleepTarget)
+                }
+            }
 
             Spacer()
         }
-        .padding(.horizontal, 24)
         .onDisappear {
             UserDefaults.stepsTrader().set(stepsTarget, forKey: SharedKeys.userStepsTarget)
             UserDefaults.stepsTrader().set(sleepTarget, forKey: SharedKeys.userSleepTarget)
@@ -642,65 +641,38 @@ private struct MeTargetsSheet: View {
         }
     }
 
-    private func targetRow(icon: String, label: String, value: String, onMinus: @escaping () -> Void, onPlus: @escaping () -> Void) -> some View {
-        HStack {
-            Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundColor(theme.adaptiveMutedText)
-                .frame(width: 24)
-
-            Text(label)
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .foregroundColor(theme.textPrimary)
-
-            Spacer()
-
-            HStack(spacing: 16) {
-                Button(action: onMinus) {
-                    Image(systemName: "minus")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(theme.adaptiveSecondaryText)
-                        .frame(width: 44, height: 44)
-                        .background(Circle().fill(theme.backgroundSecondary.opacity(0.8)))
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "Decrease \(label)", comment: "MeTargetsSheet – stepper VoiceOver label"))
-
-                Text(value)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundColor(theme.textPrimary)
-                    .monospacedDigit()
-                    .frame(minWidth: 50)
-
-                Button(action: onPlus) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(theme.adaptiveSecondaryText)
-                        .frame(width: 44, height: 44)
-                        .background(Circle().fill(theme.backgroundSecondary.opacity(0.8)))
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "Increase \(label)", comment: "MeTargetsSheet – stepper VoiceOver label"))
-            }
-        }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(theme.backgroundSecondary.opacity(0.5))
-        )
+    private var formattedSleep: String {
+        sleepTarget.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(sleepTarget))h"
+            : String(format: "%.1fh", sleepTarget)
     }
 
-    private func stepValue(in options: [Double], current: inout Double, by direction: Int) {
-        guard let idx = options.firstIndex(of: current) else {
-            current = options.min(by: { abs($0 - current) < abs($1 - current) }) ?? current
-            return
+    private func targetSection<Content: View>(
+        icon: String,
+        label: String,
+        color: Color,
+        value: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(color)
+                    .frame(width: 26, height: 26)
+                    .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                Text(label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(theme.adaptivePrimaryText)
+                Spacer()
+                Text(value)
+                    .font(.subheadline.weight(.bold).monospacedDigit())
+                    .foregroundStyle(color)
+            }
+            .padding(.horizontal, 24)
+
+            content()
         }
-        let newIdx = idx + direction
-        guard options.indices.contains(newIdx) else { return }
-        current = options[newIdx]
     }
 }
 

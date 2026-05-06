@@ -185,7 +185,7 @@ struct SettingsAppearancePage: View {
                         .frame(width: 54, height: 54)
 
                     Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.footnote.weight(.bold))
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                 }
@@ -193,7 +193,7 @@ struct SettingsAppearancePage: View {
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
 
             Text(scheme.displayName)
-                .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                .font(.caption2.weight(isSelected ? .bold : .medium))
                 .foregroundColor(isSelected ? .primary : .secondary)
         }
     }
@@ -242,7 +242,7 @@ struct SettingsAppearancePage: View {
                             )
 
                             Text(style.displayName)
-                                .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                                .font(.caption2.weight(isSelected ? .bold : .medium))
                                 .foregroundColor(isSelected ? .primary : .secondary)
                         }
                     }

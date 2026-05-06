@@ -39,15 +39,9 @@ final class MockNotificationService: NotificationServiceProtocol {
 final class MockBudgetEngine: BudgetEngineProtocol {
     var tariff: Tariff = .medium
     var stepsPerMinute: Double { tariff.stepsPerMinute }
-    var dailyBudgetMinutes: Int = 0
-    var remainingMinutes: Int = 0
 
     func minutes(from steps: Double) -> Int { max(0, Int(steps / stepsPerMinute)) }
-    func setBudget(minutes: Int) {
-        dailyBudgetMinutes = minutes
-        remainingMinutes = minutes
-    }
-    func consume(mins: Int) { remainingMinutes = max(0, remainingMinutes - mins) }
+    func setBudget(minutes: Int) {}
     func resetIfNeeded() {}
     func updateTariff(_ newTariff: Tariff) { tariff = newTariff }
     func updateDayEnd(hour: Int, minute: Int) {}

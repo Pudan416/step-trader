@@ -28,7 +28,7 @@ struct InlineTicketSettingsView: View {
                     showEditSettings.toggle()
                 }
             } label: {
-                rowButtonLabel(icon: "gearshape.fill", title: String(localized: "Edit settings"), showChevron: true, expanded: showEditSettings, surface: surface, separator: separator)
+                rowButtonLabel(icon: "gearshape", title: String(localized: "Edit settings"), showChevron: true, expanded: showEditSettings, surface: surface, separator: separator)
             }
             .buttonStyle(.plain)
 
@@ -157,7 +157,7 @@ struct InlineTicketSettingsView: View {
         if model.isGroupUsageBudgetActive(group.id) {
             let budget = model.remainingUsageBudget(for: group.id)
             HStack(spacing: 12) {
-                Image(systemName: "lock.open.fill")
+                Image(systemName: "lock.open")
                     .font(.title2)
                     .foregroundColor(accent)
                 VStack(alignment: .leading, spacing: 2) {

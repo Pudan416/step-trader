@@ -3,83 +3,35 @@ import XCTest
 final class CustomActivityUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
-        seedDefaults()
-    }
-    
-    override func tearDownWithError() throws {
-        clearDefaults()
     }
 
     func testCustomActivityAppearsInCategorySettings() {
         let app = XCUIApplication()
         app.launchArguments = ["ui-testing"]
+
+        let seedJSON = """
+        [{"id":"custom_body_uitest","titleEn":"UITest Custom Activity","titleRu":"UITest Custom Activity","category":"body","icon":"figure.run"}]
+        """
+        app.launchEnvironment["UITEST_CUSTOM_ENERGY_OPTIONS"] = seedJSON
         app.launch()
 
         let canvasTab = app.buttons["tab_canvas"]
         XCTAssertTrue(canvasTab.waitForExistence(timeout: 5))
         canvasTab.tap()
 
-        let activityChip = app.buttons["chip_activity"]
-        XCTAssertTrue(activityChip.waitForExistence(timeout: 5))
-        activityChip.tap()
+        let openBody = app.buttons["uitest_open_body"]
+        XCTAssertTrue(openBody.waitForExistence(timeout: 5))
+        openBody.tap()
 
-        let editButton = app.buttons["category_edit_button"]
-        XCTAssertTrue(editButton.waitForExistence(timeout: 5))
-        editButton.tap()
-
-        let customOption = app.descendants(matching: .any).matching(identifier: "category_option_custom_activity_uitest").firstMatch
-        if !customOption.waitForExistence(timeout: 3) {
-            let list = app.tables.firstMatch.exists ? app.tables.firstMatch :
-                (app.collectionViews.firstMatch.exists ? app.collectionViews.firstMatch : app.scrollViews.firstMatch)
+        let customOption = app.descendants(matching: .any)
+            .matching(identifier: "category_option_custom_body_uitest")
+            .firstMatch
+        if !customOption.waitForExistence(timeout: 5) {
+            let scrollable = app.scrollViews.firstMatch
             for _ in 0..<6 where !customOption.exists {
-                list.swipeUp()
+                scrollable.swipeUp()
             }
         }
         XCTAssertTrue(customOption.exists)
-    }
-
-    private func seedDefaults() {
-        let standard = UserDefaults.standard
-        standard.set(true, forKey: "hasSeenIntro_v3")
-        standard.set(true, forKey: "hasSeenEnergySetup_v1")
-        standard.set(true, forKey: "hasCompletedOnboarding_v1")
-        standard.set("en", forKey: "appLanguage")
-
-        guard let appGroup = UserDefaults(suiteName: "group.personal-project.StepsTrader") else {
-            XCTFail("App Group defaults not available")
-            return
-        }
-
-        struct CustomOptionSeed: Codable {
-            let id: String
-            let titleEn: String
-            let titleRu: String
-            let category: String
-            let icon: String
-        }
-
-        let seed = CustomOptionSeed(
-            id: "custom_activity_uitest",
-            titleEn: "UITest Custom Activity",
-            titleRu: "UITest Custom Activity",
-            category: "activity",
-            icon: "figure.run"
-        )
-
-        if let data = try? JSONEncoder().encode([seed]) {
-            appGroup.set(data, forKey: SharedKeys.customEnergyOptions)
-        }
-    }
-
-    private func clearDefaults() {
-        let standard = UserDefaults.standard
-        standard.removeObject(forKey: "hasSeenIntro_v3")
-        standard.removeObject(forKey: "hasSeenEnergySetup_v1")
-        standard.removeObject(forKey: "hasCompletedOnboarding_v1")
-        standard.removeObject(forKey: "appLanguage")
-
-        if let appGroup = UserDefaults(suiteName: "group.personal-project.StepsTrader") {
-            appGroup.removeObject(forKey: SharedKeys.customEnergyOptions)
-        }
     }
 }

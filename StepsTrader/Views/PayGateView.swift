@@ -56,7 +56,7 @@ struct PayGateView: View {
                             }
                             model.dismissPayGate(reason: .userDismiss)
                         } label: {
-                            Image(systemName: "xmark.circle.fill")
+                            Image(systemName: "xmark.circle")
                                 .font(.title2)
                                 .symbolRenderingMode(.hierarchical)
                                 .foregroundStyle(PayGatePalette.textSecondary)
@@ -169,7 +169,7 @@ struct PayGateView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                     .shadow(color: .black.opacity(0.5), radius: 10, x: 0, y: 5)
             } else if appTokens.isEmpty {
-                Image(systemName: "lock.fill")
+                Image(systemName: "lock")
                     .font(.systemSerif(40, weight: .regular, relativeTo: .largeTitle))
                     .foregroundColor(PayGatePalette.accent)
             } else {
@@ -187,7 +187,7 @@ struct PayGateView: View {
         }
         .frame(height: 120)
         #else
-        Image(systemName: "lock.fill")
+        Image(systemName: "lock")
             .font(.systemSerif(60, weight: .regular, relativeTo: .largeTitle))
             .foregroundColor(PayGatePalette.accent)
             .padding(30)

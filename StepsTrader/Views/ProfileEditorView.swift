@@ -54,7 +54,7 @@ struct ProfileEditorView: View {
                                     .fill(Color.blue)
                                     .frame(width: 30, height: 30)
                                     .overlay(
-                                        Image(systemName: "camera.fill")
+                                        Image(systemName: "camera")
                                             .font(.systemSerif(14))
                                             .foregroundColor(.white)
                                     )

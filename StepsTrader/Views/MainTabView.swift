@@ -29,11 +29,17 @@ struct MainTabView: View {
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
     @State private var isWideCanvas: Bool = false
+    @State private var uiTestPickerCategory: EnergyCategory? = nil
     @State private var showColorsHelp: Bool = false
     @State private var tabBarHeight: CGFloat = 0
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
     @ScaledMetric(relativeTo: .caption2) private var tabIconSize: CGFloat = 22
     @ScaledMetric(relativeTo: .caption2) private var selectedTabIconSize: CGFloat = 24
+
+    #if DEBUG
+    @EnvironmentObject private var coachMarkManager: CoachMarkManager
+    @State private var coachAnchors: [CoachMarkAnchor] = []
+    #endif
 
     private enum Tab: Int, CaseIterable {
         case canvas = 0
@@ -45,9 +51,9 @@ struct MainTabView: View {
         var icon: String {
             switch self {
             case .feeds: return "square.grid.2x2"
-            case .canvas: return "paintbrush.fill"
+            case .canvas: return "paintbrush"
             case .me: return "person.circle"
-            case .notes: return "book.fill"
+            case .notes: return "book"
             case .settings: return "gearshape"
             }
         }
@@ -90,15 +96,34 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             TabView(selection: $selection) {
                 // 0: My Canvas (default) — canvas goes full-bleed behind card
                 Group {
                     if isUITest {
-                        // Keep UI tests deterministic: avoid heavy animated/Metal canvas surfaces
-                        // that can block XCTest idling and snapshot collection.
-                        Color.clear
-                            .ignoresSafeArea()
+                        ZStack {
+                            Color.clear.ignoresSafeArea()
+                            VStack(spacing: 16) {
+                                Spacer()
+                                ForEach(EnergyCategory.allCases) { cat in
+                                    Button(cat.rawValue) {
+                                        uiTestPickerCategory = cat
+                                    }
+                                    .accessibilityIdentifier("uitest_open_\(cat.rawValue)")
+                                }
+                                .padding(.bottom, 40)
+                            }
+                        }
+                        .sheet(item: $uiTestPickerCategory) { category in
+                            CategoryDetailView(
+                                model: model,
+                                category: category,
+                                outerWorldSteps: 0,
+                                onActivityConfirmed: { _, _, _, _ in },
+                                onActivityUndo: { _, _ in },
+                                onReroll: { _, _ in }
+                            )
+                        }
                     } else {
                         NavigationStack {
                             GalleryView(model: model, metricOverlay: $metricOverlay, isWideCanvas: $isWideCanvas)
@@ -134,16 +159,12 @@ struct MainTabView: View {
             .environment(\.topCardHeight, topCardHeight)
             .environment(\.tabBarHeight, tabBarHeight)
             .animation(.easeInOut(duration: 0.2), value: selection)
-            .safeAreaInset(edge: .bottom) {
-                if !isWideCanvas {
-                    customTabBar
-                        .background(
-                            GeometryReader { geo in
-                                Color.clear.preference(key: TabBarHeightPreferenceKey.self, value: geo.size.height)
-                            }
-                        )
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                // Clear spacer — reserves the exact height the tab bar occupies
+                // so content is never hidden beneath it. The actual tab bar is
+                // rendered in the outer ZStack so glassEffect can refract the
+                // gradient content behind it.
+                Color.clear.frame(height: max(tabBarHeight, 80))
             }
             .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
             .background(Color.clear)
@@ -156,6 +177,21 @@ struct MainTabView: View {
                     AppLogger.ui.debug("🟢 MainTabView: Showing CategoryDetailView for category: \(category.rawValue)")
                     AppLogger.ui.debug("🟢 CategoryDetailView appeared for category: \(category.rawValue)")
                 }
+            }
+
+            // Tab bar sits inside the ZStack so .glassEffect() can refract
+            // the gradient content layer behind it. Rendering it in a
+            // .safeAreaInset creates a separate system layer that glass
+            // cannot see through, producing an opaque cream appearance.
+            if !isWideCanvas {
+                customTabBar
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: TabBarHeightPreferenceKey.self, value: geo.size.height)
+                        }
+                    )
+                    .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .overlay(alignment: .top) {
@@ -224,6 +260,36 @@ struct MainTabView: View {
                 colorsHelpOverlay
             }
         }
+        #if DEBUG
+        .onPreferenceChange(CoachMarkAnchorKey.self) { coachAnchors = $0 }
+        .overlay {
+            CoachMarkOverlay(manager: coachMarkManager, anchors: coachAnchors)
+        }
+        .onChange(of: coachMarkManager.currentStep) { _, newStep in
+            guard let step = newStep,
+                  let tabRaw = coachMarkManager.tabRawValue(for: step) else { return }
+            if selection != tabRaw {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    selection = tabRaw
+                }
+            }
+        }
+        .onAppear {
+            coachMarkManager.configure {
+                !model.blockingStore.ticketGroups.isEmpty
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: CoachMarkManager.actionNotification)) { notification in
+            if let step = notification.object as? CoachMarkStep {
+                coachMarkManager.completeAction(for: step)
+            }
+        }
+        .onChange(of: selection) { _, newValue in
+            if coachMarkManager.currentStep == .tapFeedsTab && newValue == Tab.feeds.rawValue {
+                coachMarkManager.completeAction(for: .tapFeedsTab)
+            }
+        }
+        #endif
         .onPreferenceChange(TopCardHeightPreferenceKey.self) { topCardHeight = $0 }
         .onPreferenceChange(TabBarHeightPreferenceKey.self) { tabBarHeight = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in
@@ -265,11 +331,12 @@ struct MainTabView: View {
                         .font(.headline)
                     Spacer()
                     Button { showColorsHelp = false } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "xmark.circle")
                             .font(.title3)
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "Close", comment: "MainTabView – close colors help overlay VoiceOver label"))
                 }
                 Text(String(localized: "Each of the five areas — steps, sleep, body, mind and heart — contributes up to 20 colors (100 colors total)."))
                     .font(.subheadline)
@@ -312,6 +379,8 @@ struct MainTabView: View {
             ForEach(Tab.allCases, id: \.rawValue) { tab in
                 let isSelected = selection == tab.rawValue
                 Button {
+                    guard selection != tab.rawValue else { return }
+                    UISelectionFeedbackGenerator().selectionChanged()
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         selection = tab.rawValue
                     }
@@ -320,7 +389,7 @@ struct MainTabView: View {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: tab.icon)
                                 .font(.system(size: isSelected ? selectedTabIconSize : tabIconSize))
-                                .fontWeight(isSelected ? .semibold : .regular)
+                                .fontWeight(.regular)
                                 .symbolRenderingMode(.hierarchical)
                             if tab == .settings && model.hasPermissionIssues {
                                 Circle()
@@ -329,7 +398,7 @@ struct MainTabView: View {
                                     .offset(x: 3, y: -2)
                             }
                         }
-                        
+
                         Text(tab.title)
                             .font(.caption2.weight(isSelected ? .semibold : .regular))
                             .lineLimit(1)
@@ -342,6 +411,9 @@ struct MainTabView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier(tab.accessibilityId)
+                #if DEBUG
+                .modifier(FeedsTabCoachAnchor(tab: tab))
+                #endif
             }
         }
         .padding(.horizontal, 8)
@@ -356,13 +428,15 @@ struct MainTabView: View {
             ForEach(Tab.allCases, id: \.rawValue) { tab in
                 let isSelected = selection == tab.rawValue
                 Button {
+                    guard selection != tab.rawValue else { return }
+                    UISelectionFeedbackGenerator().selectionChanged()
                     selection = tab.rawValue
                 } label: {
                     VStack(spacing: 4) {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: tab.icon)
                                 .font(.system(size: isSelected ? selectedTabIconSize : tabIconSize))
-                                .fontWeight(isSelected ? .semibold : .regular)
+                                .fontWeight(.regular)
                                 .symbolRenderingMode(.hierarchical)
                             if tab == .settings && model.hasPermissionIssues {
                                 Circle()
@@ -371,7 +445,7 @@ struct MainTabView: View {
                                     .offset(x: 3, y: -2)
                             }
                         }
-                        
+
                         Text(tab.title)
                             .font(.caption2.weight(isSelected ? .semibold : .regular))
                             .lineLimit(1)
@@ -383,6 +457,9 @@ struct MainTabView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier(tab.accessibilityId)
+                #if DEBUG
+                .modifier(FeedsTabCoachAnchor(tab: tab))
+                #endif
             }
         }
         .padding(.horizontal, 8)
@@ -391,6 +468,20 @@ struct MainTabView: View {
         .padding(.horizontal, 12)
         .padding(.bottom, 4)
     }
+
+    #if DEBUG
+    private struct FeedsTabCoachAnchor: ViewModifier {
+        let tab: Tab
+
+        func body(content: Content) -> some View {
+            if tab == .feeds {
+                content.coachMarkAnchor(.tapFeedsTab)
+            } else {
+                content
+            }
+        }
+    }
+    #endif
 }
 
 // EnergyGradientBackground is now in Components/EnergyGradientBackground.swift

@@ -38,6 +38,7 @@ struct GalleryView: View {
     @State private var pickerCategory: EnergyCategory? = nil
     @State private var showShareSheet = false
     @State private var shareImage: UIImage? = nil
+    @State private var isExporting = false
     @State private var showSaveRoutine = false
     @State private var routineName = ""
     @Binding var isWideCanvas: Bool
@@ -47,6 +48,7 @@ struct GalleryView: View {
     /// re-expand just because the geometry still qualifies as "naturally wide".
     @State private var userCollapsedWide: Bool = false
     @State private var isEditMode: Bool = false
+    @State private var editFreezeTime: Date? = nil
     @State private var isDraggingElement: Bool = false
     @State private var dragStartBasePosition: CGPoint? = nil
     @State private var activeElementId: UUID? = nil
@@ -134,7 +136,7 @@ struct GalleryView: View {
                 showsBackgroundGradient: false,
                 hasStepsData: model.hasStepsData,
                 hasSleepData: model.hasSleepData,
-                timeScale: isEditMode ? 0.0 : 1.0
+                fixedTime: editFreezeTime
             )
             .frame(
                 width: GenerativeCanvasView.canonicalPortraitSize.width,
@@ -290,6 +292,7 @@ struct GalleryView: View {
         .onChange(of: isWideCanvas) { _, wide in
             if !wide {
                 isEditMode = false
+                editFreezeTime = nil
                 activeElementId = nil
                 isDraggingElement = false
                 isManuallyExpanded = false
@@ -342,7 +345,7 @@ struct GalleryView: View {
                     )
                     Spacer()
                 }
-                .padding(.top, safeAreaTop + topCardHeight + 8)
+                .padding(.top, safeAreaTop + topCardHeight + 24)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
@@ -367,8 +370,23 @@ struct GalleryView: View {
 
             RadialHoldMenu(
                 labelColor: buttonColor,
-                onCategorySelected: { category in pickerCategory = category }
+                onCategorySelected: { category in
+                    pickerCategory = category
+                    #if DEBUG
+                    if category == .mind {
+                        CoachMarkManager.postAction(for: .tapMind)
+                    }
+                    #endif
+                },
+                onFanOpened: {
+                    #if DEBUG
+                    CoachMarkManager.postAction(for: .tapPlusButton)
+                    #endif
+                }
             )
+            #if DEBUG
+            .coachMarkAnchor(.tapPlusButton)
+            #endif
 
             Spacer()
 
@@ -399,7 +417,7 @@ struct GalleryView: View {
                     .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
                     .frame(width: 56, height: 56)
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 20, weight: .ultraLight))
+                    .font(.title3.weight(.ultraLight))
                     .foregroundStyle(buttonColor.opacity(0.85))
             }
             .frame(width: 72, height: 72)
@@ -425,9 +443,14 @@ struct GalleryView: View {
                 Circle()
                     .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
                     .frame(width: 56, height: 56)
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 22, weight: .ultraLight))
-                    .foregroundStyle(buttonColor.opacity(0.85))
+                if isExporting {
+                    ProgressView()
+                        .tint(buttonColor.opacity(0.85))
+                } else {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.title2.weight(.ultraLight))
+                        .foregroundStyle(buttonColor.opacity(0.85))
+                }
             }
             .frame(width: 72, height: 72)
             .contentShape(Circle())
@@ -435,7 +458,7 @@ struct GalleryView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "Share canvas", comment: "GalleryView – share button VoiceOver label"))
         .opacity(isCanvasEmpty ? 0.35 : 1.0)
-        .disabled(isCanvasEmpty)
+        .disabled(isCanvasEmpty || isExporting)
         .contextMenu {
             if !isCanvasEmpty {
                 Button {
@@ -459,16 +482,6 @@ struct GalleryView: View {
                 }
             }
 
-            if model.canRepeatYesterday {
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                        model.repeatYesterday()
-                    }
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                } label: {
-                    Label(String(localized: "Repeat Yesterday"), systemImage: "arrow.counterclockwise")
-                }
-            }
         }
         .alert(String(localized: "Save Routine"), isPresented: $showSaveRoutine) {
             TextField(String(localized: "e.g. Gym Day", comment: "Placeholder for routine name"), text: $routineName)
@@ -498,25 +511,25 @@ struct GalleryView: View {
                         .fill(buttonColor.opacity(0.08))
                         .frame(width: 40, height: 40)
                     Image(systemName: "lock.screen")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.body.weight(.medium))
                         .foregroundStyle(buttonColor.opacity(0.8))
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Set this canvas as your wallpaper", comment: "Wide canvas – wallpaper prompt"))
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.footnote.weight(.semibold))
                         .foregroundStyle(buttonColor)
                     Text(String(localized: "Your clock and widgets will overlay this canvas", comment: "Wide canvas – wallpaper prompt subtitle"))
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .font(.caption2.weight(.regular))
                         .foregroundStyle(buttonColor.opacity(0.5))
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(buttonColor.opacity(0.35))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .glassCard(cornerRadius: 14)
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(buttonColor.opacity(0.12), lineWidth: 0.5)
@@ -531,42 +544,17 @@ struct GalleryView: View {
 
     private var emptyStateView: some View {
         VStack(spacing: 16) {
-            if model.canRepeatYesterday {
-                repeatYesterdayButton
-            }
-
             if !model.savedRoutines.isEmpty {
                 routinesRow
             }
 
             if isCanvasEmpty {
                 Text(String(localized: "Today is uncolored", comment: "Canvas empty state hint"))
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .font(.footnote.weight(.regular))
                     .foregroundStyle(labelColor.opacity(0.3))
             }
         }
         .multilineTextAlignment(.center)
-    }
-
-    private var repeatYesterdayButton: some View {
-        Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                model.repeatYesterday()
-            }
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.counterclockwise")
-                    .font(.system(size: 13, weight: .medium))
-                Text(String(localized: "Repeat Yesterday"))
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-            }
-            .foregroundStyle(labelColor)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(.ultraThinMaterial, in: Capsule())
-        }
-        .buttonStyle(.plain)
     }
 
     private var routinesRow: some View {
@@ -580,11 +568,11 @@ struct GalleryView: View {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } label: {
                         Text(routine.name)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .font(.footnote.weight(.medium))
                             .foregroundStyle(labelColor)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
-                            .background(.ultraThinMaterial, in: Capsule())
+                            .glassCard(cornerRadius: 20)
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
@@ -665,7 +653,7 @@ struct GalleryView: View {
         }
 
         // 1b. Spawn canvas elements for selections that don't have one yet
-        //     (covers Repeat Yesterday, Routines, and Supabase restore).
+        //     (covers Routines and Supabase restore).
         if !model.isBootstrapping {
             let existingIds = Set(dayCanvas.elements.map(\.optionId))
             let allSelections: [(String, EnergyCategory)] =
@@ -794,6 +782,7 @@ struct GalleryView: View {
                 Button {
                     withAnimation(.easeInOut(duration: 0.35)) {
                         isEditMode = false
+                        editFreezeTime = nil
                         activeElementId = nil
                         isDraggingElement = false
                         isManuallyExpanded = false
@@ -811,7 +800,7 @@ struct GalleryView: View {
                             .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
                             .frame(width: 56, height: 56)
                         Image(systemName: "arrow.down.right.and.arrow.up.left")
-                            .font(.system(size: 20, weight: .ultraLight))
+                            .font(.title3.weight(.ultraLight))
                             .foregroundStyle(buttonColor.opacity(0.85))
                     }
                     .frame(width: 72, height: 72)
@@ -826,7 +815,10 @@ struct GalleryView: View {
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         isEditMode.toggle()
-                        if !isEditMode {
+                        if isEditMode {
+                            editFreezeTime = Date()
+                        } else {
+                            editFreezeTime = nil
                             activeElementId = nil
                             isDraggingElement = false
                             saveCanvasLocally()
@@ -843,7 +835,7 @@ struct GalleryView: View {
                             .strokeBorder(buttonColor.opacity(isEditMode ? 0.5 : 0.3), lineWidth: 1)
                             .frame(width: 56, height: 56)
                         Image(systemName: isEditMode ? "checkmark" : "hand.draw")
-                            .font(.system(size: 22, weight: .ultraLight))
+                            .font(.title2.weight(.ultraLight))
                             .foregroundStyle(buttonColor.opacity(0.85))
                     }
                     .frame(width: 72, height: 72)
@@ -864,11 +856,13 @@ struct GalleryView: View {
     private var editModeElementOverlays: some View {
         let refSize = GenerativeCanvasView.canonicalPortraitSize
         let dim = min(refSize.width, refSize.height)
+        let freezeDate = editFreezeTime ?? Date()
 
         return ZStack {
             ForEach(dayCanvas.elements) { element in
-                let cx = element.basePosition.x * refSize.width
-                let cy = element.basePosition.y * refSize.height
+                let center = GenerativeCanvasView.frozenElementCenter(element, size: refSize, at: freezeDate)
+                let cx = center.x
+                let cy = center.y
                 let effectiveSize = element.userSize ?? element.size
                 let diameter = effectiveSize * dim
                 let isActive = activeElementId == element.id
@@ -889,9 +883,9 @@ struct GalleryView: View {
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             } label: {
                                 Image(systemName: "dice")
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(.footnote.weight(.medium))
                                     .foregroundStyle(buttonColor.opacity(0.85))
-                                    .frame(width: 24, height: 24)
+                                    .frame(width: 34, height: 34)
                                     .background(
                                         Circle()
                                             .fill(.ultraThinMaterial)
@@ -901,6 +895,7 @@ struct GalleryView: View {
                                         Circle()
                                             .strokeBorder(buttonColor.opacity(0.3), lineWidth: 0.5)
                                     )
+                                    .contentShape(Circle().scale(1.3))
                             }
                             .buttonStyle(.plain)
                             .allowsHitTesting(true)
@@ -987,12 +982,12 @@ struct GalleryView: View {
 
     private func findClosestElement(to point: CGPoint, canvasSize: CGSize)
         -> (element: CanvasElement, distance: CGFloat)? {
+        let freezeDate = editFreezeTime ?? Date()
         var closest: (element: CanvasElement, distance: CGFloat)? = nil
         for element in dayCanvas.elements {
-            let cx = element.basePosition.x * canvasSize.width
-            let cy = element.basePosition.y * canvasSize.height
-            let dx = point.x - cx
-            let dy = point.y - cy
+            let center = GenerativeCanvasView.frozenElementCenter(element, size: canvasSize, at: freezeDate)
+            let dx = point.x - center.x
+            let dy = point.y - center.y
             let dist = sqrt(dx * dx + dy * dy)
             if closest == nil || dist < (closest?.distance ?? .greatestFiniteMagnitude) {
                 closest = (element, dist)
@@ -1006,39 +1001,51 @@ struct GalleryView: View {
     // ═══════════════════════════════════════════════════════════
 
     private func exportCanvas() {
-        let canvasSize = GenerativeCanvasView.canonicalPortraitSize
-        let composite = ZStack {
-            EnergyGradientBackground(
-                stepsPoints: model.stepsPointsToday,
-                sleepPoints: model.sleepPointsToday,
-                hasStepsData: model.hasStepsData,
-                hasSleepData: model.hasSleepData
-            )
+        guard !isExporting else { return }
+        isExporting = true
 
-            GenerativeCanvasView(
-                elements: dayCanvas.elements,
-                sleepPoints: model.sleepPointsToday,
-                stepsPoints: model.stepsPointsToday,
-                sleepColor: Color(hex: sleepColorHex),
-                stepsColor: Color(hex: stepsColorHex),
-                decayNorm: decayNorm,
-                backgroundColor: .clear,
-                labelColor: labelColor,
-                showLabelsOnCanvas: true,
-                showsOutlinedLabels: false,
-                showsBackgroundGradient: false,
-                hasStepsData: model.hasStepsData,
-                hasSleepData: model.hasSleepData,
-                fixedTime: Date()
-            )
-        }
-        .frame(width: canvasSize.width, height: canvasSize.height)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(50))
 
-        let renderer = ImageRenderer(content: composite)
-        renderer.scale = 3.0
-        if let image = renderer.uiImage {
-            shareImage = image
-            showShareSheet = true
+            let canvasSize = GenerativeCanvasView.canonicalPortraitSize
+            let composite = ZStack {
+                EnergyGradientBackground(
+                    stepsPoints: model.stepsPointsToday,
+                    sleepPoints: model.sleepPointsToday,
+                    hasStepsData: model.hasStepsData,
+                    hasSleepData: model.hasSleepData,
+                    showGrain: false
+                )
+
+                GenerativeCanvasView(
+                    elements: dayCanvas.elements,
+                    sleepPoints: model.sleepPointsToday,
+                    stepsPoints: model.stepsPointsToday,
+                    sleepColor: Color(hex: sleepColorHex),
+                    stepsColor: Color(hex: stepsColorHex),
+                    decayNorm: decayNorm,
+                    backgroundColor: .clear,
+                    labelColor: labelColor,
+                    showLabelsOnCanvas: true,
+                    showsOutlinedLabels: false,
+                    showsBackgroundGradient: false,
+                    hasStepsData: model.hasStepsData,
+                    hasSleepData: model.hasSleepData,
+                    fixedTime: Date()
+                )
+            }
+            .frame(width: canvasSize.width, height: canvasSize.height)
+
+            let renderer = ImageRenderer(content: composite)
+            renderer.scale = 2.0
+            renderer.proposedSize = .init(canvasSize)
+            let image = renderer.uiImage
+
+            isExporting = false
+            if let image {
+                shareImage = image
+                showShareSheet = true
+            }
         }
     }
 
@@ -1058,7 +1065,7 @@ struct GalleryView: View {
                         .font(.headline)
                     Spacer()
                     Button { metricOverlay = nil } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "xmark.circle")
                             .font(.title3)
                             .foregroundColor(.secondary)
                     }
@@ -1298,9 +1305,9 @@ struct CanvasDayDetailSheet: View {
                     if let s = snapshot {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                             statCard(icon: "figure.walk", value: "\(s.steps)", label: String(localized: "Steps"), color: .green)
-                            statCard(icon: "bed.double.fill", value: String(format: "%.1f", s.sleepHours), label: String(localized: "Sleep hours"), color: .indigo)
-                            statCard(icon: "plus.circle.fill", value: "\(s.inkEarned)", label: String(localized: "Gained"), color: .blue)
-                            statCard(icon: "minus.circle.fill", value: "\(s.inkSpent)", label: String(localized: "Spent"), color: .orange)
+                            statCard(icon: "bed.double", value: String(format: "%.1f", s.sleepHours), label: String(localized: "Sleep hours"), color: .indigo)
+                            statCard(icon: "plus.circle", value: "\(s.inkEarned)", label: String(localized: "Gained"), color: .blue)
+                            statCard(icon: "minus.circle", value: "\(s.inkSpent)", label: String(localized: "Spent"), color: .orange)
                         }
                         canvasSection(s)
                     } else {

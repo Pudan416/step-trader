@@ -7,8 +7,6 @@ final class BudgetEngineTests: XCTestCase {
     private static let budgetKeys: [String] = [
         SharedKeys.selectedTariff,
         SharedKeys.todayAnchor,
-        SharedKeys.dailyBudgetMinutes,
-        SharedKeys.remainingMinutes,
         SharedKeys.dayEndHour,
         SharedKeys.dayEndMinute,
     ]
@@ -17,23 +15,25 @@ final class BudgetEngineTests: XCTestCase {
         super.setUp()
         for key in Self.budgetKeys {
             UserDefaults.standard.removeObject(forKey: key)
+            UserDefaults.stepsTrader().removeObject(forKey: key)
         }
     }
 
     override func tearDown() {
         for key in Self.budgetKeys {
             UserDefaults.standard.removeObject(forKey: key)
+            UserDefaults.stepsTrader().removeObject(forKey: key)
         }
         super.tearDown()
     }
 
-    // MARK: - Tariff stepsPerMinute (formula used by BudgetEngine.minutes(from:))
+    // MARK: - Tariff stepsPerMinute
 
     func testTariffStepsPerMinute() {
         XCTAssertEqual(Tariff.hard.stepsPerMinute, 1000)
         XCTAssertEqual(Tariff.medium.stepsPerMinute, 500)
         XCTAssertEqual(Tariff.easy.stepsPerMinute, 100)
-        XCTAssertEqual(Tariff.free.stepsPerMinute, 100)
+        XCTAssertEqual(Tariff.free.stepsPerMinute, 0)
     }
 
     func testTariffEntryCostSteps() {
@@ -46,7 +46,7 @@ final class BudgetEngineTests: XCTestCase {
     // MARK: - minutes(from steps)
 
     func testMinutesFromSteps_mediumTariff() {
-        UserDefaults.standard.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        UserDefaults.stepsTrader().set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
         let engine = BudgetEngine()
         XCTAssertEqual(engine.minutes(from: 0), 0)
         XCTAssertEqual(engine.minutes(from: 500), 1)
@@ -56,7 +56,7 @@ final class BudgetEngineTests: XCTestCase {
     }
 
     func testMinutesFromSteps_hardTariff() {
-        UserDefaults.standard.set(Tariff.hard.rawValue, forKey: SharedKeys.selectedTariff)
+        UserDefaults.stepsTrader().set(Tariff.hard.rawValue, forKey: SharedKeys.selectedTariff)
         let engine = BudgetEngine()
         XCTAssertEqual(engine.minutes(from: 1000), 1)
         XCTAssertEqual(engine.minutes(from: 5000), 5)
@@ -64,7 +64,7 @@ final class BudgetEngineTests: XCTestCase {
     }
 
     func testMinutesFromSteps_easyTariff() {
-        UserDefaults.standard.set(Tariff.easy.rawValue, forKey: SharedKeys.selectedTariff)
+        UserDefaults.stepsTrader().set(Tariff.easy.rawValue, forKey: SharedKeys.selectedTariff)
         let engine = BudgetEngine()
         XCTAssertEqual(engine.minutes(from: 100), 1)
         XCTAssertEqual(engine.minutes(from: 250), 2)
@@ -72,42 +72,15 @@ final class BudgetEngineTests: XCTestCase {
     }
 
     func testMinutesFromSteps_negativeStepsReturnsZero() {
-        UserDefaults.standard.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        UserDefaults.stepsTrader().set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
         let engine = BudgetEngine()
         XCTAssertEqual(engine.minutes(from: -100), 0)
-    }
-
-    // MARK: - setBudget / consume
-
-    func testSetBudgetAndConsume() {
-        UserDefaults.standard.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
-        let engine = BudgetEngine()
-        engine.setBudget(minutes: 10)
-        XCTAssertEqual(engine.dailyBudgetMinutes, 10)
-        XCTAssertEqual(engine.remainingMinutes, 10)
-
-        engine.consume(mins: 3)
-        XCTAssertEqual(engine.remainingMinutes, 7)
-
-        engine.consume(mins: 7)
-        XCTAssertEqual(engine.remainingMinutes, 0)
-
-        engine.consume(mins: 5)
-        XCTAssertEqual(engine.remainingMinutes, 0)
-    }
-
-    func testConsumeDoesNotGoNegative() {
-        UserDefaults.standard.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
-        let engine = BudgetEngine()
-        engine.setBudget(minutes: 2)
-        engine.consume(mins: 5)
-        XCTAssertEqual(engine.remainingMinutes, 0)
     }
 
     // MARK: - updateTariff
 
     func testUpdateTariffChangesStepsPerMinute() {
-        UserDefaults.standard.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        UserDefaults.stepsTrader().set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
         let engine = BudgetEngine()
         XCTAssertEqual(engine.minutes(from: 500), 1)
 
@@ -117,76 +90,67 @@ final class BudgetEngineTests: XCTestCase {
         XCTAssertEqual(engine.minutes(from: 500), 0)
     }
 
+    func testUpdateTariffPersists() {
+        UserDefaults.stepsTrader().set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        let engine = BudgetEngine()
+        engine.updateTariff(.easy)
+
+        let saved = UserDefaults.stepsTrader().string(forKey: SharedKeys.selectedTariff)
+        XCTAssertEqual(saved, Tariff.easy.rawValue)
+    }
+
     // MARK: - resetIfNeeded
 
     func testResetIfNeeded_resetsOnDayChange() {
         let yesterday = Calendar.current.date(byAdding: .day, value: -1,
                                               to: Calendar.current.startOfDay(for: Date()))!
 
-        UserDefaults.standard.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
-        UserDefaults.standard.set(yesterday, forKey: SharedKeys.todayAnchor)
+        UserDefaults.stepsTrader().set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        UserDefaults.stepsTrader().set(yesterday, forKey: SharedKeys.todayAnchor)
 
         let engine = BudgetEngine()
-        engine.setBudget(minutes: 15)
-        engine.consume(mins: 5)
-        XCTAssertEqual(engine.remainingMinutes, 10)
+        let anchorBefore = engine.todayAnchor
 
         engine.resetIfNeeded()
-        XCTAssertEqual(engine.dailyBudgetMinutes, 0,
-                       "After day change, budget should reset to 0")
-        XCTAssertEqual(engine.remainingMinutes, 0,
-                       "After day change, remaining should reset to 0")
-        XCTAssertNotEqual(engine.todayAnchor, yesterday,
+        XCTAssertNotEqual(engine.todayAnchor, anchorBefore,
                           "todayAnchor should advance to the current day")
     }
 
     func testResetIfNeeded_noResetSameDay() {
-        UserDefaults.standard.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        UserDefaults.stepsTrader().set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
         let engine = BudgetEngine()
-        engine.setBudget(minutes: 10)
-        engine.consume(mins: 3)
+        let anchorBefore = engine.todayAnchor
 
         engine.resetIfNeeded()
-        XCTAssertEqual(engine.remainingMinutes, 7,
-                       "Same-day resetIfNeeded should not change remaining minutes")
-        XCTAssertEqual(engine.dailyBudgetMinutes, 10)
+        XCTAssertEqual(engine.todayAnchor, anchorBefore,
+                       "Same-day resetIfNeeded should not change todayAnchor")
     }
 
     // MARK: - Free tariff
 
     func testMinutesFromSteps_freeTariff() {
-        UserDefaults.standard.set(Tariff.free.rawValue, forKey: SharedKeys.selectedTariff)
+        UserDefaults.stepsTrader().set(Tariff.free.rawValue, forKey: SharedKeys.selectedTariff)
         let engine = BudgetEngine()
         XCTAssertEqual(engine.tariff, .free)
-        XCTAssertEqual(engine.stepsPerMinute, 100,
-                       "Free tariff uses 100 steps/min to avoid divide-by-zero")
-        XCTAssertEqual(engine.minutes(from: 100), 1)
-        XCTAssertEqual(engine.minutes(from: 0), 0)
-        XCTAssertEqual(engine.minutes(from: 50), 0)
+        XCTAssertEqual(engine.stepsPerMinute, 0,
+                       "Free tariff has 0 stepsPerMinute (truly free)")
+        XCTAssertEqual(engine.minutes(from: 100), 1440,
+                       "Free tariff returns 1440 (unlimited) for any step count")
+        XCTAssertEqual(engine.minutes(from: 0), 1440)
     }
 
     func testFreeTariff_zeroCostEntry() {
         XCTAssertEqual(Tariff.free.entryCostSteps, 0,
                        "Free tariff should have zero entry cost")
-        XCTAssertTrue(Tariff.free.stepsPerMinute > 0,
-                      "stepsPerMinute must be positive to avoid divide-by-zero")
+        XCTAssertEqual(Tariff.free.stepsPerMinute, 0,
+                       "Free tariff has 0 stepsPerMinute")
     }
 
-    func testFreeTariff_sameRateAsEasyButZeroEntry() {
-        XCTAssertEqual(Tariff.free.stepsPerMinute, Tariff.easy.stepsPerMinute,
-                       "Free uses the same steps/min as easy for tracking purposes")
+    func testFreeTariff_differentRateFromEasy() {
+        XCTAssertNotEqual(Tariff.free.stepsPerMinute, Tariff.easy.stepsPerMinute,
+                          "Free (0) differs from easy (100)")
         XCTAssertEqual(Tariff.free.entryCostSteps, 0)
         XCTAssertGreaterThan(Tariff.easy.entryCostSteps, 0)
-    }
-
-    func testFreeTariff_budgetStillConsumable() {
-        UserDefaults.standard.set(Tariff.free.rawValue, forKey: SharedKeys.selectedTariff)
-        let engine = BudgetEngine()
-        engine.setBudget(minutes: 60)
-        XCTAssertEqual(engine.remainingMinutes, 60)
-        engine.consume(mins: 10)
-        XCTAssertEqual(engine.remainingMinutes, 50,
-                       "Free tariff should still track budget consumption normally")
     }
 
     // MARK: - resetIfNeeded with custom day-end time
@@ -196,24 +160,20 @@ final class BudgetEngineTests: XCTestCase {
         let now = Date()
         let yesterday = cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: now))!
 
-        UserDefaults.standard.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
-        UserDefaults.standard.set(yesterday, forKey: SharedKeys.todayAnchor)
-        UserDefaults.standard.set(4, forKey: SharedKeys.dayEndHour)
-        UserDefaults.standard.set(30, forKey: SharedKeys.dayEndMinute)
+        let g = UserDefaults.stepsTrader()
+        g.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        g.set(yesterday, forKey: SharedKeys.todayAnchor)
+        g.set(4, forKey: SharedKeys.dayEndHour)
+        g.set(30, forKey: SharedKeys.dayEndMinute)
 
         let engine = BudgetEngine()
-        engine.setBudget(minutes: 20)
-        engine.consume(mins: 8)
-        XCTAssertEqual(engine.remainingMinutes, 12)
-
         engine.resetIfNeeded()
-        XCTAssertEqual(engine.dailyBudgetMinutes, 0,
-                       "After day change with custom day-end, budget resets to 0")
-        XCTAssertEqual(engine.remainingMinutes, 0)
+        XCTAssertNotEqual(engine.todayAnchor, yesterday,
+                          "After day change with custom day-end, anchor should advance")
     }
 
     func testUpdateDayEnd_persistsValues() {
-        UserDefaults.standard.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        UserDefaults.stepsTrader().set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
         let engine = BudgetEngine()
         engine.updateDayEnd(hour: 5, minute: 45)
         XCTAssertEqual(engine.dayEndHour, 5)
@@ -221,13 +181,74 @@ final class BudgetEngineTests: XCTestCase {
     }
 
     func testUpdateDayEnd_clampsOutOfRangeValues() {
-        UserDefaults.standard.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        UserDefaults.stepsTrader().set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
         let engine = BudgetEngine()
         engine.updateDayEnd(hour: 99, minute: -5)
         XCTAssertEqual(engine.dayEndHour, 23,
                        "Hour should be clamped to 23")
         XCTAssertEqual(engine.dayEndMinute, 0,
                        "Minute should be clamped to 0")
+    }
+
+    func testUpdateDayEnd_clampsMinuteUpperBound() {
+        UserDefaults.stepsTrader().set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        let engine = BudgetEngine()
+        engine.updateDayEnd(hour: 3, minute: 99)
+        XCTAssertEqual(engine.dayEndHour, 3)
+        XCTAssertEqual(engine.dayEndMinute, 59,
+                       "Minute should be clamped to 59")
+    }
+
+    // MARK: - Init reads from stepsTrader defaults
+
+    func testInit_readsTariffFromSharedDefaults() {
+        UserDefaults.stepsTrader().set(Tariff.hard.rawValue, forKey: SharedKeys.selectedTariff)
+        let engine = BudgetEngine()
+        XCTAssertEqual(engine.tariff, .hard)
+    }
+
+    func testInit_fallsBackToStandardDefaults() {
+        UserDefaults.standard.set(Tariff.easy.rawValue, forKey: SharedKeys.selectedTariff)
+        let engine = BudgetEngine()
+        XCTAssertEqual(engine.tariff, .easy)
+    }
+
+    func testInit_defaultsToMediumWhenNoSavedTariff() {
+        let engine = BudgetEngine()
+        XCTAssertEqual(engine.tariff, .medium)
+    }
+
+    func testInit_readsDayEndFromSharedDefaults() {
+        let g = UserDefaults.stepsTrader()
+        g.set(3, forKey: SharedKeys.dayEndHour)
+        g.set(15, forKey: SharedKeys.dayEndMinute)
+        let engine = BudgetEngine()
+        XCTAssertEqual(engine.dayEndHour, 3)
+        XCTAssertEqual(engine.dayEndMinute, 15)
+    }
+
+    func testInit_clampsDayEndOnLoad() {
+        let g = UserDefaults.stepsTrader()
+        g.set(50, forKey: SharedKeys.dayEndHour)
+        g.set(-10, forKey: SharedKeys.dayEndMinute)
+        let engine = BudgetEngine()
+        XCTAssertEqual(engine.dayEndHour, 23)
+        XCTAssertEqual(engine.dayEndMinute, 0)
+    }
+
+    // MARK: - reloadFromStorage
+
+    func testReloadFromStorage_picksUpNewValues() {
+        UserDefaults.stepsTrader().set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        let engine = BudgetEngine()
+        XCTAssertEqual(engine.dayEndHour, 0)
+
+        UserDefaults.stepsTrader().set(6, forKey: SharedKeys.dayEndHour)
+        UserDefaults.stepsTrader().set(30, forKey: SharedKeys.dayEndMinute)
+        engine.reloadFromStorage()
+
+        XCTAssertEqual(engine.dayEndHour, 6)
+        XCTAssertEqual(engine.dayEndMinute, 30)
     }
 
     // MARK: - Tariff backward-compatible decoding

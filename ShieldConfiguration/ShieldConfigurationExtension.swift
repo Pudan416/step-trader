@@ -62,7 +62,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         secondaryButtonText: String? = nil
     ) -> ShieldConfiguration {
         // Try to load app icon from extension assets
-        let appIcon = UIImage(named: "AppIcon") ?? UIImage(named: "paygate") ?? UIImage(systemName: "shield.fill")
+        let appIcon = UIImage(named: "AppIcon") ?? UIImage(named: "paygate") ?? UIImage(systemName: "shield")
         
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,

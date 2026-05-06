@@ -85,7 +85,7 @@ struct SettingsShortcutPage: View {
                             Text(String(localized: "Get Wallpaper Shortcut"))
                                 .font(.subheadline.weight(.semibold))
                         }
-                        .foregroundColor(.black)
+                        .foregroundStyle(Color.primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Capsule().fill(AppColors.brandAccent))

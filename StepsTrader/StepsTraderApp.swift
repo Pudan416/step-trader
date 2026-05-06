@@ -10,6 +10,9 @@ struct StepsTraderApp: App {
     @StateObject private var model: AppModel
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var authService = AuthenticationService.shared
+    #if DEBUG
+    @StateObject private var coachMarkManager = CoachMarkManager()
+    #endif
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     @AppStorage("hasSeenIntro_v3") private var hasSeenIntro: Bool = false
     @AppStorage("hasSeenEnergySetup_v1") private var hasSeenEnergySetup: Bool = false
@@ -85,6 +88,14 @@ struct StepsTraderApp: App {
                             await model.refreshStepsIfAuthorized()
                             await model.refreshSleepIfAuthorized()
                         }
+                        #if DEBUG
+                        if UserDefaults.standard.bool(forKey: "shouldStartCoachMark") {
+                            UserDefaults.standard.removeObject(forKey: "shouldStartCoachMark")
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                coachMarkManager.start()
+                            }
+                        }
+                        #endif
                     }
                     .transition(.opacity)
                     .zIndex(3)
@@ -94,6 +105,9 @@ struct StepsTraderApp: App {
             .themed(currentTheme)
             .tint(currentTheme.accentColor)
             .grayscale(0)
+            #if DEBUG
+            .environmentObject(coachMarkManager)
+            #endif
             .alert(isPresented: $errorManager.showErrorAlert, error: errorManager.currentError) { _ in
                 Button("OK", role: .cancel) {
                     errorManager.dismiss()

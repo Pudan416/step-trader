@@ -52,7 +52,7 @@ struct SettingsPermissionsPage: View {
 
                     VStack(spacing: 0) {
                         permissionRow(
-                            icon: "heart.fill",
+                            icon: "heart",
                             title: String(localized: "Health", comment: "Permission row – HealthKit"),
                             subtitle: String(localized: "Steps, sleep, workouts", comment: "Permission row – HealthKit detail"),
                             isGranted: hasHealthData,
@@ -92,7 +92,7 @@ struct SettingsPermissionsPage: View {
                         DetailDivider()
 
                         permissionRow(
-                            icon: "bell.fill",
+                            icon: "bell",
                             title: String(localized: "Notifications", comment: "Permission row – Notifications"),
                             subtitle: String(localized: "Timers, reminders, alerts", comment: "Permission row – Notifications detail"),
                             isGranted: isNotificationsGranted,
@@ -133,7 +133,7 @@ struct SettingsPermissionsPage: View {
 
     private var statusBanner: some View {
         HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(systemName: "exclamationmark.triangle")
                 .foregroundStyle(.orange)
                 .font(.title3)
             VStack(alignment: .leading, spacing: 2) {
@@ -165,7 +165,7 @@ struct SettingsPermissionsPage: View {
         }) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 15))
+                    .font(.body)
                     .foregroundStyle(isGranted ? .green : .orange)
                     .frame(width: 24)
 
@@ -188,9 +188,9 @@ struct SettingsPermissionsPage: View {
                         .padding(.vertical, 3)
                         .background(Capsule().fill(theme.adaptiveMutedText.opacity(0.12)))
                 } else if isGranted {
-                    Image(systemName: "checkmark.circle.fill")
+                    Image(systemName: "checkmark.circle")
                         .foregroundStyle(.green)
-                        .font(.system(size: 18))
+                        .font(.title3)
                 } else {
                     Text(String(localized: "Enable", comment: "Permission – enable button"))
                         .font(.caption.weight(.semibold))
