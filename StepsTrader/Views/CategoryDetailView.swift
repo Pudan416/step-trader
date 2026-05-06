@@ -79,11 +79,8 @@ struct CategoryDetailView: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground {
-            ZStack {
-                Rectangle().fill(.regularMaterial)
-                Rectangle().fill(Color(.systemBackground).opacity(0.55))
-            }
-            .ignoresSafeArea()
+            Color(.systemBackground)
+                .ignoresSafeArea()
         }
         .onAppear { refreshEntryColorCache() }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: editingOptionId)
