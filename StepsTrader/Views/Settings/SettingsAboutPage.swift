@@ -81,7 +81,7 @@ struct SettingsAboutPage: View {
                         DetailDivider()
 
                         Button {
-                            if let url = URL(string: "https://t.me/pudan") {
+                            if let url = URL(string: "https://t.me/pudan416") {
                                 openURL(url)
                             }
                         } label: {
