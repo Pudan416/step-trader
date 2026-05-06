@@ -389,7 +389,7 @@ struct MainTabView: View {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: tab.icon)
                                 .font(.system(size: isSelected ? selectedTabIconSize : tabIconSize))
-                                .fontWeight(isSelected ? .semibold : .regular)
+                                .fontWeight(.regular)
                                 .symbolRenderingMode(.hierarchical)
                             if tab == .settings && model.hasPermissionIssues {
                                 Circle()
@@ -398,7 +398,7 @@ struct MainTabView: View {
                                     .offset(x: 3, y: -2)
                             }
                         }
-                        
+
                         Text(tab.title)
                             .font(.caption2.weight(isSelected ? .semibold : .regular))
                             .lineLimit(1)
@@ -436,7 +436,7 @@ struct MainTabView: View {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: tab.icon)
                                 .font(.system(size: isSelected ? selectedTabIconSize : tabIconSize))
-                                .fontWeight(isSelected ? .semibold : .regular)
+                                .fontWeight(.regular)
                                 .symbolRenderingMode(.hierarchical)
                             if tab == .settings && model.hasPermissionIssues {
                                 Circle()
@@ -445,7 +445,7 @@ struct MainTabView: View {
                                     .offset(x: 3, y: -2)
                             }
                         }
-                        
+
                         Text(tab.title)
                             .font(.caption2.weight(isSelected ? .semibold : .regular))
                             .lineLimit(1)
