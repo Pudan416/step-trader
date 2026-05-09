@@ -32,6 +32,9 @@
         }
       }
     },
+    "%@ category" : {
+
+    },
     "%@ for %lld colors. that's the deal." : {
       "localizations" : {
         "en" : {
@@ -272,6 +275,9 @@
     "Add a note..." : {
       "comment" : "OptionEntry – note placeholder"
     },
+    "Add activity" : {
+      "comment" : "RadialMenu – VoiceOver label"
+    },
     "Add the things that colored up your day to the canvas." : {
       "comment" : "Notification – daily canvas reminder body"
     },
@@ -409,6 +415,9 @@
     "Close" : {
       "comment" : "PayGate – close button VoiceOver label\nQuickStatus – dismiss button"
     },
+    "Close menu" : {
+      "comment" : "RadialMenu – VoiceOver label"
+    },
     "Close quick status" : {
       "comment" : "QuickStatus – close VoiceOver label"
     },
@@ -465,6 +474,9 @@
     },
     "Daily Steps Goal" : {
 
+    },
+    "Day Reset" : {
+      "comment" : "Navigation title"
     },
     "DAY RESET" : {
       "comment" : "Notification section header"
@@ -554,6 +566,9 @@
       "comment" : "ProfileEditor – navigation title"
     },
     "Edit settings" : {
+
+    },
+    "Element editing panel" : {
 
     },
     "Email" : {
@@ -671,6 +686,9 @@
     },
     "Hey, thank you for using this app. If you’re reading this, I hope you’ve found something meaningful in it. My name is Kosta, nice to meet you. I’ve spent years working on creative projects for brands — winning awards, getting recognition. It made me feel successful, creative, whatever. But recently I realized I was living inside my work, hiding in it. I didn’t really know myself anymore. Could I do something on my own? For myself? Was I capable of something else? You know… the classic midlife corporate crisis. It felt like I was nowhere. That’s the word — nowhere.\nSo I started building this app — at first just for myself, to learn. Over time it became something deeply personal. It’s not perfect, but neither am I — and neither are you. I’m trying to accept myself and find meaning beyond work. And if you ever feel burned out, lost, or stuck in that same nowhere, remember — you are here, now. And that’s what matters most.\nFeel free to text me. IDK why, but all the contacts are in the settings. Thank you." : {
       "comment" : "Note body: about_kosta"
+    },
+    "Hold and drag to quickly select a category, or tap to open the menu" : {
+      "comment" : "RadialMenu – VoiceOver hint"
     },
     "hours" : {
       "comment" : "Onboarding – sleep unit label"
@@ -857,6 +875,1587 @@
     "Opens the app %@ after confirming access" : {
       "comment" : "Handoff – open button accessibility hint"
     },
+    "option.description.body_balance" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finding equilibrium and coordination."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Найти равновесие и координацию."
+          }
+        }
+      }
+    },
+    "option.description.body_breathing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Returning to your physical rhythm."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Возвращение к физическому ритму."
+          }
+        }
+      }
+    },
+    "option.description.body_healing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taking care of your body through medical attention."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заботиться о теле через медицинское внимание."
+          }
+        }
+      }
+    },
+    "option.description.body_physical_effort" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Using strength and resistance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать силу и сопротивление."
+          }
+        }
+      }
+    },
+    "option.description.body_repetition" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doing simple physical actions with presence."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Делать простые физические действия с присутствием."
+          }
+        }
+      }
+    },
+    "option.description.body_resting" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowing the body to recover."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Позволить телу восстановиться."
+          }
+        }
+      }
+    },
+    "option.description.body_stillness" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Being completely motionless for a moment."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Быть полностью неподвижным на мгновение."
+          }
+        }
+      }
+    },
+    "option.description.body_stretching" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opening and releasing tension."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Раскрытие и снятие напряжения."
+          }
+        }
+      }
+    },
+    "option.description.body_touch" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling the world through contact."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чувствовать мир через контакт."
+          }
+        }
+      }
+    },
+    "option.description.body_walking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moving forward with your body in the world."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Двигаться вперёд телом по миру."
+          }
+        }
+      }
+    },
+    "option.description.body_warming" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling heat and comfort in the body."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чувствовать тепло и комфорт в теле."
+          }
+        }
+      }
+    },
+    "option.description.heart_belonging" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling part of something."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чувствовать себя частью чего-то."
+          }
+        }
+      }
+    },
+    "option.description.heart_calm" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling settled and safe inside."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чувствовать себя устойчиво и в безопасности внутри."
+          }
+        }
+      }
+    },
+    "option.description.heart_care" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giving attention and warmth."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дарить внимание и тепло."
+          }
+        }
+      }
+    },
+    "option.description.heart_connection" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling close to someone."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чувствовать близость к кому-то."
+          }
+        }
+      }
+    },
+    "option.description.heart_gratitude" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recognising something as valuable."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Признать что-то ценным."
+          }
+        }
+      }
+    },
+    "option.description.heart_joy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling lightness and warmth."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чувствовать лёгкость и тепло."
+          }
+        }
+      }
+    },
+    "option.description.heart_peace" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deep inner quiet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Глубокая внутренняя тишина."
+          }
+        }
+      }
+    },
+    "option.description.heart_trust" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowing openness without tension."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Позволять открытость без напряжения."
+          }
+        }
+      }
+    },
+    "option.description.heart_vulnerability" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowing yourself to feel honestly."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Позволить себе чувствовать честно."
+          }
+        }
+      }
+    },
+    "option.description.heart_wonder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling awe or curiosity."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чувствовать восхищение или любопытство."
+          }
+        }
+      }
+    },
+    "option.description.mind_focusing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holding attention on one thing."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удерживать внимание на одном."
+          }
+        }
+      }
+    },
+    "option.description.mind_learning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taking something new into the mind."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Принимать новое в ум."
+          }
+        }
+      }
+    },
+    "option.description.mind_letting_go" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Releasing mental tension."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отпустить умственное напряжение."
+          }
+        }
+      }
+    },
+    "option.description.mind_observing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noticing without interfering."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Замечать, не вмешиваясь."
+          }
+        }
+      }
+    },
+    "option.description.mind_ordering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creating clarity and structure."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создавать ясность и структуру."
+          }
+        }
+      }
+    },
+    "option.description.mind_planning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organising what comes next."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Организовать то, что будет дальше."
+          }
+        }
+      }
+    },
+    "option.description.mind_questioning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Challenging assumptions."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подвергать сомнению предположения."
+          }
+        }
+      }
+    },
+    "option.description.mind_remembering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Returning to a past moment consciously."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сознательное возвращение к прошлому моменту."
+          }
+        }
+      }
+    },
+    "option.description.mind_thinking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actively processing ideas or situations."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Активная обработка идей или ситуаций."
+          }
+        }
+      }
+    },
+    "option.description.mind_writing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turning thoughts into form."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Превращать мысли в форму."
+          }
+        }
+      }
+    },
+    "option.examples.body_balance" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yoga, balance exercises, standing on one leg, tai chi"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "йога, упражнения на баланс, стояние на одной ноге, тайчи"
+          }
+        }
+      }
+    },
+    "option.examples.body_breathing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "breathing pause, calming breath, mindful inhale"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "пауза для дыхания, успокаивающее дыхание, осознанный вдох"
+          }
+        }
+      }
+    },
+    "option.examples.body_healing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "visiting a doctor, taking medication, therapy, antidepressants"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "визит к врачу, приём лекарств, терапия, антидепрессанты"
+          }
+        }
+      }
+    },
+    "option.examples.body_physical_effort" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gym, home workout, manual work"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "спортзал, домашняя тренировка, физический труд"
+          }
+        }
+      }
+    },
+    "option.examples.body_repetition" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cleaning, tidying, daily routines"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "уборка, наведение порядка, повседневные ритуалы"
+          }
+        }
+      }
+    },
+    "option.examples.body_resting" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "good sleep, lying down, intentional break, power nap"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "хороший сон, лёжа, осознанный перерыв, короткий сон"
+          }
+        }
+      }
+    },
+    "option.examples.body_stillness" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sitting quietly, body scan, silent pause"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "тихое сидение, сканирование тела, безмолвная пауза"
+          }
+        }
+      }
+    },
+    "option.examples.body_stretching" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "stretching, yoga, mobility, slow warm-up"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "растяжка, йога, мобильность, медленная разминка"
+          }
+        }
+      }
+    },
+    "option.examples.body_touch" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "water, grass, sunlight, physical grounding"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "вода, трава, солнечный свет, физическое заземление"
+          }
+        }
+      }
+    },
+    "option.examples.body_walking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "city walk, nature walk, walking without a goal"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "прогулка по городу, прогулка на природе, ходьба без цели"
+          }
+        }
+      }
+    },
+    "option.examples.body_warming" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hot shower, sun exposure, warm drink"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "горячий душ, пребывание на солнце, тёплый напиток"
+          }
+        }
+      }
+    },
+    "option.examples.heart_belonging" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "community, shared identity, feeling at home"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сообщество, общая идентичность, чувство дома"
+          }
+        }
+      }
+    },
+    "option.examples.heart_calm" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "quiet time, relaxation, emotional ease"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "тихое время, расслабление, эмоциональная лёгкость"
+          }
+        }
+      }
+    },
+    "option.examples.heart_care" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "helping, supporting, caring for yourself"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "помогать, поддерживать, заботиться о себе"
+          }
+        }
+      }
+    },
+    "option.examples.heart_connection" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "meaningful talk, shared silence"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "значимый разговор, общее молчание"
+          }
+        }
+      }
+    },
+    "option.examples.heart_gratitude" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "appreciating a moment, feeling thankful"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "благодарность за момент, чувство признательности"
+          }
+        }
+      }
+    },
+    "option.examples.heart_joy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "laughter, playful moments, spontaneous happiness"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "смех, игривые моменты, спонтанное счастье"
+          }
+        }
+      }
+    },
+    "option.examples.heart_peace" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "acceptance of self, emotional stillness"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "принятие себя, эмоциональная неподвижность"
+          }
+        }
+      }
+    },
+    "option.examples.heart_trust" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "relying on someone, emotional safety"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "положиться на кого-то, эмоциональная безопасность"
+          }
+        }
+      }
+    },
+    "option.examples.heart_vulnerability" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "emotional openness, sincere sharing, fill blue or green"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "эмоциональная открытость, искренний разговор"
+          }
+        }
+      }
+    },
+    "option.examples.heart_wonder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "noticing beauty, surprise, inspiration"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "замечать красоту, удивление, вдохновение"
+          }
+        }
+      }
+    },
+    "option.examples.mind_focusing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "reading, deep work, careful listening"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "чтение, глубокая работа, внимательное слушание"
+          }
+        }
+      }
+    },
+    "option.examples.mind_learning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "studying, educational content, skill practice"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "учёба, образовательный контент, отработка навыка"
+          }
+        }
+      }
+    },
+    "option.examples.mind_letting_go" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "closing tasks, stopping overthinking, pause"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "закрытие задач, прекращение перебора мыслей, пауза"
+          }
+        }
+      }
+    },
+    "option.examples.mind_observing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "watching people, noticing patterns, awareness"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "наблюдение за людьми, замечание паттернов, осознанность"
+          }
+        }
+      }
+    },
+    "option.examples.mind_ordering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "organising files, simplifying, arranging ideas"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "организация файлов, упрощение, упорядочивание идей"
+          }
+        }
+      }
+    },
+    "option.examples.mind_planning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "structuring tasks, setting priorities, looking for a job"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "структурирование задач, расстановка приоритетов, поиск работы"
+          }
+        }
+      }
+    },
+    "option.examples.mind_questioning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "asking why, rethinking, curiosity moments"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "вопросы «почему», переосмысление, моменты любопытства"
+          }
+        }
+      }
+    },
+    "option.examples.mind_remembering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sitting on a bench, reviewing the day, recalling a memory"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сидение на скамейке, обзор дня, воспоминание"
+          }
+        }
+      }
+    },
+    "option.examples.mind_thinking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "reflecting, problem-solving, mental exploration"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "размышление, решение задач, мысленное исследование"
+          }
+        }
+      }
+    },
+    "option.examples.mind_writing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "journaling, notes, drafting ideas"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ведение дневника, заметки, наброски идей"
+          }
+        }
+      }
+    },
+    "option.title.body_balance" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Balance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Баланс"
+          }
+        }
+      }
+    },
+    "option.title.body_breathing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breathing"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дыхание"
+          }
+        }
+      }
+    },
+    "option.title.body_healing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Healing"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исцеление"
+          }
+        }
+      }
+    },
+    "option.title.body_physical_effort" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Physical Effort"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Физическое усилие"
+          }
+        }
+      }
+    },
+    "option.title.body_repetition" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repetition"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторение"
+          }
+        }
+      }
+    },
+    "option.title.body_resting" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resting"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отдых"
+          }
+        }
+      }
+    },
+    "option.title.body_stillness" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stillness"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неподвижность"
+          }
+        }
+      }
+    },
+    "option.title.body_stretching" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stretching"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Растяжка"
+          }
+        }
+      }
+    },
+    "option.title.body_touch" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прикосновение"
+          }
+        }
+      }
+    },
+    "option.title.body_walking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walking"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ходьба"
+          }
+        }
+      }
+    },
+    "option.title.body_warming" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warming"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Согревание"
+          }
+        }
+      }
+    },
+    "option.title.heart_belonging" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Belonging"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Принадлежность"
+          }
+        }
+      }
+    },
+    "option.title.heart_calm" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calm"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Спокойствие"
+          }
+        }
+      }
+    },
+    "option.title.heart_care" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Care"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Забота"
+          }
+        }
+      }
+    },
+    "option.title.heart_connection" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Связь"
+          }
+        }
+      }
+    },
+    "option.title.heart_gratitude" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gratitude"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Благодарность"
+          }
+        }
+      }
+    },
+    "option.title.heart_joy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joy"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Радость"
+          }
+        }
+      }
+    },
+    "option.title.heart_peace" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peace"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мир"
+          }
+        }
+      }
+    },
+    "option.title.heart_trust" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trust"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доверие"
+          }
+        }
+      }
+    },
+    "option.title.heart_vulnerability" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vulnerability"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уязвимость"
+          }
+        }
+      }
+    },
+    "option.title.heart_wonder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wonder"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удивление"
+          }
+        }
+      }
+    },
+    "option.title.mind_focusing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Focusing"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фокусировка"
+          }
+        }
+      }
+    },
+    "option.title.mind_learning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Learning"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обучение"
+          }
+        }
+      }
+    },
+    "option.title.mind_letting_go" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letting Go"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отпускание"
+          }
+        }
+      }
+    },
+    "option.title.mind_observing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Observing"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Наблюдение"
+          }
+        }
+      }
+    },
+    "option.title.mind_ordering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordering"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Упорядочивание"
+          }
+        }
+      }
+    },
+    "option.title.mind_planning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planning"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Планирование"
+          }
+        }
+      }
+    },
+    "option.title.mind_questioning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questioning"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вопрошание"
+          }
+        }
+      }
+    },
+    "option.title.mind_remembering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remembering"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Воспоминание"
+          }
+        }
+      }
+    },
+    "option.title.mind_thinking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thinking"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размышление"
+          }
+        }
+      }
+    },
+    "option.title.mind_writing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Письмо"
+          }
+        }
+      }
+    },
     "Organic" : {
 
     },
@@ -976,9 +2575,6 @@
     },
     "Sleep" : {
       "comment" : "StepBalanceCard – sleep chip label"
-    },
-    "Sleep & Reset" : {
-      "comment" : "Navigation title"
     },
     "sleep and" : {
 

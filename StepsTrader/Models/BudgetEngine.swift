@@ -84,8 +84,6 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         g.set(todayAnchor, forKey: SharedKeys.todayAnchor)
         g.set(dayEndHour, forKey: SharedKeys.dayEndHour)
         g.set(dayEndMinute, forKey: SharedKeys.dayEndMinute)
-        UserDefaults.standard.set(dayEndHour, forKey: SharedKeys.dayEndHour)
-        UserDefaults.standard.set(dayEndMinute, forKey: SharedKeys.dayEndMinute)
     }
 
     // Force re-read values from App Group (for syncing with snippet/intent)

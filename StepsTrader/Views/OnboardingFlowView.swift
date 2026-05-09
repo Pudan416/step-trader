@@ -13,12 +13,14 @@ struct OnboardingFlowView: View {
 
     @State private var onboardingPresented: Bool = true
     
-    @AppStorage(SharedKeys.userStepsTarget) private var stepsTarget: Double = 10_000
-    @AppStorage(SharedKeys.userSleepTarget) private var sleepTarget: Double = 8.0
+    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader()) private var stepsTarget: Double = 10_000
+    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var sleepTarget: Double = 8.0
     @State private var onboardingSelection = FamilyActivitySelection()
     @State private var selectedFeedApp: String? = nil
     @State private var onboardingStartedAt = Date()
-    @State private var bedtimeMinutes: Int = 0
+    /// Default to 23:00. If the user skips the bedtime slide, we still commit a sensible
+    /// value (instead of midnight, which silently sliced the day at the wrong boundary).
+    @State private var bedtimeMinutes: Int = 23 * 60
 
     @AppStorage("onboardingFlowVersion") private var flowVersionOverride: String = ""
 
@@ -72,10 +74,10 @@ struct OnboardingFlowView: View {
 
     private func finishOnboarding() {
         let defaults = UserDefaults.stepsTrader()
-        defaults.set(stepsTarget, forKey: "userStepsTarget")
-        defaults.set(sleepTarget, forKey: "userSleepTarget")
-        defaults.set(bedtimeMinutes / 60, forKey: SharedKeys.dayEndHour)
-        defaults.set(bedtimeMinutes % 60, forKey: SharedKeys.dayEndMinute)
+        let dayEndHour = bedtimeMinutes / 60
+        let dayEndMinute = bedtimeMinutes % 60
+        defaults.set(dayEndHour, forKey: SharedKeys.dayEndHour)
+        defaults.set(dayEndMinute, forKey: SharedKeys.dayEndMinute)
         
         let hasApps = !onboardingSelection.applicationTokens.isEmpty
             || !onboardingSelection.categoryTokens.isEmpty
@@ -86,7 +88,7 @@ struct OnboardingFlowView: View {
         }
         
         Task { @MainActor in
-            model.recalculateDailyEnergy()
+            model.updateDayEnd(hour: dayEndHour, minute: dayEndMinute)
         }
         
         let totalDurationMs = Int(Date().timeIntervalSince(onboardingStartedAt) * 1000)

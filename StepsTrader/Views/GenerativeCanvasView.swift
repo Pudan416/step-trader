@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import os
 
 // MARK: - Generative Canvas View (main rendering engine)
 
@@ -29,15 +30,20 @@ struct GenerativeCanvasView: View {
     /// TimelineView animation.  Used for ImageRenderer snapshots (e.g. canvas export).
     var fixedTime: Date? = nil
 
-    /// Procedural shapes are the default. Set `useProceduralShapes` to false in UserDefaults to revert to legacy PNG assets.
-    static let useProceduralShapes: Bool = {
-        if UserDefaults.standard.object(forKey: "useProceduralShapes") != nil {
-            return UserDefaults.standard.bool(forKey: "useProceduralShapes")
-        }
-        return true
-    }()
 
     @State private var ampScale: Double = 1.0
+
+    /// Per-instance render cache. Held in `@State` so the same instance
+    /// persists across SwiftUI body recompositions; mutating its properties
+    /// does NOT trigger a view update (it's a class held by reference).
+    /// Accesses are confined to the Canvas closure on `MainActor`.
+    @MainActor
+    private final class RenderCache {
+        var sortSignature: Int = .min
+        var sortedElements: [CanvasElement] = []
+        var interactions: [UUID: ElementInteraction] = [:]
+    }
+    @State private var renderCache = RenderCache()
 
     private var isDarkBackground: Bool {
         var b: CGFloat = 0
@@ -87,26 +93,44 @@ struct GenerativeCanvasView: View {
     /// frame so it never resizes on rotation / split-view changes.
     /// Re-queried lazily so it always reflects the actual main screen, even when
     /// the first scene wasn't ready at static-init time.
+    /// Storage is guarded by `OSAllocatedUnfairLock` because the static is read
+    /// from arbitrary scene threads (e.g. ImageRenderer on background actors).
     static var canonicalPortraitSize: CGSize {
-        if _canonicalPortraitSizeOverride == .zero {
-            if let scene = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene }).first {
-                let b = scene.screen.bounds.size
-                _canonicalPortraitSizeOverride = b.width <= b.height
-                    ? b
-                    : CGSize(width: b.height, height: b.width)
-            }
+        if let cached = _canonicalPortraitSizeOverrideLock.withLock({ $0 }) {
+            return cached
         }
-        return _canonicalPortraitSizeOverride == .zero
-            ? CGSize(width: 393, height: 852)
-            : _canonicalPortraitSizeOverride
+        if let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first {
+            let b = scene.screen.bounds.size
+            let portrait: CGSize = b.width <= b.height
+                ? b
+                : CGSize(width: b.height, height: b.width)
+            _canonicalPortraitSizeOverrideLock.withLock { $0 = portrait }
+            return portrait
+        }
+        return CGSize(width: 393, height: 852)
     }
-    private static var _canonicalPortraitSizeOverride: CGSize = .zero
+    private static let _canonicalPortraitSizeOverrideLock = OSAllocatedUnfairLock<CGSize?>(initialState: nil)
 
-    static func frozenElementCenter(_ element: CanvasElement, size: CGSize, at date: Date) -> CGPoint {
+    /// Computes the same animated center as the live render path, but at a fixed
+    /// time. Pass `ampScale` to match what the user sees on-screen during dampened
+    /// (edit-mode / label-mode) rendering — defaults to 1.0 for back-compat with
+    /// callers that render at full amplitude.
+    ///
+    /// Known limitation (audit L2): GalleryView's snapshot/hit-test call sites
+    /// currently rely on the default `1.0`, so frozen positions can desync from
+    /// the live edit-mode view by up to ~0.6% of canvas width when `timeScale`
+    /// is dampened. Pass the live `ampScale` from those call sites to fix.
+    static func frozenElementCenter(
+        _ element: CanvasElement,
+        size: CGSize,
+        at date: Date,
+        ampScale: Double = 1.0
+    ) -> CGPoint {
         let t = date.timeIntervalSinceReferenceDate
         let w = Double(size.width)
         let h = Double(size.height)
+        let amp = ampScale
 
         switch element.category {
         case .mind:
@@ -128,13 +152,13 @@ struct GenerativeCanvasView: View {
             let hy = Double(element.basePosition.y) + cos(t * speed * 0.04 + p * 1.3) * 0.12
 
             let nx = hx
-                + sin(t * speed * freq.fx1 + p) * 0.24 * env
-                + sin(t * speed * freq.fx2 + p * 2.3) * 0.09 * env
-                + sin(t * speed * freq.fx3 + p * 4.1) * 0.03
+                + sin(t * speed * freq.fx1 + p) * 0.24 * amp * env
+                + sin(t * speed * freq.fx2 + p * 2.3) * 0.09 * amp * env
+                + sin(t * speed * freq.fx3 + p * 4.1) * 0.03 * amp
             let ny = hy
-                + cos(t * speed * freq.fy1 + p * 1.7) * 0.22 * env
-                + cos(t * speed * freq.fy2 + p * 3.1) * 0.08 * env
-                + cos(t * speed * freq.fy3 + p * 5.3) * 0.03
+                + cos(t * speed * freq.fy1 + p * 1.7) * 0.22 * amp * env
+                + cos(t * speed * freq.fy2 + p * 3.1) * 0.08 * amp * env
+                + cos(t * speed * freq.fy3 + p * 5.3) * 0.03 * amp
 
             let margin = 0.06
             return CGPoint(
@@ -145,27 +169,45 @@ struct GenerativeCanvasView: View {
         case .body:
             let cx = Double(element.basePosition.x) * w
             let cy = Double(element.basePosition.y) * h
-            let wobbleX = sin(t * 0.015 + element.phaseOffset) * w * 0.003
-                + sin(t * 0.008 + element.phaseOffset * 2.3) * w * 0.002
-            let wobbleY = cos(t * 0.013 + element.phaseOffset * 1.3) * h * 0.003
-                + cos(t * 0.009 + element.phaseOffset * 0.7) * h * 0.002
+            let wobbleX = sin(t * 0.015 + element.phaseOffset) * w * 0.003 * amp
+                + sin(t * 0.008 + element.phaseOffset * 2.3) * w * 0.002 * amp
+            let wobbleY = cos(t * 0.013 + element.phaseOffset * 1.3) * h * 0.003 * amp
+                + cos(t * 0.009 + element.phaseOffset * 0.7) * h * 0.002 * amp
             return CGPoint(x: cx + wobbleX, y: cy + wobbleY)
 
         case .heart:
             let cx = Double(element.basePosition.x) * w
             let cy = Double(element.basePosition.y) * h
-            let wobbleX = sin(t * 0.012 + element.phaseOffset) * w * 0.004
-                + sin(t * 0.007 + element.phaseOffset * 2.3) * w * 0.002
-            let wobbleY = cos(t * 0.010 + element.phaseOffset * 1.3) * h * 0.004
-                + cos(t * 0.006 + element.phaseOffset * 0.7) * h * 0.002
+            let wobbleX = sin(t * 0.012 + element.phaseOffset) * w * 0.004 * amp
+                + sin(t * 0.007 + element.phaseOffset * 2.3) * w * 0.002 * amp
+            let wobbleY = cos(t * 0.010 + element.phaseOffset * 1.3) * h * 0.004 * amp
+                + cos(t * 0.006 + element.phaseOffset * 0.7) * h * 0.002 * amp
             return CGPoint(x: cx + wobbleX, y: cy + wobbleY)
         }
     }
 
-    static func sortedForRendering(_ elements: [CanvasElement]) -> [CanvasElement] {
+    /// Returns elements sorted for rendering (circles first, by size desc; non-
+    /// circles in insertion order). Result is cached against a signature derived
+    /// from `(id, kind, size)` of each element so the O(n log n) sort runs only
+    /// when the element set actually changes — not on every 20fps Canvas tick.
+    private func sortedForRendering(_ elements: [CanvasElement]) -> [CanvasElement] {
+        var hasher = Hasher()
+        hasher.combine(elements.count)
+        for e in elements {
+            hasher.combine(e.id)
+            hasher.combine(e.kind)
+            hasher.combine(e.size)
+        }
+        let signature = hasher.finalize()
+        if signature == renderCache.sortSignature {
+            return renderCache.sortedElements
+        }
         let circles = elements.filter { $0.kind == .circle }.sorted { $0.size > $1.size }
         let nonCircles = elements.filter { $0.kind != .circle }
-        return circles + nonCircles
+        let sorted = circles + nonCircles
+        renderCache.sortSignature = signature
+        renderCache.sortedElements = sorted
+        return sorted
     }
 
 
@@ -180,14 +222,9 @@ struct GenerativeCanvasView: View {
             drawUnifiedGradient(context: &context, size: size, t: t)
         }
 
-        let sortedElements = Self.sortedForRendering(elements)
+        let sortedElements = sortedForRendering(elements)
 
-        let interactions: [UUID: ElementInteraction]
-        if Self.useProceduralShapes {
-            interactions = computeInteractions(elements: sortedElements, size: size, t: t)
-        } else {
-            interactions = [:]
-        }
+        let interactions = computeInteractions(elements: sortedElements, size: size, t: t)
 
         // Pass 1: Mind elements (rendered under grain)
         let mindElements = sortedElements.filter { $0.category == .mind }
@@ -203,22 +240,20 @@ struct GenerativeCanvasView: View {
         // Pass 2: Body clusters + body/heart elements
         var clusteredBodyIds = Set<UUID>()
         var allBodyBlobInfos = [BodyBlobInfo]()
-        if Self.useProceduralShapes {
-            let (clusters, solos) = collectBodyClusters(
-                elements: sortedElements, size: size, t: t, decay: decay
-            )
-            for cluster in clusters {
-                drawBodyCluster(cluster, context: &context, size: size, t: t, blendMode: blendMode)
-                for blob in cluster {
-                    clusteredBodyIds.insert(blob.element.id)
-                    allBodyBlobInfos.append(blob)
-                    if showLabelsOnCanvas {
-                        drawLabel(blob.element, at: blob.center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
-                    }
+        let (clusters, solos) = collectBodyClusters(
+            elements: sortedElements, size: size, t: t, decay: decay
+        )
+        for cluster in clusters {
+            drawBodyCluster(cluster, context: &context, size: size, t: t, blendMode: blendMode)
+            for blob in cluster {
+                clusteredBodyIds.insert(blob.element.id)
+                allBodyBlobInfos.append(blob)
+                if showLabelsOnCanvas {
+                    drawLabel(blob.element, at: blob.center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
                 }
             }
-            allBodyBlobInfos.append(contentsOf: solos)
         }
+        allBodyBlobInfos.append(contentsOf: solos)
 
         for element in sortedElements {
             if element.category == .mind { continue }
@@ -241,72 +276,71 @@ struct GenerativeCanvasView: View {
         var stretchFactor: Double = 1.0
     }
 
-    /// Normalized (0…1) position for interaction checks — uses animated
-    /// position for mind (which drifts far from basePosition).
-    private func interactionPosition(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
-        if e.category == .mind {
-            let pos = mindDriftPosition(e, size: size, t: t)
-            return CGPoint(x: pos.x / Double(size.width), y: pos.y / Double(size.height))
-        }
-        return e.basePosition
-    }
-
+    /// Computes per-element interactions consumed by draw paths. Only the
+    /// `(.body, .mind) → noiseBoost` channel is actually read downstream
+    /// (`drawCircle` body branch boosts complexity by `noiseBoost`); the
+    /// `mind ↔ mind` repulsion was previously discarded, so we skip it.
+    /// Mind drift positions are precomputed once to avoid O(n²) trig.
     private func computeInteractions(
         elements: [CanvasElement],
         size: CGSize,
         t: Double
     ) -> [UUID: ElementInteraction] {
-        var result = [UUID: ElementInteraction]()
+        // Reuse the cached dict's allocation across frames. `removeAll(keepingCapacity:)`
+        // keeps the buffer (refcount=1 here because the previous frame's local
+        // `interactions` reference has already gone out of scope), so we avoid
+        // a fresh dictionary allocation every 50ms.
+        renderCache.interactions.removeAll(keepingCapacity: true)
         let interactionRadius: CGFloat = 0.25
 
-        for i in 0..<elements.count {
-            let a = elements[i]
-            var interaction = ElementInteraction()
-            let posA = interactionPosition(a, size: size, t: t)
+        let bodies = elements.filter { $0.category == .body }
+        let minds = elements.filter { $0.category == .mind }
+        guard !bodies.isEmpty, !minds.isEmpty else { return renderCache.interactions }
 
-            for j in 0..<elements.count where i != j {
-                let b = elements[j]
-                let posB = interactionPosition(b, size: size, t: t)
+        let invW = size.width > 0 ? 1.0 / Double(size.width) : 0.0
+        let invH = size.height > 0 ? 1.0 / Double(size.height) : 0.0
+        let mindPositions: [CGPoint] = minds.map { e in
+            let p = mindDriftPosition(e, size: size, t: t)
+            return CGPoint(x: Double(p.x) * invW, y: Double(p.y) * invH)
+        }
+        // Use the same animated position the body is rendered at so proximity matches
+        // what the user sees on-screen (parity with mind).
+        let bodyPositions: [CGPoint] = bodies.map { e in
+            let p = circleCenter(e, size: size, t: t)
+            return CGPoint(x: Double(p.x) * invW, y: Double(p.y) * invH)
+        }
+
+        for (idx, body) in bodies.enumerated() {
+            var interaction = ElementInteraction()
+            let posA = bodyPositions[idx]
+
+            for posB in mindPositions {
                 let dx = posA.x - posB.x
                 let dy = posA.y - posB.y
                 let dist = sqrt(dx * dx + dy * dy)
                 guard dist < interactionRadius else { continue }
                 let proximity = 1.0 - Double(dist / interactionRadius)
-
-                switch (a.category, b.category) {
-                case (.body, .mind):
-                    interaction.noiseBoost += proximity * 0.4
-                case (.mind, .mind):
-                    let repulsion = CGFloat(proximity) * 8.0
-                    let len = max(dist, 0.001)
-                    interaction.attractionOffset.dx += (dx / len) * repulsion
-                    interaction.attractionOffset.dy += (dy / len) * repulsion
-                default:
-                    break
-                }
+                interaction.noiseBoost += proximity * 0.4
             }
 
-            if interaction.noiseBoost > 0.001
-                || abs(interaction.attractionOffset.dx) > 0.01
-                || abs(interaction.attractionOffset.dy) > 0.01
-                || abs(interaction.stretchFactor - 1.0) > 0.001 {
-                result[a.id] = interaction
+            if interaction.noiseBoost > 0.001 {
+                renderCache.interactions[body.id] = interaction
             }
         }
-        return result
+        return renderCache.interactions
     }
 
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Asset Pipeline (legacy — retained for rollback, will be removed)
+    // MARK: - Asset Pipeline (mind & heart image assets)
     // ═══════════════════════════════════════════════════════════
 
-    private static let bodyCircleAssetNames = CanvasImageCatalog.body
     private static let mindCircleAssetNames = CanvasImageCatalog.mind
     private static let heartAssetNames = CanvasImageCatalog.heart
 
     /// Returns the asset index for an element. Prefers the persisted `assetVariant` (round-robin,
     /// guarantees variety). Falls back to UUID-based hash for legacy elements saved before the field existed.
     private static func assetIndex(for element: CanvasElement, count: Int) -> Int {
+        guard count > 0 else { return 0 }
         if let variant = element.assetVariant {
             return variant % count
         }
@@ -315,55 +349,17 @@ struct GenerativeCanvasView: View {
         return abs(mixed) % count
     }
 
-    /// NSCache-compatible wrapper for SwiftUI Image (NSCache requires class types).
-    private final class CachedImage {
-        let image: Image
-        init(_ image: Image) { self.image = image }
-    }
-
-    private static let tintedImageCache: NSCache<NSString, CachedImage> = {
-        let cache = NSCache<NSString, CachedImage>()
-        cache.countLimit = 900
-        return cache
-    }()
-    private static let tintedImageCacheLock = NSLock()
     private static var assetAspectRatioCache: [String: CGFloat] = [:]
-
-    /// Renders an asset tinted with the user's color. Cached by (name, hex, decayBucket).
-    private func tintedAssetImage(name: String, color: Color, hex: String, decay: Double) -> Image? {
-        let decayBucket = min(10, max(0, Int(round(decay * 10))))
-        let key = "\(name)|\(hex)|\(decayBucket)" as NSString
-        Self.tintedImageCacheLock.lock()
-        if let cached = Self.tintedImageCache.object(forKey: key) {
-            Self.tintedImageCacheLock.unlock()
-            return cached.image
-        }
-        Self.tintedImageCacheLock.unlock()
-
-        guard let template = UIImage(named: name)?.withRenderingMode(.alwaysTemplate) else { return nil }
-        let sz = template.size
-        let rect = CGRect(origin: .zero, size: sz)
-        UIGraphicsBeginImageContextWithOptions(sz, false, template.scale)
-        defer { UIGraphicsEndImageContext() }
-        UIColor(color).set()
-        template.draw(in: rect)
-        guard let tinted = UIGraphicsGetImageFromCurrentImageContext() else { return nil }
-        let image = Image(uiImage: tinted)
-
-        Self.tintedImageCacheLock.lock()
-        Self.tintedImageCache.setObject(CachedImage(image), forKey: key)
-        Self.tintedImageCacheLock.unlock()
-        return image
-    }
+    private static let assetAspectRatioCacheLock = NSLock()
 
     /// Returns asset width/height ratio (cached) to avoid geometry distortion when drawing.
     private func assetAspectRatio(name: String) -> CGFloat {
-        Self.tintedImageCacheLock.lock()
+        Self.assetAspectRatioCacheLock.lock()
         if let cached = Self.assetAspectRatioCache[name] {
-            Self.tintedImageCacheLock.unlock()
+            Self.assetAspectRatioCacheLock.unlock()
             return cached
         }
-        Self.tintedImageCacheLock.unlock()
+        Self.assetAspectRatioCacheLock.unlock()
 
         let ratio: CGFloat
         if let image = UIImage(named: name), image.size.height > 0 {
@@ -372,9 +368,9 @@ struct GenerativeCanvasView: View {
             ratio = 1.0
         }
 
-        Self.tintedImageCacheLock.lock()
+        Self.assetAspectRatioCacheLock.lock()
         Self.assetAspectRatioCache[name] = ratio
-        Self.tintedImageCacheLock.unlock()
+        Self.assetAspectRatioCacheLock.unlock()
         return ratio
     }
 
@@ -502,9 +498,15 @@ struct GenerativeCanvasView: View {
         return (hx, hy)
     }
 
-    private func mindDriftPosition(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
-        let w = Double(size.width)
-        let h = Double(size.height)
+    private static let mindClampMargin: Double = 0.06
+
+    /// Shared raw drift state — normalized position and analytical velocity
+    /// before any clamp is applied. Pulled out so `mindDriftPosition` and
+    /// `mindDriftVelocity` see *exactly* the same envelope/home/freq values
+    /// and the boundary clamp can be applied consistently to both.
+    private func mindDriftRawState(_ e: CanvasElement, t: Double)
+        -> (nx: Double, ny: Double, vx: Double, vy: Double)
+    {
         let p = e.phaseOffset
         let speed = 0.03 + e.driftSpeed * 0.06
         let amp = ampScale
@@ -523,21 +525,6 @@ struct GenerativeCanvasView: View {
         let nx = hx + dx1 + dx2 + dx3
         let ny = hy + dy1 + dy2 + dy3
 
-        let margin = 0.06
-        let cx = min(1.0 - margin, max(margin, nx)) * w
-        let cy = min(1.0 - margin, max(margin, ny)) * h
-
-        return CGPoint(x: cx, y: cy)
-    }
-
-    /// Analytical velocity — derivative of mindDriftPosition w.r.t. t.
-    private func mindDriftVelocity(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
-        let p = e.phaseOffset
-        let speed = 0.03 + e.driftSpeed * 0.06
-        let amp = ampScale
-        let freq = MindFrequencyProfile(phase: p)
-        let env = mindAmplitudeEnvelope(e, speed: speed, t: t)
-
         let vx1 = cos(t * speed * freq.fx1 + p) * speed * freq.fx1 * 0.24 * amp * env
         let vx2 = cos(t * speed * freq.fx2 + p * 2.3) * speed * freq.fx2 * 0.09 * amp * env
         let vx3 = cos(t * speed * freq.fx3 + p * 4.1) * speed * freq.fx3 * 0.03 * amp
@@ -546,10 +533,54 @@ struct GenerativeCanvasView: View {
         let vy2 = -sin(t * speed * freq.fy2 + p * 3.1) * speed * freq.fy2 * 0.08 * amp * env
         let vy3 = -sin(t * speed * freq.fy3 + p * 5.3) * speed * freq.fy3 * 0.03 * amp
 
-        return CGPoint(
-            x: vx1 + vx2 + vx3,
-            y: vy1 + vy2 + vy3
-        )
+        return (nx, ny, vx1 + vx2 + vx3, vy1 + vy2 + vy3)
+    }
+
+    private func mindDriftPosition(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
+        let s = mindDriftRawState(e, t: t)
+        let m = Self.mindClampMargin
+        let cx = min(1.0 - m, max(m, s.nx)) * Double(size.width)
+        let cy = min(1.0 - m, max(m, s.ny)) * Double(size.height)
+        return CGPoint(x: cx, y: cy)
+    }
+
+    /// Analytical velocity — derivative of mindDriftPosition w.r.t. t, with the
+    /// same boundary clamp applied as the position. When the element pins
+    /// against a margin, the outward velocity component is smoothly attenuated
+    /// over a small edge band instead of hard-zeroed; at corners (where both
+    /// axes can collapse to zero) we bleed in a tiny fraction of the raw
+    /// velocity so `atan2(vy, vx)` stays continuous and the asset doesn't
+    /// snap-rotate to angle 0 when it pins against a corner.
+    private func mindDriftVelocity(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
+        _ = size  // signature kept for symmetry with mindDriftPosition
+        let s = mindDriftRawState(e, t: t)
+        let m = Self.mindClampMargin
+        let edgeWidth = 0.04
+
+        @inline(__always) func soft(_ d: Double) -> Double {
+            max(0.0, min(1.0, d / edgeWidth))
+        }
+        let leftAllow  = soft(s.nx - m)
+        let rightAllow = soft(1.0 - m - s.nx)
+        let topAllow   = soft(s.ny - m)
+        let botAllow   = soft(1.0 - m - s.ny)
+
+        var vx = s.vx
+        var vy = s.vy
+        if vx < 0 { vx *= leftAllow }
+        if vx > 0 { vx *= rightAllow }
+        if vy < 0 { vy *= topAllow }
+        if vy > 0 { vy *= botAllow }
+
+        let mag2 = vx * vx + vy * vy
+        let rawMag2 = s.vx * s.vx + s.vy * s.vy
+        let cornerBand = rawMag2 * 0.0025  // (5% of raw magnitude)^2
+        if rawMag2 > 1e-9, mag2 < cornerBand {
+            let bleed = max(0.0, 1.0 - mag2 / cornerBand)
+            vx += s.vx * bleed * 0.05
+            vy += s.vy * bleed * 0.05
+        }
+        return CGPoint(x: vx, y: vy)
     }
 
     private func drawCircle(
@@ -579,6 +610,7 @@ struct GenerativeCanvasView: View {
 
         if e.category == .mind {
             let mindAssets = Self.mindCircleAssetNames
+            guard !mindAssets.isEmpty else { return }
             let name = mindAssets[Self.assetIndex(for: e, count: mindAssets.count)]
             let image: Image? = UIImage(named: name).map { Image(uiImage: $0) }
             let aspect = assetAspectRatio(name: name)
@@ -589,10 +621,10 @@ struct GenerativeCanvasView: View {
             let rotation = Angle.radians(atan2(vel.y, vel.x) + e.userRotation) + .degrees(270)
 
             if let image {
-                drawMindAssetTrail(e, image: image, aspect: aspect, radius: radius, t: t, rotation: rotation, blendMode: blendMode, size: size, context: &context)
+                drawMindAssetTrail(e, image: image, aspect: aspect, radius: radius, t: t, rotation: rotation, blendMode: blendMode, size: size, decay: decay, context: &context)
             }
 
-            let idleOpacity = 0.76 + breathePhase * 0.04
+            let idleOpacity = (0.76 + breathePhase * 0.04) * (1.0 - decay * 0.4)
             let assetRect = CGRect(
                 x: center.x - halfW, y: center.y - halfH,
                 width: halfW * 2, height: halfH * 2
@@ -612,43 +644,15 @@ struct GenerativeCanvasView: View {
             return
         }
 
-        if Self.useProceduralShapes, let seed = e.shapeSeed {
-            let baseComplexity = min(1.0, Double(e.activityCount ?? 1) / 30.0)
-            let complexity = min(1.0, baseComplexity + (interaction?.noiseBoost ?? 0))
-            let rect = CGRect(
-                x: center.x - radius, y: center.y - radius,
-                width: radius * 2, height: radius * 2
-            )
-
-            drawProceduralBody(e, seed: seed, complexity: complexity, color: color, center: center, rect: rect, t: t, blendMode: blendMode, context: &context)
-            return
-        }
-
-        // Legacy PNG fallback
-        let circleAssets = Self.bodyCircleAssetNames
-        let name = circleAssets[Self.assetIndex(for: e, count: circleAssets.count)]
-        let image = tintedAssetImage(name: name, color: color, hex: e.hexColor, decay: decay)
-        let aspect = image != nil ? assetAspectRatio(name: name) : 1.0
-        let halfW = radius * aspect
-        let halfH = radius
+        let seed = e.shapeSeed ?? UInt64(bitPattern: Int64(e.id.hashValue))
+        let baseComplexity = min(1.0, Double(e.activityCount ?? 1) / 30.0)
+        let complexity = min(1.0, baseComplexity + (interaction?.noiseBoost ?? 0))
         let rect = CGRect(
-            x: center.x - halfW, y: center.y - halfH,
-            width: halfW * 2, height: halfH * 2
+            x: center.x - radius, y: center.y - radius,
+            width: radius * 2, height: radius * 2
         )
 
-        let rotation = Angle.radians(e.phaseOffset + e.userRotation)
-        context.drawLayer { ctx in
-            ctx.opacity = 0.85
-            ctx.blendMode = blendMode
-            ctx.translateBy(x: center.x, y: center.y)
-            ctx.rotate(by: rotation)
-            ctx.translateBy(x: -center.x, y: -center.y)
-            if let image {
-                ctx.draw(image, in: rect)
-            } else {
-                drawFallbackBlob(context: &ctx, in: rect, color: color)
-            }
-        }
+        drawProceduralBody(e, seed: seed, complexity: complexity, color: color, center: center, rect: rect, t: t, blendMode: blendMode, context: &context)
     }
 
     /// Soft radial-gradient circle fallback when the PNG/SVG asset is missing.
@@ -663,58 +667,6 @@ struct GenerativeCanvasView: View {
         context.fill(
             Path(ellipseIn: rect),
             with: .radialGradient(gradient, center: center, startRadius: 0, endRadius: r)
-        )
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // MARK: - Heart (Soft Line) — gentle floating drift
-    // ═══════════════════════════════════════════════════════════
-
-    /// Gentle sine-wave drift — hearts float slowly across the canvas.
-    private func heartDriftPosition(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
-        let w = Double(size.width)
-        let h = Double(size.height)
-        let p = e.phaseOffset
-        let speed = e.driftSpeed * 1.2
-
-        let dx1 = sin(t * speed * 0.06 + p) * 0.35
-        let dx2 = sin(t * speed * 0.14 + p * 2.3) * 0.15
-        let dx3 = sin(t * speed * 0.27 + p * 4.1) * 0.06
-        let dx4 = sin(t * speed * 0.41 + p * 6.7) * 0.02
-
-        let dy1 = cos(t * speed * 0.05 + p * 1.7) * 0.30
-        let dy2 = cos(t * speed * 0.12 + p * 3.1) * 0.14
-        let dy3 = cos(t * speed * 0.23 + p * 5.3) * 0.06
-        let dy4 = cos(t * speed * 0.38 + p * 7.9) * 0.02
-
-        let nx = 0.5 + dx1 + dx2 + dx3 + dx4
-        let ny = 0.5 + dy1 + dy2 + dy3 + dy4
-
-        let margin = 0.04
-        let cx = min(1.0 - margin, max(margin, nx)) * w
-        let cy = min(1.0 - margin, max(margin, ny)) * h
-
-        return CGPoint(x: cx, y: cy)
-    }
-
-    /// Velocity vector — orients the asset in the direction of travel.
-    private func heartDriftVelocity(_ e: CanvasElement, size: CGSize, t: Double) -> CGPoint {
-        let p = e.phaseOffset
-        let speed = e.driftSpeed * 1.2
-
-        let vx1 = cos(t * speed * 0.06 + p) * speed * 0.06 * 0.35
-        let vx2 = cos(t * speed * 0.14 + p * 2.3) * speed * 0.14 * 0.15
-        let vx3 = cos(t * speed * 0.27 + p * 4.1) * speed * 0.27 * 0.06
-        let vx4 = cos(t * speed * 0.41 + p * 6.7) * speed * 0.41 * 0.02
-
-        let vy1 = -sin(t * speed * 0.05 + p * 1.7) * speed * 0.05 * 0.30
-        let vy2 = -sin(t * speed * 0.12 + p * 3.1) * speed * 0.12 * 0.14
-        let vy3 = -sin(t * speed * 0.23 + p * 5.3) * speed * 0.23 * 0.06
-        let vy4 = -sin(t * speed * 0.38 + p * 7.9) * speed * 0.38 * 0.02
-
-        return CGPoint(
-            x: vx1 + vx2 + vx3 + vx4,
-            y: vy1 + vy2 + vy3 + vy4
         )
     }
 
@@ -771,6 +723,7 @@ struct GenerativeCanvasView: View {
         let inwardAngle = Angle.radians(atan2(Double(dy), Double(dx)))
 
         let heartAssets = Self.heartAssetNames
+        guard !heartAssets.isEmpty else { return }
         let name = heartAssets[Self.assetIndex(for: e, count: heartAssets.count)]
         let image: Image? = UIImage(named: name).map { Image(uiImage: $0) }
         let aspect = assetAspectRatio(name: name)
@@ -787,7 +740,7 @@ struct GenerativeCanvasView: View {
         let rotation = inwardAngle + .degrees(90) + Angle.radians(e.userRotation) + sweep
 
         context.drawLayer { ctx in
-            ctx.opacity = breathe
+            ctx.opacity = breathe * (1.0 - decay * 0.4)
             ctx.blendMode = blendMode
             ctx.translateBy(x: anchor.x, y: anchor.y)
             ctx.rotate(by: rotation)
@@ -918,9 +871,7 @@ struct GenerativeCanvasView: View {
         t: Double,
         decay: Double
     ) -> (clusters: [[BodyBlobInfo]], solos: [BodyBlobInfo]) {
-        let bodyElements = elements.filter {
-            $0.category == .body && Self.useProceduralShapes && $0.shapeSeed != nil
-        }
+        let bodyElements = elements.filter { $0.category == .body }
         guard !bodyElements.isEmpty else { return ([], []) }
 
         var infos = [BodyBlobInfo]()
@@ -980,8 +931,12 @@ struct GenerativeCanvasView: View {
         t: Double,
         blendMode: GraphicsContext.BlendMode
     ) {
-        var blobPaths = [(blob: BodyBlobInfo, path: Path)]()
+        // Per-blob spawn factor controls both path-scale and fill/stroke opacity, so a
+        // freshly-spawned blob fades into the merged shape instead of popping in.
+        var blobPaths = [(blob: BodyBlobInfo, path: Path, spawn: Double)]()
         for blob in cluster {
+            let spawn = spawnFactor(for: blob.element, t: t)
+            guard spawn > 0.001 else { continue }
             let e = blob.element
             let complexity = min(1.0, Double(e.activityCount ?? 1) / 30.0)
             let rect = CGRect(
@@ -993,13 +948,16 @@ struct GenerativeCanvasView: View {
             let rawPath = ProceduralShapeGenerator.bodyPath(
                 seed: blob.seed, complexity: complexity, time: t, in: rect
             )
-            let rotation = CGAffineTransform(translationX: -blob.center.x, y: -blob.center.y)
+            let scale = 0.3 + 0.7 * spawn
+            let xform = CGAffineTransform(translationX: -blob.center.x, y: -blob.center.y)
+                .concatenating(.init(scaleX: scale, y: scale))
                 .concatenating(.init(rotationAngle: e.phaseOffset + e.userRotation))
                 .concatenating(.init(translationX: blob.center.x, y: blob.center.y))
-            let transformed = Path(rawPath.cgPath.copy(using: [rotation])!)
-            blobPaths.append((blob, transformed))
+            guard let xfCG = rawPath.cgPath.copy(using: [xform]) else { continue }
+            blobPaths.append((blob, Path(xfCG), spawn))
         }
 
+        guard !blobPaths.isEmpty else { return }
         var mergedCG = blobPaths[0].path.cgPath
         for i in 1..<blobPaths.count {
             mergedCG = mergedCG.union(blobPaths[i].path.cgPath)
@@ -1010,16 +968,16 @@ struct GenerativeCanvasView: View {
             ctx.blendMode = blendMode
             ctx.clip(to: mergedPath)
 
-            for (blob, _) in blobPaths {
+            for (blob, _, spawn) in blobPaths {
                 let r = blob.radius
                 let innerR = max(0, r - 40)
                 let edgeLoc = r > 0 ? Double(innerR / r) : 0
 
                 let rimGrad = Gradient(stops: [
-                    .init(color: blob.color.opacity(0.12), location: 0),
-                    .init(color: blob.color.opacity(0.10), location: edgeLoc),
-                    .init(color: blob.color.opacity(0.35), location: edgeLoc + (1.0 - edgeLoc) * 0.5),
-                    .init(color: blob.color.opacity(0.55), location: 1.0),
+                    .init(color: blob.color.opacity(0.12 * spawn), location: 0),
+                    .init(color: blob.color.opacity(0.10 * spawn), location: edgeLoc),
+                    .init(color: blob.color.opacity(0.35 * spawn), location: edgeLoc + (1.0 - edgeLoc) * 0.5),
+                    .init(color: blob.color.opacity(0.55 * spawn), location: 1.0),
                 ])
                 let ellipse = CGRect(x: blob.center.x - r, y: blob.center.y - r,
                                       width: r * 2, height: r * 2)
@@ -1031,7 +989,7 @@ struct GenerativeCanvasView: View {
             }
         }
 
-        for (blob, _) in blobPaths {
+        for (blob, _, spawn) in blobPaths {
             let clipRect = CGRect(
                 x: blob.center.x - blob.radius * 1.3,
                 y: blob.center.y - blob.radius * 1.3,
@@ -1042,7 +1000,7 @@ struct GenerativeCanvasView: View {
                 ctx.clip(to: Path(ellipseIn: clipRect))
                 ctx.stroke(
                     mergedPath,
-                    with: .color(blob.color.opacity(0.65)),
+                    with: .color(blob.color.opacity(0.65 * spawn)),
                     style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
                 )
             }
@@ -1063,13 +1021,15 @@ struct GenerativeCanvasView: View {
         rotation: Angle,
         blendMode: GraphicsContext.BlendMode,
         size: CGSize,
+        decay: Double,
         context: inout GraphicsContext
     ) {
+        let decayMul = 1.0 - decay * 0.4
         for i in (1...Self.mindTrailGhosts).reversed() {
             let pastT = t - Double(i) * Self.mindTrailSpacing
             let ghostCenter = mindDriftPosition(e, size: size, t: pastT)
             let progress = Double(i) / Double(Self.mindTrailGhosts)
-            let ghostOpacity = 0.35 * (1.0 - progress)
+            let ghostOpacity = 0.35 * (1.0 - progress) * decayMul
             let ghostScale = 1.0 - progress * 0.15
 
             let gr = radius * ghostScale

@@ -29,6 +29,19 @@ struct CategoryDetailView: View {
     @State private var sheetAnchors: [CoachMarkAnchor] = []
     #endif
 
+    @MainActor
+    private enum Haptics {
+        static let light = UIImpactFeedbackGenerator(style: .light)
+        static let medium = UIImpactFeedbackGenerator(style: .medium)
+        static let success = UINotificationFeedbackGenerator()
+
+        static func prepareAll() {
+            light.prepare()
+            medium.prepare()
+            success.prepare()
+        }
+    }
+
     private var accent: Color { category?.color ?? .cyan }
 
     private var selectionCount: Int {
@@ -71,11 +84,13 @@ struct CategoryDetailView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .energyGradientBackground(model: model)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(.ultraThinMaterial)
-        .onAppear { refreshEntryColorCache() }
+        .onAppear {
+            refreshEntryColorCache()
+            Haptics.prepareAll()
+        }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: editingOptionId)
         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: showAddCustom)
         #if DEBUG
@@ -172,10 +187,11 @@ struct CategoryDetailView: View {
                     }
                 }
             } else {
-                let color = CanvasColorPalette.paletteHex.randomElement()!
+                let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
                 addAndShowDetail(option: option, category: category, color: color)
             }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            Haptics.light.impactOccurred()
+            Haptics.light.prepare()
             #if DEBUG
             if option.id == "mind_focusing" {
                 CoachMarkManager.postAction(for: .spotlightFocusing)
@@ -232,7 +248,7 @@ struct CategoryDetailView: View {
     private func detailPanel(optionId: String, category: EnergyCategory) -> some View {
         let isSelected = model.isDailySelected(optionId, category: category)
         let option = resolveOption(optionId: optionId, category: category)
-        let examples = EnergyDefaults.optionDescriptions[optionId]?.examples ?? ""
+        let examples = EnergyDefaults.examples(for: optionId)
         let exampleList = examples.components(separatedBy: ", ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         let isCustom = model.customOptions(for: category).contains(where: { $0.id == optionId })
 
@@ -274,7 +290,8 @@ struct CategoryDetailView: View {
                     ForEach(exampleList, id: \.self) { example in
                         Button {
                             if editText.isEmpty { editText = example } else { editText += ", \(example)" }
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            Haptics.light.impactOccurred()
+                            Haptics.light.prepare()
                             #if DEBUG
                             if example.lowercased() == "reading" && optionId == "mind_focusing" {
                                 CoachMarkManager.postAction(for: .spotlightReading)
@@ -331,7 +348,8 @@ struct CategoryDetailView: View {
                             onActivityUndo?(optionId, category)
                             editingOptionId = nil
                         }
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Haptics.medium.impactOccurred()
+                        Haptics.medium.prepare()
                     } label: {
                         Image(systemName: "trash")
                             .font(.system(size: 12, weight: .semibold))
@@ -343,7 +361,8 @@ struct CategoryDetailView: View {
 
                     Button {
                         onReroll?(optionId, category)
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        Haptics.light.impactOccurred()
+                        Haptics.light.prepare()
                     } label: {
                         Image(systemName: "dice")
                             .font(.system(size: 12, weight: .semibold))
@@ -361,7 +380,8 @@ struct CategoryDetailView: View {
                             onActivityUndo?(optionId, category)
                             editingOptionId = nil
                         }
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Haptics.medium.impactOccurred()
+                        Haptics.medium.prepare()
                     } label: {
                         Image(systemName: "xmark.circle")
                             .font(.system(size: 12, weight: .semibold))
@@ -402,6 +422,8 @@ struct CategoryDetailView: View {
         .padding(.bottom, 16)
         .glassCard(cornerRadius: 20)
         .shadow(color: .black.opacity(0.08), radius: 16, y: -4)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("Element editing panel"))
     }
 
     // MARK: - Add Custom Activity
@@ -413,9 +435,10 @@ struct CategoryDetailView: View {
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
                     showAddCustom = true
                     editingOptionId = nil
-                    customColorHex = CanvasColorPalette.paletteHex.randomElement()!
+                    customColorHex = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
                 }
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Haptics.light.impactOccurred()
+                Haptics.light.prepare()
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "plus")
@@ -450,7 +473,8 @@ struct CategoryDetailView: View {
                     } else {
                         customIcon = icons.first ?? "pencil"
                     }
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    Haptics.light.impactOccurred()
+                    Haptics.light.prepare()
                 } label: {
                     Image(systemName: customIcon)
                         .font(.system(size: 13, weight: .semibold))
@@ -475,7 +499,8 @@ struct CategoryDetailView: View {
                     let isActive = icon == customIcon
                     Button {
                         customIcon = icon
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        Haptics.light.impactOccurred()
+                        Haptics.light.prepare()
                     } label: {
                         Image(systemName: icon)
                             .font(.system(size: 13, weight: .medium))
@@ -577,7 +602,7 @@ struct CategoryDetailView: View {
 
     private var categoryAssetName: String {
         switch category {
-        case .body: return "body 1"
+        case .body: return ""
         case .mind: return "mind 1"
         case .heart: return "heart 1"
         case nil: return ""
@@ -619,7 +644,7 @@ struct CategoryDetailView: View {
             editColorHex = entry.colorHex
             editText = entry.text
         } else {
-            editColorHex = CanvasColorPalette.paletteHex.randomElement()!
+            editColorHex = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
             editText = ""
         }
         editSaveForFuture = false
@@ -634,7 +659,8 @@ struct CategoryDetailView: View {
         saveEntry(entry, for: option)
         entryColorCache[option.id] = Color(hex: color)
         saveLastUsedPreferences(optionId: option.id, colorHex: color)
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Haptics.success.notificationOccurred(.success)
+        Haptics.success.prepare()
         #if DEBUG
         if option.id == "mind_focusing" {
             CoachMarkManager.postAction(for: .tapAddToCanvas)
@@ -672,7 +698,8 @@ struct CategoryDetailView: View {
 
         withAnimation(.spring(response: 0.25)) { editingOptionId = nil }
         isNoteFieldFocused = false
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Haptics.success.notificationOccurred(.success)
+        Haptics.success.prepare()
         dismiss()
     }
 
@@ -697,7 +724,8 @@ struct CategoryDetailView: View {
             customName = ""
             customIcon = "pencil"
         }
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Haptics.success.notificationOccurred(.success)
+        Haptics.success.prepare()
         dismiss()
     }
 

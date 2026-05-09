@@ -7,42 +7,6 @@ import SwiftUI
 /// so the same seed always produces the same shape.
 enum ProceduralShapeGenerator {
 
-    // MARK: - Seeded RNG
-
-    /// Lightweight xorshift64-based RNG seeded from a UInt64.
-    /// Deterministic: same seed → same sequence of values.
-    struct SeededRNG: RandomNumberGenerator {
-        private var state: UInt64
-
-        init(seed: UInt64) {
-            state = seed == 0 ? 1 : seed
-        }
-
-        mutating func next() -> UInt64 {
-            state ^= state << 13
-            state ^= state >> 7
-            state ^= state << 17
-            return state
-        }
-
-        mutating func nextDouble() -> Double {
-            Double(next() & 0x1F_FFFF_FFFF_FFFF) / Double(0x1F_FFFF_FFFF_FFFF)
-        }
-
-        mutating func nextDouble(in range: ClosedRange<Double>) -> Double {
-            range.lowerBound + nextDouble() * (range.upperBound - range.lowerBound)
-        }
-
-        mutating func nextCGFloat(in range: ClosedRange<CGFloat>) -> CGFloat {
-            CGFloat(range.lowerBound) + CGFloat(nextDouble()) * CGFloat(range.upperBound - range.lowerBound)
-        }
-
-        mutating func nextInt(in range: ClosedRange<Int>) -> Int {
-            let span = UInt64(range.upperBound - range.lowerBound + 1)
-            return range.lowerBound + Int(next() % span)
-        }
-    }
-
     // MARK: - Value Noise
 
     /// 1D value noise with smooth interpolation, seeded per-element.

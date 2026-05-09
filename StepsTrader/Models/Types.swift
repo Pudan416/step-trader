@@ -239,6 +239,14 @@ enum AppTheme: String, CaseIterable {
         }
     }
     
+    /// Best-effort "is currently in a light appearance" check.
+    ///
+    /// `.daylight` / `.night` are deterministic. For `.system`, the result
+    /// reads `UITraitCollection.current`, which is only reliable when called
+    /// during a view's body evaluation (UIKit installs the correct trait
+    /// collection during rendering). For background work, callbacks, or
+    /// any non-view context — pass an explicit `ColorScheme` via
+    /// ``isLight(in:)`` instead.
     var isLightTheme: Bool {
         switch self {
         case .daylight: return true
@@ -251,24 +259,33 @@ enum AppTheme: String, CaseIterable {
 #endif
         }
     }
-    
-    // Dusty chalk pink — same across all themes
+
+    /// Reliable variant of `isLightTheme` for callers that have access to
+    /// `@Environment(\.colorScheme)`. Pass `nil` to fall back to the
+    /// trait-based behavior of `isLightTheme` (use only when no environment
+    /// value is available).
+    func isLight(in scheme: ColorScheme?) -> Bool {
+        switch self {
+        case .daylight: return true
+        case .night: return false
+        case .system:
+            if let scheme { return scheme == .light }
+            return isLightTheme
+        }
+    }
+
+    /// Brand accent — gold marker, identical across all themes.
     var accentColor: Color {
         AppColors.brandAccent
     }
-    
+
     var backgroundColor: Color {
         switch self {
         case .system:
-#if canImport(UIKit)
-            return Color(uiColor: UIColor { traits in
-                traits.userInterfaceStyle == .dark
-                    ? UIColor(red: 0x22/255.0, green: 0x28/255.0, blue: 0x31/255.0, alpha: 1) // #222831
-                    : UIColor(red: 0xF2/255.0, green: 0xF2/255.0, blue: 0xF2/255.0, alpha: 1) // #F2F2F2
-            })
-#else
-            return Color(.systemBackground)
-#endif
+            return AppTheme.dynamicSystemColor(
+                light: AppColors.Daylight.background,
+                dark: AppColors.Night.background
+            )
         case .daylight: return AppColors.Daylight.background
         case .night: return AppColors.Night.background
         }
@@ -276,7 +293,11 @@ enum AppTheme: String, CaseIterable {
     
     var backgroundSecondary: Color {
         switch self {
-        case .system: return Color(.secondarySystemBackground)
+        case .system:
+            return AppTheme.dynamicSystemColor(
+                light: AppColors.Daylight.backgroundSecondary,
+                dark: AppColors.Night.backgroundSecondary
+            )
         case .daylight: return AppColors.Daylight.backgroundSecondary
         case .night: return AppColors.Night.backgroundSecondary
         }
@@ -284,7 +305,11 @@ enum AppTheme: String, CaseIterable {
     
     var textPrimary: Color {
         switch self {
-        case .system: return Color(.label)
+        case .system:
+            return AppTheme.dynamicSystemColor(
+                light: AppColors.Daylight.textPrimary,
+                dark: AppColors.Night.textPrimary
+            )
         case .daylight: return AppColors.Daylight.textPrimary
         case .night: return AppColors.Night.textPrimary
         }
@@ -292,7 +317,11 @@ enum AppTheme: String, CaseIterable {
     
     var textSecondary: Color {
         switch self {
-        case .system: return Color(.secondaryLabel)
+        case .system:
+            return AppTheme.dynamicSystemColor(
+                light: AppColors.Daylight.textSecondary,
+                dark: AppColors.Night.textSecondary
+            )
         case .daylight: return AppColors.Daylight.textSecondary
         case .night: return AppColors.Night.textSecondary
         }
@@ -300,7 +329,11 @@ enum AppTheme: String, CaseIterable {
     
     var stroke: Color {
         switch self {
-        case .system: return Color(.separator)
+        case .system:
+            return AppTheme.dynamicSystemColor(
+                light: AppColors.Daylight.stroke,
+                dark: AppColors.Night.stroke
+            )
         case .daylight: return AppColors.Daylight.stroke
         case .night: return AppColors.Night.stroke
         }
@@ -312,26 +345,54 @@ enum AppTheme: String, CaseIterable {
     
     var bodyColor: Color {
         switch self {
-        case .system: return .green
-        case .daylight: return AppColors.Daylight.activity
-        case .night: return AppColors.Night.activity
+        case .system:
+            return AppTheme.dynamicSystemColor(
+                light: AppColors.Daylight.body,
+                dark: AppColors.Night.body
+            )
+        case .daylight: return AppColors.Daylight.body
+        case .night: return AppColors.Night.body
         }
     }
 
     var mindColor: Color {
         switch self {
-        case .system: return .blue
-        case .daylight: return AppColors.Daylight.rest
-        case .night: return AppColors.Night.rest
+        case .system:
+            return AppTheme.dynamicSystemColor(
+                light: AppColors.Daylight.mind,
+                dark: AppColors.Night.mind
+            )
+        case .daylight: return AppColors.Daylight.mind
+        case .night: return AppColors.Night.mind
         }
     }
 
     var heartColor: Color {
         switch self {
-        case .system: return .orange
-        case .daylight: return AppColors.Daylight.joys
-        case .night: return AppColors.Night.joys
+        case .system:
+            return AppTheme.dynamicSystemColor(
+                light: AppColors.Daylight.heart,
+                dark: AppColors.Night.heart
+            )
+        case .daylight: return AppColors.Daylight.heart
+        case .night: return AppColors.Night.heart
         }
+    }
+
+    /// Resolves a SwiftUI `Color` that automatically tracks the current
+    /// interface style. The `traits` closure is invoked by UIKit during
+    /// rendering with the correct trait collection — this avoids relying on
+    /// the unreliable `UITraitCollection.current` outside view contexts.
+    fileprivate static func dynamicSystemColor(light: Color, dark: Color) -> Color {
+#if canImport(UIKit)
+        let lightUI = UIColor(light)
+        let darkUI = UIColor(dark)
+        return Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark ? darkUI : lightUI
+        })
+#else
+        return light
+#endif
     }
     
     static var selectableThemes: [AppTheme] {

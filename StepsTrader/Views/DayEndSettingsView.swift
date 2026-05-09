@@ -2,23 +2,15 @@ import SwiftUI
 
 struct DayEndSettingsView: View {
     @ObservedObject var model: AppModel
-    @AppStorage(SharedKeys.dayEndHour) private var dayEndHourSetting: Int = 0
-    @AppStorage(SharedKeys.dayEndMinute) private var dayEndMinuteSetting: Int = 0
-    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var sleepTarget: Double = EnergyDefaults.sleepTargetHours
+    @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.stepsTrader()) private var dayEndHourSetting: Int = 0
+    @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader()) private var dayEndMinuteSetting: Int = 0
 
-    @State private var selectedMinutes: Int = 0
+    @State private var selectedMinutes: Int = 23 * 60
     @Environment(\.dismiss) private var dismiss
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.appTheme) private var theme
 
-    private let minuteStep: Int = 15
-
-    private var allowedMinutes: [Int] {
-        var result: [Int] = []
-        for m in stride(from: 21 * 60, to: 24 * 60, by: minuteStep) { result.append(m) }
-        for m in stride(from: 0, through: 3 * 60, by: minuteStep) { result.append(m) }
-        return result
-    }
+    private var allowedMinutes: [Int] { DayEndOptions.allowedMinutes }
 
     var body: some View {
         ZStack {
@@ -35,7 +27,7 @@ struct DayEndSettingsView: View {
                             .foregroundColor(.primary)
                         }
                         Spacer()
-                        Text(String(localized: "Sleep & Reset", comment: "Navigation title"))
+                        Text(String(localized: "Day Reset", comment: "Navigation title"))
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(.primary)
                         Spacer()
@@ -44,33 +36,6 @@ struct DayEndSettingsView: View {
                     .padding(.top, 4)
                     .padding(.bottom, 8)
 
-                    // Sleep goal
-                    VStack(spacing: 10) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "bed.double.fill")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(Color.indigo)
-                                .frame(width: 28, height: 28)
-                                .background(Color.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
-                            Text(String(localized: "Sleep Goal"))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(theme.adaptivePrimaryText)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.top, 14)
-
-                        SleepDurationStepper(hours: $sleepTarget)
-                            .frame(maxWidth: .infinity)
-                            .padding(.bottom, 14)
-                            .onChange(of: sleepTarget) { _, _ in
-                                UserDefaults.stepsTrader().set(sleepTarget, forKey: "userSleepTarget")
-                                model.recalculateDailyEnergy()
-                            }
-                    }
-                    .glassCard()
-
-                    // Day reset
                     VStack(spacing: 10) {
                         HStack(spacing: 8) {
                             Image(systemName: "clock.arrow.circlepath")
@@ -85,14 +50,6 @@ struct DayEndSettingsView: View {
                         }
                         .padding(.horizontal, 14)
                         .padding(.top, 14)
-
-                        Text(formatTime(selectedMinutes))
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(theme.adaptivePrimaryText)
-                            .contentTransition(.numericText())
-                            .animation(.snappy(duration: 0.15), value: selectedMinutes)
-                            .frame(maxWidth: .infinity)
 
                         DayResetTimePicker(
                             selectedMinutes: $selectedMinutes,
@@ -116,10 +73,7 @@ struct DayEndSettingsView: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .onAppear {
-            let current = dayEndHourSetting * 60 + dayEndMinuteSetting
-            selectedMinutes = allowedMinutes.contains(current) ? current : 0
-        }
+        .onAppear { syncSelectedFromStorage() }
         .onChange(of: selectedMinutes) { _, newValue in
             let hour = (newValue / 60) % 24
             let minute = newValue % 60
@@ -129,11 +83,22 @@ struct DayEndSettingsView: View {
         }
     }
 
-    private func formatTime(_ minutes: Int) -> String {
-        var comps = DateComponents()
-        comps.hour = (minutes / 60) % 24
-        comps.minute = minutes % 60
-        let date = Calendar.current.date(from: comps) ?? Date()
-        return CachedFormatters.hourMinute.string(from: date)
+    /// Snap to nearest valid picker step on appear. If the stored value isn't on the
+    /// grid (e.g. legacy dayEnd=0 before the picker was constrained), we write the
+    /// snapped value back so the visible picker and persisted state always agree.
+    private func syncSelectedFromStorage() {
+        let current = dayEndHourSetting * 60 + dayEndMinuteSetting
+        if allowedMinutes.contains(current) {
+            selectedMinutes = current
+            return
+        }
+        let snapped = DayEndOptions.nearestAllowed(to: current)
+        selectedMinutes = snapped
+        let h = (snapped / 60) % 24
+        let m = snapped % 60
+        dayEndHourSetting = h
+        dayEndMinuteSetting = m
+        model.updateDayEnd(hour: h, minute: m)
     }
+
 }

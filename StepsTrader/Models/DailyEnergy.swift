@@ -66,38 +66,50 @@ struct PastDaySnapshot: Codable, Equatable {
         } else if let earned = try container.decodeIfPresent(Int.self, forKey: .experienceEarned) {
             inkEarned = earned
         } else {
-            inkEarned = try container.decode(Int.self, forKey: .controlGained)
+            inkEarned = (try? container.decodeIfPresent(Int.self, forKey: .controlGained)) ?? 0
         }
         if let spent = try container.decodeIfPresent(Int.self, forKey: .inkSpent) {
             inkSpent = spent
         } else if let spent = try container.decodeIfPresent(Int.self, forKey: .experienceSpent) {
             inkSpent = spent
         } else {
-            inkSpent = try container.decode(Int.self, forKey: .controlSpent)
+            inkSpent = (try? container.decodeIfPresent(Int.self, forKey: .controlSpent)) ?? 0
         }
         // bodyIds: try new key first, then legacy "activityIds"
         if let v = try container.decodeIfPresent([String].self, forKey: .bodyIds) {
             bodyIds = v
         } else {
-            bodyIds = (try? container.decode([String].self, forKey: .activityIds)) ?? []
+            bodyIds = (try container.decodeIfPresent([String].self, forKey: .activityIds)) ?? []
         }
-        // mindIds: try new key first, then legacy "creativityIds", "recoveryIds", "restIds"
+        // mindIds: try new key first, otherwise merge legacy creativity/recovery and warn if
+        // legacy `restIds` is present (those should likely be re-categorized to body/heart by hand).
         if let v = try container.decodeIfPresent([String].self, forKey: .mindIds) {
             mindIds = v
-        } else if let v = try container.decodeIfPresent([String].self, forKey: .creativityIds) {
-            mindIds = v
-        } else if let v = try container.decodeIfPresent([String].self, forKey: .recoveryIds) {
-            mindIds = v
-        } else if let v = try container.decodeIfPresent([String].self, forKey: .restIds) {
-            mindIds = v
         } else {
-            mindIds = []
+            let creativity = (try container.decodeIfPresent([String].self, forKey: .creativityIds)) ?? []
+            let recovery = (try container.decodeIfPresent([String].self, forKey: .recoveryIds)) ?? []
+            let rest = (try container.decodeIfPresent([String].self, forKey: .restIds)) ?? []
+            var merged = creativity + recovery
+            if !rest.isEmpty {
+                let miscategorized = rest.filter { id in
+                    if let opt = EnergyDefaults.options.first(where: { $0.id == id }) {
+                        return opt.category != .mind
+                    }
+                    // Heuristic for unknown ids: id prefix tells us the intended bucket.
+                    return id.hasPrefix("body_") || id.hasPrefix("heart_")
+                }
+                if !miscategorized.isEmpty {
+                    AppLogger.app.debug("⚠️ Legacy restIds includes non-mind options: \(miscategorized.joined(separator: ", "))")
+                }
+                merged.append(contentsOf: rest)
+            }
+            mindIds = merged
         }
         // heartIds: try new key first, then legacy "joysIds"
         if let v = try container.decodeIfPresent([String].self, forKey: .heartIds) {
             heartIds = v
         } else {
-            heartIds = (try? container.decode([String].self, forKey: .joysIds)) ?? []
+            heartIds = (try container.decodeIfPresent([String].self, forKey: .joysIds)) ?? []
         }
         steps = try container.decodeIfPresent(Int.self, forKey: .steps) ?? 0
         sleepHours = try container.decodeIfPresent(Double.self, forKey: .sleepHours) ?? 0
@@ -152,13 +164,21 @@ enum EnergyCategory: String, CaseIterable, Codable, Identifiable {
 
 struct EnergyOption: Identifiable, Codable, Equatable {
     let id: String
+    /// Fallback English title. Authoritative copy lives in Localizable.xcstrings under
+    /// `option.title.<id>` for built-in options. Custom (user-added) options use this directly.
     let titleEn: String
+    /// Fallback Russian title. Same semantics as `titleEn`.
     let titleRu: String
     let category: EnergyCategory
     let icon: String
-    
+
+    /// Returns the localized title. For built-in option IDs (e.g. `body_walking`) this looks
+    /// up `option.title.<id>` in `Localizable.xcstrings`. For custom options the key is absent
+    /// so `Bundle.main.localizedString` returns the stored fallback (`titleEn`/`titleRu`).
     func title(for lang: String) -> String {
-        lang == "ru" ? titleRu : titleEn
+        let fallback = lang == "ru" ? titleRu : titleEn
+        let key = "option.title.\(id)"
+        return Bundle.main.localizedString(forKey: key, value: fallback, table: nil)
     }
 }
 
@@ -171,7 +191,7 @@ struct OptionEntry: Identifiable, Codable, Equatable {
     var colorHex: String
     var text: String
     var timestamp: Date
-    /// Which body asset variant the user picked (0 = body 1, 1 = body 2, 2 = body 3). Nil for non-body categories.
+    /// Legacy field retained for compatibility. Body shapes are now fully procedural (see `shapeSeed` on `CanvasElement`).
     var assetVariant: Int?
 }
 
@@ -225,7 +245,28 @@ enum EnergyDefaults {
         EnergyOption(id: "heart_peace", titleEn: "Peace", titleRu: "Мир", category: .heart, icon: "infinity")
     ]
     
-    /// Option descriptions and examples
+    /// Localized description for the given option id. Looks up `option.description.<id>`
+    /// in Localizable.xcstrings, falling back to the English value baked into
+    /// `optionDescriptions` if the key is missing or the active locale has no translation.
+    static func description(for optionId: String) -> String {
+        let fallback = optionDescriptions[optionId]?.description ?? ""
+        let key = "option.description.\(optionId)"
+        return Bundle.main.localizedString(forKey: key, value: fallback, table: nil)
+    }
+
+    /// Localized comma-separated examples for the given option id. See `description(for:)`.
+    static func examples(for optionId: String) -> String {
+        let fallback = optionDescriptions[optionId]?.examples ?? ""
+        let key = "option.examples.\(optionId)"
+        return Bundle.main.localizedString(forKey: key, value: fallback, table: nil)
+    }
+
+    /// English source-of-truth descriptions and examples per option id. Authoritative
+    /// copies live in Localizable.xcstrings under `option.description.<id>` and
+    /// `option.examples.<id>` — these tuples remain only as compile-time fallbacks for
+    /// `description(for:)` / `examples(for:)`.
+    /// TODO: Russian translations for descriptions and examples are pending — translators
+    /// should fill in the empty `ru` slots in Localizable.xcstrings.
     static let optionDescriptions: [String: (description: String, examples: String)] = [
         // BODY
         "body_walking": ("Moving forward with your body in the world.", "city walk, nature walk, walking without a goal"),
@@ -260,7 +301,7 @@ enum EnergyDefaults {
         "heart_care": ("Giving attention and warmth.", "helping, supporting, caring for yourself"),
         "heart_wonder": ("Feeling awe or curiosity.", "noticing beauty, surprise, inspiration"),
         "heart_trust": ("Allowing openness without tension.", "relying on someone, emotional safety"),
-        "heart_vulnerability": ("Allowing yourself to feel honestly.", "emotional openness, sincere sharing, fill blue or green"),
+        "heart_vulnerability": ("Allowing yourself to feel honestly.", "emotional openness, sincere sharing"),
         "heart_belonging": ("Feeling part of something.", "community, shared identity, feeling at home"),
         "heart_peace": ("Deep inner quiet.", "acceptance of self, emotional stillness")
     ]
@@ -311,7 +352,11 @@ struct DetectedWorkout: Identifiable, Equatable {
         case 10: return "body_physical_effort"  // .climbing
         case 55: return "body_physical_effort"  // .soccer
         case 4:  return "body_physical_effort"  // .basketball
-        default: return "body_physical_effort"
+        case 15: return nil                      // Cooldown — no direct match
+        case 3000: return nil                    // Other — no direct match
+        default:
+            AppLogger.app.debug("⚠️ DetectedWorkout.mapToOptionId: no mapping for HKWorkoutActivityType raw=\(activityType, privacy: .public) (name=\(displayName(for: activityType), privacy: .public))")
+            return nil
         }
     }
 
@@ -483,6 +528,36 @@ struct EnergyRoutine: Identifiable, Codable, Equatable, Hashable {
         self.mindIds = mindIds
         self.heartIds = heartIds
         self.lastUsed = lastUsed
+    }
+}
+
+// MARK: - Day-end picker grid
+/// Single source of truth for the bedtime/day-reset picker in OnboardingFlowView,
+/// SettingsEnergyPage, and DayEndSettingsView. Previously duplicated across all three.
+enum DayEndOptions {
+    static let minuteStep: Int = 15
+
+    /// Allowed minutes-of-day that map to picker positions. Spans 21:00–23:45 and 00:00–03:00.
+    static var allowedMinutes: [Int] {
+        var result: [Int] = []
+        for m in stride(from: 21 * 60, to: 24 * 60, by: minuteStep) { result.append(m) }
+        for m in stride(from: 0, through: 3 * 60, by: minuteStep) { result.append(m) }
+        return result
+    }
+
+    /// Nearest allowed minute to `current` on a 24h-wrapped dial. Returns 23:00 (1380)
+    /// if `allowedMinutes` is somehow empty (defensive fallback).
+    static func nearestAllowed(to current: Int) -> Int {
+        let allowed = allowedMinutes
+        let normalized = ((current % (24 * 60)) + (24 * 60)) % (24 * 60)
+        return allowed.min { lhs, rhs in
+            wrappedDistance(from: normalized, to: lhs) < wrappedDistance(from: normalized, to: rhs)
+        } ?? (23 * 60)
+    }
+
+    private static func wrappedDistance(from a: Int, to b: Int) -> Int {
+        let d = abs(a - b)
+        return min(d, 24 * 60 - d)
     }
 }
 

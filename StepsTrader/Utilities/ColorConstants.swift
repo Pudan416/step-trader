@@ -4,8 +4,19 @@ import SwiftUI
 /// Replaces hardcoded Color(red:green:blue:) values throughout the codebase
 enum AppColors {
     // MARK: - Brand Colors
-    // Primary accent (gold marker — legacy name was brandPink)
+    /// Primary accent — gold marker.
     static let brandAccent = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255)   // #FFD369
+
+    /// Hex string fallback for the brand accent. Use this anywhere a string-typed
+    /// hex literal is expected (e.g. palette `randomElement() ?? AppColors.goldFallbackHex`).
+    ///
+    /// Hex string convention used throughout this codebase:
+    /// - 6-char `#RRGGBB`  (no alpha)
+    /// - 8-char `#AARRGGBB` (Apple/Cocoa convention — alpha-FIRST)
+    /// CSS uses alpha-LAST (`#RRGGBBAA`) — do not paste CSS hex strings without
+    /// reordering. The 8-char parser in `Color(hex:)` (CanvasElement.swift)
+    /// expects ARGB.
+    static let goldFallbackHex = "#FFD369"
     
     // MARK: - Daylight Theme (Paper)
     // "This is not a light mode. This is a daytime version of resistance."
@@ -13,18 +24,19 @@ enum AppColors {
     enum Daylight {
         static let background = Color(red: 0xF2/255, green: 0xF2/255, blue: 0xF2/255)  // #F2F2F2
         static let backgroundSecondary = Color(red: 243/255, green: 244/255, blue: 246/255)
-        static let backgroundTertiary = Color(red: 235/255, green: 236/255, blue: 240/255)
-        
+
         static let textPrimary = Color(red: 0.08, green: 0.08, blue: 0.08)
+        /// Intentional alias of `textPrimary`. The Daylight philosophy avoids
+        /// soft greys for body text — visual hierarchy is produced by per-call-site
+        /// opacity (see `AppTheme.adaptiveSecondaryText` / `adaptiveMutedText`),
+        /// not by a separate base color.
         static let textSecondary = textPrimary
-        static let textMuted = textPrimary
-        
-        static let accentPink = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255)   // #FFD369
+
         static let stroke = Color(red: 0.12, green: 0.12, blue: 0.12)
         
-        static let activity = textPrimary
-        static let rest = textPrimary
-        static let joys = textPrimary
+        static let body = Color(red: 0.30, green: 0.56, blue: 0.42)   // #4D8F6B muted forest
+        static let mind = Color(red: 0.32, green: 0.46, blue: 0.65)      // #5275A6 muted slate blue
+        static let heart = Color(red: 0.78, green: 0.48, blue: 0.30)      // #C77A4D muted amber
     }
     
     // MARK: - Night Theme
@@ -32,21 +44,18 @@ enum AppColors {
     enum Night {
         static let background = Color(red: 0x22/255, green: 0x28/255, blue: 0x31/255)  // #222831
         static let backgroundSecondary = Color(red: 48/255, green: 48/255, blue: 58/255)
-        static let backgroundTertiary = Color(red: 56/255, green: 56/255, blue: 66/255)
-        
+
         static let textPrimary = Color(red: 0.95, green: 0.95, blue: 0.95)
+        /// Intentional alias of `textPrimary`. See `AppColors.Daylight.textSecondary`
+        /// for rationale — hierarchy comes from opacity at the call site, not a
+        /// separate base color.
         static let textSecondary = textPrimary
-        static let textMuted = textPrimary
-        
-        static let accentPink = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255)   // #FFD369
-        static let accentPinkMuted = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255).opacity(0.6)
-        
+
         static let stroke = Color(red: 0.25, green: 0.25, blue: 0.25)
-        static let strokeLight = Color(red: 0.20, green: 0.20, blue: 0.20)
         
-        static let activity = textPrimary
-        static let rest = textPrimary
-        static let joys = textPrimary
+        static let body = Color(red: 0.45, green: 0.72, blue: 0.55)  // #73B88C lifted forest
+        static let mind = Color(red: 0.50, green: 0.65, blue: 0.85)      // #80A6D9 lifted slate blue
+        static let heart = Color(red: 0.90, green: 0.62, blue: 0.40)      // #E69E66 lifted amber
     }
     
     // MARK: - PayGate Background Styles
@@ -87,31 +96,6 @@ enum AppColors {
         static let minimal3 = Color(red: 0.1, green: 0.1, blue: 0.1)
         static let minimal4 = Color(red: 0.05, green: 0.05, blue: 0.05)
     }
-    
-    // MARK: - Login View
-    enum Login {
-        static let background1 = Color(red: 0.08, green: 0.08, blue: 0.12)
-        static let background2 = Color(red: 0.12, green: 0.10, blue: 0.18)
-        static let background3 = Color(red: 0.08, green: 0.08, blue: 0.12)
-        static let gradient1 = Color(red: 0.88, green: 0.51, blue: 0.85)
-        static let gradient2 = Color(red: 0.65, green: 0.35, blue: 0.85)
-    }
-    
-    // MARK: - Status View
-    enum Status {
-        static let chartGradient1 = Color(red: 0.4, green: 0.6, blue: 1.0)
-        static let chartGradient2 = Color(red: 0.6, green: 0.4, blue: 0.95)
-        
-        // App-specific colors
-        static let youtube = Color(red: 1, green: 0, blue: 0)
-        static let linkedin = Color(red: 0, green: 0.47, blue: 0.71)
-        static let bronze = Color(red: 205/255, green: 127/255, blue: 50/255)
-    }
-    
-    // MARK: - Apps Page
-    enum Apps {
-        static let progressBase = Color(red: 0.88, green: 0.51, blue: 0.85)
-    }
 }
 
 // MARK: - Theme Environment Key
@@ -147,9 +131,13 @@ extension View {
     }
     
     /// Stroke border — thin black lines for separation (daylight philosophy: no shadows, no soft cards)
-    func themedBorder(_ theme: AppTheme, width: CGFloat = 1) -> some View {
+    func themedBorder(
+        _ theme: AppTheme,
+        width: CGFloat = 1,
+        cornerRadius: CGFloat = 12
+    ) -> some View {
         self.overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: cornerRadius)
                 .stroke(theme.stroke.opacity(theme.strokeOpacity), lineWidth: width)
         )
     }
@@ -171,7 +159,7 @@ extension Text {
         self.foregroundColor(theme.textSecondary)
     }
     
-    /// Accent text — rebellious pink marker
+    /// Accent text — gold marker.
     func themedAccent(_ theme: AppTheme) -> Text {
         self.foregroundColor(theme.accentColor)
     }

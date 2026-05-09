@@ -23,7 +23,13 @@ extension EnvironmentValues {
 
 struct MainTabView: View {
     @ObservedObject var model: AppModel
-    @State private var selection: Int = Tab.canvas.rawValue
+    // Persisted across process death within the same scene so users return to the
+    // tab they last had open after a deep link or relaunch.
+    @SceneStorage("selectedTab") private var selection: Int = Tab.canvas.rawValue
+    // Drives the deterministic deep-link readiness signal for OpenTicketSettings.
+    @State private var pendingTicketBundleId: String?
+    // Bumped per delivery so repeat-same-bundleId notifications still re-fire `.task(id:)`.
+    @State private var ticketDeliveryToken = UUID()
     var theme: AppTheme = .system
     @State private var selectedCategory: EnergyCategory? = nil
     @State private var metricOverlay: MetricOverlayKind? = nil
@@ -51,9 +57,9 @@ struct MainTabView: View {
         var icon: String {
             switch self {
             case .feeds: return "square.grid.2x2"
-            case .canvas: return "paintbrush.fill"
+            case .canvas: return "paintbrush"
             case .me: return "person.circle"
-            case .notes: return "book.fill"
+            case .notes: return "book"
             case .settings: return "gearshape"
             }
         }
@@ -127,6 +133,7 @@ struct MainTabView: View {
                     } else {
                         NavigationStack {
                             GalleryView(model: model, metricOverlay: $metricOverlay, isWideCanvas: $isWideCanvas)
+                                .toolbarBackground(.hidden, for: .navigationBar)
                         }
                     }
                 }
@@ -140,6 +147,20 @@ struct MainTabView: View {
                 AppsPageSimplified(model: model)
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.feeds.rawValue)
+                    // Deterministic deep-link delivery: this task only fires once
+                    // the feeds tab view has materialized (and any time a new
+                    // pending bundleId arrives), so AppsPageSimplified has already
+                    // subscribed to OpenTicketForBundle by the time we post it.
+                    .task(id: ticketDeliveryToken) {
+                        guard let bundleId = pendingTicketBundleId else { return }
+                        AppLogger.ui.debug("🔧 Posting OpenTicketForBundle notification")
+                        NotificationCenter.default.post(
+                            name: .init("OpenTicketForBundle"),
+                            object: nil,
+                            userInfo: ["bundleId": bundleId]
+                        )
+                        pendingTicketBundleId = nil
+                    }
 
                 // 2: Me
                 MeView(model: model)
@@ -156,6 +177,8 @@ struct MainTabView: View {
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.settings.rawValue)
             }
+            .toolbarBackground(.hidden, for: .tabBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .environment(\.topCardHeight, topCardHeight)
             .environment(\.tabBarHeight, tabBarHeight)
             .animation(.easeInOut(duration: 0.2), value: selection)
@@ -295,15 +318,12 @@ struct MainTabView: View {
             selection = Tab.feeds.rawValue
             if let bundleId = notification.userInfo?["bundleId"] as? String {
                 AppLogger.ui.debug("🔧 Will open ticket for bundleId: \(bundleId)")
-                // Post delayed notification to open specific ticket
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    AppLogger.ui.debug("🔧 Posting OpenTicketForBundle notification")
-                    NotificationCenter.default.post(
-                        name: .init("OpenTicketForBundle"),
-                        object: nil,
-                        userInfo: ["bundleId": bundleId]
-                    )
-                }
+                // Hand off to the feeds tab's `.task(id:)` which fires only once
+                // AppsPageSimplified has materialized — replaces the prior 0.5s
+                // asyncAfter race.
+                pendingTicketBundleId = bundleId
+                // Bump token so consecutive deliveries of the same bundleId still re-fire .task(id:).
+                ticketDeliveryToken = UUID()
             }
         }
     }
@@ -375,7 +395,7 @@ struct MainTabView: View {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: tab.icon)
                                 .font(.system(size: isSelected ? selectedTabIconSize : tabIconSize))
-                                .fontWeight(isSelected ? .semibold : .regular)
+                                .fontWeight(isSelected ? .light : .ultraLight)
                                 .symbolRenderingMode(.hierarchical)
                             if tab == .settings && model.hasPermissionIssues {
                                 Circle()
@@ -386,7 +406,7 @@ struct MainTabView: View {
                         }
                         
                         Text(tab.title)
-                            .font(.caption2.weight(isSelected ? .semibold : .regular))
+                            .font(.caption2.weight(isSelected ? .regular : .light))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
@@ -420,7 +440,7 @@ struct MainTabView: View {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: tab.icon)
                                 .font(.system(size: isSelected ? selectedTabIconSize : tabIconSize))
-                                .fontWeight(isSelected ? .semibold : .regular)
+                                .fontWeight(isSelected ? .light : .ultraLight)
                                 .symbolRenderingMode(.hierarchical)
                             if tab == .settings && model.hasPermissionIssues {
                                 Circle()
@@ -431,7 +451,7 @@ struct MainTabView: View {
                         }
                         
                         Text(tab.title)
-                            .font(.caption2.weight(isSelected ? .semibold : .regular))
+                            .font(.caption2.weight(isSelected ? .regular : .light))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }

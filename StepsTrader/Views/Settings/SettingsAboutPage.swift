@@ -6,6 +6,17 @@ struct SettingsAboutPage: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.appTheme) private var theme
 
+    private enum Identity {
+        static let brandName = "Nowhere"
+        static let developerName = "Konstantin Pudan"
+        static let feedbackEmail = "hello@itsnowhere.net"
+        static let telegramHandle = "@pudan416"
+        static let telegramURL = "https://t.me/pudan416"
+        static let websiteURL = "https://itsnowhere.net"
+        static let websiteDisplay = "itsnowhere.net"
+        static var feedbackMailto: String { "mailto:\(feedbackEmail)" }
+    }
+
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
@@ -25,7 +36,7 @@ struct SettingsAboutPage: View {
 
                     // MARK: - Brand Identity
                     VStack(spacing: 12) {
-                        Text("Nowhere")
+                        Text(Identity.brandName)
                             .font(.system(size: 28, weight: .black, design: .serif))
                             .foregroundStyle(theme.adaptivePrimaryText)
 
@@ -47,7 +58,7 @@ struct SettingsAboutPage: View {
                     VStack(spacing: 0) {
                         DetailInfoRow(
                             label: String(localized: "Developer"),
-                            value: "Konstantin Pudan"
+                            value: Identity.developerName
                         )
                         DetailDivider()
                         DetailInfoRow(
@@ -66,14 +77,14 @@ struct SettingsAboutPage: View {
                             .padding(.bottom, 6)
 
                         Button {
-                            if let url = URL(string: "mailto:hello@itsnowhere.net") {
+                            if let url = URL(string: Identity.feedbackMailto) {
                                 openURL(url)
                             }
                         } label: {
                             SettingsLinkRow(
                                 icon: "envelope",
                                 title: String(localized: "Feedback"),
-                                detail: "hello@itsnowhere.net"
+                                detail: Identity.feedbackEmail
                             )
                         }
                         .buttonStyle(.plain)
@@ -81,14 +92,14 @@ struct SettingsAboutPage: View {
                         DetailDivider()
 
                         Button {
-                            if let url = URL(string: "https://t.me/pudan") {
+                            if let url = URL(string: Identity.telegramURL) {
                                 openURL(url)
                             }
                         } label: {
                             SettingsLinkRow(
                                 icon: "paperplane",
                                 title: String(localized: "Telegram"),
-                                detail: "@pudan416"
+                                detail: Identity.telegramHandle
                             )
                         }
                         .buttonStyle(.plain)
@@ -96,14 +107,14 @@ struct SettingsAboutPage: View {
                         DetailDivider()
 
                         Button {
-                            if let url = URL(string: "https://itsnowhere.net") {
+                            if let url = URL(string: Identity.websiteURL) {
                                 openURL(url)
                             }
                         } label: {
                             SettingsLinkRow(
                                 icon: "globe",
                                 title: String(localized: "Website"),
-                                detail: "itsnowhere.net"
+                                detail: Identity.websiteDisplay
                             )
                         }
                         .buttonStyle(.plain)

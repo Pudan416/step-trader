@@ -163,6 +163,10 @@ final class AppModel: ObservableObject {
 
     // Bootstrap state - prevent syncing during initialization
     @Published var isBootstrapping: Bool = true
+    /// Set to true after the first `bootstrap()` routine finishes. Foreground refresh
+    /// handlers gate on this so they don't double-fire during cold launch (the cold
+    /// launch is covered by `bootstrap()` itself).
+    @Published var didCompleteBootstrap: Bool = false
     
     @Published var dailyActivitySelections: [String] = []
     @Published var dailyRestSelections: [String] = []
@@ -209,6 +213,7 @@ final class AppModel: ObservableObject {
     
     private var dayBoundaryTimer: Timer?
     private var lastDayKey: String
+    private var lastDayBoundaryCheck: Date?
 
     init(
         healthKitService: any HealthKitServiceProtocol,
@@ -261,6 +266,13 @@ final class AppModel: ObservableObject {
     }
 
     func checkDayBoundary() {
+        // Throttle: foreground/timer/significant-time-change can fan out 4× rapid calls.
+        // First call does the work; subsequent calls within 1s become no-ops (the body is
+        // idempotent — once the day key is updated, re-running adds no value). 1s is short
+        // enough to never miss a real day change (those happen at midnight, not in 1s bursts).
+        if let last = lastDayBoundaryCheck, Date().timeIntervalSince(last) < 1.0 { return }
+        lastDayBoundaryCheck = Date()
+
         let currentKey = Self.dayKey(for: Date())
         let dayChanged = currentKey != lastDayKey
         if dayChanged {
@@ -483,7 +495,8 @@ final class AppModel: ObservableObject {
         await refreshWorkoutSuggestions()
         
         AppLogger.app.debug("✅ AppModel bootstrap complete")
-        
+        didCompleteBootstrap = true
+
         // Drain any offline sync requests that failed previously
         Task { await SupabaseSyncService.shared.drainRetryQueue() }
     }

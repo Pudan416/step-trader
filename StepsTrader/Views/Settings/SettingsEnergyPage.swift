@@ -4,21 +4,14 @@ struct SettingsEnergyPage: View {
     @ObservedObject var model: AppModel
     @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader()) private var stepsTarget: Double = EnergyDefaults.stepsTarget
     @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var sleepTarget: Double = EnergyDefaults.sleepTargetHours
-    @AppStorage(SharedKeys.dayEndHour) private var dayEndHourSetting: Int = 0
-    @AppStorage(SharedKeys.dayEndMinute) private var dayEndMinuteSetting: Int = 0
+    @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.stepsTrader()) private var dayEndHourSetting: Int = 0
+    @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader()) private var dayEndMinuteSetting: Int = 0
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.appTheme) private var theme
 
-    private let minuteStep: Int = 15
+    private var allowedBedtimeMinutes: [Int] { DayEndOptions.allowedMinutes }
 
-    private var allowedBedtimeMinutes: [Int] {
-        var result: [Int] = []
-        for m in stride(from: 21 * 60, to: 24 * 60, by: minuteStep) { result.append(m) }
-        for m in stride(from: 0, through: 3 * 60, by: minuteStep) { result.append(m) }
-        return result
-    }
-
-    @State private var bedtimeMinutes: Int = 0
+    @State private var bedtimeMinutes: Int = 23 * 60
 
     var body: some View {
         ZStack {
@@ -41,7 +34,6 @@ struct SettingsEnergyPage: View {
                         StepGoalDrumPicker(value: $stepsTarget)
                             .padding(.bottom, 14)
                             .onChange(of: stepsTarget) { _, _ in
-                                UserDefaults.stepsTrader().set(stepsTarget, forKey: "userStepsTarget")
                                 model.recalculateDailyEnergy()
                             }
                     }
@@ -60,7 +52,6 @@ struct SettingsEnergyPage: View {
                             .frame(maxWidth: .infinity)
                             .padding(.bottom, 14)
                             .onChange(of: sleepTarget) { _, _ in
-                                UserDefaults.stepsTrader().set(sleepTarget, forKey: "userSleepTarget")
                                 model.recalculateDailyEnergy()
                             }
                     }
@@ -74,14 +65,6 @@ struct SettingsEnergyPage: View {
                             title: String(localized: "Day Resets At"),
                             color: Color.orange
                         )
-
-                        Text(formatTime(bedtimeMinutes))
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(theme.adaptivePrimaryText)
-                            .contentTransition(.numericText())
-                            .animation(.snappy(duration: 0.15), value: bedtimeMinutes)
-                            .frame(maxWidth: .infinity)
 
                         DayResetTimePicker(
                             selectedMinutes: $bedtimeMinutes,
@@ -109,10 +92,25 @@ struct SettingsEnergyPage: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .onAppear {
-            let current = dayEndHourSetting * 60 + dayEndMinuteSetting
-            bedtimeMinutes = allowedBedtimeMinutes.contains(current) ? current : 0
+        .onAppear { syncBedtimeFromStorage() }
+    }
+
+    /// Mirrors `DayEndSettingsView.syncSelectedFromStorage()`: if the stored dayEnd
+    /// is off-grid, snap to the nearest valid step and write the snapped value back so
+    /// the picker UI and persistent state agree.
+    private func syncBedtimeFromStorage() {
+        let current = dayEndHourSetting * 60 + dayEndMinuteSetting
+        if allowedBedtimeMinutes.contains(current) {
+            bedtimeMinutes = current
+            return
         }
+        let snapped = DayEndOptions.nearestAllowed(to: current)
+        bedtimeMinutes = snapped
+        let h = (snapped / 60) % 24
+        let m = snapped % 60
+        dayEndHourSetting = h
+        dayEndMinuteSetting = m
+        model.updateDayEnd(hour: h, minute: m)
     }
 
     // MARK: - Shared
@@ -138,11 +136,4 @@ struct SettingsEnergyPage: View {
         .padding(.top, 14)
     }
 
-    private func formatTime(_ minutes: Int) -> String {
-        var comps = DateComponents()
-        comps.hour = (minutes / 60) % 24
-        comps.minute = minutes % 60
-        let date = Calendar.current.date(from: comps) ?? Date()
-        return CachedFormatters.hourMinute.string(from: date)
-    }
 }

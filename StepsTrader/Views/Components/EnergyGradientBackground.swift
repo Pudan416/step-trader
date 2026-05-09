@@ -77,23 +77,7 @@ enum EnergyGradientRenderer {
         a + (b - a) * t
     }
 
-    // MARK: - Seeded RNG (deterministic per-day)
-
-    /// LCG-based PRNG — lightweight, deterministic, no framework deps.
-    struct SeededRNG: RandomNumberGenerator {
-        private var state: UInt64
-        init(seed: UInt64) { state = seed == 0 ? 1 : seed }
-        mutating func next() -> UInt64 {
-            state = state &* 6364136223846793005 &+ 1442695040888963407
-            return state
-        }
-        mutating func nextDouble() -> Double {
-            Double(next() >> 11) / Double(1 << 53)
-        }
-        mutating func nextDouble(in range: ClosedRange<Double>) -> Double {
-            range.lowerBound + nextDouble() * (range.upperBound - range.lowerBound)
-        }
-    }
+    // MARK: - Blob Layout
 
     struct Blob {
         let x: Double      // normalized 0…1

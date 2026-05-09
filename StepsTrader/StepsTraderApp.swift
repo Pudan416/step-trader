@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 import Combine
 import UIKit
 import UserNotifications
@@ -14,12 +15,25 @@ struct StepsTraderApp: App {
     @StateObject private var coachMarkManager = CoachMarkManager()
     #endif
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
-    @AppStorage("hasSeenIntro_v3") private var hasSeenIntro: Bool = false
-    @AppStorage("hasSeenEnergySetup_v1") private var hasSeenEnergySetup: Bool = false
-    @AppStorage("hasCompletedOnboarding_v1") private var hasCompletedOnboarding: Bool = false
-    @AppStorage("hasMigratedOnboarding_v1") private var hasMigratedOnboarding: Bool = false
+    /// Single versioned int that replaces the old 4-flag onboarding state machine
+    /// (`hasSeenIntro_v3`, `hasSeenEnergySetup_v1`, `hasCompletedOnboarding_v1`,
+    /// `hasMigratedOnboarding_v1`). Migration from those flags happens once on
+    /// first read in `migrateOnboardingStateIfNeeded()`.
+    @AppStorage("onboarding_state_v1") private var onboardingStateRaw: Int = OnboardingState.notStarted.rawValue
+    @AppStorage("appLaunchCount") private var appLaunchCount: Int = 0
+    @AppStorage("hasRequestedReview_v1") private var hasRequestedReview: Bool = false
+    @Environment(\.requestReview) private var requestReview
+
+    private var hasCompletedOnboarding: Bool {
+        onboardingStateRaw >= OnboardingState.completed.rawValue
+    }
     private let cleanupTimer = Timer.publish(every: AppConstants.Timing.cleanupTimerInterval, on: .main, in: .common).autoconnect()
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
+
+    enum OnboardingState: Int {
+        case notStarted = 0
+        case completed = 1
+    }
 
     init() {
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
@@ -27,19 +41,45 @@ struct StepsTraderApp: App {
         // are routed through our handler (onAppear can be too late).
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
 
+        // Count one cold launch per process. Previously incremented on every
+        // scenePhase `.active` transition, which inflated the count on
+        // background→foreground cycles and triggered `requestReview()` early.
+        // Use UserDefaults directly because @AppStorage wrappers are not safe
+        // to mutate before the View graph is materialized.
+        let standardDefaults = UserDefaults.standard
+        let nextLaunchCount = standardDefaults.integer(forKey: "appLaunchCount") + 1
+        standardDefaults.set(nextLaunchCount, forKey: "appLaunchCount")
+
         // Mirror theme to app-group so the wallpaper Shortcut intent can read it reliably.
         let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.system.rawValue
         UserDefaults(suiteName: SharedKeys.appGroupId)?.set(themeRaw, forKey: "appTheme")
 
-        // Make NavigationStack backgrounds transparent so the shared energy gradient
-        // shows through on every tab.
+        // NOTE: UINavigationBar / UITabBar appearance proxies were previously
+        // installed here in init(). They have been moved to `installLegacyBarAppearances()`
+        // and are now invoked from `.onAppear` of the root scene as a documented
+        // stopgap to keep the shared energy gradient visible through chrome.
+        // Follow-up: replace with scoped SwiftUI modifiers
+        //   - MainTabView.swift  → `.toolbarBackground(.hidden, for: .tabBar)` on the TabView
+        //   - Each NavigationStack across the app
+        //         → `.toolbarBackground(.hidden, for: .navigationBar)` inside the stack
+        // Once those land, delete `installLegacyBarAppearances()` and its `.onAppear` call.
+    }
+
+    /// TEMP: process-wide UIKit appearance install.
+    /// Tracked for removal — see init() comment for the SwiftUI replacement plan.
+    /// NOTE (L9): `UI*Appearance.appearance()` proxies are process-wide. Any extension
+    /// (widget, intent handler, App Clip, share extension) that imports the same shared
+    /// code will inherit these defaults if the file is included in their target. Today
+    /// only the main app calls `installLegacyBarAppearances()`, so extensions are not
+    /// affected — but if you ever add this file to another target, gate the call with
+    /// `if Bundle.main.bundleURL.pathExtension == "app"` or a target-specific compile flag.
+    private static func installLegacyBarAppearances() {
         let navAppearance = UINavigationBarAppearance()
         navAppearance.configureWithTransparentBackground()
         UINavigationBar.appearance().standardAppearance = navAppearance
         UINavigationBar.appearance().scrollEdgeAppearance = navAppearance
         UINavigationBar.appearance().compactAppearance = navAppearance
 
-        // Also make TabBar transparent (we use a custom tab bar)
         let tabAppearance = UITabBarAppearance()
         tabAppearance.configureWithTransparentBackground()
         UITabBar.appearance().standardAppearance = tabAppearance
@@ -81,9 +121,7 @@ struct StepsTraderApp: App {
                         model: model,
                         authService: authService
                     ) {
-                        hasSeenIntro = true
-                        hasSeenEnergySetup = true
-                        hasCompletedOnboarding = true
+                        onboardingStateRaw = OnboardingState.completed.rawValue
                         Task {
                             await model.refreshStepsIfAuthorized()
                             await model.refreshSleepIfAuthorized()
@@ -116,12 +154,16 @@ struct StepsTraderApp: App {
                 Text(error.recoverySuggestion ?? "")
             }
             .onAppear {
+                // STOPGAP: install legacy bar appearances after init() instead of during it.
+                // This avoids doing UIKit work in App.init while keeping the transparent
+                // chrome that the shared energy gradient relies on. Remove once scoped
+                // `.toolbarBackground(.hidden, for:)` modifiers are added in MainTabView
+                // and the various NavigationStacks across the app.
+                Self.installLegacyBarAppearances()
+
                 // Language selection was removed — English only for v1.
 
-                if !hasMigratedOnboarding && hasSeenIntro && hasSeenEnergySetup {
-                    hasCompletedOnboarding = true
-                    hasMigratedOnboarding = true
-                }
+                migrateOnboardingStateIfNeeded()
 
                 // Setup notification handling ASAP so model is set for delegate callbacks
                 setupNotificationHandling()
@@ -147,20 +189,22 @@ struct StepsTraderApp: App {
                 )
                 checkForHandoffToken()
             }
-            .task {
-                if hasCompletedOnboarding && !isUITest {
-                    await model.refreshStepsIfAuthorized()
-                }
-            }
             .onReceive(cleanupTimer) { _ in
                 model.checkDayBoundary()
             }
             .onChange(of: scenePhase) { _, newPhase in
                 switch newPhase {
                 case .active:
-                    model.handleAppWillEnterForeground()
+                    // Skip the foregrounding refresh while bootstrap is still in flight,
+                    // and on the first `.active` after cold launch (bootstrap covers it).
+                    // `model.didCompleteBootstrap` flips to true at the end of `bootstrap()`,
+                    // so subsequent real background→foreground cycles trigger a refresh.
+                    if model.didCompleteBootstrap {
+                        model.handleAppWillEnterForeground()
+                    }
                     checkForHandoffToken()
                     checkForPayGateFlags()
+                    requestAppReviewIfNeeded()
                 case .background:
                     UserDefaults(suiteName: SharedKeys.appGroupId)?.set(appThemeRaw, forKey: "appTheme")
                     model.handleAppDidEnterBackground()
@@ -187,8 +231,7 @@ struct StepsTraderApp: App {
                 model.handleAppWillEnterForeground()
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.showIntro")) ) { _ in
-                hasCompletedOnboarding = false
-                hasMigratedOnboarding = true
+                onboardingStateRaw = OnboardingState.notStarted.rawValue
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.paygate")))
             { notification in
@@ -363,7 +406,35 @@ struct StepsTraderApp: App {
         }
         return false
     }
-    
+
+    private func requestAppReviewIfNeeded() {
+        guard hasCompletedOnboarding, !isUITest else { return }
+        // `appLaunchCount` is incremented exactly once per process launch in `init()`.
+        // Use `>= 3` (not strict equality) plus a one-shot `hasRequestedReview` flag so
+        // users coming from earlier buggy builds with inflated counts (10–30) still see
+        // the prompt exactly once.
+        guard appLaunchCount >= 3, !hasRequestedReview else { return }
+        hasRequestedReview = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            requestReview()
+        }
+    }
+
+    /// Migrates the legacy 4-flag onboarding state (`hasSeenIntro_v3`,
+    /// `hasSeenEnergySetup_v1`, `hasCompletedOnboarding_v1`,
+    /// `hasMigratedOnboarding_v1`) into the single `onboarding_state_v1` int.
+    /// Idempotent and cheap — runs on every `.onAppear` and no-ops once migrated.
+    private func migrateOnboardingStateIfNeeded() {
+        guard onboardingStateRaw == OnboardingState.notStarted.rawValue else { return }
+        let defaults = UserDefaults.standard
+        let legacyComplete = defaults.bool(forKey: "hasCompletedOnboarding_v1")
+        let legacyIntro = defaults.bool(forKey: "hasSeenIntro_v3")
+        let legacyEnergy = defaults.bool(forKey: "hasSeenEnergySetup_v1")
+        if legacyComplete || (legacyIntro && legacyEnergy) {
+            onboardingStateRaw = OnboardingState.completed.rawValue
+        }
+    }
+
 }
 
 private extension StepsTraderApp {

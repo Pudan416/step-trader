@@ -56,6 +56,6 @@ extension EnergyCategory {
 
     /// A random palette color for new options (each addition gets a different tint).
     var defaultColorHex: String {
-        CanvasColorPalette.paletteHex.randomElement() ?? "#FFD369"
+        CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
     }
 }

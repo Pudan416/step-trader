@@ -25,8 +25,12 @@ struct GalleryView: View {
     @Binding var metricOverlay: MetricOverlayKind?
     @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader()) private var userStepsTarget: Double = 10_000
     @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var userSleepTarget: Double = 8.0
-    @AppStorage("gallery_sleep_color") private var sleepColorHex: String = "#000000"
-    @AppStorage("gallery_steps_color") private var stepsColorHex: String = "#FED415"
+    @AppStorage("gallery_sleep_color", store: UserDefaults.stepsTrader()) private var sleepColorHex: String = "#000000"
+    @AppStorage("gallery_steps_color", store: UserDefaults.stepsTrader()) private var stepsColorHex: String = "#FED415"
+    /// Last day key whose remote bootstrap finished. When `== todayKey`, an empty
+    /// canvas (post-fetch with no remote data) is treated as a real "nothing yet"
+    /// state instead of re-firing the remote round-trip on every appear.
+    @AppStorage("gallery_last_bootstrapped_day", store: UserDefaults.stepsTrader()) private var lastBootstrappedDayKey: String = ""
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var dayCanvas: DayCanvas = DayCanvas(dayKey: AppModel.dayKey(for: Date()))
@@ -35,23 +39,26 @@ struct GalleryView: View {
     /// from saving the empty default canvas to disk before the real one is loaded,
     /// which would overwrite the persisted elements.
     @State private var canvasLoaded = false
-    @State private var pickerCategory: EnergyCategory? = nil
-    @State private var showShareSheet = false
-    @State private var shareImage: UIImage? = nil
-    @State private var isExporting = false
-    @State private var showSaveRoutine = false
-    @State private var routineName = ""
+    @State private var loadTask: Task<Void, Never>? = nil
+    /// Generation counter bumped on every user-driven mutation (spawn/remove/reroll/drag-end).
+    /// Used by `loadCanvas()` to detect a race where the user mutates the canvas while a
+    /// remote fetch is in flight, so we can MERGE instead of clobbering local additions.
+    @State private var localMutationCounter: Int = 0
+    /// IDs deleted locally between fetch start and fetch completion. Prevents the merge
+    /// logic from resurrecting elements the user explicitly removed mid-flight.
+    @State private var pendingDeletedIds: Set<UUID> = []
+    /// Toolbar/sheet state (M5 extraction). Backs the six picker/share/export
+    /// fields hoisted to a separate Observable manager.
+    @State private var toolbar = CanvasToolbarState()
+    /// Edit-mode state (M5 extraction). Backs the five drag/freeze/active
+    /// canvas-edit fields hoisted to a separate Observable manager.
+    @State private var editState = CanvasEditState()
     @Binding var isWideCanvas: Bool
     @State private var isManuallyExpanded: Bool = false
     @State private var isNaturallyWide: Bool = false
     /// Tracks whether the user explicitly collapsed wide mode so we don't
     /// re-expand just because the geometry still qualifies as "naturally wide".
     @State private var userCollapsedWide: Bool = false
-    @State private var isEditMode: Bool = false
-    @State private var editFreezeTime: Date? = nil
-    @State private var isDraggingElement: Bool = false
-    @State private var dragStartBasePosition: CGPoint? = nil
-    @State private var activeElementId: UUID? = nil
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.topCardHeight) private var topCardHeight
 
@@ -71,7 +78,7 @@ struct GalleryView: View {
     private var todayKey: String { AppModel.dayKey(for: Date()) }
 
     private var bottomControlsPadding: CGFloat {
-        if isWideCanvas || isEditMode {
+        if isWideCanvas || editState.isEditMode {
             return max(safeAreaBottom, 34) + 16
         }
         // Anchor relative to device geometry:
@@ -116,11 +123,33 @@ struct GalleryView: View {
     }
 
     // ═══════════════════════════════════════════════════════════
+    // MARK: - Haptics (hoisted, prepared once)
+    // ═══════════════════════════════════════════════════════════
+
+    /// Reusable feedback generators. Allocating `UIImpactFeedbackGenerator`
+    /// per-call is expensive and warms the Taptic engine each time; lazy
+    /// `static let` keeps a single instance alive for the lifetime of the
+    /// process. `prepare()` is called from `.onAppear` to keep latency low.
+    @MainActor
+    private enum Haptics {
+        static let light = UIImpactFeedbackGenerator(style: .light)
+        static let medium = UIImpactFeedbackGenerator(style: .medium)
+
+        static func prepareAll() {
+            light.prepare()
+            medium.prepare()
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // MARK: - Body
     // ═══════════════════════════════════════════════════════════
 
     var body: some View {
-        ZStack {
+        // Hoist Observable managers into the local body scope so SwiftUI
+        // can derive `$`-bindings for the .sheet / .alert APIs below.
+        @Bindable var toolbar = toolbar
+        return ZStack {
             // Layer 1: Fixed-size canvas — never resizes, so the backing
             // buffer stays identical when the viewport gets wider.
             GenerativeCanvasView(
@@ -136,7 +165,7 @@ struct GalleryView: View {
                 showsBackgroundGradient: false,
                 hasStepsData: model.hasStepsData,
                 hasSleepData: model.hasSleepData,
-                fixedTime: editFreezeTime
+                fixedTime: editState.editFreezeTime
             )
             .frame(
                 width: GenerativeCanvasView.canonicalPortraitSize.width,
@@ -146,7 +175,7 @@ struct GalleryView: View {
             .allowsHitTesting(false)
 
             // Layer 2: Smudge overlay — interactive when not in edit mode.
-            if !isEditMode {
+            if !editState.isEditMode {
                 SmudgeOverlayView(
                     elements: dayCanvas.elements,
                     sleepPoints: model.sleepPointsToday,
@@ -178,7 +207,7 @@ struct GalleryView: View {
                 .blendMode(.overlay)
 
             // Layer 2b: Edit mode drag overlay (wide canvas only)
-            if isEditMode {
+            if editState.isEditMode {
                 editModeGestureOverlay
                     .frame(
                         width: GenerativeCanvasView.canonicalPortraitSize.width,
@@ -188,7 +217,7 @@ struct GalleryView: View {
             }
 
             // Layer 2c: Edit mode element overlays (circle outlines + dice buttons)
-            if isEditMode {
+            if editState.isEditMode {
                 editModeElementOverlays
                     .frame(
                         width: GenerativeCanvasView.canonicalPortraitSize.width,
@@ -243,6 +272,7 @@ struct GalleryView: View {
         .onAppear {
             model.checkDayBoundary()
             loadCanvas()
+            Haptics.prepareAll()
             let dayKey = AppModel.dayKey(for: Date())
             Task {
                 await SupabaseSyncService.shared.trackAnalyticsEvent(
@@ -256,17 +286,32 @@ struct GalleryView: View {
             syncCanvasWithModel()
         }
         .onChange(of: scenePhase) {
+            if scenePhase == .background {
+                if editState.isDraggingElement { handleEditDragEnd() }
+                return
+            }
+            if scenePhase == .inactive {
+                if editState.isDraggingElement { handleEditDragEnd() }
+                return
+            }
             guard scenePhase == .active else { return }
             model.checkDayBoundary()
             let newKey = AppModel.dayKey(for: Date())
             if newKey != activeDayKey {
+                loadTask?.cancel()
                 activeDayKey = newKey
                 dayCanvas = DayCanvas(dayKey: newKey)
                 canvasLoaded = false
+                userCollapsedWide = false
+                isManuallyExpanded = false
+                pendingDeletedIds.removeAll()
                 loadCanvas()
             }
         }
-        .sheet(item: $pickerCategory) { category in
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            if editState.isDraggingElement { handleEditDragEnd() }
+        }
+        .sheet(item: $toolbar.pickerCategory) { category in
             CategoryDetailView(
                 model: model,
                 category: category,
@@ -282,19 +327,19 @@ struct GalleryView: View {
                 }
             )
         }
-        .sheet(isPresented: $showShareSheet, onDismiss: { shareImage = nil }) {
-            if let image = shareImage {
+        .sheet(isPresented: $toolbar.showShareSheet, onDismiss: { toolbar.shareImage = nil }) {
+            if let image = toolbar.shareImage {
                 CanvasShareSheet(items: [image])
             }
         }
+        .onChange(of: toolbar.showShareSheet) { _, isPresented in
+            if !isPresented { toolbar.shareImage = nil }
+        }
         .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
-        .animation(.easeInOut(duration: 0.3), value: isEditMode)
+        .animation(.easeInOut(duration: 0.3), value: editState.isEditMode)
         .onChange(of: isWideCanvas) { _, wide in
             if !wide {
-                isEditMode = false
-                editFreezeTime = nil
-                activeElementId = nil
-                isDraggingElement = false
+                editState.reset()
                 isManuallyExpanded = false
             } else {
                 userCollapsedWide = false
@@ -371,7 +416,12 @@ struct GalleryView: View {
             RadialHoldMenu(
                 labelColor: buttonColor,
                 onCategorySelected: { category in
-                    pickerCategory = category
+                    // Defer sheet presentation by one animation frame so the fan
+                    // close transition isn't visually clobbered by the sheet
+                    // present (which kicks off `presentationBackground` blur etc).
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        toolbar.pickerCategory = category
+                    }
                     #if DEBUG
                     if category == .mind {
                         CoachMarkManager.postAction(for: .tapMind)
@@ -406,7 +456,8 @@ struct GalleryView: View {
                 isManuallyExpanded = true
                 isWideCanvas = true
             }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            Haptics.light.impactOccurred()
+            Haptics.light.prepare()
         } label: {
             ZStack {
                 Circle()
@@ -443,7 +494,7 @@ struct GalleryView: View {
                 Circle()
                     .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
                     .frame(width: 56, height: 56)
-                if isExporting {
+                if toolbar.isExporting {
                     ProgressView()
                         .tint(buttonColor.opacity(0.85))
                 } else {
@@ -458,11 +509,11 @@ struct GalleryView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "Share canvas", comment: "GalleryView – share button VoiceOver label"))
         .opacity(isCanvasEmpty ? 0.35 : 1.0)
-        .disabled(isCanvasEmpty || isExporting)
+        .disabled(isCanvasEmpty || toolbar.isExporting)
         .contextMenu {
             if !isCanvasEmpty {
                 Button {
-                    showSaveRoutine = true
+                    toolbar.showSaveRoutine = true
                 } label: {
                     Label(String(localized: "Save as Routine"), systemImage: "square.and.arrow.down")
                 }
@@ -475,7 +526,8 @@ struct GalleryView: View {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                             model.applyRoutine(routine)
                         }
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Haptics.medium.impactOccurred()
+                        Haptics.medium.prepare()
                     } label: {
                         Label(routine.name, systemImage: "arrow.counterclockwise")
                     }
@@ -483,15 +535,15 @@ struct GalleryView: View {
             }
 
         }
-        .alert(String(localized: "Save Routine"), isPresented: $showSaveRoutine) {
-            TextField(String(localized: "e.g. Gym Day", comment: "Placeholder for routine name"), text: $routineName)
+        .alert(String(localized: "Save Routine"), isPresented: $toolbar.showSaveRoutine) {
+            TextField(String(localized: "e.g. Gym Day", comment: "Placeholder for routine name"), text: $toolbar.routineName)
             Button(String(localized: "Save")) {
-                let name = routineName.trimmingCharacters(in: .whitespacesAndNewlines)
+                let name = toolbar.routineName.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !name.isEmpty else { return }
                 model.saveCurrentAsRoutine(name: name)
-                routineName = ""
+                toolbar.routineName = ""
             }
-            Button(String(localized: "Cancel"), role: .cancel) { routineName = "" }
+            Button(String(localized: "Cancel"), role: .cancel) { toolbar.routineName = "" }
         } message: {
             Text(String(localized: "Give this combination a name to reuse it later."))
         }
@@ -565,7 +617,8 @@ struct GalleryView: View {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                             model.applyRoutine(routine)
                         }
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Haptics.medium.impactOccurred()
+                        Haptics.medium.prepare()
                     } label: {
                         Text(routine.name)
                             .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -598,33 +651,97 @@ struct GalleryView: View {
             dayCanvas = local
             canvasLoaded = true
             syncCanvasWithModel()
-        } else {
-            // No local data — try restoring from Supabase, fall back to empty canvas.
-            // Don't mark canvasLoaded until the remote check completes to prevent
-            // syncCanvasWithModel() from saving an empty canvas over the real one.
+            return
+        }
+        // No on-disk canvas. If we already finished bootstrap for this day,
+        // treat that as a real "empty today" rather than re-fetching forever.
+        if lastBootstrappedDayKey == dayKey {
             dayCanvas = DayCanvas(dayKey: dayKey)
-            Task {
-                if let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey) {
-                    await MainActor.run {
+            canvasLoaded = true
+            syncCanvasWithModel()
+            return
+        }
+        dayCanvas = DayCanvas(dayKey: dayKey)
+        let snapshotCounter = localMutationCounter
+        pendingDeletedIds.removeAll()
+        loadTask = Task {
+            let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey)
+            await MainActor.run {
+                guard !Task.isCancelled else { return }
+                lastBootstrappedDayKey = dayKey
+                if let remote {
+                    if localMutationCounter != snapshotCounter {
+                        let merged = mergeRemoteWithLocal(remote: remote, local: dayCanvas)
+                        dayCanvas = merged
+                        canvasLoaded = true
+                        saveCanvasLocally()
+                        syncCanvasWithModel()
+                    } else {
                         dayCanvas = remote
                         CanvasStorageService.shared.saveCanvas(remote)
                         canvasLoaded = true
                         syncCanvasWithModel()
+                        refreshWidgetSnapshot()
                     }
                 } else {
-                    await MainActor.run {
-                        canvasLoaded = true
-                        syncCanvasWithModel()
+                    canvasLoaded = true
+                    if localMutationCounter != snapshotCounter {
+                        saveCanvasLocally()
                     }
+                    syncCanvasWithModel()
                 }
+                pendingDeletedIds.removeAll()
             }
         }
     }
 
+    /// ID-keyed merge with last-write-wins per element and tombstone protection.
+    /// - Local additions (id only on local) are kept.
+    /// - Local deletes (`pendingDeletedIds`) suppress matching remote ids permanently.
+    /// - For ids present on both sides, the side with the newer `lastEditedAt`
+    ///   (falling back to `createdAt`) wins; ties go to local.
+    private func mergeRemoteWithLocal(remote: DayCanvas, local: DayCanvas) -> DayCanvas {
+        var byId: [UUID: CanvasElement] = [:]
+        for el in remote.elements where !pendingDeletedIds.contains(el.id) {
+            byId[el.id] = el
+        }
+        for el in local.elements {
+            if let existing = byId[el.id] {
+                let localTs = el.lastEditedAt ?? el.createdAt
+                let remoteTs = existing.lastEditedAt ?? existing.createdAt
+                if localTs >= remoteTs { byId[el.id] = el }
+            } else if !pendingDeletedIds.contains(el.id) {
+                byId[el.id] = el
+            }
+        }
+        var merged = remote
+        let order = local.elements.map(\.id) + remote.elements.map(\.id)
+        var seen: Set<UUID> = []
+        var ordered: [CanvasElement] = []
+        for id in order where seen.insert(id).inserted {
+            if let el = byId[id] { ordered.append(el) }
+        }
+        merged.elements = ordered
+        merged.lastModified = Date()
+        return merged
+    }
+
+    @MainActor
+    private func refreshWidgetSnapshot() {
+        CanvasStorageService.shared.saveWidgetSnapshot(
+            for: dayCanvas.dayKey,
+            elements: dayCanvas.elements,
+            sleepPoints: dayCanvas.sleepPoints,
+            stepsPoints: dayCanvas.stepsPoints,
+            sleepColor: Color(hex: dayCanvas.sleepColorHex),
+            stepsColor: Color(hex: dayCanvas.stepsColorHex),
+            decayNorm: dayCanvas.decayNorm
+        )
+    }
+
     private func syncCanvasWithModel() {
-        // Don't sync (and potentially save) the empty default canvas before
-        // loadCanvas() has had a chance to populate it from disk/server.
         guard canvasLoaded else { return }
+        guard activeDayKey == dayCanvas.dayKey else { return }
         var didChange = false
 
         // 1. Reconcile canvas elements ↔ daily selections.
@@ -662,15 +779,27 @@ struct GalleryView: View {
                 + model.dailyJoysSelections.map { ($0, .heart) }
 
             for (optionId, cat) in allSelections where !existingIds.contains(optionId) {
-                let color = CanvasColorPalette.paletteHex.randomElement() ?? "#FFD369"
+                let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
                 let label = model.resolveOptionTitle(for: optionId)
+                let forcedVariant: Int? = switch cat {
+                case .mind:
+                    CanvasImageCatalog.mind.count > 0
+                        ? Int.random(in: 0..<CanvasImageCatalog.mind.count)
+                        : nil
+                case .heart:
+                    CanvasImageCatalog.heart.count > 0
+                        ? Int.random(in: 0..<CanvasImageCatalog.heart.count)
+                        : nil
+                case .body:
+                    nil
+                }
                 let element = CanvasElement.spawn(
                     optionId: optionId,
                     category: cat,
                     color: color,
                     label: label,
                     existingElements: dayCanvas.elements,
-                    forcedVariant: cat == .body ? Int.random(in: 0..<CanvasImageCatalog.body.count) : (cat == .mind ? Int.random(in: 0..<CanvasImageCatalog.mind.count) : nil)
+                    forcedVariant: forcedVariant
                 )
                 dayCanvas.elements.append(element)
                 didChange = true
@@ -701,39 +830,48 @@ struct GalleryView: View {
         saveCanvasLocally()
     }
 
-    /// Save locally + sync to Supabase (debounced via SupabaseSyncService)
     private func saveCanvasLocally() {
-        CanvasStorageService.shared.saveCanvas(dayCanvas)
+        // Gate on canvasLoaded — NOT on `!elements.isEmpty`. The previous
+        // empty-skip silently dropped legitimate "deleted last element"
+        // saves, so the deletion failed to persist and the element came back
+        // from disk on next launch.
+        guard canvasLoaded else { return }
+        if dayCanvas.elements.isEmpty {
+            CanvasStorageService.shared.deleteCanvas(for: dayCanvas.dayKey)
+        } else {
+            CanvasStorageService.shared.saveCanvas(dayCanvas)
+        }
         let canvasCopy = dayCanvas
         Task { await SupabaseSyncService.shared.syncDayCanvas(canvasCopy) }
-        Task { @MainActor in
-            CanvasStorageService.shared.saveWidgetSnapshot(
-                for: dayCanvas.dayKey,
-                elements: dayCanvas.elements,
-                sleepPoints: dayCanvas.sleepPoints,
-                stepsPoints: dayCanvas.stepsPoints,
-                sleepColor: Color(hex: dayCanvas.sleepColorHex),
-                stepsColor: Color(hex: dayCanvas.stepsColorHex),
-                decayNorm: dayCanvas.decayNorm
-            )
-        }
+        Task { @MainActor in refreshWidgetSnapshot() }
     }
 
     private func spawnElement(optionId: String, category: EnergyCategory, color: String, assetVariant: Int? = nil) {
-        let effectiveVariant = category == .mind ? (assetVariant ?? Int.random(in: 0..<CanvasImageCatalog.mind.count)) : assetVariant
+        let effectiveVariant: Int? = switch category {
+        case .mind:
+            assetVariant ?? (
+                CanvasImageCatalog.mind.count > 0
+                    ? Int.random(in: 0..<CanvasImageCatalog.mind.count)
+                    : nil
+            )
+        case .heart:
+            assetVariant ?? (
+                CanvasImageCatalog.heart.count > 0
+                    ? Int.random(in: 0..<CanvasImageCatalog.heart.count)
+                    : nil
+            )
+        case .body:
+            assetVariant
+        }
 
         if let index = dayCanvas.elements.firstIndex(where: { $0.optionId == optionId && $0.category == category }) {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                if category != .mind {
-                    dayCanvas.elements[index].hexColor = color
-                }
-                if let variant = effectiveVariant {
-                    dayCanvas.elements[index].assetVariant = variant
-                }
+                dayCanvas.elements[index].hexColor = color
+                dayCanvas.elements[index].lastEditedAt = Date()
             }
         } else {
             let label = model.resolveOptionTitle(for: optionId)
-            let element = CanvasElement.spawn(
+            var element = CanvasElement.spawn(
                 optionId: optionId,
                 category: category,
                 color: color,
@@ -741,20 +879,24 @@ struct GalleryView: View {
                 existingElements: dayCanvas.elements,
                 forcedVariant: effectiveVariant
             )
+            element.lastEditedAt = Date()
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 dayCanvas.elements.append(element)
             }
         }
         dayCanvas.lastModified = Date()
+        localMutationCounter &+= 1
         saveCanvasLocally()
     }
 
     private func removeElement(optionId: String, category: EnergyCategory) {
         guard let index = dayCanvas.elements.lastIndex(where: { $0.optionId == optionId && $0.category == category }) else { return }
         var updated = dayCanvas
-        updated.elements.remove(at: index)
+        let removed = updated.elements.remove(at: index)
+        pendingDeletedIds.insert(removed.id)
         updated.lastModified = Date()
         dayCanvas = updated
+        localMutationCounter &+= 1
         saveCanvasLocally()
     }
 
@@ -765,8 +907,10 @@ struct GalleryView: View {
             if category == .body {
                 dayCanvas.elements[index].hexColor = CanvasColorPalette.paletteHex.randomElement() ?? dayCanvas.elements[index].hexColor
             }
+            dayCanvas.elements[index].lastEditedAt = Date()
         }
         dayCanvas.lastModified = Date()
+        localMutationCounter &+= 1
         saveCanvasLocally()
     }
 
@@ -781,15 +925,13 @@ struct GalleryView: View {
                 // Collapse button (bottom-left)
                 Button {
                     withAnimation(.easeInOut(duration: 0.35)) {
-                        isEditMode = false
-                        editFreezeTime = nil
-                        activeElementId = nil
-                        isDraggingElement = false
+                        editState.reset()
                         isManuallyExpanded = false
                         userCollapsedWide = true
                         isWideCanvas = false
                     }
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    Haptics.light.impactOccurred()
+                    Haptics.light.prepare()
                 } label: {
                     ZStack {
                         Circle()
@@ -814,17 +956,19 @@ struct GalleryView: View {
                 // Edit button (bottom-right)
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        isEditMode.toggle()
-                        if isEditMode {
-                            editFreezeTime = Date()
+                        editState.isEditMode.toggle()
+                        if editState.isEditMode {
+                            editState.editFreezeTime = Date()
                         } else {
-                            editFreezeTime = nil
-                            activeElementId = nil
-                            isDraggingElement = false
+                            editState.editFreezeTime = nil
+                            editState.activeElementId = nil
+                            editState.isDraggingElement = false
                             saveCanvasLocally()
                         }
                     }
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    Haptics.light.impactOccurred()
+                    // Edit mode is a haptic hot-path (drag/dice/tap). Re-prime now.
+                    if editState.isEditMode { Haptics.prepareAll() } else { Haptics.light.prepare() }
                 } label: {
                     ZStack {
                         Circle()
@@ -832,9 +976,9 @@ struct GalleryView: View {
                             .opacity(0.7)
                             .frame(width: 56, height: 56)
                         Circle()
-                            .strokeBorder(buttonColor.opacity(isEditMode ? 0.5 : 0.3), lineWidth: 1)
+                            .strokeBorder(buttonColor.opacity(editState.isEditMode ? 0.5 : 0.3), lineWidth: 1)
                             .frame(width: 56, height: 56)
-                        Image(systemName: isEditMode ? "checkmark" : "hand.draw")
+                        Image(systemName: editState.isEditMode ? "checkmark" : "hand.draw")
                             .font(.system(size: 22, weight: .ultraLight))
                             .foregroundStyle(buttonColor.opacity(0.85))
                     }
@@ -842,7 +986,7 @@ struct GalleryView: View {
                     .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: isEditMode ? "Done editing" : "Edit canvas", comment: "GalleryView – edit button VoiceOver label"))
+                .accessibilityLabel(String(localized: editState.isEditMode ? "Done editing" : "Edit canvas", comment: "GalleryView – edit button VoiceOver label"))
             }
             .padding(.horizontal, 50)
             .padding(.bottom, safeAreaBottom + 50)
@@ -856,7 +1000,7 @@ struct GalleryView: View {
     private var editModeElementOverlays: some View {
         let refSize = GenerativeCanvasView.canonicalPortraitSize
         let dim = min(refSize.width, refSize.height)
-        let freezeDate = editFreezeTime ?? Date()
+        let freezeDate = editState.editFreezeTime ?? Date()
 
         return ZStack {
             ForEach(dayCanvas.elements) { element in
@@ -865,7 +1009,7 @@ struct GalleryView: View {
                 let cy = center.y
                 let effectiveSize = element.userSize ?? element.size
                 let diameter = effectiveSize * dim
-                let isActive = activeElementId == element.id
+                let isActive = editState.activeElementId == element.id
 
                 ZStack {
                     Circle()
@@ -880,7 +1024,8 @@ struct GalleryView: View {
                             Spacer()
                             Button {
                                 rerollElement(optionId: element.optionId, category: element.category)
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                Haptics.light.impactOccurred()
+                                Haptics.light.prepare()
                             } label: {
                                 Image(systemName: "dice")
                                     .font(.system(size: 14, weight: .medium))
@@ -908,7 +1053,7 @@ struct GalleryView: View {
                 .transition(.opacity)
             }
         }
-        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: activeElementId)
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: editState.activeElementId)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -933,34 +1078,35 @@ struct GalleryView: View {
                     let hit = findClosestElement(to: location, canvasSize: refSize)
                     if let hit, hit.distance < 80 {
                         withAnimation(.spring(response: 0.2)) {
-                            activeElementId = (activeElementId == hit.element.id) ? nil : hit.element.id
+                            editState.activeElementId = (editState.activeElementId == hit.element.id) ? nil : hit.element.id
                         }
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        Haptics.light.impactOccurred()
+                        Haptics.light.prepare()
                     } else {
-                        withAnimation(.spring(response: 0.2)) { activeElementId = nil }
+                        withAnimation(.spring(response: 0.2)) { editState.activeElementId = nil }
                     }
                 }
         }
     }
 
     private func handleEditDrag(value: DragGesture.Value, canvasSize: CGSize) {
-        if !isDraggingElement {
-            if let id = activeElementId,
+        if !editState.isDraggingElement {
+            if let id = editState.activeElementId,
                let el = dayCanvas.elements.first(where: { $0.id == id }) {
-                isDraggingElement = true
-                dragStartBasePosition = el.basePosition
+                editState.isDraggingElement = true
+                editState.dragStartBasePosition = el.basePosition
             } else {
                 let hit = findClosestElement(to: value.startLocation, canvasSize: canvasSize)
                 if let hit, hit.distance < 80 {
-                    activeElementId = hit.element.id
-                    isDraggingElement = true
-                    dragStartBasePosition = hit.element.basePosition
+                    editState.activeElementId = hit.element.id
+                    editState.isDraggingElement = true
+                    editState.dragStartBasePosition = hit.element.basePosition
                 }
             }
         }
 
-        guard let id = activeElementId,
-              let startPos = dragStartBasePosition,
+        guard let id = editState.activeElementId,
+              let startPos = editState.dragStartBasePosition,
               let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
 
         let dx = value.translation.width / canvasSize.width
@@ -972,17 +1118,32 @@ struct GalleryView: View {
     }
 
     private func handleEditDragEnd() {
-        isDraggingElement = false
-        dragStartBasePosition = nil
+        if let id = editState.activeElementId,
+           let idx = dayCanvas.elements.firstIndex(where: { $0.id == id }) {
+            dayCanvas.elements[idx].lastEditedAt = Date()
+        }
+        editState.isDraggingElement = false
+        editState.dragStartBasePosition = nil
         dayCanvas.lastModified = Date()
+        localMutationCounter &+= 1
         saveCanvasLocally()
+    }
+
+    /// Resets transient edit state without persisting drag positions.
+    /// Call when an interruption (system alert, app suspension) makes the
+    /// drag intent ambiguous — element ends up at its last `basePosition`.
+    private func resetEditState() {
+        if editState.isDraggingElement {
+            handleEditDragEnd()
+        }
+        editState.reset()
     }
 
     // MARK: - Edit Mode Hit Testing
 
     private func findClosestElement(to point: CGPoint, canvasSize: CGSize)
         -> (element: CanvasElement, distance: CGFloat)? {
-        let freezeDate = editFreezeTime ?? Date()
+        let freezeDate = editState.editFreezeTime ?? Date()
         var closest: (element: CanvasElement, distance: CGFloat)? = nil
         for element in dayCanvas.elements {
             let center = GenerativeCanvasView.frozenElementCenter(element, size: canvasSize, at: freezeDate)
@@ -1001,8 +1162,8 @@ struct GalleryView: View {
     // ═══════════════════════════════════════════════════════════
 
     private func exportCanvas() {
-        guard !isExporting else { return }
-        isExporting = true
+        guard !toolbar.isExporting else { return }
+        toolbar.isExporting = true
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(50))
@@ -1036,15 +1197,21 @@ struct GalleryView: View {
             }
             .frame(width: canvasSize.width, height: canvasSize.height)
 
+            // ImageRenderer is @MainActor-bound, so we can't run it on a
+            // background thread. Yield to the run loop first so the spinner
+            // appears, then render. TODO: profile complex canvases — if the
+            // hitch is severe, render into a CGContext on a background queue
+            // (forfeits SwiftUI snapshotting).
+            await Task.yield()
             let renderer = ImageRenderer(content: composite)
             renderer.scale = 2.0
             renderer.proposedSize = .init(canvasSize)
             let image = renderer.uiImage
 
-            isExporting = false
+            toolbar.isExporting = false
             if let image {
-                shareImage = image
-                showShareSheet = true
+                toolbar.shareImage = image
+                toolbar.showShareSheet = true
             }
         }
     }

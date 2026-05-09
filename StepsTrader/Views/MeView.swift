@@ -11,12 +11,15 @@ struct MeView: View {
     @State private var selectedDayKey: String? = nil
     @State private var showLogin = false
     @State private var showProfileEditor = false
-    @State private var showTargetsEditor = false
+    @State private var showStepsEditor = false
+    @State private var showSleepEditor = false
     @State private var showDayEndSettings = false
     @State private var cachedDayKeys: [String] = []
     @State private var hasLoadedSnapshots = false
     @State private var cachedTopConsumers: [(name: String, spent: Int)] = []
     @State private var cachedTxNames: [String: String] = [:]
+    @State private var loadTask: Task<Void, Never>?
+    @State private var serverFetchTask: Task<Void, Never>?
 
     @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader())
     private var stepsTarget: Double = EnergyDefaults.stepsTarget
@@ -25,82 +28,76 @@ struct MeView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if useTightMeLayout {
-                    GeometryReader { geo in
-                        VStack(alignment: .leading, spacing: 0) {
-                            weekRow
-                                .padding(.top, 2)
-                                .padding(.bottom, 6)
-                            contentSection
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal, 16)
-                        .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            mainScrollContent
+                .energyGradientBackground(model: model)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear.frame(height: topCardHeight)
+                }
+                .toolbar(.hidden, for: .navigationBar)
+                .modifier(meLifecycle)
+                .modifier(meSheets)
+        }
+    }
+
+    @ViewBuilder
+    private var mainScrollContent: some View {
+        if useTightMeLayout {
+            GeometryReader { geo in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        weekRow
+                            .padding(.top, 2)
+                            .padding(.bottom, 6)
+                        contentSection
+                        Spacer(minLength: 0)
                     }
-                } else {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            weekRow
-                                .padding(.top, 8)
-                                .padding(.bottom, 20)
-                            contentSection
-                                .padding(.bottom, 24)
-                        }
-                        .padding(.horizontal, 20)
-                    }
+                    .padding(.horizontal, 16)
+                    .frame(width: geo.size.width)
+                    .frame(minHeight: geo.size.height, alignment: .topLeading)
                 }
+                .scrollBounceBehavior(.basedOnSize)
             }
-            .energyGradientBackground(model: model)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: topCardHeight)
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .onAppear {
-                guard !hasLoadedSnapshots else { return }
-                hasLoadedSnapshots = true
-                cachedDayKeys = Self.computeDayKeys()
-                loadAllSnapshots()
-            }
-            .onChange(of: model.baseEnergyToday) { _, _ in
-                let newKeys = Self.computeDayKeys()
-                if newKeys != cachedDayKeys {
-                    cachedDayKeys = newKeys
-                    loadAllSnapshots()
+        } else {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    weekRow
+                        .padding(.top, 8)
+                        .padding(.bottom, 20)
+                    contentSection
+                        .padding(.bottom, 24)
                 }
-            }
-            .sheet(isPresented: $showLogin) {
-                LoginView(authService: authService)
-            }
-            .sheet(isPresented: $showProfileEditor) {
-                ProfileEditorView(authService: authService)
-            }
-            .sheet(isPresented: $showTargetsEditor) {
-                MeTargetsSheet(
-                    model: model,
-                    stepsTarget: $stepsTarget,
-                    sleepTarget: $sleepTarget
-                )
-                .presentationDetents([.medium, .large])
-            }
-            .sheet(isPresented: $showDayEndSettings) {
-                NavigationStack {
-                    DayEndSettingsView(model: model)
-                }
-                .presentationDetents([.medium])
-            }
-            .sheet(item: Binding(
-                get: { selectedDayKey.map { MeDayKeyWrapper(key: $0) } },
-                set: { selectedDayKey = $0?.key }
-            )) { wrapper in
-                CanvasDayDetailSheet(
-                    model: model,
-                    dayKey: wrapper.key,
-                    snapshot: pastDays[wrapper.key],
-                    onDismiss: { selectedDayKey = nil }
-                )
+                .padding(.horizontal, 20)
             }
         }
+    }
+
+    private var meLifecycle: MeLifecycleModifier {
+        MeLifecycleModifier(
+            model: model,
+            cachedDayKeys: $cachedDayKeys,
+            hasLoadedSnapshots: $hasLoadedSnapshots,
+            loadTask: $loadTask,
+            serverFetchTask: $serverFetchTask,
+            onLoad: { loadAllSnapshots() },
+            onDayEndChange: { refreshDayKeysAndReload() },
+            onTopConsumersChange: { rebuildTopConsumers() }
+        )
+    }
+
+    private var meSheets: MeSheetsModifier {
+        MeSheetsModifier(
+            model: model,
+            authService: authService,
+            stepsTarget: $stepsTarget,
+            sleepTarget: $sleepTarget,
+            showLogin: $showLogin,
+            showProfileEditor: $showProfileEditor,
+            showStepsEditor: $showStepsEditor,
+            showSleepEditor: $showSleepEditor,
+            showDayEndSettings: $showDayEndSettings,
+            selectedDayKey: $selectedDayKey,
+            pastDays: $pastDays
+        )
     }
 
     // MARK: - Content
@@ -151,14 +148,14 @@ struct MeView: View {
                 MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
                     label(String(localized: "You are aiming for"))
                     valuePill("figure.walk", formatCompactNumber(Int(stepsTarget))) {
-                        showTargetsEditor = true
+                        showStepsEditor = true
                     }
                     label(String(localized: "steps"))
                 }
                 MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
                     label(String(localized: "and"))
                     valuePill("moon.zzz.fill", sleepStr + "h") {
-                        showTargetsEditor = true
+                        showSleepEditor = true
                     }
                     label(String(localized: "sleep."))
                 }
@@ -439,7 +436,7 @@ struct MeView: View {
         dayKey == AppModel.dayKey(for: Date())
     }
 
-    private static func computeDayKeys() -> [String] {
+    fileprivate static func computeDayKeys() -> [String] {
         let cal = Calendar.current
         let (endH, endM) = DayBoundary.storedDayEnd()
         return (0..<7).reversed().map { offset in
@@ -450,23 +447,35 @@ struct MeView: View {
 
     // MARK: - Data Loading
 
+    private func refreshDayKeysAndReload() {
+        let newKeys = Self.computeDayKeys()
+        guard newKeys != cachedDayKeys else { return }
+        cachedDayKeys = newKeys
+        loadAllSnapshots()
+    }
+
     private func loadAllSnapshots() {
+        loadTask?.cancel()
+        serverFetchTask?.cancel()
+
         pastDays = model.loadPastDaySnapshots()
-        Task.detached {
-            let names = Self.loadTransactionNameMap()
-            await MainActor.run { cachedTxNames = names }
+
+        loadTask = Task { @MainActor in
+            let names = await Task.detached { Self.loadTransactionNameMap() }.value
+            guard !Task.isCancelled else { return }
+            cachedTxNames = names
+            rebuildTopConsumers()
         }
-        rebuildTopConsumers()
-        Task {
+
+        serverFetchTask = Task { @MainActor in
             let server = await SupabaseSyncService.shared.loadHistoricalSnapshots()
-            await MainActor.run {
-                var changed = false
-                for (key, snap) in server where pastDays[key] == nil {
-                    pastDays[key] = snap
-                    changed = true
-                }
-                if changed { rebuildTopConsumers() }
+            guard !Task.isCancelled else { return }
+            var changed = false
+            for (key, snap) in server where pastDays[key] == nil {
+                pastDays[key] = snap
+                changed = true
             }
+            if changed { rebuildTopConsumers() }
         }
     }
 
@@ -592,13 +601,11 @@ private struct MeFlowLayout: Layout {
     }
 }
 
-// MARK: - Targets Sheet
+// MARK: - Steps Sheet
 
-private struct MeTargetsSheet: View {
+private struct MeStepsSheet: View {
     @ObservedObject var model: AppModel
     @Binding var stepsTarget: Double
-    @Binding var sleepTarget: Double
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
 
     var body: some View {
@@ -609,36 +616,41 @@ private struct MeTargetsSheet: View {
                 .padding(.top, 10)
                 .padding(.bottom, 24)
 
-            VStack(spacing: 20) {
-                targetSection(
-                    icon: "figure.walk",
-                    label: String(localized: "Steps"),
-                    color: AppColors.brandAccent,
-                    value: formatCompactNumber(Int(stepsTarget))
-                ) {
-                    StepGoalDrumPicker(value: $stepsTarget)
+            VStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "figure.walk")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppColors.brandAccent)
+                        .frame(width: 26, height: 26)
+                        .background(AppColors.brandAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                    Text(String(localized: "Steps"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(theme.adaptivePrimaryText)
+                    Spacer()
+                    Text(formatCompactNumber(Int(stepsTarget)))
+                        .font(.subheadline.weight(.bold).monospacedDigit())
+                        .foregroundStyle(AppColors.brandAccent)
                 }
+                .padding(.horizontal, 24)
 
-                Divider().padding(.horizontal, 24)
-
-                targetSection(
-                    icon: "bed.double.fill",
-                    label: String(localized: "Sleep"),
-                    color: Color.indigo,
-                    value: formattedSleep
-                ) {
-                    SleepDurationStepper(hours: $sleepTarget)
-                }
+                StepGoalDrumPicker(value: $stepsTarget)
             }
 
             Spacer()
         }
         .onDisappear {
             UserDefaults.stepsTrader().set(stepsTarget, forKey: SharedKeys.userStepsTarget)
-            UserDefaults.stepsTrader().set(sleepTarget, forKey: SharedKeys.userSleepTarget)
             model.recalculateDailyEnergy()
         }
     }
+}
+
+// MARK: - Sleep Sheet
+
+private struct MeSleepSheet: View {
+    @ObservedObject var model: AppModel
+    @Binding var sleepTarget: Double
+    @Environment(\.appTheme) private var theme
 
     private var formattedSleep: String {
         sleepTarget.truncatingRemainder(dividingBy: 1) == 0
@@ -646,31 +658,39 @@ private struct MeTargetsSheet: View {
             : String(format: "%.1fh", sleepTarget)
     }
 
-    private func targetSection<Content: View>(
-        icon: String,
-        label: String,
-        color: Color,
-        value: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(color)
-                    .frame(width: 26, height: 26)
-                    .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                Text(label)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(theme.adaptivePrimaryText)
-                Spacer()
-                Text(value)
-                    .font(.subheadline.weight(.bold).monospacedDigit())
-                    .foregroundStyle(color)
-            }
-            .padding(.horizontal, 24)
+    var body: some View {
+        VStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(theme.stroke.opacity(theme.strokeOpacity))
+                .frame(width: 36, height: 4)
+                .padding(.top, 10)
+                .padding(.bottom, 24)
 
-            content()
+            VStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "bed.double.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.indigo)
+                        .frame(width: 26, height: 26)
+                        .background(Color.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                    Text(String(localized: "Sleep"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(theme.adaptivePrimaryText)
+                    Spacer()
+                    Text(formattedSleep)
+                        .font(.subheadline.weight(.bold).monospacedDigit())
+                        .foregroundStyle(Color.indigo)
+                }
+                .padding(.horizontal, 24)
+
+                SleepDurationStepper(hours: $sleepTarget)
+            }
+
+            Spacer()
+        }
+        .onDisappear {
+            UserDefaults.stepsTrader().set(sleepTarget, forKey: SharedKeys.userSleepTarget)
+            model.recalculateDailyEnergy()
         }
     }
 }
@@ -678,6 +698,91 @@ private struct MeTargetsSheet: View {
 private struct MeDayKeyWrapper: Identifiable {
     let key: String
     var id: String { key }
+}
+
+private struct MeLifecycleModifier: ViewModifier {
+    @ObservedObject var model: AppModel
+    @Binding var cachedDayKeys: [String]
+    @Binding var hasLoadedSnapshots: Bool
+    @Binding var loadTask: Task<Void, Never>?
+    @Binding var serverFetchTask: Task<Void, Never>?
+    let onLoad: () -> Void
+    let onDayEndChange: () -> Void
+    let onTopConsumersChange: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                guard !hasLoadedSnapshots else { return }
+                hasLoadedSnapshots = true
+                cachedDayKeys = MeView.computeDayKeys()
+                onLoad()
+            }
+            .onChange(of: model.baseEnergyToday) { _, _ in
+                let newKeys = MeView.computeDayKeys()
+                if newKeys != cachedDayKeys {
+                    cachedDayKeys = newKeys
+                    onLoad()
+                }
+            }
+            .onChange(of: model.dayEndHour) { _, _ in onDayEndChange() }
+            .onChange(of: model.dayEndMinute) { _, _ in onDayEndChange() }
+            .onChange(of: model.appStepsSpentByDay) { _, _ in onTopConsumersChange() }
+            .onChange(of: model.ticketGroups.map(\.id)) { _, _ in onTopConsumersChange() }
+            .onDisappear {
+                loadTask?.cancel()
+                serverFetchTask?.cancel()
+            }
+    }
+}
+
+private struct MeSheetsModifier: ViewModifier {
+    @ObservedObject var model: AppModel
+    @ObservedObject var authService: AuthenticationService
+    @Binding var stepsTarget: Double
+    @Binding var sleepTarget: Double
+    @Binding var showLogin: Bool
+    @Binding var showProfileEditor: Bool
+    @Binding var showStepsEditor: Bool
+    @Binding var showSleepEditor: Bool
+    @Binding var showDayEndSettings: Bool
+    @Binding var selectedDayKey: String?
+    @Binding var pastDays: [String: PastDaySnapshot]
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(isPresented: $showLogin) {
+                LoginView(authService: authService)
+            }
+            .sheet(isPresented: $showProfileEditor) {
+                ProfileEditorView(authService: authService)
+            }
+            .sheet(isPresented: $showStepsEditor) {
+                MeStepsSheet(model: model, stepsTarget: $stepsTarget)
+                    .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showSleepEditor) {
+                MeSleepSheet(model: model, sleepTarget: $sleepTarget)
+                    .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showDayEndSettings) {
+                NavigationStack {
+                    DayEndSettingsView(model: model)
+                }
+                .presentationDetents([.medium])
+            }
+            .sheet(item: Binding(
+                get: { selectedDayKey.map { MeDayKeyWrapper(key: $0) } },
+                set: { selectedDayKey = $0?.key }
+            )) { wrapper in
+                CanvasDayDetailSheet(
+                    model: model,
+                    dayKey: wrapper.key,
+                    snapshot: pastDays[wrapper.key],
+                    onDismiss: { selectedDayKey = nil }
+                )
+            }
+    }
 }
 
 #Preview {

@@ -5,7 +5,7 @@ import SwiftUI
 
 enum ElementKind: String, Codable, CaseIterable {
     case circle    // Body → grounded, centered energy
-    case ray       // Mind → directional, focused
+    case ray       // Heart → angled beams pointing inward
 }
 
 // MARK: - Canvas Element
@@ -24,14 +24,14 @@ struct CanvasElement: Identifiable, Codable {
     let size: CGFloat              // normalized 0…1 relative to canvas
     var basePosition: CGPoint      // normalized (0…1, 0…1)
 
-    // Animation parameters (randomized on creation)
+    // Animation parameters (randomized on creation; ranges come from `spawn` below)
     let phaseOffset: Double        // 0…2π — desynchronizes from other elements
-    let driftSpeed: Double         // 0.1…0.5 — how fast it moves
-    let driftAmplitude: CGFloat    // 0.01…0.06 — how far it drifts (normalized)
-    let pulseFrequency: Double     // 0.3…1.2 Hz
-    let pulseAmplitude: CGFloat    // 0.02…0.08 — scale oscillation range
-    let rotationSpeed: Double      // degrees/sec (rays only)
-    let opacity: Double            // 0.3…0.8
+    let driftSpeed: Double         // 0.08…0.20 — how fast it moves
+    let driftAmplitude: CGFloat    // 0.01…0.03 — how far it drifts (normalized)
+    let pulseFrequency: Double     // body 0.08…0.20 Hz, mind/heart 0.30…0.80 Hz
+    let pulseAmplitude: CGFloat    // 0.01…0.03 — scale oscillation range
+    let rotationSpeed: Double      // 3…10 deg/sec (rays only)
+    let opacity: Double            // body 0.20…0.45, mind/heart 0.35…0.75
 
     /// Which asset variant to use (0-based index into the category's asset array).
     /// Assigned at spawn time via round-robin so consecutive elements get different shapes.
@@ -54,10 +54,15 @@ struct CanvasElement: Identifiable, Codable {
     // Timestamps
     let createdAt: Date
 
+    /// Updated whenever the element is mutated locally (color change, drag, reroll,
+    /// resize, rotate). Nil for legacy elements; merge logic falls back to `createdAt`.
+    /// Drives last-write-wins resolution between local edits and remote canvas snapshots.
+    var lastEditedAt: Date?
+
     /// Title to draw on the canvas; falls back to optionId for legacy elements.
     var displayLabel: String { label ?? optionId }
 
-    init(id: UUID, kind: ElementKind, category: EnergyCategory, optionId: String, label: String?, hexColor: String, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0, shapeSeed: UInt64? = nil, userSize: CGFloat? = nil, activityCount: Int? = nil) {
+    init(id: UUID, kind: ElementKind, category: EnergyCategory, optionId: String, label: String?, hexColor: String, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0, shapeSeed: UInt64? = nil, userSize: CGFloat? = nil, activityCount: Int? = nil, lastEditedAt: Date? = nil) {
         self.id = id
         self.kind = kind
         self.category = category
@@ -79,31 +84,56 @@ struct CanvasElement: Identifiable, Codable {
         self.shapeSeed = shapeSeed
         self.userSize = userSize
         self.activityCount = activityCount
+        self.lastEditedAt = lastEditedAt
+    }
+
+    mutating func touchEdit(at date: Date = Date()) {
+        lastEditedAt = date
     }
 
     // MARK: - Factory
 
     /// Generates a deterministic seed from the element's identity.
+    ///
+    /// Uses FNV-1a (64-bit) on a stable byte composition of `optionId`,
+    /// `dayKey`, and `index`. The same input always produces the same seed
+    /// across launches, processes, and Swift versions — required so procedural
+    /// shapes don't shuffle on every app start.
     static func makeSeed(optionId: String, dayKey: String, index: Int) -> UInt64 {
-        var hasher = Hasher()
-        hasher.combine(optionId)
-        hasher.combine(dayKey)
-        hasher.combine(index)
-        return UInt64(bitPattern: Int64(hasher.finalize()))
+        let prime: UInt64 = 0x0000_0100_0000_01B3
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+
+        @inline(__always) func mix(_ byte: UInt8) {
+            hash ^= UInt64(byte)
+            hash &*= prime
+        }
+
+        for byte in optionId.utf8 { mix(byte) }
+        mix(0x1F) // unit-separator: prevents "ab"+"c" colliding with "a"+"bc"
+        for byte in dayKey.utf8 { mix(byte) }
+        mix(0x1F)
+
+        var idx = UInt64(bitPattern: Int64(index))
+        for _ in 0..<8 {
+            mix(UInt8(truncatingIfNeeded: idx))
+            idx >>= 8
+        }
+        return hash
     }
 
     mutating func reroll() {
-        let current = assetVariant ?? 0
-        let count = CanvasImageCatalog.imageNames(for: category).count
         switch category {
+        case .body:
+            shapeSeed = UInt64.random(in: UInt64.min...UInt64.max)
         case .mind, .heart:
+            let current = assetVariant ?? 0
+            let count = CanvasImageCatalog.imageNames(for: category).count
             guard count > 1 else { return }
             var next = Int.random(in: 0..<count)
             while next == current { next = Int.random(in: 0..<count) }
             assetVariant = next
-        case .body:
-            shapeSeed = UInt64.random(in: UInt64.min...UInt64.max)
         }
+        lastEditedAt = Date()
     }
 
     static func spawn(
@@ -124,13 +154,16 @@ struct CanvasElement: Identifiable, Codable {
 
         let position = findOpenPosition(existing: existingElements)
 
-        let assetCount = CanvasImageCatalog.imageNames(for: category).count
         let variant: Int
-        if let forced = forcedVariant, forced >= 0, forced < assetCount {
-            variant = forced
+        if category == .body {
+            variant = 0
         } else {
-            let sameCategoryCount = existingElements.filter { $0.category == category }.count
-            variant = sameCategoryCount % assetCount
+            let assetCount = CanvasImageCatalog.imageNames(for: category).count
+            if let forced = forcedVariant, forced >= 0, forced < assetCount {
+                variant = forced
+            } else {
+                variant = assetCount > 0 ? Int.random(in: 0..<assetCount) : 0
+            }
         }
 
         // Body: M–L stable pulsing. Mind: S–M wandering. Heart: M rays.
@@ -178,6 +211,7 @@ struct CanvasElement: Identifiable, Codable {
         case phaseOffset, driftSpeed, driftAmplitude, pulseFrequency, pulseAmplitude, rotationSpeed, opacity, createdAt
         case label, assetVariant, userRotation
         case shapeSeed, userSize, activityCount
+        case lastEditedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -203,6 +237,7 @@ struct CanvasElement: Identifiable, Codable {
         shapeSeed = try c.decodeIfPresent(UInt64.self, forKey: .shapeSeed)
         userSize = try c.decodeIfPresent(CGFloat.self, forKey: .userSize)
         activityCount = try c.decodeIfPresent(Int.self, forKey: .activityCount)
+        lastEditedAt = try c.decodeIfPresent(Date.self, forKey: .lastEditedAt)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -228,6 +263,7 @@ struct CanvasElement: Identifiable, Codable {
         try c.encodeIfPresent(shapeSeed, forKey: .shapeSeed)
         try c.encodeIfPresent(userSize, forKey: .userSize)
         try c.encodeIfPresent(activityCount, forKey: .activityCount)
+        try c.encodeIfPresent(lastEditedAt, forKey: .lastEditedAt)
     }
 
     /// Find an open position avoiding overlap with existing elements.
@@ -346,6 +382,14 @@ extension Color {
         switch hex.count {
         case 3: // RGB (12-bit)
             (r, g, b, a) = ((int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17, 255)
+        // 4-char #ARGB shorthand — each nibble expands to a byte (e.g. #1234 → #11223344), matching the 8-char AARRGGBB nibble order
+        case 4: // ARGB (16-bit)
+            (r, g, b, a) = (
+                (int >> 8 & 0xF) * 17,
+                (int >> 4 & 0xF) * 17,
+                (int & 0xF) * 17,
+                (int >> 12 & 0xF) * 17
+            )
         case 6: // RGB (24-bit)
             (r, g, b, a) = (int >> 16, int >> 8 & 0xFF, int & 0xFF, 255)
         case 8: // ARGB (32-bit)
@@ -366,7 +410,11 @@ extension Color {
         let uiColor = UIColor(self)
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
-        return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
+        // Clamp Display-P3 / extended-range components to [0,1] before byte conversion to avoid UInt8 overflow
+        let r8 = UInt8((max(0, min(1, r)) * 255).rounded())
+        let g8 = UInt8((max(0, min(1, g)) * 255).rounded())
+        let b8 = UInt8((max(0, min(1, b)) * 255).rounded())
+        return String(format: "#%02X%02X%02X", r8, g8, b8)
     }
 
     /// Desaturate toward gray by a factor 0…1
@@ -374,8 +422,8 @@ extension Color {
         let uiColor = UIColor(self)
         var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         uiColor.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-        let newSat = s * CGFloat(1.0 - factor)
-        return Color(hue: Double(h), saturation: Double(newSat), brightness: Double(b))
-            .opacity(Double(a))
+        let newSat = max(0, s * CGFloat(1.0 - factor))
+        // Stay in UIColor (extended sRGB) end-to-end — SwiftUI's Color(hue:saturation:brightness:) clips to sRGB and loses wide-gamut values
+        return Color(UIColor(hue: h, saturation: newSat, brightness: b, alpha: a))
     }
 }

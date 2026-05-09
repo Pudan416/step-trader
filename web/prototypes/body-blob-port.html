@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  Canvas preview ports:
+  - Body: procedural blob + fill
+  - Mind: superformula path + glow / ring / crystal / figmaDev (fixed Figma 203:9 gradient)
+  - Heart: heartRays wedges + gradient palette from hex (Swift-style)
+  - Mask PNG: upload black-on-white (or alpha) sprite; color with chosen gradient + destination-in
+-->
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Canvas elements (body / mind / heart port)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, sans-serif;
+      background: #1a1a1e;
+      color: #e8e8ed;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      padding: 1rem;
+      align-items: flex-start;
+    }
+    .panel {
+      background: #2a2a32;
+      border-radius: 12px;
+      padding: 1rem;
+      max-width: 420px;
+    }
+    .panel h2 { margin: 0 0 0.75rem; font-size: 1rem; }
+    label { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: #aaa; }
+    label.disabled { opacity: 0.45; pointer-events: none; }
+    input[type="text"] { padding: 0.4rem 0.5rem; border-radius: 6px; border: 1px solid #444; background: #111; color: #eee; }
+    input[type="range"] { width: 100%; }
+    select {
+      width: 100%;
+      padding: 0.45rem 0.5rem;
+      border-radius: 8px;
+      border: 1px solid #555;
+      background: #111;
+      color: #eee;
+      font: inherit;
+    }
+    .export-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.25rem; }
+    button {
+      font: inherit;
+      font-size: 0.85rem;
+      padding: 0.45rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid #555;
+      background: #3a3a44;
+      color: #eee;
+      cursor: pointer;
+    }
+    button:hover { background: #4a4a54; }
+    canvas {
+      display: block;
+      background: linear-gradient(135deg, #6a7a8e 0%, #8a7a6e 50%, #5a6a7a 100%);
+      border-radius: 8px;
+      max-width: 100%;
+      height: auto;
+    }
+    .hint { font-size: 0.75rem; color: #888; line-height: 1.4; margin-top: 0.5rem; }
+    code { font-size: 0.7rem; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h2>Element</h2>
+    <label>Category
+      <select id="category">
+        <option value="body" selected>Body — noise blob</option>
+        <option value="mind">Mind — soft gradients (assets)</option>
+        <option value="heart">Heart — gradient beam (heart 1)</option>
+        <option value="mask">Mask PNG — gradient through uploaded shape</option>
+      </select>
+    </label>
+    <div id="maskWrap" style="display: none;">
+      <label style="margin-bottom: 0.5rem;">PNG (black shape on white, or transparent)
+        <input type="file" id="maskFile" accept="image/png,image/jpeg,image/webp" />
+      </label>
+      <label>Gradient style
+        <select id="maskGradientPreset">
+          <option value="radial" selected>Radial — from hex (center glow)</option>
+          <option value="linearV">Linear vertical — soft top → bottom</option>
+          <option value="linearDiag">Linear diagonal</option>
+          <option value="triadic">Triadic — seed + hex (like heart palette)</option>
+          <option value="warmRadial">Warm radial — Figma-style fixed stops</option>
+        </select>
+      </label>
+    </div>
+    <label>Seed (UInt64)
+      <input type="text" id="seed" value="12345678901234567890" spellcheck="false" />
+    </label>
+    <label>Color hex
+      <input type="text" id="color" value="#E8B4C8" />
+    </label>
+    <label id="complexityLabel"><span id="complexityDesc">Complexity 0–1</span>
+      <input type="range" id="complexity" min="0" max="1" step="0.01" value="0.03" />
+      <span id="complexityVal">0.03</span>
+    </label>
+    <label>Time <code>t</code>
+      <input type="range" id="time" min="0" max="50" step="0.05" value="0" />
+      <span id="timeVal">0</span>
+    </label>
+    <label>Rotation (radians)
+      <input type="range" id="rotation" min="0" max="6.28" step="0.01" value="0" />
+      <span id="rotationVal">0</span>
+    </label>
+    <label>Phase (radians) — Swift <code>phaseOffset</code>
+      <input type="range" id="phase" min="0" max="6.28" step="0.01" value="0" />
+      <span id="phaseVal">0</span>
+    </label>
+    <label>Pulse frequency (Hz) — Swift <code>pulseFrequency</code>
+      <input type="range" id="pulseFrequency" min="0.1" max="1.5" step="0.01" value="0.5" />
+      <span id="pulseFrequencyVal">0.50</span>
+    </label>
+    <label id="mindPresetWrap" style="display: none;">Mind style (all formula)
+      <select id="mindPreset">
+        <option value="glow" selected>Glow — superformula + color radials</option>
+        <option value="ring">Ring — superformula + halo</option>
+        <option value="crystal">Crystal — superformula + simple tint</option>
+        <option value="figmaDev">Figma spec — radial + progressive blur (fixed stops)</option>
+      </select>
+    </label>
+    <label id="mindHoleWrap" style="display: none;">
+      <input type="checkbox" id="mindSoftCenter" checked /> Softer / more transparent center (glow &amp; ring)
+    </label>
+    <label>
+      <input type="checkbox" id="animate" /> Animate time
+    </label>
+    <div class="export-row">
+      <button type="button" id="randomizeOnce">Randomize (color + shape)</button>
+    </div>
+    <label>
+      <input type="checkbox" id="randomEachFrame" /> New random color &amp; seed every animation frame
+    </label>
+    <div class="export-row">
+      <button type="button" id="exportFull">Download PNG (transparent)</button>
+      <button type="button" id="exportCrop">Download PNG (crop)</button>
+    </div>
+    <label style="margin-top: 0.5rem;">
+      <input type="checkbox" id="exportPauseAnimate" checked /> Pause animation while exporting
+    </label>
+    <p class="hint">
+      Preview gradient is CSS only. PNG export is transparent outside the element.
+      <strong>Mind</strong> uses <code>mindPath</code> + radials from hex, except <strong>Figma spec</strong> which bakes Dev Mode colors / blur from your screenshot (node 203:9).
+      <strong>Heart</strong> uses <code>heartRays</code> + palette from hex. <strong>Mask PNG</strong>: black-on-white is converted to an <strong>alpha mask</strong> (inverted luma); color is a <strong>CanvasGradient</strong> clipped with <code>destination-in</code>. PNGs with alpha use the alpha channel as-is.
+    </p>
+  </div>
+  <div>
+    <canvas id="c" width="600" height="600"></canvas>
+  </div>
+
+  <script>
+    const U64 = (n) => BigInt.asUintN(64, BigInt(n));
+
+    /**
+     * SplitMix64 — bit-exact port of `StepsTrader/Utilities/SeededRNG.swift`.
+     * Same UInt64 seed must produce the same UInt64 sequence as Swift.
+     *
+     * Reference: https://prng.di.unimi.it/splitmix64.c
+     * All arithmetic wraps mod 2^64 (Swift uses `&+` / `&*`); BigInt.asUintN(64, …)
+     * via the `U64` helper matches that wrapping.
+     *
+     * Seed 0 is valid (unlike xorshift64): the golden-gamma `0x9E3779B97F4A7C15`
+     * additive step guarantees the state advances.
+     */
+    class SeededRNG {
+      constructor(seed) {
+        this.state = U64(seed);
+      }
+      next() {
+        this.state = U64(this.state + 0x9E3779B97F4A7C15n);
+        let z = this.state;
+        z = U64((z ^ (z >> 30n)) * 0xBF58476D1CE4E5B9n);
+        z = U64((z ^ (z >> 27n)) * 0x94D049BB133111EBn);
+        return U64(z ^ (z >> 31n));
+      }
+      // Top 53 bits → [0, 1). Mirrors Swift `Double(next() >> 11) / Double(1 << 53)`.
+      // BigInt right-shift by 11 always fits in a JS Number (53-bit safe integer).
+      nextDouble() {
+        const top53 = this.next() >> 11n;
+        return Number(top53) / 9007199254740992;
+      }
+      nextDoubleIn(lo, hi) {
+        return lo + this.nextDouble() * (hi - lo);
+      }
+      nextInt(lo, hi) {
+        const span = BigInt(hi - lo + 1);
+        return lo + Number(this.next() % span);
+      }
+    }
+
+    function valueNoise(angle, frequency, octaves, rng) {
+      const tableSize = 32;
+      const table = [];
+      for (let k = 0; k < tableSize; k++) {
+        table.push(rng.nextDoubleIn(-1, 1));
+      }
+      let value = 0;
+      let amp = 1;
+      let freq = frequency;
+      let totalAmp = 0;
+      for (let o = 0; o < octaves; o++) {
+        const tt = (angle * freq) / (2 * Math.PI);
+        const wrapped = tt - Math.floor(tt);
+        const idx = wrapped * tableSize;
+        const i0 = Math.floor(idx) % tableSize;
+        const i1 = (i0 + 1) % tableSize;
+        const frac = idx - Math.floor(idx);
+        const smooth = frac * frac * (3 - 2 * frac);
+        value += (table[i0] * (1 - smooth) + table[i1] * smooth) * amp;
+        totalAmp += amp;
+        amp *= 0.5;
+        freq *= 2;
+      }
+      return value / totalAmp;
+    }
+
+    function bodyPoints(seed, complexity, time, rect) {
+      const rng = new SeededRNG(seed);
+      const pointCount = 20;
+      const cx = rect.x + rect.width / 2;
+      const cy = rect.y + rect.height / 2;
+      const rx = rect.width / 2;
+      const ry = rect.height / 2;
+      const octaves = 3;
+      const baseAmplitude = 0.12 + complexity * 0.18;
+      const timeOffset = time * 0.05;
+      const points = [];
+      for (let i = 0; i < pointCount; i++) {
+        const angle = (i / pointCount) * 2 * Math.PI;
+        const noise = valueNoise(angle + timeOffset, 3.0, octaves, rng);
+        const displacement = 1.0 + noise * baseAmplitude;
+        points.push({
+          x: cx + Math.cos(angle) * displacement * rx,
+          y: cy + Math.sin(angle) * displacement * ry,
+        });
+      }
+      return points;
+    }
+
+    function smoothClosedPath(points) {
+      const n = points.length;
+      if (n < 3) return new Path2D();
+      const path = new Path2D();
+      const mid0x = (points[0].x + points[n - 1].x) / 2;
+      const mid0y = (points[0].y + points[n - 1].y) / 2;
+      path.moveTo(mid0x, mid0y);
+      for (let i = 0; i < n; i++) {
+        const cur = points[i];
+        const next = points[(i + 1) % n];
+        const mx = (cur.x + next.x) / 2;
+        const my = (cur.y + next.y) / 2;
+        path.quadraticCurveTo(cur.x, cur.y, mx, my);
+      }
+      path.closePath();
+      return path;
+    }
+
+    function bodyPath(seed, complexity, time, rect) {
+      return smoothClosedPath(bodyPoints(seed, complexity, time, rect));
+    }
+
+    function superformulaRadius(theta, m, n1, n2, n3, a, b) {
+      const angle = (m * theta) / 4.0;
+      const cosComponent = Math.pow(Math.abs(Math.cos(angle) / a), n2);
+      const sinComponent = Math.pow(Math.abs(Math.sin(angle) / b), n3);
+      const sum = cosComponent + sinComponent;
+      if (sum <= 1e-10) return 1.0;
+      return Math.pow(sum, -1.0 / n1);
+    }
+
+    function mindPath(seed, complexity, time, rect) {
+      void time;
+      const rng = new SeededRNG(seed);
+      const mOptions = [3, 4, 5, 6, 8];
+      const m = mOptions[rng.nextInt(0, mOptions.length - 1)];
+      const n1 = rng.nextDoubleIn(0.3, 3.0);
+      const n2 = rng.nextDoubleIn(0.5, 4.0);
+      const n3 = rng.nextDoubleIn(0.5, 4.0);
+      const a = rng.nextDoubleIn(0.8, 1.2);
+      const b = rng.nextDoubleIn(0.8, 1.2);
+      const cx = rect.x + rect.width / 2;
+      const cy = rect.y + rect.height / 2;
+      const scale = Math.min(rect.width, rect.height) / 2;
+      const pointCount = 72 + Math.floor(complexity * 48);
+      let maxR = 0;
+      const raw = [];
+      for (let i = 0; i < pointCount; i++) {
+        const theta = (i / pointCount) * 2 * Math.PI;
+        const r = superformulaRadius(theta, m, n1, n2, n3, a, b);
+        raw.push({ theta, r });
+        if (r > maxR) maxR = r;
+      }
+      if (maxR <= 0) {
+        const p = new Path2D();
+        p.ellipse(cx, cy, scale, scale, 0, 0, Math.PI * 2);
+        return p;
+      }
+      const normFactor = 0.85 / maxR;
+      const points = raw.map(({ theta, r }) => ({
+        x: cx + Math.cos(theta) * r * normFactor * scale,
+        y: cy + Math.sin(theta) * r * normFactor * scale,
+      }));
+      return smoothClosedPath(points);
+    }
+
+    function mindPointsForBounds(seed, complexity, rect) {
+      const rng = new SeededRNG(seed);
+      const mOptions = [3, 4, 5, 6, 8];
+      const m = mOptions[rng.nextInt(0, mOptions.length - 1)];
+      const n1 = rng.nextDoubleIn(0.3, 3.0);
+      const n2 = rng.nextDoubleIn(0.5, 4.0);
+      const n3 = rng.nextDoubleIn(0.5, 4.0);
+      const a = rng.nextDoubleIn(0.8, 1.2);
+      const b = rng.nextDoubleIn(0.8, 1.2);
+      const cx = rect.x + rect.width / 2;
+      const cy = rect.y + rect.height / 2;
+      const scale = Math.min(rect.width, rect.height) / 2;
+      const pointCount = 72 + Math.floor(complexity * 48);
+      let maxR = 0;
+      const raw = [];
+      for (let i = 0; i < pointCount; i++) {
+        const theta = (i / pointCount) * 2 * Math.PI;
+        const r = superformulaRadius(theta, m, n1, n2, n3, a, b);
+        raw.push({ theta, r });
+        if (r > maxR) maxR = r;
+      }
+      if (maxR <= 0) return [{ x: cx - scale, y: cy - scale }, { x: cx + scale, y: cy + scale }];
+      const normFactor = 0.85 / maxR;
+      return raw.map(({ theta, r }) => ({
+        x: cx + Math.cos(theta) * r * normFactor * scale,
+        y: cy + Math.sin(theta) * r * normFactor * scale,
+      }));
+    }
+
+    /**
+     * Hex → RGB(A). Accepts #RGB / #RRGGBB / #AARRGGBB (alpha-first, matching
+     * `Color(hex:)` in `StepsTrader/Models/CanvasElement.swift`). CSS-style
+     * RRGGBBAA is intentionally NOT supported here so the prototype matches
+     * mainline Swift decoding exactly.
+     *
+     * Always returns `a` (defaulting to 255) so destructure-then-ignore callers
+     * keep working unchanged.
+     */
+    function hexToRgb(hex) {
+      const t = String(hex).trim().replace(/^#/, "");
+      if (/^[0-9a-f]{3}$/i.test(t)) {
+        return {
+          r: parseInt(t[0] + t[0], 16),
+          g: parseInt(t[1] + t[1], 16),
+          b: parseInt(t[2] + t[2], 16),
+          a: 255,
+        };
+      }
+      if (/^[0-9a-f]{6}$/i.test(t)) {
+        const n = parseInt(t, 16);
+        return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255, a: 255 };
+      }
+      if (/^[0-9a-f]{8}$/i.test(t)) {
+        const n = parseInt(t, 16);
+        return {
+          a: (n >>> 24) & 255,
+          r: (n >> 16) & 255,
+          g: (n >> 8) & 255,
+          b: n & 255,
+        };
+      }
+      console.warn(
+        `hexToRgb: cannot parse ${JSON.stringify(hex)}; falling back to #E6B4C8`
+      );
+      return { r: 230, g: 180, b: 200, a: 255 };
+    }
+
+    function rgbLerp(a, b, t) {
+      return {
+        r: Math.round(a.r + (b.r - a.r) * t),
+        g: Math.round(a.g + (b.g - a.g) * t),
+        b: Math.round(a.b + (b.b - a.b) * t),
+      };
+    }
+
+    // M30 cleanup: rgbToHsl / hslToRgb removed — Swift's color path is HSB
+    // (UIColor.getHue:saturation:brightness:), so we operate purely in HSB
+    // throughout the prototype now.
+
+    /** RGB → HSB (HSV) — matches Apple UIColor.getHue(_:saturation:brightness:alpha:). */
+    function rgbToHsb(rgb) {
+      const r = rgb.r / 255;
+      const g = rgb.g / 255;
+      const b = rgb.b / 255;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const d = max - min;
+      let h = 0;
+      if (d !== 0) {
+        switch (max) {
+          case r: h = ((g - b) / d) % 6; break;
+          case g: h = (b - r) / d + 2; break;
+          default: h = (r - g) / d + 4;
+        }
+        h /= 6;
+        if (h < 0) h += 1;
+      }
+      const s = max === 0 ? 0 : d / max;
+      return { h, s, b: max };
+    }
+
+    /** HSB (HSV) → RGB — matches SwiftUI Color(hue:saturation:brightness:). */
+    function hsbToRgb(h, s, v) {
+      const i = Math.floor(h * 6);
+      const f = h * 6 - i;
+      const p = v * (1 - s);
+      const q = v * (1 - f * s);
+      const t = v * (1 - (1 - f) * s);
+      let r;
+      let g;
+      let b;
+      switch (((i % 6) + 6) % 6) {
+        case 0: r = v; g = t; b = p; break;
+        case 1: r = q; g = v; b = p; break;
+        case 2: r = p; g = v; b = t; break;
+        case 3: r = p; g = q; b = v; break;
+        case 4: r = t; g = p; b = v; break;
+        default: r = v; g = p; b = q;
+      }
+      return {
+        r: Math.round(r * 255),
+        g: Math.round(g * 255),
+        b: Math.round(b * 255),
+      };
+    }
+
+    /** ProceduralShapeGenerator.heartRays — tapered wedges from origin. */
+    function heartRays(seed, complexity, time, origin, direction, reach) {
+      const rng = new SeededRNG(seed);
+      const count = 3 + rng.nextInt(0, 1);
+      const totalSpread = 0.5 + complexity * 0.3;
+      const startAngle = Math.atan2(direction.y, direction.x);
+      const boundsScratch = [];
+      const rays = [];
+
+      for (let i = 0; i < count; i++) {
+        const t = count === 1 ? 0.5 : i / (count - 1);
+        let angle = startAngle + (t - 0.5) * totalSpread;
+        angle += rng.nextDoubleIn(-0.06, 0.06);
+        const lengthFactor = rng.nextDoubleIn(0.7, 1.0);
+        const rayLength = reach * lengthFactor;
+        const baseHalfWidth = rayLength * rng.nextDoubleIn(0.1, 0.18);
+        const wobblePhase = rng.nextDoubleIn(0, 2 * Math.PI);
+        const wobbleAmount = Math.sin(time * 0.4 + wobblePhase) * rayLength * 0.015;
+        const cosA = Math.cos(angle);
+        const sinA = Math.sin(angle);
+        const normX = -sinA;
+        const normY = cosA;
+        const tip = {
+          x: origin.x + cosA * rayLength + normX * wobbleAmount,
+          y: origin.y + sinA * rayLength + normY * wobbleAmount,
+        };
+        const baseL = { x: origin.x + normX * baseHalfWidth, y: origin.y + normY * baseHalfWidth };
+        const baseR = { x: origin.x - normX * baseHalfWidth, y: origin.y - normY * baseHalfWidth };
+        const midT = 0.45;
+        const midWidth = baseHalfWidth * 0.45;
+        const midPoint = {
+          x: origin.x + cosA * rayLength * midT + normX * wobbleAmount * midT,
+          y: origin.y + sinA * rayLength * midT + normY * wobbleAmount * midT,
+        };
+        const midL = { x: midPoint.x + normX * midWidth, y: midPoint.y + normY * midWidth };
+        const midR = { x: midPoint.x - normX * midWidth, y: midPoint.y - normY * midWidth };
+
+        const path = new Path2D();
+        path.moveTo(baseL.x, baseL.y);
+        path.quadraticCurveTo(
+          (baseL.x + midL.x) / 2 + normX * baseHalfWidth * 0.15,
+          (baseL.y + midL.y) / 2 + normY * baseHalfWidth * 0.15,
+          midL.x,
+          midL.y
+        );
+        path.quadraticCurveTo(
+          (midL.x + tip.x) / 2 + normX * midWidth * 0.2,
+          (midL.y + tip.y) / 2 + normY * midWidth * 0.2,
+          tip.x,
+          tip.y
+        );
+        path.quadraticCurveTo(
+          (tip.x + midR.x) / 2 - normX * midWidth * 0.2,
+          (tip.y + midR.y) / 2 - normY * midWidth * 0.2,
+          midR.x,
+          midR.y
+        );
+        path.quadraticCurveTo(
+          (midR.x + baseR.x) / 2 - normX * baseHalfWidth * 0.15,
+          (midR.y + baseR.y) / 2 - normY * baseHalfWidth * 0.15,
+          baseR.x,
+          baseR.y
+        );
+        path.closePath();
+        rays.push({ path, origin, tip });
+        boundsScratch.push(origin, tip, baseL, baseR, midL, midR);
+      }
+      return { rays, boundsPoints: boundsScratch };
+    }
+
+    /** ProceduralShapeGenerator.heartGradientColors — palette from user hex + seed.
+     *  Swift uses HSB (UIColor / Color(hue:saturation:brightness:)); match it here. */
+    function heartGradientColorsRGBA(seed, baseHex) {
+      const rng = new SeededRNG(U64(BigInt.asUintN(64, BigInt(seed) + 0xbeefn)));
+      const baseRgb = hexToRgb(baseHex);
+      const { h, s, b } = rgbToHsb(baseRgb);
+      const count = 3 + rng.nextInt(0, 1);
+      const colors = [];
+      for (let i = 0; i < count; i++) {
+        const hueShift = rng.nextDoubleIn(-0.12, 0.12);
+        const satShift = rng.nextDoubleIn(-0.15, 0.1);
+        const briShift = rng.nextDoubleIn(-0.1, 0.15);
+        let newH = (h + hueShift) % 1;
+        if (newH < 0) newH += 1;
+        const newS = Math.min(1, Math.max(0.15, s + satShift));
+        const newB = Math.min(1, Math.max(0.3, b + briShift));
+        const rgb = hsbToRgb(newH, newS, newB);
+        const opacity = i === 0 ? 0.75 : rng.nextDoubleIn(0.45, 0.7);
+        colors.push({ ...rgb, a: opacity });
+      }
+      return colors;
+    }
+
+    /** Aim from element toward canvas center, then add the +90° asset orientation
+     *  offset Swift applies (heart PNG natural tip is up, but is drawn rotated by
+     *  inwardAngle + .degrees(90)). atan2(0,0) → 0 in JS matches Swift. */
+    function heartAimRadians(center, canvasW, canvasH, rotation, sweep) {
+      const ix = canvasW * 0.5 - center.x;
+      const iy = canvasH * 0.5 - center.y;
+      const inward = Math.atan2(iy, ix);
+      return inward + Math.PI / 2 + rotation + sweep;
+    }
+
+    function drawHeartFormula(ctx, center, rect, canvasW, canvasH, params) {
+      // M33: Swift derives `dim` from the element bounding box, not from the
+      // PAD-inset preview rect. Using the inset rect made the preview heart
+      // ~13% smaller than Swift (PAD=40 on each side of 600 → 520/600 ≈ .867).
+      // Use the full canvas dim to match Swift's reach calculation.
+      const dim = Math.min(canvasW, canvasH);
+      const reach = 0.22 * dim * 2.2 * (0.85 + params.complexity * 0.2);
+      const palette = heartGradientColorsRGBA(params.seed, params.color);
+      // M31: heart breathe is driven by `pulseFrequency` (Hz, like Swift's
+      // CanvasElement.pulseFrequency: 0.3…0.8) modulated by `phase`
+      // (CanvasElement.phaseOffset: 0…2π) — NOT by the user rotation.
+      // M34: previously `params.rotation` was reused as a phase, which
+      // coupled "where the heart points" to "where in its breath cycle it is".
+      const omega = 2 * Math.PI * params.pulseFrequency;
+      const breathe = 0.92 + Math.sin(params.time * omega + params.phase) * 0.06;
+      // Sweep is a slow side-to-side wobble of the aim direction. Its phase
+      // is now derived from `phase`, so a pinned rotation no longer wobbles.
+      const sweep = Math.sin(params.time * 0.012 + params.phase * 2.1) * (10 * (Math.PI / 180));
+      const aim = heartAimRadians(center, canvasW, canvasH, params.rotation, sweep);
+      const dir2 = { x: Math.cos(aim), y: Math.sin(aim) };
+      const { rays: rays2 } = heartRays(
+        params.seed,
+        params.complexity,
+        params.time,
+        center,
+        dir2,
+        reach
+      );
+
+      const blurPx = 5 + reach * 0.1 + params.complexity * 6;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = breathe;
+      /* One shared Gaussian blur (CSS filter) merges wedges — avoids additive clip-to-white. */
+      ctx.filter = `blur(${blurPx}px)`;
+      rays2.forEach((ray, i) => {
+        const c = palette[i % palette.length];
+        const g = ctx.createLinearGradient(ray.origin.x, ray.origin.y, ray.tip.x, ray.tip.y);
+        const a = c.a * 0.42;
+        g.addColorStop(0, `rgba(${c.r},${c.g},${c.b},${a * 0.55})`);
+        g.addColorStop(0.42, `rgba(${c.r},${c.g},${c.b},${a * 0.2})`);
+        g.addColorStop(1, `rgba(${c.r},${c.g},${c.b},0)`);
+        ctx.fillStyle = g;
+        ctx.fill(ray.path);
+      });
+      ctx.filter = "none";
+
+      ctx.globalAlpha = breathe * 0.4;
+      rays2.forEach((ray, i) => {
+        const c = palette[i % palette.length];
+        const g = ctx.createLinearGradient(ray.origin.x, ray.origin.y, ray.tip.x, ray.tip.y);
+        const a = c.a * 0.28;
+        g.addColorStop(0, `rgba(${c.r},${c.g},${c.b},${a * 0.4})`);
+        g.addColorStop(0.55, `rgba(${c.r},${c.g},${c.b},${a * 0.12})`);
+        g.addColorStop(1, `rgba(${c.r},${c.g},${c.b},0)`);
+        ctx.fillStyle = g;
+        ctx.fill(ray.path);
+      });
+
+      ctx.restore();
+    }
+
+    function drawHeart(ctx, center, rect, canvasW, canvasH, params) {
+      drawHeartFormula(ctx, center, rect, canvasW, canvasH, params);
+    }
+
+    function heartRaysCropBounds(center, canvasW, canvasH, params) {
+      // M33: keep in sync with `drawHeartFormula` — full canvas dim, not the inset rect.
+      const dim = Math.min(canvasW, canvasH);
+      const reach = 0.22 * dim * 2.2 * (0.85 + params.complexity * 0.2);
+      // M34: sweep is driven by `phase`, not `rotation` (see drawHeartFormula).
+      const sweep = Math.sin(params.time * 0.012 + params.phase * 2.1) * (10 * (Math.PI / 180));
+      const aim = heartAimRadians(center, canvasW, canvasH, params.rotation, sweep);
+      const direction = { x: Math.cos(aim), y: Math.sin(aim) };
+      const { boundsPoints } = heartRays(
+        params.seed,
+        params.complexity,
+        params.time,
+        center,
+        direction,
+        reach
+      );
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const p of boundsPoints) {
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      }
+      const blurPx = 5 + reach * 0.1 + params.complexity * 6;
+      const margin = 32 + Math.ceil(blurPx * 2.8 + reach * 0.2);
+      return {
+        sx: Math.max(0, Math.floor(minX - margin)),
+        sy: Math.max(0, Math.floor(minY - margin)),
+        sw: Math.ceil(maxX - minX + 2 * margin),
+        sh: Math.ceil(maxY - minY + 2 * margin),
+      };
+    }
+
+    let maskPreparedCanvas = null;
+
+    /** PNG with real alpha → white RGB + keep alpha. Else black-on-white → alpha = 1 − luma. */
+    function buildMaskCanvasFromImage(img) {
+      const nw = img.naturalWidth || img.width;
+      const nh = img.naturalHeight || img.height;
+      if (nw < 1 || nh < 1) {
+        return null;
+      }
+      const off = document.createElement("canvas");
+      off.width = nw;
+      off.height = nh;
+      const oc = off.getContext("2d", { willReadFrequently: true });
+      oc.drawImage(img, 0, 0);
+      const id = oc.getImageData(0, 0, nw, nh);
+      const d = id.data;
+      // M35: previously this only sampled the four corners and flipped to alpha
+      // mode if any corner alpha < 250. That misclassified two real cases:
+      //   1) Alpha PNG whose subject fills to the corners — corners are
+      //      opaque, so the asset was treated as black-on-white luma even
+      //      though it had a real alpha channel.
+      //   2) Black-on-white PNG with antialiased edges that touch the corner
+      //      — corner alpha can dip just below 250 due to compositing, so a
+      //      luma asset got mis-routed to alpha mode and rendered nearly invisible.
+      // Fix: scan every pixel once. If ANY pixel is non-opaque the image carries
+      // alpha encoding; otherwise treat as luma. Threshold lifted to 252 (only
+      // count meaningful transparency, not PNG-encoder rounding noise).
+      const ALPHA_THRESHOLD = 252;
+      let useAlpha = false;
+      for (let i = 3; i < d.length; i += 4) {
+        if (d[i] < ALPHA_THRESHOLD) {
+          useAlpha = true;
+          break;
+        }
+      }
+      if (useAlpha) {
+        for (let i = 0; i < d.length; i += 4) {
+          d[i] = 255;
+          d[i + 1] = 255;
+          d[i + 2] = 255;
+        }
+        oc.putImageData(id, 0, 0);
+        return off;
+      }
+      for (let i = 0; i < d.length; i += 4) {
+        const lum = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255;
+        const a = Math.min(1, Math.max(0, 1 - lum)) ** 1.02;
+        d[i] = 255;
+        d[i + 1] = 255;
+        d[i + 2] = 255;
+        d[i + 3] = Math.round(a * 255);
+      }
+      oc.putImageData(id, 0, 0);
+      return off;
+    }
+
+    function maskLayout(center, rect, complexity, nw, nh) {
+      const scale =
+        ((0.3 + complexity * 0.62) * Math.min(rect.width, rect.height)) / Math.max(nw, nh, 1);
+      const dw = nw * scale;
+      const dh = nh * scale;
+      const x = center.x - dw / 2;
+      const y = center.y - dh / 2;
+      return { x, y, dw, dh };
+    }
+
+    function rgbaFromRgb(rgb, a) {
+      return `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
+    }
+
+    /**
+     * Build a gradient for the mask preview.
+     *
+     * Color-space note (M30): operates in HSB to match Swift's color model.
+     * Swift goes through `UIColor.getHue:saturation:brightness:` (HSB) — see
+     * `desaturated(by:)` in `CanvasElement.swift` and the heart palette in
+     * `ProceduralShapeGenerator.heartGradientColors`. The previous HSL pipeline
+     * here drifted because HSL "lightness" is not Swift's "brightness". Hue
+     * shifts are unchanged (HSL/HSB share a hue circle).
+     */
+    function maskAssetGradient(ctx, preset, x, y, dw, dh, colorHex, seed, time) {
+      const cx = x + dw / 2;
+      const cy = y + dh / 2;
+      const R = Math.max(dw, dh) * 0.55;
+      const wobble = Math.sin(time * 0.4) * 0.04 * R;
+      const baseRgb = hexToRgb(colorHex);
+      const { h, s, b } = rgbToHsb(baseRgb);
+
+      if (preset === "warmRadial") {
+        const g = ctx.createRadialGradient(cx, cy - dh * 0.18 + wobble, R * 0.04, cx, cy, R * 1.02);
+        g.addColorStop(0, "#FDDD5E");
+        g.addColorStop(0.34, "#FD9E7C");
+        g.addColorStop(0.66, "#FD52A7");
+        g.addColorStop(1, "rgba(255,255,255,0)");
+        return g;
+      }
+
+      if (preset === "triadic") {
+        const pal = heartGradientColorsRGBA(seed, colorHex);
+        const g = ctx.createLinearGradient(x, y, x + dw * 0.15, y + dh);
+        pal.forEach((c, idx) => {
+          const t = pal.length === 1 ? 0 : idx / (pal.length - 1);
+          g.addColorStop(t, rgbaFromRgb(c, c.a));
+        });
+        return g;
+      }
+
+      if (preset === "linearDiag") {
+        const g = ctx.createLinearGradient(x, y + dh, x + dw, y);
+        const c0 = hsbToRgb((h + 0.08) % 1, Math.min(1, s + 0.1), Math.min(0.92, b + 0.08));
+        const c1 = hsbToRgb((h + 0.42) % 1, Math.min(1, s * 0.85), Math.min(0.85, b));
+        const c2 = hsbToRgb((h - 0.06 + 1) % 1, s * 0.5, Math.min(0.75, b));
+        g.addColorStop(0, rgbaFromRgb(c0, 0.85));
+        g.addColorStop(0.55, rgbaFromRgb(c1, 0.55));
+        g.addColorStop(1, rgbaFromRgb(c2, 0));
+        return g;
+      }
+
+      if (preset === "linearV") {
+        const g = ctx.createLinearGradient(cx, y, cx, y + dh);
+        const hi = hsbToRgb(h, Math.min(1, s + 0.15), Math.min(0.95, b + 0.12));
+        const mid = hsbToRgb((h + 0.06) % 1, s * 0.85, b);
+        const lo = hsbToRgb((h + 0.35) % 1, Math.min(1, s * 0.7), Math.max(0.2, b - 0.05));
+        g.addColorStop(0, rgbaFromRgb(hi, 0.9));
+        g.addColorStop(0.45, rgbaFromRgb(mid, 0.5));
+        g.addColorStop(1, rgbaFromRgb(lo, 0));
+        return g;
+      }
+
+      const g = ctx.createRadialGradient(cx, cy - dh * 0.12 + wobble, R * 0.02, cx, cy, R);
+      const c0 = hsbToRgb(h, Math.min(1, s + 0.12), Math.min(0.95, b + 0.1));
+      const c1 = hsbToRgb((h + 0.22) % 1, s * 0.75, b);
+      const c2 = hsbToRgb((h + 0.48) % 1, Math.min(1, s * 0.55), Math.max(0.25, b - 0.08));
+      g.addColorStop(0, rgbaFromRgb(c0, 0.88));
+      g.addColorStop(0.42, rgbaFromRgb(c1, 0.45));
+      g.addColorStop(0.78, rgbaFromRgb(c2, 0.18));
+      g.addColorStop(1, rgbaFromRgb(c2, 0));
+      return g;
+    }
+
+    function maskRotatedBounds(center, x, y, dw, dh, rotation, pad) {
+      const dx = dw / 2;
+      const dy = dh / 2;
+      const cos = Math.cos(rotation);
+      const sin = Math.sin(rotation);
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const [px, py] of [
+        [-dx, -dy],
+        [dx, -dy],
+        [dx, dy],
+        [-dx, dy],
+      ]) {
+        const rx = px * cos - py * sin + center.x;
+        const ry = px * sin + py * cos + center.y;
+        minX = Math.min(minX, rx);
+        minY = Math.min(minY, ry);
+        maxX = Math.max(maxX, rx);
+        maxY = Math.max(maxY, ry);
+      }
+      return {
+        sx: Math.max(0, Math.floor(minX - pad)),
+        sy: Math.max(0, Math.floor(minY - pad)),
+        sw: Math.ceil(maxX - minX + 2 * pad),
+        sh: Math.ceil(maxY - minY + 2 * pad),
+      };
+    }
+
+    function maskCropRect(center, rect, params, canvasW, canvasH) {
+      if (!maskPreparedCanvas) {
+        return { sx: PAD, sy: PAD, sw: canvasW - 2 * PAD, sh: canvasH - 2 * PAD };
+      }
+      const nw = maskPreparedCanvas.width;
+      const nh = maskPreparedCanvas.height;
+      const { x, y, dw, dh } = maskLayout(center, rect, params.complexity, nw, nh);
+      return maskRotatedBounds(center, x, y, dw, dh, params.rotation, 24);
+    }
+
+    function drawMaskAsset(ctx, center, rect, params) {
+      if (!maskPreparedCanvas) {
+        ctx.save();
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.font = '14px system-ui, -apple-system, sans-serif';
+        ctx.textAlign = "center";
+        ctx.fillText("Choose a PNG above (black on white or with alpha)", center.x, center.y - 6);
+        ctx.fillText("then pick a gradient style.", center.x, center.y + 14);
+        ctx.restore();
+        return;
+      }
+      const nw = maskPreparedCanvas.width;
+      const nh = maskPreparedCanvas.height;
+      const { x, y, dw, dh } = maskLayout(center, rect, params.complexity, nw, nh);
+      const preset = params.maskGradientPreset;
+      const grad = maskAssetGradient(
+        ctx,
+        preset,
+        x,
+        y,
+        dw,
+        dh,
+        params.color,
+        params.seed,
+        params.time
+      );
+
+      ctx.save();
+      ctx.translate(center.x, center.y);
+      ctx.rotate(params.rotation);
+      ctx.translate(-center.x, -center.y);
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.rect(x, y, dw, dh);
+      ctx.fill();
+
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.drawImage(maskPreparedCanvas, x, y, dw, dh);
+      ctx.globalCompositeOperation = "source-over";
+
+      ctx.restore();
+    }
+
+    function drawBodyFill(ctx, path, colorHex, center, rect, rotation) {
+      const { r, g, b } = hexToRgb(colorHex);
+      const rr = Math.min(rect.width, rect.height) / 2;
+      const innerR = Math.max(0, rr - 40);
+      const edgeLoc = rr > 0 ? innerR / rr : 0;
+      const midStop = edgeLoc + (1 - edgeLoc) * 0.5;
+      const cx = center.x;
+      const cy = center.y;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rotation);
+      ctx.translate(-cx, -cy);
+      ctx.clip(path);
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr);
+      grad.addColorStop(0, `rgba(${r},${g},${b},0.12)`);
+      grad.addColorStop(edgeLoc, `rgba(${r},${g},${b},0.10)`);
+      grad.addColorStop(midStop, `rgba(${r},${g},${b},0.35)`);
+      grad.addColorStop(1, `rgba(${r},${g},${b},0.55)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rr, rr, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${r},${g},${b},0.65)`;
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.stroke(path);
+      ctx.restore();
+    }
+
+    /** Superformula crystal + tinted radial (“crystal” preset). */
+    function drawMindCrystal(ctx, path, colorHex, center, rect, rotation) {
+      const { r, g, b } = hexToRgb(colorHex);
+      const rr = Math.min(rect.width, rect.height) / 2;
+      const cx = center.x;
+      const cy = center.y;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rotation);
+      ctx.translate(-cx, -cy);
+      ctx.clip(path);
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr);
+      grad.addColorStop(0, `rgba(${r},${g},${b},0.7)`);
+      grad.addColorStop(0.55, `rgba(${r},${g},${b},0.25)`);
+      grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rr, rr, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${r},${g},${b},0.5)`;
+      ctx.lineWidth = 1.25;
+      ctx.stroke(path);
+      ctx.restore();
+    }
+
+    /**
+     * Mind pulse — small breathing scale.
+     *
+     * M34: previously this folded `rotation` into both the angular frequency
+     * and the phase, conflating "where it points" with "where in the cycle it
+     * is". Now the cycle is driven by `pulseFrequency` (Hz, like Swift's
+     * `pulseFrequency`) and `phase` (radians, like Swift's `phaseOffset`),
+     * matching the per-element Swift fields.
+     */
+    function mindPulseScale(time, phase, pulseFrequency) {
+      const omega = 2 * Math.PI * pulseFrequency;
+      return 1 + Math.sin(time * omega + phase) * 0.015;
+    }
+
+    /**
+     * HSB → CSS rgba string for mind gradient stops.
+     *
+     * Color-space note (M30): the mind glow/ring renderers used to mix in HSL,
+     * which doesn't match Swift's HSB pipeline (`UIColor.getHue:saturation:brightness:`,
+     * `Color(hue:saturation:brightness:)`). We now operate in HSB so that the
+     * web prototype shifts in the same direction as the Swift app for a given
+     * base hex. Numeric stops were tuned visually — they read as HSB values now
+     * (e.g. "brightness" instead of "lightness"); a pure base hue still maps to
+     * `b ≈ 1`, while the previous "lightness 0.82 / s 0.5" pastel becomes
+     * "brightness 0.82 / s 0.5", which is close but not identical.
+     */
+    function mindRgbaFromHsb(h, s, b, a) {
+      const o = hsbToRgb(((h % 1) + 1) % 1, Math.max(0, Math.min(1, s)), Math.max(0, Math.min(1, b)));
+      return `rgba(${o.r},${o.g},${o.b},${a})`;
+    }
+
+    /** mindPath silhouette + dual radials derived from user color (cyan-shift + warm accent). */
+    function drawMindFormulaGlow(ctx, path, colorHex, center, rect, time, rotation, phase, pulseFrequency, softCenter) {
+      const pulse = mindPulseScale(time, phase, pulseFrequency);
+      const rr = Math.min(rect.width, rect.height) * 0.48 * pulse;
+      const cx = center.x;
+      const cy = center.y;
+      const { h, s, b } = rgbToHsb(hexToRgb(colorHex));
+      const coolH = (h + 0.45) % 1;
+      const warmH = (h - 0.04 + 1) % 1;
+      const accH = (h + 0.1) % 1;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rotation);
+      ctx.translate(-cx, -cy);
+      ctx.clip(path);
+
+      const gCool = ctx.createRadialGradient(cx, cy - rr * 0.2, rr * 0.06, cx, cy - rr * 0.08, rr * 1.08);
+      gCool.addColorStop(0, mindRgbaFromHsb(coolH, Math.min(0.6, s + 0.12), 0.82, 0.48));
+      gCool.addColorStop(0.38, mindRgbaFromHsb(coolH, 0.38, 0.68, 0.26));
+      gCool.addColorStop(0.72, mindRgbaFromHsb(coolH, 0.28, 0.58, 0.12));
+      gCool.addColorStop(1, mindRgbaFromHsb(coolH, 0.2, 0.5, 0));
+      ctx.fillStyle = gCool;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rr * 1.02, 0, Math.PI * 2);
+      ctx.fill();
+
+      const hx = cx;
+      const hy = cy + rr * 0.4;
+      const gHot = ctx.createRadialGradient(hx, hy, 0, hx, hy, rr * 0.68);
+      if (softCenter) {
+        gHot.addColorStop(0, mindRgbaFromHsb(warmH, 0.85, 0.72, 0.12));
+      } else {
+        gHot.addColorStop(0, mindRgbaFromHsb(warmH, 0.92, 0.62, 0.72));
+      }
+      gHot.addColorStop(0.22, mindRgbaFromHsb(accH, 0.78, 0.66, 0.45));
+      gHot.addColorStop(0.48, mindRgbaFromHsb(h, s * 0.75, b, 0.18));
+      gHot.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = gHot;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = mindRgbaFromHsb(h, s, b, 0.38);
+      ctx.lineWidth = 1.2;
+      ctx.stroke(path);
+      ctx.restore();
+    }
+
+    /** Ring / halo: cooler outer + saturated ring from base hue + soft core. */
+    function drawMindFormulaRing(ctx, path, colorHex, center, rect, time, rotation, phase, pulseFrequency, softCenter) {
+      const pulse = mindPulseScale(time, phase, pulseFrequency);
+      const R = Math.min(rect.width, rect.height) * 0.52 * pulse;
+      const cx = center.x;
+      const cy = center.y;
+      const { h, s, b } = rgbToHsb(hexToRgb(colorHex));
+      const outerH = (h + 0.48) % 1;
+      const ringH = (h + 0.02 + 1) % 1;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rotation);
+      ctx.translate(-cx, -cy);
+      ctx.clip(path);
+
+      const g0 = ctx.createRadialGradient(cx, cy + R * 0.02, R * 0.03, cx, cy, R * 1.1);
+      g0.addColorStop(0, softCenter ? mindRgbaFromHsb(h, s * 0.4, 0.12, 0.06) : mindRgbaFromHsb(h, s * 0.5, 0.15, 0.45));
+      g0.addColorStop(0.18, mindRgbaFromHsb(ringH, Math.min(0.95, s + 0.15), 0.58, 0.58));
+      g0.addColorStop(0.32, softCenter ? mindRgbaFromHsb(h, 0.25, 0.2, 0.08) : mindRgbaFromHsb(h, 0.35, 0.18, 0.38));
+      g0.addColorStop(0.48, mindRgbaFromHsb(ringH, 0.88, 0.52, 0.35));
+      g0.addColorStop(0.72, mindRgbaFromHsb(outerH, 0.35, 0.78, 0.22));
+      g0.addColorStop(1, mindRgbaFromHsb(outerH, 0.25, 0.65, 0));
+      ctx.fillStyle = g0;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 1.05, 0, Math.PI * 2);
+      ctx.fill();
+
+      const g1 = ctx.createRadialGradient(cx, cy - R * 0.34, 0, cx, cy - R * 0.15, R * 0.9);
+      g1.addColorStop(0, mindRgbaFromHsb(outerH, 0.25, 0.92, 0.35));
+      g1.addColorStop(0.55, mindRgbaFromHsb(outerH, 0.3, 0.78, 0.14));
+      g1.addColorStop(1, mindRgbaFromHsb(outerH, 0.2, 0.65, 0));
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = g1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = mindRgbaFromHsb(h, s, b, 0.32);
+      ctx.lineWidth = 1.15;
+      ctx.stroke(path);
+      ctx.restore();
+    }
+
+    /**
+     * Figma Dev Mode — frame ~485×496, rotation 180°, radial #FDDD5E → #FD9E7C → #FD52A7 → #FFFFFF 0%.
+     * Progressive layer blur 0→100 along (50.08%,4.39%)→(50.77%,26.63%): approximated with stacked filtered fills (Canvas has no true progressive blur).
+     */
+    function drawMindFigmaDevSpec(ctx, path, center, rect, time, rotation, phase, pulseFrequency) {
+      const pulse = mindPulseScale(time, phase, pulseFrequency);
+      const R = Math.min(rect.width, rect.height) * 0.5 * pulse;
+      const cx = center.x;
+      const cy = center.y;
+
+      const u0 = (0.5008 - 0.5) * 2;
+      const v0 = (0.0439 - 0.5) * 2;
+      const innerX = cx + u0 * R * 0.42;
+      const innerY = cy + v0 * R * 0.55;
+      const grad = ctx.createRadialGradient(innerX, innerY, R * 0.025, cx, cy, R * 1.04);
+      grad.addColorStop(0, "#FDDD5E");
+      grad.addColorStop(0.34, "#FD9E7C");
+      grad.addColorStop(0.66, "#FD52A7");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+
+      const figmaBlurEnd = 100;
+      const blurA = figmaBlurEnd * 0.26;
+      const blurB = figmaBlurEnd * 0.18;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rotation + Math.PI);
+      ctx.translate(-cx, -cy);
+      ctx.clip(path);
+
+      ctx.globalCompositeOperation = "source-over";
+      ctx.filter = `blur(${blurA}px)`;
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, R * 1.02, R * 1.02, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.filter = `blur(${blurB}px)`;
+      ctx.globalAlpha = 0.38;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, R * 0.98, R * 0.98, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.filter = "none";
+      ctx.globalAlpha = 0.92;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, R * 0.94, R * 0.94, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "rgba(253, 82, 167, 0.38)";
+      ctx.lineWidth = 1.12;
+      ctx.stroke(path);
+      ctx.restore();
+    }
+
+    function drawMind(ctx, center, rect, width, height, params) {
+      const path = mindPath(params.seed, params.complexity, params.time, rect);
+      const preset = params.mindPreset;
+      if (preset === "figmaDev") {
+        drawMindFigmaDevSpec(ctx, path, center, rect, params.time, params.rotation, params.phase, params.pulseFrequency);
+        return;
+      }
+      if (preset === "crystal") {
+        drawMindCrystal(ctx, path, params.color, center, rect, params.rotation);
+        return;
+      }
+      if (preset === "ring") {
+        drawMindFormulaRing(
+          ctx,
+          path,
+          params.color,
+          center,
+          rect,
+          params.time,
+          params.rotation,
+          params.phase,
+          params.pulseFrequency,
+          params.mindSoftCenter
+        );
+      } else {
+        drawMindFormulaGlow(
+          ctx,
+          path,
+          params.color,
+          center,
+          rect,
+          params.time,
+          params.rotation,
+          params.phase,
+          params.pulseFrequency,
+          params.mindSoftCenter
+        );
+      }
+    }
+
+    function mindDrawBounds(center, rect, params) {
+      const points = mindPointsForBounds(params.seed, params.complexity, rect);
+      const b = pointsBounds(points, rect);
+      if (params.mindPreset !== "figmaDev") {
+        return b;
+      }
+      const pad = 44;
+      return {
+        sx: Math.max(0, b.sx - pad),
+        sy: Math.max(0, b.sy - pad),
+        sw: b.sw + 2 * pad,
+        sh: b.sh + 2 * pad,
+      };
+    }
+
+    /**
+     * Parse a UInt64 seed from a text input. Accepts decimal ("12345"),
+     * hex ("0xCAFE"), or octal/binary BigInt literals.
+     *
+     * M32: previously the `0x` prefix branch ran `BigInt('0x')` outside the
+     * try/catch and threw an uncaught SyntaxError on `0x` with no following
+     * digits. Now both branches share one try/catch.
+     * L21: warns on fallback so users can see why their seed was ignored.
+     */
+    function parseSeed(str) {
+      const t = String(str).trim();
+      try {
+        return U64(BigInt(t));
+      } catch {
+        console.warn(
+          `parseSeed: cannot parse ${JSON.stringify(t)}; falling back to 12345678901234567890`
+        );
+        return U64(12345678901234567890n);
+      }
+    }
+
+    const canvas = document.getElementById("c");
+    const ctx = canvas.getContext("2d", { alpha: true });
+    const PAD = 40;
+
+    function readParams() {
+      return {
+        category: document.getElementById("category").value,
+        seed: parseSeed(document.getElementById("seed").value),
+        color: document.getElementById("color").value,
+        complexity: parseFloat(document.getElementById("complexity").value),
+        time: parseFloat(document.getElementById("time").value),
+        rotation: parseFloat(document.getElementById("rotation").value),
+        // M34: phase + pulseFrequency are split out from rotation so user
+        // rotation no longer drives the breathe/sweep cycles. Defaults match
+        // the midpoints of Swift's CanvasElement spawn ranges.
+        phase: parseFloat(document.getElementById("phase").value),
+        pulseFrequency: parseFloat(document.getElementById("pulseFrequency").value),
+        mindPreset: document.getElementById("mindPreset").value,
+        mindSoftCenter: document.getElementById("mindSoftCenter").checked,
+        maskGradientPreset: document.getElementById("maskGradientPreset").value,
+      };
+    }
+
+    function pointsBounds(points, rect) {
+      const rr = Math.min(rect.width, rect.height) / 2;
+      const margin = Math.max(28, rr * 0.12) + 2;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const p of points) {
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      }
+      return {
+        sx: Math.max(0, Math.floor(minX - margin)),
+        sy: Math.max(0, Math.floor(minY - margin)),
+        sw: Math.ceil(maxX - minX + 2 * margin),
+        sh: Math.ceil(maxY - minY + 2 * margin),
+      };
+    }
+
+    function drawSceneOntoContext(c, width, height, params) {
+      c.clearRect(0, 0, width, height);
+      const rect = { x: PAD, y: PAD, width: width - 2 * PAD, height: height - 2 * PAD };
+      const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+
+      if (params.category === "body") {
+        const path = bodyPath(params.seed, params.complexity, params.time, rect);
+        drawBodyFill(c, path, params.color, center, rect, params.rotation);
+        return;
+      }
+      if (params.category === "mind") {
+        drawMind(c, center, rect, width, height, params);
+        return;
+      }
+      if (params.category === "heart") {
+        drawHeart(c, center, rect, width, height, params);
+        return;
+      }
+      if (params.category === "mask") {
+        drawMaskAsset(c, center, rect, params);
+      }
+    }
+
+    function cropRectForParams(params, w, h) {
+      const rect = { x: PAD, y: PAD, width: w - 2 * PAD, height: h - 2 * PAD };
+      const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      if (params.category === "body") {
+        const points = bodyPoints(params.seed, params.complexity, params.time, rect);
+        return pointsBounds(points, rect);
+      }
+      if (params.category === "mind") {
+        return mindDrawBounds(center, rect, params);
+      }
+      if (params.category === "mask") {
+        return maskCropRect(center, rect, params, w, h);
+      }
+      return heartRaysCropBounds(center, w, h, params);
+    }
+
+    function frame() {
+      const w = canvas.width;
+      const h = canvas.height;
+      const params = readParams();
+      document.getElementById("complexityVal").textContent = params.complexity.toFixed(2);
+      document.getElementById("timeVal").textContent = params.time.toFixed(2);
+      document.getElementById("rotationVal").textContent = params.rotation.toFixed(2);
+      document.getElementById("phaseVal").textContent = params.phase.toFixed(2);
+      document.getElementById("pulseFrequencyVal").textContent = params.pulseFrequency.toFixed(2);
+      drawSceneOntoContext(ctx, w, h, params);
+    }
+
+    function downloadBlob(blob, filename) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function exportPNG(cropped) {
+      const wasAnimating = document.getElementById("animate").checked;
+      const pause = document.getElementById("exportPauseAnimate").checked;
+      if (pause) cancelAnimationFrame(raf);
+
+      frame();
+      const params = readParams();
+      const w = canvas.width;
+      const h = canvas.height;
+      const cat = params.category;
+      const snapshot = document.createElement("canvas");
+      snapshot.width = w;
+      snapshot.height = h;
+      snapshot.getContext("2d", { alpha: true }).drawImage(canvas, 0, 0);
+
+      if (!cropped) {
+        snapshot.toBlob((blob) => {
+          if (blob) {
+            downloadBlob(blob, `${cat}-${params.seed}.png`);
+          }
+          resumeAnim(wasAnimating, pause);
+        }, "image/png");
+        return;
+      }
+
+      let { sx, sy, sw, sh } = cropRectForParams(params, w, h);
+      sx = Math.min(sx, w - 1);
+      sy = Math.min(sy, h - 1);
+      sw = Math.min(sw, w - sx);
+      sh = Math.min(sh, h - sy);
+      if (sw < 1 || sh < 1) {
+        resumeAnim(wasAnimating, pause);
+        return;
+      }
+
+      const out = document.createElement("canvas");
+      out.width = sw;
+      out.height = sh;
+      out.getContext("2d", { alpha: true }).drawImage(snapshot, sx, sy, sw, sh, 0, 0, sw, sh);
+      out.toBlob((blob) => {
+        if (blob) {
+          downloadBlob(blob, `${cat}-crop-${params.seed}.png`);
+        }
+        resumeAnim(wasAnimating, pause);
+      }, "image/png");
+    }
+
+    function resumeAnim(wasAnimating, pause) {
+      if (pause && wasAnimating && document.getElementById("animate").checked) {
+        raf = requestAnimationFrame(loop);
+      }
+    }
+
+    let raf = 0;
+
+    function randomUInt64String() {
+      try {
+        const buf = new Uint8Array(8);
+        crypto.getRandomValues(buf);
+        let n = 0n;
+        for (let i = 0; i < 8; i++) {
+          n = (n << 8n) | BigInt(buf[i]);
+        }
+        return U64(n === 0n ? 1n : n).toString();
+      } catch {
+        return U64(
+          BigInt(Date.now()) * 1315423911n + BigInt(Math.floor(Math.random() * 0xffffffff))
+        ).toString();
+      }
+    }
+
+    function randomHexColor() {
+      try {
+        const buf = new Uint8Array(3);
+        crypto.getRandomValues(buf);
+        return (
+          "#" +
+          Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("")
+        ).toUpperCase();
+      } catch {
+        const r = Math.floor(Math.random() * 256);
+        const g = Math.floor(Math.random() * 256);
+        const b = Math.floor(Math.random() * 256);
+        return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b
+          .toString(16)
+          .padStart(2, "0")}`.toUpperCase();
+      }
+    }
+
+    /** Random seed, color, rotation, phase, pulseFrequency, complexity (and time if not animating). */
+    function randomizeShapeParams() {
+      const cat = document.getElementById("category").value;
+      document.getElementById("seed").value = randomUInt64String();
+      document.getElementById("color").value = randomHexColor();
+      document.getElementById("rotation").value = (Math.random() * Math.PI * 2).toFixed(2);
+      // M34: independent random source for phase/pulseFrequency.
+      // Phase range mirrors Swift's CanvasElement.phaseOffset (0…2π).
+      document.getElementById("phase").value = (Math.random() * Math.PI * 2).toFixed(2);
+      // pulseFrequency range mirrors Swift's CanvasElement.pulseFrequency for
+      // mind/heart (0.3…0.8 Hz) — slightly widened here for visual exploration.
+      document.getElementById("pulseFrequency").value = (0.3 + Math.random() * 0.7).toFixed(2);
+      let lo = 0.04;
+      let hi = 0.92;
+      if (cat === "body") {
+        hi = 0.55;
+      }
+      document.getElementById("complexity").value = (lo + Math.random() * (hi - lo)).toFixed(2);
+      if (cat === "mask") {
+        const sel = document.getElementById("maskGradientPreset");
+        const opts = [...sel.options];
+        sel.value = opts[Math.floor(Math.random() * opts.length)].value;
+      }
+      if (!document.getElementById("animate").checked) {
+        document.getElementById("time").value = (Math.random() * 50).toFixed(2);
+      }
+    }
+
+    function loop(ts) {
+      if (document.getElementById("randomEachFrame").checked) {
+        randomizeShapeParams();
+      }
+      if (document.getElementById("animate").checked) {
+        document.getElementById("time").value = String((ts / 1000) % 50);
+      }
+      frame();
+      if (document.getElementById("animate").checked) {
+        raf = requestAnimationFrame(loop);
+      }
+    }
+
+    function updateComplexityLabel() {
+      const cat = document.getElementById("category").value;
+      const desc = document.getElementById("complexityDesc");
+      if (cat === "body") {
+        desc.textContent = "Complexity 0–1 (activityCount/30)";
+      } else if (cat === "mind") {
+        desc.textContent = "Complexity 0–1 (mind size / pulse scale)";
+      } else if (cat === "mask") {
+        desc.textContent = "Complexity 0–1 (mask scale in preview)";
+      } else {
+        desc.textContent = "Complexity 0–1 (beam width + max blur)";
+      }
+    }
+
+    function updateMindControlsVisibility() {
+      const cat = document.getElementById("category").value;
+      const mind = cat === "mind";
+      const preset = mind ? document.getElementById("mindPreset").value : "";
+      const hideSoftCenter = preset === "crystal" || preset === "figmaDev";
+      document.getElementById("mindPresetWrap").style.display = mind ? "block" : "none";
+      document.getElementById("mindHoleWrap").style.display = mind && !hideSoftCenter ? "block" : "none";
+      document.getElementById("maskWrap").style.display = cat === "mask" ? "block" : "none";
+    }
+
+    document.getElementById("category").addEventListener("change", () => {
+      updateComplexityLabel();
+      updateMindControlsVisibility();
+      cancelAnimationFrame(raf);
+      frame();
+    });
+    document.getElementById("mindPreset").addEventListener("change", () => {
+      updateMindControlsVisibility();
+      cancelAnimationFrame(raf);
+      frame();
+    });
+    document.getElementById("mindSoftCenter").addEventListener("change", () => {
+      cancelAnimationFrame(raf);
+      frame();
+    });
+    document.getElementById("maskFile").addEventListener("change", (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) {
+        return;
+      }
+      const r = new FileReader();
+      r.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          maskPreparedCanvas = buildMaskCanvasFromImage(img);
+          cancelAnimationFrame(raf);
+          frame();
+        };
+        img.onerror = () => {
+          maskPreparedCanvas = null;
+          frame();
+        };
+        img.src = r.result;
+      };
+      r.readAsDataURL(f);
+    });
+    document.getElementById("maskGradientPreset").addEventListener("change", () => {
+      cancelAnimationFrame(raf);
+      frame();
+    });
+
+    ["seed", "color", "complexity", "time", "rotation", "phase", "pulseFrequency"].forEach((id) => {
+      document.getElementById(id).addEventListener("input", () => {
+        cancelAnimationFrame(raf);
+        frame();
+      });
+    });
+    document.getElementById("animate").addEventListener("change", () => {
+      cancelAnimationFrame(raf);
+      if (document.getElementById("animate").checked) {
+        raf = requestAnimationFrame(loop);
+      } else {
+        frame();
+      }
+    });
+
+    document.getElementById("randomEachFrame").addEventListener("change", () => {
+      if (document.getElementById("randomEachFrame").checked) {
+        randomizeShapeParams();
+      }
+      cancelAnimationFrame(raf);
+      if (document.getElementById("animate").checked) {
+        raf = requestAnimationFrame(loop);
+      } else {
+        frame();
+      }
+    });
+
+    document.getElementById("randomizeOnce").addEventListener("click", () => {
+      randomizeShapeParams();
+      cancelAnimationFrame(raf);
+      frame();
+      if (document.getElementById("animate").checked) {
+        raf = requestAnimationFrame(loop);
+      }
+    });
+
+    document.getElementById("exportFull").addEventListener("click", () => exportPNG(false));
+    document.getElementById("exportCrop").addEventListener("click", () => exportPNG(true));
+
+    updateComplexityLabel();
+    updateMindControlsVisibility();
+    frame();
+  </script>
+</body>
+</html>
