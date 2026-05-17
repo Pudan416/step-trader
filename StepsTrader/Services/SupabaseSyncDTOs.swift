@@ -93,7 +93,14 @@ struct DailyStatsRow: Codable {
         userId = try container.decode(String.self, forKey: .userId)
         dayKey = try container.decode(String.self, forKey: .dayKey)
         stepsCount = try container.decodeIfPresent(Int.self, forKey: .stepsCount) ?? 0
-        sleepHours = try container.decodeIfPresent(Double.self, forKey: .sleepHours) ?? 0
+        // PostgREST returns Postgres `numeric` as a JSON string, not a number.
+        if let d = try? container.decode(Double.self, forKey: .sleepHours) {
+            sleepHours = d
+        } else if let s = try? container.decode(String.self, forKey: .sleepHours), let d = Double(s) {
+            sleepHours = d
+        } else {
+            sleepHours = 0
+        }
         baseEnergy = try container.decodeIfPresent(Int.self, forKey: .baseEnergy) ?? 0
         bonusEnergy = try container.decodeIfPresent(Int.self, forKey: .bonusEnergy) ?? 0
         remainingBalance = try container.decodeIfPresent(Int.self, forKey: .remainingBalance) ?? 0
@@ -321,7 +328,16 @@ struct UserPreferencesRow: Decodable {
     let hasMediumWidget: Bool
     let hasLargeWidget: Bool
     let lastOpenedAt: String?
-    
+    let gradientStyle: String
+    let gradientPalette: String
+    let userGradientStyle: String
+    let userGradientPalette: String
+    let dailyRandomThemeEnabled: Bool
+    let canvasOverlayStyle: String
+    let bodyCanvasShape: String
+    let mindCanvasShape: String
+    let heartCanvasShape: String
+
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case stepsTarget = "steps_target"
@@ -345,6 +361,15 @@ struct UserPreferencesRow: Decodable {
         case hasMediumWidget = "has_medium_widget"
         case hasLargeWidget = "has_large_widget"
         case lastOpenedAt = "last_opened_at"
+        case gradientStyle = "gradient_style"
+        case gradientPalette = "gradient_palette"
+        case userGradientStyle = "user_gradient_style"
+        case userGradientPalette = "user_gradient_palette"
+        case dailyRandomThemeEnabled = "daily_random_theme_enabled"
+        case canvasOverlayStyle = "canvas_overlay_style"
+        case bodyCanvasShape = "body_canvas_shape"
+        case mindCanvasShape = "mind_canvas_shape"
+        case heartCanvasShape = "heart_canvas_shape"
     }
     
     init(from decoder: Decoder) throws {
@@ -371,6 +396,15 @@ struct UserPreferencesRow: Decodable {
         hasMediumWidget = try c.decodeIfPresent(Bool.self, forKey: .hasMediumWidget) ?? false
         hasLargeWidget = try c.decodeIfPresent(Bool.self, forKey: .hasLargeWidget) ?? false
         lastOpenedAt = try c.decodeIfPresent(String.self, forKey: .lastOpenedAt)
+        gradientStyle = try c.decodeIfPresent(String.self, forKey: .gradientStyle) ?? GradientStyle.radial.rawValue
+        gradientPalette = try c.decodeIfPresent(String.self, forKey: .gradientPalette) ?? GradientPalette.warmSunset.rawValue
+        userGradientStyle = try c.decodeIfPresent(String.self, forKey: .userGradientStyle) ?? GradientStyle.radial.rawValue
+        userGradientPalette = try c.decodeIfPresent(String.self, forKey: .userGradientPalette) ?? GradientPalette.warmSunset.rawValue
+        dailyRandomThemeEnabled = try c.decodeIfPresent(Bool.self, forKey: .dailyRandomThemeEnabled) ?? false
+        canvasOverlayStyle = try c.decodeIfPresent(String.self, forKey: .canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue
+        bodyCanvasShape = try c.decodeIfPresent(String.self, forKey: .bodyCanvasShape) ?? CanvasShapeType.circle.rawValue
+        mindCanvasShape = try c.decodeIfPresent(String.self, forKey: .mindCanvasShape) ?? CanvasShapeType.snowflake.rawValue
+        heartCanvasShape = try c.decodeIfPresent(String.self, forKey: .heartCanvasShape) ?? CanvasShapeType.rays.rawValue
     }
 }
 

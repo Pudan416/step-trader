@@ -3,6 +3,7 @@ import UIKit
 
 struct ProfileEditorView: View {
     @ObservedObject var authService: AuthenticationService
+    @ObservedObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var nickname: String = ""
     @State private var avatarImage: UIImage?
@@ -12,6 +13,14 @@ struct ProfileEditorView: View {
     @State private var imagePickerError: String?
     @State private var showDeleteConfirmation: Bool = false
     @State private var isDeleting: Bool = false
+
+    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader()) private var stepsTarget: Double = EnergyDefaults.stepsTarget
+    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var sleepTarget: Double = EnergyDefaults.sleepTargetHours
+    @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.stepsTrader()) private var dayEndHourSetting: Int = 0
+    @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader()) private var dayEndMinuteSetting: Int = 0
+
+    private var allowedBedtimeMinutes: [Int] { DayEndOptions.allowedMinutes }
+    @State private var bedtimeMinutes: Int = 23 * 60
     
     var body: some View {
         NavigationStack {
@@ -112,6 +121,58 @@ struct ProfileEditorView: View {
                     }
                 }
                 
+                // MARK: - Daily Goals
+
+                Section {
+                    StepGoalDrumPicker(value: $stepsTarget)
+                        .onChange(of: stepsTarget) { _, _ in
+                            model.recalculateDailyEnergy()
+                        }
+                } header: {
+                    Label(String(localized: "Daily Steps Goal"), systemImage: "figure.walk")
+                }
+
+                Section {
+                    SleepDurationStepper(hours: $sleepTarget)
+                        .onChange(of: sleepTarget) { _, _ in
+                            model.recalculateDailyEnergy()
+                        }
+                } header: {
+                    Label(String(localized: "Sleep Goal"), systemImage: "bed.double.fill")
+                }
+
+                Section {
+                    DayResetTimePicker(
+                        selectedMinutes: $bedtimeMinutes,
+                        allowedMinutes: allowedBedtimeMinutes
+                    )
+                    .onChange(of: bedtimeMinutes) { _, newValue in
+                        let hour = (newValue / 60) % 24
+                        let minute = newValue % 60
+                        dayEndHourSetting = hour
+                        dayEndMinuteSetting = minute
+                        model.updateDayEnd(hour: hour, minute: minute)
+                    }
+                } header: {
+                    Label(String(localized: "Day Resets At"), systemImage: "clock.arrow.circlepath")
+                } footer: {
+                    Text(String(localized: "Your canvas and colors reset at this time each day."))
+                }
+
+                Section {
+                    Button {
+                        authService.signOut()
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Text(String(localized: "Sign Out", comment: "ProfileEditor – sign out button"))
+                            Spacer()
+                        }
+                    }
+                    .disabled(isDeleting || isSaving)
+                }
+
                 Section {
                     Button(role: .destructive) {
                         showDeleteConfirmation = true
@@ -155,6 +216,7 @@ struct ProfileEditorView: View {
             }
             .onAppear {
                 loadCurrentProfile()
+                syncBedtimeFromStorage()
             }
             .alert(String(localized: "Error", comment: "ProfileEditor – error alert title"), isPresented: .init(
                 get: { saveError != nil },
@@ -223,6 +285,21 @@ struct ProfileEditorView: View {
         isSaving = false
     }
     
+    private func syncBedtimeFromStorage() {
+        let current = dayEndHourSetting * 60 + dayEndMinuteSetting
+        if allowedBedtimeMinutes.contains(current) {
+            bedtimeMinutes = current
+            return
+        }
+        let snapped = DayEndOptions.nearestAllowed(to: current)
+        bedtimeMinutes = snapped
+        let h = (snapped / 60) % 24
+        let m = snapped % 60
+        dayEndHourSetting = h
+        dayEndMinuteSetting = m
+        model.updateDayEnd(hour: h, minute: m)
+    }
+
     @MainActor
     private func performAccountDeletion() async {
         isDeleting = true

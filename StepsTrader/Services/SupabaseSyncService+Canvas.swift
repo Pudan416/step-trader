@@ -36,11 +36,9 @@ extension SupabaseSyncService {
     
     /// Fetch canvas from Supabase for a given day. Returns nil if not found or not authenticated.
     func fetchDayCanvas(for dayKey: String) async -> DayCanvas? {
-        await AuthenticationService.shared.waitForInitialization()
-        
-        let token = await AuthenticationService.shared.accessToken
-        let userId = await AuthenticationService.shared.currentUser?.id
-        guard let token, let userId else { return nil }
+        guard let auth = await authenticatedContext() else { return nil }
+        let token = auth.token
+        let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -90,14 +88,13 @@ extension SupabaseSyncService {
             }
         }
         
-        await AuthenticationService.shared.waitForInitialization()
-        if Task.isCancelled { return }
-        
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
+        guard let auth = await authenticatedContext() else {
             AppLogger.network.debug("📡 Day canvas sync skipped: no auth")
             return
         }
+        if Task.isCancelled { return }
+        let token = auth.token
+        let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()

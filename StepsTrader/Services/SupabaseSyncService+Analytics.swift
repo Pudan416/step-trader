@@ -42,11 +42,9 @@ extension SupabaseSyncService {
     private func flushAnalyticsEvents() async {
         guard !pendingAnalyticsEvents.isEmpty else { return }
         
-        await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
-            return
-        }
+        guard let auth = await authenticatedContext() else { return }
+        let token = auth.token
+        let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()

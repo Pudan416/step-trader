@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 #if canImport(FamilyControls)
 import FamilyControls
 #endif
@@ -81,7 +82,8 @@ struct TicketGroup: Identifiable, Codable {
             let data = try JSONEncoder().encode(selection)
             try container.encode(data, forKey: .selectionData)
         } catch {
-            print("[TicketGroup] Failed to encode selection for group \(id): \(error.localizedDescription)")
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "StepsTrader", category: "FamilyControls")
+                .error("Failed to encode selection for group \(id): \(error.localizedDescription)")
         }
         #endif
     }

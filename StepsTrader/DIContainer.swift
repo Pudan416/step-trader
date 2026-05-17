@@ -30,7 +30,19 @@ final class DIContainer {
             healthKitService: makeHealthKitService(),
             familyControlsService: makeFamilyControlsService(),
             notificationService: makeNotificationService(),
-            budgetEngine: makeBudgetEngine()
+            budgetEngine: makeBudgetEngine(),
+            subscriptionStore: makeSubscriptionStore()
         )
     }
+
+    /// Single shared SubscriptionStore — RC SDK is process-singleton anyway.
+    @MainActor
+    func makeSubscriptionStore() -> SubscriptionStore {
+        SubscriptionStore.shared
+    }
+}
+
+// MARK: - Shared singleton accessor
+extension SubscriptionStore {
+    @MainActor static let shared = SubscriptionStore()
 }

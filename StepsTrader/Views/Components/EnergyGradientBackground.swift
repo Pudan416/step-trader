@@ -16,44 +16,55 @@ enum EnergyGradientRenderer {
         let warm: Color         // mid-warm (coral role)
         let cool: Color         // sleep-driven mid (navy role)
         let dark: Color         // sleep-driven edge (night role)
-        let daylightBase: Color // light-mode background tint
     }
 
+    private static let palettes: [GradientPalette: Palette] = [
+        .warmSunset: Palette(
+            bright: Color(hex: "#FFBF65"),
+            warm:   Color(hex: "#FD8973"),
+            cool:   Color(hex: "#003A6C"),
+            dark:   Color(hex: "#002646")
+        ),
+        .ocean: Palette(
+            bright: Color(hex: "#7FDBDA"),
+            warm:   Color(hex: "#3A9FBF"),
+            cool:   Color(hex: "#1A4B6E"),
+            dark:   Color(hex: "#0B1E33")
+        ),
+        .aurora: Palette(
+            bright: Color(hex: "#C4B5FD"),
+            warm:   Color(hex: "#7C6FBF"),
+            cool:   Color(hex: "#1F6E5C"),
+            dark:   Color(hex: "#0F1B2D")
+        ),
+        .dusk: Palette(
+            bright: Color(hex: "#EEDDC9"),
+            warm:   Color(hex: "#C0AC98"),
+            cool:   Color(hex: "#5E7282"),
+            dark:   Color(hex: "#384856")
+        ),
+        .dawn: Palette(
+            bright: Color(hex: "#EBBFC8"),
+            warm:   Color(hex: "#B87A92"),
+            cool:   Color(hex: "#4A3568"),
+            dark:   Color(hex: "#181430")
+        ),
+        .ember: Palette(
+            bright: Color(hex: "#F07838"),
+            warm:   Color(hex: "#D04428"),
+            cool:   Color(hex: "#2E1858"),
+            dark:   Color(hex: "#0C0A22")
+        ),
+        .horizon: Palette(
+            bright: Color(hex: "#D0A440"),
+            warm:   Color(hex: "#2898A8"),
+            cool:   Color(hex: "#105868"),
+            dark:   Color(hex: "#0A2832")
+        ),
+    ]
+
     static func palette(for scheme: GradientPalette) -> Palette {
-        switch scheme {
-        case .warmSunset:
-            return Palette(
-                bright: Color(hex: "#FFBF65"),
-                warm:   Color(hex: "#FD8973"),
-                cool:   Color(hex: "#003A6C"),
-                dark:   Color(hex: "#002646"),
-                daylightBase: Color(hex: "#F2DCC8")
-            )
-        case .ocean:
-            return Palette(
-                bright: Color(hex: "#7FDBDA"),
-                warm:   Color(hex: "#3A9FBF"),
-                cool:   Color(hex: "#1A4B6E"),
-                dark:   Color(hex: "#0B1E33"),
-                daylightBase: Color(hex: "#E0F0F5")
-            )
-        case .aurora:
-            return Palette(
-                bright: Color(hex: "#C4B5FD"),
-                warm:   Color(hex: "#7C6FBF"),
-                cool:   Color(hex: "#1F6E5C"),
-                dark:   Color(hex: "#0F1B2D"),
-                daylightBase: Color(hex: "#EDE8F8")
-            )
-        case .dusk:
-            return Palette(
-                bright: Color(hex: "#EEDDC9"),
-                warm:   Color(hex: "#C0AC98"),
-                cool:   Color(hex: "#5E7282"),
-                dark:   Color(hex: "#384856"),
-                daylightBase: Color(hex: "#F2EAE0")
-            )
-        }
+        palettes[scheme] ?? palettes[.warmSunset]!
     }
 
     // Backward-compat statics (warmSunset default)
@@ -61,7 +72,6 @@ enum EnergyGradientRenderer {
     static let coral = Color(hex: "#FD8973")
     static let navy  = Color(hex: "#003A6C")
     static let night = Color(hex: "#002646")
-    static let daylightBase = Color(hex: "#F2DCC8")
 
     // MARK: - Math Helpers
 
@@ -85,6 +95,8 @@ enum EnergyGradientRenderer {
         let radius: Double  // fraction of maxReach
         let color: Color
         let opacity: Double
+        var blendMode: GraphicsContext.BlendMode = .plusLighter
+        var skewAngle: Double = 0
     }
 
     /// Day seed: same value all day, changes at midnight.
@@ -145,6 +157,68 @@ enum EnergyGradientRenderer {
         return blobs
     }
 
+    /// Generate a structured 4×3 grid of blobs that blend into a mesh-like gradient.
+    /// Positions are deterministic per day (seed) but perturbed so each day feels unique.
+    /// Colors are distributed across the grid with warm tones near center, cool at edges.
+    static func meshBlobs(
+        opacities: Opacities,
+        seed: UInt64,
+        palette p: Palette? = nil
+    ) -> [Blob] {
+        let pal = p ?? palette(for: .warmSunset)
+        var rng = SeededRNG(seed: seed)
+        var styleRng = SeededRNG(seed: seed &+ 0xCAFE_BABE)
+        var blobs: [Blob] = []
+
+        let meshBlendPool: [GraphicsContext.BlendMode] = [
+            .plusLighter, .plusLighter, .plusLighter, .colorDodge, .softLight, .screen
+        ]
+
+        let cols = 3
+        let rows = 4
+
+        let colorPool: [(Color, Double)] = [
+            (pal.bright, opacities.gold),
+            (pal.warm,   opacities.coral),
+            (pal.cool,   opacities.navy),
+            (pal.dark,   opacities.night),
+        ]
+
+        for row in 0..<rows {
+            for col in 0..<cols {
+                let baseX = Double(col) / Double(cols - 1)
+                let baseY = Double(row) / Double(rows - 1)
+
+                let px = baseX + rng.nextDouble(in: -0.14...0.14)
+                let py = baseY + rng.nextDouble(in: -0.10...0.10)
+
+                let distFromCenter = sqrt(pow(px - 0.5, 2) + pow(py - 0.5, 2))
+
+                let roll = rng.nextDouble()
+                let pick: Int
+                if distFromCenter < 0.22 {
+                    pick = roll < 0.65 ? 0 : 1
+                } else if distFromCenter < 0.42 {
+                    pick = roll < 0.35 ? 0 : (roll < 0.70 ? 1 : 2)
+                } else {
+                    pick = roll < 0.20 ? 0 : (roll < 0.50 ? 1 : (roll < 0.80 ? 2 : 3))
+                }
+
+                let (color, baseOpacity) = colorPool[pick]
+                let opacity = max(baseOpacity, 0.35) * rng.nextDouble(in: 0.65...1.0)
+                let radius = rng.nextDouble(in: 0.40...0.65)
+
+                blobs.append(Blob(
+                    x: px, y: py, radius: radius, color: color, opacity: opacity,
+                    blendMode: meshBlendPool[Int(styleRng.next() % UInt64(meshBlendPool.count))],
+                    skewAngle: styleRng.nextDouble(in: -0.5...0.5)
+                ))
+            }
+        }
+
+        return blobs
+    }
+
     // MARK: - Opacity Model
 
     struct Opacities {
@@ -167,13 +241,11 @@ enum EnergyGradientRenderer {
     ///   - smoothedL: Smoothstep-curved normalized sleep value (0…1).
     ///   - hasStepsData: Whether HealthKit has returned step data (not inferred from points).
     ///   - hasSleepData: Whether HealthKit has returned sleep data (not inferred from points).
-    ///   - isDaylight: When true, all stops are fully opaque for vibrant saturated colors.
     static func computeOpacities(
         smoothedS Ss: Double,
         smoothedL Ls: Double,
         hasStepsData: Bool,
-        hasSleepData: Bool,
-        isDaylight: Bool = false
+        hasSleepData: Bool
     ) -> Opacities {
 
         // ── Stop locations: each color's share of the radius ──────
@@ -189,21 +261,7 @@ enum EnergyGradientRenderer {
         let coralLoc = goldLoc + coralShare
         let navyLoc  = coralLoc + navyShare
 
-        // Daylight: warm center, darker edges for depth/contrast.
-        if isDaylight {
-            return Opacities(
-                gold:  hasStepsData ? 0.85 : 0,
-                coral: 0.9,
-                navy:  0.82,
-                night: 0.85,
-                glow:  hasStepsData ? 0.65 : 0.4,
-                goldLoc: goldLoc,
-                coralLoc: coralLoc,
-                navyLoc: navyLoc
-            )
-        }
-
-        // ── Night mode: original data-driven opacities ───────────────
+        // ── Data-driven opacities ───────────────
 
         // ── 6.1  Gold (steps-driven, off when no steps data) ─────────
         let goldOp: Double
@@ -362,9 +420,33 @@ enum EnergyGradientRenderer {
                     )
                 }
             }
+        case .mesh:
+            let meshBlobs = meshBlobs(opacities: opacities, seed: daySeed, palette: pal)
+            for blob in meshBlobs {
+                let cx = blob.x * w
+                let cy = blob.y * h
+                let r = blob.radius * maxReach
+                let blobGrad = Gradient(colors: [
+                    blob.color.opacity(blob.opacity),
+                    blob.color.opacity(blob.opacity * 0.45),
+                    blob.color.opacity(blob.opacity * 0.08),
+                    blob.color.opacity(0),
+                ])
+                let stretchX = 1.0 + abs(blob.skewAngle) * 0.6
+                context.drawLayer { ctx in
+                    ctx.blendMode = blob.blendMode
+                    ctx.translateBy(x: cx, y: cy)
+                    ctx.rotate(by: .radians(blob.skewAngle))
+                    ctx.scaleBy(x: stretchX, y: 1.0)
+                    ctx.fill(
+                        Ellipse().path(in: CGRect(x: -r, y: -r, width: r * 2, height: r * 2)),
+                        with: .radialGradient(blobGrad, center: .zero, startRadius: 0, endRadius: r)
+                    )
+                }
+            }
         }
 
-        if gradientStyle == .organic { return }
+        if gradientStyle == .organic || gradientStyle == .mesh { return }
 
         let secondaryGrad = Gradient(colors: [
             pal.bright.opacity(opacities.glow * 0.6),
@@ -392,7 +474,7 @@ enum EnergyGradientRenderer {
             let glowH = h * 0.4
             let shading = GraphicsContext.Shading.linearGradient(secondaryGrad, startPoint: CGPoint(x: w * 0.5, y: 0), endPoint: CGPoint(x: w * 0.5, y: glowH))
             context.drawLayer { ctx in ctx.fill(Path(CGRect(x: 0, y: 0, width: w, height: glowH)), with: shading) }
-        case .organic:
+        case .organic, .mesh:
             break
         }
     }
@@ -408,7 +490,6 @@ private struct EnergyGradientAnimator: ViewModifier, Animatable {
     var sleepNorm: Double
     var hasStepsData: Bool
     var hasSleepData: Bool
-    var isDaylight: Bool
     var gradientStyle: GradientStyle
     var gradientPalette: GradientPalette
 
@@ -429,14 +510,13 @@ private struct EnergyGradientAnimator: ViewModifier, Animatable {
                 smoothedS: Ss,
                 smoothedL: Ls,
                 hasStepsData: hasStepsData,
-                hasSleepData: hasSleepData,
-                isDaylight: isDaylight
+                hasSleepData: hasSleepData
             )
             EnergyGradientRenderer.draw(
                 context: &context,
                 size: size,
                 opacities: opacities,
-                baseColor: isDaylight ? pal.daylightBase : pal.dark,
+                baseColor: pal.dark,
                 gradientStyle: gradientStyle,
                 colorPalette: pal
             )
@@ -458,26 +538,27 @@ struct EnergyGradientBackground: View {
     let hasStepsData: Bool
     let hasSleepData: Bool
     var showGrain: Bool = true
+    var gradientStyleOverride: String? = nil
+    var gradientPaletteOverride: String? = nil
+    var textureOverride: String? = nil
 
-    @Environment(\.appTheme) private var theme
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(SharedKeys.gradientStyle) private var gradientStyleRaw: String = GradientStyle.radial.rawValue
     @AppStorage(SharedKeys.gradientPalette) private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
-
-    private var isDaylight: Bool {
-        switch theme {
-        case .daylight: return true
-        case .night: return false
-        case .system: return colorScheme == .light
-        }
-    }
+    @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
 
     private var gradientStyle: GradientStyle {
-        GradientStyle(rawValue: gradientStyleRaw) ?? .radial
+        if let override = gradientStyleOverride, let style = GradientStyle(rawValue: override) {
+            return style
+        }
+        return GradientStyle(rawValue: gradientStyleRaw) ?? .radial
     }
 
     private var gradientPaletteValue: GradientPalette {
-        GradientPalette.normalized(rawValue: gradientPaletteRaw)
+        if let override = gradientPaletteOverride {
+            return GradientPalette.normalized(rawValue: override)
+        }
+        return GradientPalette.normalized(rawValue: gradientPaletteRaw)
     }
 
     private var stepsNorm: Double {
@@ -494,7 +575,6 @@ struct EnergyGradientBackground: View {
                 sleepNorm: sleepNorm,
                 hasStepsData: hasStepsData,
                 hasSleepData: hasSleepData,
-                isDaylight: isDaylight,
                 gradientStyle: gradientStyle,
                 gradientPalette: gradientPaletteValue
             ))
@@ -502,19 +582,12 @@ struct EnergyGradientBackground: View {
             .animation(.easeInOut(duration: 0.8), value: sleepPoints)
             .animation(.easeInOut(duration: 0.8), value: hasStepsData)
             .animation(.easeInOut(duration: 0.8), value: hasSleepData)
-            .animation(.easeInOut(duration: 0.8), value: isDaylight)
             .ignoresSafeArea()
             .overlay {
-                if showGrain {
-                    Image("grain 1")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
-                        .ignoresSafeArea()
-                        .allowsHitTesting(false)
-                        .opacity(0.4)
-                        .blendMode(.overlay)
+                if showGrain && !reduceTransparency {
+                    let raw = textureOverride ?? canvasTextureRaw
+                    let texture = CanvasTexture.fromStored(raw)
+                    TextureOverlayView(texture: texture)
                 }
             }
     }

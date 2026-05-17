@@ -35,6 +35,14 @@ final class UserEconomyStore: ObservableObject {
     @Published var totalStepsBalance: Int = 0
     
     @Published var spentSteps: Int = 0 {
+        willSet {
+            if newValue != spentSteps {
+                AppLogger.energy.debug("💰 spentSteps willSet: \(self.spentSteps) → \(newValue)")
+            }
+            if newValue == 0 && spentSteps > 0 {
+                AppLogger.energy.error("⚠️ spentSteps RESET TO ZERO from \(self.spentSteps)! Stack:\n\(Thread.callStackSymbols.prefix(15).joined(separator: "\n"))")
+            }
+        }
         didSet { setNeedsFlush() }
     }
 
@@ -45,8 +53,16 @@ final class UserEconomyStore: ObservableObject {
             guard let self, self.needsFlush else { return }
             self.needsFlush = false
             let g = UserDefaults.stepsTrader()
+            let udSpent = g.integer(forKey: SharedKeys.spentStepsToday)
+            if self.spentSteps == 0 && udSpent > 0 {
+                AppLogger.energy.error("⚠️ setNeedsFlush would overwrite UD spentStepsToday=\(udSpent) with 0 — SKIPPING spent write")
+                g.set(self.stepsBalance, forKey: SharedKeys.stepsBalance)
+                return
+            }
+            AppLogger.energy.debug("💾 setNeedsFlush: stepsBalance=\(self.stepsBalance), spentSteps=\(self.spentSteps) (UD was \(udSpent))")
             g.set(self.stepsBalance, forKey: SharedKeys.stepsBalance)
             g.set(self.spentSteps, forKey: SharedKeys.spentStepsToday)
+            g.synchronize()
         }
     }
     

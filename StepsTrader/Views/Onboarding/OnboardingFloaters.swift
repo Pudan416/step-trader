@@ -4,7 +4,6 @@ enum FloaterKind { case body, mind, heart }
 
 struct OnboardingFloater: Identifiable {
     let id: Int
-    let asset: String?
     let kind: FloaterKind
     let baseX: CGFloat
     let baseY: CGFloat
@@ -18,11 +17,8 @@ struct OnboardingFloater: Identifiable {
 }
 
 func generateFloaters(count: Int, totalSlides: Int) -> [OnboardingFloater] {
-    let mindAssets = CanvasImageCatalog.mind
-    let heartAssets = CanvasImageCatalog.heart
-
     let kinds: [FloaterKind] = [.body, .heart, .body, .mind, .body, .heart, .mind, .body, .heart]
-    let bodyTints: [Color] = [
+    let tints: [Color] = [
         Color(red: 0.30, green: 0.80, blue: 0.50),
         Color(red: 1.00, green: 0.75, blue: 0.30),
         Color(red: 0.60, green: 0.40, blue: 0.90),
@@ -32,6 +28,18 @@ func generateFloaters(count: Int, totalSlides: Int) -> [OnboardingFloater] {
         Color(red: 0.50, green: 0.90, blue: 0.60),
         Color(red: 0.40, green: 0.60, blue: 1.00),
         Color(red: 0.95, green: 0.55, blue: 0.35),
+    ]
+
+    let mindTints: [Color] = [
+        Color(red: 0.40, green: 0.60, blue: 1.00),
+        Color(red: 0.60, green: 0.40, blue: 0.90),
+        Color(red: 0.30, green: 0.75, blue: 0.85),
+    ]
+
+    let heartTints: [Color] = [
+        Color(red: 1.00, green: 0.45, blue: 0.55),
+        Color(red: 0.85, green: 0.55, blue: 0.90),
+        Color(red: 1.00, green: 0.75, blue: 0.30),
     ]
 
     let maxAppearSlide = min(7, totalSlides)
@@ -44,28 +52,24 @@ func generateFloaters(count: Int, totalSlides: Int) -> [OnboardingFloater] {
         return Double(seed >> 11) / Double(1 << 53)
     }
 
-    var mindIdx = 0
-    var heartIdx = 0
     var bodyColorIdx = 0
+    var mindColorIdx = 0
+    var heartColorIdx = 0
 
     for i in 0..<count {
         let slide = (i % maxAppearSlide) + 2
         let kind = kinds[i % kinds.count]
-        let asset: String?
         let tint: Color
         switch kind {
         case .body:
-            asset = nil
-            tint = bodyTints[bodyColorIdx % bodyTints.count]
+            tint = tints[bodyColorIdx % tints.count]
             bodyColorIdx += 1
         case .mind:
-            asset = mindAssets[mindIdx % mindAssets.count]
-            mindIdx += 1
-            tint = .clear
+            tint = mindTints[mindColorIdx % mindTints.count]
+            mindColorIdx += 1
         case .heart:
-            asset = heartAssets[heartIdx % heartAssets.count]
-            heartIdx += 1
-            tint = .clear
+            tint = heartTints[heartColorIdx % heartTints.count]
+            heartColorIdx += 1
         }
 
         let positions: [(CGFloat, CGFloat)] = [
@@ -78,7 +82,6 @@ func generateFloaters(count: Int, totalSlides: Int) -> [OnboardingFloater] {
 
         floaters.append(OnboardingFloater(
             id: i,
-            asset: asset,
             kind: kind,
             baseX: pos.0,
             baseY: pos.1,
@@ -204,68 +207,154 @@ func floaterView(f: OnboardingFloater, t: Double, size: CGSize) -> some View {
         )
 
     case .mind:
-        if let asset = f.asset {
-            let pos = mindDriftPosition(f: f, size: size, t: t)
-            let rot = mindDriftRotation(f: f, size: size, t: t)
-            let breathe = sin(t * (0.25 + f.phase * 0.1) + f.phase * 3.7)
-            let opacity = 0.76 + breathe * 0.04
+        let pos = mindDriftPosition(f: f, size: size, t: t)
+        let rot = mindDriftRotation(f: f, size: size, t: t)
+        let breathe = sin(t * (0.25 + f.phase * 0.1) + f.phase * 3.7)
+        let opacity = 0.76 + breathe * 0.04
 
-            let trailCount = 3
-            let trailSpacing = 1.5
-            ForEach(0..<trailCount, id: \.self) { i in
-                let pastT = t - Double(trailCount - i) * trailSpacing
-                let ghostPos = mindDriftPosition(f: f, size: size, t: pastT)
-                let progress = Double(trailCount - i) / Double(trailCount)
-                let ghostOpacity = 0.30 * (1.0 - progress)
-                let ghostScale = 1.0 - progress * 0.15
+        let trailCount = 3
+        let trailSpacing = 1.5
+        ForEach(0..<trailCount, id: \.self) { i in
+            let pastT = t - Double(trailCount - i) * trailSpacing
+            let ghostPos = mindDriftPosition(f: f, size: size, t: pastT)
+            let progress = Double(trailCount - i) / Double(trailCount)
+            let ghostOpacity = 0.30 * (1.0 - progress)
+            let ghostScale = 1.0 - progress * 0.15
 
-                Image(asset)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: f.size * ghostScale, height: f.size * ghostScale)
-                    .opacity(ghostOpacity)
-                    .rotationEffect(rot)
-                    .position(ghostPos)
-            }
-
-            Image(asset)
-                .resizable()
-                .scaledToFit()
-                .frame(width: f.size, height: f.size)
-                .opacity(opacity)
+            mindFloaterShape(f: f, s: f.size * ghostScale, t: t)
+                .opacity(ghostOpacity)
                 .rotationEffect(rot)
-                .position(pos)
+                .position(ghostPos)
         }
+
+        mindFloaterShape(f: f, s: f.size, t: t)
+            .opacity(opacity)
+            .rotationEffect(rot)
+            .position(pos)
 
     case .heart:
-        if let asset = f.asset {
-            let cx = f.baseX * size.width
-            let cy = f.baseY * size.height
-            let wobbleX = sin(t * 0.012 + f.phase) * size.width * 0.004
-                + sin(t * 0.007 + f.phase * 2.3) * size.width * 0.002
-            let wobbleY = cos(t * 0.010 + f.phase * 1.3) * size.height * 0.004
-                + cos(t * 0.006 + f.phase * 0.7) * size.height * 0.002
-            let anchor = CGPoint(x: cx + wobbleX, y: cy + wobbleY)
+        let cx = f.baseX * size.width
+        let cy = f.baseY * size.height
+        let wobbleX = sin(t * 0.012 + f.phase) * size.width * 0.004
+            + sin(t * 0.007 + f.phase * 2.3) * size.width * 0.002
+        let wobbleY = cos(t * 0.010 + f.phase * 1.3) * size.height * 0.004
+            + cos(t * 0.006 + f.phase * 0.7) * size.height * 0.002
+        let anchor = CGPoint(x: cx + wobbleX, y: cy + wobbleY)
 
-            let canvasCenter = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
-            let dx = canvasCenter.x - anchor.x
-            let dy = canvasCenter.y - anchor.y
-            let inwardAngle = Angle.radians(atan2(Double(dy), Double(dx)))
+        let canvasCenter = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
+        let dx = canvasCenter.x - anchor.x
+        let dy = canvasCenter.y - anchor.y
+        let inwardAngle = Angle.radians(atan2(Double(dy), Double(dx)))
 
-            let sweepRange = 10.0 + f.speed * 5.0
-            let sweep = Angle.degrees(sin(t * 0.012 + f.phase * 2.1) * sweepRange)
-            let rotation = inwardAngle + .degrees(90) + sweep
+        let sweepRange = 10.0 + f.speed * 5.0
+        let sweep = Angle.degrees(sin(t * 0.012 + f.phase * 2.1) * sweepRange)
+        let rotation = inwardAngle + .degrees(90) + sweep
 
-            let breathe = 0.92 + sin(t * f.speed * 0.5 + f.phase) * 0.06
-            let raySize = f.size * 2.0
+        let breathe = 0.92 + sin(t * f.speed * 0.5 + f.phase) * 0.06
+        let raySize = f.size * 2.0
 
-            Image(asset)
-                .resizable()
-                .scaledToFit()
-                .frame(width: raySize, height: raySize)
-                .opacity(breathe)
-                .rotationEffect(rotation)
-                .position(anchor)
+        heartFloaterShape(f: f, s: raySize, t: t)
+            .opacity(breathe)
+            .rotationEffect(rotation)
+            .position(anchor)
+    }
+}
+
+// MARK: - Procedural Mind Floater (snowflake-style symmetric outline)
+
+@ViewBuilder
+private func mindFloaterShape(f: OnboardingFloater, s: CGFloat, t: Double) -> some View {
+    Canvas { context, canvasSize in
+        let path = snowflakePath(seed: f.shapeSeed, size: canvasSize.width, t: t, phase: f.phase)
+        let grad = Gradient(colors: [
+            f.tintColor.opacity(0.6),
+            f.tintColor.opacity(0.15),
+        ])
+        let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
+        context.drawLayer { ctx in
+            ctx.blendMode = .plusLighter
+            ctx.stroke(path, with: .radialGradient(grad, center: center, startRadius: 0, endRadius: canvasSize.width / 2), lineWidth: 1.5)
         }
     }
+    .frame(width: s, height: s)
+}
+
+private func snowflakePath(seed: UInt64, size: CGFloat, t: Double, phase: Double) -> Path {
+    let arms = 6
+    let cx = size / 2
+    let cy = size / 2
+    let r = size * 0.42
+
+    var hash = seed
+    func noise() -> Double {
+        hash = hash &* 6364136223846793005 &+ 1442695040888963407
+        return Double(hash >> 11) / Double(1 << 53)
+    }
+
+    var path = Path()
+    for arm in 0..<arms {
+        let baseAngle = (Double(arm) / Double(arms)) * 2 * .pi
+        let tipR = r * (0.7 + noise() * 0.3)
+        let midR = tipR * (0.4 + noise() * 0.2)
+        let wobble = sin(t * 0.04 + phase + Double(arm)) * 0.08
+
+        let tipX = cx + CGFloat(cos(baseAngle + wobble)) * tipR
+        let tipY = cy + CGFloat(sin(baseAngle + wobble)) * tipR
+        let midX = cx + CGFloat(cos(baseAngle + 0.15)) * midR
+        let midY = cy + CGFloat(sin(baseAngle + 0.15)) * midR
+
+        path.move(to: CGPoint(x: cx, y: cy))
+        path.addQuadCurve(to: CGPoint(x: tipX, y: tipY), control: CGPoint(x: midX, y: midY))
+
+        let branchR = tipR * 0.4
+        for side in [-1.0, 1.0] {
+            let branchAngle = baseAngle + side * 0.45 + wobble
+            let bx = cx + CGFloat(cos(baseAngle)) * midR + CGFloat(cos(branchAngle)) * branchR
+            let by = cy + CGFloat(sin(baseAngle)) * midR + CGFloat(sin(branchAngle)) * branchR
+            let branchStart = CGPoint(
+                x: cx + CGFloat(cos(baseAngle)) * midR,
+                y: cy + CGFloat(sin(baseAngle)) * midR
+            )
+            path.move(to: branchStart)
+            path.addLine(to: CGPoint(x: bx, y: by))
+        }
+    }
+    return path
+}
+
+// MARK: - Procedural Heart Floater (ray cone gradient)
+
+@ViewBuilder
+private func heartFloaterShape(f: OnboardingFloater, s: CGFloat, t: Double) -> some View {
+    Canvas { context, canvasSize in
+        let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height)
+        let coneAngle: Double = .pi / 6
+        let length = canvasSize.height
+
+        let grad = Gradient(stops: [
+            .init(color: f.tintColor.opacity(0.5), location: 0),
+            .init(color: f.tintColor.opacity(0.15), location: 0.5),
+            .init(color: .clear, location: 1.0),
+        ])
+
+        var conePath = Path()
+        conePath.move(to: center)
+        let leftAngle = -.pi / 2 - coneAngle
+        let rightAngle = -.pi / 2 + coneAngle
+        conePath.addLine(to: CGPoint(
+            x: center.x + CGFloat(cos(leftAngle)) * length,
+            y: center.y + CGFloat(sin(leftAngle)) * length
+        ))
+        conePath.addLine(to: CGPoint(
+            x: center.x + CGFloat(cos(rightAngle)) * length,
+            y: center.y + CGFloat(sin(rightAngle)) * length
+        ))
+        conePath.closeSubpath()
+
+        context.drawLayer { ctx in
+            ctx.blendMode = .plusLighter
+            ctx.fill(conePath, with: .radialGradient(grad, center: center, startRadius: 0, endRadius: length))
+        }
+    }
+    .frame(width: s, height: s)
 }

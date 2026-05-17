@@ -30,12 +30,12 @@ extension SupabaseSyncService {
     
     /// Delete a single ticket/shield row for current user and bundle id.
     func deleteTicket(bundleId: String) async {
-        await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
+        guard let auth = await authenticatedContext() else {
             AppLogger.network.debug("📡 Ticket delete skipped: no auth")
             return
         }
+        let token = auth.token
+        let userId = auth.userId
 
         do {
             let cfg = try SupabaseConfig.load()
@@ -81,12 +81,12 @@ extension SupabaseSyncService {
             }
         }
 
-        await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
+        guard let auth = await authenticatedContext() else {
             AppLogger.network.debug("📡 Ticket groups sync skipped: no auth")
             return
         }
+        let token = auth.token
+        let userId = auth.userId
 
         do {
             let cfg = try SupabaseConfig.load()

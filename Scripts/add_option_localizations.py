@@ -80,9 +80,9 @@ OPTIONS: list[tuple[str, str, str, str, str]] = [
     ("mind_remembering", "Remembering", "Воспоминание",
      "Returning to a past moment consciously.",
      "sitting on a bench, reviewing the day, recalling a memory"),
-    ("mind_letting_go", "Letting Go", "Отпускание",
-     "Releasing mental tension.",
-     "closing tasks, stopping overthinking, pause"),
+    ("mind_screen_detox", "Screen Detoxing", "Экранный детокс",
+     "A day with minimal screen time.",
+     "phone untouched, no scrolling, present in the moment"),
     # Heart
     ("heart_joy", "Joy", "Радость",
      "Feeling lightness and warmth.",

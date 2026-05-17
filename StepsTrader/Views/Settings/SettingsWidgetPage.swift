@@ -25,16 +25,15 @@ struct SettingsWidgetPage: View {
             SettingsGradientBG(model: model)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 24) {
                     DetailHeader(title: String(localized: "Widget", comment: "Settings section title"))
                         .padding(.horizontal, 16)
 
                     // MARK: - Background Picker
                     VStack(alignment: .leading, spacing: 0) {
-                        SettingsSectionLabel(text: String(localized: "BACKGROUND", comment: "Widget section header"))
+                        SettingsSectionLabel(text: String(localized: "Background", comment: "Widget section header"))
                             .padding(.horizontal, 14)
-                            .padding(.top, 14)
-                            .padding(.bottom, 10)
+                            .padding(.bottom, 12)
 
                         HStack(spacing: 12) {
                             bgCard(
@@ -76,20 +75,21 @@ struct SettingsWidgetPage: View {
                             }
                         }
                         .padding(.horizontal, 14)
-                        .padding(.bottom, 14)
+                        .padding(.bottom, 12)
 
                         if backgroundMode == "wallpaper" {
                             DetailDivider()
                             wallpaperStatus
                                 .padding(.horizontal, 14)
-                                .padding(.vertical, 10)
+                                .padding(.vertical, 12)
                         }
                     }
-                    .glassCard()
                     .padding(.horizontal, 16)
 
+                    DetailDivider().padding(.horizontal, 16)
+
                     // MARK: - Configuration Hint
-                    HStack(spacing: 10) {
+                    HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "hand.tap")
                             .font(.system(size: 15))
                             .foregroundStyle(theme.adaptiveSecondaryText)
@@ -97,14 +97,14 @@ struct SettingsWidgetPage: View {
                         Text(String(localized: "Long-press the widget → Edit to choose which group to display."))
                             .font(.caption)
                             .foregroundStyle(theme.adaptiveSecondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(14)
-                    .glassCard()
                     .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 80)
             }
         }
+        .overlay { }
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }

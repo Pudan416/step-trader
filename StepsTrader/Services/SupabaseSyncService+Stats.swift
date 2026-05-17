@@ -63,14 +63,13 @@ extension SupabaseSyncService {
             }
         }
         
-        await AuthenticationService.shared.waitForInitialization()
-        if Task.isCancelled { return }
-        
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
+        guard let auth = await authenticatedContext() else {
             AppLogger.network.debug("📡 Daily stats sync skipped: no auth")
             return
         }
+        if Task.isCancelled { return }
+        let token = auth.token
+        let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -120,14 +119,13 @@ extension SupabaseSyncService {
     }
     
     private func performDaySnapshotSync(dayKey: String, snapshot: PastDaySnapshot) async {
-        await AuthenticationService.shared.waitForInitialization()
-        if Task.isCancelled { return }
-        
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
+        guard let auth = await authenticatedContext() else {
             AppLogger.network.debug("📡 Day snapshot sync skipped: no auth")
             return
         }
+        if Task.isCancelled { return }
+        let token = auth.token
+        let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -177,11 +175,9 @@ extension SupabaseSyncService {
     
     /// Load today's daily stats from Supabase
     func loadTodayStatsFromServer() async -> (steps: Int, sleepHours: Double, baseEnergy: Int, bonusEnergy: Int, remainingBalance: Int)? {
-        await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
-            return nil
-        }
+        guard let auth = await authenticatedContext() else { return nil }
+        let token = auth.token
+        let userId = auth.userId
         
         let today = AppModel.dayKey(for: Date())
         if let cached = cachedTodayStats,
@@ -232,11 +228,9 @@ extension SupabaseSyncService {
     
     /// Load day snapshots from Supabase (for restoring history on new device)
     func loadDaySnapshotsFromServer() async -> [String: PastDaySnapshot] {
-        await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
-            return [:]
-        }
+        guard let auth = await authenticatedContext() else { return [:] }
+        let token = auth.token
+        let userId = auth.userId
         
         guard let config = try? SupabaseConfig.load() else { return [:] }
         
@@ -284,16 +278,12 @@ extension SupabaseSyncService {
     /// Load all historical day snapshots from Supabase
     /// Combines data from user_daily_selections, user_daily_stats, and user_daily_spent
     func loadHistoricalSnapshots() async -> [String: PastDaySnapshot] {
-        await AuthenticationService.shared.waitForInitialization()
-        let isAuthenticated = await AuthenticationService.shared.isAuthenticated
-        let userId = await AuthenticationService.shared.currentUser?.id
-        let token = await AuthenticationService.shared.accessToken
-        guard isAuthenticated,
-              let userId,
-              let token else {
+        guard let auth = await authenticatedContext() else {
             AppLogger.network.debug("📡 Historical load skipped: no auth")
             return [:]
         }
+        let token = auth.token
+        let userId = auth.userId
         
         guard let config = try? SupabaseConfig.load() else {
             return [:]
@@ -315,7 +305,12 @@ extension SupabaseSyncService {
             selections = await loadAllSelections(config: config, userId: userId, token: token)
             stats = await loadAllStats(config: config, userId: userId, token: token)
             spent = await loadAllSpent(config: config, userId: userId, token: token)
-            g.set(now, forKey: historicalLastFullSyncKey)
+            let fetchedAnything = !selections.isEmpty || !stats.isEmpty || !spent.isEmpty
+            if fetchedAnything {
+                g.set(now, forKey: historicalLastFullSyncKey)
+            } else {
+                AppLogger.network.debug("📡 Historical full sync returned no data — will retry next time")
+            }
         } else {
             selections = await loadAllSelections(config: config, userId: userId, token: token, fromDayKey: lastDayKey)
             stats = await loadAllStats(config: config, userId: userId, token: token, fromDayKey: lastDayKey)
@@ -381,7 +376,7 @@ extension SupabaseSyncService {
             }
             return result
         } catch {
-            AppLogger.network.error("📡 Failed to load all selections: \(error)")
+            AppLogger.network.error("📡 Failed to load all selections: \(error.localizedDescription) — \(String(describing: error))")
             return [:]
         }
     }
@@ -412,7 +407,7 @@ extension SupabaseSyncService {
             }
             return result
         } catch {
-            AppLogger.network.error("📡 Failed to load all stats: \(error)")
+            AppLogger.network.error("📡 Failed to load all stats: \(error.localizedDescription) — \(String(describing: error))")
             return [:]
         }
     }
@@ -443,7 +438,7 @@ extension SupabaseSyncService {
             }
             return result
         } catch {
-            AppLogger.network.error("📡 Failed to load all spent: \(error)")
+            AppLogger.network.error("📡 Failed to load all spent: \(error.localizedDescription) — \(String(describing: error))")
             return [:]
         }
     }

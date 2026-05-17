@@ -13,7 +13,13 @@
     ":" : {
 
     },
-    "!" : {
+    "·" : {
+
+    },
+    "«Nowhere — Now Here»  iOS app by Kosta Pudan" : {
+
+    },
+    "«Nowhere — Now Here» iOS app" : {
 
     },
     "/" : {
@@ -21,6 +27,26 @@
     },
     "/%lld" : {
 
+    },
+    "%@ — access until %@. Auto-renew is off." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ — access until %2$@. Auto-renew is off."
+          }
+        }
+      }
+    },
+    "%@ — renews on %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ — renews on %2$@."
+          }
+        }
+      }
     },
     "%@ · %lld" : {
       "localizations" : {
@@ -34,6 +60,16 @@
     },
     "%@ category" : {
 
+    },
+    "%@ every %lld days" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ every %2$lld days"
+          }
+        }
+      }
     },
     "%@ for %lld colors. that's the deal." : {
       "localizations" : {
@@ -77,12 +113,48 @@
         }
       }
     },
+    "%@ one-time. Yours forever." : {
+
+    },
     "%@, %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@, %lld colors earned" : {
+      "comment" : "HistoryView – tile a11y, with data",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, %3$lld colors earned"
+          }
+        }
+      }
+    },
+    "%@, %@, locked, requires Pro" : {
+      "comment" : "HistoryView – tile a11y, locked",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, locked, requires Pro"
+          }
+        }
+      }
+    },
+    "%@, %@, no data" : {
+      "comment" : "HistoryView – tile a11y, empty",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, no data"
           }
         }
       }
@@ -110,8 +182,20 @@
     "%@, 20 colors" : {
 
     },
+    "%@, locked, requires Pro" : {
+
+    },
     "%@, no data" : {
 
+    },
+    "%@. Auto-renews. Cancel anytime." : {
+
+    },
+    "%@/mo" : {
+
+    },
+    "%1$d of %2$d selected" : {
+      "comment" : "CategoryDetail – selection progress"
     },
     "%lld" : {
 
@@ -121,6 +205,9 @@
     },
     "%lld colors" : {
 
+    },
+    "%lld days tracked" : {
+      "comment" : "HistoryView – tracked count"
     },
     "%lld hours" : {
 
@@ -163,9 +250,6 @@
         }
       }
     },
-    "%lld steps" : {
-      "comment" : "QuickStatus – balance value"
-    },
     "%lld/%lld" : {
       "localizations" : {
         "en" : {
@@ -179,17 +263,20 @@
     "%lldm" : {
       "comment" : "PaperTicket – remaining budget in minutes, e.g. '42m'"
     },
+    "+%lld" : {
+
+    },
     "+%lld more" : {
       "comment" : "ActivitySuggestionBanner – show more"
     },
     "+20" : {
 
     },
+    "−%lld" : {
+
+    },
     "⏱️ %@" : {
       "comment" : "Notification – timer title with app name"
-    },
-    "📊" : {
-
     },
     "🛡️" : {
 
@@ -200,8 +287,14 @@
     "1 min before time is over" : {
 
     },
+    "3 months" : {
+
+    },
     "5,000" : {
       "comment" : "Onboarding – steps slider minimum"
+    },
+    "6 months" : {
+
     },
     "6h" : {
       "comment" : "Onboarding – sleep slider minimum"
@@ -219,6 +312,9 @@
 
     },
     "100" : {
+
+    },
+    "A fresh palette + style every day." : {
 
     },
     "A heads-up before your canvas resets for a new day." : {
@@ -239,10 +335,7 @@
     "About Feeds" : {
       "comment" : "Note topic"
     },
-    "About Kosta" : {
-      "comment" : "Note topic"
-    },
-    "About Limits" : {
+    "About Me" : {
       "comment" : "Note topic"
     },
     "About Shapes" : {
@@ -254,16 +347,25 @@
     "About Steps" : {
       "comment" : "Note topic"
     },
+    "About Subscription" : {
+      "comment" : "Note topic"
+    },
     "About the Canvas" : {
       "comment" : "Note topic"
     },
     "About Wallpaper" : {
       "comment" : "Note topic"
     },
-    "ACCESS WINDOW" : {
+    "About Widgets" : {
+      "comment" : "Note topic"
+    },
+    "Access window" : {
       "comment" : "Notification section header"
     },
-    "Account syncs across devices" : {
+    "Action needed" : {
+      "comment" : "Permissions warning label"
+    },
+    "ACTIVITIES" : {
 
     },
     "Activity name" : {
@@ -283,6 +385,12 @@
     },
     "Add your own" : {
       "comment" : "CategoryDetail – add custom activity button"
+    },
+    "Add your own activity" : {
+
+    },
+    "Add your own activity, locked, requires Pro" : {
+
     },
     "all" : {
       "comment" : "ManualsPage – filter showing all notes"
@@ -306,12 +414,6 @@
       "comment" : "Notification – app blocked body"
     },
     "an economy between online and offline." : {
-
-    },
-    "and" : {
-
-    },
-    "and also" : {
 
     },
     "and who are you?" : {
@@ -338,17 +440,32 @@
     "Aurora" : {
 
     },
+    "auto" : {
+      "comment" : "Inline tag — picker disabled because daily random is on"
+    },
     "Auto-wallpaper" : {
+
+    },
+    "AVERAGES" : {
 
     },
     "Back" : {
       "comment" : "SettingsComponents – back button label"
     },
-    "BACKGROUND" : {
+    "Background" : {
       "comment" : "Widget section header"
     },
+    "BACKGROUND COLOR" : {
+      "comment" : "Appearance section header"
+    },
+    "Best value" : {
+
+    },
+    "Blob" : {
+      "comment" : "Canvas shape type"
+    },
     "Body" : {
-      "comment" : "CategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – body chip label"
+      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – body chip label"
     },
     "Body tracks physical activities you choose. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
@@ -370,14 +487,23 @@
         }
       }
     },
+    "Body: large, breathing shapes. Constant, grounded.\nMind: drifting circles — ideas that float and collide.\nHeart: beams of light that reach outward.\n\nNo metaphors. Just things that felt true." : {
+      "comment" : "Note body: about_shapes"
+    },
     "btw, my name is kosta." : {
 
     },
     "but what truly colors your canvas is what you do for your body, mind, and heart." : {
 
     },
+    "by Kosta Pudan" : {
+
+    },
     "Cancel" : {
       "comment" : "AppSelection – dismiss button\nOptionEntry – dismiss button\nProfileEditor – dismiss button\nTemplatePicker – dismiss button"
+    },
+    "Cancel anytime in iOS Settings." : {
+
     },
     "Cancel opening %@" : {
       "comment" : "Handoff – cancel button accessibility"
@@ -385,17 +511,23 @@
     "Canvas" : {
       "comment" : "Tab bar title"
     },
-    "CANVAS REMINDER" : {
+    "Canvas reminder" : {
       "comment" : "Notification section header"
     },
     "Canvas reset warning" : {
 
+    },
+    "CANVAS SHAPES" : {
+      "comment" : "Appearance section header"
     },
     "Canvas Wallpaper" : {
 
     },
     "Charged: %lld colors." : {
       "comment" : "Notification – charged colors only body"
+    },
+    "Checking your subscription with the App Store…" : {
+
     },
     "Choose App → select Nowhere → pick \"Is Closed\"" : {
 
@@ -406,23 +538,23 @@
     "Choose only %@ from the list" : {
       "comment" : "AppSelection – single app hint"
     },
+    "Choose up to %d" : {
+      "comment" : "CategoryDetail – initial helper"
+    },
     "Choose your own apps" : {
       "comment" : "TemplatePicker – custom apps subtitle"
     },
-    "Clear" : {
-
+    "Circle" : {
+      "comment" : "Canvas shape type"
     },
     "Close" : {
-      "comment" : "PayGate – close button VoiceOver label\nQuickStatus – dismiss button"
+      "comment" : "CategoryDetail – close button VoiceOver label\nDayCanvasViewer – close VoiceOver\nPayGate – close button VoiceOver label"
     },
     "Close menu" : {
       "comment" : "RadialMenu – VoiceOver label"
     },
-    "Close quick status" : {
-      "comment" : "QuickStatus – close VoiceOver label"
-    },
-    "Closes the quick status view" : {
-      "comment" : "QuickStatus – close VoiceOver hint"
+    "Code" : {
+
     },
     "Collapse canvas" : {
       "comment" : "GalleryView – collapse button VoiceOver label"
@@ -440,13 +572,16 @@
 
     },
     "colors" : {
-      "comment" : "Category overlay – unit\nCategoryDetail – points unit"
+      "comment" : "Category overlay – unit"
     },
-    "Colors are not a currency. I mean they are, but I'm not planning to sell them in microtransactions or whatever. Colors are yours. You deserve them, you earn them, you can always add more. Within limits, of course." : {
-      "comment" : "Note body: about_colors_economy"
+    "Colors are not a currency. Well — kind of. You can earn up to 100 per day. Steps and sleep give them to you automatically. Body, mind, and heart — you add those yourself. You can spend colors to unlock apps. But the more you spend, the less colorful your canvas becomes. Because doomscrolling takes color out of life. Literally, here.\n\nI'm not selling them through microtransactions. Colors are yours. You earn them, you deserve them, you can always add more. Within limits." : {
+      "comment" : "Note body: about_colors"
     },
     "colors are the currency you earn for living a real life." : {
 
+    },
+    "colors available" : {
+      "comment" : "PayGate balance label"
     },
     "Colors left: %lld min." : {
       "comment" : "Notification – budget warning body"
@@ -454,10 +589,19 @@
     "Colors restored. %lld min." : {
       "comment" : "Notification – budget restored body"
     },
-    "CONTACT" : {
+    "Confirming your subscription with the App Store…" : {
+
+    },
+    "Contact" : {
       "comment" : "About section header"
     },
-    "Copy All" : {
+    "Continue" : {
+
+    },
+    "Cosmic" : {
+      "comment" : "Canvas animation picker – cosmic shader option"
+    },
+    "Couldn't load plans" : {
 
     },
     "Create" : {
@@ -466,44 +610,56 @@
     "Create one when you're ready." : {
 
     },
+    "Custom activities & themes" : {
+
+    },
     "Custom Apps" : {
       "comment" : "TemplatePicker – custom apps option title"
     },
     "Daily canvas reminder" : {
 
     },
+    "Daily random theme" : {
+
+    },
     "Daily Steps Goal" : {
 
+    },
+    "Day reset" : {
+      "comment" : "Notification section header"
     },
     "Day Reset" : {
       "comment" : "Navigation title"
     },
-    "DAY RESET" : {
-      "comment" : "Notification section header"
-    },
     "Day Resets At" : {
 
     },
-    "Day resets in %lld min — unused time will be lost" : {
+    "Day resets in %lld min" : {
       "comment" : "PayGate reset warning"
     },
-    "Day resets in less than a minute — unused time will be lost" : {
+    "Day resets in less than a minute" : {
       "comment" : "PayGate reset warning"
-    },
-    "Daylight" : {
-      "comment" : "GradientPreview – time-of-day label"
     },
     "Delete" : {
-
+      "comment" : "CategoryDetail – delete custom"
     },
     "Delete Account" : {
       "comment" : "ProfileEditor – delete account button\nProfileEditor – delete confirmation title"
+    },
+    "Delete custom activity" : {
+
     },
     "Delete this feed?" : {
 
     },
     "Developer" : {
 
+    },
+    "Digital" : {
+      "comment" : "Texture picker – digital grain"
+    },
+    "Dismiss" : {
+      "comment" : "LoginView – dismiss button VoiceOver label"
     },
     "Dismiss all" : {
 
@@ -514,17 +670,17 @@
     "do you want me to show you around?" : {
 
     },
-    "done" : {
-
-    },
     "Done" : {
-      "comment" : "AppSelection – done button\nManualsPage – dismiss button\nOptionEntry – done button\nTimeAccessPicker – dismiss button"
-    },
-    "Double tap to change" : {
-      "comment" : "MeView – interactive pill VoiceOver hint"
+      "comment" : "AppSelection – done button\nManualsPage – dismiss button\nTimeAccessPicker – dismiss button"
     },
     "Double tap to unlock" : {
       "comment" : "PaperTicket – unlock pill VoiceOver hint"
+    },
+    "Drag to smudge the canvas." : {
+      "comment" : "Canvas animation picker – smudge subtitle"
+    },
+    "Drifting field — tap and drag to morph it." : {
+      "comment" : "Canvas animation picker – cosmic subtitle"
     },
     "Dusk" : {
 
@@ -559,6 +715,9 @@
     "earn them by living. spend them to scroll." : {
 
     },
+    "earned" : {
+
+    },
     "Edit Apps" : {
 
     },
@@ -566,9 +725,6 @@
       "comment" : "ProfileEditor – navigation title"
     },
     "Edit settings" : {
-
-    },
-    "Element editing panel" : {
 
     },
     "Email" : {
@@ -586,11 +742,11 @@
     "Entries left today: %@" : {
 
     },
-    "Entry balance:" : {
-      "comment" : "QuickStatus – balance label"
-    },
     "Error" : {
       "comment" : "ProfileEditor – error alert title"
+    },
+    "Every day is 24 hours. But no two are the same. The canvas is proof of that — a record of what actually happened, not what you planned. The more you lived, the more it shows. It reacts to your sleep and steps. The more you sleep, the darker it gets. The more you walk, the brighter. Your actions throughout the day shape it, and every 24 hours the canvas resets — unique, every single time." : {
+      "comment" : "Note body: about_canvas"
     },
     "Expand canvas" : {
       "comment" : "GalleryView – expand button VoiceOver label"
@@ -616,8 +772,8 @@
     "Feeds" : {
       "comment" : "Tab bar title"
     },
-    "Feeds are where minutes disappear. Not evil, not good — just expensive. But the fact is that they drain the color from the day. In this app, the more you open your banned apps, the less colorful your canvas becomes. Note that." : {
-      "comment" : "Note body"
+    "Feeds are not evil. They're just expensive. Every minute inside them drains color from the day. That's the deal — open your banned apps, watch the canvas fade. The choice is always yours. I just made it visible. You can unlock apps through the notification that pops up when you try to open a blocked one, through this app, or through the widget." : {
+      "comment" : "Note body: about_feeds"
     },
     "first you need to add any one app" : {
 
@@ -625,11 +781,35 @@
     "for me it feels like being stuck in nowhere." : {
 
     },
+    "Forever" : {
+
+    },
+    "Framed" : {
+      "comment" : "Poster style name"
+    },
+    "Free" : {
+
+    },
+    "Free plan" : {
+
+    },
+    "Free trial, then %@. Auto-renews. Cancel anytime." : {
+
+    },
     "Full" : {
       "comment" : "GradientPreview – preview mode showing all data"
     },
+    "Full 90-day history" : {
+
+    },
+    "Full Bleed" : {
+      "comment" : "Poster style name"
+    },
     "Gained" : {
 
+    },
+    "General" : {
+      "comment" : "Settings section header"
     },
     "Get a nudge to fill your canvas with the things that colored up your day." : {
 
@@ -637,8 +817,14 @@
     "Get Wallpaper Shortcut" : {
 
     },
+    "Gifted" : {
+
+    },
     "Give this combination a name to reuse it later." : {
 
+    },
+    "Glass" : {
+      "comment" : "Texture picker – glass"
     },
     "Good afternoon" : {
 
@@ -655,11 +841,14 @@
     "Gradient Style" : {
 
     },
+    "GRADIENT STYLE" : {
+      "comment" : "Appearance section header"
+    },
     "Health" : {
       "comment" : "Permission row – HealthKit"
     },
     "Heart" : {
-      "comment" : "CategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – heart chip label"
+      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – heart chip label"
     },
     "Heart tracks joys and things that make you feel alive. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
@@ -684,8 +873,8 @@
     "HERE" : {
 
     },
-    "Hey, thank you for using this app. If you’re reading this, I hope you’ve found something meaningful in it. My name is Kosta, nice to meet you. I’ve spent years working on creative projects for brands — winning awards, getting recognition. It made me feel successful, creative, whatever. But recently I realized I was living inside my work, hiding in it. I didn’t really know myself anymore. Could I do something on my own? For myself? Was I capable of something else? You know… the classic midlife corporate crisis. It felt like I was nowhere. That’s the word — nowhere.\nSo I started building this app — at first just for myself, to learn. Over time it became something deeply personal. It’s not perfect, but neither am I — and neither are you. I’m trying to accept myself and find meaning beyond work. And if you ever feel burned out, lost, or stuck in that same nowhere, remember — you are here, now. And that’s what matters most.\nFeel free to text me. IDK why, but all the contacts are in the settings. Thank you." : {
-      "comment" : "Note body: about_kosta"
+    "History" : {
+      "comment" : "HistoryView – page title"
     },
     "Hold and drag to quickly select a category, or tap to open the menu" : {
       "comment" : "RadialMenu – VoiceOver hint"
@@ -708,20 +897,20 @@
     "how many steps a day is your goal?" : {
 
     },
-    "I actually liked how the canvases look. And I tried setting one as a wallpaper. It made me see my day constantly and think, what can I add to it. The sad part is that you need to open the app to update the wallpaper. But once you set enough apps in the Feeds section, you'll be opening it anyway. Seemed like a good compromise." : {
-      "comment" : "Note body: about_wallpaper"
+    "I am not my job title\nI am not a designer\nI am not a developer\nI am not a manager\nI am not good\nI am not happy\nI am not sad\nI am not what I post\nI am not who I was yesterday\nI am not who I'll be tomorrow\nI am not nowhere\nI am now here\n\nHey. Thank you for using this app. If you're reading this, I hope you found something in it that matters.\nMy name is Kosta.\nI spent years working on creative projects for brands — winning awards, getting recognition. It made me feel successful, creative, whatever. But recently I realized I was living inside my work, hiding in it. I didn't really know myself anymore. Could I do something on my own? For myself? Was I capable of something else? The classic midlife corporate crisis. It felt like I was nowhere.\nSo I started building this app — at first just for myself, to learn. Over time it became something personal. It's not perfect. Neither am I. Neither are you.\nI'm trying to accept myself and find meaning beyond work. And if you ever feel burned out, lost, or stuck in that same nowhere — you are here, now. That matters most.\nFeel free to text me. All the contacts are in the settings. Thank you." : {
+      "comment" : "Note body: about_me"
     },
     "i found that i live one day over and over." : {
 
     },
-    "I like green. But that's just me. I tried to find the colors most people like and want to see and came up with this set. Hopefully you'll find what fits your liking. You can always change them if you don't." : {
-      "comment" : "Note body: about_colors"
-    },
     "i live mostly online. working. scrolling. staring at a screen." : {
 
     },
-    "I spent a long time thinking about these categories and there is no one way to categorize a human being. But I liked the Tibetan Buddhism, which sees a human as a harmony of body (physical form), mind (thoughts and perceptions), and heart (pure awareness, emotions, and compassion center). I don't know much about Buddhism, but this idea resonates with me. Maybe I should start digging deeper one day." : {
-      "comment" : "Note body"
+    "I made a shortcut that sets the canvas as your wallpaper. It changed something — you see your day every time you unlock your phone. The downside: you have to open the app to refresh it. The upside: once you've blocked enough apps here, you'll be opening it anyway. Seemed fair." : {
+      "comment" : "Note body: about_wallpaper"
+    },
+    "I tried many ways to slice a human being. Tibetan Buddhism came closest. Body — the physical form. Mind — thoughts and perceptions. Heart — awareness, emotion, compassion. I don't understand Buddhism. Honestly, I know almost nothing about it. But this framework felt right. That was enough." : {
+      "comment" : "Note body: about_body_mind_heart"
     },
     "i'll nudge you when colors are ready to spend." : {
 
@@ -732,8 +921,14 @@
     "If a permission was denied, tap it to open Settings where you can enable it." : {
       "comment" : "Permissions – footer hint"
     },
+    "Info" : {
+      "comment" : "Settings section header"
+    },
     "Instagram is closed." : {
 
+    },
+    "Intense" : {
+      "comment" : "Texture picker – intense grain"
     },
     "it felt like being stuck in" : {
 
@@ -741,7 +936,13 @@
     "keep it closed" : {
       "comment" : "PayGate dismiss button"
     },
+    "Less screen. More now.\nSupport a tool that doesn't sell your attention." : {
+
+    },
     "Let's go" : {
+
+    },
+    "Lifetime" : {
 
     },
     "Limits" : {
@@ -753,14 +954,32 @@
     "Linear Reversed" : {
 
     },
+    "Loading plans…" : {
+
+    },
+    "Loading…" : {
+
+    },
     "Long-press the widget → Edit to choose which group to display." : {
 
     },
-    "midnight" : {
+    "Manage subscription" : {
+
+    },
+    "Maybe later" : {
+
+    },
+    "Medium" : {
+      "comment" : "Texture picker – medium grain"
+    },
+    "Membership" : {
+      "comment" : "Settings section header"
+    },
+    "Mesh" : {
 
     },
     "Mind" : {
-      "comment" : "CategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – mind chip label"
+      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – mind chip label"
     },
     "Mind tracks creativity and rest. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
@@ -782,20 +1001,23 @@
         }
       }
     },
-    "Mostly from" : {
+    "month" : {
 
     },
-    "Mostly on" : {
+    "Monthly" : {
 
+    },
+    "Monthly plan" : {
+
+    },
+    "Museum" : {
+      "comment" : "Poster style name"
     },
     "My Apps" : {
 
     },
     "My Feeds" : {
       "comment" : "Feeds page title"
-    },
-    "My progress overview" : {
-      "comment" : "QuickStatus – subtitle"
     },
     "N/A" : {
       "comment" : "Permission – not available badge"
@@ -806,17 +1028,17 @@
     "New Feed" : {
       "comment" : "TemplatePicker – navigation title"
     },
-    "next" : {
-
-    },
     "Next" : {
 
     },
     "Nickname" : {
       "comment" : "ProfileEditor – nickname field"
     },
-    "Night" : {
-      "comment" : "GradientPreview – time-of-day label"
+    "No active subscription found on this Apple ID." : {
+
+    },
+    "No active subscription was found on this Apple ID." : {
+
     },
     "No activities selected yet" : {
       "comment" : "Category overlay – empty hint"
@@ -828,10 +1050,16 @@
       "comment" : "GradientPreview – preview mode empty state"
     },
     "No data for this day." : {
-
+      "comment" : "DayCanvasViewer – missing snapshot"
     },
     "No feeds connected yet" : {
 
+    },
+    "No history yet" : {
+      "comment" : "HistoryView – empty state title"
+    },
+    "No overlay on the canvas." : {
+      "comment" : "Canvas animation picker – off subtitle"
     },
     "no, thanks" : {
 
@@ -845,6 +1073,9 @@
     "Notes" : {
       "comment" : "Tab bar title"
     },
+    "Nothing to restore" : {
+
+    },
     "Notifications" : {
       "comment" : "Navigation title\nPermission row – Notifications"
     },
@@ -855,19 +1086,34 @@
 
     },
     "Nowhere" : {
-      "comment" : "App name\nNotification – app name used as title"
+      "comment" : "Notification – app name used as title"
+    },
+    "NOWHERE" : {
+
     },
     "Ocean" : {
 
     },
+    "Off" : {
+      "comment" : "Canvas animation picker – no overlay\nTexture picker – no texture"
+    },
     "OK" : {
       "comment" : "ProfileEditor – alert dismiss button"
+    },
+    "One-time payment" : {
+
+    },
+    "One-time purchase — yours forever. Thank you." : {
+
     },
     "Open" : {
       "comment" : "Unlock status label"
     },
     "Open %@" : {
       "comment" : "Handoff – open button accessibility"
+    },
+    "Open canvas history" : {
+      "comment" : "MeView – history link a11y"
     },
     "Open Shortcuts → Automation → +" : {
 
@@ -883,12 +1129,6 @@
             "state" : "translated",
             "value" : "Finding equilibrium and coordination."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Найти равновесие и координацию."
-          }
         }
       }
     },
@@ -899,12 +1139,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Returning to your physical rhythm."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Возвращение к физическому ритму."
           }
         }
       }
@@ -917,12 +1151,6 @@
             "state" : "translated",
             "value" : "Taking care of your body through medical attention."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Заботиться о теле через медицинское внимание."
-          }
         }
       }
     },
@@ -933,12 +1161,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Using strength and resistance."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Использовать силу и сопротивление."
           }
         }
       }
@@ -951,12 +1173,6 @@
             "state" : "translated",
             "value" : "Doing simple physical actions with presence."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Делать простые физические действия с присутствием."
-          }
         }
       }
     },
@@ -967,12 +1183,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Allowing the body to recover."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Позволить телу восстановиться."
           }
         }
       }
@@ -985,12 +1195,6 @@
             "state" : "translated",
             "value" : "Being completely motionless for a moment."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Быть полностью неподвижным на мгновение."
-          }
         }
       }
     },
@@ -1001,12 +1205,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Opening and releasing tension."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Раскрытие и снятие напряжения."
           }
         }
       }
@@ -1019,12 +1217,6 @@
             "state" : "translated",
             "value" : "Feeling the world through contact."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Чувствовать мир через контакт."
-          }
         }
       }
     },
@@ -1035,12 +1227,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Moving forward with your body in the world."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Двигаться вперёд телом по миру."
           }
         }
       }
@@ -1053,12 +1239,6 @@
             "state" : "translated",
             "value" : "Feeling heat and comfort in the body."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Чувствовать тепло и комфорт в теле."
-          }
         }
       }
     },
@@ -1069,12 +1249,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Feeling part of something."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Чувствовать себя частью чего-то."
           }
         }
       }
@@ -1087,12 +1261,6 @@
             "state" : "translated",
             "value" : "Feeling settled and safe inside."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Чувствовать себя устойчиво и в безопасности внутри."
-          }
         }
       }
     },
@@ -1103,12 +1271,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Giving attention and warmth."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Дарить внимание и тепло."
           }
         }
       }
@@ -1121,12 +1283,6 @@
             "state" : "translated",
             "value" : "Feeling close to someone."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Чувствовать близость к кому-то."
-          }
         }
       }
     },
@@ -1137,12 +1293,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Recognising something as valuable."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Признать что-то ценным."
           }
         }
       }
@@ -1155,12 +1305,6 @@
             "state" : "translated",
             "value" : "Feeling lightness and warmth."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Чувствовать лёгкость и тепло."
-          }
         }
       }
     },
@@ -1171,12 +1315,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Deep inner quiet."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Глубокая внутренняя тишина."
           }
         }
       }
@@ -1189,12 +1327,6 @@
             "state" : "translated",
             "value" : "Allowing openness without tension."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Позволять открытость без напряжения."
-          }
         }
       }
     },
@@ -1205,12 +1337,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Allowing yourself to feel honestly."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Позволить себе чувствовать честно."
           }
         }
       }
@@ -1223,12 +1349,6 @@
             "state" : "translated",
             "value" : "Feeling awe or curiosity."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Чувствовать восхищение или любопытство."
-          }
         }
       }
     },
@@ -1239,12 +1359,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Holding attention on one thing."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Удерживать внимание на одном."
           }
         }
       }
@@ -1257,29 +1371,6 @@
             "state" : "translated",
             "value" : "Taking something new into the mind."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Принимать новое в ум."
-          }
-        }
-      }
-    },
-    "option.description.mind_letting_go" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Releasing mental tension."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Отпустить умственное напряжение."
-          }
         }
       }
     },
@@ -1290,12 +1381,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Noticing without interfering."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Замечать, не вмешиваясь."
           }
         }
       }
@@ -1308,12 +1393,6 @@
             "state" : "translated",
             "value" : "Creating clarity and structure."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Создавать ясность и структуру."
-          }
         }
       }
     },
@@ -1324,12 +1403,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Organising what comes next."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Организовать то, что будет дальше."
           }
         }
       }
@@ -1342,12 +1415,6 @@
             "state" : "translated",
             "value" : "Challenging assumptions."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Подвергать сомнению предположения."
-          }
         }
       }
     },
@@ -1359,11 +1426,22 @@
             "state" : "translated",
             "value" : "Returning to a past moment consciously."
           }
+        }
+      }
+    },
+    "option.description.mind_screen_detox" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A day with minimal screen time."
+          }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сознательное возвращение к прошлому моменту."
+            "value" : "День с минимальным экранным временем."
           }
         }
       }
@@ -1376,12 +1454,6 @@
             "state" : "translated",
             "value" : "Actively processing ideas or situations."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Активная обработка идей или ситуаций."
-          }
         }
       }
     },
@@ -1392,12 +1464,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turning thoughts into form."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Превращать мысли в форму."
           }
         }
       }
@@ -1410,12 +1476,6 @@
             "state" : "translated",
             "value" : "yoga, balance exercises, standing on one leg, tai chi"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "йога, упражнения на баланс, стояние на одной ноге, тайчи"
-          }
         }
       }
     },
@@ -1426,12 +1486,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "breathing pause, calming breath, mindful inhale"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "пауза для дыхания, успокаивающее дыхание, осознанный вдох"
           }
         }
       }
@@ -1444,12 +1498,6 @@
             "state" : "translated",
             "value" : "visiting a doctor, taking medication, therapy, antidepressants"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "визит к врачу, приём лекарств, терапия, антидепрессанты"
-          }
         }
       }
     },
@@ -1460,12 +1508,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "gym, home workout, manual work"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "спортзал, домашняя тренировка, физический труд"
           }
         }
       }
@@ -1478,12 +1520,6 @@
             "state" : "translated",
             "value" : "cleaning, tidying, daily routines"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "уборка, наведение порядка, повседневные ритуалы"
-          }
         }
       }
     },
@@ -1494,12 +1530,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "good sleep, lying down, intentional break, power nap"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "хороший сон, лёжа, осознанный перерыв, короткий сон"
           }
         }
       }
@@ -1512,12 +1542,6 @@
             "state" : "translated",
             "value" : "sitting quietly, body scan, silent pause"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "тихое сидение, сканирование тела, безмолвная пауза"
-          }
         }
       }
     },
@@ -1528,12 +1552,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "stretching, yoga, mobility, slow warm-up"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "растяжка, йога, мобильность, медленная разминка"
           }
         }
       }
@@ -1546,12 +1564,6 @@
             "state" : "translated",
             "value" : "water, grass, sunlight, physical grounding"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "вода, трава, солнечный свет, физическое заземление"
-          }
         }
       }
     },
@@ -1562,12 +1574,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "city walk, nature walk, walking without a goal"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "прогулка по городу, прогулка на природе, ходьба без цели"
           }
         }
       }
@@ -1580,12 +1586,6 @@
             "state" : "translated",
             "value" : "hot shower, sun exposure, warm drink"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "горячий душ, пребывание на солнце, тёплый напиток"
-          }
         }
       }
     },
@@ -1596,12 +1596,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "community, shared identity, feeling at home"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "сообщество, общая идентичность, чувство дома"
           }
         }
       }
@@ -1614,12 +1608,6 @@
             "state" : "translated",
             "value" : "quiet time, relaxation, emotional ease"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "тихое время, расслабление, эмоциональная лёгкость"
-          }
         }
       }
     },
@@ -1630,12 +1618,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "helping, supporting, caring for yourself"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "помогать, поддерживать, заботиться о себе"
           }
         }
       }
@@ -1648,12 +1630,6 @@
             "state" : "translated",
             "value" : "meaningful talk, shared silence"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "значимый разговор, общее молчание"
-          }
         }
       }
     },
@@ -1664,12 +1640,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "appreciating a moment, feeling thankful"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "благодарность за момент, чувство признательности"
           }
         }
       }
@@ -1682,12 +1652,6 @@
             "state" : "translated",
             "value" : "laughter, playful moments, spontaneous happiness"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "смех, игривые моменты, спонтанное счастье"
-          }
         }
       }
     },
@@ -1698,12 +1662,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "acceptance of self, emotional stillness"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "принятие себя, эмоциональная неподвижность"
           }
         }
       }
@@ -1716,12 +1674,6 @@
             "state" : "translated",
             "value" : "relying on someone, emotional safety"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "положиться на кого-то, эмоциональная безопасность"
-          }
         }
       }
     },
@@ -1732,12 +1684,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "emotional openness, sincere sharing, fill blue or green"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "эмоциональная открытость, искренний разговор"
           }
         }
       }
@@ -1750,12 +1696,6 @@
             "state" : "translated",
             "value" : "noticing beauty, surprise, inspiration"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "замечать красоту, удивление, вдохновение"
-          }
         }
       }
     },
@@ -1766,12 +1706,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "reading, deep work, careful listening"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "чтение, глубокая работа, внимательное слушание"
           }
         }
       }
@@ -1784,29 +1718,6 @@
             "state" : "translated",
             "value" : "studying, educational content, skill practice"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "учёба, образовательный контент, отработка навыка"
-          }
-        }
-      }
-    },
-    "option.examples.mind_letting_go" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "closing tasks, stopping overthinking, pause"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "закрытие задач, прекращение перебора мыслей, пауза"
-          }
         }
       }
     },
@@ -1817,12 +1728,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "watching people, noticing patterns, awareness"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "наблюдение за людьми, замечание паттернов, осознанность"
           }
         }
       }
@@ -1835,12 +1740,6 @@
             "state" : "translated",
             "value" : "organising files, simplifying, arranging ideas"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "организация файлов, упрощение, упорядочивание идей"
-          }
         }
       }
     },
@@ -1851,12 +1750,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "structuring tasks, setting priorities, looking for a job"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "структурирование задач, расстановка приоритетов, поиск работы"
           }
         }
       }
@@ -1869,12 +1762,6 @@
             "state" : "translated",
             "value" : "asking why, rethinking, curiosity moments"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "вопросы «почему», переосмысление, моменты любопытства"
-          }
         }
       }
     },
@@ -1886,11 +1773,22 @@
             "state" : "translated",
             "value" : "sitting on a bench, reviewing the day, recalling a memory"
           }
+        }
+      }
+    },
+    "option.examples.mind_screen_detox" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "phone untouched, no scrolling, present in the moment"
+          }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "сидение на скамейке, обзор дня, воспоминание"
+            "value" : "телефон нетронут, без скроллинга, присутствие в моменте"
           }
         }
       }
@@ -1903,12 +1801,6 @@
             "state" : "translated",
             "value" : "reflecting, problem-solving, mental exploration"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "размышление, решение задач, мысленное исследование"
-          }
         }
       }
     },
@@ -1919,12 +1811,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "journaling, notes, drafting ideas"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ведение дневника, заметки, наброски идей"
           }
         }
       }
@@ -1937,12 +1823,6 @@
             "state" : "translated",
             "value" : "Balance"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Баланс"
-          }
         }
       }
     },
@@ -1953,12 +1833,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Breathing"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Дыхание"
           }
         }
       }
@@ -1971,12 +1845,6 @@
             "state" : "translated",
             "value" : "Healing"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Исцеление"
-          }
         }
       }
     },
@@ -1987,12 +1855,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Physical Effort"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Физическое усилие"
           }
         }
       }
@@ -2005,12 +1867,6 @@
             "state" : "translated",
             "value" : "Repetition"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Повторение"
-          }
         }
       }
     },
@@ -2021,12 +1877,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Resting"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Отдых"
           }
         }
       }
@@ -2039,12 +1889,6 @@
             "state" : "translated",
             "value" : "Stillness"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Неподвижность"
-          }
         }
       }
     },
@@ -2055,12 +1899,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stretching"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Растяжка"
           }
         }
       }
@@ -2073,12 +1911,6 @@
             "state" : "translated",
             "value" : "Touch"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Прикосновение"
-          }
         }
       }
     },
@@ -2089,12 +1921,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Walking"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ходьба"
           }
         }
       }
@@ -2107,12 +1933,6 @@
             "state" : "translated",
             "value" : "Warming"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Согревание"
-          }
         }
       }
     },
@@ -2123,12 +1943,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Belonging"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Принадлежность"
           }
         }
       }
@@ -2141,12 +1955,6 @@
             "state" : "translated",
             "value" : "Calm"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Спокойствие"
-          }
         }
       }
     },
@@ -2157,12 +1965,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Care"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Забота"
           }
         }
       }
@@ -2175,12 +1977,6 @@
             "state" : "translated",
             "value" : "Connection"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Связь"
-          }
         }
       }
     },
@@ -2191,12 +1987,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gratitude"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Благодарность"
           }
         }
       }
@@ -2209,12 +1999,6 @@
             "state" : "translated",
             "value" : "Joy"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Радость"
-          }
         }
       }
     },
@@ -2225,12 +2009,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Peace"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Мир"
           }
         }
       }
@@ -2243,12 +2021,6 @@
             "state" : "translated",
             "value" : "Trust"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Доверие"
-          }
         }
       }
     },
@@ -2259,12 +2031,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vulnerability"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Уязвимость"
           }
         }
       }
@@ -2277,12 +2043,6 @@
             "state" : "translated",
             "value" : "Wonder"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Удивление"
-          }
         }
       }
     },
@@ -2293,12 +2053,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Focusing"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Фокусировка"
           }
         }
       }
@@ -2311,29 +2065,6 @@
             "state" : "translated",
             "value" : "Learning"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Обучение"
-          }
-        }
-      }
-    },
-    "option.title.mind_letting_go" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Letting Go"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Отпускание"
-          }
         }
       }
     },
@@ -2344,12 +2075,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Observing"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Наблюдение"
           }
         }
       }
@@ -2362,12 +2087,6 @@
             "state" : "translated",
             "value" : "Ordering"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Упорядочивание"
-          }
         }
       }
     },
@@ -2378,12 +2097,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Planning"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Планирование"
           }
         }
       }
@@ -2396,12 +2109,6 @@
             "state" : "translated",
             "value" : "Questioning"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вопрошание"
-          }
         }
       }
     },
@@ -2413,11 +2120,22 @@
             "state" : "translated",
             "value" : "Remembering"
           }
+        }
+      }
+    },
+    "option.title.mind_screen_detox" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen Detoxing"
+          }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Воспоминание"
+            "value" : "Экранный детокс"
           }
         }
       }
@@ -2430,12 +2148,6 @@
             "state" : "translated",
             "value" : "Thinking"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Размышление"
-          }
         }
       }
     },
@@ -2447,23 +2159,14 @@
             "state" : "translated",
             "value" : "Writing"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Письмо"
-          }
         }
       }
     },
     "Organic" : {
-
+      "comment" : "Body shape style"
     },
     "Outer World" : {
       "comment" : "CategoryDetail – location-based category name"
-    },
-    "PALETTE" : {
-      "comment" : "Appearance section header"
     },
     "Permanently deletes your account, profile, and all associated data. This cannot be undone." : {
       "comment" : "ProfileEditor – delete warning text"
@@ -2486,8 +2189,35 @@
     "pick the one app that drains you the most." : {
 
     },
+    "Plastic" : {
+      "comment" : "Texture picker – plastic"
+    },
+    "Privacy" : {
+
+    },
+    "Pro" : {
+      "comment" : "HistoryView – locked tile badge"
+    },
+    "PRO" : {
+      "comment" : "Pro feature badge"
+    },
+    "Pro — active" : {
+
+    },
+    "Pro — cancelled" : {
+
+    },
+    "Pro — gifted" : {
+
+    },
+    "Pro — lifetime" : {
+
+    },
     "probably just like you." : {
 
+    },
+    "Profile, %@. Double tap to edit." : {
+      "comment" : "MeView – profile pill VoiceOver label"
     },
     "Progress" : {
       "comment" : "Onboarding – progress bar VoiceOver label"
@@ -2495,8 +2225,8 @@
     "Protection Screen" : {
 
     },
-    "Quick Status" : {
-      "comment" : "QuickStatus – title"
+    "Purchase Failed" : {
+
     },
     "Radial" : {
 
@@ -2504,8 +2234,26 @@
     "Radial Reversed" : {
 
     },
+    "Randomizes color & gradient style each day." : {
+
+    },
+    "Rays" : {
+      "comment" : "Canvas shape type"
+    },
+    "Re-roll today's theme" : {
+
+    },
+    "Redeem promo code" : {
+
+    },
+    "Refreshing…" : {
+
+    },
     "Remind at" : {
 
+    },
+    "Remove" : {
+      "comment" : "CategoryDetail – remove selection"
     },
     "Remove Photo" : {
       "comment" : "ProfileEditor – remove avatar button"
@@ -2516,14 +2264,35 @@
     "reset" : {
 
     },
+    "Resting" : {
+      "comment" : "Morning resting suggestion – title"
+    },
+    "Restore" : {
+
+    },
+    "Restore failed" : {
+
+    },
+    "Restore purchases" : {
+
+    },
+    "Restored!" : {
+
+    },
+    "Retry" : {
+
+    },
     "Save" : {
-      "comment" : "ProfileEditor – save button"
+      "comment" : "CategoryDetail – primary save action\nProfileEditor – save button"
     },
     "Save as Routine" : {
 
     },
     "Save Routine" : {
 
+    },
+    "Save to Photos" : {
+      "comment" : "DayCanvasViewer – context menu"
     },
     "Screen Time" : {
       "comment" : "Permission row – Family Controls"
@@ -2549,20 +2318,29 @@
     "Settings" : {
       "comment" : "Context menu action\nSettings page title\nTab bar title"
     },
-    "SETUP" : {
+    "Setup" : {
       "comment" : "Wallpaper section header"
     },
-    "Share canvas" : {
-      "comment" : "GalleryView – share button VoiceOver label"
+    "Share" : {
+      "comment" : "DayCanvasViewer – context menu"
     },
-    "ShieldAction Logs" : {
+    "Share canvas" : {
+      "comment" : "DayCanvasViewer – share VoiceOver\nGalleryView – share button VoiceOver label"
+    },
+    "Sign in to keep your data safe and synced across devices" : {
 
     },
-    "Sign in" : {
-      "comment" : "Onboarding – Apple sign-in button label"
+    "sign in to keep your data safe and synced across devices." : {
+
     },
     "Sign in with Apple" : {
 
+    },
+    "Sign in with Apple to keep your subscription safe across devices and reinstalls." : {
+
+    },
+    "Sign Out" : {
+      "comment" : "ProfileEditor – sign out button"
     },
     "Signed in" : {
       "comment" : "Onboarding – Apple sign-in success state"
@@ -2570,14 +2348,8 @@
     "Skip" : {
 
     },
-    "skip all" : {
-
-    },
     "Sleep" : {
       "comment" : "StepBalanceCard – sleep chip label"
-    },
-    "sleep and" : {
-
     },
     "sleep data may lag a bit — ios updates it on its own schedule." : {
 
@@ -2591,17 +2363,48 @@
     "Sleep hours" : {
 
     },
-    "Sleep is what we all have. This is the beginning and the end of the day. And its amount and quality influence us the most. On the canvas the more you sleep, the darker it becomes. That's not a bad thing, it just shows that rest today is a priority. Oh, btw, it is taken from the Health app and sometimes it is slow to upload. Thanks, Apple." : {
-      "comment" : "Note body"
+    "Sleep is the frame around every day. Everything else fits inside it. Set your desired sleep time, and if you hit it — you earn 20 colors. Data comes from the Health app. Sometimes Apple is slow to sync. Not my fault." : {
+      "comment" : "Note body: about_sleep"
     },
     "Sleep only" : {
       "comment" : "GradientPreview – preview mode sleep data only"
     },
-    "sleep." : {
-
+    "sleep_assumed_message" : {
+      "comment" : "Sleep overlay – warm message when no sleep data",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sleep data came through today. That's OK — you definitely slept. Here are 10 colors, on the house. Connect sleep tracking in Health for precise hours."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Данные о сне сегодня не пришли. Ничего — ты точно спал. Вот 10 цветов, от меня. Подключи отслеживание сна в Здоровье, чтобы считать точные часы."
+          }
+        }
+      }
     },
-    "Sleeping for 8 hours or making 10k steps a day is not a must. It's personal, you set your own threshold. But setting it gives a bit more motivation to get there." : {
-      "comment" : "Note body: about_limits"
+    "Sleep: %lld colors" : {
+      "comment" : "Sleep overlay – assumed sleep header",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep: %lld colors"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сон: %lld цветов"
+          }
+        }
+      }
+    },
+    "sleep/day" : {
+
     },
     "Slide %lld of %lld" : {
       "comment" : "Onboarding – progress bar VoiceOver value",
@@ -2613,6 +2416,15 @@
           }
         }
       }
+    },
+    "Small" : {
+      "comment" : "Texture picker – small grain"
+    },
+    "Smudge" : {
+      "comment" : "Canvas animation picker – smudge option"
+    },
+    "Snowflake" : {
+      "comment" : "Canvas shape type"
     },
     "so i made this app." : {
 
@@ -2632,16 +2444,25 @@
     "spend" : {
 
     },
-    "spend colors" : {
-      "comment" : "PayGate title"
-    },
     "Spend colors on" : {
       "comment" : "Unlock section header"
     },
     "spend them on the apps that pull you away." : {
 
     },
+    "spend what you lived" : {
+      "comment" : "PayGate title"
+    },
+    "spent" : {
+
+    },
     "Spent" : {
+
+    },
+    "Start Free Trial" : {
+
+    },
+    "Stay here." : {
 
     },
     "Stay present, control screen time" : {
@@ -2653,13 +2474,10 @@
     "Steps" : {
       "comment" : "StepBalanceCard – steps chip label"
     },
-    "steps a day." : {
-
-    },
     "Steps and sleep come from the Health app and are the same for everyone. Body, mind and heart are activities you add by tapping the + button at the bottom of the screen." : {
 
     },
-    "Steps are not a fitness metric. They're proof the body moved through the world. The more you walk, the brighter the canvas becomes." : {
+    "Steps are not a fitness metric. They are proof that your body moved through the world today. The more you moved, the brighter everything gets. Set your own step goal and earn 20 colors when you reach it. You don't have to do 10k. It's your number." : {
       "comment" : "Note body: about_steps"
     },
     "Steps balance" : {
@@ -2674,20 +2492,29 @@
     "steps today" : {
 
     },
-    "Steps today:" : {
-      "comment" : "QuickStatus – steps label"
-    },
     "Steps, sleep, workouts" : {
       "comment" : "Permission row – HealthKit detail"
     },
-    "STYLE" : {
-      "comment" : "Appearance section header"
+    "steps/day" : {
+
+    },
+    "Subscription" : {
+
+    },
+    "Subscriptions auto-renew unless cancelled at least 24h before the period ends. Manage or cancel anytime in iOS Settings → Apple ID → Subscriptions." : {
+
     },
     "Sunset" : {
 
     },
+    "Support indie development" : {
+
+    },
     "Synced with wallpaper shortcut" : {
 
+    },
+    "System" : {
+      "comment" : "Settings section header"
     },
     "tap each to see." : {
 
@@ -2710,14 +2537,20 @@
     "Templates" : {
       "comment" : "TemplatePicker – section header"
     },
+    "Terms" : {
+
+    },
     "Test notification." : {
       "comment" : "Notification – test notification body"
     },
+    "TEXTURE" : {
+      "comment" : "Appearance section header"
+    },
+    "The app is free. The core loop — canvas, daily rhythm, all of it — stays open. On the free tier you can block one app. Pick the worst offender. That's where the leak stops.\n\nSubscribing lets you block more than one app. Plus a few extras: more palettes and shapes, longer history, custom activities, daily random themes. Small things. They add up if you actually use this.\n\nHere's the deal. I pay for Supabase. Apple Developer. The AI tools I used to build this. A pile of tiny services that quietly add up every month. And I'd like this app to grow into something I can work on properly. Instead of squeezing it between corporate gigs.\n\nIf I get laid off — which, looking at the industry, isn't exactly a wild scenario — this is what I'd want to fall back on. Instead of starving.\n\nSo if the app gave you anything. A quiet moment. A nicer wallpaper. A different way to look at your day. And you can spare it — subscribing helps me keep building it.\n\nIf you can't, no worries. Use it freely. That's the point." : {
+      "comment" : "Note body: about_subscription"
+    },
     "the app needs access to apple health." : {
 
-    },
-    "The canvas is a reflection of each day. How full and colorful it was. I like the idea that even though each day is limited by 24 hours, there are so many little things that make them different. And to distinguish one day from another we need to notice them." : {
-      "comment" : "Note body"
     },
     "The sense of being present" : {
       "comment" : "App tagline"
@@ -2725,14 +2558,11 @@
     "the time runs only when the app is being used." : {
 
     },
-    "THEME" : {
-      "comment" : "Appearance section header"
-    },
     "they're needed to unlock the apps." : {
 
     },
-    "Thinking about the body, mind and heart, I was looking for the best objects to represent them on the canvas. The body is represented by big constant breathing shapes. For the mind I chose drifting circles, that fly around like ideas. And the heart is represented by beams of light, that light the way and look around." : {
-      "comment" : "Note body"
+    "This day was uncolored." : {
+      "comment" : "DayCanvasViewer – empty state"
     },
     "This name will be displayed instead of my real name" : {
       "comment" : "ProfileEditor – nickname hint"
@@ -2741,12 +2571,6 @@
 
     },
     "THIS WEEK" : {
-
-    },
-    "This week you earned" : {
-
-    },
-    "This week you spent" : {
 
     },
     "This will permanently delete your account, profile, and all data. This action cannot be undone." : {
@@ -2761,10 +2585,16 @@
     "to track your colors, the app needs access to apple health." : {
 
     },
+    "Today" : {
+      "comment" : "HistoryView – today badge"
+    },
     "Today is uncolored" : {
       "comment" : "Canvas empty state hint"
     },
     "tomorrow, it resets." : {
+
+    },
+    "TOP APPS" : {
 
     },
     "Track what matters" : {
@@ -2779,6 +2609,9 @@
     "Unlimited" : {
 
     },
+    "Unlimited app blocks" : {
+
+    },
     "Unlock for %@, costs %lld colors" : {
       "comment" : "PaperTicket – unlock pill VoiceOver label",
       "localizations" : {
@@ -2790,7 +2623,13 @@
         }
       }
     },
+    "Unlock Pro." : {
+
+    },
     "Updates automatically each time the wallpaper shortcut runs." : {
+
+    },
+    "Upgrade to Pro for unlimited app limits, all wallpapers, and full history." : {
 
     },
     "Used: %lld min · Charged: %lld colors." : {
@@ -2820,6 +2659,12 @@
     "Version" : {
 
     },
+    "View history" : {
+      "comment" : "MeView – history link label"
+    },
+    "View plans" : {
+
+    },
     "walking fills the canvas." : {
 
     },
@@ -2833,6 +2678,15 @@
 
     },
     "Website" : {
+
+    },
+    "week" : {
+
+    },
+    "Weekly" : {
+
+    },
+    "Welcome offer." : {
 
     },
     "welcome to" : {
@@ -2859,14 +2713,23 @@
     "working. scrolling. staring at a screen." : {
 
     },
-    "yes, please" : {
+    "year" : {
 
     },
-    "You are aiming for" : {
+    "Yearly" : {
+
+    },
+    "Yearly plan" : {
+
+    },
+    "yes, please" : {
 
     },
     "You are not nowhere. You are now here." : {
       "comment" : "App philosophy tagline"
+    },
+    "You can add widgets to your home screen. They bring the app's mechanics right to your lock screen and desktop. Large widget for unlocking apps, medium one for tracking the day. They don't always update automatically — Apple limits that — so sometimes you'll want to tap “refresh” to check the latest status." : {
+      "comment" : "Note body: about_widgets"
     },
     "you can change this in settings anytime." : {
 
@@ -2883,10 +2746,33 @@
     "you can't buy them — only live them." : {
 
     },
+    "You slept — add it to your canvas" : {
+      "comment" : "Morning resting suggestion – subtitle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You slept — add it to your canvas"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ты спал — добавь это на холст"
+          }
+        }
+      }
+    },
+    "You were here before. Pro is yours, free, forever. Thanks for being early." : {
+
+    },
     "You're about to open %@" : {
 
     },
     "you're here." : {
+
+    },
+    "You're Pro!" : {
 
     },
     "Your canvas and colors reset at this time each day." : {
@@ -2901,7 +2787,13 @@
     "Your clock and widgets will overlay this canvas" : {
       "comment" : "Wide canvas – wallpaper prompt subtitle"
     },
-    "Your day resets at" : {
+    "Your daily canvases will appear here." : {
+      "comment" : "HistoryView – empty state subtitle"
+    },
+    "Your Pro subscription is now active." : {
+
+    },
+    "Your purchase is pending approval (Ask to Buy?). It will activate once approved." : {
 
     }
   },

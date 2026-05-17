@@ -195,12 +195,7 @@ extension Image {
         "snapchat": "camera.metering.spot",
         "telegram": "paperplane.fill",
         "onboarding_figuer_1": "person.fill",
-        "grain 1": "circle.fill",
-        "body 1": "figure.walk",
-        "body 2": "figure.run",
-        "body 3": "figure.cooldown",
-        "mind 1": "brain.head.profile",
-        "heart 1": "heart.fill",
+        "grain (small)": "circle.fill",
     ]
     
     init(assetOrSymbol name: String) {
@@ -224,7 +219,6 @@ enum EnergyGradientRenderer {
         let warm: Color
         let cool: Color
         let dark: Color
-        let daylightBase: Color
     }
     
     struct Opacities {
@@ -243,8 +237,7 @@ enum EnergyGradientRenderer {
                 bright: Color(red: 1.0, green: 0.75, blue: 0.4),
                 warm: Color(red: 0.99, green: 0.54, blue: 0.45),
                 cool: Color(red: 0.0, green: 0.23, blue: 0.42),
-                dark: Color(red: 0.0, green: 0.15, blue: 0.27),
-                daylightBase: Color(red: 0.95, green: 0.86, blue: 0.78)
+                dark: Color(red: 0.0, green: 0.15, blue: 0.27)
             )
         default:
             return palette(for: .warmSunset)
@@ -255,8 +248,7 @@ enum EnergyGradientRenderer {
         smoothedS Ss: Double,
         smoothedL Ls: Double,
         hasStepsData: Bool,
-        hasSleepData: Bool,
-        isDaylight: Bool = false
+        hasSleepData: Bool
     ) -> Opacities {
         let goldOp = hasStepsData ? min(Ss, 1.0) : 0
         let coralOp = hasStepsData ? min(Ss * 0.8, 1.0) : 0

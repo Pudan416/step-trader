@@ -10,9 +10,10 @@ struct RadialHoldMenu: View {
     var onFanOpened: (() -> Void)? = nil
 
     @State private var isFanOpen = false
-    @GestureState private var dragOffset: CGSize = .zero
     @State private var isHolding = false
     @State private var hoveredCategory: EnergyCategory? = nil
+    @State private var touchDownTime: Date? = nil
+    @State private var holdActivated = false
 
     private let nodes: [(category: EnergyCategory, label: String, icon: String, angle: Double)] = [
         (.body,   String(localized: "Body", comment: "RadialMenu – energy category label"),  "figure.walk",       135),  // upper-left
@@ -39,6 +40,21 @@ struct RadialHoldMenu: View {
     }
 
     var body: some View {
+        // Wrap all glass children in a GlassEffectContainer. Without this, iOS 26
+        // merges the interactive glass surfaces of the + button and the three
+        // category nodes (Body/Mind/Heart) and routes every tap to the first one
+        // — silently breaking the fan node taps.
+        Group {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 0) { menuStack }
+            } else {
+                menuStack
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var menuStack: some View {
         ZStack {
             // Category nodes — visible in either fan-tap mode or hold-drag mode
             if isFanOpen || isHolding {
@@ -58,104 +74,84 @@ struct RadialHoldMenu: View {
             // + button with liquid dots
             plusButton
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isFanOpen)
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isHolding)
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isFanOpen || isHolding)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: hoveredCategory)
         .onAppear { Self.prepareAll() }
     }
 
     // MARK: - Plus Button
 
+    private let holdThreshold: TimeInterval = 0.3
+
     private var plusButton: some View {
-        let holdAndDrag = LongPressGesture(minimumDuration: 0.3)
-            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
-            .updating($dragOffset) { value, state, _ in
-                if case .second(true, let drag?) = value {
-                    state = drag.translation
-                }
-            }
+        let unifiedDrag = DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onChanged { value in
-                if case .second(true, let drag) = value {
-                    if !isHolding {
-                        isFanOpen = false
-                        isHolding = true
-                        Self.hapticMedium.impactOccurred()
-                        // Re-prime so subsequent hover/selection haptics in this gesture stay hot.
-                        Self.prepareAll()
-                    }
-                    if let drag = drag {
-                        updateHoveredCategory(from: drag.translation)
-                    }
+                if touchDownTime == nil {
+                    touchDownTime = Date()
+                    holdActivated = false
+                    Self.prepareAll()
+                    scheduleHoldActivation()
+                }
+                if holdActivated {
+                    updateHoveredCategory(from: value.translation)
                 }
             }
             .onEnded { _ in
-                if let category = hoveredCategory {
-                    Self.hapticMedium.impactOccurred()
-                    onCategorySelected(category)
-                }
-                isHolding = false
-                hoveredCategory = nil
-            }
-
-        let tap = TapGesture()
-            .onEnded {
-                Self.hapticLight.impactOccurred()
-                if isFanOpen {
-                    isFanOpen = false
-                    UIAccessibility.post(notification: .layoutChanged, argument: nil)
+                let wasTap = !holdActivated
+                if wasTap {
+                    toggleFan()
                 } else {
-                    isFanOpen = true
-                    onFanOpened?()
-                    UIAccessibility.post(notification: .layoutChanged, argument: nil)
+                    if let category = hoveredCategory {
+                        Self.hapticMedium.impactOccurred()
+                        onCategorySelected(category)
+                    }
+                    isHolding = false
+                    hoveredCategory = nil
                 }
+                touchDownTime = nil
+                holdActivated = false
             }
-
-        // Touch-down primer. A zero-distance DragGesture's onChanged fires on first contact,
-        // before either tap or long-press resolves. It mutates no view state, so it can't cause
-        // the fan flicker that the old `simultaneousGesture(TapGesture())` did on iOS 17+.
-        let touchDownPrimer = DragGesture(minimumDistance: 0, coordinateSpace: .local)
-            .onChanged { _ in Self.prepareAll() }
 
         let isActive = isFanOpen || isHolding
 
-        return ZStack {
-            Circle()
-                .fill(.ultraThinMaterial)
-                .opacity(isActive ? 0.85 : 0.7)
-                .frame(width: 56, height: 56)
-            Circle()
-                .strokeBorder(labelColor.opacity(isActive ? 0.5 : 0.3), lineWidth: 1)
-                .frame(width: 56, height: 56)
+        return Image(systemName: isActive ? "xmark" : "plus")
+            .font(.system(size: 22, weight: .regular))
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(labelColor.opacity(isActive ? 0.85 : 1.0))
+            .rotationEffect(.degrees(isFanOpen ? 45 : 0))
+            .frame(width: 56, height: 56)
+            .liquidGlassControl(in: Circle())
+            .frame(width: 72, height: 72)
+            .contentShape(Circle())
+            .accessibilityIdentifier("radial_plus_button")
+            .accessibilityLabel(isFanOpen
+                ? String(localized: "Close menu", comment: "RadialMenu – VoiceOver label")
+                : String(localized: "Add activity", comment: "RadialMenu – VoiceOver label"))
+            .accessibilityHint(String(localized: "Hold and drag to quickly select a category, or tap to open the menu", comment: "RadialMenu – VoiceOver hint"))
+            .accessibilityAddTraits(.isButton)
+            .simultaneousGesture(unifiedDrag)
+    }
 
-            Image(systemName: isActive ? "xmark" : "plus")
-                .font(.system(size: 22, weight: .ultraLight))
-                .foregroundStyle(labelColor.opacity(isActive ? 0.7 : 0.85))
-                .rotationEffect(.degrees(isFanOpen ? 45 : 0))
+    private func scheduleHoldActivation() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + holdThreshold) {
+            guard touchDownTime != nil else { return }
+            holdActivated = true
+            isFanOpen = false
+            isHolding = true
+            Self.hapticMedium.impactOccurred()
+            Self.prepareAll()
         }
-        .frame(width: 72, height: 72)
-        .contentShape(Circle())
-        .accessibilityIdentifier("radial_plus_button")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(isFanOpen
-            ? String(localized: "Close menu", comment: "RadialMenu – VoiceOver label")
-            : String(localized: "Add activity", comment: "RadialMenu – VoiceOver label"))
-        .accessibilityHint(String(localized: "Hold and drag to quickly select a category, or tap to open the menu", comment: "RadialMenu – VoiceOver hint"))
-        .accessibilityAction {
-            if isFanOpen {
-                isFanOpen = false
-                UIAccessibility.post(notification: .layoutChanged, argument: nil)
-            } else {
-                isFanOpen = true
-                onFanOpened?()
-                UIAccessibility.post(notification: .layoutChanged, argument: nil)
-            }
+    }
+
+    private func toggleFan() {
+        Self.hapticLight.impactOccurred()
+        if isFanOpen {
+            isFanOpen = false
+        } else {
+            isFanOpen = true
+            onFanOpened?()
         }
-        // ExclusiveGesture: at most one of (hold-drag, tap) succeeds per touch sequence, so the
-        // tap action can no longer fire mid-long-press and toggle `isFanOpen` (which used to
-        // produce the brief fan flicker on iOS 17+). holdAndDrag is listed first → it wins
-        // ties, which is what we want (a 0.3s hold should never be misread as a tap).
-        .gesture(ExclusiveGesture(holdAndDrag, tap))
-        .simultaneousGesture(touchDownPrimer)
+        UIAccessibility.post(notification: .layoutChanged, argument: nil)
     }
 
     // MARK: - Category Node
@@ -179,20 +175,13 @@ struct RadialHoldMenu: View {
                     .font(.system(size: isHovered ? 20 : 16, weight: .medium))
                     .foregroundStyle(labelColor.opacity(isHovered ? 1.0 : 0.85))
                     .frame(width: 44, height: 44)
-                    .background(
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .opacity(isHovered ? 0.9 : 0.7)
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(labelColor.opacity(isHovered ? 0.6 : 0.3), lineWidth: 1)
-                    )
+                    .liquidGlassControl(in: Circle())
                     .scaleEffect(isHovered ? 1.15 : 1.0)
 
                 Text(label)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(labelColor.opacity(isHovered ? 0.9 : 0.7))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(labelColor.opacity(isHovered ? 1.0 : 0.9))
+                    .contrastingOnGlass()
             }
             .contentShape(Circle())
         }

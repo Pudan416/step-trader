@@ -30,17 +30,19 @@ struct MainTabView: View {
     @State private var pendingTicketBundleId: String?
     // Bumped per delivery so repeat-same-bundleId notifications still re-fire `.task(id:)`.
     @State private var ticketDeliveryToken = UUID()
-    var theme: AppTheme = .system
+    var theme: AppTheme = .night
     @State private var selectedCategory: EnergyCategory? = nil
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
     @State private var isWideCanvas: Bool = false
     @State private var uiTestPickerCategory: EnergyCategory? = nil
     @State private var showColorsHelp: Bool = false
-    @State private var tabBarHeight: CGFloat = 0
+    @State private var tabBarHeight: CGFloat = 80
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
-    @ScaledMetric(relativeTo: .caption2) private var tabIconSize: CGFloat = 22
-    @ScaledMetric(relativeTo: .caption2) private var selectedTabIconSize: CGFloat = 24
+    // Figma menu tabs (475:64): icon ≈ 2× label height, label ≈ caption.
+    @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
+    @ScaledMetric(relativeTo: .caption2) private var tabIconSize: CGFloat = 24
+    @ScaledMetric(relativeTo: .caption2) private var selectedTabIconSize: CGFloat = 26
 
     #if DEBUG
     @EnvironmentObject private var coachMarkManager: CoachMarkManager
@@ -85,6 +87,8 @@ struct MainTabView: View {
             }
         }
     }
+
+    private var tabTint: Color { AppColors.Night.textPrimary }
 
     // Height preference key for the StepBalanceCard overlay
     private struct TopCardHeightPreferenceKey: PreferenceKey {
@@ -182,7 +186,12 @@ struct MainTabView: View {
             .environment(\.topCardHeight, topCardHeight)
             .environment(\.tabBarHeight, tabBarHeight)
             .animation(.easeInOut(duration: 0.2), value: selection)
-            .safeAreaInset(edge: .bottom) {
+            // Use overlay (not safeAreaInset) so page content extends fully
+            // behind the bar — gives the Liquid Glass lens something to refract.
+            // Each tab page should add `.safeAreaPadding(.bottom, tabBarHeight)`
+            // (or read \.tabBarHeight) on its scrollable content so the last
+            // row can scroll past the pill.
+            .overlay(alignment: .bottom) {
                 if !isWideCanvas {
                     customTabBar
                         .background(
@@ -194,15 +203,50 @@ struct MainTabView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
+            .overlay {
+                if selection == Tab.canvas.rawValue || selection == Tab.feeds.rawValue {
+                    TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
+                }
+            }
             .background(Color.clear)
             .onAppear {
                 model.recalculateDailyEnergy()
             }
             .sheet(item: $selectedCategory) { category in
-                CategoryDetailView(model: model, category: category, outerWorldSteps: 0)
+                // Picker is opened from outside the Canvas tab (StepBalanceCard
+                // pills). `GalleryView` owns the canvas state, so we delegate via
+                // notifications it subscribes to. Switching to the Canvas tab will
+                // show the spawned/rerolled/removed elements.
+                CategoryDetailView(
+                    model: model,
+                    category: category,
+                    outerWorldSteps: 0,
+                    onActivityConfirmed: { optionId, cat, color, variant in
+                        var info: [String: Any] = [
+                            "optionId": optionId,
+                            "category": cat.rawValue,
+                            "color": color
+                        ]
+                        if let variant { info["assetVariant"] = variant }
+                        NotificationCenter.default.post(name: .canvasElementSpawnRequested, object: nil, userInfo: info)
+                    },
+                    onActivityUndo: { optionId, cat in
+                        NotificationCenter.default.post(
+                            name: .canvasElementRemoveRequested,
+                            object: nil,
+                            userInfo: ["optionId": optionId, "category": cat.rawValue]
+                        )
+                    },
+                    onReroll: { optionId, cat in
+                        NotificationCenter.default.post(
+                            name: .canvasElementRerollRequested,
+                            object: nil,
+                            userInfo: ["optionId": optionId, "category": cat.rawValue]
+                        )
+                    }
+                )
                 .onAppear {
                     AppLogger.ui.debug("🟢 MainTabView: Showing CategoryDetailView for category: \(category.rawValue)")
-                    AppLogger.ui.debug("🟢 CategoryDetailView appeared for category: \(category.rawValue)")
                 }
             }
         }
@@ -368,7 +412,6 @@ struct MainTabView: View {
         Group {
             if #available(iOS 26.0, *) {
                 liquidGlassTabBar
-                    .background(.clear)
                     .onAppear {
                         AppLogger.ui.debug("🔵 Using Liquid Glass tab bar (iOS 26+)")
                     }
@@ -381,22 +424,56 @@ struct MainTabView: View {
         }
     }
 
+    // Figma 475:64 — translucent pill-shaped floating tab bar with white
+    // outline icons + labels. Selection state uses opacity rather than color
+    // shift to stay on-design over the energy gradient background.
     @available(iOS 26.0, *)
     private var liquidGlassTabBar: some View {
+        GlassEffectContainer(spacing: 8) {
+            tabBarItems(animated: true)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                // Tab bar follows the global cycling shimmer tint via
+                // `liquidGlassControl(in:)` — same effect as `.glassEffect(.clear.interactive())`
+                // but reads `\.glassShimmerColor` from the env so it slowly cycles.
+                .liquidGlassControl(in: Capsule(style: .continuous))
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 4)
+    }
+
+    private var legacyTabBar: some View {
+        tabBarItems(animated: false)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .liquidGlassControl(in: Capsule(style: .continuous))
+            .clipShape(Capsule(style: .continuous))
+            .padding(.horizontal, 12)
+            .padding(.bottom, 4)
+    }
+
+    @ViewBuilder
+    private func tabBarItems(animated: Bool) -> some View {
         HStack(spacing: 0) {
             ForEach(Tab.allCases, id: \.rawValue) { tab in
                 let isSelected = selection == tab.rawValue
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    if animated {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            selection = tab.rawValue
+                        }
+                    } else {
                         selection = tab.rawValue
                     }
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 6) {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: tab.icon)
-                                .font(.system(size: isSelected ? selectedTabIconSize : tabIconSize))
-                                .fontWeight(isSelected ? .light : .ultraLight)
-                                .symbolRenderingMode(.hierarchical)
+                                .font(.system(
+                                    size: isSelected ? selectedTabIconSize : tabIconSize,
+                                    weight: isSelected ? .semibold : .regular
+                                ))
+                                .symbolRenderingMode(.monochrome)
                             if tab == .settings && model.hasPermissionIssues {
                                 Circle()
                                     .fill(.orange)
@@ -404,15 +481,15 @@ struct MainTabView: View {
                                     .offset(x: 3, y: -2)
                             }
                         }
-                        
+
                         Text(tab.title)
-                            .font(.caption2.weight(isSelected ? .regular : .light))
+                            .font(.caption2.weight(isSelected ? .semibold : .medium))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
-                    .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+                    .foregroundStyle(tabTint.opacity(isSelected ? 1.0 : 0.75))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 4)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -422,55 +499,6 @@ struct MainTabView: View {
                 #endif
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 28))
-        .padding(.horizontal, 12)
-        .padding(.bottom, 4)
-    }
-
-    private var legacyTabBar: some View {
-        HStack(spacing: 0) {
-            ForEach(Tab.allCases, id: \.rawValue) { tab in
-                let isSelected = selection == tab.rawValue
-                Button {
-                    selection = tab.rawValue
-                } label: {
-                    VStack(spacing: 4) {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: tab.icon)
-                                .font(.system(size: isSelected ? selectedTabIconSize : tabIconSize))
-                                .fontWeight(isSelected ? .light : .ultraLight)
-                                .symbolRenderingMode(.hierarchical)
-                            if tab == .settings && model.hasPermissionIssues {
-                                Circle()
-                                    .fill(.orange)
-                                    .frame(width: 7, height: 7)
-                                    .offset(x: 3, y: -2)
-                            }
-                        }
-                        
-                        Text(tab.title)
-                            .font(.caption2.weight(isSelected ? .regular : .light))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .foregroundColor(isSelected ? .primary : .secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier(tab.accessibilityId)
-                #if DEBUG
-                .modifier(FeedsTabCoachAnchor(tab: tab))
-                #endif
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
-        .padding(.horizontal, 12)
-        .padding(.bottom, 4)
     }
 
     #if DEBUG
@@ -489,4 +517,64 @@ struct MainTabView: View {
 }
 
 // EnergyGradientBackground is now in Components/EnergyGradientBackground.swift
+
+// MARK: - Liquid Glass control modifier
+
+extension View {
+    /// Applies the same Liquid Glass treatment as the floating tab bar.
+    /// Tint follows the global cycling shimmer color by default.
+    ///
+    /// - `.lens` (default): `.clear.interactive()` — strong refraction +
+    ///   specular sheen, best for floating chrome over rich content.
+    /// - `.frosted`: `.regular` — material backdrop, better for legibility
+    ///   when the control contains text.
+    ///
+    /// Pass any `InsettableShape` (`Circle()`, `Capsule()`,
+    /// `RoundedRectangle(...)`).
+    func liquidGlassControl<S: InsettableShape>(
+        in shape: S,
+        style: LiquidGlassStyle = .lens,
+        tint: GlassTint = .auto
+    ) -> some View {
+        modifier(LiquidGlassControlModifier(shape: shape, style: style, tint: tint))
+    }
+}
+
+private struct LiquidGlassControlModifier<S: InsettableShape>: ViewModifier {
+    let shape: S
+    let style: LiquidGlassStyle
+    let tint: GlassTint
+
+    @Environment(\.glassShimmerColor) private var shimmerColor
+
+    private var resolvedTint: Color? {
+        switch tint {
+        case .auto:         return shimmerColor
+        case .off:          return nil
+        case .fixed(let c): return c
+        }
+    }
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        let t = resolvedTint
+        if #available(iOS 26.0, *) {
+            switch style {
+            case .lens, .lensTinted:
+                content.glassEffect(makeTintedLensGlass(tint: t), in: shape)
+            case .frosted:
+                content.glassEffect(makeTintedFrostedGlass(tint: t), in: shape)
+            }
+        } else {
+            content
+                .background(.ultraThinMaterial, in: shape)
+                .overlay {
+                    if let t {
+                        shape.fill(t.opacity(AppGlassTint.fallbackStrength))
+                    }
+                }
+                .overlay(shape.strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
+        }
+    }
+}
 

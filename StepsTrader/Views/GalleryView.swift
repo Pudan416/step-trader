@@ -1,37 +1,24 @@
 import SwiftUI
 
-// MARK: - Metric overlay kind (covers all 5 top-bar chips)
-
-enum MetricOverlayKind: Identifiable, Equatable {
-    case steps
-    case sleep
-    case category(EnergyCategory)
-
-    var id: String {
-        switch self {
-        case .steps: return "steps"
-        case .sleep: return "sleep"
-        case .category(let c): return c.rawValue
-        }
-    }
-}
-
 // MARK: - CANVAS tab: generative canvas
 
 struct GalleryView: View {
     @ObservedObject var model: AppModel
     @Environment(\.appTheme) private var theme
-    @Environment(\.colorScheme) private var colorScheme
     @Binding var metricOverlay: MetricOverlayKind?
     @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader()) private var userStepsTarget: Double = 10_000
     @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var userSleepTarget: Double = 8.0
     @AppStorage("gallery_sleep_color", store: UserDefaults.stepsTrader()) private var sleepColorHex: String = "#000000"
     @AppStorage("gallery_steps_color", store: UserDefaults.stepsTrader()) private var stepsColorHex: String = "#FED415"
+    @AppStorage(SharedKeys.gradientStyle) private var currentGradientStyle: String = GradientStyle.radial.rawValue
+    @AppStorage(SharedKeys.gradientPalette) private var currentGradientPalette: String = GradientPalette.warmSunset.rawValue
+    @AppStorage(SharedKeys.bodyCanvasShape) private var bodyShapeRaw: String = CanvasShapeType.circle.rawValue
+    @AppStorage(SharedKeys.mindCanvasShape) private var mindShapeRaw: String = CanvasShapeType.snowflake.rawValue
+    @AppStorage(SharedKeys.heartCanvasShape) private var heartShapeRaw: String = CanvasShapeType.rays.rawValue
     /// Last day key whose remote bootstrap finished. When `== todayKey`, an empty
     /// canvas (post-fetch with no remote data) is treated as a real "nothing yet"
     /// state instead of re-firing the remote round-trip on every appear.
     @AppStorage("gallery_last_bootstrapped_day", store: UserDefaults.stepsTrader()) private var lastBootstrappedDayKey: String = ""
-
     @Environment(\.scenePhase) private var scenePhase
     @State private var dayCanvas: DayCanvas = DayCanvas(dayKey: AppModel.dayKey(for: Date()))
     @State private var activeDayKey: String = AppModel.dayKey(for: Date())
@@ -67,14 +54,7 @@ struct GalleryView: View {
 
     private var canvasBackground: Color { theme.backgroundColor }
     private var labelColor: Color { theme.textPrimary }
-    /// Button tint: dark in daylight, light in night for contrast on the energy gradient.
-    private var buttonColor: Color {
-        switch theme {
-        case .daylight: return labelColor
-        case .night: return AppColors.Night.textPrimary
-        case .system: return colorScheme == .dark ? AppColors.Night.textPrimary : labelColor
-        }
-    }
+    private var buttonColor: Color { AppColors.Night.textPrimary }
     private var todayKey: String { AppModel.dayKey(for: Date()) }
 
     private var bottomControlsPadding: CGFloat {
@@ -84,8 +64,10 @@ struct GalleryView: View {
         // Anchor relative to device geometry:
         // safeAreaBottom covers the home indicator (34pt on Face ID, 0 on SE),
         // tabBarHeight is the measured custom tab bar (~80pt),
-        // +20 is the visual breathing room above the tab bar.
-        return safeAreaBottom + tabBarHeight + 60
+        // +20 is visual breathing room above the tab bar.
+        // max() guards against the first layout pass where the preference
+        // hasn't reported the real tab bar height yet.
+        return max(safeAreaBottom, 34) + max(tabBarHeight, 50) + 20
     }
 
     private struct CanvasSyncState: Equatable {
@@ -111,6 +93,10 @@ struct GalleryView: View {
             joysSelections: model.dailyJoysSelections
         )
     }
+
+    /// Combined shape prefs — drives `.onChange` to migrate frozenShapeType
+    /// on current-day elements when the user changes shape in settings.
+    private var shapePrefs: [String] { [bodyShapeRaw, mindShapeRaw, heartShapeRaw] }
 
     private var isCanvasEmpty: Bool { dayCanvas.elements.isEmpty }
 
@@ -161,7 +147,7 @@ struct GalleryView: View {
                 decayNorm: decayNorm,
                 backgroundColor: canvasBackground,
                 labelColor: labelColor,
-                showLabelsOnCanvas: isWideCanvas,
+                showLabelsOnCanvas: editState.isEditMode,
                 showsBackgroundGradient: false,
                 hasStepsData: model.hasStepsData,
                 hasSleepData: model.hasSleepData,
@@ -174,9 +160,9 @@ struct GalleryView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            // Layer 2: Smudge overlay — interactive when not in edit mode.
+            // Layer 2: Animation overlay
             if !editState.isEditMode {
-                SmudgeOverlayView(
+                CanvasAnimationOverlay(
                     elements: dayCanvas.elements,
                     sleepPoints: model.sleepPointsToday,
                     stepsPoints: model.stepsPointsToday,
@@ -195,18 +181,7 @@ struct GalleryView: View {
                 .ignoresSafeArea()
             }
 
-            // Grain layer — above canvas elements + smudge, below controls
-            Image("grain 1")
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-                .opacity(0.4)
-                .blendMode(.overlay)
-
-            // Layer 2b: Edit mode drag overlay (wide canvas only)
+            // Edit mode drag overlay (wide canvas only)
             if editState.isEditMode {
                 editModeGestureOverlay
                     .frame(
@@ -216,7 +191,7 @@ struct GalleryView: View {
                     .ignoresSafeArea()
             }
 
-            // Layer 2c: Edit mode element overlays (circle outlines + dice buttons)
+            // Edit mode element overlays (circle outlines + dice buttons)
             if editState.isEditMode {
                 editModeElementOverlays
                     .frame(
@@ -225,21 +200,22 @@ struct GalleryView: View {
                     )
                     .ignoresSafeArea()
             }
-
-            // Layer 3: Interactive controls — hidden in wide canvas mode
+        }
+        // Controls in overlays — completely decoupled from the canvas/texture
+        // ZStack so texture changes never trigger a controls re-layout.
+        .overlay {
             if !isWideCanvas {
                 canvasControls
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.horizontal, controlsGuardRail)
             }
-
-            // Layer 4: Wide canvas edit button
+        }
+        .overlay {
             if isWideCanvas {
                 wideCanvasOverlay
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea()
             }
-
-            // Layer 5: Metric popover
+        }
+        .overlay {
             if let kind = metricOverlay, !isWideCanvas {
                 metricPopover(kind: kind)
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
@@ -285,6 +261,9 @@ struct GalleryView: View {
         .onChange(of: canvasSyncState) {
             syncCanvasWithModel()
         }
+        .onChange(of: shapePrefs) {
+            migrateShapePreferences()
+        }
         .onChange(of: scenePhase) {
             if scenePhase == .background {
                 if editState.isDraggingElement { handleEditDragEnd() }
@@ -310,6 +289,33 @@ struct GalleryView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             if editState.isDraggingElement { handleEditDragEnd() }
+        }
+        // Cross-tab canvas mutations: `MainTabView` posts these when the picker
+        // is opened from a non-canvas tab (StepBalanceCard pills) and the user
+        // confirms / removes / rerolls. We share the same business logic the
+        // local radial-menu sheet uses below.
+        .onReceive(NotificationCenter.default.publisher(for: .canvasElementSpawnRequested)) { note in
+            guard let info = note.userInfo,
+                  let optionId = info["optionId"] as? String,
+                  let raw = info["category"] as? String,
+                  let category = EnergyCategory(rawValue: raw),
+                  let color = info["color"] as? String else { return }
+            let variant = info["assetVariant"] as? Int
+            spawnElement(optionId: optionId, category: category, color: color, assetVariant: variant)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .canvasElementRemoveRequested)) { note in
+            guard let info = note.userInfo,
+                  let optionId = info["optionId"] as? String,
+                  let raw = info["category"] as? String,
+                  let category = EnergyCategory(rawValue: raw) else { return }
+            removeElement(optionId: optionId, category: category)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .canvasElementRerollRequested)) { note in
+            guard let info = note.userInfo,
+                  let optionId = info["optionId"] as? String,
+                  let raw = info["category"] as? String,
+                  let category = EnergyCategory(rawValue: raw) else { return }
+            rerollElement(optionId: optionId, category: category)
         }
         .sheet(item: $toolbar.pickerCategory) { category in
             CategoryDetailView(
@@ -354,6 +360,9 @@ struct GalleryView: View {
     /// All interactive overlays: date, share, empty state, category pills, + button.
     /// + is centered horizontally at the bottom (above tab bar); pills in bottom bar.
     /// Gradients are confined to top/bottom strips so the canvas stays visible in the center.
+    /// Minimum horizontal inset from screen edge for all canvas controls.
+    private let controlsGuardRail: CGFloat = 16
+
     private var canvasControls: some View {
         ZStack {
             if showQuickStartArea && !isWideCanvas {
@@ -367,7 +376,7 @@ struct GalleryView: View {
                 VStack {
                     Spacer()
                     wallpaperPromptBanner
-                        .padding(.horizontal, 24)
+                        .padding(.horizontal, 8)
                         .padding(.bottom, 40)
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -408,6 +417,23 @@ struct GalleryView: View {
     // ═══════════════════════════════════════════════════════════
 
     private var bottomControlsBar: some View {
+        // GlassEffectContainer is required when multiple `.glassEffect(.interactive(), ...)`
+        // siblings live in the same row. Without it, iOS 26 merges their interactive
+        // surfaces and routes every tap to the first glass view in the hierarchy,
+        // silently swallowing taps on the others (here: + and share).
+        // Padding is kept OUTSIDE the container — GlassEffectContainer on iOS 26
+        // can absorb child padding and break the expected insets.
+        Group {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 0) { bottomControlsContent }
+            } else {
+                bottomControlsContent
+            }
+        }
+        .padding(.horizontal, 24)
+    }
+
+    private var bottomControlsContent: some View {
         HStack(alignment: .center) {
             expandCanvasButton
 
@@ -416,9 +442,6 @@ struct GalleryView: View {
             RadialHoldMenu(
                 labelColor: buttonColor,
                 onCategorySelected: { category in
-                    // Defer sheet presentation by one animation frame so the fan
-                    // close transition isn't visually clobbered by the sheet
-                    // present (which kicks off `presentationBackground` blur etc).
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
                         toolbar.pickerCategory = category
                     }
@@ -442,7 +465,6 @@ struct GalleryView: View {
 
             shareButton
         }
-        .padding(.horizontal, 66)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -459,20 +481,14 @@ struct GalleryView: View {
             Haptics.light.impactOccurred()
             Haptics.light.prepare()
         } label: {
-            ZStack {
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.7)
-                    .frame(width: 56, height: 56)
-                Circle()
-                    .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
-                    .frame(width: 56, height: 56)
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 20, weight: .ultraLight))
-                    .foregroundStyle(buttonColor.opacity(0.85))
-            }
-            .frame(width: 72, height: 72)
-            .contentShape(Circle())
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 20, weight: .regular))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(buttonColor)
+                .frame(width: 56, height: 56)
+                .liquidGlassControl(in: Circle())
+                .frame(width: 72, height: 72)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "Expand canvas", comment: "GalleryView – expand button VoiceOver label"))
@@ -486,23 +502,19 @@ struct GalleryView: View {
         Button {
             exportCanvas()
         } label: {
-            ZStack {
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.7)
-                    .frame(width: 56, height: 56)
-                Circle()
-                    .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
-                    .frame(width: 56, height: 56)
+            Group {
                 if toolbar.isExporting {
                     ProgressView()
-                        .tint(buttonColor.opacity(0.85))
+                        .tint(buttonColor)
                 } else {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 22, weight: .ultraLight))
-                        .foregroundStyle(buttonColor.opacity(0.85))
+                        .font(.system(size: 22, weight: .regular))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(buttonColor)
                 }
             }
+            .frame(width: 56, height: 56)
+            .liquidGlassControl(in: Circle())
             .frame(width: 72, height: 72)
             .contentShape(Circle())
         }
@@ -568,24 +580,20 @@ struct GalleryView: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Set this canvas as your wallpaper", comment: "Wide canvas – wallpaper prompt"))
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(buttonColor)
                     Text(String(localized: "Your clock and widgets will overlay this canvas", comment: "Wide canvas – wallpaper prompt subtitle"))
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
-                        .foregroundStyle(buttonColor.opacity(0.5))
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(buttonColor.opacity(0.75))
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(buttonColor.opacity(0.35))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(buttonColor.opacity(0.55))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(buttonColor.opacity(0.12), lineWidth: 0.5)
-            )
+            .glassCard(cornerRadius: 14, style: .lensTinted)
         }
         .buttonStyle(.plain)
     }
@@ -602,8 +610,9 @@ struct GalleryView: View {
 
             if isCanvasEmpty {
                 Text(String(localized: "Today is uncolored", comment: "Canvas empty state hint"))
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
-                    .foregroundStyle(labelColor.opacity(0.3))
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(labelColor.opacity(0.65))
+                    .contrastingOnGlass()
             }
         }
         .multilineTextAlignment(.center)
@@ -625,7 +634,7 @@ struct GalleryView: View {
                             .foregroundStyle(labelColor)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
-                            .background(.ultraThinMaterial, in: Capsule())
+                            .liquidGlassControl(in: Capsule(style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
@@ -780,26 +789,18 @@ struct GalleryView: View {
 
             for (optionId, cat) in allSelections where !existingIds.contains(optionId) {
                 let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
+                let color2 = CanvasColorPalette.randomSecondColor(excluding: color)
                 let label = model.resolveOptionTitle(for: optionId)
-                let forcedVariant: Int? = switch cat {
-                case .mind:
-                    CanvasImageCatalog.mind.count > 0
-                        ? Int.random(in: 0..<CanvasImageCatalog.mind.count)
-                        : nil
-                case .heart:
-                    CanvasImageCatalog.heart.count > 0
-                        ? Int.random(in: 0..<CanvasImageCatalog.heart.count)
-                        : nil
-                case .body:
-                    nil
-                }
+                let forcedVariant: Int? = nil
                 let element = CanvasElement.spawn(
                     optionId: optionId,
                     category: cat,
                     color: color,
+                    color2: color2,
                     label: label,
                     existingElements: dayCanvas.elements,
-                    forcedVariant: forcedVariant
+                    forcedVariant: forcedVariant,
+                    dayKey: dayCanvas.dayKey
                 )
                 dayCanvas.elements.append(element)
                 didChange = true
@@ -812,16 +813,27 @@ struct GalleryView: View {
         let newEarned = model.baseEnergyToday
         let newSpent = model.spentStepsToday
 
+        let currentOverlay = UserDefaults.stepsTrader().string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue
+        let currentTexture = UserDefaults.standard.string(forKey: SharedKeys.canvasTexture) ?? CanvasTexture.grainSmall.rawValue
+
         if dayCanvas.sleepPoints != newSleep
            || dayCanvas.stepsPoints != newSteps
            || dayCanvas.inkEarned != newEarned
-           || dayCanvas.inkSpent != newSpent {
+           || dayCanvas.inkSpent != newSpent
+           || dayCanvas.gradientStyle != currentGradientStyle
+           || dayCanvas.gradientPalette != currentGradientPalette
+           || dayCanvas.overlayStyle != currentOverlay
+           || dayCanvas.textureRaw != currentTexture {
             dayCanvas.sleepPoints = newSleep
             dayCanvas.stepsPoints = newSteps
             dayCanvas.inkEarned = newEarned
             dayCanvas.inkSpent = newSpent
             dayCanvas.sleepColorHex = sleepColorHex
             dayCanvas.stepsColorHex = stepsColorHex
+            dayCanvas.gradientStyle = currentGradientStyle
+            dayCanvas.gradientPalette = currentGradientPalette
+            dayCanvas.overlayStyle = currentOverlay
+            dayCanvas.textureRaw = currentTexture
             didChange = true
         }
 
@@ -844,40 +856,30 @@ struct GalleryView: View {
         let canvasCopy = dayCanvas
         Task { await SupabaseSyncService.shared.syncDayCanvas(canvasCopy) }
         Task { @MainActor in refreshWidgetSnapshot() }
+        NotificationCenter.default.post(
+            name: .historyThumbnailNeedsRefresh,
+            object: dayCanvas.dayKey
+        )
     }
 
     private func spawnElement(optionId: String, category: EnergyCategory, color: String, assetVariant: Int? = nil) {
-        let effectiveVariant: Int? = switch category {
-        case .mind:
-            assetVariant ?? (
-                CanvasImageCatalog.mind.count > 0
-                    ? Int.random(in: 0..<CanvasImageCatalog.mind.count)
-                    : nil
-            )
-        case .heart:
-            assetVariant ?? (
-                CanvasImageCatalog.heart.count > 0
-                    ? Int.random(in: 0..<CanvasImageCatalog.heart.count)
-                    : nil
-            )
-        case .body:
-            assetVariant
-        }
-
         if let index = dayCanvas.elements.firstIndex(where: { $0.optionId == optionId && $0.category == category }) {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 dayCanvas.elements[index].hexColor = color
+                dayCanvas.elements[index].hexColor2 = CanvasColorPalette.randomSecondColor(excluding: color)
                 dayCanvas.elements[index].lastEditedAt = Date()
             }
         } else {
+            let color2 = CanvasColorPalette.randomSecondColor(excluding: color)
             let label = model.resolveOptionTitle(for: optionId)
             var element = CanvasElement.spawn(
                 optionId: optionId,
                 category: category,
                 color: color,
+                color2: color2,
                 label: label,
                 existingElements: dayCanvas.elements,
-                forcedVariant: effectiveVariant
+                dayKey: dayCanvas.dayKey
             )
             element.lastEditedAt = Date()
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
@@ -902,16 +904,43 @@ struct GalleryView: View {
 
     private func rerollElement(optionId: String, category: EnergyCategory) {
         guard let index = dayCanvas.elements.firstIndex(where: { $0.optionId == optionId && $0.category == category }) else { return }
+        let currentColor = dayCanvas.elements[index].hexColor
+        let palette = CanvasColorPalette.paletteHex.filter { $0 != currentColor }
+        let newColor = palette.randomElement() ?? CanvasColorPalette.paletteHex.randomElement() ?? currentColor
+        let newColor2 = CanvasColorPalette.randomSecondColor(excluding: newColor)
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             dayCanvas.elements[index].reroll()
-            if category == .body {
-                dayCanvas.elements[index].hexColor = CanvasColorPalette.paletteHex.randomElement() ?? dayCanvas.elements[index].hexColor
-            }
+            dayCanvas.elements[index].hexColor = newColor
+            dayCanvas.elements[index].hexColor2 = newColor2
             dayCanvas.elements[index].lastEditedAt = Date()
         }
         dayCanvas.lastModified = Date()
         localMutationCounter &+= 1
         saveCanvasLocally()
+    }
+
+    /// When the user changes a category's shape in Settings, update all
+    /// current-day elements in that category so they render with the new shape.
+    /// Without this, elements whose `frozenShapeType` was set at spawn time
+    /// would stay locked on the old shape forever.
+    private func migrateShapePreferences() {
+        guard canvasLoaded, activeDayKey == dayCanvas.dayKey else { return }
+        var didChange = false
+        for i in dayCanvas.elements.indices {
+            let resolved = CanvasShapeType.resolved(for: dayCanvas.elements[i].category)
+            if dayCanvas.elements[i].frozenShapeType != resolved {
+                dayCanvas.elements[i].frozenShapeType = resolved
+                let newKind: ElementKind = (resolved == .rays) ? .ray : .circle
+                dayCanvas.elements[i].kind = newKind
+                dayCanvas.elements[i].lastEditedAt = Date()
+                didChange = true
+            }
+        }
+        if didChange {
+            dayCanvas.lastModified = Date()
+            localMutationCounter &+= 1
+            saveCanvasLocally()
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -921,75 +950,68 @@ struct GalleryView: View {
     private var wideCanvasOverlay: some View {
         VStack {
             Spacer()
-            HStack {
-                // Collapse button (bottom-left)
-                Button {
-                    withAnimation(.easeInOut(duration: 0.35)) {
-                        editState.reset()
-                        isManuallyExpanded = false
-                        userCollapsedWide = true
-                        isWideCanvas = false
-                    }
-                    Haptics.light.impactOccurred()
-                    Haptics.light.prepare()
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .opacity(0.7)
-                            .frame(width: 56, height: 56)
-                        Circle()
-                            .strokeBorder(buttonColor.opacity(0.3), lineWidth: 1)
-                            .frame(width: 56, height: 56)
-                        Image(systemName: "arrow.down.right.and.arrow.up.left")
-                            .font(.system(size: 20, weight: .ultraLight))
-                            .foregroundStyle(buttonColor.opacity(0.85))
-                    }
-                    .frame(width: 72, height: 72)
-                    .contentShape(Circle())
+            Group {
+                if #available(iOS 26.0, *) {
+                    GlassEffectContainer(spacing: 0) { wideCanvasOverlayContent }
+                } else {
+                    wideCanvasOverlayContent
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "Collapse canvas", comment: "GalleryView – collapse button VoiceOver label"))
-
-                Spacer()
-
-                // Edit button (bottom-right)
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        editState.isEditMode.toggle()
-                        if editState.isEditMode {
-                            editState.editFreezeTime = Date()
-                        } else {
-                            editState.editFreezeTime = nil
-                            editState.activeElementId = nil
-                            editState.isDraggingElement = false
-                            saveCanvasLocally()
-                        }
-                    }
-                    Haptics.light.impactOccurred()
-                    // Edit mode is a haptic hot-path (drag/dice/tap). Re-prime now.
-                    if editState.isEditMode { Haptics.prepareAll() } else { Haptics.light.prepare() }
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .opacity(0.7)
-                            .frame(width: 56, height: 56)
-                        Circle()
-                            .strokeBorder(buttonColor.opacity(editState.isEditMode ? 0.5 : 0.3), lineWidth: 1)
-                            .frame(width: 56, height: 56)
-                        Image(systemName: editState.isEditMode ? "checkmark" : "hand.draw")
-                            .font(.system(size: 22, weight: .ultraLight))
-                            .foregroundStyle(buttonColor.opacity(0.85))
-                    }
-                    .frame(width: 72, height: 72)
-                    .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: editState.isEditMode ? "Done editing" : "Edit canvas", comment: "GalleryView – edit button VoiceOver label"))
             }
-            .padding(.horizontal, 50)
-            .padding(.bottom, safeAreaBottom + 50)
+            .padding(.horizontal, 8)
+            .padding(.bottom, max(safeAreaBottom, 34) + 16)
+        }
+    }
+
+    private var wideCanvasOverlayContent: some View {
+        HStack {
+            Button {
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    editState.reset()
+                    isManuallyExpanded = false
+                    userCollapsedWide = true
+                    isWideCanvas = false
+                }
+                Haptics.light.impactOccurred()
+                Haptics.light.prepare()
+            } label: {
+                Image(systemName: "arrow.down.right.and.arrow.up.left")
+                    .font(.system(size: 20, weight: .ultraLight))
+                    .foregroundStyle(buttonColor.opacity(0.85))
+                    .frame(width: 56, height: 56)
+                    .liquidGlassControl(in: Circle())
+                    .frame(width: 72, height: 72)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Collapse canvas", comment: "GalleryView – collapse button VoiceOver label"))
+
+            Spacer()
+
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    editState.isEditMode.toggle()
+                    if editState.isEditMode {
+                        editState.editFreezeTime = Date()
+                    } else {
+                        editState.editFreezeTime = nil
+                        editState.activeElementId = nil
+                        editState.isDraggingElement = false
+                        saveCanvasLocally()
+                    }
+                }
+                Haptics.light.impactOccurred()
+                if editState.isEditMode { Haptics.prepareAll() } else { Haptics.light.prepare() }
+            } label: {
+                Image(systemName: editState.isEditMode ? "checkmark" : "hand.draw")
+                    .font(.system(size: 22, weight: .ultraLight))
+                    .foregroundStyle(buttonColor.opacity(0.85))
+                    .frame(width: 56, height: 56)
+                    .liquidGlassControl(in: Circle())
+                    .frame(width: 72, height: 72)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: editState.isEditMode ? "Done editing" : "Edit canvas", comment: "GalleryView – edit button VoiceOver label"))
         }
     }
 
@@ -1021,7 +1043,24 @@ struct GalleryView: View {
 
                     VStack {
                         HStack {
+                            Button {
+                                model.toggleDailySelection(optionId: element.optionId, category: element.category)
+                                removeElement(optionId: element.optionId, category: element.category)
+                                Haptics.medium.impactOccurred()
+                                Haptics.medium.prepare()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(.red.opacity(0.9))
+                                    .frame(width: 34, height: 34)
+                                    .liquidGlassControl(in: Circle())
+                                    .contentShape(Circle().scale(1.3))
+                            }
+                            .buttonStyle(.plain)
+                            .allowsHitTesting(true)
+
                             Spacer()
+
                             Button {
                                 rerollElement(optionId: element.optionId, category: element.category)
                                 Haptics.light.impactOccurred()
@@ -1031,15 +1070,7 @@ struct GalleryView: View {
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundStyle(buttonColor.opacity(0.85))
                                     .frame(width: 34, height: 34)
-                                    .background(
-                                        Circle()
-                                            .fill(.ultraThinMaterial)
-                                            .opacity(0.9)
-                                    )
-                                    .overlay(
-                                        Circle()
-                                            .strokeBorder(buttonColor.opacity(0.3), lineWidth: 0.5)
-                                    )
+                                    .liquidGlassControl(in: Circle())
                                     .contentShape(Circle().scale(1.3))
                             }
                             .buttonStyle(.plain)
@@ -1072,6 +1103,24 @@ struct GalleryView: View {
                         }
                         .onEnded { _ in
                             handleEditDragEnd()
+                        }
+                )
+                .simultaneousGesture(
+                    RotationGesture()
+                        .onChanged { angle in
+                            handleEditRotation(angle: angle)
+                        }
+                        .onEnded { _ in
+                            handleEditRotationEnd()
+                        }
+                )
+                .simultaneousGesture(
+                    MagnificationGesture()
+                        .onChanged { scale in
+                            handleEditPinch(scale: scale)
+                        }
+                        .onEnded { _ in
+                            handleEditPinchEnd()
                         }
                 )
                 .onTapGesture { location in
@@ -1129,6 +1178,56 @@ struct GalleryView: View {
         saveCanvasLocally()
     }
 
+    // MARK: - Edit Mode Rotation (heart shapes only)
+
+    private func handleEditRotation(angle: Angle) {
+        guard let id = editState.activeElementId,
+              let index = dayCanvas.elements.firstIndex(where: { $0.id == id }),
+              dayCanvas.elements[index].category == .heart else { return }
+
+        if editState.gestureStartRotation == nil {
+            editState.gestureStartRotation = dayCanvas.elements[index].userRotation
+        }
+        dayCanvas.elements[index].userRotation = (editState.gestureStartRotation ?? 0) + angle.radians
+    }
+
+    private func handleEditRotationEnd() {
+        guard editState.gestureStartRotation != nil else { return }
+        if let id = editState.activeElementId,
+           let idx = dayCanvas.elements.firstIndex(where: { $0.id == id }) {
+            dayCanvas.elements[idx].lastEditedAt = Date()
+        }
+        editState.gestureStartRotation = nil
+        dayCanvas.lastModified = Date()
+        localMutationCounter &+= 1
+        saveCanvasLocally()
+    }
+
+    // MARK: - Edit Mode Pinch-to-Resize (all shapes)
+
+    private func handleEditPinch(scale: CGFloat) {
+        guard let id = editState.activeElementId,
+              let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
+
+        if editState.gestureStartSize == nil {
+            editState.gestureStartSize = dayCanvas.elements[index].userSize ?? dayCanvas.elements[index].size
+        }
+        let startSize = editState.gestureStartSize ?? dayCanvas.elements[index].size
+        dayCanvas.elements[index].userSize = min(0.65, max(0.02, startSize * scale))
+    }
+
+    private func handleEditPinchEnd() {
+        guard editState.gestureStartSize != nil else { return }
+        if let id = editState.activeElementId,
+           let idx = dayCanvas.elements.firstIndex(where: { $0.id == id }) {
+            dayCanvas.elements[idx].lastEditedAt = Date()
+        }
+        editState.gestureStartSize = nil
+        dayCanvas.lastModified = Date()
+        localMutationCounter &+= 1
+        saveCanvasLocally()
+    }
+
     /// Resets transient edit state without persisting drag positions.
     /// Call when an interruption (system alert, app suspension) makes the
     /// drag intent ambiguous — element ends up at its last `basePosition`.
@@ -1168,14 +1267,17 @@ struct GalleryView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(50))
 
-            let canvasSize = GenerativeCanvasView.canonicalPortraitSize
-            let composite = ZStack {
+            let userName = AuthenticationService.shared.currentUser?.displayName
+            let style = PosterStyle.museum
+
+            let canvasContent = ZStack {
                 EnergyGradientBackground(
                     stepsPoints: model.stepsPointsToday,
                     sleepPoints: model.sleepPointsToday,
                     hasStepsData: model.hasStepsData,
                     hasSleepData: model.hasSleepData,
-                    showGrain: false
+                    showGrain: true,
+                    textureOverride: dayCanvas.textureRaw
                 )
 
                 GenerativeCanvasView(
@@ -1192,20 +1294,39 @@ struct GalleryView: View {
                     showsBackgroundGradient: false,
                     hasStepsData: model.hasStepsData,
                     hasSleepData: model.hasSleepData,
-                    fixedTime: Date()
+                    fixedTime: Date(),
+                    isOffscreenRender: true
                 )
             }
-            .frame(width: canvasSize.width, height: canvasSize.height)
 
-            // ImageRenderer is @MainActor-bound, so we can't run it on a
-            // background thread. Yield to the run loop first so the spinner
-            // appears, then render. TODO: profile complex canvases — if the
-            // hitch is severe, render into a CGContext on a background queue
-            // (forfeits SwiftUI snapshotting).
+            // 9:16 output (1080×1920) — fits Stories, Reels, and Posts
+            let outputW: CGFloat = 1080
+            let outputH: CGFloat = 1920
+            let posterW = outputW * 0.92
+            let posterH = posterW / style.nativeAspect
+
+            let shareable = ZStack {
+                style.padColor
+
+                CanvasPosterView(
+                    style: style,
+                    date: Date(),
+                    userName: userName,
+                    steps: Int(model.stepsToday),
+                    sleepHours: model.dailySleepHours,
+                    inkEarned: dayCanvas.inkEarned,
+                    inkSpent: dayCanvas.inkSpent
+                ) {
+                    canvasContent
+                }
+                .frame(width: posterW, height: posterH)
+            }
+            .frame(width: outputW, height: outputH)
+
             await Task.yield()
-            let renderer = ImageRenderer(content: composite)
-            renderer.scale = 2.0
-            renderer.proposedSize = .init(canvasSize)
+            let renderer = ImageRenderer(content: shareable)
+            renderer.scale = 1.0
+            renderer.proposedSize = .init(width: outputW, height: outputH)
             let image = renderer.uiImage
 
             toolbar.isExporting = false
@@ -1369,26 +1490,40 @@ struct GalleryView: View {
 
     private var sleepOverlayBody: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(String(format: "%.1fh", model.healthStore.dailySleepHours))
-                        .font(.title2.bold())
-                    Text(String(localized: "hours slept"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(model.sleepPointsToday)/\(EnergyDefaults.sleepMaxPoints)")
+            if model.isSleepAssumed {
+                HStack {
+                    Text(String(localized: "Sleep: \(EnergyDefaults.assumedSleepPoints) colors", comment: "Sleep overlay – assumed sleep header"))
                         .font(.title3.bold())
-                    Text(String(localized: "colors"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Spacer()
+                    Image(systemName: "gift.fill")
+                        .foregroundColor(AppColors.brandAccent)
                 }
+                Text(String(localized: "sleep_assumed_message", comment: "Sleep overlay – warm message when no sleep data"))
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(format: "%.1fh", model.healthStore.dailySleepHours))
+                            .font(.title2.bold())
+                        Text(String(localized: "hours slept"))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(model.sleepPointsToday)/\(EnergyDefaults.sleepMaxPoints)")
+                            .font(.title3.bold())
+                        Text(String(localized: "colors"))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Text(String(localized: "Target: \(String(format: "%.1f", userSleepTarget))h"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-            Text(String(localized: "Target: \(String(format: "%.1f", userSleepTarget))h"))
-                .font(.caption)
-                .foregroundColor(.secondary)
         }
     }
 
@@ -1436,160 +1571,6 @@ struct GalleryView: View {
 }
 
 // MARK: - Share Sheet (UIActivityViewController wrapper)
-
-struct CanvasShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-
-// MARK: - Day detail sheet (used by MeView)
-
-struct CanvasDayDetailSheet: View {
-    @ObservedObject var model: AppModel
-    let dayKey: String
-    let snapshot: PastDaySnapshot?
-    let onDismiss: () -> Void
-    @Environment(\.appTheme) private var theme
-
-    private var dayLabel: String {
-        guard let d = date(from: dayKey) else { return dayKey }
-        return CachedFormatters.longDate.string(from: d)
-    }
-
-    private func date(from key: String) -> Date? {
-        CachedFormatters.dayKey.date(from: key)
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    if let s = snapshot {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            statCard(icon: "figure.walk", value: "\(s.steps)", label: String(localized: "Steps"), color: .green)
-                            statCard(icon: "bed.double.fill", value: String(format: "%.1f", s.sleepHours), label: String(localized: "Sleep hours"), color: .indigo)
-                            statCard(icon: "plus.circle.fill", value: "\(s.inkEarned)", label: String(localized: "Gained"), color: .blue)
-                            statCard(icon: "minus.circle.fill", value: "\(s.inkSpent)", label: String(localized: "Spent"), color: .orange)
-                        }
-                        canvasSection(s)
-                    } else {
-                        Text(String(localized: "No data for this day."))
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, 40)
-                    }
-                }
-                .padding(16)
-            }
-            .background(theme.backgroundColor)
-            .navigationTitle(dayLabel)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(String(localized: "Done")) { onDismiss() }
-                }
-            }
-        }
-        .presentationDetents([.medium])
-    }
-
-    private func canvasSection(_ s: PastDaySnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            canvasRow(title: String(localized: "Body", comment: "Energy category"), ids: s.bodyIds, color: theme.bodyColor)
-            canvasRow(title: String(localized: "Mind", comment: "Energy category"), ids: s.mindIds, color: theme.mindColor)
-            canvasRow(title: String(localized: "Heart", comment: "Energy category"), ids: s.heartIds, color: theme.heartColor)
-        }
-    }
-
-    private func canvasRow(title: String, ids: [String], color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundColor(color)
-            if ids.isEmpty {
-                Text("—")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            } else {
-                FlowLayout(spacing: 6) {
-                    ForEach(ids, id: \.self) { id in
-                        Text(model.resolveOptionTitle(for: id))
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(color.opacity(0.15)))
-                            .foregroundColor(color)
-                    }
-                }
-            }
-        }
-    }
-
-    private func statCard(icon: String, value: String, label: String, color: Color) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
-                .frame(width: 32)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value)
-                    .font(.headline.monospacedDigit())
-                Text(label)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-        }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
-    }
-}
-
-// MARK: - Flow Layout
-
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        arrangeSubviews(proposal: proposal, subviews: subviews).size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = arrangeSubviews(proposal: proposal, subviews: subviews)
-        for (index, position) in result.positions.enumerated() {
-            subviews[index].place(at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y), proposal: .unspecified)
-        }
-    }
-
-    private func arrangeSubviews(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
-        let maxWidth = proposal.width ?? .infinity
-        var positions: [CGPoint] = []
-        var currentX: CGFloat = 0
-        var currentY: CGFloat = 0
-        var lineHeight: CGFloat = 0
-        var totalHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if currentX + size.width > maxWidth && currentX > 0 {
-                currentX = 0
-                currentY += lineHeight + spacing
-                lineHeight = 0
-            }
-            positions.append(CGPoint(x: currentX, y: currentY))
-            currentX += size.width + spacing
-            lineHeight = max(lineHeight, size.height)
-            totalHeight = currentY + lineHeight
-        }
-        return (CGSize(width: maxWidth, height: totalHeight), positions)
-    }
-}
 
 // MARK: - Preview
 

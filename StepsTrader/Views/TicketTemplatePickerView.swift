@@ -115,8 +115,6 @@ struct TicketTemplatePickerView: View {
             .background(theme.backgroundColor)
             .navigationTitle(String(localized: "New Feed", comment: "TemplatePicker – navigation title"))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(theme.backgroundColor, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Cancel", comment: "TemplatePicker – dismiss button")) {

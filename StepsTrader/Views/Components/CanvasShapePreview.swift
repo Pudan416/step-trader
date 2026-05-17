@@ -148,13 +148,119 @@ struct BodyBlobPreview: View {
     }
 }
 
+// MARK: - RectMorph (Mind) Snowflake Preview
+
+struct RectMorphPreview: View {
+    let seed: UInt64
+    var color: Color? = nil
+    var color2: Color? = nil
+
+    var body: some View {
+        Canvas { ctx, size in
+            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 8, dy: 8)
+            let frame = ProceduralShapeGenerator.rectMorphFrame(
+                seed: seed, time: 0, in: rect,
+                elementColor: color, elementColor2: color2
+            )
+            if color != nil {
+                ctx.fill(frame.path, with: .color(frame.color.opacity(0.15)))
+            }
+            ctx.stroke(
+                frame.path,
+                with: .color(frame.color),
+                style: StrokeStyle(lineWidth: 0.5, lineCap: .round, lineJoin: .round)
+            )
+        }
+    }
+}
+
+// MARK: - Mind Blob Preview (filled superformula crystal)
+
+struct MindBlobPreview: View {
+    let seed: UInt64
+    let colors: [Color]
+
+    var body: some View {
+        Canvas { ctx, size in
+            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 8, dy: 8)
+            let path = ProceduralShapeGenerator.mindPath(seed: seed, complexity: 0.5, time: 0, in: rect)
+            let center = CGPoint(x: rect.midX, y: rect.midY)
+            let radius = min(rect.width, rect.height) / 2
+
+            let gradient = Gradient(colors: colors)
+            ctx.fill(
+                path,
+                with: .radialGradient(gradient, center: center, startRadius: 0, endRadius: radius)
+            )
+            ctx.addFilter(.blur(radius: 3))
+        }
+    }
+}
+
+// MARK: - Heart Ray Preview (filled tapered rays)
+
+struct HeartRayPreview: View {
+    let seed: UInt64
+    let colors: [Color]
+
+    var body: some View {
+        Canvas { ctx, size in
+            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 6, dy: 6)
+            let center = CGPoint(x: rect.midX, y: rect.midY)
+            let reach = min(rect.width, rect.height) * 0.45
+            let rays = ProceduralShapeGenerator.heartRays(
+                seed: seed, complexity: 0.4, time: 0,
+                origin: center,
+                direction: CGPoint(x: 0, y: -1),
+                reach: reach
+            )
+            let gradient = Gradient(colors: colors)
+            for ray in rays {
+                ctx.fill(
+                    ray.path,
+                    with: .radialGradient(gradient, center: center, startRadius: 0, endRadius: reach)
+                )
+            }
+            ctx.addFilter(.blur(radius: 2))
+        }
+    }
+}
+
+// MARK: - Spotlight (Heart) Preview
+
+struct SpotlightPreview: View {
+    let seed: UInt64
+    var overrideColor: Color? = nil
+
+    private var resolvedColors: (near: Color, mid: Color, far: Color) {
+        if let c = overrideColor {
+            return (c, c.opacity(0.6), c.opacity(0.3))
+        }
+        return ProceduralShapeGenerator.spotlightColors(seed: seed)
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            Rectangle()
+                .fill(.white)
+                .layerEffect(ShaderLibrary.spotlightEffect(
+                    .float2(Float(geo.size.width), Float(geo.size.height)),
+                    .float(0),
+                    .color(resolvedColors.near),
+                    .color(resolvedColors.mid),
+                    .color(resolvedColors.far)
+                ), maxSampleOffset: .zero)
+        }
+    }
+}
+
 // MARK: - Preview
 
 #Preview("Random Variety") {
     ScrollView {
         VStack(alignment: .leading, spacing: 24) {
 
-            Text("Heart — Random")
+            Text("Heart — Spotlight")
                 .font(.title3.bold())
                 .padding(.horizontal)
 
@@ -164,25 +270,16 @@ struct BodyBlobPreview: View {
                 GridItem(.flexible(), spacing: 8),
             ], spacing: 12) {
                 ForEach(0..<15, id: \.self) { i in
-                    let colors = RandomPalette.randomColors(seed: i * 6271 + 1009, count: i % 3 == 0 ? 2 : 3)
-                    VStack(spacing: 4) {
-                        GradientTintedAsset(
-                            assetName: "heart 1",
-                            colors: colors,
-                            mode: .linear(.degrees(180))
-                        )
+                    SpotlightPreview(seed: UInt64(i * 6271 + 1009))
                         .frame(width: 100, height: 100)
-                        Text("\(colors.count)c")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
             .padding(.horizontal)
 
             Divider().padding(.horizontal)
 
-            Text("Mind Filled — Random")
+            Text("Mind — RectMorph Snowflake")
                 .font(.title3.bold())
                 .padding(.horizontal)
 
@@ -192,46 +289,9 @@ struct BodyBlobPreview: View {
                 GridItem(.flexible(), spacing: 8),
             ], spacing: 12) {
                 ForEach(0..<15, id: \.self) { i in
-                    let colors = RandomPalette.randomColors(seed: i * 7919 + 5381, count: 3)
-                    VStack(spacing: 4) {
-                        GradientTintedAsset(
-                            assetName: "mind 1",
-                            colors: colors,
-                            mode: .radial(center: .init(x: 0.5, y: 0.7))
-                        )
+                    RectMorphPreview(seed: UInt64(i * 7919 + 5381))
                         .frame(width: 100, height: 100)
-                        Text("3c")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-            .padding(.horizontal)
-
-            Divider().padding(.horizontal)
-
-            Text("Mind Ring — Random")
-                .font(.title3.bold())
-                .padding(.horizontal)
-
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 8),
-                GridItem(.flexible(), spacing: 8),
-                GridItem(.flexible(), spacing: 8),
-            ], spacing: 12) {
-                ForEach(0..<15, id: \.self) { i in
-                    let colors = RandomPalette.randomColors(seed: i * 6113 + 3571, count: 3)
-                    VStack(spacing: 4) {
-                        GradientTintedAsset(
-                            assetName: "mind 14",
-                            colors: colors,
-                            mode: .radial(center: .init(x: 0.5, y: 0.7))
-                        )
-                        .frame(width: 100, height: 100)
-                        Text("3c")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
             .padding(.horizontal)

@@ -68,7 +68,7 @@ struct DayEndSettingsView: View {
                 .padding(.bottom, 32)
             }
         }
-        .energyGradientBackground(model: model)
+        .energyGradientBackground(model: model, showGrain: false)
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }

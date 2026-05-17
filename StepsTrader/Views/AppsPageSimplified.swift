@@ -43,18 +43,27 @@ struct AppsPageSimplified: View {
     @State private var expandedSheetGroupId: TicketGroupId? = nil
     @State private var isReordering = false
 
-    /// Tint for the + button: dark in daylight, light at night, so it stays visible on the gradient.
-    private var buttonTint: Color {
-        switch theme {
-        case .daylight: return theme.textPrimary
-        case .night: return AppColors.Night.textPrimary
-        case .system: return colorScheme == .dark ? AppColors.Night.textPrimary : theme.textPrimary
-        }
-    }
+    private var buttonTint: Color { AppColors.Night.textPrimary }
     @State private var showCustomNamePrompt = false
     @State private var customTicketName = ""
     @State private var showPickerAfterDismiss = false
     @State private var groupIdToDelete: String? = nil
+    @State private var showPaywall = false
+
+    /// Centralized gate for the "create new feed" entry points. Free users get
+    /// a paywall once they've already created their allotted group(s); Pro
+    /// users (and grandfathered legacy users) bypass the check entirely.
+    private func attemptCreateGroup() {
+        let canAdd = SubscriptionGate.canAddBlockingGroup(
+            isPro: model.isPro,
+            currentCount: model.blockingStore.ticketGroups.count
+        )
+        if canAdd {
+            showTemplatePicker = true
+        } else {
+            showPaywall = true
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -62,8 +71,8 @@ struct AppsPageSimplified: View {
                 VStack(spacing: 0) {
                     HStack {
                         Text(String(localized: "My Feeds", comment: "Feeds page title"))
-                            .font(.system(size: 17, weight: .light, design: .rounded))
-                            .foregroundStyle(Color.primary.opacity(0.7))
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.primary)
                         Spacer()
                         if isReordering {
                             Button {
@@ -82,35 +91,21 @@ struct AppsPageSimplified: View {
                                         isReordering = true
                                     }
                                 } label: {
-                                    ZStack {
-                                        Circle()
-                                            .fill(.ultraThinMaterial)
-                                            .opacity(0.5)
-                                            .frame(width: 36, height: 36)
-                                        Circle()
-                                            .strokeBorder(buttonTint.opacity(0.4), lineWidth: 1)
-                                            .frame(width: 36, height: 36)
-                                        Image(systemName: "arrow.up.arrow.down")
-                                            .font(.system(size: 14, weight: .ultraLight))
-                                            .foregroundStyle(buttonTint)
-                                    }
+                                Image(systemName: "arrow.up.arrow.down")
+                                    .font(.system(size: 15, weight: .regular))
+                                    .foregroundStyle(buttonTint)
+                                    .frame(width: 44, height: 44)
+                                    .liquidGlassControl(in: Circle())
                                 }
                             }
                             Button {
-                                showTemplatePicker = true
+                                attemptCreateGroup()
                             } label: {
-                                ZStack {
-                                    Circle()
-                                        .fill(.ultraThinMaterial)
-                                        .opacity(0.5)
-                                        .frame(width: 36, height: 36)
-                                    Circle()
-                                        .strokeBorder(buttonTint.opacity(0.4), lineWidth: 1)
-                                        .frame(width: 36, height: 36)
-                                    Image(systemName: "plus")
-                                        .font(.system(size: 16, weight: .ultraLight))
-                                        .foregroundStyle(buttonTint)
-                                }
+                                Image(systemName: "plus")
+                                    .font(.system(size: 17, weight: .regular))
+                                    .foregroundStyle(buttonTint)
+                                    .frame(width: 44, height: 44)
+                                    .liquidGlassControl(in: Circle())
                             }
                             #if DEBUG
                             .coachMarkAnchor(.unlockSuccess)
@@ -135,7 +130,7 @@ struct AppsPageSimplified: View {
                 }
                 .zIndex(0)
 
-                Image("grain 1")
+                Image("grain (small)")
                     .resizable()
                     .scaledToFill()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -146,7 +141,7 @@ struct AppsPageSimplified: View {
                     .blendMode(.overlay)
                     .zIndex(10)
             }
-            .energyGradientBackground(model: model)
+            .energyGradientBackground(model: model, showGrain: false)
             .background(Color.clear)
             .safeAreaInset(edge: .top, spacing: 0) {
                 Color.clear.frame(height: topCardHeight)
@@ -255,6 +250,13 @@ struct AppsPageSimplified: View {
                     groupIdToDelete = nil
                 }
             }
+            .fullScreenCover(isPresented: $showPaywall) {
+                PaywallView(
+                    model: model,
+                    store: model.subscriptionStore,
+                    source: .feature
+                )
+            }
         }
     }
 
@@ -279,8 +281,8 @@ struct AppsPageSimplified: View {
                                 moveTicket(group.id, up: true)
                             } label: {
                                 Image(systemName: "chevron.up")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .frame(width: 34, height: 28)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .frame(width: 44, height: 36)
                                     .contentShape(Rectangle())
                             }
                             .disabled(visibleGroups.first?.id == group.id)
@@ -291,17 +293,14 @@ struct AppsPageSimplified: View {
                                 moveTicket(group.id, up: false)
                             } label: {
                                 Image(systemName: "chevron.down")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .frame(width: 34, height: 28)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .frame(width: 44, height: 36)
                                     .contentShape(Rectangle())
                             }
                             .disabled(visibleGroups.last?.id == group.id)
                         }
-                        .foregroundStyle(Color.primary.opacity(0.5))
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(.ultraThinMaterial)
-                        )
+                        .foregroundStyle(Color.primary.opacity(0.7))
+                        .liquidGlassControl(in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .padding(.trailing, 10)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
@@ -332,20 +331,22 @@ struct AppsPageSimplified: View {
         VStack(spacing: 28) {
             Spacer()
             Image(systemName: "ticket")
-                .font(.system(size: 52, weight: .ultraLight))
-                .foregroundStyle(Color.primary.opacity(0.25))
+                .font(.system(size: 52, weight: .regular))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.primary)
+                .opacity(0.55)
             VStack(spacing: 8) {
                 Text(String(localized: "No feeds connected yet"))
-                    .font(.system(size: 20, weight: .light, design: .rounded))
-                    .foregroundStyle(Color.primary.opacity(0.7))
+                    .font(.title3.weight(.regular))
+                    .foregroundStyle(.primary)
                 Text(String(localized: "Create one when you're ready."))
-                    .font(.system(size: 14, weight: .light, design: .rounded))
-                    .foregroundStyle(Color.primary.opacity(0.4))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
             Button {
-                showTemplatePicker = true
+                attemptCreateGroup()
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "plus")
@@ -386,8 +387,9 @@ struct AppsPageSimplified: View {
             .background(theme.backgroundColor)
             .navigationTitle(group.wrappedValue.name.isEmpty ? String(localized: "Feed") : group.wrappedValue.name)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(theme.backgroundColor, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            // Let the system render the nav bar background — on iOS 26 this
+            // becomes Liquid Glass automatically; pre-26 it's translucent
+            // material. Explicit color was flattening it into a solid bar.
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Done")) { onDismiss() }

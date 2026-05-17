@@ -59,7 +59,7 @@ struct HandoffProtectionView: View {
                 }
             }
             .padding(30)
-            .background(RoundedRectangle(cornerRadius: 20).fill(.ultraThinMaterial))
+            .glassCard(cornerRadius: 20, style: .frosted)
             .padding(.horizontal, 24)
         }
         .onAppear {

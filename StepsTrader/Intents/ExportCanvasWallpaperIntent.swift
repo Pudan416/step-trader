@@ -27,6 +27,7 @@ enum GradientStyleOption: String, AppEnum {
     case radialReversed
     case linearReversed
     case organic
+    case mesh
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Gradient Style"
     static var caseDisplayRepresentations: [GradientStyleOption: DisplayRepresentation] = [
@@ -36,6 +37,7 @@ enum GradientStyleOption: String, AppEnum {
         .radialReversed:  "Radial Reversed",
         .linearReversed:  "Linear Reversed",
         .organic:         "Organic",
+        .mesh:            "Mesh",
     ]
 
     func resolved() -> GradientStyle {
@@ -50,6 +52,7 @@ enum GradientStyleOption: String, AppEnum {
         case .radialReversed:  return .radialReversed
         case .linearReversed:  return .linearReversed
         case .organic:         return .organic
+        case .mesh:            return .mesh
         }
     }
 }
@@ -108,16 +111,13 @@ struct ExportCanvasWallpaperIntent: AppIntent {
 
         let dayKey = AppModel.dayKey(for: Date())
         let canvas = CanvasStorageService.shared.loadOrCreateCanvas(for: dayKey)
-        let theme = Self.resolvedTheme()
-
         let screen = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first?.screen ?? UIScreen.main
         let baseWidth: CGFloat = screen.bounds.width
         let baseHeight: CGFloat = screen.bounds.height
 
-        let isDaylight = theme == .daylight
-        let bgColor: Color = isDaylight ? AppColors.Daylight.background : AppColors.Night.background
+        let bgColor = AppColors.Night.background
         let hasSteps = canvas.stepsPoints > 0
         let hasSleep = canvas.sleepPoints > 0
 
@@ -130,7 +130,6 @@ struct ExportCanvasWallpaperIntent: AppIntent {
                 sleepPoints: canvas.sleepPoints,
                 hasStepsData: hasSteps,
                 hasSleepData: hasSleep,
-                isDaylight: isDaylight,
                 gradientStyle: resolvedStyle,
                 palette: resolvedPalette
             )
@@ -148,17 +147,24 @@ struct ExportCanvasWallpaperIntent: AppIntent {
                 showsBackgroundGradient: false,
                 hasStepsData: hasSteps,
                 hasSleepData: hasSleep,
-                fixedTime: Date()
+                fixedTime: Date(),
+                isOffscreenRender: true
             )
 
-            Image("grain 1")
-                .resizable()
-                .scaledToFill()
-                .frame(width: baseWidth, height: baseHeight)
-                .clipped()
-                .opacity(0.4)
-                .blendMode(.overlay)
-                .allowsHitTesting(false)
+            let textureRaw = UserDefaults.standard.string(forKey: SharedKeys.canvasTexture) ?? "grain (small)"
+            let texture = CanvasTexture.fromStored(textureRaw)
+            if let assetName = texture.assetName {
+                let blendMode = texture.blendMode
+                let opacity = texture.defaultOpacity
+                Image(assetName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: baseWidth, height: baseHeight)
+                    .clipped()
+                    .blendMode(blendMode)
+                    .opacity(opacity)
+                    .allowsHitTesting(false)
+            }
         }
         .frame(width: baseWidth, height: baseHeight)
         .clipped()
@@ -207,17 +213,8 @@ struct ExportCanvasWallpaperIntent: AppIntent {
 
     // MARK: - Theme Resolution
 
-    private static func resolvedTheme() -> AppTheme {
-        let raw = UserDefaults(suiteName: SharedKeys.appGroupId)?.string(forKey: "appTheme")
-            ?? UserDefaults.standard.string(forKey: "appTheme")
-            ?? "system"
-        let theme = AppTheme.normalized(rawValue: raw)
-        if theme == .system {
-            let isDark = UITraitCollection.current.userInterfaceStyle == .dark
-            return isDark ? .night : .daylight
-        }
-        return theme
-    }
+    @MainActor
+    private static func resolvedTheme() -> AppTheme { .night }
 }
 
 // MARK: - Wallpaper Gradient Layer
@@ -227,7 +224,6 @@ private struct WallpaperGradientLayer: View {
     let sleepPoints: Int
     let hasStepsData: Bool
     let hasSleepData: Bool
-    let isDaylight: Bool
     let gradientStyle: GradientStyle
     let palette: GradientPalette
 
@@ -242,14 +238,13 @@ private struct WallpaperGradientLayer: View {
                 smoothedS: Ss,
                 smoothedL: Ls,
                 hasStepsData: hasStepsData,
-                hasSleepData: hasSleepData,
-                isDaylight: isDaylight
+                hasSleepData: hasSleepData
             )
             EnergyGradientRenderer.draw(
                 context: &context,
                 size: size,
                 opacities: opacities,
-                baseColor: isDaylight ? pal.daylightBase : pal.dark,
+                baseColor: pal.dark,
                 gradientStyle: gradientStyle,
                 colorPalette: pal
             )

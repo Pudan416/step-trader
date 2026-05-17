@@ -55,19 +55,21 @@ Background / wallpaper energy layers. Each scheme defines five roles: **bright**
 
 ### Scheme cases
 
-| Case | Display name |
-|------|----------------|
-| `warmSunset` | Sunset |
-| `ocean` | Ocean |
-| `aurora` | Aurora |
-| `dusk` | Dusk |
+| Case | Display name | Tier |
+|------|--------------|------|
+| `warmSunset` | Sunset | Free |
+| `ocean` | Ocean | Pro |
+| `aurora` | Aurora | Pro |
+| `dusk` | Dusk | Pro |
+| `dawn` | Dawn | Pro |
+| `ember` | Ember | Pro |
+| `horizon` | Horizon | Pro |
 
 ### Legacy `UserDefaults` raw values (`GradientPalette.normalized`)
 
 | Stored raw | Maps to |
 |------------|---------|
 | `roseGarden` | `.ocean` |
-| `ember` | `.aurora` |
 | (any other invalid string) | `.warmSunset` if `GradientPalette(rawValue:)` fails |
 
 ### Hex by scheme
@@ -78,6 +80,9 @@ Background / wallpaper energy layers. Each scheme defines five roles: **bright**
 | Ocean | `#7FDBDA` | `#3A9FBF` | `#1A4B6E` | `#0B1E33` | `#E0F0F5` |
 | Aurora | `#C4B5FD` | `#7C6FBF` | `#1F6E5C` | `#0F1B2D` | `#EDE8F8` |
 | Dusk | `#EEDDC9` | `#C0AC98` | `#5E7282` | `#384856` | `#F2EAE0` |
+| Dawn | `#EBBFC8` | `#B87A92` | `#4A3568` | `#181430` | `#F5E2E8` |
+| Ember | `#F07838` | `#D04428` | `#2E1858` | `#0C0A22` | `#F5DDD0` |
+| Horizon | `#D0A440` | `#2898A8` | `#105868` | `#0A2832` | `#E4EDE0` |
 
 ### Warm-sunset backward-compat aliases
 

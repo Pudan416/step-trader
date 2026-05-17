@@ -73,7 +73,7 @@ struct StepBalanceCard: View {
                 HStack(spacing: 4) {
                     Text("\(currentEnergy)")
                         .font(.title3.bold())
-                        .foregroundColor(.black)
+                        .foregroundColor(AppAccentInk.primary)
                         .monospacedDigit()
                         .padding(.horizontal, 10)
                         .padding(.vertical, 3)
@@ -163,8 +163,7 @@ struct StepBalanceCard: View {
                         Image(systemName: "questionmark.circle")
                             .font(.system(size: 18))
                             .foregroundColor(.secondary)
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
+                            .minimumHitTarget()
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(String(localized: "About colors", comment: "StepBalanceCard – info button VoiceOver label"))
@@ -265,27 +264,10 @@ struct StepBalanceCard: View {
 
 private struct StepBalanceCardBackgroundModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            // Glass as background only so buttons stay on top for hit testing
-            content
-                .background {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(.clear)
-                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16))
-                        .allowsHitTesting(false)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-        } else {
-            content
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.secondarySystemGroupedBackground))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
-        }
+        // Lens style to match the floating tab bar — `.clear.interactive()`
+        // glass. Tint follows the global cycling shimmer color from
+        // `GlassShimmerProvider` injected at the app root.
+        content.glassCard(cornerRadius: 16, style: .lens)
     }
 }
 

@@ -54,6 +54,16 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         UIColor(red: 0.05, green: 0.05, blue: 0.12, alpha: 0.95)
     }
     
+    /// Whether a push was sent recently (within 30 seconds).
+    /// ShieldAction writes `shieldPushSentAt`; `.defer` re-queries this configuration.
+    private func wasPushRecentlySent() -> Bool {
+        let defaults = sharedDefaults()
+        guard let sentAt = defaults.object(forKey: SharedKeys.shieldPushSentAt) as? Date else {
+            return false
+        }
+        return Date().timeIntervalSince(sentAt) < 30
+    }
+    
     /// Base configuration with our brand styling
     private func baseConfiguration(
         title: String,
@@ -61,8 +71,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         primaryButtonText: String,
         secondaryButtonText: String? = nil
     ) -> ShieldConfiguration {
-        // Try to load app icon from extension assets
-        let appIcon = UIImage(named: "AppIcon") ?? UIImage(named: "paygate") ?? UIImage(systemName: "shield.fill")
+        let appIcon = UIImage(named: "ShieldIcon") ?? UIImage(systemName: "eye.fill")
         
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,
@@ -95,10 +104,22 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             }
         }
         
+        let title = String(format: NSLocalizedString("%@ is closed.", comment: "Shield title for blocked app"), appName)
+        
+        if wasPushRecentlySent() {
+            return baseConfiguration(
+                title: title,
+                subtitle: NSLocalizedString("↑ i sent you a push.\ntap it to open Nowhere.", comment: "Shield subtitle after push sent"),
+                primaryButtonText: NSLocalizedString("send again", comment: "Shield primary button — resend push"),
+                secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
+            )
+        }
+        
         return baseConfiguration(
-            title: String(format: NSLocalizedString("%@ is closed.", comment: "Shield title for blocked app"), appName),
-            subtitle: NSLocalizedString("Spend colors in Nowhere to unlock it.", comment: "Shield subtitle"),
-            primaryButtonText: NSLocalizedString("Unlock with colors", comment: "Shield primary button")
+            title: title,
+            subtitle: NSLocalizedString("open Nowhere to spend colors.", comment: "Shield subtitle"),
+            primaryButtonText: NSLocalizedString("get a push", comment: "Shield primary button — request notification"),
+            secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button — conscious opt-out")
         )
     }
     
@@ -108,11 +129,22 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     
     override func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
         let domain = webDomain.domain ?? NSLocalizedString("this site", comment: "Fallback name for unknown web domain")
+        let title = String(format: NSLocalizedString("%@ is closed.", comment: "Shield title for blocked domain"), domain)
+        
+        if wasPushRecentlySent() {
+            return baseConfiguration(
+                title: title,
+                subtitle: NSLocalizedString("↑ i sent you a push.\ntap it to open Nowhere.", comment: "Shield subtitle after push sent"),
+                primaryButtonText: NSLocalizedString("send again", comment: "Shield primary button — resend push"),
+                secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
+            )
+        }
         
         return baseConfiguration(
-            title: String(format: NSLocalizedString("%@ is closed.", comment: "Shield title for blocked domain"), domain),
-            subtitle: NSLocalizedString("Spend colors in Nowhere to unlock it.", comment: "Shield subtitle"),
-            primaryButtonText: NSLocalizedString("Unlock with colors", comment: "Shield primary button")
+            title: title,
+            subtitle: NSLocalizedString("open Nowhere to spend colors.", comment: "Shield subtitle"),
+            primaryButtonText: NSLocalizedString("get a push", comment: "Shield primary button — request notification"),
+            secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button — conscious opt-out")
         )
     }
     

@@ -32,13 +32,20 @@ extension AppModel {
         // 2. Mindful minutes from HealthKit
         let mindfulMinutes = await healthStore.fetchTodayMindfulMinutes()
         if mindfulMinutes >= 3,
-           !alreadyAdded.contains("body_breathing"),
+           !alreadyAdded.contains("body_resting"),
            !dismissed.contains("mindful_\(Int(mindfulMinutes))"),
            !isDailyLimitReached(for: .body) {
             suggestions.append(.fromMindfulMinutes(mindfulMinutes))
         }
 
-        // 3. Low screen time signal (from existing app tracking)
+        // 3. Morning resting — every new day, suggest adding "Resting" to canvas
+        if !alreadyAdded.contains("body_resting"),
+           !dismissed.contains("morning_resting"),
+           !isDailyLimitReached(for: .body) {
+            suggestions.insert(.fromMorningResting(), at: 0)
+        }
+
+        // 4. Low screen time signal (from existing app tracking)
         if shouldSuggestLowScreenTime(alreadyAdded: alreadyAdded, dismissed: dismissed) {
             suggestions.append(.fromLowScreenTime())
         }
@@ -96,15 +103,21 @@ extension AppModel {
     // MARK: - Low Screen Time Signal
 
     private func shouldSuggestLowScreenTime(alreadyAdded: Set<String>, dismissed: Set<String>) -> Bool {
-        guard !alreadyAdded.contains("mind_letting_go") else { return false }
+        guard !alreadyAdded.contains("mind_screen_detox") else { return false }
         guard !dismissed.contains("low_screen_time") else { return false }
         guard !isDailyLimitReached(for: .mind) else { return false }
 
         let hour = Calendar.current.component(.hour, from: Date())
         guard hour >= 14 else { return false }
 
+        // Only meaningful when user has blocked apps configured
+        guard !blockingStore.ticketGroups.isEmpty else { return false }
+
         let totalSpent = appStepsSpentToday.values.reduce(0, +)
-        return totalSpent == 0
+        guard totalSpent == 0 else { return false }
+
+        // Extra confidence: user walked at least 3000 steps (active day, not just idle)
+        return stepsToday >= 3000
     }
 
     // MARK: - Accept / Dismiss

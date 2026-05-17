@@ -141,7 +141,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     // ════════════════════════════════════════════════════════════════
 
     @available(*, unavailable)
-    private override init() { fatalError("Use MetalSmudgeRenderer.create()") }
+    private override init() { fatalError() }
 
     private init(device: MTLDevice,
                  commandQueue: MTLCommandQueue,

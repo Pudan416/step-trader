@@ -29,7 +29,8 @@ final class AppModel: ObservableObject {
     let healthStore: HealthStore
     let blockingStore: BlockingStore
     let userEconomyStore: UserEconomyStore
-    
+    let subscriptionStore: SubscriptionStore
+
     private var cancellables = Set<AnyCancellable>()
     private var sleepRefetchTask: Task<Void, Never>?
 
@@ -219,14 +220,16 @@ final class AppModel: ObservableObject {
         healthKitService: any HealthKitServiceProtocol,
         familyControlsService: any FamilyControlsServiceProtocol,
         notificationService: any NotificationServiceProtocol,
-        budgetEngine: any BudgetEngineProtocol
+        budgetEngine: any BudgetEngineProtocol,
+        subscriptionStore: SubscriptionStore
     ) {
         self.healthKitService = healthKitService
         self.familyControlsService = familyControlsService
         self.notificationService = notificationService
         self.budgetEngine = budgetEngine
+        self.subscriptionStore = subscriptionStore
         self.lastDayKey = Self.dayKey(for: Date())
-        
+
         // Initialize Stores
         self.healthStore = HealthStore(healthKitService: healthKitService)
         self.blockingStore = BlockingStore(familyControlsService: familyControlsService)
@@ -255,7 +258,16 @@ final class AppModel: ObservableObject {
         userEconomyStore.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
+
+        subscriptionStore.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
+        authService.postLoginSyncModel = self
     }
+
+    /// Convenience: true if user has Pro access (paid OR grandfathered).
+    var isPro: Bool { subscriptionStore.isPro }
 
     func currentDayStart(for date: Date) -> Date {
         DayBoundary.currentDayStart(for: date, dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
@@ -287,6 +299,11 @@ final class AppModel: ObservableObject {
         }
         if (didReset || dayChanged) && !isBootstrapping {
             Task { await refreshStepsIfAuthorized() }
+        }
+        if dayChanged {
+            // Calendar day flipped — give Pro users with Daily Random Theme
+            // a fresh palette + style for the new day.
+            applyDailyRandomThemeIfNeeded()
         }
     }
 
@@ -419,6 +436,10 @@ final class AppModel: ObservableObject {
         AppLogger.app.debug("🚀 Bootstrapping AppModel...")
         isBootstrapping = true
         
+        // Diagnostic: dump raw UD values BEFORE any loading
+        let diagG = UserDefaults.stepsTrader()
+        AppLogger.energy.debug("📊 BOOTSTRAP RAW UD: spentStepsToday=\(diagG.integer(forKey: SharedKeys.spentStepsToday)), baseEnergyToday=\(diagG.integer(forKey: SharedKeys.baseEnergyToday)), stepsBalance=\(diagG.integer(forKey: SharedKeys.stepsBalance)), anchor=\(String(describing: diagG.object(forKey: SharedKeys.dailyEnergyAnchor)))")
+
         // 1. Load data from stores
         await userEconomyStore.loadAppStepsSpentToday()
         await userEconomyStore.loadAppStepsSpentLifetime()
@@ -429,12 +450,17 @@ final class AppModel: ObservableObject {
         // 1.5 Restore daily energy state and spent balance so colors counts persist across restarts
         loadEnergyPreferences()
         loadDailyEnergyState()
+        AppLogger.energy.debug("📊 AFTER loadDailyEnergyState: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
+
         loadCustomEnergyOptions()
         loadSavedRoutines()
         loadSpentStepsBalance()
-        
+        AppLogger.energy.debug("📊 AFTER loadSpentStepsBalance: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
+
         // 1.6 If authenticated but local selections are empty, attempt to restore from Supabase.
         // This covers fresh installs, device switches, and UserDefaults data loss.
+        // Wait for auth to finish initializing so we don't miss a valid keychain session.
+        await AuthenticationService.shared.waitForInitialization()
         let hasLocalSelections = !dailyActivitySelections.isEmpty
             || !dailyRestSelections.isEmpty
             || !dailyJoysSelections.isEmpty
@@ -452,6 +478,7 @@ final class AppModel: ObservableObject {
         // baseEnergyToday stays at whatever stale value was in UserDefaults, and if
         // HealthKit refresh fails, EXP from category selections is never counted.
         recalculateDailyEnergy()
+        AppLogger.energy.debug("📊 AFTER recalculateDailyEnergy(1.7): base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
         
         // 2. Request permissions if needed
         if requestPermissions {
@@ -466,6 +493,7 @@ final class AppModel: ObservableObject {
         
         // 3. Check day boundary BEFORE fetching so stale state is cleared first
         checkDayBoundary()
+        AppLogger.energy.debug("📊 AFTER checkDayBoundary: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
 
         // Widget unlock may run before ticket groups are in memory; foreground can beat bootstrap.
         // Drain pending widget budget + spend handoff after groups are loaded.
@@ -480,10 +508,12 @@ final class AppModel: ObservableObject {
         }
 
         isBootstrapping = false
-        
+        AppLogger.energy.debug("📊 BOOTSTRAP DONE (pre-refresh): base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
+
         // 4. Refresh data AFTER day boundary reset so fresh values aren't wiped
         await refreshStepsIfAuthorized()
         await refreshSleepIfAuthorized()
+        AppLogger.energy.debug("📊 AFTER HK refresh: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
         
         // 4.5 Snapshot notification authorization so permission badge is accurate on launch
         await refreshNotificationAuthorizationStatus()
@@ -496,6 +526,11 @@ final class AppModel: ObservableObject {
         
         AppLogger.app.debug("✅ AppModel bootstrap complete")
         didCompleteBootstrap = true
+
+        // Apply daily random theme on cold launch (no-op when toggle is OFF
+        // or already rolled today). Called after `didCompleteBootstrap = true`
+        // so `isPro` resolution has settled.
+        applyDailyRandomThemeIfNeeded()
 
         // Drain any offline sync requests that failed previously
         Task { await SupabaseSyncService.shared.drainRetryQueue() }

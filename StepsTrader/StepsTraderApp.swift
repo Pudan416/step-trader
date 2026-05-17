@@ -14,7 +14,7 @@ struct StepsTraderApp: App {
     #if DEBUG
     @StateObject private var coachMarkManager = CoachMarkManager()
     #endif
-    @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
+    @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.night.rawValue
     /// Single versioned int that replaces the old 4-flag onboarding state machine
     /// (`hasSeenIntro_v3`, `hasSeenEnergySetup_v1`, `hasCompletedOnboarding_v1`,
     /// `hasMigratedOnboarding_v1`). Migration from those flags happens once on
@@ -23,6 +23,11 @@ struct StepsTraderApp: App {
     @AppStorage("appLaunchCount") private var appLaunchCount: Int = 0
     @AppStorage("hasRequestedReview_v1") private var hasRequestedReview: Bool = false
     @Environment(\.requestReview) private var requestReview
+
+    /// One-shot post-onboarding paywall. Shown exactly once per device for
+    /// non-Pro users immediately after they complete onboarding. Dismissal
+    /// (purchase OR cancel) marks it as shown so it never reappears.
+    @State private var showPostOnboardingPaywall = false
 
     private var hasCompletedOnboarding: Bool {
         onboardingStateRaw >= OnboardingState.completed.rawValue
@@ -37,6 +42,18 @@ struct StepsTraderApp: App {
 
     init() {
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
+
+        // Configure RevenueCat as early as possible. Reads `REVENUECAT_API_KEY` from
+        // Info.plist (which interpolates from xcconfig at build time). Anonymous user
+        // is fine — we'll `logIn(supabaseUserID:)` once Sign in with Apple completes.
+        //
+        // ORDER NOTE: configure() runs grandfather detection which reads
+        // `appLaunchCount`. The increment below happens AFTER, so the threshold
+        // logic in `SubscriptionStore.detectExistingUser` is order-independent
+        // (it tolerates either ordering). Don't move this around carelessly.
+        let rcKey = Bundle.main.object(forInfoDictionaryKey: "REVENUECAT_API_KEY") as? String ?? ""
+        SubscriptionStore.shared.configure(apiKey: rcKey)
+
         // Install notification delegate as early as possible so taps that *launch* the app
         // are routed through our handler (onAppear can be too late).
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
@@ -51,7 +68,7 @@ struct StepsTraderApp: App {
         standardDefaults.set(nextLaunchCount, forKey: "appLaunchCount")
 
         // Mirror theme to app-group so the wallpaper Shortcut intent can read it reliably.
-        let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.system.rawValue
+        let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.night.rawValue
         UserDefaults(suiteName: SharedKeys.appGroupId)?.set(themeRaw, forKey: "appTheme")
 
         // NOTE: UINavigationBar / UITabBar appearance proxies were previously
@@ -88,21 +105,56 @@ struct StepsTraderApp: App {
 
     var body: some Scene {
         WindowGroup {
+            GlassShimmerProvider {
             ZStack {
                 if hasCompletedOnboarding || isUITest {
-                    if !isUITest && model.userEconomyStore.showPayGate {
-                        PayGateView(model: model)
-                            .onAppear {
-                                AppLogger.app.debug("🎯 PayGateView appeared - target group: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")")
+                    Group {
+                        if !isUITest && model.userEconomyStore.showPayGate {
+                            PayGateView(model: model)
+                                .onAppear {
+                                    AppLogger.app.debug("🎯 PayGateView appeared - target group: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")")
+                                }
+                        } else if !isUITest && model.showQuickStatusPage {
+                            #if DEBUG
+                            QuickStatusView(model: model)
+                            #else
+                            MainTabView(model: model, theme: currentTheme)
+                            #endif
+                        } else {
+                            MainTabView(model: model, theme: currentTheme)
+                        }
+                    }
+                    // Welcome paywall — gated to non-Pro users who haven't seen
+                    // it yet. Driven from a `.task` here (not from the
+                    // onboarding-completion closure) so it survives the case
+                    // where the user kills the app between completing onboarding
+                    // and the closure's deferred presentation.
+                    .task {
+                        guard !isUITest else { return }
+                        // Wait for subscription state to settle off transient
+                        // states (`.unknown` and `.loadingFromCache`) so we
+                        // don't accidentally show paywall to a grandfathered
+                        // or freshly-restored user before RC bootstraps.
+                        // 2s budget is plenty for cached/local resolution;
+                        // if RC is offline we proceed anyway based on cached
+                        // `isPro` (correct: cached==true → no paywall).
+                        for _ in 0..<10 {
+                            switch model.subscriptionStore.state {
+                            case .unknown, .loadingFromCache: break
+                            default:
+                                if SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) {
+                                    try? await Task.sleep(nanoseconds: 600_000_000)
+                                    showPostOnboardingPaywall = true
+                                }
+                                return
                             }
-                    } else if !isUITest && model.showQuickStatusPage {
-                        #if DEBUG
-                        QuickStatusView(model: model)
-                        #else
-                        MainTabView(model: model, theme: currentTheme)
-                        #endif
-                    } else {
-                        MainTabView(model: model, theme: currentTheme)
+                            try? await Task.sleep(nanoseconds: 200_000_000)
+                        }
+                        // Fallback after timeout: respect cached isPro.
+                        if SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) {
+                            try? await Task.sleep(nanoseconds: 600_000_000)
+                            showPostOnboardingPaywall = true
+                        }
                     }
 
                     // Handoff protection screen (disabled for Instagram flow and UI tests)
@@ -126,6 +178,15 @@ struct StepsTraderApp: App {
                             await model.refreshStepsIfAuthorized()
                             await model.refreshSleepIfAuthorized()
                         }
+
+                        // NOTE: Post-onboarding paywall is now triggered from
+                        // the `.task` on the `hasCompletedOnboarding` branch
+                        // above — that path always fires when the root flips,
+                        // even if the user kills the app immediately after
+                        // onboarding completes (the paywall marker is set on
+                        // dismiss, so a kill-before-dismiss still allows it to
+                        // appear on the next cold launch).
+
                         #if DEBUG
                         if UserDefaults.standard.bool(forKey: "shouldStartCoachMark") {
                             UserDefaults.standard.removeObject(forKey: "shouldStartCoachMark")
@@ -139,6 +200,18 @@ struct StepsTraderApp: App {
                     .zIndex(3)
                 }
 
+            }
+            .fullScreenCover(isPresented: $showPostOnboardingPaywall, onDismiss: {
+                // Whether they purchased or skipped, we mark this user as having
+                // seen the welcome paywall — they'll only encounter the paywall
+                // again via in-app feature gates (1-group limit, custom activities, etc.)
+                SubscriptionGate.markPostOnboardingPaywallShown()
+            }) {
+                PaywallView(
+                    model: model,
+                    store: model.subscriptionStore,
+                    source: .promotion
+                )
             }
             .themed(currentTheme)
             .tint(currentTheme.accentColor)
@@ -202,6 +275,9 @@ struct StepsTraderApp: App {
                     if model.didCompleteBootstrap {
                         model.handleAppWillEnterForeground()
                     }
+                    // Roll a new daily-random theme if the calendar day changed
+                    // since the last roll (no-op if toggle is OFF).
+                    model.applyDailyRandomThemeIfNeeded()
                     checkForHandoffToken()
                     checkForPayGateFlags()
                     requestAppReviewIfNeeded()
@@ -288,6 +364,7 @@ struct StepsTraderApp: App {
             .tint(currentTheme.accentColor)
             .background(currentTheme.backgroundColor)
             .preferredColorScheme(currentTheme.colorScheme)
+            } // GlassShimmerProvider
         }
     }
 

@@ -64,7 +64,10 @@ class AuthenticationService: NSObject, ObservableObject {
     
     static let shared = AuthenticationService()
     private let network = NetworkClient.shared
-    
+
+    /// Weak reference set by AppModel on init so post-login can trigger a full sync.
+    weak var postLoginSyncModel: AppModel?
+
     @Published var currentUser: AppUser?
     @Published var isAuthenticated: Bool = false
     @Published var isLoading: Bool = false
@@ -127,6 +130,7 @@ class AuthenticationService: NSObject, ObservableObject {
         clearStoredSession()
         currentUser = nil
         isAuthenticated = false
+        Task { await SubscriptionStore.shared.logOut() }
     }
     
     /// Permanently deletes the user's account and all associated server-side data
@@ -169,26 +173,33 @@ class AuthenticationService: NSObject, ObservableObject {
     
     /// Handle authorization result from SignInWithAppleButton
     func handleAuthorization(_ authorization: ASAuthorization) {
+        AppLogger.auth.debug("🔐 handleAuthorization — credential type: \(String(describing: type(of: authorization.credential)))")
         guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+            AppLogger.auth.error("🔐 handleAuthorization — invalid credential type")
             error = AuthError.invalidCredential.localizedDescription
             return
         }
         
+        AppLogger.auth.debug("🔐 handleAuthorization — user: \(credential.user.prefix(8))…, email: \(credential.email ?? "nil"), hasFullName: \(credential.fullName != nil)")
+        
         guard let nonce = currentNonce else {
+            AppLogger.auth.error("🔐 handleAuthorization — missing nonce")
             error = "Missing nonce. Please try again."
             return
         }
         
         guard let identityToken = credential.identityToken,
               let idTokenString = String(data: identityToken, encoding: .utf8) else {
+            AppLogger.auth.error("🔐 handleAuthorization — missing identity token (tokenData nil: \(credential.identityToken == nil))")
             error = "Missing identity token from Apple."
             return
         }
         
+        AppLogger.auth.debug("🔐 handleAuthorization — got identity token (\(identityToken.count) bytes), nonce present, starting Supabase exchange")
+        
         isLoading = true
         error = nil
         
-        // Apple only delivers fullName on the very first sign-in — capture it now
         let appleFullName: String? = {
             guard let fn = credential.fullName else { return nil }
             let formatter = PersonNameComponentsFormatter()
@@ -198,22 +209,49 @@ class AuthenticationService: NSObject, ObservableObject {
             return parts.isEmpty ? nil : parts.joined(separator: " ")
         }()
         
+        if let name = appleFullName {
+            AppLogger.auth.debug("🔐 handleAuthorization — Apple provided fullName: \(name)")
+        }
+        
         Task { @MainActor in
-            defer { self.isLoading = false }
             do {
+                AppLogger.auth.debug("🔐 supabaseSignInWithApple — starting token exchange")
                 let session = try await self.supabaseSignInWithApple(idToken: idTokenString, nonce: nonce)
+                AppLogger.auth.debug("🔐 supabaseSignInWithApple — success, userId: \(session.user.id.prefix(8))…, expiresAt: \(session.expiresAt)")
+                
                 self.storeSession(session)
-                // Persist Apple name keyed by user ID (never overwrite with nil)
                 if let name = appleFullName {
                     self.storeAppleDisplayName(name, for: session.user.id)
                 }
+                
+                AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — fetching profile")
                 try await self.loadCurrentUserFromSupabase(session: session)
+                AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — done, user: \(self.currentUser?.displayName ?? "nil")")
+                
                 if let name = appleFullName {
                     await self.promoteAppleNameAsDefaultProfileNameIfNeeded(name, session: session)
                 }
                 self.isAuthenticated = (self.currentUser != nil)
                 self.currentNonce = nil
+                self.isLoading = false
+                AppLogger.auth.debug("🔐 Sign in complete — isAuthenticated: \(self.isAuthenticated)")
+
+                let uid = self.currentUser?.id
+                let appModel = self.postLoginSyncModel
+                Task {
+                    if let uid {
+                        AppLogger.auth.debug("🔐 Post-login — linking RC userId: \(uid.prefix(8))…")
+                        await SubscriptionStore.shared.logIn(supabaseUserID: uid)
+                    }
+                    if let appModel {
+                        AppLogger.auth.debug("🔐 Post-login — starting full Supabase sync")
+                        await SupabaseSyncService.shared.performFullSync(model: appModel)
+                        AppLogger.auth.debug("🔐 Post-login — full sync finished")
+                    }
+                }
             } catch {
+                AppLogger.auth.error("🔐 Sign in FAILED: \(error.localizedDescription)")
+                self.isLoading = false
                 self.error = error.localizedDescription
             }
         }
@@ -224,15 +262,16 @@ class AuthenticationService: NSObject, ObservableObject {
     // MARK: - Input Validation
 
     private static let nicknameMaxLength = 30
-    private static let nicknameAllowedPattern = try! NSRegularExpression(pattern: "^[\\p{L}\\p{N}\\s._\\-]+$")
-    private static let countryCodePattern = try! NSRegularExpression(pattern: "^[A-Z]{2}$")
+    private static let nicknameAllowedPattern: NSRegularExpression? = try? NSRegularExpression(pattern: "^[\\p{L}\\p{N}\\s._\\-]+$")
+    private static let countryCodePattern: NSRegularExpression? = try? NSRegularExpression(pattern: "^[A-Z]{2}$")
 
     private func sanitizedNickname(_ raw: String?) -> String? {
         guard let raw, !raw.isEmpty else { return raw }
         let trimmed = String(raw.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.nicknameMaxLength))
         guard !trimmed.isEmpty else { return nil }
         let range = NSRange(trimmed.startIndex..., in: trimmed)
-        guard Self.nicknameAllowedPattern.firstMatch(in: trimmed, range: range) != nil else {
+        guard let pattern = Self.nicknameAllowedPattern,
+              pattern.firstMatch(in: trimmed, range: range) != nil else {
             return nil
         }
         return trimmed
@@ -242,7 +281,8 @@ class AuthenticationService: NSObject, ObservableObject {
         guard let raw, !raw.isEmpty else { return raw }
         let upper = raw.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let range = NSRange(upper.startIndex..., in: upper)
-        guard Self.countryCodePattern.firstMatch(in: upper, range: range) != nil else {
+        guard let pattern = Self.countryCodePattern,
+              pattern.firstMatch(in: upper, range: range) != nil else {
             return nil
         }
         return upper
@@ -330,13 +370,15 @@ class AuthenticationService: NSObject, ObservableObject {
     // MARK: - Private Methods
     
     func configureAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
+        AppLogger.auth.debug("🔐 configureAppleRequest — generating nonce")
         do {
             let nonce = try randomNonceString()
             currentNonce = nonce
             request.requestedScopes = [.email, .fullName]
             request.nonce = sha256(nonce)
+            AppLogger.auth.debug("🔐 configureAppleRequest — nonce set, scopes: [email, fullName]")
         } catch {
-            AppLogger.auth.error("Failed to generate nonce: \(error.localizedDescription)")
+            AppLogger.auth.error("🔐 configureAppleRequest — nonce generation failed: \(error.localizedDescription)")
             self.error = "Authentication setup failed. Please try again."
         }
     }
@@ -490,6 +532,10 @@ class AuthenticationService: NSObject, ObservableObject {
             #if DEBUG
             AppLogger.auth.debug("🔐 Final state: isAuthenticated=\(self.isAuthenticated)")
             #endif
+            // Re-link RC on cold launch when we already have a session.
+            if let uid = currentUser?.id {
+                await SubscriptionStore.shared.logIn(supabaseUserID: uid)
+            }
         } catch {
             AppLogger.auth.error("🔐 Session restore failed: \(error.localizedDescription)")
             // Session likely invalid/revoked
@@ -532,8 +578,8 @@ class AuthenticationService: NSObject, ObservableObject {
     
     private func supabaseSignInWithApple(idToken: String, nonce: String) async throws -> SupabaseSessionResponse {
         let cfg = try SupabaseConfig.load()
+        AppLogger.auth.debug("🔐 supabaseSignInWithApple — posting to \(cfg.baseURL.host ?? "?")/auth/v1/token?grant_type=id_token")
         
-        // POST /auth/v1/token?grant_type=id_token
         let url = cfg.baseURL.appendingPathComponent("auth/v1/token")
         guard var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             throw AuthError.supabaseError("Invalid URL: \(url)")
@@ -553,8 +599,11 @@ class AuthenticationService: NSObject, ObservableObject {
             body: body
         )
         
+        AppLogger.auth.debug("🔐 supabaseSignInWithApple — response status: \(http.statusCode), body size: \(data.count) bytes")
+        
         if http.statusCode >= 400 {
             let msg = String(data: data, encoding: .utf8) ?? "Supabase auth failed"
+            AppLogger.auth.error("🔐 supabaseSignInWithApple — FAILED: status \(http.statusCode), body: \(msg.prefix(500))")
             throw AuthError.supabaseError(msg)
         }
         
@@ -563,8 +612,12 @@ class AuthenticationService: NSObject, ObservableObject {
     
     private func ensureValidSession(_ session: SupabaseSessionResponse) async throws -> SupabaseSessionResponse {
         let threshold = Date().addingTimeInterval(AppConstants.Timing.sessionRefreshThreshold)
-        if session.expiresAt > threshold { return session }
+        if session.expiresAt > threshold {
+            AppLogger.auth.debug("🔐 ensureValidSession — token still valid (expires: \(session.expiresAt))")
+            return session
+        }
         
+        AppLogger.auth.debug("🔐 ensureValidSession — token expired/expiring, refreshing")
         let cfg = try SupabaseConfig.load()
         let url = cfg.baseURL.appendingPathComponent("auth/v1/token")
         guard var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
@@ -584,11 +637,15 @@ class AuthenticationService: NSObject, ObservableObject {
             body: body
         )
         
+        AppLogger.auth.debug("🔐 ensureValidSession — refresh response status: \(http.statusCode)")
+        
         if http.statusCode >= 400 {
             let msg = String(data: data, encoding: .utf8) ?? "Supabase refresh failed"
+            AppLogger.auth.error("🔐 ensureValidSession — refresh FAILED: \(msg.prefix(300))")
             throw AuthError.supabaseError(msg)
         }
         
+        AppLogger.auth.debug("🔐 ensureValidSession — token refreshed successfully")
         return try supabaseDecoder.decode(SupabaseSessionResponse.self, from: data)
     }
     

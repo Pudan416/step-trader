@@ -56,11 +56,14 @@ final class CustomActivityTests: XCTestCase {
     }
 
     private func makeModel() -> AppModel {
-        AppModel(
+        defaults.set(true, forKey: SharedKeys.isGrandfathered)
+        let proStore = SubscriptionStore(defaults: defaults)
+        return AppModel(
             healthKitService: MockHealthKitService(),
             familyControlsService: MockFamilyControlsService(),
             notificationService: MockNotificationService(),
-            budgetEngine: MockBudgetEngine()
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: proStore
         )
     }
 
@@ -75,7 +78,8 @@ final class CustomActivityTests: XCTestCase {
             "preferredEnergyOptions_v1_heart",
             "dailyEnergySelections_v1_body",
             "dailyEnergySelections_v1_mind",
-            "dailyEnergySelections_v1_heart"
+            "dailyEnergySelections_v1_heart",
+            SharedKeys.isGrandfathered
         ]
         keys.forEach { defaults.removeObject(forKey: $0) }
     }

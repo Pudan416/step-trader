@@ -113,6 +113,9 @@ Config/Secrets.xcconfig
 # Documentation build
 docs/
 documentation/
+# Claude worktrees (stale copies from experiments)
+.claude/worktrees/
+
 # Node
 node_modules/
 .env

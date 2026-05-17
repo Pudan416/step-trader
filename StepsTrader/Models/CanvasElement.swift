@@ -12,7 +12,7 @@ enum ElementKind: String, Codable, CaseIterable {
 
 struct CanvasElement: Identifiable, Codable {
     let id: UUID
-    let kind: ElementKind
+    var kind: ElementKind
     let category: EnergyCategory
     let optionId: String
 
@@ -21,12 +21,20 @@ struct CanvasElement: Identifiable, Codable {
 
     // Visual
     var hexColor: String
-    let size: CGFloat              // normalized 0…1 relative to canvas
+    /// Optional second color for radial gradient fill. Nil = solid single color.
+    var hexColor2: String?
+    /// Re-rolled by `reroll(availableCount:)` (dice tap), so `var` not `let`.
+    /// Renderer reads `userSize ?? size` — clearing `userSize` lets the new
+    /// value take effect immediately.
+    var size: CGFloat              // normalized 0…1 relative to canvas
     var basePosition: CGPoint      // normalized (0…1, 0…1)
 
     // Animation parameters (randomized on creation; ranges come from `spawn` below)
-    let phaseOffset: Double        // 0…2π — desynchronizes from other elements
-    let driftSpeed: Double         // 0.08…0.20 — how fast it moves
+    /// Re-rolled by `reroll` so the element gets a fresh "personality" after
+    /// dice tap and stops syncing with its prior motion.
+    var phaseOffset: Double        // 0…2π — desynchronizes from other elements
+    /// Re-rolled by `reroll` (see `phaseOffset`).
+    var driftSpeed: Double         // 0.08…0.20 — how fast it moves
     let driftAmplitude: CGFloat    // 0.01…0.03 — how far it drifts (normalized)
     let pulseFrequency: Double     // body 0.08…0.20 Hz, mind/heart 0.30…0.80 Hz
     let pulseAmplitude: CGFloat    // 0.01…0.03 — scale oscillation range
@@ -45,6 +53,11 @@ struct CanvasElement: Identifiable, Codable {
     /// Nil for legacy elements saved before procedural shapes existed.
     var shapeSeed: UInt64?
 
+    /// Shape type frozen at spawn time so historical canvases render with
+    /// the shape that was active on that day, not the user's current preference.
+    /// Nil for legacy elements — falls back to `CanvasShapeType.resolved(for:)`.
+    var frozenShapeType: CanvasShapeType?
+
     /// User-overridden size from pinch gesture. Nil = use the random `size`.
     var userSize: CGFloat?
 
@@ -62,13 +75,22 @@ struct CanvasElement: Identifiable, Codable {
     /// Title to draw on the canvas; falls back to optionId for legacy elements.
     var displayLabel: String { label ?? optionId }
 
-    init(id: UUID, kind: ElementKind, category: EnergyCategory, optionId: String, label: String?, hexColor: String, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0, shapeSeed: UInt64? = nil, userSize: CGFloat? = nil, activityCount: Int? = nil, lastEditedAt: Date? = nil) {
+    /// The shape type to use for rendering. Returns the frozen value if available,
+    /// otherwise falls back to the user's current preference for that category.
+    /// Always migrates legacy `.blob` → `.circle`.
+    var resolvedShapeType: CanvasShapeType {
+        let shape = frozenShapeType ?? CanvasShapeType.resolved(for: category)
+        return shape == .blob ? .circle : shape
+    }
+
+    init(id: UUID, kind: ElementKind, category: EnergyCategory, optionId: String, label: String?, hexColor: String, hexColor2: String? = nil, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0, shapeSeed: UInt64? = nil, userSize: CGFloat? = nil, activityCount: Int? = nil, lastEditedAt: Date? = nil, frozenShapeType: CanvasShapeType? = nil) {
         self.id = id
         self.kind = kind
         self.category = category
         self.optionId = optionId
         self.label = label
         self.hexColor = hexColor
+        self.hexColor2 = hexColor2
         self.size = size
         self.basePosition = basePosition
         self.phaseOffset = phaseOffset
@@ -85,6 +107,7 @@ struct CanvasElement: Identifiable, Codable {
         self.userSize = userSize
         self.activityCount = activityCount
         self.lastEditedAt = lastEditedAt
+        self.frozenShapeType = frozenShapeType
     }
 
     mutating func touchEdit(at date: Date = Date()) {
@@ -121,18 +144,31 @@ struct CanvasElement: Identifiable, Codable {
         return hash
     }
 
-    mutating func reroll() {
-        switch category {
-        case .body:
-            shapeSeed = UInt64.random(in: UInt64.min...UInt64.max)
-        case .mind, .heart:
-            let current = assetVariant ?? 0
-            let count = CanvasImageCatalog.imageNames(for: category).count
-            guard count > 1 else { return }
-            var next = Int.random(in: 0..<count)
-            while next == current { next = Int.random(in: 0..<count) }
-            assetVariant = next
+    /// Re-roll the visual variant of this element — randomises shape seed, size,
+    /// phase, and drift speed. Color is re-rolled by the caller
+    /// (`GalleryView.rerollElement`) since the entropy source is the
+    /// `CanvasColorPalette`, which lives outside the model.
+    mutating func reroll(availableCount: Int? = nil) {
+        // All categories now use procedural rendering driven by shapeSeed.
+        shapeSeed = UInt64.random(in: UInt64.min...UInt64.max)
+
+        // Freeze current shape preference so historical renders stay stable.
+        let resolvedShape = CanvasShapeType.resolved(for: category)
+        frozenShapeType = resolvedShape
+        let newSize: CGFloat = switch resolvedShape {
+        case .blob:      .random(in: 0.16...0.32)
+        case .snowflake: .random(in: 0.04...0.48)
+        case .rays:      .random(in: 0.20...0.28)
+        case .circle:    .random(in: 0.14...0.30)
         }
+        size = newSize
+        userSize = nil
+
+        // Phase + drift speed — give the element a fresh "personality" so it
+        // doesn't synchronise with its old motion after the dice tap.
+        phaseOffset = Double.random(in: 0...(2 * .pi))
+        driftSpeed = Double.random(in: 0.08...0.2)
+
         lastEditedAt = Date()
     }
 
@@ -140,44 +176,36 @@ struct CanvasElement: Identifiable, Codable {
         optionId: String,
         category: EnergyCategory,
         color: String,
+        color2: String? = nil,
         label: String,
         existingElements: [CanvasElement],
         forcedVariant: Int? = nil,
         dayKey: String? = nil,
         activityCount: Int? = nil
     ) -> CanvasElement {
-        let kind: ElementKind = switch category {
-            case .body:  .circle   // body: floating circles
-            case .mind:  .circle   // mind: floating circles (same behaviour as body)
-            case .heart: .ray      // heart: angled rays
+        let shapeType = CanvasShapeType.resolved(for: category)
+
+        let kind: ElementKind = switch shapeType {
+            case .blob, .snowflake, .circle: .circle
+            case .rays:                      .ray
         }
 
         let position = findOpenPosition(existing: existingElements)
 
-        let variant: Int
-        if category == .body {
-            variant = 0
-        } else {
-            let assetCount = CanvasImageCatalog.imageNames(for: category).count
-            if let forced = forcedVariant, forced >= 0, forced < assetCount {
-                variant = forced
-            } else {
-                variant = assetCount > 0 ? Int.random(in: 0..<assetCount) : 0
-            }
-        }
+        let variant: Int = forcedVariant ?? 0
 
-        // Body: M–L stable pulsing. Mind: S–M wandering. Heart: M rays.
-        let size: CGFloat = switch category {
-        case .body:  .random(in: 0.16...0.32)   // M–L (1.5× smaller)
-        case .mind:  .random(in: 0.10...0.18)   // S — drifting stars
-        case .heart: .random(in: 0.20...0.28)   // M
+        let size: CGFloat = switch shapeType {
+        case .blob:      .random(in: 0.16...0.32)
+        case .snowflake: .random(in: 0.04...0.48)
+        case .rays:      .random(in: 0.20...0.28)
+        case .circle:    .random(in: 0.14...0.30)
         }
-        let isBody = category == .body
-        let pulseFreq = isBody
-            ? Double.random(in: 0.08...0.2)     // very slow breath
+        let isGrounded = shapeType == .blob || shapeType == .circle
+        let pulseFreq = isGrounded
+            ? Double.random(in: 0.08...0.2)
             : Double.random(in: 0.3...0.8)
-        let opacity = isBody
-            ? Double.random(in: 0.20...0.45)    // almost invisible
+        let opacity = isGrounded
+            ? Double.random(in: 0.20...0.45)
             : Double.random(in: 0.35...0.75)
 
         let seed = dayKey.map { makeSeed(optionId: optionId, dayKey: $0, index: existingElements.count) }
@@ -190,6 +218,7 @@ struct CanvasElement: Identifiable, Codable {
             optionId: optionId,
             label: label,
             hexColor: color,
+            hexColor2: color2,
             size: size,
             basePosition: position,
             phaseOffset: Double.random(in: 0...(2 * .pi)),
@@ -202,16 +231,17 @@ struct CanvasElement: Identifiable, Codable {
             createdAt: Date(),
             assetVariant: variant,
             shapeSeed: seed,
-            activityCount: activityCount
+            activityCount: activityCount,
+            frozenShapeType: shapeType
         )
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, category, optionId, hexColor, size, basePosition
+        case id, kind, category, optionId, hexColor, hexColor2, size, basePosition
         case phaseOffset, driftSpeed, driftAmplitude, pulseFrequency, pulseAmplitude, rotationSpeed, opacity, createdAt
         case label, assetVariant, userRotation
         case shapeSeed, userSize, activityCount
-        case lastEditedAt
+        case lastEditedAt, frozenShapeType
     }
 
     init(from decoder: Decoder) throws {
@@ -221,7 +251,10 @@ struct CanvasElement: Identifiable, Codable {
         category = try c.decode(EnergyCategory.self, forKey: .category)
         optionId = try c.decode(String.self, forKey: .optionId)
         label = try c.decodeIfPresent(String.self, forKey: .label)
-        hexColor = try c.decode(String.self, forKey: .hexColor)
+        let rawHex = try c.decode(String.self, forKey: .hexColor)
+        hexColor = CanvasColorPalette.migrateLegacyColor(rawHex)
+
+        let rawHex2 = try c.decodeIfPresent(String.self, forKey: .hexColor2)
         size = try c.decode(CGFloat.self, forKey: .size)
         basePosition = try c.decode(CGPoint.self, forKey: .basePosition)
         phaseOffset = try c.decode(Double.self, forKey: .phaseOffset)
@@ -238,6 +271,16 @@ struct CanvasElement: Identifiable, Codable {
         userSize = try c.decodeIfPresent(CGFloat.self, forKey: .userSize)
         activityCount = try c.decodeIfPresent(Int.self, forKey: .activityCount)
         lastEditedAt = try c.decodeIfPresent(Date.self, forKey: .lastEditedAt)
+        frozenShapeType = try c.decodeIfPresent(CanvasShapeType.self, forKey: .frozenShapeType)
+            ?? CanvasShapeType.defaultShape(for: category)
+
+        if let h2 = rawHex2 {
+            hexColor2 = CanvasColorPalette.migrateLegacyColor(h2)
+        } else if let seed = shapeSeed {
+            hexColor2 = CanvasColorPalette.seededSecondColor(seed: seed, primary: hexColor)
+        } else {
+            hexColor2 = nil
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -248,6 +291,7 @@ struct CanvasElement: Identifiable, Codable {
         try c.encode(optionId, forKey: .optionId)
         try c.encodeIfPresent(label, forKey: .label)
         try c.encode(hexColor, forKey: .hexColor)
+        try c.encodeIfPresent(hexColor2, forKey: .hexColor2)
         try c.encode(size, forKey: .size)
         try c.encode(basePosition, forKey: .basePosition)
         try c.encode(phaseOffset, forKey: .phaseOffset)
@@ -264,6 +308,7 @@ struct CanvasElement: Identifiable, Codable {
         try c.encodeIfPresent(userSize, forKey: .userSize)
         try c.encodeIfPresent(activityCount, forKey: .activityCount)
         try c.encodeIfPresent(lastEditedAt, forKey: .lastEditedAt)
+        try c.encodeIfPresent(frozenShapeType, forKey: .frozenShapeType)
     }
 
     /// Find an open position avoiding overlap with existing elements.
@@ -322,108 +367,5 @@ struct CanvasElement: Identifiable, Codable {
             }
         }
         return bestCandidate
-    }
-}
-
-// MARK: - Day Canvas (today's live state)
-
-struct DayCanvas: Codable {
-    let dayKey: String                          // "2026-02-12"
-    var elements: [CanvasElement]               // spawned from activities
-    var sleepPoints: Int
-    var stepsPoints: Int
-    var sleepColorHex: String
-    var stepsColorHex: String
-    var inkEarned: Int
-    var inkSpent: Int
-    let createdAt: Date
-    var lastModified: Date
-
-    /// 0.0 = pristine (nothing spent), 1.0 = fully degraded (all colors spent)
-    var decayNorm: Double {
-        guard inkEarned > 0 else { return 0 }
-        return min(1.0, Double(inkSpent) / Double(inkEarned))
-    }
-
-    init(dayKey: String) {
-        self.dayKey = dayKey
-        self.elements = []
-        self.sleepPoints = 0
-        self.stepsPoints = 0
-        self.sleepColorHex = "#000000"
-        self.stepsColorHex = "#FED415"
-        self.inkEarned = 0
-        self.inkSpent = 0
-        self.createdAt = Date()
-        self.lastModified = Date()
-    }
-}
-
-// MARK: - Color Palette
-
-enum CanvasColorPalette {
-    /// 16-color activity palette (4×4 grid)
-    static let paletteHex: [String] = [
-        "#C3143B", "#9BB6E0", "#A7BF50", "#C3D7A3",
-        "#01B6C4", "#7652AF", "#F68D0C", "#2C2E4D",
-        "#796C3C", "#FFD369", "#49484D", "#C7E0D8",
-        "#222831", "#955530", "#FEAAC2", "#EBE4D7",
-    ]
-}
-
-// MARK: - Color + Hex
-
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let r, g, b, a: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (r, g, b, a) = ((int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17, 255)
-        // 4-char #ARGB shorthand — each nibble expands to a byte (e.g. #1234 → #11223344), matching the 8-char AARRGGBB nibble order
-        case 4: // ARGB (16-bit)
-            (r, g, b, a) = (
-                (int >> 8 & 0xF) * 17,
-                (int >> 4 & 0xF) * 17,
-                (int & 0xF) * 17,
-                (int >> 12 & 0xF) * 17
-            )
-        case 6: // RGB (24-bit)
-            (r, g, b, a) = (int >> 16, int >> 8 & 0xFF, int & 0xFF, 255)
-        case 8: // ARGB (32-bit)
-            (r, g, b, a) = (int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF, int >> 24)
-        default:
-            (r, g, b, a) = (255, 255, 255, 255)
-        }
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255,
-            opacity: Double(a) / 255
-        )
-    }
-
-    func toHex() -> String {
-        let uiColor = UIColor(self)
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
-        // Clamp Display-P3 / extended-range components to [0,1] before byte conversion to avoid UInt8 overflow
-        let r8 = UInt8((max(0, min(1, r)) * 255).rounded())
-        let g8 = UInt8((max(0, min(1, g)) * 255).rounded())
-        let b8 = UInt8((max(0, min(1, b)) * 255).rounded())
-        return String(format: "#%02X%02X%02X", r8, g8, b8)
-    }
-
-    /// Desaturate toward gray by a factor 0…1
-    func desaturated(by factor: Double) -> Color {
-        let uiColor = UIColor(self)
-        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        uiColor.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-        let newSat = max(0, s * CGFloat(1.0 - factor))
-        // Stay in UIColor (extended sRGB) end-to-end — SwiftUI's Color(hue:saturation:brightness:) clips to sRGB and loses wide-gamut values
-        return Color(UIColor(hue: h, saturation: newSat, brightness: b, alpha: a))
     }
 }

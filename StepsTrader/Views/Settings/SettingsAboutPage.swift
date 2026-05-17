@@ -30,7 +30,7 @@ struct SettingsAboutPage: View {
             SettingsGradientBG(model: model)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 28) {
                     DetailHeader(title: String(localized: "About", comment: "Settings section title"))
                         .padding(.horizontal, 16)
 
@@ -50,9 +50,10 @@ struct SettingsAboutPage: View {
                             .foregroundColor(theme.adaptiveMutedText)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 20)
-                    .glassCard()
+                    .padding(.vertical, 12)
                     .padding(.horizontal, 16)
+
+                    DetailDivider().padding(.horizontal, 16)
 
                     // MARK: - Info
                     VStack(spacing: 0) {
@@ -66,15 +67,15 @@ struct SettingsAboutPage: View {
                             value: appVersion
                         )
                     }
-                    .glassCard()
                     .padding(.horizontal, 16)
+
+                    DetailDivider().padding(.horizontal, 16)
 
                     // MARK: - Contact
                     VStack(alignment: .leading, spacing: 0) {
-                        SettingsSectionLabel(text: String(localized: "CONTACT", comment: "About section header"))
+                        SettingsSectionLabel(text: String(localized: "Contact", comment: "About section header"))
                             .padding(.horizontal, 14)
-                            .padding(.top, 14)
-                            .padding(.bottom, 6)
+                            .padding(.bottom, 8)
 
                         Button {
                             if let url = URL(string: Identity.feedbackMailto) {
@@ -87,7 +88,7 @@ struct SettingsAboutPage: View {
                                 detail: Identity.feedbackEmail
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(MattePressStyle())
 
                         DetailDivider()
 
@@ -102,7 +103,7 @@ struct SettingsAboutPage: View {
                                 detail: Identity.telegramHandle
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(MattePressStyle())
 
                         DetailDivider()
 
@@ -117,14 +118,14 @@ struct SettingsAboutPage: View {
                                 detail: Identity.websiteDisplay
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(MattePressStyle())
                     }
-                    .glassCard()
                     .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 80)
             }
         }
+        .overlay { }
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }

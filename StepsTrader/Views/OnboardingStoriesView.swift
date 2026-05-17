@@ -128,8 +128,7 @@ struct OnboardingStoriesView: View {
                     smoothedS: stepsVal,
                     smoothedL: sleepVal,
                     hasStepsData: stepsVal > 0,
-                    hasSleepData: sleepVal > 0,
-                    isDaylight: false
+                    hasSleepData: sleepVal > 0
                 )
                 EnergyGradientRenderer.draw(
                     context: &context,
@@ -208,9 +207,9 @@ struct OnboardingStoriesView: View {
                                 goBack()
                             } label: {
                                 Image(systemName: "chevron.left")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.5))
-                                    .frame(width: 28, height: 28)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(.white.opacity(0.85))
+                                    .minimumHitTarget()
                             }
                             .accessibilityLabel(String(localized: "Back"))
                             .transition(.opacity)
@@ -239,24 +238,33 @@ struct OnboardingStoriesView: View {
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
 
-                    Button(action: next) {
-                        Text(primaryButtonTitle)
-                            .font(.headline)
-                            .foregroundColor(.black)
-                            .frame(maxWidth: .infinity, minHeight: 56)
-                            .background(isFeedSlideWithoutSelection ? accent.opacity(0.35) : accent)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                    }
-                    .disabled(isFeedSlideWithoutSelection)
-                    .overlay {
-                        if isFeedSlideWithoutSelection {
-                            Color.clear.contentShape(Rectangle())
-                                .onTapGesture {
-                                    withAnimation(.easeInOut(duration: 0.3)) { showFeedHint = true }
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                                        withAnimation(.easeInOut(duration: 0.3)) { showFeedHint = false }
+                    if isAppleLoginSkippable {
+                        Button(action: next) {
+                            Text(skipText)
+                                .font(.systemSerif(14, weight: .light, relativeTo: .subheadline))
+                                .foregroundColor(.white.opacity(0.25))
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                        }
+                    } else {
+                        Button(action: next) {
+                            Text(primaryButtonTitle)
+                                .font(.headline)
+                                .foregroundColor(AppAccentInk.primary)
+                                .frame(maxWidth: .infinity, minHeight: 56)
+                                .background(isFeedSlideWithoutSelection ? accent.opacity(0.35) : accent)
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .disabled(isFeedSlideWithoutSelection)
+                        .overlay {
+                            if isFeedSlideWithoutSelection {
+                                Color.clear.contentShape(Rectangle())
+                                    .onTapGesture {
+                                        withAnimation(.easeInOut(duration: 0.3)) { showFeedHint = true }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                                            withAnimation(.easeInOut(duration: 0.3)) { showFeedHint = false }
+                                        }
                                     }
-                                }
+                            }
                         }
                     }
                 }
@@ -278,7 +286,7 @@ struct OnboardingStoriesView: View {
                 }
             }
             
-            Image("grain 1")
+            Image("grain (small)")
                 .resizable()
                 .scaledToFill()
                 .blendMode(.overlay)
@@ -1306,20 +1314,32 @@ struct OnboardingStoriesView: View {
     }
 
     // MARK: - Slide 12: Apple Login
-    
+
+    @State private var appleSignInError: String?
+    @State private var showAppleSignInError = false
+
     @ViewBuilder
     private func appleLoginSlide(slide: OnboardingSlide) -> some View {
         VStack(spacing: 0) {
             Spacer()
-            
+
             VStack(spacing: 12) {
                 ForEach(Array(slide.lines.enumerated()), id: \.offset) { _, line in
                     onboardingLineText(line, size: 20, relativeTo: .title3)
                 }
             }
             .padding(.horizontal, 36)
-            .padding(.bottom, 48)
-            
+            .padding(.bottom, 24)
+
+            if let microcopy = slide.microcopy {
+                Text(microcopy)
+                    .font(.systemSerif(14, weight: .light, relativeTo: .footnote))
+                    .foregroundColor(.white.opacity(0.35))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 36)
+                    .padding(.bottom, 28)
+            }
+
             if let auth = authService, auth.isAuthenticated {
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.circle")
@@ -1330,17 +1350,58 @@ struct OnboardingStoriesView: View {
                         .foregroundColor(.white.opacity(0.7))
                 }
                 .transition(.opacity.combined(with: .scale))
+            } else if let auth = authService {
+                SignInWithAppleButton(.signIn) { request in
+                    auth.configureAppleRequest(request)
+                } onCompletion: { result in
+                    switch result {
+                    case .success(let authorization):
+                        auth.handleAuthorization(authorization)
+                        successHaptic()
+                        slideEffectTask?.cancel()
+                        slideEffectTask = Task { @MainActor in
+                            for _ in 0..<40 {
+                                try? await Task.sleep(for: .milliseconds(250))
+                                guard !Task.isCancelled else { return }
+                                if auth.isAuthenticated {
+                                    try? await Task.sleep(for: .milliseconds(500))
+                                    guard !Task.isCancelled else { return }
+                                    trackSlideCompleted(action: "signed_in")
+                                    withAnimation(.easeInOut) { index += 1 }
+                                    return
+                                }
+                            }
+                        }
+                    case .failure(let error):
+                        let code = (error as NSError).code
+                        if code == ASAuthorizationError.canceled.rawValue { return }
+                        appleSignInError = error.localizedDescription
+                        showAppleSignInError = true
+                    }
+                }
+                .signInWithAppleButtonStyle(.whiteOutline)
+                .frame(height: 52)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(.white.opacity(0.12), lineWidth: 1)
+                )
+                .padding(.horizontal, 40)
             }
-            
+
             if authService?.isLoading == true {
                 ProgressView()
                     .tint(.white)
                     .padding(.top, 16)
             }
-            
+
             Spacer()
-            
             Spacer()
+        }
+        .alert(String(localized: "Error"), isPresented: $showAppleSignInError) {
+            Button(String(localized: "OK")) {}
+        } message: {
+            Text(appleSignInError ?? "")
         }
     }
 
@@ -1539,12 +1600,12 @@ struct OnboardingStoriesView: View {
 
     // MARK: - v8 Slide: Body, Mind, Heart (slide 6)
 
-    private static let v8BMHCategories: [(icon: String, label: String, color: Color, sample: String, desc: String)] = [
-        ("figure.run", "body", Color(red: 0.3, green: 0.8, blue: 0.5), "mind 3",
+    private static let v8BMHCategories: [(icon: String, label: String, color: Color, desc: String)] = [
+        ("figure.run", "body", Color(red: 0.3, green: 0.8, blue: 0.5),
          "movement, exercise, fresh air — anything physical."),
-        ("brain.head.profile", "mind", Color(red: 0.4, green: 0.6, blue: 1.0), "mind 7",
+        ("brain.head.profile", "mind", Color(red: 0.4, green: 0.6, blue: 1.0),
          "reading, learning, creating — feeding your mind."),
-        ("heart", "heart", Color(red: 1.0, green: 0.45, blue: 0.55), "heart 4",
+        ("heart", "heart", Color(red: 1.0, green: 0.45, blue: 0.55),
          "people, kindness, connection — what you feel."),
     ]
 
@@ -1774,6 +1835,11 @@ struct OnboardingStoriesView: View {
             && onboardingSelection.categoryTokens.isEmpty
     }
 
+    private var isAppleLoginSkippable: Bool {
+        guard slides.indices.contains(index) else { return false }
+        return slides[index].slideType == .appleLogin && authService?.isAuthenticated != true
+    }
+
     // MARK: - Button Logic
 
     private var primaryButtonTitle: String {
@@ -1783,7 +1849,7 @@ struct OnboardingStoriesView: View {
         if slides[index].action != .none { return allowText }
         if slides[index].slideType == .appleLogin {
             if authService?.isAuthenticated == true { return nextText }
-            return String(localized: "Sign in", comment: "Onboarding – Apple sign-in button label")
+            return skipText
         }
         return nextText
     }
@@ -1811,11 +1877,7 @@ struct OnboardingStoriesView: View {
                 break
             }
             
-            if slide.slideType == .appleLogin,
-               let auth = authService, !auth.isAuthenticated {
-                triggerAppleSignIn(auth: auth)
-                return
-            }
+            
             
             if slide.slideType == .feedSelection {
                 let hasApps = !onboardingSelection.applicationTokens.isEmpty
@@ -1837,12 +1899,6 @@ struct OnboardingStoriesView: View {
         }
     }
     
-    private func triggerAppleSignIn(auth: AuthenticationService) {
-        AppleSignInCoordinator.trigger(auth: auth) {
-            successHaptic()
-        }
-    }
-
     private func finish(wantsTour: Bool) {
         UserDefaults.standard.set(wantsTour, forKey: "shouldStartCoachMark")
         withAnimation(.easeInOut) {

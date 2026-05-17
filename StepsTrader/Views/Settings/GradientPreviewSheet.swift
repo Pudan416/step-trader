@@ -6,7 +6,6 @@ struct GradientPreviewSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage(SharedKeys.gradientPalette) private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
-    @State private var isDaylight = false
     @State private var selectedState = 0
 
     private let states: [(steps: Double, sleep: Double, label: String)] = [
@@ -21,7 +20,7 @@ struct GradientPreviewSheet: View {
     }
 
     private var baseColor: Color {
-        isDaylight ? pal.daylightBase : pal.dark
+        pal.dark
     }
 
     var body: some View {
@@ -34,8 +33,7 @@ struct GradientPreviewSheet: View {
                     smoothedS: Ss,
                     smoothedL: Ls,
                     hasStepsData: st.steps > 0,
-                    hasSleepData: st.sleep > 0,
-                    isDaylight: isDaylight
+                    hasSleepData: st.sleep > 0
                 )
                 EnergyGradientRenderer.draw(
                     context: &context,
@@ -48,7 +46,7 @@ struct GradientPreviewSheet: View {
             }
             .ignoresSafeArea()
             .overlay {
-                Image("grain 1")
+                Image("grain (small)")
                     .resizable()
                     .scaledToFill()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -90,8 +88,7 @@ struct GradientPreviewSheet: View {
                                         smoothedS: Ss,
                                         smoothedL: Ls,
                                         hasStepsData: state.steps > 0,
-                                        hasSleepData: state.sleep > 0,
-                                        isDaylight: isDaylight
+                                        hasSleepData: state.sleep > 0
                                     )
                                     EnergyGradientRenderer.draw(
                                         context: &context,
@@ -122,17 +119,6 @@ struct GradientPreviewSheet: View {
                 }
                 .padding(.horizontal, 20)
 
-                HStack(spacing: 0) {
-                    modeButton(title: String(localized: "Night", comment: "GradientPreview – time-of-day label"), icon: "moon.fill", isActive: !isDaylight) {
-                        withAnimation(.easeInOut(duration: 0.6)) { isDaylight = false }
-                    }
-                    modeButton(title: String(localized: "Daylight", comment: "GradientPreview – time-of-day label"), icon: "sun.max.fill", isActive: isDaylight) {
-                        withAnimation(.easeInOut(duration: 0.6)) { isDaylight = true }
-                    }
-                }
-                .background(Capsule().fill(.ultraThinMaterial))
-                .padding(.top, 16)
-
                 Button {
                     onApply()
                 } label: {
@@ -151,23 +137,4 @@ struct GradientPreviewSheet: View {
         }
     }
 
-    @ViewBuilder
-    private func modeButton(title: String, icon: String, isActive: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.caption)
-                Text(title)
-                    .font(.caption.weight(.semibold))
-            }
-            .foregroundColor(isActive ? .white : .white.opacity(0.5))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                isActive ? AnyShapeStyle(Color.white.opacity(0.2)) : AnyShapeStyle(Color.clear)
-            )
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
 }

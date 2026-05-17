@@ -21,6 +21,8 @@ final class HealthStore: ObservableObject {
     init(healthKitService: any HealthKitServiceProtocol) {
         self.healthKitService = healthKitService
         self.authorizationStatus = healthKitService.authorizationStatus()
+        loadCachedStepsToday()
+        loadCachedSleepToday()
     }
     
     func requestAuthorization() async throws {
@@ -63,6 +65,7 @@ final class HealthStore: ObservableObject {
             let start = currentDayStart(for: now)
             dailySleepHours = try await healthKitService.fetchSleep(from: start, to: now)
             hasSleepData = true
+            cacheSleepToday()
             AppLogger.healthKit.debug("🛌 Fetched sleep hours: \(String(format: "%.2f", self.dailySleepHours))h")
         } catch {
             AppLogger.healthKit.error("⚠️ Failed to refresh sleep: \(error.localizedDescription)")
@@ -110,6 +113,17 @@ final class HealthStore: ObservableObject {
         let cached = g.double(forKey: SharedKeys.cachedStepsToday)
         stepsToday = cached
         hasStepsData = g.bool(forKey: SharedKeys.hasStepsData)
+    }
+
+    private static let cachedSleepKey = "cachedSleepHoursToday"
+
+    private func cacheSleepToday() {
+        UserDefaults.stepsTrader().set(dailySleepHours, forKey: Self.cachedSleepKey)
+    }
+
+    private func loadCachedSleepToday() {
+        let cached = UserDefaults.stepsTrader().double(forKey: Self.cachedSleepKey)
+        if cached > 0 { dailySleepHours = cached }
     }
     
     // MARK: - Observation

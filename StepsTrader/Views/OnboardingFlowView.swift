@@ -228,7 +228,8 @@ struct OnboardingFlowView: View {
                     String(localized: "btw, my name is kosta."),
                     String(localized: "and who are you?")
                 ],
-                slideType: .appleLogin
+                slideType: .appleLogin,
+                microcopy: String(localized: "sign in to keep your data safe and synced across devices.")
             ),
 
             // 13 — welcome
@@ -335,7 +336,8 @@ struct OnboardingFlowView: View {
                     String(localized: "i'm kosta."),
                     String(localized: "who are you?")
                 ],
-                slideType: .appleLogin
+                slideType: .appleLogin,
+                microcopy: String(localized: "sign in to keep your data safe and synced across devices.")
             ),
             
             // 10 — welcome

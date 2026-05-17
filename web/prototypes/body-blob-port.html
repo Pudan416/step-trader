@@ -4,7 +4,9 @@
   Canvas preview ports:
   - Body: procedural blob + fill
   - Mind: superformula path + glow / ring / crystal / figmaDev (fixed Figma 203:9 gradient)
-  - Heart: heartRays wedges + gradient palette from hex (Swift-style)
+  - Heart: Swift heartRays, or parametric heart curve (math heart), or see Shader
+  - Shader: WebGL spotlight; beam + bg from app palette (15 swatches in UI, #222831 omitted)
+  - Blob 2: SamuelYAN organic multi-light + life blob (WebGL)
   - Mask PNG: upload black-on-white (or alpha) sprite; color with chosen gradient + destination-in
 -->
 <head>
@@ -57,9 +59,18 @@
       cursor: pointer;
     }
     button:hover { background: #4a4a54; }
+    /* warmSunset + base #002646: 4 equal radial bands (¼ radius each), opacities like Swift Ss=Ls=1 + both HK flags. */
     canvas {
       display: block;
-      background: linear-gradient(135deg, #6a7a8e 0%, #8a7a6e 50%, #5a6a7a 100%);
+      background-color: #002646;
+      background-image: radial-gradient(
+        ellipse farthest-corner at 0% 100%,
+        rgba(255, 191, 101, 0.95) 0%,
+        rgba(253, 137, 115, 0.782) 25%,
+        rgba(0, 58, 108, 0.48) 50%,
+        rgba(0, 38, 70, 0.45) 75%,
+        rgba(0, 38, 70, 0.45) 100%
+      );
       border-radius: 8px;
       max-width: 100%;
       height: auto;
@@ -75,8 +86,11 @@
       <select id="category">
         <option value="body" selected>Body — noise blob</option>
         <option value="mind">Mind — soft gradients (assets)</option>
-        <option value="heart">Heart — gradient beam (heart 1)</option>
+        <option value="heart">Heart — beams or parametric curve</option>
+        <option value="shader">Shader — 1 spotlight + gradient (WebGL)</option>
+        <option value="blob2">Blob 2 — organic lights + life blob (WebGL)</option>
         <option value="mask">Mask PNG — gradient through uploaded shape</option>
+        <option value="rectMorph">Rect Morph — sin-lerp rounded rect (p5 port)</option>
       </select>
     </label>
     <div id="maskWrap" style="display: none;">
@@ -130,6 +144,51 @@
     <label id="mindHoleWrap" style="display: none;">
       <input type="checkbox" id="mindSoftCenter" checked /> Softer / more transparent center (glow &amp; ring)
     </label>
+    <label id="heartStyleWrap" style="display: none;">Heart style
+      <select id="heartStyle">
+        <option value="parametric" selected>Parametric — trigonometric heart curve</option>
+        <option value="rays">Swift port — gradient beams (<code>heartRays</code>)</option>
+      </select>
+    </label>
+    <div id="shaderPaletteWrap" style="display: none;">
+      <p style="margin: 0 0 0.5rem; font-size: 0.8rem; color: #aaa;">
+        Radial gradient from cone apex: <strong>2</strong> colors (A→C) or <strong>3</strong> (A→B→C at <em>t</em> 0 / 0.3 / 0.92). Randomize picks count + distinct swatches. Palette: app colors, <code>#222831</code> omitted.
+      </p>
+      <label>Gradient stops
+        <select id="shaderStopCount">
+          <option value="2">2 colors</option>
+          <option value="3" selected>3 colors</option>
+        </select>
+      </label>
+      <label>Beam color A (<em>t</em> = 0)
+        <select id="shaderActNear"></select>
+      </label>
+      <label id="shaderMidWrap">Beam color B (<em>t</em> = 0.3)
+        <select id="shaderActMid"></select>
+      </label>
+      <label>Beam color C (<em>t</em> = 1 two-stop · <em>t</em> = 0.92 three-stop)
+        <select id="shaderActFar"></select>
+      </label>
+      <p style="margin: 0.35rem 0 0; font-size: 0.72rem; color: #888;">
+        Background matches canvas: warmSunset on <code>#002646</code>, four equal radial quarters, opacities as in Swift full steps + full sleep (<code>computeOpacities</code> Ss=Ls=1).
+      </p>
+    </div>
+    <div id="blob2PaletteWrap" style="display: none;">
+      <p style="margin: 0 0 0.5rem; font-size: 0.8rem; color: #aaa;">
+        Blob 2: <strong>Randomize</strong> sets random base tint + hue wheel (no fixed purple), three palette swatches on the figure, alpha + square edge window. Transparent areas show the warmSunset-style canvas backdrop.
+      </p>
+      <label>Blob tint A (angle blend around center)
+        <select id="blob2Act0"></select>
+      </label>
+      <label>Blob tint B
+        <select id="blob2Act1"></select>
+      </label>
+      <label>Blob tint C
+        <select id="blob2Act2"></select>
+      </label>
+      <input type="hidden" id="blob2AmbientHex" value="#6B7580" />
+      <input type="hidden" id="blob2HueBase" value="0.42" />
+    </div>
     <label>
       <input type="checkbox" id="animate" /> Animate time
     </label>
@@ -149,11 +208,14 @@
     <p class="hint">
       Preview gradient is CSS only. PNG export is transparent outside the element.
       <strong>Mind</strong> uses <code>mindPath</code> + radials from hex, except <strong>Figma spec</strong> which bakes Dev Mode colors / blur from your screenshot (node 203:9).
-      <strong>Heart</strong> uses <code>heartRays</code> + palette from hex. <strong>Mask PNG</strong>: black-on-white is converted to an <strong>alpha mask</strong> (inverted luma); color is a <strong>CanvasGradient</strong> clipped with <code>destination-in</code>. PNGs with alpha use the alpha channel as-is.
+      <strong>Heart</strong>: <em>Parametric</em> = classic trigonometric heart outline + gradient. <em>Swift beams</em> = <code>heartRays</code>. <strong>Shader</strong> = spotlight (15 цветов в селектах, без <code>#222831</code>); фон как у Body — тот же CSS-градиент под WebGL. Форк <a href="https://openprocessing.org/sketch/2780814" target="_blank" rel="noopener">OP 2780814</a>.
+      <strong>Blob 2</strong> = SamuelYAN organic; три свотча окрашивают только силуэт блоба, фон и прожекторы как в оригинале.
+      <strong>Mask PNG</strong>: black-on-white is converted to an <strong>alpha mask</strong> (inverted luma); color is a <strong>CanvasGradient</strong> clipped with <code>destination-in</code>. PNGs with alpha use the alpha channel as-is.
     </p>
   </div>
   <div>
     <canvas id="c" width="600" height="600"></canvas>
+    <canvas id="cgl" width="600" height="600" style="display: none;"></canvas>
   </div>
 
   <script>
@@ -603,8 +665,133 @@
       ctx.restore();
     }
 
+    /** Classic trigonometric heart (p5-style); not the same as the metaball shader on OP 2780814. */
+    function parametricHeartPoints(step) {
+      const pts = [];
+      for (let t = 0; t <= Math.PI * 2 + step * 0.5; t += step) {
+        const x = 16 * Math.sin(t) ** 3;
+        const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+        pts.push({ x, y });
+      }
+      return pts;
+    }
+
+    function boundsOfPoints(pts) {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const p of pts) {
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      }
+      return { minX, minY, maxX, maxY };
+    }
+
+    function transformHeartPoints(raw, center, scale, rotation) {
+      const bb = boundsOfPoints(raw);
+      const rcx = (bb.minX + bb.maxX) / 2;
+      const rcy = (bb.minY + bb.maxY) / 2;
+      const c = Math.cos(rotation);
+      const s = Math.sin(rotation);
+      return raw.map((p) => {
+        const dx = (p.x - rcx) * scale;
+        const dy = (p.y - rcy) * scale;
+        return {
+          x: center.x + dx * c - dy * s,
+          y: center.y + dx * s + dy * c,
+        };
+      });
+    }
+
+    function drawHeartParametric(ctx, center, rect, params) {
+      const raw = parametricHeartPoints(0.06);
+      const bb = boundsOfPoints(raw);
+      const size = Math.max(bb.maxX - bb.minX, bb.maxY - bb.minY);
+      const dim = Math.min(rect.width, rect.height);
+      const scale = (dim * (0.32 + params.complexity * 0.28)) / size;
+      const transformed = transformHeartPoints(raw, center, scale, params.rotation);
+      const path = new Path2D();
+      path.moveTo(transformed[0].x, transformed[0].y);
+      for (let i = 1; i < transformed.length; i++) {
+        path.lineTo(transformed[i].x, transformed[i].y);
+      }
+      path.closePath();
+
+      let sx = 0;
+      let sy = 0;
+      for (const p of transformed) {
+        sx += p.x;
+        sy += p.y;
+      }
+      const cxg = sx / transformed.length;
+      const cyg = sy / transformed.length;
+      let maxR = 0;
+      for (const p of transformed) {
+        maxR = Math.max(maxR, Math.hypot(p.x - cxg, p.y - cyg));
+      }
+
+      const palette = heartGradientColorsRGBA(params.seed, params.color);
+      const blurPx = 6 + params.complexity * 14;
+      const omega = 2 * Math.PI * params.pulseFrequency;
+      const breathe = 0.92 + Math.sin(params.time * omega + params.phase) * 0.06;
+
+      ctx.save();
+      ctx.globalAlpha = breathe;
+      ctx.filter = `blur(${blurPx}px)`;
+      const g = ctx.createRadialGradient(cxg, cyg, 0, cxg, cyg, maxR * 1.05);
+      palette.forEach((col, i) => {
+        const t = palette.length === 1 ? 0 : i / (palette.length - 1);
+        g.addColorStop(t, `rgba(${col.r},${col.g},${col.b},${col.a * 0.85})`);
+      });
+      ctx.fillStyle = g;
+      ctx.fill(path);
+      ctx.filter = "none";
+      ctx.globalAlpha = breathe * 0.45;
+      const c0 = palette[0];
+      const g2 = ctx.createRadialGradient(cxg, cyg - maxR * 0.08, 0, cxg, cyg, maxR * 0.92);
+      g2.addColorStop(0, `rgba(${c0.r},${c0.g},${c0.b},${c0.a * 0.5})`);
+      g2.addColorStop(1, `rgba(${c0.r},${c0.g},${c0.b},0)`);
+      ctx.fillStyle = g2;
+      ctx.fill(path);
+      ctx.restore();
+    }
+
     function drawHeart(ctx, center, rect, canvasW, canvasH, params) {
-      drawHeartFormula(ctx, center, rect, canvasW, canvasH, params);
+      if (params.heartStyle === "parametric") {
+        drawHeartParametric(ctx, center, rect, params);
+      } else {
+        drawHeartFormula(ctx, center, rect, canvasW, canvasH, params);
+      }
+    }
+
+    function parametricHeartCropBounds(center, rect, canvasW, canvasH, params) {
+      const raw = parametricHeartPoints(0.06);
+      const bb = boundsOfPoints(raw);
+      const size = Math.max(bb.maxX - bb.minX, bb.maxY - bb.minY);
+      const dim = Math.min(rect.width, rect.height);
+      const scale = (dim * (0.32 + params.complexity * 0.28)) / size;
+      const transformed = transformHeartPoints(raw, center, scale, params.rotation);
+      const blurPx = 6 + params.complexity * 14;
+      const margin = 28 + Math.ceil(blurPx * 2.5);
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const p of transformed) {
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      }
+      return {
+        sx: Math.max(0, Math.floor(minX - margin)),
+        sy: Math.max(0, Math.floor(minY - margin)),
+        sw: Math.ceil(maxX - minX + 2 * margin),
+        sh: Math.ceil(maxY - minY + 2 * margin),
+      };
     }
 
     function heartRaysCropBounds(center, canvasW, canvasH, params) {
@@ -1183,8 +1370,967 @@
     }
 
     const canvas = document.getElementById("c");
+    const glCanvas = document.getElementById("cgl");
     const ctx = canvas.getContext("2d", { alpha: true });
     const PAD = 40;
+
+    /**
+     * Vertex shader — SamuelYAN / p5 (OpenProcessing). Plane uses 0…1 positions → NDC.
+     * Texcoord template: aferriss/p5jsShaderExamples
+     */
+    const METABALL_VERT_SRC = `
+attribute vec3 aPosition;
+attribute vec2 aTexCoord;
+
+void main() {
+  vec4 positionVec4 = vec4(aPosition, 1.0);
+  positionVec4.xy = positionVec4.xy * 2.0 - 1.0;
+  gl_Position = positionVec4;
+}
+`;
+
+    const METABALL_FRAG_SRC = `
+#ifdef GL_ES
+precision highp float;
+#endif
+
+uniform vec2 u_resolution;
+uniform float u_time;
+uniform vec3 u_rgbNear;
+uniform vec3 u_rgbMid;
+uniform vec3 u_rgbFar;
+uniform int u_stopCount;
+
+float spotlight(vec2 samplePos, vec2 lightPos, vec2 dir, float coneAngle, float softness)
+{
+    vec2 dlt = samplePos - lightPos;
+    float dist = length(dlt);
+    vec2 dirN = normalize(dir);
+    /* At the source, normalize(0) is undefined — use beam axis (matches cone center). */
+    const float eps = 1e-4;
+    vec2 L = dist > eps ? dlt / dist : dirN;
+    float theta = dot(L, dirN);
+    /* Gentler than 1/(1+10r²): avoids a harsh hotspot at the lamp. */
+    float att = 1.0 / (1.35 + 5.5 * dist * dist + 1.2 * dist);
+    float inner = cos(radians(coneAngle * 0.5));
+    float edge = inner - softness;
+    float cone = smoothstep(edge, inner, theta);
+    return cone * att;
+}
+
+void main()
+{
+    vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+    vec2 p = (uv - 1.0) * vec2(u_resolution.x / u_resolution.y, 1.0);
+
+    float aspect = u_resolution.x / u_resolution.y;
+    vec2 lightPos = vec2(-0.5 * aspect, -0.5);
+
+    float aim = 1.15 + 0.55 * sin(u_time * 0.55);
+    vec2 dir = vec2(sin(aim), cos(aim));
+
+    /* Full cone aperture between 30° and 110° (max spread cap). */
+    float coneAngle = mix(30.0, 110.0, 0.5 + 0.5 * sin(u_time * 0.45));
+    float softness = 0.22 + 0.18 * ((coneAngle - 30.0) / 80.0);
+
+    float light = spotlight(p, lightPos, dir, coneAngle, softness);
+
+    vec2 dlt = p - lightPos;
+    float dist = length(dlt);
+
+    float tRad = pow(smoothstep(0.04, 0.68, dist), 0.82);
+    vec3 lightColor;
+    if (u_stopCount >= 3) {
+        float tB = 0.3;
+        float tC = 0.92;
+        lightColor = mix(u_rgbNear, u_rgbMid, clamp(tRad / tB, 0.0, 1.0));
+        lightColor = mix(lightColor, u_rgbFar, clamp((tRad - tB) / (tC - tB), 0.0, 1.0));
+    } else {
+        lightColor = mix(u_rgbNear, u_rgbFar, tRad);
+    }
+
+    /* Roll off the very center so the beam reads as a soft wash, not a LED. */
+    float coreMul = mix(0.62, 1.0, smoothstep(0.0, 0.26, dist));
+    float lightT = pow(clamp(light, 0.0, 1.0), 1.12);
+    float w = lightT * coreMul * 1.35;
+    float a = clamp(w, 0.0, 1.0);
+    vec3 premul = lightColor * w;
+    /* Premultiplied RGBA + blendFunc(ONE, ONE_MINUS_SRC_ALPHA) so CSS canvas
+       gradient (same as Body preview) is dst underneath. */
+    gl_FragColor = vec4(premul, a);
+}
+`;
+
+    /** Bump when changing GLSL so cached program is recompiled without hard-refresh. */
+    const METABALL_SHADER_REV = 18;
+
+    /** App `CanvasColorPalette.paletteHex` minus near-black `#222831` (shader UI only). */
+    const ACTIVITY_PALETTE_HEX = [
+      "#C3143B", "#9BB6E0", "#A7BF50", "#C3D7A3",
+      "#01B6C4", "#7652AF", "#F68D0C", "#2C2E4D",
+      "#796C3C", "#FFD369", "#49484D", "#C7E0D8",
+      "#955530", "#FEAAC2", "#EBE4D7",
+    ];
+
+    function shaderRgbFromActivityHex(nearHex, midHex, farHex) {
+      function f(hex) {
+        const o = hexToRgb(hex);
+        return [o.r / 255, o.g / 255, o.b / 255];
+      }
+      return { near: f(nearHex), mid: f(midHex), far: f(farHex) };
+    }
+
+    /** Without replacement; length min(n, palette length). */
+    function pickDistinctPaletteHexes(n) {
+      const pool = ACTIVITY_PALETTE_HEX.slice();
+      const out = [];
+      for (let i = 0; i < n && pool.length > 0; i++) {
+        const j = Math.floor(Math.random() * pool.length);
+        out.push(pool[j]);
+        pool.splice(j, 1);
+      }
+      return out;
+    }
+
+    function updateShaderMidVisibility() {
+      const sel = document.getElementById("shaderStopCount");
+      const wrap = document.getElementById("shaderMidWrap");
+      if (!sel || !wrap) {
+        return;
+      }
+      const n = parseInt(sel.value, 10) || 3;
+      wrap.style.display = n >= 3 ? "" : "none";
+    }
+
+    function fillActivityShaderSelects() {
+      const defaults = { near: "#F68D0C", mid: "#01B6C4", far: "#7652AF" };
+      function populate(selId, defHex) {
+        const sel = document.getElementById(selId);
+        if (!sel || sel.options.length > 0) {
+          return;
+        }
+        let matched = false;
+        ACTIVITY_PALETTE_HEX.forEach((hex, i) => {
+          const o = document.createElement("option");
+          o.value = hex;
+          o.textContent = `${String(i + 1).padStart(2, "0")}  ${hex}`;
+          if (hex.toUpperCase() === defHex.toUpperCase()) {
+            o.selected = true;
+            matched = true;
+          }
+          sel.appendChild(o);
+        });
+        if (!matched && sel.options.length) {
+          sel.selectedIndex = 0;
+        }
+      }
+      populate("shaderActNear", defaults.near);
+      populate("shaderActMid", defaults.mid);
+      populate("shaderActFar", defaults.far);
+    }
+
+    function fillBlob2PaletteSelects() {
+      const defaults = { c0: "#F68D0C", c1: "#7652AF", c2: "#01B6C4" };
+      function populate(selId, defHex) {
+        const sel = document.getElementById(selId);
+        if (!sel || sel.options.length > 0) {
+          return;
+        }
+        let matched = false;
+        ACTIVITY_PALETTE_HEX.forEach((hex, i) => {
+          const o = document.createElement("option");
+          o.value = hex;
+          o.textContent = `${String(i + 1).padStart(2, "0")}  ${hex}`;
+          if (hex.toUpperCase() === defHex.toUpperCase()) {
+            o.selected = true;
+            matched = true;
+          }
+          sel.appendChild(o);
+        });
+        if (!matched && sel.options.length) {
+          sel.selectedIndex = 0;
+        }
+      }
+      populate("blob2Act0", defaults.c0);
+      populate("blob2Act1", defaults.c1);
+      populate("blob2Act2", defaults.c2);
+    }
+
+    const metaballGL = {
+      gl: null,
+      program: null,
+      buf: null,
+      bufTex: null,
+      rev: -1,
+      aPosition: -1,
+      aTexCoord: -1,
+      uResolution: null,
+      uTime: null,
+      uRgbNear: null,
+      uRgbMid: null,
+      uRgbFar: null,
+      uStopCount: null,
+    };
+
+    function compileShader(gl, type, src) {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(sh));
+        gl.deleteShader(sh);
+        return null;
+      }
+      return sh;
+    }
+
+    function ensureMetaballProgram(canvasEl) {
+      if (metaballGL.program && metaballGL.rev === METABALL_SHADER_REV) {
+        return true;
+      }
+      if (metaballGL.program && metaballGL.gl) {
+        metaballGL.gl.deleteProgram(metaballGL.program);
+        metaballGL.program = null;
+        metaballGL.buf = null;
+        metaballGL.bufTex = null;
+      }
+      const gl = canvasEl.getContext("webgl", {
+        alpha: true,
+        premultipliedAlpha: false,
+        preserveDrawingBuffer: true,
+      });
+      if (!gl) {
+        console.error("WebGL not available");
+        return false;
+      }
+      const vs = compileShader(gl, gl.VERTEX_SHADER, METABALL_VERT_SRC);
+      const fs = compileShader(gl, gl.FRAGMENT_SHADER, METABALL_FRAG_SRC);
+      if (!vs || !fs) {
+        return false;
+      }
+      const prog = gl.createProgram();
+      gl.attachShader(prog, vs);
+      gl.attachShader(prog, fs);
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        console.error(gl.getProgramInfoLog(prog));
+        return false;
+      }
+      const buf = gl.createBuffer();
+      /* Full quad in 0…1 (p5 plane), z = 0 — matches `positionVec4.xy * 2.0 - 1.0` in vert. */
+      const quad = new Float32Array([
+        0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0,
+      ]);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+
+      metaballGL.aPosition = gl.getAttribLocation(prog, "aPosition");
+      metaballGL.aTexCoord = gl.getAttribLocation(prog, "aTexCoord");
+      if (metaballGL.aPosition < 0) {
+        console.error("WebGL: aPosition attrib missing");
+        gl.deleteBuffer(buf);
+        gl.deleteProgram(prog);
+        return false;
+      }
+      let bufTex = null;
+      if (metaballGL.aTexCoord >= 0) {
+        bufTex = gl.createBuffer();
+        const tc = new Float32Array(12);
+        gl.bindBuffer(gl.ARRAY_BUFFER, bufTex);
+        gl.bufferData(gl.ARRAY_BUFFER, tc, gl.STATIC_DRAW);
+      }
+
+      metaballGL.gl = gl;
+      metaballGL.program = prog;
+      metaballGL.buf = buf;
+      metaballGL.bufTex = bufTex;
+      metaballGL.rev = METABALL_SHADER_REV;
+      metaballGL.uResolution = gl.getUniformLocation(prog, "u_resolution");
+      metaballGL.uTime = gl.getUniformLocation(prog, "u_time");
+      metaballGL.uRgbNear = gl.getUniformLocation(prog, "u_rgbNear");
+      metaballGL.uRgbMid = gl.getUniformLocation(prog, "u_rgbMid");
+      metaballGL.uRgbFar = gl.getUniformLocation(prog, "u_rgbFar");
+      metaballGL.uStopCount = gl.getUniformLocation(prog, "u_stopCount");
+      return true;
+    }
+
+    function drawMetaballShader(canvasEl, uTime, nearHex, midHex, farHex, stopCount) {
+      if (!ensureMetaballProgram(canvasEl)) {
+        return;
+      }
+      const gl = metaballGL.gl;
+      const w = canvasEl.width;
+      const h = canvasEl.height;
+      gl.viewport(0, 0, w, h);
+      gl.disable(gl.DEPTH_TEST);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(metaballGL.program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, metaballGL.buf);
+      if (metaballGL.aPosition >= 0) {
+        gl.enableVertexAttribArray(metaballGL.aPosition);
+        gl.vertexAttribPointer(metaballGL.aPosition, 3, gl.FLOAT, false, 0, 0);
+      }
+      if (metaballGL.aTexCoord >= 0 && metaballGL.bufTex) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, metaballGL.bufTex);
+        gl.enableVertexAttribArray(metaballGL.aTexCoord);
+        gl.vertexAttribPointer(metaballGL.aTexCoord, 2, gl.FLOAT, false, 0, 0);
+      }
+      gl.uniform2f(metaballGL.uResolution, w, h);
+      gl.uniform1f(metaballGL.uTime, uTime);
+      const rgb = shaderRgbFromActivityHex(nearHex, midHex, farHex);
+      gl.uniform3f(metaballGL.uRgbNear, rgb.near[0], rgb.near[1], rgb.near[2]);
+      gl.uniform3f(metaballGL.uRgbMid, rgb.mid[0], rgb.mid[1], rgb.mid[2]);
+      gl.uniform3f(metaballGL.uRgbFar, rgb.far[0], rgb.far[1], rgb.far[2]);
+      gl.uniform1i(metaballGL.uStopCount, stopCount);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    /** SamuelYAN-style organic scene; vert template aferriss/p5jsShaderExamples */
+    const BLOB2_VERT_SRC = `
+// vert file and comments from adam ferriss
+// https://github.com/aferriss/p5jsShaderExamples
+
+attribute vec3 aPosition;
+attribute vec2 aTexCoord;
+
+void main() {
+  vec4 positionVec4 = vec4(aPosition, 1.0);
+  positionVec4.xy = positionVec4.xy * 2.0 - 1.0;
+  gl_Position = positionVec4;
+}
+`;
+
+    const BLOB2_FRAG_SRC = `
+#ifdef GL_ES
+precision highp float;
+#endif
+
+uniform vec2  u_resolution;
+uniform float u_time;
+uniform vec3  u_rgb0;
+uniform vec3  u_rgb1;
+uniform vec3  u_rgb2;
+uniform vec3  u_ambient;
+uniform float u_hueBase;
+
+float hash(float n){
+    return fract(sin(n) * 43758.5453123);
+}
+
+vec3 hsv2rgb(vec3 c){
+    vec3 rgb = clamp(
+        abs(mod(c.x * 6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0,
+        0.0, 1.0
+    );
+    return c.z * mix(vec3(1.0), rgb, c.y);
+}
+
+float spotlight(
+    vec2 p,
+    vec2 lightPos,
+    vec2 dir,
+    float cone,
+    float soft,
+    float seed
+){
+    vec2 dlt = p - lightPos;
+    float dist = length(dlt);
+    vec2 dirN = normalize(dir);
+    vec2 L = dist > 1e-4 ? dlt / dist : dirN;
+    float theta = dot(L, dirN);
+
+    float inner = cos(cone);
+    float edge  = inner - soft;
+
+    float att   = 2.5 / (1.0 + 3.0 * dist * dist);
+    float beam  = smoothstep(edge, inner, theta);
+
+    return beam * att;
+}
+
+float blob(vec2 p, float r, float life){
+    float d = length(p) - r;
+    d += 0.15 * sin(length(p) * 6.0 - u_time * 1.1) * life;
+    d += 0.08 * sin(p.x * 5.0 + u_time);
+    d += 0.12 * sin(p.y * 5.0 - u_time);
+
+    return d;
+}
+
+void main(){
+    vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+    float aspect = u_resolution.x / u_resolution.y;
+    vec2 p = uv * 2.0 - 2.0;
+    p.x *= aspect;
+    /* uv (0.5,0.5) was at (-aspect,-1); shift so scene origin = canvas center. */
+    p += vec2(aspect, 1.0);
+
+    float edge = 0.072;
+    float wx = smoothstep(0.0, edge, uv.x) * smoothstep(1.0, 1.0 - edge, uv.x);
+    float wy = smoothstep(0.0, edge, uv.y) * smoothstep(1.0, 1.0 - edge, uv.y);
+    float squareW = wx * wy;
+
+    /* No space warp — keeps palette/lights locked to the blob (avoids sliding “layers”). */
+    vec2 pw = p;
+
+    /* Base wash from JS (replaces fixed magenta vec3(1,0.5,1.2)). */
+    vec3 col = u_ambient;
+
+    const int NUM_LIGHTS = 4;
+    const float GRID = 3.0;
+
+    float pulse   = 0.6 + 0.4 * sin(u_time * 0.6);
+    float harmony = 0.3 + 0.2 * sin(u_time * 0.2);
+    float life = pulse * (0.6 + harmony);
+    life = clamp(life, 0.0, 1.0);
+
+    for(int i = 0; i < NUM_LIGHTS; i++){
+        float fi   = float(i);
+        float seed = fi * 32.7;
+
+        vec2 g = vec2(
+            mod(fi * 24.0, GRID),
+            mod(fi * 11.0, GRID)
+        );
+
+        vec2 lightPos = (g + 0.5) / GRID;
+        lightPos = lightPos * 2.0 - 1.0;
+        lightPos.x *= aspect;
+        lightPos += vec2(aspect, 1.0);
+
+        float ang = u_time * 0.4 + hash(seed) * 6.28318;
+        vec2 dir  = vec2(cos(ang), sin(ang));
+
+        float light = spotlight(
+            pw,
+            lightPos,
+            dir,
+            mix(0.6, 0.3, hash(seed)),
+            mix(0.3, 0.1, hash(seed + 3.0)),
+            seed
+        );
+
+        float hue = fract(
+            u_hueBase +
+            mix(hash(seed), harmony, 0.5) * 0.35 +
+            hash(seed + 41.0) * 0.61 +
+            u_time * 0.05
+        );
+        float sat = 0.32 + 0.22 * hash(seed + 8.0);
+        float val = 0.48 + 0.22 * hash(seed + 1.7);
+        vec3 lc = hsv2rgb(vec3(hue, sat, val));
+
+        float flicker =
+            0.82 +
+            0.18 * sin(u_time * (1.5 + hash(seed + 2.0)) + fi);
+
+        col += lc * light * flicker * pulse * 0.42;
+    }
+
+    float mask = smoothstep(
+        0.1,
+        -0.1,
+        blob(pw, 0.5, life)
+    );
+
+    col /= max(mask, 0.02);
+
+    /* Radial lift was meant as edge cleanup; 0.38 over 0.2–0.65 in |pw| pulled mid-blob RGB
+       below zero before Reinhard, which clamps to black — the “void” ring between rim and core. */
+    col -= smoothstep(0.52, 0.88, length(pw)) * 0.16;
+
+    col = max(col, vec3(0.0));
+    col = col / (col + vec3(3.2));
+    col = pow(col, vec3(1.04));
+    float luma = dot(col, vec3(0.299, 0.587, 0.114));
+    col = mix(vec3(luma), col, 0.52);
+
+    /* Palette on figure: 3-way direction blend (no atan seam on −x = harsh band to the left). */
+    float pr = length(pw);
+    vec2 nd = pr > 1e-4 ? pw / pr : vec2(1.0, 0.0);
+    const vec2 ax0 = vec2(1.0, 0.0);
+    const vec2 ax1 = vec2(-0.5, 0.866025404);
+    const vec2 ax2 = vec2(-0.5, -0.866025404);
+    float w0 = max(0.0, dot(nd, ax0));
+    float w1 = max(0.0, dot(nd, ax1));
+    float w2 = max(0.0, dot(nd, ax2));
+    float gamma = 0.74;
+    w0 = pow(w0 + 1e-4, gamma);
+    w1 = pow(w1 + 1e-4, gamma);
+    w2 = pow(w2 + 1e-4, gamma);
+    float ws = w0 + w1 + w2 + 1e-5;
+    vec3 pal = (w0 * u_rgb0 + w1 * u_rgb1 + w2 * u_rgb2) / ws;
+    float lum = dot(pal, vec3(0.299, 0.587, 0.114));
+    pal = mix(vec3(lum), pal, 0.48);
+    float lum2 = dot(pal, vec3(0.299, 0.587, 0.114));
+    vec3 palNorm = pal / max(lum2, 0.12);
+    float mFig = smoothstep(0.12, 0.94, mask);
+    col = mix(col, col * mix(vec3(1.0), palNorm, 0.62), mFig);
+
+    /* Bubble: soft alpha ramp — no harsh core vs rim; squareW clips canvas edges. */
+    float r = length(pw);
+    float mBody = smoothstep(0.02, 0.38, mask);
+    float hollowCore = smoothstep(0.0, 0.42, r);
+    float outerFalloff = 1.0 - smoothstep(0.26, 0.9, r);
+    float shell = clamp(hollowCore * outerFalloff, 0.0, 1.0);
+    shell = smoothstep(0.0, 1.0, shell);
+    shell = pow(shell, 0.82);
+    float alpha = squareW * mBody * mix(0.48, 0.9, shell);
+    alpha = clamp(alpha, 0.0, 1.0);
+    col *= mix(0.9, 1.06, shell);
+
+    gl_FragColor = vec4(col, alpha);
+}
+`;
+
+    const BLOB2_SHADER_REV = 15;
+
+    const blob2GL = {
+      gl: null,
+      program: null,
+      buf: null,
+      bufTex: null,
+      rev: -1,
+      aPosition: -1,
+      aTexCoord: -1,
+      uResolution: null,
+      uTime: null,
+      uRgb0: null,
+      uRgb1: null,
+      uRgb2: null,
+      uAmbient: null,
+      uHueBase: null,
+    };
+
+    function ensureBlob2Program(canvasEl) {
+      if (blob2GL.program && blob2GL.rev === BLOB2_SHADER_REV) {
+        return true;
+      }
+      if (blob2GL.program && blob2GL.gl) {
+        blob2GL.gl.deleteProgram(blob2GL.program);
+        blob2GL.program = null;
+        blob2GL.buf = null;
+        blob2GL.bufTex = null;
+      }
+      const gl = canvasEl.getContext("webgl", {
+        alpha: true,
+        premultipliedAlpha: false,
+        preserveDrawingBuffer: true,
+      });
+      if (!gl) {
+        console.error("WebGL not available");
+        return false;
+      }
+      const vs = compileShader(gl, gl.VERTEX_SHADER, BLOB2_VERT_SRC);
+      const fs = compileShader(gl, gl.FRAGMENT_SHADER, BLOB2_FRAG_SRC);
+      if (!vs || !fs) {
+        return false;
+      }
+      const prog = gl.createProgram();
+      gl.attachShader(prog, vs);
+      gl.attachShader(prog, fs);
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        console.error(gl.getProgramInfoLog(prog));
+        return false;
+      }
+      const buf = gl.createBuffer();
+      const quad = new Float32Array([
+        0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0,
+      ]);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+
+      blob2GL.aPosition = gl.getAttribLocation(prog, "aPosition");
+      blob2GL.aTexCoord = gl.getAttribLocation(prog, "aTexCoord");
+      if (blob2GL.aPosition < 0) {
+        console.error("WebGL blob2: aPosition missing");
+        gl.deleteBuffer(buf);
+        gl.deleteProgram(prog);
+        return false;
+      }
+      let bufTex = null;
+      if (blob2GL.aTexCoord >= 0) {
+        bufTex = gl.createBuffer();
+        const tc = new Float32Array(12);
+        gl.bindBuffer(gl.ARRAY_BUFFER, bufTex);
+        gl.bufferData(gl.ARRAY_BUFFER, tc, gl.STATIC_DRAW);
+      }
+
+      blob2GL.gl = gl;
+      blob2GL.program = prog;
+      blob2GL.buf = buf;
+      blob2GL.bufTex = bufTex;
+      blob2GL.rev = BLOB2_SHADER_REV;
+      blob2GL.uResolution = gl.getUniformLocation(prog, "u_resolution");
+      blob2GL.uTime = gl.getUniformLocation(prog, "u_time");
+      blob2GL.uRgb0 = gl.getUniformLocation(prog, "u_rgb0");
+      blob2GL.uRgb1 = gl.getUniformLocation(prog, "u_rgb1");
+      blob2GL.uRgb2 = gl.getUniformLocation(prog, "u_rgb2");
+      blob2GL.uAmbient = gl.getUniformLocation(prog, "u_ambient");
+      blob2GL.uHueBase = gl.getUniformLocation(prog, "u_hueBase");
+      return true;
+    }
+
+    function rgbUnitTripletFromHex(hex) {
+      const o = hexToRgb(hex);
+      return [o.r / 255, o.g / 255, o.b / 255];
+    }
+
+    function drawBlob2Shader(canvasEl, uTime, hex0, hex1, hex2, ambientHex, hueBase) {
+      if (!ensureBlob2Program(canvasEl)) {
+        return;
+      }
+      const gl = blob2GL.gl;
+      const w = canvasEl.width;
+      const h = canvasEl.height;
+      gl.viewport(0, 0, w, h);
+      gl.disable(gl.DEPTH_TEST);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(blob2GL.program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, blob2GL.buf);
+      if (blob2GL.aPosition >= 0) {
+        gl.enableVertexAttribArray(blob2GL.aPosition);
+        gl.vertexAttribPointer(blob2GL.aPosition, 3, gl.FLOAT, false, 0, 0);
+      }
+      if (blob2GL.aTexCoord >= 0 && blob2GL.bufTex) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, blob2GL.bufTex);
+        gl.enableVertexAttribArray(blob2GL.aTexCoord);
+        gl.vertexAttribPointer(blob2GL.aTexCoord, 2, gl.FLOAT, false, 0, 0);
+      }
+      gl.uniform2f(blob2GL.uResolution, w, h);
+      gl.uniform1f(blob2GL.uTime, uTime / 3.0);
+      const c0 = rgbUnitTripletFromHex(hex0);
+      const c1 = rgbUnitTripletFromHex(hex1);
+      const c2 = rgbUnitTripletFromHex(hex2);
+      gl.uniform3f(blob2GL.uRgb0, c0[0], c0[1], c0[2]);
+      gl.uniform3f(blob2GL.uRgb1, c1[0], c1[1], c1[2]);
+      gl.uniform3f(blob2GL.uRgb2, c2[0], c2[1], c2[2]);
+      /* Old shader used vec3(1,0.5,1.2) — much brighter than amb*0.34; lift + cap for HDR-ish stack. */
+      const amb = rgbUnitTripletFromHex(ambientHex);
+      let r = amb[0];
+      let g = amb[1];
+      let b = amb[2];
+      let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      if (lum < 0.2) {
+        const lift = 0.22 / Math.max(lum, 0.08);
+        r = Math.min(r * lift, 1);
+        g = Math.min(g * lift, 1);
+        b = Math.min(b * lift, 1);
+      }
+      const s = 0.88;
+      r *= s;
+      g *= s;
+      b *= s;
+      const mx = Math.max(r, g, b);
+      const cap = 1.35;
+      if (mx > cap) {
+        const c = cap / mx;
+        r *= c;
+        g *= c;
+        b *= c;
+      }
+      gl.uniform3f(blob2GL.uAmbient, r, g, b);
+      gl.uniform1f(blob2GL.uHueBase, hueBase);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    /**
+     * Rect Morph — sin-lerp port of an OP p5 sketch, retargeted to the app vibe.
+     *
+     * Two-rate animation:
+     *   - LIVE FIGURE (form + position + color): re-rendered every rAF at 60 fps
+     *     using a continuous sin ease. The snowflake glides smoothly across the
+     *     canvas and morphs continuously between key shapes.
+     *   - TRAIL CAPTURE: every `POSITION_TICK_MS` of wall-clock time, a full
+     *     snapshot of the current state is pushed into a ring buffer of length
+     *     `TRAIL_LEN`. The captures are spaced (jerky), but each ghost is just
+     *     a still — the live figure moving through them looks smooth.
+     *
+     * Stroke crossfades between 16 app palette colors
+     * (`CanvasColorPalette.paletteHex` in Swift). State persists across
+     * category switches but resets when seed/dim changes.
+     */
+    const RECT_MORPH_PALETTE_HEX = [
+      "#C3143B", "#9BB6E0", "#A7BF50", "#C3D7A3",
+      "#01B6C4", "#7652AF", "#F68D0C", "#2C2E4D",
+      "#796C3C", "#FFD369", "#49484D", "#C7E0D8",
+      "#222831", "#955530", "#FEAAC2", "#EBE4D7",
+    ];
+    // Tripled from 160 ms: position waypoints fire 1/3 as often (~2 fps), and
+    // because the morph duration is unchanged each waypoint advances 3× farther
+    // along the path — so the trail (same TRAIL_LEN) automatically extends 3×
+    // longer too. Same trick as the earlier 80→160 step.
+    const RECT_MORPH_POSITION_TICK_MS = 480;
+    const RECT_MORPH_MORPH_DURATION_MS = 12000;
+    const RECT_MORPH_TRAIL_LEN = 6;
+    const RECT_MORPH_TRAIL_PEAK_ALPHA = 0.32;
+    const RECT_MORPH_VERTEX_COUNT = 64;
+
+    const rectMorphState = {
+      morphStartAt: null,
+      lastSeed: null,
+      lastW: 0,
+      lastH: 0,
+      rng: null,
+      old: null,
+      next: null,
+      lastPositionTickElapsed: -1,
+      trail: [],
+      initialized: false,
+    };
+
+    /**
+     * Pick a snowflake-like silhouette with D6 dihedral symmetry (6 rotations
+     * + 6 reflections, the symmetry group of real snowflakes).
+     *
+     * Strategy: generate radii by folding each angle θ into a single
+     * "half-sector" [0, π/6] (one of 12 mirror images that tile the circle),
+     * then compute radius from a small sum of `cos(mult·u)` harmonics. Because
+     * the folding is identical for every angle that maps to the same fold,
+     * the resulting shape is automatically D6 symmetric — and per-vertex lerp
+     * between two such shapes preserves the symmetry through the entire morph.
+     *
+     * Position + scale are randomized per shape so the figure drifts around
+     * the canvas and pulses bigger/smaller between morphs. `maxR` is the
+     * distance from (cx,cy) to the nearest safe edge, so even at the largest
+     * sampled scale the snowflake stays inside the canvas.
+     */
+    function pickRectMorphShape(rng, w, h) {
+      const dim = Math.min(w, h);
+      const margin = dim * 0.04;
+      const cx = rng.nextDoubleIn(margin, w - margin);
+      const cy = rng.nextDoubleIn(margin, h - margin);
+      const maxR = Math.max(20, Math.min(cx - margin, cy - margin, w - cx - margin, h - cy - margin));
+      // Wide scale range so consecutive snowflakes feel "to bigger / to smaller".
+      const scale = rng.nextDoubleIn(maxR * 0.4, maxR * 0.98);
+      // Rotation within one fold (extra rotation = identity by symmetry, so
+      // bounding to [0, π/3) keeps lerp paths short and the visible orientation
+      // change meaningful).
+      const rotation = rng.nextDoubleIn(0, Math.PI / 3);
+      const smoothness = rng.nextDouble();
+      const colorIdx = rng.nextInt(0, RECT_MORPH_PALETTE_HEX.length - 1);
+
+      const N = RECT_MORPH_VERTEX_COUNT;
+      const folds = 6;
+      const halfSector = Math.PI / folds;
+
+      // 1..2 cos harmonics with low multipliers — keeps the silhouette to a
+      // simple 6-arm star with at most one secondary ripple. Higher mult/amp
+      // ranges previously produced "fringy" multi-tier shapes; we trade that
+      // visual complexity for cleaner, smoother morphs.
+      const harmCount = 1 + rng.nextInt(0, 1);
+      const harm = [];
+      for (let k = 0; k < harmCount; k++) {
+        harm.push({
+          mult: rng.nextInt(1, 2),
+          amp: rng.nextDoubleIn(0.1, 0.4),
+        });
+      }
+
+      const radii = new Array(N);
+      let maxRad = 0;
+      for (let i = 0; i < N; i++) {
+        const theta = (i / N) * 2 * Math.PI;
+        // Reduce θ to [0, π/3) within sector, then mirror to [0, π/6].
+        const localTheta = theta % (2 * halfSector);
+        const folded = localTheta > halfSector ? 2 * halfSector - localTheta : localTheta;
+        // Map [0, π/6] → [0, π] so cos harmonics span a clean half-period
+        // (peak at sector boundaries, controlled internal structure).
+        const u = (folded / halfSector) * Math.PI;
+        let r = 1;
+        for (const h of harm) {
+          r += h.amp * Math.cos(u * h.mult);
+        }
+        if (r < 0.15) r = 0.15;
+        radii[i] = r;
+        if (r > maxRad) maxRad = r;
+      }
+      const norm = maxRad > 0 ? scale / maxRad : 1;
+      for (let i = 0; i < N; i++) radii[i] *= norm;
+      return { cx, cy, radii, rotation, smoothness, colorIdx, N };
+    }
+
+    function ensureRectMorphInit(seed, w, h) {
+      const seedKey = seed.toString();
+      if (
+        rectMorphState.initialized &&
+        rectMorphState.lastSeed === seedKey &&
+        rectMorphState.lastW === w &&
+        rectMorphState.lastH === h
+      ) {
+        return;
+      }
+      const rng = new SeededRNG(seed);
+      rectMorphState.rng = rng;
+      rectMorphState.lastSeed = seedKey;
+      rectMorphState.lastW = w;
+      rectMorphState.lastH = h;
+      rectMorphState.old = pickRectMorphShape(rng, w, h);
+      rectMorphState.next = pickRectMorphShape(rng, w, h);
+      rectMorphState.morphStartAt = null;
+      rectMorphState.lastPositionTickElapsed = -1;
+      rectMorphState.trail = [];
+      rectMorphState.initialized = true;
+    }
+
+    /**
+     * Per-vertex lerp + shortest-arc rotation lerp.
+     *
+     * Smoothness is intentionally NOT lerped: the renderer threshold flips at
+     * 0.5, so a continuous lerp from a sharp shape (smoothness 0.2) to a smooth
+     * one (0.8) used to flip render mode mid-morph and read as a partial /
+     * collapsing shape. We pin to `b.smoothness` so each morph A→B uses a
+     * single stable render mode for all ticks; the mode only flips on swap.
+     */
+    function lerpRectMorphShape(a, b, t) {
+      const N = a.N;
+      const radii = new Array(N);
+      for (let i = 0; i < N; i++) {
+        radii[i] = a.radii[i] + (b.radii[i] - a.radii[i]) * t;
+      }
+      let dr = b.rotation - a.rotation;
+      while (dr > Math.PI) dr -= 2 * Math.PI;
+      while (dr < -Math.PI) dr += 2 * Math.PI;
+      return {
+        cx: a.cx + (b.cx - a.cx) * t,
+        cy: a.cy + (b.cy - a.cy) * t,
+        radii,
+        rotation: a.rotation + dr * t,
+        smoothness: b.smoothness,
+        N,
+      };
+    }
+
+    /**
+     * Stroke a radial silhouette as a smooth quadratic-Bezier loop.
+     *
+     * The polyline branch was removed: even at N=64 the sharp `lineTo` mode
+     * read as visibly faceted on screen and made morphs feel "angular" between
+     * keyframes. `smoothClosedPath` averages adjacent points so the curve is
+     * C1-continuous and identical regardless of vertex count.
+     */
+    function strokeRectMorphShape(c, shape, lineW, rgba) {
+      const { cx, cy, radii, rotation, N } = shape;
+      const pts = new Array(N);
+      for (let i = 0; i < N; i++) {
+        const theta = (i / N) * 2 * Math.PI + rotation;
+        pts[i] = {
+          x: cx + Math.cos(theta) * radii[i],
+          y: cy + Math.sin(theta) * radii[i],
+        };
+      }
+      const alpha = rgba.a != null ? rgba.a : 1;
+      c.save();
+      c.strokeStyle = `rgba(${rgba.r},${rgba.g},${rgba.b},${alpha})`;
+      c.lineWidth = lineW;
+      c.lineJoin = "round";
+      c.lineCap = "round";
+      c.stroke(smoothClosedPath(pts));
+      c.restore();
+    }
+
+    function drawRectMorph(c, w, h, params, ts) {
+      ensureRectMorphInit(params.seed, w, h);
+      const s = rectMorphState;
+      const animating = document.getElementById("animate").checked;
+      const now = ts != null ? ts : (typeof performance !== "undefined" ? performance.now() : Date.now());
+
+      if (s.morphStartAt == null) {
+        s.morphStartAt = now;
+        s.lastPositionTickElapsed = -1;
+      }
+
+      // Smooth shape time. Wraps when the morph completes; auto-skips multiple
+      // morphs at once (e.g. user was on another tab — tick budget catches up).
+      let shapeT = (now - s.morphStartAt) / RECT_MORPH_MORPH_DURATION_MS;
+      let safety = 8;
+      while (shapeT >= 1 && safety-- > 0) {
+        s.old = s.next;
+        s.next = pickRectMorphShape(s.rng, w, h);
+        s.morphStartAt += RECT_MORPH_MORPH_DURATION_MS;
+        s.lastPositionTickElapsed = -1;
+        shapeT = (now - s.morphStartAt) / RECT_MORPH_MORPH_DURATION_MS;
+      }
+      if (shapeT < 0) shapeT = 0;
+      if (shapeT > 1) shapeT = 1;
+      // Sin ease — matches the original p5 `sin_inter` curve.
+      const tEase = (-Math.cos(shapeT * Math.PI) + 1) / 2;
+
+      const lerped = lerpRectMorphShape(s.old, s.next, tEase);
+      const oldRgb = hexToRgb(RECT_MORPH_PALETTE_HEX[s.old.colorIdx]);
+      const newRgb = hexToRgb(RECT_MORPH_PALETTE_HEX[s.next.colorIdx]);
+      const blended = rgbLerp(oldRgb, newRgb, tEase);
+
+      // Display position follows the smooth shape ease — figure (form + cx/cy)
+      // glides continuously at 60 fps. The trail snapshots are still captured
+      // at the discrete `POSITION_TICK_MS` interval, so ghost copies stay
+      // jerky/spaced while the live snowflake moves smoothly through them.
+      const displayCx = s.old.cx + (s.next.cx - s.old.cx) * tEase;
+      const displayCy = s.old.cy + (s.next.cy - s.old.cy) * tEase;
+
+      if (animating) {
+        const elapsed = now - s.morphStartAt;
+        const positionTickElapsed = Math.floor(elapsed / RECT_MORPH_POSITION_TICK_MS);
+        if (s.lastPositionTickElapsed !== positionTickElapsed) {
+          s.lastPositionTickElapsed = positionTickElapsed;
+          // Capture full per-snapshot state so the trail entry survives a
+          // future swap (which would otherwise mutate s.old / s.next).
+          s.trail.push({
+            cx: displayCx,
+            cy: displayCy,
+            radii: lerped.radii.slice(),
+            rotation: lerped.rotation,
+            smoothness: lerped.smoothness,
+            N: lerped.N,
+            color: { r: blended.r, g: blended.g, b: blended.b },
+          });
+          while (s.trail.length > RECT_MORPH_TRAIL_LEN) s.trail.shift();
+        }
+      } else {
+        // Non-animating (manual scrub of the time slider): suppress the trail
+        // for responsive scrubbing.
+        s.trail.length = 0;
+      }
+
+      // Transparent bg: CSS canvas gradient shows through (matches other modes).
+      c.clearRect(0, 0, w, h);
+
+      // Trail: oldest first, alpha ramps up toward newest. Cached form/colour
+      // is per-entry — older ghosts visibly trail the current colour AND form.
+      const trailLen = s.trail.length;
+      for (let i = 0; i < trailLen; i++) {
+        const entry = s.trail[i];
+        const ageRatio = (i + 1) / (trailLen + 1);
+        const alpha = ageRatio * RECT_MORPH_TRAIL_PEAK_ALPHA;
+        strokeRectMorphShape(c, entry, 1.0, {
+          r: entry.color.r,
+          g: entry.color.g,
+          b: entry.color.b,
+          a: alpha,
+        });
+      }
+
+      const display = { ...lerped, cx: displayCx, cy: displayCy };
+      strokeRectMorphShape(c, display, 1.0, {
+        r: blended.r,
+        g: blended.g,
+        b: blended.b,
+        a: 1,
+      });
+    }
+
+    function setCanvasMode(category) {
+      const webgl = category === "shader" || category === "blob2";
+      canvas.style.display = webgl ? "none" : "block";
+      glCanvas.style.display = webgl ? "block" : "none";
+    }
 
     function readParams() {
       return {
@@ -1202,6 +2348,16 @@
         mindPreset: document.getElementById("mindPreset").value,
         mindSoftCenter: document.getElementById("mindSoftCenter").checked,
         maskGradientPreset: document.getElementById("maskGradientPreset").value,
+        heartStyle: document.getElementById("heartStyle").value,
+        shaderActNear: document.getElementById("shaderActNear").value,
+        shaderActMid: document.getElementById("shaderActMid").value,
+        shaderActFar: document.getElementById("shaderActFar").value,
+        shaderStopCount: parseInt(document.getElementById("shaderStopCount").value, 10) || 3,
+        blob2Act0: document.getElementById("blob2Act0").value,
+        blob2Act1: document.getElementById("blob2Act1").value,
+        blob2Act2: document.getElementById("blob2Act2").value,
+        blob2AmbientHex: document.getElementById("blob2AmbientHex").value,
+        blob2HueBase: parseFloat(document.getElementById("blob2HueBase").value) || 0,
       };
     }
 
@@ -1262,10 +2418,16 @@
       if (params.category === "mask") {
         return maskCropRect(center, rect, params, w, h);
       }
+      if (params.category === "shader" || params.category === "blob2" || params.category === "rectMorph") {
+        return { sx: 0, sy: 0, sw: w, sh: h };
+      }
+      if (params.category === "heart" && params.heartStyle === "parametric") {
+        return parametricHeartCropBounds(center, rect, w, h, params);
+      }
       return heartRaysCropBounds(center, w, h, params);
     }
 
-    function frame() {
+    function frame(ts) {
       const w = canvas.width;
       const h = canvas.height;
       const params = readParams();
@@ -1274,6 +2436,40 @@
       document.getElementById("rotationVal").textContent = params.rotation.toFixed(2);
       document.getElementById("phaseVal").textContent = params.phase.toFixed(2);
       document.getElementById("pulseFrequencyVal").textContent = params.pulseFrequency.toFixed(2);
+      setCanvasMode(params.category);
+      if (params.category === "shader") {
+        const anim = document.getElementById("animate").checked;
+        const uTime = anim && ts != null ? ts / 1000 : params.time;
+        drawMetaballShader(
+          glCanvas,
+          uTime,
+          params.shaderActNear,
+          params.shaderActMid,
+          params.shaderActFar,
+          params.shaderStopCount
+        );
+        return;
+      }
+      if (params.category === "blob2") {
+        const anim = document.getElementById("animate").checked;
+        const uTime = anim && ts != null ? ts / 1000 : params.time;
+        drawBlob2Shader(
+          glCanvas,
+          uTime,
+          params.blob2Act0,
+          params.blob2Act1,
+          params.blob2Act2,
+          params.blob2AmbientHex,
+          params.blob2HueBase
+        );
+        return;
+      }
+      if (params.category === "rectMorph") {
+        // Stateful: throttles internally and clears each tick. Pass ts so the
+        // tick interval is wall-clock based (required for the jerky look).
+        drawRectMorph(ctx, w, h, params, ts);
+        return;
+      }
       drawSceneOntoContext(ctx, w, h, params);
     }
 
@@ -1283,6 +2479,23 @@
       a.download = filename;
       a.click();
       URL.revokeObjectURL(a.href);
+    }
+
+    /** Canvas CSS: 4× equal radial bands, warmSunset opacities @ Ss=Ls=1 (both data), night base. */
+    function fillBodyPreviewGradient(ctx2d, w, h) {
+      ctx2d.fillStyle = "#002646";
+      ctx2d.fillRect(0, 0, w, h);
+      const cx = 0;
+      const cy = h;
+      const r = Math.hypot(w, h) * 1.02;
+      const g = ctx2d.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, "rgba(255, 191, 101, 0.95)");
+      g.addColorStop(0.25, "rgba(253, 137, 115, 0.782)");
+      g.addColorStop(0.5, "rgba(0, 58, 108, 0.48)");
+      g.addColorStop(0.75, "rgba(0, 38, 70, 0.45)");
+      g.addColorStop(1, "rgba(0, 38, 70, 0.45)");
+      ctx2d.fillStyle = g;
+      ctx2d.fillRect(0, 0, w, h);
     }
 
     function exportPNG(cropped) {
@@ -1298,7 +2511,12 @@
       const snapshot = document.createElement("canvas");
       snapshot.width = w;
       snapshot.height = h;
-      snapshot.getContext("2d", { alpha: true }).drawImage(canvas, 0, 0);
+      const snapCtx = snapshot.getContext("2d", { alpha: true });
+      const src = cat === "shader" || cat === "blob2" ? glCanvas : canvas;
+      if (cat === "shader") {
+        fillBodyPreviewGradient(snapCtx, w, h);
+      }
+      snapCtx.drawImage(src, 0, 0);
 
       if (!cropped) {
         snapshot.toBlob((blob) => {
@@ -1397,6 +2615,25 @@
         const opts = [...sel.options];
         sel.value = opts[Math.floor(Math.random() * opts.length)].value;
       }
+      if (cat === "shader") {
+        const n = Math.random() < 0.5 ? 2 : 3;
+        document.getElementById("shaderStopCount").value = String(n);
+        const cols = pickDistinctPaletteHexes(n);
+        document.getElementById("shaderActNear").value = cols[0];
+        document.getElementById("shaderActFar").value = cols[1];
+        if (n === 3) {
+          document.getElementById("shaderActMid").value = cols[2];
+        }
+        updateShaderMidVisibility();
+      }
+      if (cat === "blob2") {
+        const cols = pickDistinctPaletteHexes(3);
+        document.getElementById("blob2Act0").value = cols[0];
+        document.getElementById("blob2Act1").value = cols[1];
+        document.getElementById("blob2Act2").value = cols[2];
+        document.getElementById("blob2AmbientHex").value = randomHexColor();
+        document.getElementById("blob2HueBase").value = String(Math.random());
+      }
       if (!document.getElementById("animate").checked) {
         document.getElementById("time").value = (Math.random() * 50).toFixed(2);
       }
@@ -1409,7 +2646,7 @@
       if (document.getElementById("animate").checked) {
         document.getElementById("time").value = String((ts / 1000) % 50);
       }
-      frame();
+      frame(ts);
       if (document.getElementById("animate").checked) {
         raf = requestAnimationFrame(loop);
       }
@@ -1424,6 +2661,16 @@
         desc.textContent = "Complexity 0–1 (mind size / pulse scale)";
       } else if (cat === "mask") {
         desc.textContent = "Complexity 0–1 (mask scale in preview)";
+      } else if (cat === "shader" || cat === "blob2") {
+        desc.textContent = "Complexity unused (WebGL shader demo)";
+      } else if (cat === "rectMorph") {
+        desc.textContent = "Complexity unused (sin-lerp morph demo)";
+      } else if (cat === "heart") {
+        const hs = document.getElementById("heartStyle").value;
+        desc.textContent =
+          hs === "parametric"
+            ? "Complexity 0–1 (parametric heart size + blur)"
+            : "Complexity 0–1 (beam width + max blur)";
       } else {
         desc.textContent = "Complexity 0–1 (beam width + max blur)";
       }
@@ -1437,13 +2684,47 @@
       document.getElementById("mindPresetWrap").style.display = mind ? "block" : "none";
       document.getElementById("mindHoleWrap").style.display = mind && !hideSoftCenter ? "block" : "none";
       document.getElementById("maskWrap").style.display = cat === "mask" ? "block" : "none";
+      document.getElementById("heartStyleWrap").style.display = cat === "heart" ? "block" : "none";
+      document.getElementById("shaderPaletteWrap").style.display = cat === "shader" ? "block" : "none";
+      document.getElementById("blob2PaletteWrap").style.display = cat === "blob2" ? "block" : "none";
+      if (cat === "shader") {
+        updateShaderMidVisibility();
+      }
     }
 
     document.getElementById("category").addEventListener("change", () => {
       updateComplexityLabel();
       updateMindControlsVisibility();
+      // Re-anchor the morph clock and clear the trail when (re)entering
+      // rectMorph; otherwise stale ghost positions / wall-clock drift from
+      // time spent in another category would render as orphan ghosts.
+      rectMorphState.morphStartAt = null;
+      rectMorphState.lastPositionTickElapsed = -1;
+      rectMorphState.trail = [];
       cancelAnimationFrame(raf);
-      frame();
+      frame(undefined);
+    });
+    document.getElementById("heartStyle").addEventListener("change", () => {
+      updateComplexityLabel();
+      cancelAnimationFrame(raf);
+      frame(undefined);
+    });
+    ["shaderActNear", "shaderActMid", "shaderActFar"].forEach((id) => {
+      document.getElementById(id).addEventListener("change", () => {
+        cancelAnimationFrame(raf);
+        frame(undefined);
+      });
+    });
+    document.getElementById("shaderStopCount").addEventListener("change", () => {
+      updateShaderMidVisibility();
+      cancelAnimationFrame(raf);
+      frame(undefined);
+    });
+    ["blob2Act0", "blob2Act1", "blob2Act2"].forEach((id) => {
+      document.getElementById(id).addEventListener("change", () => {
+        cancelAnimationFrame(raf);
+        frame(undefined);
+      });
     });
     document.getElementById("mindPreset").addEventListener("change", () => {
       updateMindControlsVisibility();
@@ -1519,6 +2800,11 @@
     document.getElementById("exportFull").addEventListener("click", () => exportPNG(false));
     document.getElementById("exportCrop").addEventListener("click", () => exportPNG(true));
 
+    fillActivityShaderSelects();
+    fillBlob2PaletteSelects();
+    document.getElementById("blob2AmbientHex").value = randomHexColor();
+    document.getElementById("blob2HueBase").value = String(Math.random());
+    updateShaderMidVisibility();
     updateComplexityLabel();
     updateMindControlsVisibility();
     frame();

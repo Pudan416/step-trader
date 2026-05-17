@@ -25,22 +25,9 @@
   ],
   "themes": {
     "supported": [
-      "system",
-      "daylight",
       "night"
     ],
     "appThemeMapping": {
-      "system": {
-        "backgroundLight": "#F2F2F2",
-        "backgroundDark": "#222831",
-        "textPrimary": "systemLabel"
-      },
-      "daylight": {
-        "background": "#F2F2F2",
-        "backgroundSecondary": "#F3F4F6",
-        "textPrimary": "#141414",
-        "stroke": "#1F1F1F"
-      },
       "night": {
         "background": "#222831",
         "backgroundSecondary": "#30303A",

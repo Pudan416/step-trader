@@ -22,7 +22,7 @@ struct CategoryDetailView: View {
 
     @State private var customName: String = ""
     @State private var customIcon: String = "pencil"
-    @State private var customColorHex: String = CanvasColorPalette.paletteHex[0]
+    @State private var showPaywall = false
 
     #if DEBUG
     @EnvironmentObject private var coachMarkManager: CoachMarkManager
@@ -54,45 +54,47 @@ struct CategoryDetailView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ScrollView {
             VStack(spacing: 0) {
-                compactHeader
+                heroHeader
                     .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
+                    .padding(.top, 4)
+                    .padding(.bottom, 28)
 
-                ScrollView {
-                    if let category {
-                        chipGrid(category: category)
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 8)
+                if let category {
+                    optionList(category: category)
+                        .padding(.horizontal, 16)
 
-                        addCustomRow(category: category)
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, editingOptionId != nil ? 280 : 48)
-                    } else {
-                        outerWorldContent
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 48)
-                    }
+                    addCustomSection(category: category)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 18)
+                        .padding(.bottom, 40)
+                } else {
+                    outerWorldContent
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 40)
                 }
-                .scrollDismissesKeyboard(.interactively)
-            }
-
-            if let optionId = editingOptionId, let category {
-                detailPanel(optionId: optionId, category: category)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .scrollDismissesKeyboard(.interactively)
+        .scrollIndicators(.hidden)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(.ultraThinMaterial)
+        .presentationCornerRadius(28)
         .onAppear {
             refreshEntryColorCache()
             Haptics.prepareAll()
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: editingOptionId)
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: editingOptionId)
         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: showAddCustom)
+        .fullScreenCover(isPresented: $showPaywall) {
+            PaywallView(
+                model: model,
+                store: model.subscriptionStore,
+                source: .feature
+            )
+        }
         #if DEBUG
         .onPreferenceChange(CoachMarkAnchorKey.self) { sheetAnchors = $0 }
         .overlay {
@@ -101,219 +103,221 @@ struct CategoryDetailView: View {
         #endif
     }
 
-    // MARK: - Compact Header
+    // MARK: - Hero Header
 
-    private var compactHeader: some View {
-        HStack(spacing: 12) {
-            categoryAssetImage
-                .frame(width: 36, height: 36)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(categoryTitle)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                HStack(spacing: 4) {
-                    Text("\(currentPoints)/\(maxPoints)")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                    Text(String(localized: "colors", comment: "CategoryDetail – points unit"))
-                        .font(.system(size: 12, weight: .regular, design: .rounded))
-                        .foregroundStyle(.secondary.opacity(0.6))
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            selectionIndicator
-
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary.opacity(0.6))
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(.primary.opacity(0.06)))
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var selectionIndicator: some View {
-        let max = EnergyDefaults.maxSelectionsPerCategory
-        return HStack(spacing: 3) {
-            ForEach(0..<max, id: \.self) { i in
-                Circle()
-                    .fill(i < selectionCount ? accent : .primary.opacity(0.08))
-                    .frame(width: 6, height: 6)
-            }
-        }
-    }
-
-    // MARK: - Chip Grid
-
-    private func chipGrid(category: EnergyCategory) -> some View {
-        let custom = model.customOptions(for: category)
-        let builtIn = EnergyDefaults.options.filter { $0.category == category }
-        let hidden = model.hiddenOptionIds(for: category)
-        let visible = builtIn.filter { !hidden.contains($0.id) }
-        let allOptions: [(option: EnergyOption, isCustom: Bool)] =
-            custom.map { ($0, true) } + visible.map { ($0, false) }
-
-        let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
-
-        return LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(allOptions, id: \.option.id) { item in
-                chipView(option: item.option, category: category, isCustom: item.isCustom)
-                    #if DEBUG
-                    .modifier(FocusingRowAnchor(optionId: item.option.id))
-                    #endif
-            }
-        }
-    }
-
-    private func chipView(option: EnergyOption, category: EnergyCategory, isCustom: Bool) -> some View {
-        let isSelected = model.isDailySelected(option.id, category: category)
-        let isDisabled = !isSelected && model.isDailyLimitReached(for: category)
-        let activeColor = getEntryColor(for: option.id)
-        let isEditing = editingOptionId == option.id
-
-        return Button {
-            if isSelected {
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                    if editingOptionId == option.id {
-                        editingOptionId = nil
-                    } else {
-                        openEditor(optionId: option.id, category: category)
-                    }
-                }
-            } else {
-                let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
-                addAndShowDetail(option: option, category: category, color: color)
-            }
-            Haptics.light.impactOccurred()
-            Haptics.light.prepare()
-            #if DEBUG
-            if option.id == "mind_focusing" {
-                CoachMarkManager.postAction(for: .spotlightFocusing)
-            }
-            #endif
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: option.icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(isSelected ? .white : .primary.opacity(0.45))
-                    .frame(width: 28, height: 28)
-                    .background(
-                        Circle().fill(isSelected ? activeColor : .primary.opacity(0.06))
-                    )
-
-                Text(option.title(for: Locale.current.language.languageCode?.identifier ?? "en"))
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .medium, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(activeColor)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? activeColor.opacity(0.12) : .primary.opacity(0.03))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(
-                        isEditing ? activeColor.opacity(0.5) :
-                            (isSelected ? activeColor.opacity(0.2) : .primary.opacity(0.04)),
-                        lineWidth: isEditing ? 1.5 : 0.5
-                    )
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-        .disabled(isDisabled && !isSelected)
-        .opacity(isDisabled && !isSelected ? 0.35 : 1.0)
-        .accessibilityIdentifier("category_option_\(option.id)")
-        .accessibilityLabel(Text("\(option.title(for: Locale.current.language.languageCode?.identifier ?? "en")), \(isSelected ? String(localized: "selected") : String(localized: "not selected"))"))
-    }
-
-    // MARK: - Detail Panel (bottom overlay)
-
-    private func detailPanel(optionId: String, category: EnergyCategory) -> some View {
-        let isSelected = model.isDailySelected(optionId, category: category)
-        let option = resolveOption(optionId: optionId, category: category)
-        let examples = EnergyDefaults.examples(for: optionId)
-        let exampleList = examples.components(separatedBy: ", ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        let isCustom = model.customOptions(for: category).contains(where: { $0.id == optionId })
-
-        return VStack(alignment: .leading, spacing: 14) {
-            // Drag handle + title
+    /// Apple-style hero block: trailing close affordance, large category symbol/asset,
+    /// title with rounded display font, secondary progress label. Replaces the old
+    /// dense single-row header that crammed icon, title, fraction, dots, and close
+    /// into one line.
+    private var heroHeader: some View {
+        VStack(spacing: 10) {
             HStack {
-                Capsule()
-                    .fill(.secondary.opacity(0.25))
-                    .frame(width: 36, height: 4)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 6)
-
-            HStack {
-                if let option {
-                    Image(systemName: option.icon)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(accent)
-                    Text(option.title(for: Locale.current.language.languageCode?.identifier ?? "en"))
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                }
                 Spacer()
-                Button {
-                    withAnimation(.spring(response: 0.25)) { editingOptionId = nil }
-                    isNoteFieldFocused = false
-                } label: {
+                Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.secondary.opacity(0.5))
-                        .frame(width: 26, height: 26)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
                         .background(Circle().fill(.primary.opacity(0.06)))
                 }
                 .buttonStyle(.plain)
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+                .accessibilityLabel(String(localized: "Close", comment: "CategoryDetail – close button VoiceOver label"))
             }
 
-            // Examples
+            Image(systemName: categoryIcon)
+                .font(.system(size: 22, weight: .medium))
+                .foregroundStyle(accent.opacity(0.6))
+                .padding(.top, 2)
+
+            VStack(spacing: 4) {
+                Text(categoryTitle)
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+
+                Text(headerSubtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+                    .animation(.spring(response: 0.3), value: selectionCount)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// "Choose up to 4" before the user picks anything, then "2 of 4 selected" once
+    /// any chip is tapped. Clearer than the old "X/Y colors" fraction.
+    private var headerSubtitle: String {
+        let limit = EnergyDefaults.maxSelectionsPerCategory
+        if selectionCount == 0 {
+            return String(format: String(localized: "Choose up to %d", comment: "CategoryDetail – initial helper"), limit)
+        }
+        return String(format: String(localized: "%1$d of %2$d selected", comment: "CategoryDetail – selection progress"), selectionCount, limit)
+    }
+
+    // MARK: - Option List (Apple Settings/Reminders style)
+
+    /// Single-column list of options. Built-ins first (in canonical core order), then custom.
+    /// Each row is an inline-expandable card — selecting reveals description, examples,
+    /// note, color palette, and Save/Remove actions in-place. Replaces the dense
+    /// 2-column chip grid + bottom-overlay detail panel.
+    private func optionList(category: EnergyCategory) -> some View {
+        let custom = model.customOptions(for: category)
+        let builtIn = EnergyDefaults.coreOptions.filter { $0.category == category }
+        let hidden = model.hiddenOptionIds(for: category)
+        let visible = builtIn.filter { !hidden.contains($0.id) }
+        let allOptions: [(option: EnergyOption, isCustom: Bool)] =
+            visible.map { ($0, false) } + custom.map { ($0, true) }
+
+        return VStack(spacing: 0) {
+            ForEach(Array(allOptions.enumerated()), id: \.element.option.id) { index, item in
+                let isExpanded = editingOptionId == item.option.id
+                optionRow(option: item.option, category: category, isCustom: item.isCustom)
+                    #if DEBUG
+                    .modifier(FocusingRowAnchor(optionId: item.option.id))
+                    #endif
+
+                if !isExpanded && index < allOptions.count - 1 {
+                    let nextExpanded = editingOptionId == allOptions[index + 1].option.id
+                    if !nextExpanded {
+                        Divider()
+                            .padding(.leading, 66)
+                    }
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.primary.opacity(0.03))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func optionRow(option: EnergyOption, category: EnergyCategory, isCustom: Bool) -> some View {
+        let isSelected = model.isDailySelected(option.id, category: category)
+        let isDisabled = !isSelected && model.isDailyLimitReached(for: category)
+        let activeColor = getEntryColor(for: option.id)
+        let isExpanded = editingOptionId == option.id
+        let title = option.title(for: Locale.current.language.languageCode?.identifier ?? "en")
+
+        VStack(spacing: 0) {
+            Button {
+                handleRowTap(option: option, category: category)
+            } label: {
+                HStack(spacing: 14) {
+                    shapePreviewIcon(
+                        category: category,
+                        optionId: option.id,
+                        color: activeColor,
+                        isSelected: isSelected
+                    )
+
+                    Text(title)
+                        .font(.system(size: 16, weight: isSelected ? .semibold : .regular, design: .rounded))
+                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: 0)
+
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 20))
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, activeColor)
+                    } else {
+                        Circle()
+                            .stroke(.secondary.opacity(0.2), lineWidth: 1.5)
+                            .frame(width: 20, height: 20)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isDisabled && !isSelected)
+            .opacity(isDisabled && !isSelected ? 0.4 : 1.0)
+            .accessibilityIdentifier("category_option_\(option.id)")
+            .accessibilityLabel(Text("\(title), \(isSelected ? String(localized: "selected") : String(localized: "not selected"))"))
+
+            if isExpanded {
+                expandedOptionDetail(
+                    option: option,
+                    category: category,
+                    isCustom: isCustom,
+                    activeColor: activeColor
+                )
+                .padding(.horizontal, 14)
+                .padding(.bottom, 14)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .top)),
+                    removal: .opacity
+                ))
+            }
+        }
+        .background(isExpanded ? activeColor.opacity(0.05) : .clear)
+    }
+
+    /// Tap routing: collapse if expanded, expand if selected, add+expand if not.
+    private func handleRowTap(option: EnergyOption, category: EnergyCategory) {
+        Haptics.light.impactOccurred()
+        Haptics.light.prepare()
+        #if DEBUG
+        if option.id == "mind_focusing" {
+            CoachMarkManager.postAction(for: .spotlightFocusing)
+        }
+        #endif
+
+        let isSelected = model.isDailySelected(option.id, category: category)
+
+        if editingOptionId == option.id {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                editingOptionId = nil
+            }
+            isNoteFieldFocused = false
+        } else if isSelected {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                openEditor(optionId: option.id, category: category)
+            }
+        } else {
+            let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
+            addAndShowDetail(option: option, category: category, color: color)
+        }
+    }
+
+    // MARK: - Inline Expanded Detail (replaces bottom-overlay panel)
+
+    private func expandedOptionDetail(
+        option: EnergyOption,
+        category: EnergyCategory,
+        isCustom: Bool,
+        activeColor: Color
+    ) -> some View {
+        let examples = EnergyDefaults.examples(for: option.id)
+        let exampleList = examples
+            .components(separatedBy: ", ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let description = EnergyDefaults.description(for: option.id)
+        let isSelected = model.isDailySelected(option.id, category: category)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            if !description.isEmpty {
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             if !exampleList.isEmpty {
                 FlowLayout(spacing: 6) {
                     ForEach(exampleList, id: \.self) { example in
-                        Button {
-                            if editText.isEmpty { editText = example } else { editText += ", \(example)" }
-                            Haptics.light.impactOccurred()
-                            Haptics.light.prepare()
-                            #if DEBUG
-                            if example.lowercased() == "reading" && optionId == "mind_focusing" {
-                                CoachMarkManager.postAction(for: .spotlightReading)
-                            }
-                            #endif
-                        } label: {
-                            Text(example)
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(.secondary.opacity(0.8))
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 4)
-                                .background(Capsule().fill(.primary.opacity(0.05)))
-                        }
-                        .buttonStyle(.plain)
-                        #if DEBUG
-                        .modifier(ReadingTagAnchor(example: example, optionId: optionId))
-                        #endif
+                        exampleChip(example: example, optionId: option.id)
                     }
                 }
             }
 
-            // Note field
             TextField(
                 String(localized: "Add a note...", comment: "OptionEntry – note placeholder"),
                 text: $editText,
@@ -321,144 +325,193 @@ struct CategoryDetailView: View {
             )
             .textFieldStyle(.plain)
             .font(.subheadline)
+            .lineLimit(2...4)
             .padding(10)
-            .lineLimit(1...2)
-            .frame(minHeight: 36)
             .focused($isNoteFieldFocused)
             .background(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(.primary.opacity(0.04))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(isNoteFieldFocused ? accent.opacity(0.35) : .clear, lineWidth: 1)
-                    )
             )
             .onChange(of: editText) { _, val in
                 if val.count > 200 { editText = String(val.prefix(200)) }
             }
 
-            // Actions
             HStack(spacing: 8) {
                 if isSelected {
-                    Button {
-                        withAnimation(.spring(response: 0.3)) {
-                            model.toggleDailySelection(optionId: optionId, category: category)
-                            deleteEntry(for: optionId)
-                            entryColorCache.removeValue(forKey: optionId)
-                            onActivityUndo?(optionId, category)
-                            editingOptionId = nil
-                        }
-                        Haptics.medium.impactOccurred()
-                        Haptics.medium.prepare()
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.red.opacity(0.85))
-                            .frame(width: 36, height: 36)
-                            .background(Circle().fill(.red.opacity(0.1)))
+                    Button { removeEntry(optionId: option.id, category: category) } label: {
+                        Text(String(localized: "Remove", comment: "CategoryDetail – remove selection"))
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(.red.opacity(0.7))
                     }
                     .buttonStyle(.plain)
-
-                    Button {
-                        onReroll?(optionId, category)
-                        Haptics.light.impactOccurred()
-                        Haptics.light.prepare()
-                    } label: {
-                        Image(systemName: "dice")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(accent.opacity(0.85))
-                            .frame(width: 36, height: 36)
-                            .background(Circle().fill(accent.opacity(0.1)))
-                    }
-                    .buttonStyle(.plain)
+                    .frame(minHeight: 36)
                 }
 
                 if isCustom {
-                    Button {
-                        withAnimation(.spring(response: 0.3)) {
-                            model.deleteCustomOption(optionId: optionId)
-                            onActivityUndo?(optionId, category)
-                            editingOptionId = nil
-                        }
-                        Haptics.medium.impactOccurred()
-                        Haptics.medium.prepare()
-                    } label: {
-                        Image(systemName: "xmark.circle")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.secondary.opacity(0.7))
-                            .frame(width: 36, height: 36)
-                            .background(Circle().fill(.primary.opacity(0.06)))
+                    Button { deleteCustomOptionFlow(optionId: option.id) } label: {
+                        Text(String(localized: "Delete", comment: "CategoryDetail – delete custom"))
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary.opacity(0.6))
                     }
                     .buttonStyle(.plain)
+                    .frame(minHeight: 36)
+                    .accessibilityLabel(String(localized: "Delete custom activity"))
                 }
 
                 Spacer()
 
-                if isSelected, let option {
+                if isSelected {
                     Button {
                         #if DEBUG
-                        if optionId == "mind_focusing" {
+                        if option.id == "mind_focusing" {
                             CoachMarkManager.postAction(for: .tapAddToCanvas)
                         }
                         #endif
                         commitEntry(option: option, category: category, isCustom: isCustom)
                     } label: {
-                        Text(String(localized: "Done", comment: "OptionEntry – done button"))
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                        Text(String(localized: "Save", comment: "CategoryDetail – primary save action"))
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(Capsule().fill(accent))
-                            .shadow(color: accent.opacity(0.3), radius: 4, y: 2)
+                            .padding(.vertical, 9)
+                            .background(Capsule().fill(activeColor))
                     }
                     .buttonStyle(.plain)
                     #if DEBUG
-                    .modifier(AddToCanvasAnchor(optionId: optionId, isSelected: isSelected))
+                    .modifier(AddToCanvasAnchor(optionId: option.id, isSelected: isSelected))
                     #endif
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
-        .glassCard(cornerRadius: 20)
-        .shadow(color: .black.opacity(0.08), radius: 16, y: -4)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("Element editing panel"))
+    }
+
+    private func exampleChip(example: String, optionId: String) -> some View {
+        Button {
+            if editText.isEmpty {
+                editText = example
+            } else {
+                editText += ", \(example)"
+            }
+            Haptics.light.impactOccurred()
+            Haptics.light.prepare()
+            #if DEBUG
+            if example.lowercased() == "reading" && optionId == "mind_focusing" {
+                CoachMarkManager.postAction(for: .spotlightReading)
+            }
+            #endif
+        } label: {
+            Text(example)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(Capsule().stroke(.primary.opacity(0.08), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        #if DEBUG
+        .modifier(ReadingTagAnchor(example: example, optionId: optionId))
+        #endif
+    }
+
+    private func removeEntry(optionId: String, category: EnergyCategory) {
+        withAnimation(.spring(response: 0.3)) {
+            model.toggleDailySelection(optionId: optionId, category: category)
+            deleteEntry(for: optionId)
+            entryColorCache.removeValue(forKey: optionId)
+            onActivityUndo?(optionId, category)
+            editingOptionId = nil
+        }
+        isNoteFieldFocused = false
+        Haptics.medium.impactOccurred()
+        Haptics.medium.prepare()
+    }
+
+    private func deleteCustomOptionFlow(optionId: String) {
+        withAnimation(.spring(response: 0.3)) {
+            model.deleteCustomOption(optionId: optionId)
+            if let category {
+                onActivityUndo?(optionId, category)
+            }
+            editingOptionId = nil
+        }
+        isNoteFieldFocused = false
+        Haptics.medium.impactOccurred()
+        Haptics.medium.prepare()
     }
 
     // MARK: - Add Custom Activity
 
+    /// "Add your own" — fourth tile per category. Shown as a dashed-outline row to
+    /// hint at "create" affordance (vs. the filled rows above). Free users see a
+    /// PRO badge and are routed to the paywall; Pro users open the inline editor.
     @ViewBuilder
-    private func addCustomRow(category: EnergyCategory) -> some View {
+    private func addCustomSection(category: EnergyCategory) -> some View {
         if !showAddCustom {
+            let canCreate = SubscriptionGate.canCreateCustomActivity(isPro: model.isPro)
             Button {
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                    showAddCustom = true
-                    editingOptionId = nil
-                    customColorHex = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
+                if canCreate {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                        showAddCustom = true
+                        editingOptionId = nil
+                    }
+                } else {
+                    showPaywall = true
                 }
                 Haptics.light.impactOccurred()
                 Haptics.light.prepare()
             } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(accent.opacity(0.7))
-                        .frame(width: 28, height: 28)
-                        .background(Circle().fill(accent.opacity(0.1)))
+                HStack(spacing: 14) {
+                    Image(systemName: canCreate ? "plus" : "lock.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(canCreate ? accent : AppColors.brandAccent)
+                        .frame(width: 34, height: 34)
+                        .background(
+                            Circle()
+                                .fill((canCreate ? accent : AppColors.brandAccent).opacity(0.1))
+                        )
+
                     Text(String(localized: "Add your own", comment: "CategoryDetail – add custom activity button"))
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.5))
-                    Spacer()
+                        .font(.system(size: 15, weight: .regular, design: .rounded))
+                        .foregroundStyle(.primary.opacity(0.6))
+
+                    Spacer(minLength: 0)
+
+                    if !canCreate {
+                        Text(String(localized: "PRO", comment: "Pro feature badge"))
+                            .font(.system(size: 9, weight: .heavy))
+                            .tracking(0.5)
+                            .foregroundStyle(AppAccentInk.primary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2.5)
+                            .background(Capsule().fill(AppColors.brandAccent))
+                    }
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 14)
                 .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(
+                            .primary.opacity(0.08),
+                            style: StrokeStyle(lineWidth: 1, dash: [5, 4])
+                        )
+                )
             }
             .buttonStyle(.plain)
-            .glassCard()
+            .accessibilityLabel(canCreate
+                ? String(localized: "Add your own activity")
+                : String(localized: "Add your own activity, locked, requires Pro"))
         } else {
             customActivityEditor(category: category)
-                .glassCard()
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(accent.opacity(0.04))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(accent.opacity(0.15), lineWidth: 0.5)
+                )
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
@@ -478,9 +531,9 @@ struct CategoryDetailView: View {
                 } label: {
                     Image(systemName: customIcon)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(hex: customColorHex))
+                        .foregroundStyle(accent)
                         .frame(width: 32, height: 32)
-                        .background(Circle().fill(Color(hex: customColorHex).opacity(0.12)))
+                        .background(Circle().fill(accent.opacity(0.12)))
                 }
                 .buttonStyle(.plain)
 
@@ -504,11 +557,11 @@ struct CategoryDetailView: View {
                     } label: {
                         Image(systemName: icon)
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(isActive ? Color(hex: customColorHex) : .secondary.opacity(0.35))
+                            .foregroundStyle(isActive ? accent : .secondary.opacity(0.35))
                             .frame(width: 28, height: 28)
                             .background(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .fill(isActive ? Color(hex: customColorHex).opacity(0.1) : .clear)
+                                    .fill(isActive ? accent.opacity(0.1) : .clear)
                             )
                     }
                     .buttonStyle(.plain)
@@ -566,22 +619,6 @@ struct CategoryDetailView: View {
 
     // MARK: - Helpers
 
-    @ViewBuilder
-    private var categoryAssetImage: some View {
-        let assetName = categoryAssetName
-        if let uiImage = UIImage(named: assetName) {
-            Image(uiImage: uiImage)
-                .resizable()
-                .renderingMode(.template)
-                .foregroundStyle(.primary.opacity(0.25))
-                .aspectRatio(contentMode: .fit)
-        } else {
-            Image(systemName: categoryIcon)
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(.primary.opacity(0.25))
-        }
-    }
-
     private var categoryTitle: String {
         switch category {
         case .body: return String(localized: "Body", comment: "CategoryDetail – energy category name")
@@ -600,39 +637,67 @@ struct CategoryDetailView: View {
         }
     }
 
-    private var categoryAssetName: String {
-        switch category {
-        case .body: return ""
-        case .mind: return "mind 1"
-        case .heart: return "heart 1"
-        case nil: return ""
+    // MARK: - Shape Preview Icon
+
+    /// Deterministic seed from optionId (FNV-1a 64-bit).
+    private func stablePreviewSeed(for optionId: String) -> UInt64 {
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+        let prime: UInt64 = 0x0000_0100_0000_01B3
+        for byte in optionId.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= prime
         }
+        return hash
     }
 
-    private var currentPoints: Int {
-        switch category {
-        case .body: return model.activityPointsToday
-        case .mind: return model.creativityPointsToday
-        case .heart: return model.joysCategoryPointsToday
-        case nil: return outerWorldSteps
-        }
-    }
+    @ViewBuilder
+    private func shapePreviewIcon(
+        category: EnergyCategory,
+        optionId: String,
+        color: Color,
+        isSelected: Bool
+    ) -> some View {
+        let seed = stablePreviewSeed(for: optionId)
+        let size: CGFloat = 34
+        let shape = CanvasShapeType.resolved(for: category)
 
-    private var maxPoints: Int {
-        switch category {
-        case .body: return 20
-        case .mind: return 20
-        case .heart: return 20
-        case nil: return 50
+        Group {
+            switch shape {
+            case .blob:
+                BodyBlobPreview(
+                    seed: seed,
+                    colors: isSelected
+                        ? [color, color.opacity(0.5)]
+                        : [.primary.opacity(0.25), .primary.opacity(0.1)]
+                )
+            case .snowflake:
+                RectMorphPreview(
+                    seed: seed,
+                    color: isSelected ? color : nil
+                )
+                .opacity(isSelected ? 1.0 : 0.3)
+            case .rays:
+                SpotlightPreview(
+                    seed: seed,
+                    overrideColor: isSelected ? color : nil
+                )
+                .opacity(isSelected ? 1.0 : 0.35)
+            case .circle:
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: isSelected
+                                ? [color, color.opacity(0.3)]
+                                : [.primary.opacity(0.25), .primary.opacity(0.08)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: size * 0.5
+                        )
+                    )
+            }
         }
-    }
-
-    private func resolveOption(optionId: String, category: EnergyCategory) -> EnergyOption? {
-        if let opt = EnergyDefaults.options.first(where: { $0.id == optionId }) { return opt }
-        if let custom = model.customOptions(for: category).first(where: { $0.id == optionId }) {
-            return EnergyOption(id: custom.id, titleEn: custom.titleEn, titleRu: custom.titleRu, category: custom.category, icon: custom.icon)
-        }
-        return nil
+        .frame(width: size, height: size)
+        .clipShape(Circle())
     }
 
     // MARK: - State Management
@@ -707,17 +772,18 @@ struct CategoryDetailView: View {
         let name = customName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
 
+        let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
         let newId = model.addCustomOption(category: category, titleEn: name, titleRu: name, icon: customIcon)
-        saveLastUsedPreferences(optionId: newId, colorHex: customColorHex)
+        saveLastUsedPreferences(optionId: newId, colorHex: color)
 
         let dayKey = AppModel.dayKey(for: Date())
         let entry = OptionEntry(
             id: "\(newId)_\(dayKey)", dayKey: dayKey, optionId: newId,
-            category: category, colorHex: customColorHex, text: "", timestamp: Date(), assetVariant: nil
+            category: category, colorHex: color, text: "", timestamp: Date(), assetVariant: nil
         )
         let opt = EnergyOption(id: newId, titleEn: name, titleRu: name, category: category, icon: customIcon)
         saveEntry(entry, for: opt)
-        entryColorCache[newId] = Color(hex: customColorHex)
+        entryColorCache[newId] = Color(hex: color)
 
         withAnimation(.spring(response: 0.25)) {
             showAddCustom = false

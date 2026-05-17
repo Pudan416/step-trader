@@ -373,8 +373,8 @@ Ways your attention shaped the day.
    Examples: organising files, simplifying, arranging ideas
 9. Remembering - Returning to past experience consciously.  
    Examples: reviewing the day, recalling a memory
-10. Letting Go - Releasing mental tension.  
-    Examples: closing tasks, stopping overthinking, pause
+10. Screen Detoxing - A day with minimal screen time.  
+    Examples: phone untouched, no scrolling, present in the moment
 
 ### HEART
 Ways you felt and connected today.

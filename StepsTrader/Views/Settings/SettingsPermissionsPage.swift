@@ -41,7 +41,7 @@ struct SettingsPermissionsPage: View {
             SettingsGradientBG(model: model)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 24) {
                     DetailHeader(title: String(localized: "Permissions", comment: "Permissions page title"))
                         .padding(.horizontal, 16)
 
@@ -111,7 +111,6 @@ struct SettingsPermissionsPage: View {
                             }
                         )
                     }
-                    .glassCard()
                     .padding(.horizontal, 16)
 
                     SettingsFooter(text: String(localized: "If a permission was denied, tap it to open Settings where you can enable it.", comment: "Permissions – footer hint"))
@@ -120,6 +119,7 @@ struct SettingsPermissionsPage: View {
                 .padding(.bottom, 80)
             }
         }
+        .overlay { }
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
@@ -146,8 +146,7 @@ struct SettingsPermissionsPage: View {
             }
             Spacer()
         }
-        .padding(14)
-        .glassCard()
+        .padding(.vertical, 8)
     }
 
     // MARK: - Permission row
@@ -204,7 +203,7 @@ struct SettingsPermissionsPage: View {
             .padding(.vertical, 13)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MattePressStyle())
         .disabled(!isAvailable || isGranted)
     }
 

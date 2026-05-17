@@ -50,6 +50,7 @@ class ShieldActionExtension: ShieldActionDelegate {
             
             persistPayGateIntent(groupId: resolved.groupId, bundleId: resolved.bundleId, defaults: defaults)
             sendUnlockNotification(for: resolved, defaults: defaults) {
+                defaults.set(Date(), forKey: SharedKeys.shieldPushSentAt)
                 completionHandler(.defer)
             }
         case .secondaryButtonPressed:
@@ -97,6 +98,7 @@ class ShieldActionExtension: ShieldActionDelegate {
 
             persistPayGateIntent(groupId: resolved.groupId, bundleId: nil, defaults: defaults)
             sendUnlockNotification(for: (bundleId: resolved.groupName, groupId: resolved.groupId), defaults: defaults) {
+                defaults.set(Date(), forKey: SharedKeys.shieldPushSentAt)
                 completionHandler(.defer)
             }
         case .secondaryButtonPressed:

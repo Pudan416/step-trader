@@ -30,7 +30,7 @@ struct ActivitySuggestionBanner: View {
                 }
             }
 
-            HStack(spacing: 16) {
+            HStack(spacing: 8) {
                 if suggestions.count > 1 && !isExpanded {
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -40,6 +40,9 @@ struct ActivitySuggestionBanner: View {
                         Text(String(localized: "+\(suggestions.count - 1) more", comment: "ActivitySuggestionBanner – show more"))
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .liquidGlassControl(in: Capsule(style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -53,12 +56,14 @@ struct ActivitySuggestionBanner: View {
                         Text(String(localized: "Dismiss all"))
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .liquidGlassControl(in: Capsule(style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
-        .padding(.horizontal, 60)
         .padding(.top, 8)
     }
 
@@ -92,10 +97,10 @@ struct ActivitySuggestionBanner: View {
             } label: {
                 Text(String(localized: "Add"))
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.accentColor)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
-                    .background(theme.accentColor, in: Capsule())
+                    .liquidGlassControl(in: Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
             .fixedSize()
@@ -106,17 +111,18 @@ struct ActivitySuggestionBanner: View {
                 }
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
+                    .frame(width: 32, height: 32)
+                    .liquidGlassControl(in: Circle())
+                    .contentShape(Circle().scale(1.4))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "Dismiss suggestion", comment: "ActivitySuggestionBanner – dismiss VoiceOver label"))
         }
         .padding(.leading, 14)
-        .padding(.trailing, 8)
+        .padding(.trailing, 12)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .glassCard(cornerRadius: 14, style: .lens)
     }
 }

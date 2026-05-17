@@ -118,6 +118,15 @@ actor SupabaseSyncService {
         let hasMediumWidget: Bool
         let hasLargeWidget: Bool
         let lastOpenedAt: Date?
+        let gradientStyle: String
+        let gradientPalette: String
+        let userGradientStyle: String
+        let userGradientPalette: String
+        let dailyRandomThemeEnabled: Bool
+        let canvasOverlayStyle: String
+        let bodyCanvasShape: String
+        let mindCanvasShape: String
+        let heartCanvasShape: String
     }
     
     var pendingDailySelections: DailySelectionsPayload?
@@ -233,7 +242,22 @@ actor SupabaseSyncService {
     }
     
     // MARK: - Shared Helpers
-    
+
+    struct AuthContext {
+        let token: String
+        let userId: String
+    }
+
+    /// Waits for auth initialization and returns token + userId, or nil if unauthenticated.
+    func authenticatedContext() async -> AuthContext? {
+        await AuthenticationService.shared.waitForInitialization()
+        guard let token = await AuthenticationService.shared.accessToken,
+              let userId = await AuthenticationService.shared.currentUser?.id else {
+            return nil
+        }
+        return AuthContext(token: token, userId: userId)
+    }
+
     func iso8601String(_ date: Date) -> String {
         CachedFormatters.iso8601.string(from: date)
     }
@@ -264,6 +288,7 @@ actor SupabaseSyncService {
             request.httpMethod = "GET"
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.setValue(anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
             
             let (data, response) = try await network.data(for: request)
             guard response.statusCode < 400 else {
@@ -339,40 +364,50 @@ actor SupabaseSyncService {
             .map { TicketGroupSyncRow.from(group: $0) }
             .sorted { $0.bundleId < $1.bundleId }
 
+        let hasLocalData = !snapshot.dailyActivitySelections.isEmpty
+            || !snapshot.dailyRestSelections.isEmpty
+            || !snapshot.dailyJoysSelections.isEmpty
+            || snapshot.stepsToday > 0
+
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.performCustomActivitiesSync(snapshot.customEnergyOptions) }
-            group.addTask {
-                await self.performDailySelectionsSync(
-                    payload: DailySelectionsPayload(
-                        dayKey: today,
-                        activityIds: snapshot.dailyActivitySelections,
-                        recoveryIds: snapshot.dailyRestSelections,
-                        joysIds: snapshot.dailyJoysSelections
+            if hasLocalData {
+                group.addTask {
+                    await self.performDailySelectionsSync(
+                        payload: DailySelectionsPayload(
+                            dayKey: today,
+                            activityIds: snapshot.dailyActivitySelections,
+                            recoveryIds: snapshot.dailyRestSelections,
+                            joysIds: snapshot.dailyJoysSelections
+                        )
                     )
-                )
+                }
+                group.addTask {
+                    await self.performDailyStatsSync(
+                        payload: DailyStatsPayload(
+                            dayKey: today,
+                            steps: Int(snapshot.stepsToday),
+                            sleepHours: snapshot.dailySleepHours,
+                            baseEnergy: snapshot.baseEnergyToday,
+                            bonusEnergy: 0,
+                            remainingBalance: snapshot.totalStepsBalance
+                        )
+                    )
+                }
+                group.addTask {
+                    await self.performDailySpentSync(
+                        payload: DailySpentPayload(
+                            dayKey: today,
+                            totalSpent: totalSpent,
+                            spentByApp: todaySpent
+                        )
+                    )
+                }
+            } else {
+                AppLogger.network.debug("📡 Skipping daily data push — local state is empty (likely fresh install)")
             }
             group.addTask {
-                await self.performDailyStatsSync(
-                    payload: DailyStatsPayload(
-                        dayKey: today,
-                        steps: Int(snapshot.stepsToday),
-                        sleepHours: snapshot.dailySleepHours,
-                        baseEnergy: snapshot.baseEnergyToday,
-                        bonusEnergy: 0,
-                        remainingBalance: snapshot.totalStepsBalance
-                    )
-                )
-            }
-            group.addTask {
-                await self.performDailySpentSync(
-                    payload: DailySpentPayload(
-                        dayKey: today,
-                        totalSpent: totalSpent,
-                        spentByApp: todaySpent
-                    )
-                )
-            }
-            group.addTask {
+                let std = UserDefaults.standard
                 await self.performPreferencesSync(
                     payload: UserPreferencesPayload(
                         stepsTarget: snapshot.stepsTarget,
@@ -395,7 +430,16 @@ actor SupabaseSyncService {
                         dayResetWarningHours: g.object(forKey: SharedKeys.dayResetWarningHours) as? Int ?? 1,
                         hasMediumWidget: g.bool(forKey: SharedKeys.hasMediumWidget),
                         hasLargeWidget: g.bool(forKey: SharedKeys.hasLargeWidget),
-                        lastOpenedAt: Date()
+                        lastOpenedAt: Date(),
+                        gradientStyle: std.string(forKey: SharedKeys.gradientStyle) ?? GradientStyle.radial.rawValue,
+                        gradientPalette: std.string(forKey: SharedKeys.gradientPalette) ?? GradientPalette.warmSunset.rawValue,
+                        userGradientStyle: std.string(forKey: SharedKeys.userGradientStyle) ?? GradientStyle.radial.rawValue,
+                        userGradientPalette: std.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
+                        dailyRandomThemeEnabled: std.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
+                        canvasOverlayStyle: g.string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue,
+                        bodyCanvasShape: std.string(forKey: SharedKeys.bodyCanvasShape) ?? CanvasShapeType.circle.rawValue,
+                        mindCanvasShape: std.string(forKey: SharedKeys.mindCanvasShape) ?? CanvasShapeType.snowflake.rawValue,
+                        heartCanvasShape: std.string(forKey: SharedKeys.heartCanvasShape) ?? CanvasShapeType.rays.rawValue
                     )
                 )
             }
@@ -456,6 +500,7 @@ actor SupabaseSyncService {
         if let prefs = await loadUserPreferencesFromServer() {
             await MainActor.run {
                 let g = UserDefaults.stepsTrader()
+                let std = UserDefaults.standard
                 g.set(prefs.stepsTarget, forKey: SharedKeys.userStepsTarget)
                 g.set(prefs.sleepTarget, forKey: SharedKeys.userSleepTarget)
                 g.set(prefs.dayEndHour, forKey: SharedKeys.dayEndHour)
@@ -470,6 +515,21 @@ actor SupabaseSyncService {
                 g.set(prefs.canvasReminderMinute, forKey: SharedKeys.canvasReminderMinute)
                 g.set(prefs.notifyDayResetWarning, forKey: SharedKeys.notifyDayResetWarning)
                 g.set(prefs.dayResetWarningHours, forKey: SharedKeys.dayResetWarningHours)
+                // Appearance: theme + overlay
+                std.set(prefs.gradientStyle, forKey: SharedKeys.gradientStyle)
+                std.set(prefs.gradientPalette, forKey: SharedKeys.gradientPalette)
+                std.set(prefs.userGradientStyle, forKey: SharedKeys.userGradientStyle)
+                std.set(prefs.userGradientPalette, forKey: SharedKeys.userGradientPalette)
+                std.set(prefs.dailyRandomThemeEnabled, forKey: SharedKeys.dailyRandomThemeEnabled)
+                g.set(prefs.canvasOverlayStyle, forKey: SharedKeys.canvasOverlayStyle)
+                std.set(prefs.bodyCanvasShape, forKey: SharedKeys.bodyCanvasShape)
+                std.set(prefs.mindCanvasShape, forKey: SharedKeys.mindCanvasShape)
+                std.set(prefs.heartCanvasShape, forKey: SharedKeys.heartCanvasShape)
+                // Mirror theme to app group for widget/extension
+                if let group = UserDefaults(suiteName: SharedKeys.appGroupId) {
+                    group.set(prefs.gradientStyle, forKey: SharedKeys.gradientStyle)
+                    group.set(prefs.gradientPalette, forKey: SharedKeys.gradientPalette)
+                }
                 model.dayEndHour = prefs.dayEndHour
                 model.dayEndMinute = prefs.dayEndMinute
                 model.preferredActivityOptions = prefs.preferredBody
@@ -481,7 +541,7 @@ actor SupabaseSyncService {
                 model.persistDailyEnergyState()
             }
             didRestore = true
-            AppLogger.network.debug("📡 Restored user preferences (including notification settings)")
+            AppLogger.network.debug("📡 Restored user preferences (including theme + notification settings)")
         }
         
         let serverSnapshots = await loadDaySnapshotsFromServer()
@@ -498,6 +558,26 @@ actor SupabaseSyncService {
             }
             didRestore = true
             AppLogger.network.debug("📡 Merged \(serverSnapshots.count) day snapshots from server")
+        }
+
+        // Restore option entries (journal notes/colors) for today
+        let today = AppModel.dayKey(for: Date())
+        if let entries = await loadOptionEntriesFromServer(dayKey: today), !entries.isEmpty {
+            AppLogger.network.debug("📡 Restored \(entries.count) option entries for today")
+            didRestore = true
+        }
+
+        // Restore saved routines
+        if let routines = await loadSavedRoutinesFromServer(), !routines.isEmpty {
+            await MainActor.run {
+                model.savedRoutines = routines
+                let g = UserDefaults.stepsTrader()
+                if let data = try? JSONEncoder().encode(routines) {
+                    g.set(data, forKey: "savedEnergyRoutines_v1")
+                }
+            }
+            didRestore = true
+            AppLogger.network.debug("📡 Restored \(routines.count) saved routines from server")
         }
         
         if didRestore {

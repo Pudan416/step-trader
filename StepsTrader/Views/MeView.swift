@@ -11,25 +11,18 @@ struct MeView: View {
     @State private var selectedDayKey: String? = nil
     @State private var showLogin = false
     @State private var showProfileEditor = false
-    @State private var showStepsEditor = false
-    @State private var showSleepEditor = false
-    @State private var showDayEndSettings = false
     @State private var cachedDayKeys: [String] = []
     @State private var hasLoadedSnapshots = false
-    @State private var cachedTopConsumers: [(name: String, spent: Int)] = []
+    @State private var cachedTopApps: [(name: String, spent: Int, minutes: Int)] = []
+    @State private var cachedWeekMinutesByTarget: [String: Int] = [:]
     @State private var cachedTxNames: [String: String] = [:]
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
 
-    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader())
-    private var stepsTarget: Double = EnergyDefaults.stepsTarget
-    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader())
-    private var sleepTarget: Double = EnergyDefaults.sleepTargetHours
-
     var body: some View {
         NavigationStack {
             mainScrollContent
-                .energyGradientBackground(model: model)
+                .energyGradientBackground(model: model, showGrain: false)
                 .safeAreaInset(edge: .top, spacing: 0) {
                     Color.clear.frame(height: topCardHeight)
                 }
@@ -46,9 +39,11 @@ struct MeView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
                         weekRow
-                            .padding(.top, 2)
-                            .padding(.bottom, 6)
+                            .padding(.top, 16)
+                            .padding(.bottom, 12)
                         contentSection
+                        historyLink
+                            .padding(.top, 20)
                         Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 16)
@@ -61,14 +56,33 @@ struct MeView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
                     weekRow
-                        .padding(.top, 8)
-                        .padding(.bottom, 20)
+                        .padding(.top, 20)
+                        .padding(.bottom, 16)
                     contentSection
+                    historyLink
+                        .padding(.top, 28)
                         .padding(.bottom, 24)
                 }
                 .padding(.horizontal, 20)
             }
         }
+    }
+
+    private var historyLink: some View {
+        NavigationLink {
+            HistoryView(model: model)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.backward")
+                    .font(.system(size: 12, weight: .semibold))
+                Text(String(localized: "View history", comment: "MeView – history link label"))
+                    .font(useTightMeLayout ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+            }
+            .foregroundStyle(theme.textPrimary.opacity(0.6))
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityLabel(String(localized: "Open canvas history", comment: "MeView – history link a11y"))
     }
 
     private var meLifecycle: MeLifecycleModifier {
@@ -88,13 +102,8 @@ struct MeView: View {
         MeSheetsModifier(
             model: model,
             authService: authService,
-            stepsTarget: $stepsTarget,
-            sleepTarget: $sleepTarget,
             showLogin: $showLogin,
             showProfileEditor: $showProfileEditor,
-            showStepsEditor: $showStepsEditor,
-            showSleepEditor: $showSleepEditor,
-            showDayEndSettings: $showDayEndSettings,
             selectedDayKey: $selectedDayKey,
             pastDays: $pastDays
         )
@@ -111,211 +120,214 @@ struct MeView: View {
         useTightMeLayout ? .subheadline : .body
     }
 
-    private var meNumberProse: Font {
-        (useTightMeLayout ? Font.subheadline : Font.body).weight(.semibold)
-    }
-
     private var weekRingOuter: CGFloat { useTightMeLayout ? 32 : 40 }
     private var weekRingInner: CGFloat { useTightMeLayout ? 29 : 37 }
     private var weekDayLabelSize: CGFloat { useTightMeLayout ? 8 : 9 }
 
     private var contentSection: some View {
         let snaps = cachedDayKeys.compactMap { pastDays[$0] }
-        let topActivities = topActivityNames(from: snaps)
         let weekEarned = snaps.reduce(0) { $0 + $1.inkEarned }
         let weekSpent = snaps.reduce(0) { $0 + $1.inkSpent }
-        let dayCount = max(snaps.count, 1)
-        let avgSleep = snaps.reduce(0.0) { $0 + $1.sleepHours } / Double(dayCount)
-        let avgSteps = snaps.reduce(0) { $0 + $1.steps } / dayCount
-        let topConsumerNames = cachedTopConsumers.prefix(3).map(\.name)
+        let summary = computeWeekSummary(from: snaps)
+        let sectionSpacing: CGFloat = useTightMeLayout ? 16 : 24
 
-        let sleepStr = sleepTarget.truncatingRemainder(dividingBy: 1) == 0
-            ? "\(Int(sleepTarget))" : String(format: "%.1f", sleepTarget)
+        return VStack(alignment: .leading, spacing: sectionSpacing) {
 
-        let greetingLineSpacing: CGFloat = useTightMeLayout ? 5 : 8
+            // Greeting
+            greetingRow
 
-        return VStack(alignment: .leading, spacing: useTightMeLayout ? CGFloat(10) : CGFloat(20)) {
+            if !snaps.isEmpty && (weekEarned > 0 || weekSpent > 0 || !cachedTopApps.isEmpty) {
 
-            // Four fixed lines so "and … sleep" never wraps with a lone "and" at line end.
-            VStack(alignment: .leading, spacing: greetingLineSpacing) {
-                MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
-                    label(greetingString + ",")
-                    valuePill("person.fill", userName) {
-                        if authService.isAuthenticated { showProfileEditor = true }
-                        else { showLogin = true }
-                    }
+                // Earned / Spent
+                colorsSection(earned: weekEarned, spent: weekSpent)
+
+                // Averages
+                if summary.avgSteps > 0 || summary.avgSleep > 0 {
+                    averagesSection(summary: summary)
                 }
-                MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
-                    label(String(localized: "You are aiming for"))
-                    valuePill("figure.walk", formatCompactNumber(Int(stepsTarget))) {
-                        showStepsEditor = true
-                    }
-                    label(String(localized: "steps"))
+
+                // Activities
+                if !summary.topBody.isEmpty || !summary.topMind.isEmpty || !summary.topHeart.isEmpty {
+                    activitiesSection(summary: summary)
                 }
-                MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
-                    label(String(localized: "and"))
-                    valuePill("moon.zzz.fill", sleepStr + "h") {
-                        showSleepEditor = true
-                    }
-                    label(String(localized: "sleep."))
-                }
-                MeFlowLayout(spacing: 4, lineSpacing: greetingLineSpacing) {
-                    label(String(localized: "Your day resets at"))
-                    valuePill("clock", formattedDayEnd) {
-                        showDayEndSettings = true
-                    }
-                }
-            }
 
-            // This week card
-            if !snaps.isEmpty {
-                let hasData = weekEarned > 0 || weekSpent > 0 || avgSteps > 0 || !topActivities.isEmpty || !topConsumerNames.isEmpty
-
-                if hasData {
-                    let sleepAvg = String(format: "%.1f", avgSleep)
-                    let stepsAvg = formatCompactNumber(avgSteps)
-                    let showHealthLine = avgSteps > 0 || avgSleep > 0
-                    let showEarnSection = weekEarned > 0 || !topActivities.isEmpty || showHealthLine
-                    let showSpentSection = weekSpent > 0 || !topConsumerNames.isEmpty
-
-                    VStack(alignment: .leading, spacing: useTightMeLayout ? 7 : 14) {
-                        Text(String(localized: "THIS WEEK"))
-                            .font(.system(size: useTightMeLayout ? 10 : 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .tracking(1.5)
-
-                        if weekEarned > 0 {
-                            MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
-                                label(String(localized: "This week you earned"))
-                                weekSummaryNumber(weekEarned)
-                                label(String(localized: "colors"))
-                            }
-                        }
-
-                        if !topActivities.isEmpty {
-                            MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
-                                label(String(localized: "Mostly from"))
-                                inlinePillList(topActivities, icon: "paintpalette")
-                            }
-                        }
-
-                        if showHealthLine {
-                            MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
-                                label(String(localized: "and also"))
-                                dataPill("moon.zzz.fill", sleepAvg + "h")
-                                label(String(localized: "sleep and"))
-                                dataPill("figure.walk", stepsAvg)
-                                label(String(localized: "steps a day."))
-                            }
-                        }
-
-                        if showEarnSection && showSpentSection {
-                            Spacer().frame(height: useTightMeLayout ? 2 : 4)
-                        }
-
-                        if weekSpent > 0 {
-                            MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
-                                label(String(localized: "This week you spent"))
-                                weekSummaryNumber(weekSpent)
-                                label(String(localized: "colors"))
-                            }
-                        }
-
-                        if !topConsumerNames.isEmpty {
-                            MeFlowLayout(spacing: 4, lineSpacing: useTightMeLayout ? 5 : 8) {
-                                label(String(localized: "Mostly on"))
-                                inlinePillList(topConsumerNames, icon: "play.fill")
-                            }
-                        }
-                    }
-                    .padding(useTightMeLayout ? 12 : 16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.thinMaterial)
-                    )
+                // Top apps
+                if !cachedTopApps.isEmpty {
+                    topAppsSection(apps: Array(cachedTopApps.prefix(3)))
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Components
+    // MARK: - Greeting
 
-    private func label(_ text: String) -> some View {
-        Text(text)
-            .font(meProse)
-            .foregroundStyle(theme.textPrimary)
-    }
-
-    private func valuePill(_ icon: String, _ text: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 13))
-                Text(text)
-                    .fontWeight(.semibold)
-                    .lineLimit(1)
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 9, weight: .medium))
-                    .opacity(0.4)
-            }
-            .font(meProse)
-            .foregroundStyle(theme.textPrimary)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 4)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(theme.backgroundSecondary)
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .strokeBorder(theme.stroke.opacity(0.45), lineWidth: 0.5)
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint(String(localized: "Double tap to change", comment: "MeView – interactive pill VoiceOver hint"))
-    }
-
-    private func dataPill(_ icon: String, _ text: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 12))
-                .foregroundStyle(theme.textSecondary)
-            Text(text)
-                .fontWeight(.semibold)
-                .lineLimit(1)
+    private var greetingRow: some View {
+        HStack(spacing: 0) {
+            Text(greetingString + ", ")
+                .font(meProse)
                 .foregroundStyle(theme.textPrimary)
-        }
-        .font(meProse)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 3)
-        .background(
-            Capsule(style: .continuous)
-                .fill(.thinMaterial)
-                .overlay(
-                    Capsule(style: .continuous)
-                        .strokeBorder(theme.stroke.opacity(0.35), lineWidth: 0.5)
-                )
-        )
-    }
-
-    private func weekSummaryNumber(_ value: Int) -> some View {
-        Text("\(value)")
-            .font(meNumberProse)
-            .foregroundStyle(theme.textPrimary)
-            .monospacedDigit()
-    }
-
-    @ViewBuilder
-    private func inlinePillList(_ items: [String], icon: String) -> some View {
-        let count = items.count
-        ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-            if index > 0 && index == count - 1 {
-                label("and")
+            Button {
+                if authService.isAuthenticated { showProfileEditor = true }
+                else { showLogin = true }
+            } label: {
+                Text(userName)
+                    .font(meProse.weight(.semibold))
+                    .foregroundStyle(theme.textPrimary)
+                    .underline(color: theme.textPrimary.opacity(0.3))
             }
-            dataPill(icon, item + (index < count - 2 ? "," : ""))
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Profile, \(userName). Double tap to edit.", comment: "MeView – profile pill VoiceOver label"))
         }
+    }
+
+    // MARK: - Section Header
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: useTightMeLayout ? 10 : 11, weight: .semibold))
+            .foregroundStyle(theme.textSecondary.opacity(0.7))
+            .tracking(1.5)
+    }
+
+    // MARK: - Colors Earned / Spent
+
+    private func colorsSection(earned: Int, spent: Int) -> some View {
+        VStack(alignment: .leading, spacing: useTightMeLayout ? 6 : 10) {
+            sectionHeader(String(localized: "THIS WEEK"))
+
+            HStack(spacing: 24) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("+\(earned)")
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(theme.textPrimary)
+                    Text(String(localized: "earned"))
+                        .font(.caption)
+                        .foregroundStyle(theme.textSecondary)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("−\(spent)")
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(theme.textSecondary)
+                    Text(String(localized: "spent"))
+                        .font(.caption)
+                        .foregroundStyle(theme.textSecondary)
+                }
+
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    // MARK: - Averages
+
+    private func averagesSection(summary: MeWeekSummary) -> some View {
+        VStack(alignment: .leading, spacing: useTightMeLayout ? 6 : 10) {
+            sectionHeader(String(localized: "AVERAGES"))
+
+            VStack(alignment: .leading, spacing: useTightMeLayout ? 4 : 8) {
+                if summary.avgSteps > 0 {
+                    HStack(spacing: 8) {
+                        Image(systemName: "figure.walk")
+                            .font(.system(size: 13))
+                            .foregroundStyle(theme.textSecondary)
+                            .frame(width: 18, alignment: .center)
+                        Text(formatCompactNumber(summary.avgSteps))
+                            .font(meProse.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(theme.textPrimary)
+                        Text(String(localized: "steps/day"))
+                            .font(useTightMeLayout ? .caption : .subheadline)
+                            .foregroundStyle(theme.textSecondary)
+                    }
+                }
+
+                if summary.avgSleep > 0 {
+                    HStack(spacing: 8) {
+                        Image(systemName: "moon.zzz.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(theme.textSecondary)
+                            .frame(width: 18, alignment: .center)
+                        Text(String(format: "%.1f", summary.avgSleep) + "h")
+                            .font(meProse.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(theme.textPrimary)
+                        Text(String(localized: "sleep/day"))
+                            .font(useTightMeLayout ? .caption : .subheadline)
+                            .foregroundStyle(theme.textSecondary)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Activities
+
+    private func activitiesSection(summary: MeWeekSummary) -> some View {
+        VStack(alignment: .leading, spacing: useTightMeLayout ? 6 : 10) {
+            sectionHeader(String(localized: "ACTIVITIES"))
+
+            VStack(alignment: .leading, spacing: useTightMeLayout ? 4 : 8) {
+                if !summary.topBody.isEmpty {
+                    activityRow(icon: "flame.fill", items: summary.topBody)
+                }
+                if !summary.topMind.isEmpty {
+                    activityRow(icon: "brain.head.profile.fill", items: summary.topMind)
+                }
+                if !summary.topHeart.isEmpty {
+                    activityRow(icon: "heart.fill", items: summary.topHeart)
+                }
+            }
+        }
+    }
+
+    private func activityRow(icon: String, items: [String]) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(theme.textSecondary)
+                .frame(width: 18, alignment: .center)
+            Text(items.joined(separator: ", "))
+                .font(useTightMeLayout ? .caption : .subheadline)
+                .foregroundStyle(theme.textPrimary)
+                .lineLimit(2)
+        }
+    }
+
+    // MARK: - Top Apps
+
+    private func topAppsSection(apps: [(name: String, spent: Int, minutes: Int)]) -> some View {
+        VStack(alignment: .leading, spacing: useTightMeLayout ? 6 : 10) {
+            sectionHeader(String(localized: "TOP APPS"))
+
+            VStack(alignment: .leading, spacing: useTightMeLayout ? 4 : 8) {
+                ForEach(Array(apps.enumerated()), id: \.offset) { _, app in
+                    HStack {
+                        Text(app.name)
+                            .font(useTightMeLayout ? .caption : .subheadline)
+                            .foregroundStyle(theme.textPrimary)
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        Text(formatAppTime(app.minutes))
+                            .font(meProse.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(theme.textPrimary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func formatAppTime(_ totalMinutes: Int) -> String {
+        if totalMinutes <= 0 { return "—" }
+        let hours = totalMinutes / 60
+        let mins = totalMinutes % 60
+        if hours > 0 && mins > 0 { return "\(hours)h \(mins)m" }
+        if hours > 0 { return "\(hours)h" }
+        return "\(mins)m"
     }
 
     // MARK: - Helpers
@@ -337,31 +349,33 @@ struct MeView: View {
         return String(localized: "someone")
     }
 
-    private var formattedDayEnd: String {
-        if model.dayEndHour == 0 && model.dayEndMinute == 0 {
-            return String(localized: "midnight")
-        }
-        var comps = DateComponents()
-        comps.hour = model.dayEndHour
-        comps.minute = model.dayEndMinute
-        guard let date = Calendar.current.date(from: comps) else {
-            return "\(model.dayEndHour):\(String(format: "%02d", model.dayEndMinute))"
-        }
-        return CachedFormatters.hourMinute.string(from: date)
-    }
+    private func computeWeekSummary(from snapshots: [PastDaySnapshot]) -> MeWeekSummary {
+        guard !snapshots.isEmpty else { return MeWeekSummary() }
+        let count = snapshots.count
 
-    private func topActivityNames(from snapshots: [PastDaySnapshot]) -> [String] {
-        var counts: [String: Int] = [:]
-        for snap in snapshots {
-            for id in snap.bodyIds + snap.mindIds + snap.heartIds {
-                counts[id, default: 0] += 1
-            }
+        let totalSteps = snapshots.reduce(0) { $0 + $1.steps }
+        let totalSleep = snapshots.reduce(0.0) { $0 + $1.sleepHours }
+
+        func topNames(for ids: [String]) -> [String] {
+            var counts: [String: Int] = [:]
+            for id in ids { counts[id, default: 0] += 1 }
+            return counts
+                .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+                .prefix(3)
+                .map { model.resolveOptionTitle(for: $0.key) }
         }
-        guard !counts.isEmpty else { return [] }
-        return counts
-            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
-            .prefix(3)
-            .map { model.resolveOptionTitle(for: $0.key) }
+
+        let allBody = snapshots.flatMap(\.bodyIds)
+        let allMind = snapshots.flatMap(\.mindIds)
+        let allHeart = snapshots.flatMap(\.heartIds)
+
+        return MeWeekSummary(
+            avgSteps: totalSteps / count,
+            avgSleep: totalSleep / Double(count),
+            topBody: topNames(for: allBody),
+            topMind: topNames(for: allMind),
+            topHeart: topNames(for: allHeart)
+        )
     }
 
     // MARK: - Week Row
@@ -461,9 +475,15 @@ struct MeView: View {
         pastDays = model.loadPastDaySnapshots()
 
         loadTask = Task { @MainActor in
-            let names = await Task.detached { Self.loadTransactionNameMap() }.value
+            let dayKeySet = Set(cachedDayKeys)
+            let (names, minutes) = await Task.detached {
+                let n = Self.loadTransactionNameMap()
+                let m = Self.loadWeeklyMinutesByTarget(dayKeys: dayKeySet)
+                return (n, m)
+            }.value
             guard !Task.isCancelled else { return }
             cachedTxNames = names
+            cachedWeekMinutesByTarget = minutes
             rebuildTopConsumers()
         }
 
@@ -489,7 +509,7 @@ struct MeView: View {
             }
         }
 
-        var results: [(name: String, spent: Int)] = []
+        var results: [(name: String, spent: Int, key: String)] = []
         var claimedKeys: Set<String> = []
 
         for group in model.ticketGroups {
@@ -500,7 +520,7 @@ struct MeView: View {
                 total += raw
                 claimedKeys.insert(group.id)
             }
-            if total > 0 { results.append((name: group.name, spent: total)) }
+            if total > 0 { results.append((name: group.name, spent: total, key: groupKey)) }
         }
 
         let txNames = cachedTxNames
@@ -514,13 +534,19 @@ struct MeView: View {
             } else {
                 name = txNames[key] ?? TargetResolver.displayName(for: key)
             }
-            results.append((name: name, spent: value))
+            results.append((name: name, spent: value, key: key))
         }
 
-        cachedTopConsumers = results
+        let weekMinutes = cachedWeekMinutesByTarget
+        cachedTopApps = results
             .sorted { $0.spent != $1.spent ? $0.spent > $1.spent : $0.name < $1.name }
             .prefix(5)
-            .map { $0 }
+            .map { entry in
+                let mins = weekMinutes[entry.key]
+                    ?? weekMinutes[String(entry.key.dropFirst(6))]
+                    ?? 0
+                return (name: entry.name, spent: entry.spent, minutes: mins)
+            }
     }
 
     private nonisolated static func loadTransactionNameMap() -> [String: String] {
@@ -539,160 +565,42 @@ struct MeView: View {
         let target: String
         let targetName: String?
     }
-}
 
-// MARK: - Flow Layout
-
-private struct MeFlowLayout: Layout {
-    var spacing: CGFloat = 5
-    var lineSpacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        arrange(in: proposal.width ?? .infinity, subviews: subviews).size
+    private struct WeekTransactionEntry: Decodable {
+        let timestamp: Date
+        let target: String
+        let window: String?
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = arrange(in: bounds.width, subviews: subviews)
-        for (i, pos) in result.positions.enumerated() {
-            subviews[i].place(
-                at: CGPoint(x: bounds.minX + pos.x, y: bounds.minY + pos.y),
-                proposal: .unspecified
-            )
-        }
-    }
+    private nonisolated static func loadWeeklyMinutesByTarget(dayKeys: Set<String>) -> [String: Int] {
+        let url = PersistenceManager.paymentTransactionsFileURL
+        guard let data = try? Data(contentsOf: url),
+              let txs = try? JSONDecoder().decode([WeekTransactionEntry].self, from: data)
+        else { return [:] }
 
-    private func arrange(in maxWidth: CGFloat, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
-        var positions: [CGPoint] = []
-        var rows: [[Int]] = [[]]
-        var rowWidths: [CGFloat] = [0]
-        var rowHeights: [CGFloat] = [0]
-        var sizes: [CGSize] = []
-
-        for (i, sub) in subviews.enumerated() {
-            let size = sub.sizeThatFits(.unspecified)
-            sizes.append(size)
-
-            let gap = rows.last!.isEmpty ? 0 : spacing
-            if rowWidths.last! + gap + size.width > maxWidth && !rows.last!.isEmpty {
-                rows.append([])
-                rowWidths.append(0)
-                rowHeights.append(0)
+        var minutesByTarget: [String: Int] = [:]
+        for tx in txs {
+            let txKey = AppModel.dayKey(for: tx.timestamp)
+            guard dayKeys.contains(txKey) else { continue }
+            let minutes: Int
+            switch tx.window {
+            case "minutes10": minutes = 10
+            case "minutes30": minutes = 30
+            case "hour1": minutes = 60
+            default: continue
             }
-
-            rows[rows.count - 1].append(i)
-            rowWidths[rowWidths.count - 1] += (rows.last!.count > 1 ? spacing : 0) + size.width
-            rowHeights[rowHeights.count - 1] = max(rowHeights.last!, size.height)
+            minutesByTarget[tx.target, default: 0] += minutes
         }
-
-        positions = Array(repeating: .zero, count: subviews.count)
-        var y: CGFloat = 0
-        for (ri, row) in rows.enumerated() {
-            let rh = rowHeights[ri]
-            var x: CGFloat = 0
-            for idx in row {
-                positions[idx] = CGPoint(x: x, y: y + (rh - sizes[idx].height) / 2)
-                x += sizes[idx].width + spacing
-            }
-            y += rh + lineSpacing
-        }
-
-        let totalH = rowHeights.reduce(0, +) + CGFloat(max(0, rows.count - 1)) * lineSpacing
-        return (CGSize(width: maxWidth, height: totalH), positions)
+        return minutesByTarget
     }
 }
 
-// MARK: - Steps Sheet
-
-private struct MeStepsSheet: View {
-    @ObservedObject var model: AppModel
-    @Binding var stepsTarget: Double
-    @Environment(\.appTheme) private var theme
-
-    var body: some View {
-        VStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(theme.stroke.opacity(theme.strokeOpacity))
-                .frame(width: 36, height: 4)
-                .padding(.top, 10)
-                .padding(.bottom, 24)
-
-            VStack(spacing: 12) {
-                HStack(spacing: 8) {
-                    Image(systemName: "figure.walk")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(AppColors.brandAccent)
-                        .frame(width: 26, height: 26)
-                        .background(AppColors.brandAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                    Text(String(localized: "Steps"))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(theme.adaptivePrimaryText)
-                    Spacer()
-                    Text(formatCompactNumber(Int(stepsTarget)))
-                        .font(.subheadline.weight(.bold).monospacedDigit())
-                        .foregroundStyle(AppColors.brandAccent)
-                }
-                .padding(.horizontal, 24)
-
-                StepGoalDrumPicker(value: $stepsTarget)
-            }
-
-            Spacer()
-        }
-        .onDisappear {
-            UserDefaults.stepsTrader().set(stepsTarget, forKey: SharedKeys.userStepsTarget)
-            model.recalculateDailyEnergy()
-        }
-    }
-}
-
-// MARK: - Sleep Sheet
-
-private struct MeSleepSheet: View {
-    @ObservedObject var model: AppModel
-    @Binding var sleepTarget: Double
-    @Environment(\.appTheme) private var theme
-
-    private var formattedSleep: String {
-        sleepTarget.truncatingRemainder(dividingBy: 1) == 0
-            ? "\(Int(sleepTarget))h"
-            : String(format: "%.1fh", sleepTarget)
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(theme.stroke.opacity(theme.strokeOpacity))
-                .frame(width: 36, height: 4)
-                .padding(.top, 10)
-                .padding(.bottom, 24)
-
-            VStack(spacing: 12) {
-                HStack(spacing: 8) {
-                    Image(systemName: "bed.double.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.indigo)
-                        .frame(width: 26, height: 26)
-                        .background(Color.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                    Text(String(localized: "Sleep"))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(theme.adaptivePrimaryText)
-                    Spacer()
-                    Text(formattedSleep)
-                        .font(.subheadline.weight(.bold).monospacedDigit())
-                        .foregroundStyle(Color.indigo)
-                }
-                .padding(.horizontal, 24)
-
-                SleepDurationStepper(hours: $sleepTarget)
-            }
-
-            Spacer()
-        }
-        .onDisappear {
-            UserDefaults.stepsTrader().set(sleepTarget, forKey: SharedKeys.userSleepTarget)
-            model.recalculateDailyEnergy()
-        }
-    }
+private struct MeWeekSummary {
+    var avgSteps: Int = 0
+    var avgSleep: Double = 0
+    var topBody: [String] = []
+    var topMind: [String] = []
+    var topHeart: [String] = []
 }
 
 private struct MeDayKeyWrapper: Identifiable {
@@ -739,13 +647,8 @@ private struct MeLifecycleModifier: ViewModifier {
 private struct MeSheetsModifier: ViewModifier {
     @ObservedObject var model: AppModel
     @ObservedObject var authService: AuthenticationService
-    @Binding var stepsTarget: Double
-    @Binding var sleepTarget: Double
     @Binding var showLogin: Bool
     @Binding var showProfileEditor: Bool
-    @Binding var showStepsEditor: Bool
-    @Binding var showSleepEditor: Bool
-    @Binding var showDayEndSettings: Bool
     @Binding var selectedDayKey: String?
     @Binding var pastDays: [String: PastDaySnapshot]
 
@@ -755,21 +658,7 @@ private struct MeSheetsModifier: ViewModifier {
                 LoginView(authService: authService)
             }
             .sheet(isPresented: $showProfileEditor) {
-                ProfileEditorView(authService: authService)
-            }
-            .sheet(isPresented: $showStepsEditor) {
-                MeStepsSheet(model: model, stepsTarget: $stepsTarget)
-                    .presentationDetents([.medium])
-            }
-            .sheet(isPresented: $showSleepEditor) {
-                MeSleepSheet(model: model, sleepTarget: $sleepTarget)
-                    .presentationDetents([.medium])
-            }
-            .sheet(isPresented: $showDayEndSettings) {
-                NavigationStack {
-                    DayEndSettingsView(model: model)
-                }
-                .presentationDetents([.medium])
+                ProfileEditorView(authService: authService, model: model)
             }
             .sheet(item: Binding(
                 get: { selectedDayKey.map { MeDayKeyWrapper(key: $0) } },

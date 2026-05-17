@@ -161,7 +161,7 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 | Category | Lineage | Activities (10+ each) |
 |----------|---------|---------------------|
 | **body** | Aristotle's *energeia* | Walking, Physical Effort, Stretching, Resting, Breathing, Touch, Balance, Repetition, Warming, Stillness, Healing |
-| **mind** | Arendt's *work* | Focusing, Learning, Thinking, Planning, Writing, Observing, Questioning, Ordering, Remembering, Letting Go |
+| **mind** | Arendt's *work* | Focusing, Learning, Thinking, Planning, Writing, Observing, Questioning, Ordering, Remembering, Screen Detoxing |
 | **heart** | Epicurus's *hedone* | Joy, Calm, Gratitude, Connection, Care, Wonder, Trust, Vulnerability, Belonging, Peace |
 
 ### Notes Tab Content (shipped `NoteCatalog`)

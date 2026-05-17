@@ -46,6 +46,7 @@ extension AppModel {
             if !storedMind.isEmpty { preferredRestOptions = storedMind }
             if !storedHeart.isEmpty { preferredJoysOptions = storedHeart }
             baseEnergyToday = g.integer(forKey: _baseEnergyTodayKey)
+            spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
             loadDailyCanvasSlots()
             recoverSelectionsFromCanvasIfNeeded()
             return
@@ -70,8 +71,9 @@ extension AppModel {
         if !storedHeart.isEmpty { preferredJoysOptions = storedHeart }
 
         baseEnergyToday = g.integer(forKey: _baseEnergyTodayKey)
+        spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
         
-        AppLogger.energy.debug("📥 loadDailyEnergyState LOADED: body=\(self.dailyActivitySelections), mind=\(self.dailyRestSelections), heart=\(self.dailyJoysSelections), base=\(self.baseEnergyToday)")
+        AppLogger.energy.debug("📥 loadDailyEnergyState LOADED: body=\(self.dailyActivitySelections), mind=\(self.dailyRestSelections), heart=\(self.dailyJoysSelections), base=\(self.baseEnergyToday), spent=\(self.spentStepsToday)")
         
         loadDailyCanvasSlots()
         
@@ -110,6 +112,17 @@ extension AppModel {
     }
     
     func addCustomOption(category: EnergyCategory, titleEn: String, titleRu: String, icon: String = "pencil") -> String {
+        // Defense-in-depth Pro gate. The primary gate is at the UI layer
+        // (CategoryDetailView.addCustomSection), but this method is also
+        // reachable from `commitEntry`'s "Save for future" checkbox and from
+        // future code paths. Existing custom options are NOT removed when a
+        // user downgrades — only new creation is blocked, matching the design
+        // intent in `SubscriptionGate.freeCanCreateCustomActivity`.
+        guard SubscriptionGate.canCreateCustomActivity(isPro: isPro) else {
+            AppLogger.app.debug("⛔ addCustomOption blocked — user is not Pro")
+            return ""
+        }
+
         let titleEnTrimmed = titleEn.trimmingCharacters(in: .whitespacesAndNewlines)
         let titleRuTrimmed = titleRu.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !titleEnTrimmed.isEmpty else { return "" }
@@ -364,6 +377,19 @@ extension AppModel {
         }
     }
 
+    func mergePastDaySnapshots(_ snapshots: [String: PastDaySnapshot]) {
+        guard !snapshots.isEmpty else { return }
+        var all = loadPastDaySnapshots()
+        for (key, snap) in snapshots {
+            if all[key] == nil { all[key] = snap }
+        }
+        let pruned = Self.prunePastDaySnapshotsToRetention(all)
+        let url = PersistenceManager.pastDaySnapshotsFileURL
+        if let data = try? JSONEncoder().encode(pruned) {
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
     private func resetDailyEnergyState() {
         let g = UserDefaults.stepsTrader()
 
@@ -423,11 +449,14 @@ extension AppModel {
         healthStore.hasStepsData = false
         g.removeObject(forKey: SharedKeys.cachedStepsToday)
         g.set(false, forKey: SharedKeys.hasStepsData)
+        g.removeObject(forKey: "cachedSleepHoursToday")
         dailyActivitySelections = []
         dailyRestSelections = []
         dailyJoysSelections = []
         dailyCanvasSlots = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
         baseEnergyToday = 0
+        spentStepsToday = 0
+        stepsBalance = 0
         clearDismissedWorkouts()
         persistDailyEnergyState()
         g.set(currentDayStart(for: Date()), forKey: _dailyEnergyAnchorKey)
@@ -448,10 +477,13 @@ extension AppModel {
         savedBaseEnergy: Int
     ) -> PastDaySnapshot {
         let stepsForInk = cachedSteps > 0 ? cachedSteps : Double(savedSteps)
+        let sleepPts = savedSleep > 0
+            ? pointsFromSleep(hours: savedSleep)
+            : EnergyDefaults.assumedSleepPoints
         let computedInkEarned = min(
             EnergyDefaults.maxBaseEnergy,
             pointsFromSteps(stepsForInk) +
-            pointsFromSleep(hours: savedSleep) +
+            sleepPts +
             pointsFromSelections(savedActivity.count) +
             pointsFromSelections(savedCreativity.count) +
             pointsFromSelections(savedJoys.count)
@@ -492,7 +524,7 @@ extension AppModel {
         if !stored.isEmpty {
             return stored
         }
-        let defaults = EnergyDefaults.options
+        let defaults = EnergyDefaults.coreOptions
             .filter { $0.category == category }
             .map(\.id)
         let fallback = Array(defaults.prefix(EnergyDefaults.maxSelectionsPerCategory))
@@ -536,7 +568,7 @@ extension AppModel {
     }
     
     private func allOptions(for category: EnergyCategory) -> [EnergyOption] {
-        let defaults = EnergyDefaults.options.filter { $0.category == category }
+        let defaults = EnergyDefaults.coreOptions.filter { $0.category == category }
         let custom = customOptions(for: category)
         let hidden = hiddenOptions(for: category)
         return (defaults + custom).filter { !hidden.contains($0.id) }
@@ -724,10 +756,13 @@ extension AppModel {
         saveStringArray(dailyRestSelections, forKey: dailySelectionsKey(for: .mind))
         saveStringArray(dailyJoysSelections, forKey: dailySelectionsKey(for: .heart))
         g.set(baseEnergyToday, forKey: _baseEnergyTodayKey)
+        g.set(spentStepsToday, forKey: SharedKeys.spentStepsToday)
+        g.set(currentDayStart(for: Date()), forKey: SharedKeys.stepsBalanceAnchor)
         persistDailyCanvasSlots()
         if g.object(forKey: _dailyEnergyAnchorKey) == nil {
             g.set(currentDayStart(for: Date()), forKey: _dailyEnergyAnchorKey)
         }
+        g.synchronize()
         // Sync daily selections to Supabase (skip during bootstrap to avoid overwriting server data)
         guard !isBootstrapping else {
             AppLogger.energy.debug("🔄 persistDailyEnergyState: skipping sync during bootstrap")
@@ -750,7 +785,26 @@ extension AppModel {
     }
 
     var sleepPointsToday: Int {
-        pointsFromSleep(hours: dailySleepHours)
+        let realPoints = pointsFromSleep(hours: dailySleepHours)
+        if dailySleepHours > 0 { return realPoints }
+        // HealthKit confirmed no sleep data AND enough time has passed
+        // since day boundary to assume the user has slept → gift assumed colors
+        if hasSleepData && hasEnoughTimePassedForSleepAssumption {
+            return EnergyDefaults.assumedSleepPoints
+        }
+        return realPoints
+    }
+
+    /// True when sleep colors are gifted because HealthKit returned no data.
+    var isSleepAssumed: Bool {
+        dailySleepHours == 0 && hasSleepData && hasEnoughTimePassedForSleepAssumption
+    }
+
+    /// At least 6 hours since the custom day boundary — safe to assume the user slept.
+    private var hasEnoughTimePassedForSleepAssumption: Bool {
+        let dayStart = currentDayStart(for: Date())
+        let hoursSinceDayStart = Date().timeIntervalSince(dayStart) / 3600
+        return hoursSinceDayStart >= 6
     }
 
     var stepsPointsToday: Int {
@@ -838,23 +892,29 @@ extension AppModel {
         // Total = steps(20) + sleep(20) + body(20) + mind(20) + heart(20) = 100 max
         let stepsForEnergy = stepsToday > 0 ? stepsToday : fallbackCachedSteps()
         let stepsPts = pointsFromSteps(stepsForEnergy)
-        let sleepPts = pointsFromSleep(hours: dailySleepHours)
+        let sleepPts = sleepPointsToday
         let total = stepsPts + sleepPts + activityPointsToday + creativityPointsToday + joysCategoryPointsToday
 
-        AppLogger.energy.debug("⚡️ recalculateDailyEnergy: steps=\(stepsPts) + sleep=\(sleepPts) + body=\(self.activityPointsToday) + mind=\(self.creativityPointsToday) + heart=\(self.joysCategoryPointsToday) = \(total)")
-        // Assertion removed — was tautological (BUG-R08)
+        AppLogger.energy.debug("⚡️ recalculateDailyEnergy: steps=\(stepsPts) + sleep=\(sleepPts)\(self.isSleepAssumed ? " (assumed)" : "") + body=\(self.activityPointsToday) + mind=\(self.creativityPointsToday) + heart=\(self.joysCategoryPointsToday) = \(total)")
         
-        // Rest day override grants a minimum base of 30 colors.
         let adjustedTotal = isRestDayOverrideEnabled ? max(total, 30) : total
         
-        // Base energy capped at maximum 100
         baseEnergyToday = min(EnergyDefaults.maxBaseEnergy, adjustedTotal)
         
-        // NOTE: Do NOT cap spentStepsToday to baseEnergyToday here.
-        // If a user resets the canvas (clearing category selections → lower baseEnergyToday),
-        // capping spent would permanently erase the spent amount, creating free EXP
-        // when activities are re-added. max(0, ...) on balance handles the display correctly:
-        // balance stays at 0 until re-earned energy exceeds the original spent amount.
+        // Safety net: if in-memory spentStepsToday is 0 but UD has a non-zero value
+        // for the same day, restore from UD. This catches any code path that
+        // accidentally zeroes the in-memory value without going through resetDailyEnergyState.
+        if spentStepsToday == 0 {
+            let udG = UserDefaults.stepsTrader()
+            let udSpent = udG.integer(forKey: SharedKeys.spentStepsToday)
+            if udSpent > 0 {
+                let anchor = udG.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date ?? .distantPast
+                if isSameCustomDay(anchor, Date()) {
+                    AppLogger.energy.error("⚠️ recalculateDailyEnergy: spentStepsToday=0 but UD has \(udSpent) (same day) — restoring from UD")
+                    spentStepsToday = udSpent
+                }
+            }
+        }
         
         let oldBalance = stepsBalance
         stepsBalance = max(0, baseEnergyToday - spentStepsToday)
@@ -862,6 +922,7 @@ extension AppModel {
         
         let g = UserDefaults.stepsTrader()
         g.set(baseEnergyToday, forKey: _baseEnergyTodayKey)
+        g.synchronize()
 
         writeWidgetSnapshot()
 
@@ -897,6 +958,7 @@ extension AppModel {
     func syncUserPreferencesToSupabase() {
         guard !isBootstrapping else { return }
         let g = UserDefaults.stepsTrader()
+        let std = UserDefaults.standard
         Task {
             await SupabaseSyncService.shared.syncUserPreferences(
                 stepsTarget: g.object(forKey: SharedKeys.userStepsTarget) as? Double ?? EnergyDefaults.stepsTarget,
@@ -919,7 +981,16 @@ extension AppModel {
                 dayResetWarningHours: g.object(forKey: SharedKeys.dayResetWarningHours) as? Int ?? 1,
                 hasMediumWidget: g.bool(forKey: SharedKeys.hasMediumWidget),
                 hasLargeWidget: g.bool(forKey: SharedKeys.hasLargeWidget),
-                lastOpenedAt: Date()
+                lastOpenedAt: Date(),
+                gradientStyle: std.string(forKey: SharedKeys.gradientStyle) ?? GradientStyle.radial.rawValue,
+                gradientPalette: std.string(forKey: SharedKeys.gradientPalette) ?? GradientPalette.warmSunset.rawValue,
+                userGradientStyle: std.string(forKey: SharedKeys.userGradientStyle) ?? GradientStyle.radial.rawValue,
+                userGradientPalette: std.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
+                dailyRandomThemeEnabled: std.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
+                canvasOverlayStyle: g.string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue,
+                bodyCanvasShape: std.string(forKey: SharedKeys.bodyCanvasShape) ?? CanvasShapeType.circle.rawValue,
+                mindCanvasShape: std.string(forKey: SharedKeys.mindCanvasShape) ?? CanvasShapeType.snowflake.rawValue,
+                heartCanvasShape: std.string(forKey: SharedKeys.heartCanvasShape) ?? CanvasShapeType.rays.rawValue
             )
         }
     }
@@ -978,6 +1049,7 @@ extension AppModel {
         } catch {
             AppLogger.energy.error("Failed to encode savedRoutines: \(error.localizedDescription)")
         }
+        Task { await SupabaseSyncService.shared.syncSavedRoutines(savedRoutines) }
     }
 
     /// Save current selections as a named routine.

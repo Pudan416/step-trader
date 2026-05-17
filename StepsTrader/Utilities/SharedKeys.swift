@@ -2,42 +2,6 @@ import Foundation
 import os.log
 import WidgetKit
 
-// MARK: - Widget Data File (bypasses UserDefaults caching)
-
-struct WidgetSnapshot: Codable {
-    let balance: Int
-    let earned: Int
-    let stepsPoints: Int
-    let sleepPoints: Int
-    let bodyPoints: Int
-    let mindPoints: Int
-    let heartPoints: Int
-    let timestamp: Date
-}
-
-enum WidgetDataFile {
-    private static var fileURL: URL? {
-        FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
-        )?.appendingPathComponent("widget_data.json")
-    }
-
-    static func write(_ snapshot: WidgetSnapshot) {
-        guard let url = fileURL,
-              let data = try? JSONEncoder().encode(snapshot) else { return }
-        try? data.write(to: url, options: .atomic)
-    }
-
-    static func read() -> WidgetSnapshot? {
-        guard let url = fileURL,
-              let data = try? Data(contentsOf: url),
-              let snapshot = try? JSONDecoder().decode(WidgetSnapshot.self, from: data) else {
-            return nil
-        }
-        return snapshot
-    }
-}
-
 /// Single source of truth for all UserDefaults and App Group keys.
 /// Shared across the main app and extensions (ShieldAction, ShieldConfiguration, DeviceActivityMonitor).
 enum SharedKeys {
@@ -82,6 +46,7 @@ enum SharedKeys {
 
     // MARK: - Shield state
     static let shieldState = "doomShieldState_v1"
+    static let shieldPushSentAt = "shieldPushSentAt_v1"
     static let shieldActionLogs = "shieldActionLogs_v1"
     static let lastBlockedAppBundleId = "lastBlockedAppBundleId"
     static let lastBlockedGroupId = "lastBlockedGroupId"
@@ -113,8 +78,32 @@ enum SharedKeys {
     static let dayResetWarningHours = "dayResetWarningHours_v1"
 
     // MARK: - Appearance
+    /// **ACTIVE** gradient style/palette — what `EnergyGradientBackground` renders.
+    /// When daily random theme is OFF, this mirrors the user preference.
+    /// When ON, this is overwritten daily with a new random combination.
     static let gradientStyle = "gradientStyle_v1"
     static let gradientPalette = "gradientPalette_v1"
+
+    /// **USER PREFERENCE** — the palette/style the user manually picked in
+    /// `SettingsAppearancePage`. Preserved across daily-random toggle cycles
+    /// so the app can restore it when the user disables random.
+    static let userGradientStyle = "userGradientStyle_v1"
+    static let userGradientPalette = "userGradientPalette_v1"
+
+    /// Pro-only: when ON, app rolls a new random palette+style every calendar day
+    /// and persists it to the day's `DayCanvas`, so each day in History looks unique.
+    static let dailyRandomThemeEnabled = "dailyRandomTheme_v1"
+    /// dayKey ("yyyy-MM-dd") for which we last rolled a daily-random theme. Prevents
+    /// re-rolling on every foreground within the same day.
+    static let dailyRandomThemeLastRolledKey = "dailyRandomTheme_lastRolledKey_v1"
+
+    static let canvasOverlayStyle = "canvasOverlayStyle_v1"
+    static let canvasTexture = "canvasTexture_v1"
+
+    /// Per-category shape type overrides (Pro). Values are `CanvasShapeType` raw strings.
+    static let bodyCanvasShape = "bodyCanvasShape_v1"
+    static let mindCanvasShape = "mindCanvasShape_v1"
+    static let heartCanvasShape = "heartCanvasShape_v1"
 
     // MARK: - Widget
     static let widgetBackgroundMode = "widgetBackgroundMode_v1"
@@ -151,15 +140,25 @@ enum SharedKeys {
     static let automationPendingTimestamps = "automationPendingTimestamps_v1"
     static let selectedAppScheme = "selectedAppScheme"
 
-    // MARK: - Supabase / CloudKit
+    // MARK: - Supabase
     static let supabaseTodayCacheTTLSeconds = "supabaseTodayCacheTTLSeconds_v1"
     static let supabaseHistoryPageSize = "supabaseHistoryPageSize_v1"
     static let supabaseHistoryRefreshTTLSeconds = "supabaseHistoryRefreshTTLSeconds_v1"
     static let analyticsEventsQueue = "analyticsEventsQueue_v1"
-    static let cloudkitLastSync = "cloudkit_lastSync"
 
     // MARK: - Steps data
     static let hasStepsData = "hasStepsData_v1"
+
+    // MARK: - Subscription / RevenueCat
+    /// True if user is grandfathered into Pro for free (existing user before paywall shipped).
+    /// Once set, never unset locally; mirrored to RC as a custom attribute.
+    static let isGrandfathered = "subscription_isGrandfathered_v1"
+    /// First time we ever evaluated grandfathering. Used to pin "existing user" status.
+    static let grandfatherEvaluatedAt = "subscription_grandfatherEvaluatedAt_v1"
+    /// Cached entitlement state so UI can render before RC SDK finishes refreshing.
+    static let cachedHasProEntitlement = "subscription_cachedHasPro_v1"
+    /// RevenueCat user ID (== Supabase user ID once signed in, otherwise anonymous).
+    static let rcAppUserID = "subscription_rcAppUserID_v1"
 
     // MARK: - Notes (app-only)
     static let readNoteIDs = "readNoteIDs_v1"

@@ -86,16 +86,17 @@ extension AppModel {
         }
 
         let g = UserDefaults.stepsTrader()
-        g.set(currentDayStart(for: Date()), forKey: SharedKeys.stepsBalanceAnchor)
+        g.set(self.spentStepsToday, forKey: SharedKeys.spentStepsToday)
+        g.set(self.stepsBalance, forKey: SharedKeys.stepsBalance)
+        g.synchronize()
         
-        // CRITICAL: Force sync bonus steps to UserDefaults to ensure persistence
         clearBonusBreakdown()
         
         writeWidgetSnapshot()
         
         #if DEBUG
         AppLogger.payment.debug("After: totalBalance=\(self.totalStepsBalance), stepsBalance=\(self.stepsBalance), bonusSteps=\(self.bonusSteps), spentStepsToday=\(self.spentStepsToday)")
-        AppLogger.payment.debug("Balance persisted to UserDefaults")
+        AppLogger.payment.debug("Balance persisted to UserDefaults (synchronized)")
         #endif
         return true
     }
@@ -106,6 +107,12 @@ extension AppModel {
         let refundToBase = min(cost, spentStepsToday)
         spentStepsToday = max(0, spentStepsToday - refundToBase)
         stepsBalance = max(0, baseEnergyToday - spentStepsToday)
+
+        let g = UserDefaults.stepsTrader()
+        g.set(self.spentStepsToday, forKey: SharedKeys.spentStepsToday)
+        g.set(self.stepsBalance, forKey: SharedKeys.stepsBalance)
+        g.synchronize()
+
         writeWidgetSnapshot()
         AppLogger.payment.debug("Refunded \(cost) colors (spentStepsToday now \(self.spentStepsToday))")
     }
@@ -113,30 +120,24 @@ extension AppModel {
     // MARK: - Steps Balance Management
     func loadSpentStepsBalance() {
         let g = UserDefaults.stepsTrader()
-        #if DEBUG
-        AppLogger.payment.debug("Loading spent steps balance")
-        #endif
-        let anchor = g.object(forKey: SharedKeys.stepsBalanceAnchor) as? Date ?? .distantPast
+        let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date ?? .distantPast
         let isSameDay = isSameCustomDay(anchor, Date())
+        let rawUDSpent = g.integer(forKey: SharedKeys.spentStepsToday)
+        
+        AppLogger.energy.debug("📥 loadSpentStepsBalance: anchor=\(anchor), isSameDay=\(isSameDay), UD[spentStepsToday]=\(rawUDSpent), in-memory spentStepsToday=\(self.spentStepsToday)")
         
         if !isSameDay {
-            #if DEBUG
-            AppLogger.payment.debug("New day detected, resetting spentStepsToday to 0")
-            #endif
+            AppLogger.energy.debug("📥 loadSpentStepsBalance: new day → resetting spent to 0")
             self.spentStepsToday = 0
             self.stepsBalance = 0
-            g.set(currentDayStart(for: Date()), forKey: SharedKeys.stepsBalanceAnchor)
         } else {
-            self.spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
+            self.spentStepsToday = rawUDSpent
         }
         
         let todaysBaseEnergy = self.baseEnergyToday
-        // NOTE: Do NOT cap spentStepsToday to baseEnergyToday.
-        // If the user reset the canvas, baseEnergy drops temporarily while spent stays.
-        // Capping here would permanently erase the spent amount, creating free EXP
-        // when activities are re-added. max(0, ...) on balance handles it correctly.
-        
         self.stepsBalance = max(0, todaysBaseEnergy - self.spentStepsToday)
+        
+        AppLogger.energy.debug("📥 loadSpentStepsBalance RESULT: spent=\(self.spentStepsToday), base=\(todaysBaseEnergy), balance=\(self.stepsBalance)")
         
         self.serverGrantedSteps = g.integer(forKey: "serverGrantedSteps_v1")
         

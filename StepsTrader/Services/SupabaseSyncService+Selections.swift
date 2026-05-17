@@ -53,13 +53,12 @@ extension SupabaseSyncService {
     // MARK: - Perform Sync Implementations
     
     func performCustomActivitiesSync(_ activities: [CustomEnergyOption]) async {
-        await AuthenticationService.shared.waitForInitialization()
-        
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
+        guard let auth = await authenticatedContext() else {
             AppLogger.network.debug("📡 Custom activities sync skipped: no auth")
             return
         }
+        let token = auth.token
+        let userId = auth.userId
         
         let hash = activities.hashValue
         guard hash != lastSyncedCustomActivitiesHash else {
@@ -164,16 +163,13 @@ extension SupabaseSyncService {
         AppLogger.network.debug("📡 performDailySelectionsSync called for \(dayKey)")
         AppLogger.network.debug("📡   activities: \(activityIds), recovery: \(recoveryIds), joys: \(joysIds)")
         
-        await AuthenticationService.shared.waitForInitialization()
-        if Task.isCancelled { return }
-        
-        let token = await AuthenticationService.shared.accessToken
-        let userId = await AuthenticationService.shared.currentUser?.id
-        guard let token, let userId else {
-            let hasToken = token != nil
-            AppLogger.network.debug("📡 Daily selections sync skipped: no auth (token=\(hasToken), user=\(userId ?? "nil"))")
+        guard let auth = await authenticatedContext() else {
+            AppLogger.network.debug("📡 Daily selections sync skipped: no auth")
             return
         }
+        if Task.isCancelled { return }
+        let token = auth.token
+        let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -228,11 +224,9 @@ extension SupabaseSyncService {
     
     /// Load custom activities from Supabase (for restoring on new device)
     func loadCustomActivitiesFromServer() async -> [CustomEnergyOption]? {
-        await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
-            return nil
-        }
+        guard let auth = await authenticatedContext() else { return nil }
+        let token = auth.token
+        let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -277,11 +271,9 @@ extension SupabaseSyncService {
     
     /// Load today's daily selections from Supabase
     func loadTodaySelectionsFromServer() async -> (activity: [String], rest: [String], joys: [String])? {
-        await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
-            return nil
-        }
+        guard let auth = await authenticatedContext() else { return nil }
+        let token = auth.token
+        let userId = auth.userId
         
         let today = AppModel.dayKey(for: Date())
         if let cached = cachedTodaySelections,

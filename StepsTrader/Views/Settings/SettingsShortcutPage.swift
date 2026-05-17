@@ -21,12 +21,12 @@ struct SettingsShortcutPage: View {
             SettingsGradientBG(model: model)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 24) {
                     DetailHeader(title: String(localized: "Wallpaper", comment: "Settings section title"))
                         .padding(.horizontal, 16)
 
                     // MARK: - Description
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 10) {
                             Image(systemName: "sparkles")
                                 .font(.title3)
@@ -41,15 +41,14 @@ struct SettingsShortcutPage: View {
                             .foregroundColor(theme.adaptiveSecondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(14)
-                    .glassCard()
                     .padding(.horizontal, 16)
+
+                    DetailDivider().padding(.horizontal, 16)
 
                     // MARK: - Steps
                     VStack(alignment: .leading, spacing: 0) {
-                        SettingsSectionLabel(text: String(localized: "SETUP", comment: "Wallpaper section header"))
+                        SettingsSectionLabel(text: String(localized: "Setup", comment: "Wallpaper section header"))
                             .padding(.horizontal, 14)
-                            .padding(.top, 14)
                             .padding(.bottom, 10)
 
                         ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
@@ -72,7 +71,6 @@ struct SettingsShortcutPage: View {
                             .padding(.vertical, 10)
                         }
                     }
-                    .glassCard()
                     .padding(.horizontal, 16)
 
                     // MARK: - CTA
@@ -85,17 +83,18 @@ struct SettingsShortcutPage: View {
                             Text(String(localized: "Get Wallpaper Shortcut"))
                                 .font(.subheadline.weight(.semibold))
                         }
-                        .foregroundColor(.black)
+                        .foregroundColor(AppAccentInk.primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Capsule().fill(AppColors.brandAccent))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(MattePressStyle())
                     .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 80)
             }
         }
+        .overlay { }
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }

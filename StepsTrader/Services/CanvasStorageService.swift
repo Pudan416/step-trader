@@ -118,7 +118,8 @@ final class CanvasStorageService {
             stepsColor: stepsColor,
             decayNorm: decayNorm,
             backgroundColor: backgroundColor,
-            fixedTime: Date()
+            fixedTime: Date(),
+            isOffscreenRender: true
         )
         .frame(width: 390, height: 500)
 
@@ -137,6 +138,7 @@ final class CanvasStorageService {
 
     /// Saves a smaller canvas snapshot to the shared App Group container
     /// so the widget extension can display today's canvas preview.
+    /// Renders on main actor, then writes JPEG to disk in the background.
     @MainActor
     func saveWidgetSnapshot(for dayKey: String, elements: [CanvasElement], sleepPoints: Int, stepsPoints: Int, sleepColor: Color, stepsColor: Color, decayNorm: Double, backgroundColor: Color = AppColors.Night.background) {
         let view = GenerativeCanvasView(
@@ -149,7 +151,8 @@ final class CanvasStorageService {
             backgroundColor: backgroundColor,
             showLabelsOnCanvas: false,
             showsOutlinedLabels: false,
-            fixedTime: Date()
+            fixedTime: Date(),
+            isOffscreenRender: true
         )
         .frame(width: 200, height: 200)
 
@@ -166,21 +169,24 @@ final class CanvasStorageService {
             rendered.draw(at: .zero)
         }
 
-        guard let containerURL = fileManager.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
-        ) else { return }
+        let fm = self.fileManager
+        Task.detached(priority: .utility) {
+            guard let containerURL = fm.containerURL(
+                forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
+            ) else { return }
 
-        let dir = containerURL.appendingPathComponent("widget_snapshots", isDirectory: true)
-        do {
-            try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-        } catch {
-            Self.log.error("Failed to create widget snapshot directory: \(error.localizedDescription)")
-        }
-        let url = dir.appendingPathComponent("canvas_today.jpg")
-        do {
-            try data.write(to: url, options: .atomic)
-        } catch {
-            Self.log.error("Failed to save widget snapshot: \(error.localizedDescription)")
+            let dir = containerURL.appendingPathComponent("widget_snapshots", isDirectory: true)
+            do {
+                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            } catch {
+                Self.log.error("Failed to create widget snapshot directory: \(error.localizedDescription)")
+            }
+            let url = dir.appendingPathComponent("canvas_today.jpg")
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                Self.log.error("Failed to save widget snapshot: \(error.localizedDescription)")
+            }
         }
     }
 

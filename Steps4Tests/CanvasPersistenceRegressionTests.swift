@@ -92,7 +92,8 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
             healthKitService: MockHealthKitService(),
             familyControlsService: MockFamilyControlsService(),
             notificationService: MockNotificationService(),
-            budgetEngine: MockBudgetEngine()
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: SubscriptionStore.shared
         )
     }
 }

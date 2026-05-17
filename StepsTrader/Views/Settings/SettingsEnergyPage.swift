@@ -18,7 +18,7 @@ struct SettingsEnergyPage: View {
             SettingsGradientBG(model: model)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 24) {
                     DetailHeader(title: String(localized: "Limits", comment: "Settings section title"))
                         .padding(.horizontal, 16)
 
@@ -37,8 +37,9 @@ struct SettingsEnergyPage: View {
                                 model.recalculateDailyEnergy()
                             }
                     }
-                    .glassCard()
                     .padding(.horizontal, 16)
+
+                    DetailDivider().padding(.horizontal, 16)
 
                     // MARK: - Sleep Goal
                     VStack(spacing: 12) {
@@ -55,8 +56,9 @@ struct SettingsEnergyPage: View {
                                 model.recalculateDailyEnergy()
                             }
                     }
-                    .glassCard()
                     .padding(.horizontal, 16)
+
+                    DetailDivider().padding(.horizontal, 16)
 
                     // MARK: - Day Reset
                     VStack(spacing: 10) {
@@ -79,7 +81,6 @@ struct SettingsEnergyPage: View {
                             model.updateDayEnd(hour: hour, minute: minute)
                         }
                     }
-                    .glassCard()
                     .padding(.horizontal, 16)
 
                     SettingsFooter(text: String(localized: "Your canvas and colors reset at this time each day."))
@@ -88,6 +89,7 @@ struct SettingsEnergyPage: View {
                 .padding(.bottom, 80)
             }
         }
+        .overlay { }
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
@@ -133,7 +135,7 @@ struct SettingsEnergyPage: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.top, 14)
+        .padding(.top, 4)
     }
 
 }

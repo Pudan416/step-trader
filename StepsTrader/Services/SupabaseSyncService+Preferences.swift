@@ -26,7 +26,16 @@ extension SupabaseSyncService {
         dayResetWarningHours: Int = 1,
         hasMediumWidget: Bool = false,
         hasLargeWidget: Bool = false,
-        lastOpenedAt: Date? = nil
+        lastOpenedAt: Date? = nil,
+        gradientStyle: String = GradientStyle.radial.rawValue,
+        gradientPalette: String = GradientPalette.warmSunset.rawValue,
+        userGradientStyle: String = GradientStyle.radial.rawValue,
+        userGradientPalette: String = GradientPalette.warmSunset.rawValue,
+        dailyRandomThemeEnabled: Bool = false,
+        canvasOverlayStyle: String = CanvasOverlayStyle.smudge.rawValue,
+        bodyCanvasShape: String = CanvasShapeType.circle.rawValue,
+        mindCanvasShape: String = CanvasShapeType.snowflake.rawValue,
+        heartCanvasShape: String = CanvasShapeType.rays.rawValue
     ) {
         let payload = UserPreferencesPayload(
             stepsTarget: stepsTarget,
@@ -49,7 +58,16 @@ extension SupabaseSyncService {
             dayResetWarningHours: dayResetWarningHours,
             hasMediumWidget: hasMediumWidget,
             hasLargeWidget: hasLargeWidget,
-            lastOpenedAt: lastOpenedAt
+            lastOpenedAt: lastOpenedAt,
+            gradientStyle: gradientStyle,
+            gradientPalette: gradientPalette,
+            userGradientStyle: userGradientStyle,
+            userGradientPalette: userGradientPalette,
+            dailyRandomThemeEnabled: dailyRandomThemeEnabled,
+            canvasOverlayStyle: canvasOverlayStyle,
+            bodyCanvasShape: bodyCanvasShape,
+            mindCanvasShape: mindCanvasShape,
+            heartCanvasShape: heartCanvasShape
         )
         
         if payload == pendingPreferences { return }
@@ -71,12 +89,12 @@ extension SupabaseSyncService {
     
     /// Track wallpaper shortcut usage (lightweight, called from Intent)
     func trackWallpaperShortcutUsage() async {
-        await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
+        guard let auth = await authenticatedContext() else {
             AppLogger.network.debug("📡 Wallpaper shortcut tracking skipped: no auth")
             return
         }
+        let token = auth.token
+        let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -124,14 +142,13 @@ extension SupabaseSyncService {
             }
         }
         
-        await AuthenticationService.shared.waitForInitialization()
-        if Task.isCancelled { return }
-        
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
+        guard let auth = await authenticatedContext() else {
             AppLogger.network.debug("📡 Preferences sync skipped: no auth")
             return
         }
+        if Task.isCancelled { return }
+        let token = auth.token
+        let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -172,6 +189,15 @@ extension SupabaseSyncService {
                 "day_reset_warning_hours": payload.dayResetWarningHours,
                 "has_medium_widget": payload.hasMediumWidget,
                 "has_large_widget": payload.hasLargeWidget,
+                "gradient_style": payload.gradientStyle,
+                "gradient_palette": payload.gradientPalette,
+                "user_gradient_style": payload.userGradientStyle,
+                "user_gradient_palette": payload.userGradientPalette,
+                "daily_random_theme_enabled": payload.dailyRandomThemeEnabled,
+                "canvas_overlay_style": payload.canvasOverlayStyle,
+                "body_canvas_shape": payload.bodyCanvasShape,
+                "mind_canvas_shape": payload.mindCanvasShape,
+                "heart_canvas_shape": payload.heartCanvasShape,
                 "updated_at": iso8601String(Date())
             ]
             if let lastOpened = payload.lastOpenedAt {
@@ -207,13 +233,18 @@ extension SupabaseSyncService {
         notifyOneMinBefore: Bool, notifyWhenTimerOver: Bool,
         notifyCanvasReminder: Bool, canvasReminderHour: Int, canvasReminderMinute: Int,
         notifyDayResetWarning: Bool, dayResetWarningHours: Int,
-        hasMediumWidget: Bool, hasLargeWidget: Bool
+        hasMediumWidget: Bool, hasLargeWidget: Bool,
+        gradientStyle: String, gradientPalette: String,
+        userGradientStyle: String, userGradientPalette: String,
+        dailyRandomThemeEnabled: Bool,
+        canvasOverlayStyle: String,
+        bodyCanvasShape: String,
+        mindCanvasShape: String,
+        heartCanvasShape: String
     )? {
-        await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.accessToken,
-              let userId = await AuthenticationService.shared.currentUser?.id else {
-            return nil
-        }
+        guard let auth = await authenticatedContext() else { return nil }
+        let token = auth.token
+        let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()
@@ -268,7 +299,16 @@ extension SupabaseSyncService {
                 notifyDayResetWarning: row.notifyDayResetWarning,
                 dayResetWarningHours: row.dayResetWarningHours,
                 hasMediumWidget: row.hasMediumWidget,
-                hasLargeWidget: row.hasLargeWidget
+                hasLargeWidget: row.hasLargeWidget,
+                gradientStyle: row.gradientStyle,
+                gradientPalette: row.gradientPalette,
+                userGradientStyle: row.userGradientStyle,
+                userGradientPalette: row.userGradientPalette,
+                dailyRandomThemeEnabled: row.dailyRandomThemeEnabled,
+                canvasOverlayStyle: row.canvasOverlayStyle,
+                bodyCanvasShape: row.bodyCanvasShape,
+                mindCanvasShape: row.mindCanvasShape,
+                heartCanvasShape: row.heartCanvasShape
             )
         } catch {
             AppLogger.network.error("📡 Failed to load preferences: \(error.localizedDescription)")

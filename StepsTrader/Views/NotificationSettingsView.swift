@@ -49,16 +49,15 @@ struct NotificationSettingsView: View {
             SettingsGradientBG(model: model)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 24) {
                     DetailHeader(title: String(localized: "Notifications", comment: "Navigation title"))
                         .padding(.horizontal, 16)
 
                     // MARK: - Access Window
                     VStack(alignment: .leading, spacing: 0) {
-                        SettingsSectionLabel(text: String(localized: "ACCESS WINDOW", comment: "Notification section header"))
+                        SettingsSectionLabel(text: String(localized: "Access window", comment: "Notification section header"))
                             .padding(.horizontal, 14)
-                            .padding(.top, 14)
-                            .padding(.bottom, 6)
+                            .padding(.bottom, 8)
 
                         SettingsToggleRow(
                             icon: "timer",
@@ -74,15 +73,15 @@ struct NotificationSettingsView: View {
                             isOn: $timerOver
                         )
                     }
-                    .glassCard()
                     .padding(.horizontal, 16)
+
+                    DetailDivider().padding(.horizontal, 16)
 
                     // MARK: - Canvas Reminder
                     VStack(alignment: .leading, spacing: 0) {
-                        SettingsSectionLabel(text: String(localized: "CANVAS REMINDER", comment: "Notification section header"))
+                        SettingsSectionLabel(text: String(localized: "Canvas reminder", comment: "Notification section header"))
                             .padding(.horizontal, 14)
-                            .padding(.top, 14)
-                            .padding(.bottom, 6)
+                            .padding(.bottom, 8)
 
                         SettingsToggleRow(
                             icon: "paintpalette",
@@ -95,7 +94,7 @@ struct NotificationSettingsView: View {
                         if canvasReminder {
                             DetailDivider()
 
-                            HStack {
+                            HStack(spacing: 12) {
                                 Image(systemName: "clock")
                                     .font(.system(size: 15))
                                     .foregroundStyle(theme.adaptiveSecondaryText)
@@ -112,15 +111,15 @@ struct NotificationSettingsView: View {
                             .padding(.vertical, 10)
                         }
                     }
-                    .glassCard()
                     .padding(.horizontal, 16)
+
+                    DetailDivider().padding(.horizontal, 16)
 
                     // MARK: - Day Reset Warning
                     VStack(alignment: .leading, spacing: 0) {
-                        SettingsSectionLabel(text: String(localized: "DAY RESET", comment: "Notification section header"))
+                        SettingsSectionLabel(text: String(localized: "Day reset", comment: "Notification section header"))
                             .padding(.horizontal, 14)
-                            .padding(.top, 14)
-                            .padding(.bottom, 6)
+                            .padding(.bottom, 8)
 
                         SettingsToggleRow(
                             icon: "arrow.counterclockwise",
@@ -133,7 +132,7 @@ struct NotificationSettingsView: View {
                         if dayResetWarning {
                             DetailDivider()
 
-                            HStack {
+                            HStack(spacing: 12) {
                                 Image(systemName: "hourglass")
                                     .font(.system(size: 15))
                                     .foregroundStyle(theme.adaptiveSecondaryText)
@@ -170,12 +169,12 @@ struct NotificationSettingsView: View {
                             .padding(.vertical, 10)
                         }
                     }
-                    .glassCard()
                     .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 80)
             }
         }
+        .overlay { }
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
