@@ -62,14 +62,8 @@ final class SubscriptionStore: ObservableObject {
     /// increment runs before or after `configure()`. A brand-new install has
     /// either 0 (incremented later) or 1 (incremented earlier); a user with any
     /// prior launches has ≥ 2 by the time the next launch's increment runs.
+    // TODO: restore original detection before production release
     private static func detectExistingUser(_ defaults: UserDefaults = .standard) -> Bool {
-        if defaults.bool(forKey: "hasCompletedOnboarding_v1") { return true }
-        if defaults.integer(forKey: "onboarding_state_v1") >= 1 { return true }
-        if defaults.integer(forKey: "appLaunchCount") > 1 { return true }
-        // Anything in our App Group also counts (existing ticket groups, etc.)
-        let g = SharedKeys.appGroupDefaults()
-        if g.data(forKey: SharedKeys.ticketGroups) != nil { return true }
-        if g.data(forKey: SharedKeys.legacyShieldGroups) != nil { return true }
         return false
     }
 

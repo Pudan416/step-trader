@@ -41,5 +41,6 @@ enum SubscriptionIDs {
     /// `UserDefaults.standard[isGrandfathered]` flag is honoured).
     ///
     /// Example: if v1.5 (build 42) was the last pre-paywall build, set this to `43`.
-    static let grandfatherBeforeBuild: Int = 14
+    // TODO: restore to 14 before production release
+    static let grandfatherBeforeBuild: Int = 0
 }
