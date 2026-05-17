@@ -111,26 +111,18 @@ extension AppModel {
         Task { await SupabaseSyncService.shared.syncCustomActivities(customEnergyOptions) }
     }
     
-    func addCustomOption(category: EnergyCategory, titleEn: String, titleRu: String, icon: String = "pencil") -> String {
-        // Defense-in-depth Pro gate. The primary gate is at the UI layer
-        // (CategoryDetailView.addCustomSection), but this method is also
-        // reachable from `commitEntry`'s "Save for future" checkbox and from
-        // future code paths. Existing custom options are NOT removed when a
-        // user downgrades — only new creation is blocked, matching the design
-        // intent in `SubscriptionGate.freeCanCreateCustomActivity`.
+    func addCustomOption(category: EnergyCategory, titleEn: String, icon: String = "pencil") -> String {
         guard SubscriptionGate.canCreateCustomActivity(isPro: isPro) else {
             AppLogger.app.debug("⛔ addCustomOption blocked — user is not Pro")
             return ""
         }
 
         let titleEnTrimmed = titleEn.trimmingCharacters(in: .whitespacesAndNewlines)
-        let titleRuTrimmed = titleRu.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !titleEnTrimmed.isEmpty else { return "" }
         let id = "custom_\(category.rawValue)_\(UUID().uuidString.prefix(8))"
         let custom = CustomEnergyOption(
             id: id,
             titleEn: titleEnTrimmed,
-            titleRu: titleRuTrimmed.isEmpty ? titleEnTrimmed : titleRuTrimmed,
             category: category,
             icon: icon
         )
@@ -159,13 +151,11 @@ extension AppModel {
             ?? optionId
     }
 
-    func updateCustomOption(optionId: String, titleEn: String, titleRu: String, icon: String) {
+    func updateCustomOption(optionId: String, titleEn: String, icon: String) {
         let titleEnTrimmed = titleEn.trimmingCharacters(in: .whitespacesAndNewlines)
-        let titleRuTrimmed = titleRu.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !titleEnTrimmed.isEmpty else { return }
         guard let index = customEnergyOptions.firstIndex(where: { $0.id == optionId }) else { return }
         customEnergyOptions[index].titleEn = titleEnTrimmed
-        customEnergyOptions[index].titleRu = titleRuTrimmed.isEmpty ? titleEnTrimmed : titleRuTrimmed
         customEnergyOptions[index].icon = icon
         saveCustomEnergyOptions()
         objectWillChange.send()

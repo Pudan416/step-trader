@@ -5,15 +5,12 @@ struct EnergyOption: Identifiable, Codable, Equatable {
     /// Fallback English title. Authoritative copy lives in Localizable.xcstrings under
     /// `option.title.<id>` for built-in options. Custom (user-added) options use this directly.
     let titleEn: String
-    /// Fallback Russian title. Same semantics as `titleEn`.
-    let titleRu: String
     let category: EnergyCategory
     let icon: String
 
     func title(for lang: String) -> String {
-        let fallback = lang == "ru" ? titleRu : titleEn
         let key = "option.title.\(id)"
-        return Bundle.main.localizedString(forKey: key, value: fallback, table: nil)
+        return Bundle.main.localizedString(forKey: key, value: titleEn, table: nil)
     }
 }
 
@@ -31,24 +28,34 @@ struct OptionEntry: Identifiable, Codable, Equatable {
 struct CustomEnergyOption: Identifiable, Codable, Equatable, Hashable {
     let id: String
     var titleEn: String
-    var titleRu: String
     let category: EnergyCategory
     var icon: String
     
-    init(id: String, titleEn: String, titleRu: String, category: EnergyCategory, icon: String = "pencil") {
+    init(id: String, titleEn: String, category: EnergyCategory, icon: String = "pencil") {
         self.id = id
         self.titleEn = titleEn
-        self.titleRu = titleRu
         self.category = category
         self.icon = icon
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        titleEn = try container.decode(String.self, forKey: .titleEn)
+        category = try container.decode(EnergyCategory.self, forKey: .category)
+        icon = try container.decodeIfPresent(String.self, forKey: .icon) ?? "pencil"
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, titleEn, category, icon
+    }
     
     func title(for lang: String) -> String {
-        lang == "ru" ? titleRu : titleEn
+        titleEn
     }
     
     func asEnergyOption() -> EnergyOption {
-        EnergyOption(id: id, titleEn: titleEn, titleRu: titleRu, category: category, icon: icon)
+        EnergyOption(id: id, titleEn: titleEn, category: category, icon: icon)
     }
 }
 

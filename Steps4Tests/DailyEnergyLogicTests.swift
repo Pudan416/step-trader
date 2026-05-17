@@ -176,13 +176,13 @@ final class DailyEnergyLogicTests: XCTestCase {
     // MARK: - CustomEnergyOption
 
     func testCustomEnergyOption_title() {
-        let custom = CustomEnergyOption(id: "custom_body_abc", titleEn: "Jogging", titleRu: "Бег", category: .body)
+        let custom = CustomEnergyOption(id: "custom_body_abc", titleEn: "Jogging", category: .body)
         XCTAssertEqual(custom.title(for: "en"), "Jogging")
-        XCTAssertEqual(custom.title(for: "ru"), "Бег")
+        XCTAssertEqual(custom.title(for: "ru"), "Jogging")
     }
 
     func testCustomEnergyOption_asEnergyOption() {
-        let custom = CustomEnergyOption(id: "custom_body_xyz", titleEn: "Yoga", titleRu: "Йога", category: .body, icon: "figure.yoga")
+        let custom = CustomEnergyOption(id: "custom_body_xyz", titleEn: "Yoga", category: .body, icon: "figure.yoga")
         let option = custom.asEnergyOption()
         XCTAssertEqual(option.id, custom.id)
         XCTAssertEqual(option.titleEn, custom.titleEn)
@@ -191,7 +191,7 @@ final class DailyEnergyLogicTests: XCTestCase {
     }
 
     func testCustomEnergyOption_codable() throws {
-        let custom = CustomEnergyOption(id: "custom_mind_1", titleEn: "Idea", titleRu: "Идея", category: .mind)
+        let custom = CustomEnergyOption(id: "custom_mind_1", titleEn: "Idea", category: .mind)
         let data = try JSONEncoder().encode(custom)
         let decoded = try JSONDecoder().decode(CustomEnergyOption.self, from: data)
         XCTAssertEqual(decoded.id, custom.id)

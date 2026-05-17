@@ -107,7 +107,7 @@ extension SupabaseSyncService {
                     id: activity.id,
                     userId: userId,
                     titleEn: activity.titleEn,
-                    titleRu: activity.titleRu,
+                    titleRu: nil,
                     category: activity.category.rawValue,
                     icon: activity.icon
                 )
@@ -258,7 +258,6 @@ extension SupabaseSyncService {
                 return CustomEnergyOption(
                     id: row.id,
                     titleEn: row.titleEn,
-                    titleRu: row.titleRu ?? row.titleEn,
                     category: category,
                     icon: row.icon ?? "pencil"
                 )

@@ -756,7 +756,7 @@ struct CategoryDetailView: View {
                 .components(separatedBy: ",").first?
                 .trimmingCharacters(in: .whitespacesAndNewlines).capitalized ?? ""
             if !cleanName.isEmpty {
-                let newId = model.addCustomOption(category: category, titleEn: cleanName, titleRu: cleanName, icon: option.icon)
+                let newId = model.addCustomOption(category: category, titleEn: cleanName, icon: option.icon)
                 saveLastUsedPreferences(optionId: newId, colorHex: editColorHex)
             }
         }
@@ -773,7 +773,7 @@ struct CategoryDetailView: View {
         guard !name.isEmpty else { return }
 
         let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
-        let newId = model.addCustomOption(category: category, titleEn: name, titleRu: name, icon: customIcon)
+        let newId = model.addCustomOption(category: category, titleEn: name, icon: customIcon)
         saveLastUsedPreferences(optionId: newId, colorHex: color)
 
         let dayKey = AppModel.dayKey(for: Date())
@@ -781,7 +781,7 @@ struct CategoryDetailView: View {
             id: "\(newId)_\(dayKey)", dayKey: dayKey, optionId: newId,
             category: category, colorHex: color, text: "", timestamp: Date(), assetVariant: nil
         )
-        let opt = EnergyOption(id: newId, titleEn: name, titleRu: name, category: category, icon: customIcon)
+        let opt = EnergyOption(id: newId, titleEn: name, category: category, icon: customIcon)
         saveEntry(entry, for: opt)
         entryColorCache[newId] = Color(hex: color)
 

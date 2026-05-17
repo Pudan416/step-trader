@@ -250,6 +250,9 @@
         }
       }
     },
+    "%lld steps" : {
+      "comment" : "QuickStatus – balance value"
+    },
     "%lld/%lld" : {
       "localizations" : {
         "en" : {
@@ -277,6 +280,12 @@
     },
     "⏱️ %@" : {
       "comment" : "Notification – timer title with app name"
+    },
+    "🐛 Force unlock" : {
+
+    },
+    "📊" : {
+
     },
     "🛡️" : {
 
@@ -394,6 +403,9 @@
     },
     "all" : {
       "comment" : "ManualsPage – filter showing all notes"
+    },
+    "All history" : {
+      "comment" : "MeView – history link label"
     },
     "all notes" : {
       "comment" : "ManualsPage – accessibility label for all filter"
@@ -547,11 +559,20 @@
     "Circle" : {
       "comment" : "Canvas shape type"
     },
+    "Clear" : {
+
+    },
     "Close" : {
-      "comment" : "CategoryDetail – close button VoiceOver label\nDayCanvasViewer – close VoiceOver\nPayGate – close button VoiceOver label"
+      "comment" : "CategoryDetail – close button VoiceOver label\nDayCanvasViewer – close VoiceOver\nPayGate – close button VoiceOver label\nQuickStatus – dismiss button"
     },
     "Close menu" : {
       "comment" : "RadialMenu – VoiceOver label"
+    },
+    "Close quick status" : {
+      "comment" : "QuickStatus – close VoiceOver label"
+    },
+    "Closes the quick status view" : {
+      "comment" : "QuickStatus – close VoiceOver hint"
     },
     "Code" : {
 
@@ -596,6 +617,9 @@
       "comment" : "About section header"
     },
     "Continue" : {
+
+    },
+    "Copy All" : {
 
     },
     "Cosmic" : {
@@ -670,6 +694,9 @@
     "do you want me to show you around?" : {
 
     },
+    "done" : {
+
+    },
     "Done" : {
       "comment" : "AppSelection – done button\nManualsPage – dismiss button\nTimeAccessPicker – dismiss button"
     },
@@ -741,6 +768,9 @@
     },
     "Entries left today: %@" : {
 
+    },
+    "Entry balance:" : {
+      "comment" : "QuickStatus – balance label"
     },
     "Error" : {
       "comment" : "ProfileEditor – error alert title"
@@ -843,6 +873,9 @@
     },
     "GRADIENT STYLE" : {
       "comment" : "Appearance section header"
+    },
+    "Grandfathering reset — restart app" : {
+
     },
     "Health" : {
       "comment" : "Permission row – HealthKit"
@@ -1019,6 +1052,9 @@
     "My Feeds" : {
       "comment" : "Feeds page title"
     },
+    "My progress overview" : {
+      "comment" : "QuickStatus – subtitle"
+    },
     "N/A" : {
       "comment" : "Permission – not available badge"
     },
@@ -1027,6 +1063,9 @@
     },
     "New Feed" : {
       "comment" : "TemplatePicker – navigation title"
+    },
+    "next" : {
+
     },
     "Next" : {
 
@@ -1437,12 +1476,6 @@
             "state" : "translated",
             "value" : "A day with minimal screen time."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "День с минимальным экранным временем."
-          }
         }
       }
     },
@@ -1783,12 +1816,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "phone untouched, no scrolling, present in the moment"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "телефон нетронут, без скроллинга, присутствие в моменте"
           }
         }
       }
@@ -2131,12 +2158,6 @@
             "state" : "translated",
             "value" : "Screen Detoxing"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Экранный детокс"
-          }
         }
       }
     },
@@ -2192,6 +2213,9 @@
     "Plastic" : {
       "comment" : "Texture picker – plastic"
     },
+    "Preview Paywall (debug)" : {
+
+    },
     "Privacy" : {
 
     },
@@ -2228,6 +2252,9 @@
     "Purchase Failed" : {
 
     },
+    "Quick Status" : {
+      "comment" : "QuickStatus – title"
+    },
     "Radial" : {
 
     },
@@ -2262,6 +2289,12 @@
 
     },
     "reset" : {
+
+    },
+    "Reset Grandfathering (debug)" : {
+
+    },
+    "Reset Welcome Paywall (debug)" : {
 
     },
     "Resting" : {
@@ -2327,6 +2360,9 @@
     "Share canvas" : {
       "comment" : "DayCanvasViewer – share VoiceOver\nGalleryView – share button VoiceOver label"
     },
+    "ShieldAction Logs" : {
+
+    },
     "Sign in to keep your data safe and synced across devices" : {
 
     },
@@ -2346,6 +2382,9 @@
       "comment" : "Onboarding – Apple sign-in success state"
     },
     "Skip" : {
+
+    },
+    "skip all" : {
 
     },
     "Sleep" : {
@@ -2377,12 +2416,6 @@
             "state" : "translated",
             "value" : "No sleep data came through today. That's OK — you definitely slept. Here are 10 colors, on the house. Connect sleep tracking in Health for precise hours."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Данные о сне сегодня не пришли. Ничего — ты точно спал. Вот 10 цветов, от меня. Подключи отслеживание сна в Здоровье, чтобы считать точные часы."
-          }
         }
       }
     },
@@ -2393,12 +2426,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sleep: %lld colors"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сон: %lld цветов"
           }
         }
       }
@@ -2491,6 +2518,9 @@
     },
     "steps today" : {
 
+    },
+    "Steps today:" : {
+      "comment" : "QuickStatus – steps label"
     },
     "Steps, sleep, workouts" : {
       "comment" : "Permission row – HealthKit detail"
@@ -2659,9 +2689,6 @@
     "Version" : {
 
     },
-    "View history" : {
-      "comment" : "MeView – history link label"
-    },
     "View plans" : {
 
     },
@@ -2687,6 +2714,9 @@
 
     },
     "Welcome offer." : {
+
+    },
+    "Welcome paywall reset — re-onboard to see" : {
 
     },
     "welcome to" : {
@@ -2753,12 +2783,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You slept — add it to your canvas"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ты спал — добавь это на холст"
           }
         }
       }

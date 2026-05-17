@@ -103,18 +103,25 @@ enum RayShapeRenderer {
         } else {
             let seed = e.shapeSeed ?? UInt64(bitPattern: Int64(e.id.hashValue))
             let (near, mid, far) = resolveColors(e, seed: seed)
-            drawSoftwareCone(
-                context: &context,
-                anchor: anchor,
-                radius: scaledRadius,
-                rotation: rotation,
-                coneHalfAngle: .degrees(35 + Double(seed % 20)),
-                near: near, mid: mid, far: far,
-                opacity: opacity,
-                blendMode: blendMode,
-                time: t,
-                phase: e.phaseOffset
-            )
+            let shaderTime = Float(t + e.phaseOffset)
+
+            guard let cgImage = renderSpotlightBitmap(
+                size: Int(symbolSize),
+                time: shaderTime,
+                near: rgbComponents(near),
+                mid: rgbComponents(mid),
+                far: rgbComponents(far)
+            ) else { return }
+
+            let spotImage = Image(decorative: cgImage, scale: 1.0)
+            context.drawLayer { ctx in
+                ctx.opacity = opacity
+                ctx.blendMode = blendMode
+                ctx.translateBy(x: anchor.x, y: anchor.y)
+                ctx.rotate(by: rotation)
+                ctx.translateBy(x: -anchor.x, y: -anchor.y)
+                ctx.draw(spotImage, in: spotRect)
+            }
         }
     }
 
@@ -130,118 +137,112 @@ enum RayShapeRenderer {
         }
     }
 
-    // MARK: - Software Fallback
+    // MARK: - CPU Spotlight Renderer (pixel-matched to SpotlightShader.metal)
 
-    /// Draws a spotlight cone using layered CoreGraphics paths + gradients
-    /// with Gaussian blur to closely approximate the Metal `spotlightEffect`
-    /// shader. Used by ImageRenderer (wallpaper export, history thumbnails)
-    /// where Metal shaders are unavailable.
-    private static func drawSoftwareCone(
-        context: inout GraphicsContext,
-        anchor: CGPoint,
-        radius: Double,
-        rotation: Angle,
-        coneHalfAngle: Angle,
-        near: Color,
-        mid: Color,
-        far: Color,
-        opacity: Double,
-        blendMode: GraphicsContext.BlendMode,
-        time: Double,
-        phase: Double
-    ) {
-        let halfRad = coneHalfAngle.radians
-        let r = CGFloat(radius)
-        let blur = r * 0.035
+    private static func rgbComponents(_ color: Color) -> (Float, Float, Float) {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+        UIColor(color).getRed(&r, green: &g, blue: &b, alpha: nil)
+        return (Float(r), Float(g), Float(b))
+    }
 
-        context.drawLayer { ctx in
-            ctx.opacity = opacity
-            ctx.blendMode = blendMode
-            ctx.translateBy(x: anchor.x, y: anchor.y)
-            ctx.rotate(by: rotation)
+    private static func sstep(_ e0: Float, _ e1: Float, _ x: Float) -> Float {
+        let t = min(max((x - e0) / (e1 - e0), 0), 1)
+        return t * t * (3 - 2 * t)
+    }
 
-            // Layer 1: Wide outer glow (far color, large cone)
-            let outerHalf = halfRad * 1.35
-            var outerPath = Path()
-            outerPath.move(to: .zero)
-            outerPath.addArc(
-                center: .zero, radius: r,
-                startAngle: .radians(-.pi / 2 - outerHalf),
-                endAngle:   .radians(-.pi / 2 + outerHalf),
-                clockwise: false
-            )
-            outerPath.closeSubpath()
+    /// Pixel-accurate CPU port of `spotlightEffect` from SpotlightShader.metal.
+    /// Produces a premultiplied-alpha CGImage matching the Metal shader output.
+    /// ~10ms per 256×256 element on modern iPhones.
+    private static func renderSpotlightBitmap(
+        size: Int,
+        time: Float,
+        near: (Float, Float, Float),
+        mid: (Float, Float, Float),
+        far: (Float, Float, Float)
+    ) -> CGImage? {
+        let w = size, h = size
+        let resF = Float(w)
+        var pixels = [UInt8](repeating: 0, count: w * h * 4)
 
-            ctx.drawLayer { outer in
-                outer.addFilter(.blur(radius: blur * 1.8))
-                let grad = Gradient(stops: [
-                    .init(color: mid.opacity(0.50), location: 0),
-                    .init(color: far.opacity(0.30), location: 0.3),
-                    .init(color: far.opacity(0.10), location: 0.65),
-                    .init(color: far.opacity(0.0),  location: 1.0),
-                ])
-                outer.fill(outerPath, with: .radialGradient(grad, center: .zero, startRadius: 0, endRadius: r))
-            }
+        let nearC = SIMD3<Float>(near.0, near.1, near.2)
+        let midC  = SIMD3<Float>(mid.0,  mid.1,  mid.2)
+        let farC  = SIMD3<Float>(far.0,  far.1,  far.2)
 
-            // Layer 2: Main cone body
-            var mainPath = Path()
-            mainPath.move(to: .zero)
-            mainPath.addArc(
-                center: .zero, radius: r * 0.92,
-                startAngle: .radians(-.pi / 2 - halfRad),
-                endAngle:   .radians(-.pi / 2 + halfRad),
-                clockwise: false
-            )
-            mainPath.closeSubpath()
+        let lightPos = SIMD2<Float>(-0.5, -0.5)
+        let aim = 1.15 + 0.55 * sinf(time * 0.55)
+        let dirN = SIMD2<Float>(sinf(aim), cosf(aim))
+        let coneAngle: Float = 30 + 80 * (0.5 + 0.5 * sinf(time * 0.45))
+        let halfRad = coneAngle * 0.5 * .pi / 180
+        let halfSq06 = halfRad * halfRad * 0.6
+        let ones = SIMD3<Float>(repeating: 1)
 
-            ctx.drawLayer { main in
-                main.addFilter(.blur(radius: blur))
-                let grad = Gradient(stops: [
-                    .init(color: near.opacity(0.90), location: 0),
-                    .init(color: mid.opacity(0.60),  location: 0.25),
-                    .init(color: far.opacity(0.25),  location: 0.55),
-                    .init(color: far.opacity(0.04),  location: 0.85),
-                    .init(color: far.opacity(0.0),   location: 1.0),
-                ])
-                main.fill(mainPath, with: .radialGradient(grad, center: .zero, startRadius: 0, endRadius: r * 0.92))
-            }
+        for y in 0..<h {
+            let fy = (Float(y) + 0.5) / resF
+            let py = fy - 1
+            for x in 0..<w {
+                let fx = (Float(x) + 0.5) / resF
+                let px = fx - 1
 
-            // Layer 3: Narrow bright core (near color, tight cone)
-            let coreHalf = halfRad * 0.4
-            let coreR = r * 0.7
-            var corePath = Path()
-            corePath.move(to: .zero)
-            corePath.addArc(
-                center: .zero, radius: coreR,
-                startAngle: .radians(-.pi / 2 - coreHalf),
-                endAngle:   .radians(-.pi / 2 + coreHalf),
-                clockwise: false
-            )
-            corePath.closeSubpath()
+                let dltX = px - lightPos.x
+                let dltY = py - lightPos.y
+                let dist = sqrtf(dltX * dltX + dltY * dltY)
 
-            ctx.drawLayer { core in
-                core.addFilter(.blur(radius: blur * 0.7))
-                let grad = Gradient(stops: [
-                    .init(color: near.opacity(0.85), location: 0),
-                    .init(color: near.opacity(0.45), location: 0.30),
-                    .init(color: mid.opacity(0.12),  location: 0.65),
-                    .init(color: mid.opacity(0.0),   location: 1.0),
-                ])
-                core.fill(corePath, with: .radialGradient(grad, center: .zero, startRadius: 0, endRadius: coreR))
-            }
+                let lx: Float, ly: Float
+                if dist > 1e-4 { lx = dltX / dist; ly = dltY / dist }
+                else { lx = dirN.x; ly = dirN.y }
 
-            // Layer 4: Hotspot glow at origin
-            let hotR = r * 0.15
-            ctx.drawLayer { hot in
-                hot.addFilter(.blur(radius: hotR * 0.5))
-                let grad = Gradient(stops: [
-                    .init(color: near.opacity(0.95), location: 0),
-                    .init(color: near.opacity(0.50), location: 0.4),
-                    .init(color: near.opacity(0.0),  location: 1.0),
-                ])
-                let hotRect = CGRect(x: -hotR, y: -hotR, width: hotR * 2, height: hotR * 2)
-                hot.fill(Ellipse().path(in: hotRect), with: .radialGradient(grad, center: .zero, startRadius: 0, endRadius: hotR))
+                let dotVal = min(max(lx * dirN.x + ly * dirN.y, -1), 1)
+                let pxAngle = acosf(dotVal)
+                let cone = expf(-pxAngle * pxAngle / halfSq06)
+                let att = 1 / (1.35 + 5.5 * dist * dist + 1.2 * dist)
+                let light = cone * att
+
+                let angT = min(max(pxAngle / max(halfRad, 0.01), 0), 1)
+                let angColor: SIMD3<Float>
+                if angT < 0.5 {
+                    angColor = nearC + (midC - nearC) * (angT * 2)
+                } else {
+                    angColor = midC + (farC - midC) * ((angT - 0.5) * 2)
+                }
+
+                let tRad = powf(sstep(0.04, 0.68, dist), 0.82)
+                var radColor = nearC + (midC - nearC) * min(max(tRad / 0.3, 0), 1)
+                radColor = radColor + (farC - radColor) * min(max((tRad - 0.3) / 0.62, 0), 1)
+
+                let rMix = 1 - expf(-dist * 2.5)
+                var lc = radColor + (angColor - radColor) * rMix
+
+                let hotspot = expf(-dist * dist * 12)
+                lc = pointwiseMin(lc + nearC * hotspot * 0.4, ones)
+
+                let coreMul: Float = 0.62 + 0.38 * sstep(0, 0.26, dist)
+                let lightT = powf(min(max(light, 0), 1), 1.12)
+                var ww = lightT * coreMul * 1.35
+
+                let cx = fx - 0.5, cy = fy - 0.5
+                let edgeFade = 1 - sstep(0.6, 1, sqrtf(cx * cx + cy * cy) * 2)
+                ww *= edgeFade
+
+                let a = min(max(ww, 0), 1)
+                let premul = lc * a
+
+                let idx = (y * w + x) * 4
+                pixels[idx]     = UInt8(min(max(premul.x, 0), 1) * 255)
+                pixels[idx + 1] = UInt8(min(max(premul.y, 0), 1) * 255)
+                pixels[idx + 2] = UInt8(min(max(premul.z, 0), 1) * 255)
+                pixels[idx + 3] = UInt8(a * 255)
             }
         }
+
+        let data = Data(pixels)
+        guard let provider = CGDataProvider(data: data as CFData) else { return nil }
+        return CGImage(
+            width: w, height: h,
+            bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil, shouldInterpolate: true, intent: .defaultIntent
+        )
     }
 }

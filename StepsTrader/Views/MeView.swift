@@ -40,10 +40,10 @@ struct MeView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         weekRow
                             .padding(.top, 16)
+                            .padding(.bottom, 8)
+                        historyLink
                             .padding(.bottom, 12)
                         contentSection
-                        historyLink
-                            .padding(.top, 20)
                         Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 16)
@@ -57,10 +57,10 @@ struct MeView: View {
                 VStack(spacing: 0) {
                     weekRow
                         .padding(.top, 20)
+                        .padding(.bottom, 10)
+                    historyLink
                         .padding(.bottom, 16)
                     contentSection
-                    historyLink
-                        .padding(.top, 28)
                         .padding(.bottom, 24)
                 }
                 .padding(.horizontal, 20)
@@ -72,16 +72,22 @@ struct MeView: View {
         NavigationLink {
             HistoryView(model: model)
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.backward")
-                    .font(.system(size: 12, weight: .semibold))
-                Text(String(localized: "View history", comment: "MeView – history link label"))
-                    .font(useTightMeLayout ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+            HStack(spacing: 8) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 14, weight: .semibold))
+                Text(String(localized: "All history", comment: "MeView – history link label"))
+                    .font(.system(size: 13, weight: .semibold))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
             }
-            .foregroundStyle(theme.textPrimary.opacity(0.6))
+            .foregroundStyle(theme.textPrimary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(theme.textPrimary.opacity(0.15), lineWidth: 0.5))
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
         .accessibilityLabel(String(localized: "Open canvas history", comment: "MeView – history link a11y"))
     }
 
@@ -104,8 +110,7 @@ struct MeView: View {
             authService: authService,
             showLogin: $showLogin,
             showProfileEditor: $showProfileEditor,
-            selectedDayKey: $selectedDayKey,
-            pastDays: $pastDays
+            selectedDayKey: $selectedDayKey
         )
     }
 
@@ -650,7 +655,6 @@ private struct MeSheetsModifier: ViewModifier {
     @Binding var showLogin: Bool
     @Binding var showProfileEditor: Bool
     @Binding var selectedDayKey: String?
-    @Binding var pastDays: [String: PastDaySnapshot]
 
     func body(content: Content) -> some View {
         content
@@ -660,16 +664,11 @@ private struct MeSheetsModifier: ViewModifier {
             .sheet(isPresented: $showProfileEditor) {
                 ProfileEditorView(authService: authService, model: model)
             }
-            .sheet(item: Binding(
+            .fullScreenCover(item: Binding(
                 get: { selectedDayKey.map { MeDayKeyWrapper(key: $0) } },
                 set: { selectedDayKey = $0?.key }
             )) { wrapper in
-                CanvasDayDetailSheet(
-                    model: model,
-                    dayKey: wrapper.key,
-                    snapshot: pastDays[wrapper.key],
-                    onDismiss: { selectedDayKey = nil }
-                )
+                DayCanvasViewerView(model: model, dayKey: wrapper.key)
             }
     }
 }

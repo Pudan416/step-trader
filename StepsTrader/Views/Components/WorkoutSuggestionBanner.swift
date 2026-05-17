@@ -98,9 +98,10 @@ struct ActivitySuggestionBanner: View {
                 Text(String(localized: "Add"))
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(theme.accentColor)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                     .liquidGlassControl(in: Capsule(style: .continuous))
+                    .contentShape(Capsule().scale(1.3))
             }
             .buttonStyle(.plain)
             .fixedSize()
