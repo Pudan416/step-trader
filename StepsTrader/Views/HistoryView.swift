@@ -304,9 +304,8 @@ struct DayHistoryTile: View {
             }
 
             Text(dayNumber)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(.system(size: 28, weight: .ultraLight, design: .rounded))
                 .foregroundStyle(Color.yellow)
-                .shadow(color: .black.opacity(0.6), radius: 4, x: 0, y: 2)
                 .padding(8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
 
