@@ -27,6 +27,7 @@ playground.xcworkspace
 # CocoaPods
 Pods/
 *.xcworkspace
+!*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # Carthage
 Carthage/Build/

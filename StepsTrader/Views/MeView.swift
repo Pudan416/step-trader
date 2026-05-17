@@ -77,8 +77,6 @@ struct MeView: View {
                     .font(.system(size: 14, weight: .semibold))
                 Text(String(localized: "All history", comment: "MeView – history link label"))
                     .font(.system(size: 13, weight: .semibold))
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .bold))
             }
             .foregroundStyle(theme.textPrimary)
             .padding(.horizontal, 16)
@@ -87,7 +85,7 @@ struct MeView: View {
             .overlay(Capsule().strokeBorder(theme.textPrimary.opacity(0.15), lineWidth: 0.5))
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityLabel(String(localized: "Open canvas history", comment: "MeView – history link a11y"))
     }
 
