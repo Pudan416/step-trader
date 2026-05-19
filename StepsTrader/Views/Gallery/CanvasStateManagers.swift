@@ -5,7 +5,7 @@ import SwiftUI
 /// Edit-mode state hoisted out of GalleryView. Owns transient UI state for
 /// drag/dice/tap interactions on the wide canvas. Resetting back to a
 /// neutral state happens via `reset()`.
-@Observable
+@Observable @MainActor
 final class CanvasEditState {
     var isEditMode: Bool = false
     var editFreezeTime: Date? = nil
@@ -38,7 +38,7 @@ final class CanvasEditState {
 
 /// Toolbar / sheet state hoisted out of GalleryView. Drives the category
 /// picker, share sheet, save-routine alert, and export progress indicator.
-@Observable
+@Observable @MainActor
 final class CanvasToolbarState {
     var pickerCategory: EnergyCategory? = nil
     var showShareSheet: Bool = false

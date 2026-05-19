@@ -14,6 +14,7 @@ struct RadialHoldMenu: View {
     @State private var hoveredCategory: EnergyCategory? = nil
     @State private var touchDownTime: Date? = nil
     @State private var holdActivated = false
+    @State private var holdActivationTask: Task<Void, Never>?
 
     private let nodes: [(category: EnergyCategory, label: String, icon: String, angle: Double)] = [
         (.body,   String(localized: "Body", comment: "RadialMenu – energy category label"),  "figure.walk",       135),  // upper-left
@@ -23,6 +24,7 @@ struct RadialHoldMenu: View {
 
     private let fanRadius: CGFloat = 80
     private let activationDistance: CGFloat = 55
+    // TODO: Migrate to .sensoryFeedback() modifiers
     private static let hapticMedium = UIImpactFeedbackGenerator(style: .medium)
     private static let hapticLight = UIImpactFeedbackGenerator(style: .light)
 
@@ -87,7 +89,7 @@ struct RadialHoldMenu: View {
         let unifiedDrag = DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onChanged { value in
                 if touchDownTime == nil {
-                    touchDownTime = Date()
+                    touchDownTime = Date.now
                     holdActivated = false
                     Self.prepareAll()
                     scheduleHoldActivation()
@@ -97,6 +99,7 @@ struct RadialHoldMenu: View {
                 }
             }
             .onEnded { _ in
+                holdActivationTask?.cancel()
                 let wasTap = !holdActivated
                 if wasTap {
                     toggleFan()
@@ -126,15 +129,17 @@ struct RadialHoldMenu: View {
             .accessibilityIdentifier("radial_plus_button")
             .accessibilityLabel(isFanOpen
                 ? String(localized: "Close menu", comment: "RadialMenu – VoiceOver label")
-                : String(localized: "Add activity", comment: "RadialMenu – VoiceOver label"))
+                : String(localized: "Add card", comment: "RadialMenu – VoiceOver label"))
             .accessibilityHint(String(localized: "Hold and drag to quickly select a category, or tap to open the menu", comment: "RadialMenu – VoiceOver hint"))
             .accessibilityAddTraits(.isButton)
             .simultaneousGesture(unifiedDrag)
     }
 
     private func scheduleHoldActivation() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + holdThreshold) {
-            guard touchDownTime != nil else { return }
+        holdActivationTask?.cancel()
+        holdActivationTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(holdThreshold))
+            guard !Task.isCancelled, touchDownTime != nil else { return }
             holdActivated = true
             isFanOpen = false
             isHolding = true
@@ -179,7 +184,7 @@ struct RadialHoldMenu: View {
                     .scaleEffect(isHovered ? 1.15 : 1.0)
 
                 Text(label)
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(labelColor.opacity(isHovered ? 1.0 : 0.9))
                     .contrastingOnGlass()
             }

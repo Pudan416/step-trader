@@ -4,33 +4,39 @@ import SwiftUI
 /// Each shape bundles its own rendering style and movement behavior.
 /// Pro users can assign any shape type to any energy category.
 enum CanvasShapeType: String, CaseIterable, Codable, Identifiable {
-    case circle     // dense gradient circles, overlapping, no deformation
-    case snowflake  // symmetric rectmorph outline, Lissajous drift, morphing trail ghosts
-    case rays       // Metal spotlight cones, edge-anchored, sweep oscillation
-    case blob       // (hidden) organic noise-deformed closed path — kept for legacy data
+    case circle      // dense gradient circles, overlapping, no deformation
+    case snowflake   // symmetric rectmorph outline, Lissajous drift, morphing trail ghosts
+    case rays        // Metal spotlight cones, edge-anchored, sweep oscillation
+    case organicBlob // multi-layer organic contour morph + breathe — Pro only
+    case blob        // (hidden) legacy noise-deformed closed path — kept for legacy data
+    case spirograph  // (hidden) legacy hypotrochoid curves — kept for legacy data
 
     var id: String { rawValue }
 
     /// Only the shapes exposed in the picker UI.
     static var selectableCases: [CanvasShapeType] {
-        [.circle, .snowflake, .rays]
+        [.circle, .snowflake, .rays, .organicBlob]
     }
 
     var displayName: String {
         switch self {
-        case .circle:    return String(localized: "Circle", comment: "Canvas shape type")
-        case .snowflake: return String(localized: "Snowflake", comment: "Canvas shape type")
-        case .rays:      return String(localized: "Rays", comment: "Canvas shape type")
-        case .blob:      return String(localized: "Blob", comment: "Canvas shape type")
+        case .circle:      String(localized: "Circle", comment: "Canvas shape type")
+        case .snowflake:   String(localized: "Snowflake", comment: "Canvas shape type")
+        case .rays:        String(localized: "Rays", comment: "Canvas shape type")
+        case .organicBlob: String(localized: "Organic", comment: "Canvas shape type")
+        case .blob:        String(localized: "Blob", comment: "Canvas shape type")
+        case .spirograph:  String(localized: "Spirograph", comment: "Canvas shape type")
         }
     }
 
     var iconName: String {
         switch self {
-        case .circle:    return "circle.fill"
-        case .snowflake: return "snowflake"
-        case .rays:      return "rays"
-        case .blob:      return "drop.fill"
+        case .circle:      "circle.fill"
+        case .snowflake:   "snowflake"
+        case .rays:        "rays"
+        case .organicBlob: "aqi.medium"
+        case .blob:        "drop.fill"
+        case .spirograph:  "circle.fill"
         }
     }
 
@@ -54,7 +60,7 @@ enum CanvasShapeType: String, CaseIterable, Codable, Identifiable {
               let shape = CanvasShapeType(rawValue: raw) else {
             return defaultShape(for: category)
         }
-        if shape == .blob { return .circle }
+        if shape == .blob || shape == .spirograph { return .circle }
         return shape
     }
 }

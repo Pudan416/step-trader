@@ -29,6 +29,9 @@ final class HealthStore: ObservableObject {
         do {
             try await healthKitService.requestAuthorization()
             authorizationStatus = healthKitService.authorizationStatus()
+        } catch let error as HealthKitServiceError where error == .authorizationTimeout {
+            AppLogger.healthKit.warning("HealthKit auth timed out — will retry on next attempt")
+            throw error
         } catch {
             ErrorManager.shared.handle(AppError.healthKitAuthorizationFailed(error))
             throw error
@@ -36,7 +39,7 @@ final class HealthStore: ObservableObject {
     }
     
     func fetchStepsForCurrentDay() async throws -> Double {
-        let now = Date()
+        let now = Date.now
         let start = currentDayStart(for: now)
         return try await healthKitService.fetchSteps(from: start, to: now)
     }
@@ -61,7 +64,7 @@ final class HealthStore: ObservableObject {
         AppLogger.healthKit.debug("🛌 HealthKit sleep write-status: \(status.rawValue)")
         // authorizationStatus reports WRITE permission. Read access can still be allowed when status is denied.
         do {
-            let now = Date()
+            let now = Date.now
             let start = currentDayStart(for: now)
             dailySleepHours = try await healthKitService.fetchSleep(from: start, to: now)
             hasSleepData = true
@@ -74,7 +77,7 @@ final class HealthStore: ObservableObject {
     
     // MARK: - Workouts & Mindful Minutes
     func fetchTodayMindfulMinutes() async -> Double {
-        let now = Date()
+        let now = Date.now
         let start = currentDayStart(for: now)
         do {
             return try await healthKitService.fetchMindfulMinutes(from: start, to: now)
@@ -85,7 +88,7 @@ final class HealthStore: ObservableObject {
     }
 
     func fetchTodayWorkouts() async -> [DetectedWorkout] {
-        let now = Date()
+        let now = Date.now
         let start = currentDayStart(for: now)
         do {
             return try await healthKitService.fetchWorkouts(from: start, to: now)

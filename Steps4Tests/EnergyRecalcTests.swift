@@ -37,9 +37,9 @@ final class EnergyRecalcTests: XCTestCase {
         defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
         model.stepsToday = 10_000
         model.dailySleepHours = 8.0
-        model.dailyActivitySelections = ["a", "b", "c", "d"]
+        model.dailyBodySelections = ["a", "b", "c", "d"]
         model.dailyRestSelections = ["e", "f", "g", "h"]
-        model.dailyJoysSelections = ["i", "j", "k", "l"]
+        model.dailyHeartSelections = ["i", "j", "k", "l"]
         model.spentStepsToday = 0
 
         model.recalculateDailyEnergy()
@@ -54,9 +54,9 @@ final class EnergyRecalcTests: XCTestCase {
         defaults.set(4.0, forKey: SharedKeys.userSleepTarget)
         model.stepsToday = 50_000
         model.dailySleepHours = 20.0
-        model.dailyActivitySelections = ["a", "b", "c", "d"]
+        model.dailyBodySelections = ["a", "b", "c", "d"]
         model.dailyRestSelections = ["e", "f", "g", "h"]
-        model.dailyJoysSelections = ["i", "j", "k", "l"]
+        model.dailyHeartSelections = ["i", "j", "k", "l"]
         model.spentStepsToday = 0
 
         model.recalculateDailyEnergy()
@@ -96,14 +96,14 @@ final class EnergyRecalcTests: XCTestCase {
         defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
         model.stepsToday = 10_000
         model.dailySleepHours = 0
-        model.dailyActivitySelections = ["a", "b", "c", "d"]
+        model.dailyBodySelections = ["a", "b", "c", "d"]
         model.spentStepsToday = 0
         model.recalculateDailyEnergy()
         let fullBase = model.baseEnergyToday
         _ = model.pay(cost: fullBase)
         XCTAssertEqual(model.stepsBalance, 0)
 
-        model.dailyActivitySelections = []
+        model.dailyBodySelections = []
         model.recalculateDailyEnergy()
 
         XCTAssertEqual(model.spentStepsToday, fullBase,
@@ -137,38 +137,38 @@ final class EnergyRecalcTests: XCTestCase {
 
     func testSelectionPoints_perCategory() {
         let model = makeModel()
-        model.dailyActivitySelections = ["a", "b"]
-        XCTAssertEqual(model.activityPointsToday, 2 * EnergyDefaults.selectionPoints)
+        model.dailyBodySelections = ["a", "b"]
+        XCTAssertEqual(model.bodyPointsToday, 2 * EnergyDefaults.selectionPoints)
 
         model.dailyRestSelections = ["x"]
-        XCTAssertEqual(model.creativityPointsToday, 1 * EnergyDefaults.selectionPoints)
+        XCTAssertEqual(model.mindPointsToday, 1 * EnergyDefaults.selectionPoints)
 
-        model.dailyJoysSelections = ["p", "q", "r", "s"]
-        XCTAssertEqual(model.joysCategoryPointsToday, 4 * EnergyDefaults.selectionPoints)
+        model.dailyHeartSelections = ["p", "q", "r", "s"]
+        XCTAssertEqual(model.heartPointsToday, 4 * EnergyDefaults.selectionPoints)
     }
 
     // MARK: - Routines
 
     func testSaveAndApplyRoutine_roundTrip() {
         let model = makeModel()
-        model.dailyActivitySelections = ["body_walking"]
+        model.dailyBodySelections = ["body_walking"]
         model.dailyRestSelections = ["mind_focusing", "mind_learning"]
-        model.dailyJoysSelections = ["heart_joy"]
+        model.dailyHeartSelections = ["heart_joy"]
 
         model.saveCurrentAsRoutine(name: "Morning")
         model.loadSavedRoutines()
         XCTAssertEqual(model.savedRoutines.count, 1)
         XCTAssertEqual(model.savedRoutines[0].name, "Morning")
 
-        model.dailyActivitySelections = []
+        model.dailyBodySelections = []
         model.dailyRestSelections = []
-        model.dailyJoysSelections = []
+        model.dailyHeartSelections = []
 
         model.applyRoutine(model.savedRoutines[0])
 
-        XCTAssertEqual(model.dailyActivitySelections, ["body_walking"])
+        XCTAssertEqual(model.dailyBodySelections, ["body_walking"])
         XCTAssertEqual(model.dailyRestSelections, ["mind_focusing", "mind_learning"])
-        XCTAssertEqual(model.dailyJoysSelections, ["heart_joy"])
+        XCTAssertEqual(model.dailyHeartSelections, ["heart_joy"])
     }
 
     func testDeleteRoutine_removes() {

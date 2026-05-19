@@ -17,7 +17,7 @@ enum WidgetDataFile {
     private static var fileURL: URL? {
         FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
-        )?.appendingPathComponent("widget_data.json")
+        )?.appending(path: "widget_data.json")
     }
 
     static func write(_ snapshot: WidgetSnapshot) {

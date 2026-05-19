@@ -45,7 +45,7 @@ struct AppSelectionSheet: View {
                     let appName = TargetResolver.displayName(for: templateApp)
                     Text(String(localized: "Choose only \(appName) from the list", comment: "AppSelection – single app hint"))
                         .font(AppFonts.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
@@ -54,7 +54,7 @@ struct AppSelectionSheet: View {
                 if let validationMessage {
                     Text(validationMessage)
                         .font(.subheadline)
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 8)

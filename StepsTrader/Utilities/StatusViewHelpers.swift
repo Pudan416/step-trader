@@ -41,14 +41,14 @@ enum StatusViewHelpers {
         
         if absValue < 10_000 {
             let v = (Double(absValue) / 1000.0 * 10).rounded() / 10
-            let s = String(format: "%.1f", v)
+            let s = v.formatted(.number.precision(.fractionLength(1)))
             return sign + trimTrailingZero(s) + "K"
         }
         if absValue < 1_000_000 {
             return sign + "\(Int((Double(absValue) / 1000.0).rounded()))K"
         }
         let v = (Double(absValue) / 1_000_000.0 * 10).rounded() / 10
-        let s = String(format: "%.1f", v)
+        let s = v.formatted(.number.precision(.fractionLength(1)))
         return sign + trimTrailingZero(s) + "M"
     }
 }

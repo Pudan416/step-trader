@@ -93,6 +93,7 @@ struct ActivitySuggestionBanner: View {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                     onAccept(suggestion)
                 }
+                // TODO: Migrate to .sensoryFeedback()
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             } label: {
                 Text(String(localized: "Add"))

@@ -13,7 +13,8 @@ extension AppModel {
         
         await refreshStepsIfAuthorized()
     }
-    
+
+
     /// Fetches steps only and updates the budget. Does NOT recalculate energy.
     func refreshStepsBalance() async {
         await healthStore.refreshStepsIfAuthorized()

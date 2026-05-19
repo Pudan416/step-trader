@@ -28,6 +28,7 @@ enum GradientStyleOption: String, AppEnum {
     case linearReversed
     case organic
     case mesh
+    case angular
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Gradient Style"
     static var caseDisplayRepresentations: [GradientStyleOption: DisplayRepresentation] = [
@@ -38,6 +39,7 @@ enum GradientStyleOption: String, AppEnum {
         .linearReversed:  "Linear Reversed",
         .organic:         "Organic",
         .mesh:            "Mesh",
+        .angular:         "Angular",
     ]
 
     func resolved() -> GradientStyle {
@@ -53,6 +55,7 @@ enum GradientStyleOption: String, AppEnum {
         case .linearReversed:  return .linearReversed
         case .organic:         return .organic
         case .mesh:            return .mesh
+        case .angular:         return .angular
         }
     }
 }
@@ -109,17 +112,18 @@ struct ExportCanvasWallpaperIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
         Self.trackShortcutUsage()
 
-        let dayKey = AppModel.dayKey(for: Date())
+        let dayKey = AppModel.dayKey(for: .now)
         let canvas = CanvasStorageService.shared.loadOrCreateCanvas(for: dayKey)
-        let screen = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.screen ?? UIScreen.main
+        guard let screen = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first?.screen else {
+            throw ExportCanvasError.renderFailed
+        }
         let baseWidth: CGFloat = screen.bounds.width
         let baseHeight: CGFloat = screen.bounds.height
 
         let bgColor = AppColors.Night.background
-        let hasSteps = canvas.stepsPoints > 0
-        let hasSleep = canvas.sleepPoints > 0
+        let hasSteps = canvas.resolvedHasStepsData
+        let hasSleep = canvas.resolvedHasSleepData
 
         let resolvedStyle = gradientStyle.resolved()
         let resolvedPalette = colorPalette.resolved()
@@ -147,7 +151,7 @@ struct ExportCanvasWallpaperIntent: AppIntent {
                 showsBackgroundGradient: false,
                 hasStepsData: hasSteps,
                 hasSleepData: hasSleep,
-                fixedTime: Date(),
+                fixedTime: .now,
                 isOffscreenRender: true
             )
 
@@ -206,7 +210,7 @@ struct ExportCanvasWallpaperIntent: AppIntent {
         let current = g.integer(forKey: "wallpaperShortcutUses")
         g.set(current + 1, forKey: "wallpaperShortcutUses")
 
-        Task.detached {
+        Task {
             await SupabaseSyncService.shared.trackWallpaperShortcutUsage()
         }
     }

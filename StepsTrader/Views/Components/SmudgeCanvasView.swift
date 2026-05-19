@@ -81,6 +81,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         let scale = view.contentScaleFactor
         let coord = context.coordinator
 
+        // TODO: Migrate to .sensoryFeedback()
         let touchHaptic = UIImpactFeedbackGenerator(style: .medium)
         touchHaptic.prepare()
 

@@ -64,41 +64,43 @@ struct PaperTicketView: View {
             }
 
             HStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.black.opacity(0.08))
-                        ticketIcon
-                            .frame(width: 32, height: 32)
-                            .clipShape(Circle())
-                    }
-                    .frame(width: 38, height: 38)
-                    .clipShape(Circle())
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(displayTitle)
-                                .font(.system(size: 15, weight: .regular, design: .rounded))
-                                .foregroundStyle(Color(.label))
-                                .lineLimit(1)
-                            Spacer()
-                            Image(systemName: isUnlocked ? "lock.open" : "lock.fill")
-                                .font(.system(size: 10, weight: .regular))
-                                .foregroundStyle(isUnlocked ? accent : Color(.label).opacity(0.35))
+                Button(action: handleCardTap) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.black.opacity(0.08))
+                            ticketIcon
+                                .frame(width: 32, height: 32)
+                                .clipShape(Circle())
                         }
+                        .frame(width: 38, height: 38)
+                        .clipShape(Circle())
 
-                        if isUnlocked {
-                            budgetProgressBar
-                        } else {
-                            unlockPills
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(displayTitle)
+                                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                                    .foregroundStyle(Color(.label))
+                                    .lineLimit(1)
+                                Spacer()
+                                Image(systemName: isUnlocked ? "lock.open" : "lock.fill")
+                                    .font(.system(size: 10, weight: .regular))
+                                    .foregroundStyle(isUnlocked ? accent : Color(.label).opacity(0.35))
+                            }
+
+                            if isUnlocked {
+                                budgetProgressBar
+                            } else {
+                                unlockPills
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 14)
+                    .padding(.trailing, 8)
+                    .contentShape(Rectangle())
                 }
-                .padding(.leading, 14)
-                .padding(.trailing, 8)
-                .contentShape(Rectangle())
-                .onTapGesture { handleCardTap() }
+                .buttonStyle(.plain)
 
                 Button {
                     onSettings()
@@ -137,6 +139,7 @@ struct PaperTicketView: View {
         if let bundleId = group.templateApp,
            let scheme = TargetResolver.primaryAndFallbackSchemes(for: bundleId).first,
            let url = URL(string: scheme) {
+            // TODO: Migrate to .sensoryFeedback()
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             openURL(url)
         } else {
@@ -166,6 +169,7 @@ struct PaperTicketView: View {
 
         return Button {
             guard canAfford, !isUnlocking else { return }
+            // TODO: Migrate to .sensoryFeedback()
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             #if DEBUG
             CoachMarkManager.postAction(for: .tapUnlockPill)

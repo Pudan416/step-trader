@@ -15,7 +15,7 @@ enum SubscriptionGate {
     /// Maximum number of `TicketGroup`s a Free user can create.
     /// Existing groups beyond the limit (legacy users, downgrade after trial)
     /// are NOT removed — only blocking new creation.
-    static let freeMaxBlockingGroups: Int = 1
+    static let freeMaxBlockingGroups: Int = 2
 
     /// Number of past days unlocked in `HistoryView` for Free users.
     /// Older days (8…90) render blurred behind a paywall.
@@ -54,7 +54,7 @@ enum SubscriptionGate {
         return currentCount < freeMaxBlockingGroups
     }
 
-    /// Can the user create a custom energy activity?
+    /// Can the user create a custom energy card?
     static func canCreateCustomActivity(isPro: Bool) -> Bool {
         if isPro { return true }
         return freeCanCreateCustomActivity
@@ -116,6 +116,6 @@ enum SubscriptionGate {
 
     /// Mark the post-onboarding paywall as shown so it never appears again.
     static func markPostOnboardingPaywallShown(defaults: UserDefaults = .standard) {
-        defaults.set(Date(), forKey: postOnboardingPaywallShownKey)
+        defaults.set(Date.now, forKey: postOnboardingPaywallShownKey)
     }
 }

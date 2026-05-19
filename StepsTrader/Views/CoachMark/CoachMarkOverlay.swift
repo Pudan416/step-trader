@@ -2,7 +2,7 @@
 import SwiftUI
 
 struct CoachMarkOverlay: View {
-    @ObservedObject var manager: CoachMarkManager
+    var manager: CoachMarkManager
     let anchors: [CoachMarkAnchor]
 
     @State private var appearAnimation: Bool = false
@@ -87,7 +87,7 @@ struct CoachMarkOverlay: View {
                 Text(step.tooltip)
                     .font(.systemSerif(17, weight: .light, relativeTo: .body))
                     .italic()
-                    .foregroundColor(.white.opacity(0.85))
+                    .foregroundStyle(.white.opacity(0.85))
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
 
@@ -95,7 +95,7 @@ struct CoachMarkOverlay: View {
                     Button { manager.skipAll() } label: {
                         Text("skip all")
                             .font(.systemSerif(15, weight: .light, relativeTo: .subheadline))
-                            .foregroundColor(.white.opacity(0.4))
+                            .foregroundStyle(.white.opacity(0.4))
                     }
 
                     Spacer()
@@ -104,7 +104,7 @@ struct CoachMarkOverlay: View {
                         Button { manager.advance() } label: {
                             Text(step == .allSet ? "done" : "next")
                                 .font(.systemSerif(15, weight: .semibold, relativeTo: .subheadline))
-                                .foregroundColor(.black)
+                                .foregroundStyle(.black)
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 10)
                                 .background(AppColors.brandAccent)
@@ -136,7 +136,7 @@ struct CoachMarkOverlay: View {
             Text(step.tooltip)
                 .font(.systemSerif(16, weight: .light, relativeTo: .body))
                 .italic()
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundStyle(.white.opacity(0.9))
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -145,7 +145,7 @@ struct CoachMarkOverlay: View {
                 Button { manager.skipAll() } label: {
                     Text("skip all")
                         .font(.systemSerif(14, weight: .light, relativeTo: .caption))
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundStyle(.white.opacity(0.4))
                 }
 
                 Spacer()
@@ -154,7 +154,7 @@ struct CoachMarkOverlay: View {
                     Button { manager.advance() } label: {
                         Text("next")
                             .font(.systemSerif(15, weight: .semibold, relativeTo: .subheadline))
-                            .foregroundColor(.black)
+                            .foregroundStyle(.black)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 8)
                             .background(AppColors.brandAccent)
@@ -246,7 +246,7 @@ private func bestPlacement(cutout: CGRect, container: CGSize, margin: CGFloat = 
 // MARK: - Sheet Overlay (used inside CategoryDetailView sheet)
 
 struct CoachMarkSheetOverlay: View {
-    @ObservedObject var manager: CoachMarkManager
+    var manager: CoachMarkManager
     let anchors: [CoachMarkAnchor]
 
     @State private var appearAnimation: Bool = false
@@ -287,7 +287,7 @@ struct CoachMarkSheetOverlay: View {
 
     private func sheetNeedsPassthrough(_ step: CoachMarkStep) -> Bool {
         switch step {
-        case .spotlightFocusing, .spotlightReading, .tapAddToCanvas:
+        case .spotlightFocusing, .tapAddToCanvas:
             return true
         default:
             return false
@@ -315,7 +315,7 @@ struct CoachMarkSheetOverlay: View {
             Text(step.tooltip)
                 .font(.systemSerif(15, weight: .light, relativeTo: .body))
                 .italic()
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundStyle(.white.opacity(0.9))
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -323,7 +323,7 @@ struct CoachMarkSheetOverlay: View {
             Button { manager.skipAll() } label: {
                 Text("skip all")
                     .font(.systemSerif(13, weight: .light, relativeTo: .caption))
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundStyle(.white.opacity(0.4))
             }
         }
         .padding(18)

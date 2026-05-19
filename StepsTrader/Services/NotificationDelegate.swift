@@ -12,7 +12,7 @@ final class NotificationDelegate: NSObject, @preconcurrency UNUserNotificationCe
     private func persistPayGateIntent(groupId: String? = nil, bundleId: String? = nil) {
         let defaults = UserDefaults.stepsTrader()
         defaults.set(true, forKey: SharedKeys.shouldShowPayGate)
-        defaults.set(Date(), forKey: SharedKeys.payGateRequestedAt)
+        defaults.set(Date.now, forKey: SharedKeys.payGateRequestedAt)
         if let groupId {
             defaults.set(groupId, forKey: SharedKeys.payGateTargetGroupId)
             defaults.removeObject(forKey: SharedKeys.payGateTargetBundleId)

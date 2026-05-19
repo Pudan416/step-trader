@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Network Client
 /// Centralized networking with retries, backoff, jitter, and connectivity handling.
-final class NetworkClient: @unchecked Sendable {
+final class NetworkClient: Sendable {
     static let shared = NetworkClient()
     
     struct RetryPolicy: Equatable {
@@ -125,8 +125,7 @@ final class NetworkClient: @unchecked Sendable {
     }
     
     private func sleep(seconds: TimeInterval) async throws {
-        let ns = UInt64(seconds * 1_000_000_000)
-        try await Task.sleep(nanoseconds: ns)
+        try await Task.sleep(for: .seconds(seconds))
     }
 }
 

@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 import os
 
 // MARK: - Generative Canvas View (main rendering engine)
@@ -12,13 +11,13 @@ struct GenerativeCanvasView: View {
     let stepsColor: Color
     let decayNorm: Double
     var backgroundColor: Color = Color.black
-    /// Color for activity labels on each blob; nil = auto from background.
+    /// Color for element labels on each blob; nil = auto from background.
     var labelColor: Color?
     /// Whether to show labels directly on canvas elements
     var showLabelsOnCanvas: Bool = true
     /// Whether labels are rendered with an outlined shadow halo for readability.
     var showsOutlinedLabels: Bool = true
-    /// When false, only activity elements are rendered (no radial background gradient).
+    /// When false, only canvas elements are rendered (no radial background gradient).
     var showsBackgroundGradient: Bool = true
     /// Whether HealthKit has returned step data today (do not infer from points alone).
     var hasStepsData: Bool = true
@@ -36,7 +35,7 @@ struct GenerativeCanvasView: View {
     /// use the real spotlight shader instead of the software fallback.
     var isOffscreenRender: Bool = false
 
-
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var ampScale: Double = 1.0
 
     /// Per-instance render cache. Held in `@State` so the same instance
@@ -67,7 +66,6 @@ struct GenerativeCanvasView: View {
         elements.filter { $0.resolvedShapeType == .rays }
     }
 
-    /// Resolved shape type for an element, using its frozen per-element value first.
     private func shapeType(for element: CanvasElement) -> CanvasShapeType {
         element.resolvedShapeType
     }
@@ -82,11 +80,9 @@ struct GenerativeCanvasView: View {
                 Canvas { context, size in
                     renderCanvas(context: &context, size: size, t: t)
                 }
+                .drawingGroup()
                 .background(Color.clear)
-                .onAppear { ampScale = timeScale }
-                .onChange(of: timeScale) { _, newValue in
-                    withAnimation(.easeInOut(duration: 0.6)) { ampScale = newValue }
-                }
+                .canvasAnimationScale($ampScale, timeScale: timeScale, reduceMotion: reduceMotion)
             } else {
                 // Live view with fixed time (e.g. history viewer): Metal shaders
                 // work, so provide symbols for proper ray rendering.
@@ -95,11 +91,9 @@ struct GenerativeCanvasView: View {
                 } symbols: {
                     spotlightSymbols(t: t)
                 }
+                .drawingGroup()
                 .background(Color.clear)
-                .onAppear { ampScale = timeScale }
-                .onChange(of: timeScale) { _, newValue in
-                    withAnimation(.easeInOut(duration: 0.6)) { ampScale = newValue }
-                }
+                .canvasAnimationScale($ampScale, timeScale: timeScale, reduceMotion: reduceMotion)
             }
         } else {
             TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
@@ -109,12 +103,10 @@ struct GenerativeCanvasView: View {
                 } symbols: {
                     spotlightSymbols(t: t)
                 }
+                .drawingGroup()
             }
             .background(Color.clear)
-            .onAppear { ampScale = timeScale }
-            .onChange(of: timeScale) { _, newValue in
-                withAnimation(.easeInOut(duration: 0.6)) { ampScale = newValue }
-            }
+            .canvasAnimationScale($ampScale, timeScale: timeScale, reduceMotion: reduceMotion)
         }
     }
 
@@ -198,9 +190,11 @@ struct GenerativeCanvasView: View {
             return SnowflakeShapeRenderer.frozenCenter(element, size: size, t: t, ampScale: ampScale)
         case .blob:
             return BlobShapeRenderer.frozenCenter(element, size: size, t: t, ampScale: ampScale)
+        case .organicBlob:
+            return OrganicBlobShapeRenderer.frozenCenter(element, size: size, t: t, ampScale: ampScale)
         case .rays:
             return RayShapeRenderer.frozenCenter(element, size: size, t: t, ampScale: ampScale)
-        case .circle:
+        case .circle, .spirograph:
             return CircleShapeRenderer.frozenCenter(element, size: size, t: t, ampScale: ampScale)
         }
     }
@@ -317,7 +311,7 @@ struct GenerativeCanvasView: View {
     // MARK: - Cross-Element Interaction Model
 
     /// Computes blob↔snowflake proximity interactions. When a snowflake drifts
-    /// near a blob, the blob's noise complexity increases (noiseBoost).
+    /// near a blob (or organic blob), the blob's noise complexity increases (noiseBoost).
     private func computeInteractions(
         elements: [CanvasElement],
         size: CGSize,
@@ -326,7 +320,10 @@ struct GenerativeCanvasView: View {
         renderCache.interactions.removeAll(keepingCapacity: true)
         let interactionRadius: CGFloat = 0.25
 
-        let blobs = elements.filter { shapeType(for: $0) == .blob }
+        let blobs = elements.filter {
+            let s = shapeType(for: $0)
+            return s == .blob || s == .organicBlob
+        }
         let snowflakes = elements.filter { shapeType(for: $0) == .snowflake }
         guard !blobs.isEmpty, !snowflakes.isEmpty else { return renderCache.interactions }
 
@@ -339,7 +336,10 @@ struct GenerativeCanvasView: View {
             return CGPoint(x: Double(p.x) * invW, y: Double(p.y) * invH)
         }
         let blobPositions: [CGPoint] = blobs.map { e in
-            let p = BlobShapeRenderer.center(e, size: size, t: t, ampScale: ampScale)
+            let s = shapeType(for: e)
+            let p = s == .organicBlob
+                ? OrganicBlobShapeRenderer.center(e, size: size, t: t, ampScale: ampScale)
+                : BlobShapeRenderer.center(e, size: size, t: t, ampScale: ampScale)
             return CGPoint(x: Double(p.x) * invW, y: Double(p.y) * invH)
         }
 
@@ -409,6 +409,13 @@ struct GenerativeCanvasView: View {
                     interaction: interaction, decayedColor: color,
                     decayedColor2: color2
                 )
+            case .organicBlob:
+                OrganicBlobShapeRenderer.draw(
+                    element, context: &ctx, size: size, t: t, decay: decay,
+                    blendMode: blendMode, ampScale: ampScale,
+                    interaction: interaction, decayedColor: color,
+                    decayedColor2: color2
+                )
             case .snowflake:
                 SnowflakeShapeRenderer.draw(
                     element, context: &ctx, size: size, t: t, decay: decay,
@@ -423,6 +430,13 @@ struct GenerativeCanvasView: View {
                     interaction: interaction
                 )
             case .circle:
+                CircleShapeRenderer.draw(
+                    element, context: &ctx, size: size, t: t, decay: decay,
+                    blendMode: blendMode, ampScale: ampScale,
+                    interaction: interaction, decayedColor: color,
+                    decayedColor2: color2
+                )
+            case .spirograph:
                 CircleShapeRenderer.draw(
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
@@ -460,18 +474,21 @@ struct GenerativeCanvasView: View {
         switch shapeType(for: element) {
         case .blob:
             return BlobShapeRenderer.center(element, size: size, t: t, ampScale: ampScale)
+        case .organicBlob:
+            return OrganicBlobShapeRenderer.center(element, size: size, t: t, ampScale: ampScale)
         case .snowflake:
             return SnowflakeShapeRenderer.center(element, size: size, t: t, ampScale: ampScale, renderCache: renderCache)
         case .rays:
             return RayShapeRenderer.center(element, size: size, t: t, ampScale: ampScale)
-        case .circle:
+        case .circle, .spirograph:
             return CircleShapeRenderer.center(element, size: size, t: t, ampScale: ampScale)
         }
     }
 
     private func drawLabel(_ element: CanvasElement, at point: CGPoint, context: inout GraphicsContext, labelColor: Color, shadowColor: Color) {
-        let labelText = element.displayLabel.uppercased()
-        let font: Font = .system(size: 11, weight: .bold, design: .rounded)
+        let raw = element.displayLabel
+        let labelText = raw.prefix(1).uppercased() + raw.dropFirst().lowercased()
+        let font: Font = .system(size: 9, weight: .light, design: .default)
         if showsOutlinedLabels {
             // 4 diagonal offsets give the same visual halo as 8 at 1pt,
             // cutting drawLayer + Text resolution calls in half.
@@ -544,4 +561,27 @@ struct GenerativeCanvasView: View {
         backgroundColor: AppColors.Night.background
     )
     .frame(height: 500)
+}
+
+// MARK: - Animation Scale (Reduce Motion)
+
+private extension View {
+    func canvasAnimationScale(
+        _ ampScale: Binding<Double>,
+        timeScale: Double,
+        reduceMotion: Bool
+    ) -> some View {
+        let effective = reduceMotion ? 0 : timeScale
+        return onAppear { ampScale.wrappedValue = effective }
+            .onChange(of: timeScale) { _, newValue in
+                withAnimation(.easeInOut(duration: 0.6)) {
+                    ampScale.wrappedValue = reduceMotion ? 0 : newValue
+                }
+            }
+            .onChange(of: reduceMotion) { _, reduced in
+                withAnimation(.easeInOut(duration: 0.6)) {
+                    ampScale.wrappedValue = reduced ? 0 : timeScale
+                }
+            }
+    }
 }

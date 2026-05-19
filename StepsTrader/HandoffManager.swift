@@ -53,7 +53,7 @@ extension AppModel {
 
     private func openTargetApp(bundleId: String) {
         let userDefaults = UserDefaults.stepsTrader()
-        let now = Date()
+        let now = Date.now
         userDefaults.set(now, forKey: SharedKeys.lastAppOpenedFromStepsTrader(bundleId))
 
         AppLogger.app.debug("🚀 Opening \(bundleId) from HandoffManager and setting protection flag at \(now)")

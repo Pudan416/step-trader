@@ -1,31 +1,54 @@
 import SwiftUI
 
 /// Self-contained renderer for the "Rays" shape type.
-/// Provides positioning (edge-anchored with wobble), Metal spotlight shader
-/// rendering via resolved Canvas symbols, and sweep oscillation animation.
+/// Spotlight source stays at `basePosition`; the beam sweeps left/right via rotation.
 @MainActor
 enum RayShapeRenderer {
 
     static let symbolSize: CGFloat = 256
 
+    /// Canvas draw radius = `normalizedSize × canvasDim × renderSizeScale`.
+    static let renderSizeScale: Double = 2.2 * 1.5
+
+    // Spotlight shader tuning — keep numeric values in sync with SpotlightShader.metal.
+    static let shaderAim: Float = 1.15
+    static let coneAngleMin: Float = 78
+    static let coneAngleMax: Float = 105
+    static let coneBreathSpeed: Float = 0.45
+
+    // MARK: - Edit / Hit Test
+
+    static func editBoundsDiameter(
+        normalizedSize: Double,
+        canvasDim: Double,
+        shapeType: CanvasShapeType
+    ) -> Double {
+        let base = normalizedSize * canvasDim
+        return shapeType == .rays ? base * renderSizeScale : base
+    }
+
+    static func editHitRadius(
+        normalizedSize: Double,
+        canvasDim: Double,
+        shapeType: CanvasShapeType
+    ) -> Double {
+        editBoundsDiameter(normalizedSize: normalizedSize, canvasDim: canvasDim, shapeType: shapeType) * 0.5
+    }
+
     // MARK: - Positioning
 
+    /// Fixed source anchor — no positional wobble; sweep is rotation-only.
+    /// `t` and `ampScale` are ignored but kept for uniform renderer dispatch.
     static func center(
         _ e: CanvasElement,
         size: CGSize,
-        t: Double,
-        ampScale: Double
+        t: Double = 0,
+        ampScale: Double = 1
     ) -> CGPoint {
-        let w = Double(size.width)
-        let h = Double(size.height)
-        let cx = Double(e.basePosition.x) * w
-        let cy = Double(e.basePosition.y) * h
-        let amp = ampScale
-        let wobbleX = sin(t * 0.018 + e.phaseOffset) * w * 0.014 * amp
-            + sin(t * 0.009 + e.phaseOffset * 2.3) * w * 0.007 * amp
-        let wobbleY = cos(t * 0.015 + e.phaseOffset * 1.3) * h * 0.014 * amp
-            + cos(t * 0.008 + e.phaseOffset * 0.7) * h * 0.007 * amp
-        return CGPoint(x: cx + wobbleX, y: cy + wobbleY)
+        CGPoint(
+            x: Double(e.basePosition.x) * Double(size.width),
+            y: Double(e.basePosition.y) * Double(size.height)
+        )
     }
 
     static func frozenCenter(
@@ -34,16 +57,16 @@ enum RayShapeRenderer {
         t: Double,
         ampScale: Double
     ) -> CGPoint {
-        center(e, size: size, t: t, ampScale: ampScale)
+        center(e, size: size)
     }
 
     // MARK: - Sweep Animation
 
+    /// Left/right oscillation around the fixed source corner.
     static func sweepAngle(_ e: CanvasElement, t: Double, ampScale: Double) -> Angle {
-        let sweepRange = (35.0 + e.rotationSpeed * 0.6) * ampScale
+        let sweepRange = (40.0 + e.rotationSpeed * 0.8) * ampScale
         let sweepSpeed = 0.025 + e.driftSpeed * 0.015
         let sweep = sin(t * sweepSpeed + e.phaseOffset * 2.1) * sweepRange
-            + sin(t * sweepSpeed * 0.37 + e.phaseOffset * 0.8) * sweepRange * 0.3
         return Angle.degrees(sweep)
     }
 
@@ -60,8 +83,8 @@ enum RayShapeRenderer {
         interaction: ElementInteraction?
     ) {
         let dim = Double(min(size.width, size.height))
-        let effectiveSize = e.userSize ?? e.size
-        let radius = Double(effectiveSize) * dim * 2.2
+        let effectiveSize = Double(e.userSize ?? CGFloat(e.size))
+        let radius = effectiveSize * dim * renderSizeScale
         let breathe = 0.80 + sin(t * e.pulseFrequency * 0.5 + e.phaseOffset) * 0.18
             + sin(t * e.pulseFrequency * 0.17 + e.phaseOffset * 1.7) * 0.08
         let sweep = sweepAngle(e, t: t, ampScale: ampScale)
@@ -129,11 +152,14 @@ enum RayShapeRenderer {
 
     private static func resolveColors(_ e: CanvasElement, seed: UInt64) -> (Color, Color, Color) {
         if let hex2 = e.hexColor2 {
+            // Two-color gradient from tip (near) to edges (far)
             let n = Color(hex: e.hexColor)
             let f = Color(hex: hex2)
             return (n, Color.lerp(n, f, t: 0.5), f)
         } else {
-            return ProceduralShapeGenerator.spotlightColors(seed: seed)
+            // Single color — uniform spotlight
+            let baseColor = Color(hex: e.hexColor)
+            return (baseColor, baseColor, baseColor)
         }
     }
 
@@ -169,9 +195,10 @@ enum RayShapeRenderer {
         let farC  = SIMD3<Float>(far.0,  far.1,  far.2)
 
         let lightPos = SIMD2<Float>(-0.5, -0.5)
-        let aim = 1.15 + 0.55 * sinf(time * 0.55)
+        let aim = shaderAim
         let dirN = SIMD2<Float>(sinf(aim), cosf(aim))
-        let coneAngle: Float = 30 + 80 * (0.5 + 0.5 * sinf(time * 0.45))
+        let coneSpan = coneAngleMax - coneAngleMin
+        let coneAngle = coneAngleMin + coneSpan * (0.5 + 0.5 * sinf(time * coneBreathSpeed))
         let halfRad = coneAngle * 0.5 * .pi / 180
         let halfSq06 = halfRad * halfRad * 0.6
         let ones = SIMD3<Float>(repeating: 1)

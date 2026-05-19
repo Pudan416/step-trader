@@ -1,7 +1,7 @@
 import Foundation
 import os.log
 
-// MARK: - Analytics & Activity Stats
+// MARK: - Analytics & Stats
 extension SupabaseSyncService {
     
     /// Queue analytics event for KPI tracking.
@@ -15,9 +15,9 @@ extension SupabaseSyncService {
         let payload = AnalyticsEventPayload(
             id: UUID().uuidString,
             eventName: name,
-            dayKey: AppModel.dayKey(for: Date()),
+            dayKey: AppModel.dayKey(for: Date.now),
             properties: properties,
-            occurredAt: Date()
+            occurredAt: Date.now
         )
         
         pendingAnalyticsEvents.append(payload)
@@ -33,7 +33,7 @@ extension SupabaseSyncService {
     private func scheduleAnalyticsFlush() {
         analyticsFlushTask?.cancel()
         analyticsFlushTask = Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1s debounce
+            try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
             await flushAnalyticsEvents()
         }

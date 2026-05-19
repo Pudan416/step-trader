@@ -2,18 +2,19 @@ import SwiftUI
 
 /// Manages onboarding navigation state and permission gating.
 /// Extracted from OnboardingStoriesView for testability.
+@Observable
 @MainActor
-final class OnboardingCoordinator: ObservableObject {
+final class OnboardingCoordinator {
     let slides: [OnboardingSlide]
     let flowVersion: String
 
-    @Published var index: Int = 0
-    @Published private(set) var didTriggerHealthRequest = false
-    @Published private(set) var didTriggerNotificationRequest = false
-    @Published private(set) var didTriggerFamilyControlsRequest = false
-    @Published var needsNotificationAfterFeed = false
+    var index: Int = 0
+    private(set) var didTriggerHealthRequest = false
+    private(set) var didTriggerNotificationRequest = false
+    private(set) var didTriggerFamilyControlsRequest = false
+    var needsNotificationAfterFeed = false
 
-    private var slideAppearedAt = Date()
+    @ObservationIgnored private var slideAppearedAt = Date.now
 
     init(slides: [OnboardingSlide], flowVersion: String) {
         self.slides = slides
@@ -108,7 +109,7 @@ final class OnboardingCoordinator: ObservableObject {
     // MARK: - Analytics
 
     func onSlideAppeared() {
-        slideAppearedAt = Date()
+        slideAppearedAt = Date.now
         trackSlideViewed()
     }
 
@@ -130,7 +131,7 @@ final class OnboardingCoordinator: ObservableObject {
     private func trackSlideCompleted(action: String) {
         guard slides.indices.contains(index) else { return }
         let slideName = String(describing: slides[index].slideType)
-        let durationMs = Int(Date().timeIntervalSince(slideAppearedAt) * 1000)
+        let durationMs = Int(Date.now.timeIntervalSince(slideAppearedAt) * 1000)
         Task {
             await SupabaseSyncService.shared.trackAnalyticsEvent(
                 name: "onboarding_slide_completed",

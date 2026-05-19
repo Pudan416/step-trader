@@ -23,6 +23,13 @@ enum SubscriptionIDs {
         static let lifetime = "pro_lifetime"
     }
 
+    /// All paywall product IDs, in display-priority order (annual first for default selection).
+    static let allProductIdentifiers: [String] = [
+        Product.annual,
+        Product.monthly,
+        Product.lifetime
+    ]
+
     /// Custom RC subscriber attributes used for analytics / segmentation.
     enum Attribute {
         static let grandfathered = "is_grandfathered"
@@ -41,6 +48,8 @@ enum SubscriptionIDs {
     /// `UserDefaults.standard[isGrandfathered]` flag is honoured).
     ///
     /// Example: if v1.5 (build 42) was the last pre-paywall build, set this to `43`.
-    // TODO: restore to 14 before production release
-    static let grandfatherBeforeBuild: Int = 0
+    ///
+    /// Current build is 13; paywall ships in 14+. Users whose first install was
+    /// build 13 or earlier are grandfathered via receipt on reinstall.
+    static let grandfatherBeforeBuild: Int = 14
 }

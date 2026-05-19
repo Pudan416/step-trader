@@ -10,7 +10,7 @@ extension SupabaseSyncService {
     func syncCustomActivities(_ activities: [CustomEnergyOption]) {
         customActivitiesSyncTask?.cancel()
         customActivitiesSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 sec debounce
+            try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             await self.performCustomActivitiesSync(activities)
         }
@@ -39,7 +39,7 @@ extension SupabaseSyncService {
         dailySelectionsSyncTask?.cancel()
         dailySelectionsSyncTask = Task {
             AppLogger.network.debug("📡 syncDailySelections Task started, waiting debounce...")
-            try? await Task.sleep(nanoseconds: selectionsDebounceNs)
+            try? await Task.sleep(for: selectionsDebounceDuration)
             if Task.isCancelled {
                 AppLogger.network.debug("📡 syncDailySelections Task was CANCELLED")
                 return
@@ -161,7 +161,7 @@ extension SupabaseSyncService {
         }
         
         AppLogger.network.debug("📡 performDailySelectionsSync called for \(dayKey)")
-        AppLogger.network.debug("📡   activities: \(activityIds), recovery: \(recoveryIds), joys: \(joysIds)")
+        AppLogger.network.debug("📡   body: \(activityIds), mind: \(recoveryIds), heart: \(joysIds)")
         
         guard let auth = await authenticatedContext() else {
             AppLogger.network.debug("📡 Daily selections sync skipped: no auth")
@@ -269,15 +269,15 @@ extension SupabaseSyncService {
     }
     
     /// Load today's daily selections from Supabase
-    func loadTodaySelectionsFromServer() async -> (activity: [String], rest: [String], joys: [String])? {
+    func loadTodaySelectionsFromServer() async -> (body: [String], mind: [String], heart: [String])? {
         guard let auth = await authenticatedContext() else { return nil }
         let token = auth.token
         let userId = auth.userId
         
-        let today = AppModel.dayKey(for: Date())
+        let today = AppModel.dayKey(for: Date.now)
         if let cached = cachedTodaySelections,
            cached.dayKey == today,
-           Date().timeIntervalSince(cached.timestamp) < todayCacheTTL {
+           Date.now.timeIntervalSince(cached.timestamp) < todayCacheTTL {
             return cached.value
         }
         
@@ -312,10 +312,10 @@ extension SupabaseSyncService {
                 return nil
             }
             
-            AppLogger.network.debug("📡 Loaded today's selections from server: activity=\(row.activityIds), rest=\(row.restIds), joys=\(row.joysIds)")
+            AppLogger.network.debug("📡 Loaded today's selections from server: body=\(row.activityIds), mind=\(row.restIds), heart=\(row.joysIds)")
             
             let value = (row.activityIds, row.restIds, row.joysIds)
-            cachedTodaySelections = CachedTodayValue(dayKey: today, value: value, timestamp: Date())
+            cachedTodaySelections = CachedTodayValue(dayKey: today, value: value, timestamp: Date.now)
             return value
         } catch {
             AppLogger.network.error("📡 Failed to load today's selections: \(error)")

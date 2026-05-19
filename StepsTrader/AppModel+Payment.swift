@@ -49,7 +49,7 @@ extension AppModel {
         }
         
         addSpentSteps(cost, for: bundleId)
-        dayPassGrants[bundleId] = Date()
+        dayPassGrants[bundleId] = Date.now
         persistDayPassGrants()
         
         #if DEBUG
@@ -88,7 +88,6 @@ extension AppModel {
         let g = UserDefaults.stepsTrader()
         g.set(self.spentStepsToday, forKey: SharedKeys.spentStepsToday)
         g.set(self.stepsBalance, forKey: SharedKeys.stepsBalance)
-        g.synchronize()
         
         clearBonusBreakdown()
         
@@ -111,7 +110,6 @@ extension AppModel {
         let g = UserDefaults.stepsTrader()
         g.set(self.spentStepsToday, forKey: SharedKeys.spentStepsToday)
         g.set(self.stepsBalance, forKey: SharedKeys.stepsBalance)
-        g.synchronize()
 
         writeWidgetSnapshot()
         AppLogger.payment.debug("Refunded \(cost) colors (spentStepsToday now \(self.spentStepsToday))")
@@ -121,7 +119,7 @@ extension AppModel {
     func loadSpentStepsBalance() {
         let g = UserDefaults.stepsTrader()
         let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date ?? .distantPast
-        let isSameDay = isSameCustomDay(anchor, Date())
+        let isSameDay = isSameCustomDay(anchor, Date.now)
         let rawUDSpent = g.integer(forKey: SharedKeys.spentStepsToday)
         
         AppLogger.energy.debug("📥 loadSpentStepsBalance: anchor=\(anchor), isSameDay=\(isSameDay), UD[spentStepsToday]=\(rawUDSpent), in-memory spentStepsToday=\(self.spentStepsToday)")
@@ -158,7 +156,7 @@ extension AppModel {
     func addSpentSteps(_ cost: Int, for bundleId: String) {
         appStepsSpentToday[bundleId, default: 0] += cost
         appStepsSpentLifetime[bundleId, default: 0] += cost
-        let key = Self.dayKey(for: Date())
+        let key = Self.dayKey(for: Date.now)
         var perDay = appStepsSpentByDay[key] ?? [:]
         perDay[bundleId, default: 0] += cost
         appStepsSpentByDay[key] = perDay
@@ -205,7 +203,7 @@ extension AppModel {
     // MARK: - Day Pass Management
     func hasDayPass(for bundleId: String?) -> Bool {
         guard let bundleId, let date = dayPassGrants[bundleId] else { return false }
-        return isSameCustomDay(date, Date())
+        return isSameCustomDay(date, Date.now)
     }
 
 }

@@ -29,7 +29,7 @@ extension SupabaseSyncService {
         pendingDailyStats = payload
         dailyStatsSyncTask?.cancel()
         dailyStatsSyncTask = Task {
-            try? await Task.sleep(nanoseconds: statsDebounceNs)
+            try? await Task.sleep(for: statsDebounceDuration)
             guard !Task.isCancelled else { return }
             guard let latest = pendingDailyStats else { return }
             await performDailyStatsSync(payload: latest)
@@ -40,7 +40,7 @@ extension SupabaseSyncService {
     func syncDaySnapshot(dayKey: String, snapshot: PastDaySnapshot) {
         daySnapshotSyncTask?.cancel()
         daySnapshotSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 sec debounce
+            try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
             await performDaySnapshotSync(dayKey: dayKey, snapshot: snapshot)
         }
@@ -179,10 +179,10 @@ extension SupabaseSyncService {
         let token = auth.token
         let userId = auth.userId
         
-        let today = AppModel.dayKey(for: Date())
+        let today = AppModel.dayKey(for: Date.now)
         if let cached = cachedTodayStats,
            cached.dayKey == today,
-           Date().timeIntervalSince(cached.timestamp) < todayCacheTTL {
+           Date.now.timeIntervalSince(cached.timestamp) < todayCacheTTL {
             return cached.value
         }
         
@@ -218,7 +218,7 @@ extension SupabaseSyncService {
             AppLogger.network.debug("📡 Loaded today's stats from server: steps=\(row.stepsCount), balance=\(row.remainingBalance)")
             
             let value = (row.stepsCount, row.sleepHours, row.baseEnergy, row.bonusEnergy, row.remainingBalance)
-            cachedTodayStats = CachedTodayValue(dayKey: today, value: value, timestamp: Date())
+            cachedTodayStats = CachedTodayValue(dayKey: today, value: value, timestamp: Date.now)
             return value
         } catch {
             AppLogger.network.error("📡 Failed to load today's stats: \(error.localizedDescription)")
@@ -292,7 +292,7 @@ extension SupabaseSyncService {
         var snapshots: [String: PastDaySnapshot] = [:]
         
         let g = UserDefaults.stepsTrader()
-        let now = Date()
+        let now = Date.now
         let lastFullSync = g.object(forKey: historicalLastFullSyncKey) as? Date ?? .distantPast
         let shouldFullSync = now.timeIntervalSince(lastFullSync) >= historicalRefreshTTL
         let lastDayKey = g.string(forKey: historicalLastDayKeyKey)

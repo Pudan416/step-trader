@@ -47,7 +47,7 @@ struct SettingsAboutPage: View {
 
                         Text("v\(appVersion) (\(buildNumber))")
                             .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundColor(theme.adaptiveMutedText)
+                            .foregroundStyle(theme.adaptiveMutedText)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -130,5 +130,12 @@ struct SettingsAboutPage: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
+    }
+}
+
+#Preview {
+    NavigationStack {
+        SettingsAboutPage(model: DIContainer.shared.makeAppModel())
     }
 }

@@ -21,7 +21,7 @@ final class CustomActivityTests: XCTestCase {
         let model = makeModel()
         let id = model.addCustomOption(
             category: .body,
-            titleEn: "Test Activity",
+            titleEn: "Test Card",
             icon: "figure.run"
         )
 
@@ -37,7 +37,7 @@ final class CustomActivityTests: XCTestCase {
         let model = makeModel()
         let id = model.addCustomOption(
             category: .body,
-            titleEn: "Disposable Activity",
+            titleEn: "Disposable Card",
             icon: "figure.walk"
         )
         model.updatePreferredOptions([id], category: .body)

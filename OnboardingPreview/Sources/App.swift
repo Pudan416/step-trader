@@ -34,6 +34,14 @@ struct OnboardingPreviewApp: App {
                     ) {
                         withAnimation { completed = true }
                     }
+                    .overlay(alignment: .topLeading) {
+                        Button("Skip onboarding") {
+                            withAnimation { completed = true }
+                        }
+                        .font(.caption.weight(.semibold))
+                        .buttonStyle(.bordered)
+                        .padding(12)
+                    }
                 }
             }
             .frame(width: 393, height: 852)

@@ -11,6 +11,7 @@
 		20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */; };
 		200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47A2F0C795D0018004E /* TargetResolver.swift */; };
 		200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A52F16DA3F0018004E /* AuthenticationService.swift */; };
+		200AC5B12F16DB100018004E /* AuthenticationService+CachedProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */; };
 		200AC5A82F16DA570018004E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A72F16DA570018004E /* LoginView.swift */; };
 		201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816112F33C8C10006B350 /* CustomActivityTests.swift */; };
 		201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816132F33C8CC0006B350 /* DayBoundaryTests.swift */; };
@@ -124,6 +125,7 @@
 		20HV0001AAAA000100000001 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20HV0002AAAA000100000002 /* HistoryView.swift */; };
 		20HV0003AAAA000100000003 /* DayCanvasViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */; };
 		20HV0005AAAA000100000005 /* HistoryThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20HV0006AAAA000100000006 /* HistoryThumbnailCache.swift */; };
+		20IC0001AAAA000100000001 /* ShapeIconCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20IC0002AAAA000100000002 /* ShapeIconCache.swift */; };
 		20SG0001AAAA000100000001 /* SubscriptionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SG0002AAAA000100000002 /* SubscriptionGate.swift */; };
 		20SS02012F87000000000001 /* SupabaseSyncService+Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS01012F87000000000001 /* SupabaseSyncService+Analytics.swift */; };
 		20SS02022F87000000000002 /* SupabaseSyncService+Selections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS01022F87000000000002 /* SupabaseSyncService+Selections.swift */; };
@@ -197,6 +199,7 @@
 		AA000001AAAA000100000001 /* TariffDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AAAA000100000002 /* TariffDecodingTests.swift */; };
 		AA000002AAAA000200000001 /* TicketGroupCostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002AAAA000200000002 /* TicketGroupCostTests.swift */; };
 		AA000003AAAA000300000001 /* HealthKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000003AAAA000300000002 /* HealthKitTests.swift */; };
+		20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */; };
 		AA00NOTE2F3A000100000001 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00NOTE2F3A000100000002 /* Note.swift */; };
 		AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB001100110011AABB0010 /* SubscriptionGateTests.swift */; };
 		AABB002200220022AABB0022 /* PaymentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB002200220022AABB0020 /* PaymentTests.swift */; };
@@ -204,6 +207,8 @@
 		AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB004400440044AABB0040 /* SubscriptionStateTests.swift */; };
 		AC000001300400000000AC01 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000002300400000000AC02 /* AppConstants.swift */; };
 		AEF40DC05AB94589A68AB8CD /* BlobShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */; };
+		AEF40DC15AB945890B0B0B01 /* OrganicBlobShapeGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */; };
+		AEF40DC25AB945890B0B0B02 /* OrganicBlobShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */; };
 		B59E9C524161418AB1CE7C33 /* DeviceActivityMonitor.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BA2C944BDF2E4A9FAF9E3D81 /* AppModel+Payment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A0EFF57C944F958DDA1052 /* AppModel+Payment.swift */; };
 		BB000001BB000001BB000002 /* WidgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000001BB000001BB000001 /* WidgetTests.swift */; };
@@ -309,6 +314,7 @@
 		200AC4892F1402CF0018004E /* ManagedSettings.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettings.framework; path = System/Library/Frameworks/ManagedSettings.framework; sourceTree = SDKROOT; };
 		200AC48B2F1402CF0018004E /* ManagedSettingsUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettingsUI.framework; path = System/Library/Frameworks/ManagedSettingsUI.framework; sourceTree = SDKROOT; };
 		200AC5A52F16DA3F0018004E /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
+		200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthenticationService+CachedProfile.swift"; sourceTree = "<group>"; };
 		200AC5A72F16DA570018004E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		201816112F33C8C10006B350 /* CustomActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityTests.swift; sourceTree = "<group>"; };
 		201816132F33C8CC0006B350 /* DayBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBoundaryTests.swift; sourceTree = "<group>"; };
@@ -413,6 +419,7 @@
 		20HV0002AAAA000100000002 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCanvasViewerView.swift; sourceTree = "<group>"; };
 		20HV0006AAAA000100000006 /* HistoryThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryThumbnailCache.swift; sourceTree = "<group>"; };
+		20IC0002AAAA000100000002 /* ShapeIconCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShapeIconCache.swift; sourceTree = "<group>"; };
 		20SG0002AAAA000100000002 /* SubscriptionGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionGate.swift; sourceTree = "<group>"; };
 		20SS01012F87000000000001 /* SupabaseSyncService+Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+Analytics.swift"; sourceTree = "<group>"; };
 		20SS01022F87000000000002 /* SupabaseSyncService+Selections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+Selections.swift"; sourceTree = "<group>"; };
@@ -486,6 +493,7 @@
 		AA000001AAAA000100000002 /* TariffDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TariffDecodingTests.swift; sourceTree = "<group>"; };
 		AA000002AAAA000200000002 /* TicketGroupCostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketGroupCostTests.swift; sourceTree = "<group>"; };
 		AA000003AAAA000300000002 /* HealthKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitTests.swift; sourceTree = "<group>"; };
+		20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSessionRestoreTests.swift; sourceTree = "<group>"; };
 		AA00NOTE2F3A000100000002 /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
 		AABB001100110011AABB0010 /* SubscriptionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionGateTests.swift; sourceTree = "<group>"; };
 		AABB002200220022AABB0020 /* PaymentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTests.swift; sourceTree = "<group>"; };
@@ -494,6 +502,8 @@
 		AC000002300400000000AC02 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
 		AF354BA8B84F3623DFC56E52 /* CanvasRenderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasRenderModels.swift; path = StepsTrader/Views/Canvas/CanvasRenderModels.swift; sourceTree = SOURCE_ROOT; };
 		B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BlobShapeRenderer.swift; path = StepsTrader/Shapes/BlobShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
+		B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OrganicBlobShapeGenerator.swift; path = StepsTrader/Shapes/OrganicBlobShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
+		B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OrganicBlobShapeRenderer.swift; path = StepsTrader/Shapes/OrganicBlobShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		BB000001BB000001BB000001 /* WidgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTests.swift; sourceTree = "<group>"; };
 		BB000001BBBB000100000002 /* CachedFormatters.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CachedFormatters.swift; sourceTree = "<group>"; };
 		BB000002BB000002BB000001 /* OnboardingFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowTests.swift; sourceTree = "<group>"; };
@@ -664,6 +674,8 @@
 				DB2D4682957CC0830F537534 /* ShapeHelpers.swift */,
 				5F4C4CBBA3ED654713693D34 /* BodyShapeGenerator.swift */,
 				B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */,
+				B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */,
+				B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */,
 				C860AD1856984A189E6B70A9 /* SnowflakeShapeRenderer.swift */,
 				1C0D419D1FDF446F850FAE7E /* RayShapeRenderer.swift */,
 				A7B3E91D4C6F47E2A0D8F5B1 /* CircleShapeRenderer.swift */,
@@ -739,6 +751,7 @@
 			isa = PBXGroup;
 			children = (
 				200AC5A52F16DA3F0018004E /* AuthenticationService.swift */,
+				200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */,
 				2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */,
 				2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */,
 				201A0FBB2F2CDEE8001BB105 /* SupabaseSyncService.swift */,
@@ -757,6 +770,7 @@
 				20SS01082F87000000000008 /* SupabaseSyncService+Entries.swift */,
 				20SS01092F87000000000009 /* SupabaseSyncService+Routines.swift */,
 				20HV0006AAAA000100000006 /* HistoryThumbnailCache.swift */,
+				20IC0002AAAA000100000002 /* ShapeIconCache.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1015,6 +1029,7 @@
 				20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */,
 				201816112F33C8C10006B350 /* CustomActivityTests.swift */,
 				AA000003AAAA000300000002 /* HealthKitTests.swift */,
+				20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */,
 				AA000001AAAA000100000002 /* TariffDecodingTests.swift */,
 				AA000002AAAA000200000002 /* TicketGroupCostTests.swift */,
 				BB000001BB000001BB000001 /* WidgetTests.swift */,
@@ -1374,6 +1389,7 @@
 				201DF6F92F377E57007D716B /* AppModel+TicketGroups.swift in Sources */,
 				20DR0001AAAA000100000001 /* AppModel+DailyRandomTheme.swift in Sources */,
 				200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */,
+				200AC5B12F16DB100018004E /* AuthenticationService+CachedProfile.swift in Sources */,
 				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
 				30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */,
 				DD000001DDDD000100000001 /* PaperTicketView.swift in Sources */,
@@ -1391,6 +1407,7 @@
 				20HV0001AAAA000100000001 /* HistoryView.swift in Sources */,
 				20HV0003AAAA000100000003 /* DayCanvasViewerView.swift in Sources */,
 				20HV0005AAAA000100000005 /* HistoryThumbnailCache.swift in Sources */,
+				20IC0001AAAA000100000001 /* ShapeIconCache.swift in Sources */,
 				20F5A0112FFF030000000002 /* Localization.swift in Sources */,
 				BB000001BBBB000100000001 /* CachedFormatters.swift in Sources */,
 				CC000001CCCC000100000001 /* FormattingHelpers.swift in Sources */,
@@ -1490,6 +1507,8 @@
 				CE04470BB0E9E29B1C90454C /* ShapeHelpers.swift in Sources */,
 				CDE54053BCC1957C69F91053 /* BodyShapeGenerator.swift in Sources */,
 				AEF40DC05AB94589A68AB8CD /* BlobShapeRenderer.swift in Sources */,
+				AEF40DC15AB945890B0B0B01 /* OrganicBlobShapeGenerator.swift in Sources */,
+				AEF40DC25AB945890B0B0B02 /* OrganicBlobShapeRenderer.swift in Sources */,
 				8C9B956134A14413AB328FC1 /* SnowflakeShapeRenderer.swift in Sources */,
 				F088E9B4584240CB97547938 /* RayShapeRenderer.swift in Sources */,
 				D3A1C72F8E5B4A01B9F6E4C2 /* CircleShapeRenderer.swift in Sources */,
@@ -1516,6 +1535,7 @@
 				20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */,
 				201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */,
 				AA000003AAAA000300000001 /* HealthKitTests.swift in Sources */,
+				20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */,
 				AA000001AAAA000100000001 /* TariffDecodingTests.swift in Sources */,
 				AA000002AAAA000200000001 /* TicketGroupCostTests.swift in Sources */,
 				BB000001BB000001BB000002 /* WidgetTests.swift in Sources */,

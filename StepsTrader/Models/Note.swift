@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 struct Note: Identifiable, Codable, Equatable {
     let id: String
@@ -10,10 +11,11 @@ struct Note: Identifiable, Codable, Equatable {
 
 // MARK: - Read-state manager
 
+@Observable
 @MainActor
-final class NoteReadTracker: ObservableObject {
+final class NoteReadTracker {
     // App-only data — .standard is intentional (no extension needs note read state)
-    @Published private(set) var readIDs: Set<String>
+    private(set) var readIDs: Set<String>
 
     init() {
         let stored = UserDefaults.standard.stringArray(forKey: SharedKeys.readNoteIDs) ?? []

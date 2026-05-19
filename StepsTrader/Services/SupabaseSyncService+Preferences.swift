@@ -19,7 +19,7 @@ extension SupabaseSyncService {
         wallpaperShortcutUses: Int,
         notifyOneMinBefore: Bool = true,
         notifyWhenTimerOver: Bool = true,
-        notifyCanvasReminder: Bool = true,
+        notifyCanvasReminder: Bool = false,
         canvasReminderHour: Int = 21,
         canvasReminderMinute: Int = 0,
         notifyDayResetWarning: Bool = true,
@@ -80,7 +80,7 @@ extension SupabaseSyncService {
         pendingPreferences = payload
         preferencesSyncTask?.cancel()
         preferencesSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 sec debounce
+            try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             guard let latest = pendingPreferences else { return }
             await performPreferencesSync(payload: latest)
@@ -118,7 +118,7 @@ extension SupabaseSyncService {
                 "user_id": userId,
                 "has_wallpaper_shortcut": hasShortcut,
                 "wallpaper_shortcut_uses": uses,
-                "updated_at": iso8601String(Date())
+                "updated_at": iso8601String(Date.now)
             ]
             request.httpBody = try JSONSerialization.data(withJSONObject: row)
             
@@ -198,7 +198,7 @@ extension SupabaseSyncService {
                 "body_canvas_shape": payload.bodyCanvasShape,
                 "mind_canvas_shape": payload.mindCanvasShape,
                 "heart_canvas_shape": payload.heartCanvasShape,
-                "updated_at": iso8601String(Date())
+                "updated_at": iso8601String(Date.now)
             ]
             if let lastOpened = payload.lastOpenedAt {
                 row["last_opened_at"] = iso8601String(lastOpened)

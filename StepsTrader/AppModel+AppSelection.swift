@@ -14,7 +14,7 @@ extension AppModel {
         do {
             let data = try JSONEncoder().encode(appSelection)
             userDefaults.set(data, forKey: SharedKeys.appSelection)
-            userDefaults.set(Date(), forKey: SharedKeys.appSelectionSavedDate)
+            userDefaults.set(Date.now, forKey: SharedKeys.appSelectionSavedDate)
             AppLogger.familyControls.debug("💾 Saved app selection (appSelection_v1): \(self.appSelection.applicationTokens.count) apps, \(self.appSelection.categoryTokens.count) categories")
         } catch {
             AppLogger.familyControls.error("Failed to save app selection (appSelection_v1): \(error.localizedDescription)")

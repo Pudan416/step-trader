@@ -12,7 +12,6 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
 
     // Inside CategoryDetailView sheet
     case spotlightFocusing
-    case spotlightReading
     case tapAddToCanvas
 
     // Back on canvas
@@ -43,9 +42,7 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
         case .tapMind:
             return "try mind"
         case .spotlightFocusing:
-            return "tap focusing"
-        case .spotlightReading:
-            return "you're reading right now — that counts. tap reading"
+            return "tap focusing — you're focused on this text right now. that's enough."
         case .tapAddToCanvas:
             return "nice. now tap done"
         case .canvasTrace:
@@ -86,7 +83,7 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
 
     var isSheetStep: Bool {
         switch self {
-        case .spotlightFocusing, .spotlightReading, .tapAddToCanvas:
+        case .spotlightFocusing, .tapAddToCanvas:
             return true
         default:
             return false

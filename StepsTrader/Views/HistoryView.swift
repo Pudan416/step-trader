@@ -63,6 +63,7 @@ struct HistoryView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
@@ -86,7 +87,7 @@ struct HistoryView: View {
         if dayKeysSorted.isEmpty && hasLoaded {
             emptyState
         } else {
-            ScrollView(showsIndicators: false) {
+            ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24, pinnedViews: [.sectionHeaders]) {
                     counterRow
 
@@ -108,6 +109,7 @@ struct HistoryView: View {
                 }
                 .padding(.bottom, 16)
             }
+            .scrollIndicators(.hidden)
             .refreshable {
                 await reloadHistory()
             }
@@ -129,7 +131,7 @@ struct HistoryView: View {
         formatter.dateFormat = "LLLL"
         let monthName = formatter.string(from: monthDate)
         let yearComp = cal.component(.year, from: monthDate)
-        let currentYear = cal.component(.year, from: Date())
+        let currentYear = cal.component(.year, from: Date.now)
 
         return HStack(alignment: .firstTextBaseline) {
             Text(monthName)
@@ -217,7 +219,7 @@ struct HistoryView: View {
 
     private func reloadHistory() async {
         let local = model.loadPastDaySnapshots()
-        let today = AppModel.dayKey(for: Date())
+        let today = AppModel.dayKey(for: Date.now)
         await MainActor.run {
             pastDays = local
             var keys = Set(local.keys)
@@ -267,11 +269,11 @@ struct DayHistoryTile: View {
     @State private var isEmptyDay = false
 
     private var date: Date {
-        CachedFormatters.dayKey.date(from: dayKey) ?? Date()
+        CachedFormatters.dayKey.date(from: dayKey) ?? Date.now
     }
 
     private var isToday: Bool {
-        dayKey == AppModel.dayKey(for: Date())
+        dayKey == AppModel.dayKey(for: Date.now)
     }
 
     private var dayNumber: String {

@@ -301,13 +301,13 @@ struct SettingsSheet: View {
                 }
                 .padding(.vertical, 14)
                 .padding(.horizontal, 4)
-                .overlay(
+                .overlay {
                     Rectangle()
                         .stroke(
                             theme.adaptivePrimaryText.opacity(0.45),
                             style: StrokeStyle(lineWidth: 0.8, dash: [3, 4])
                         )
-                )
+                }
                 .contentShape(Rectangle())
             }
             .buttonStyle(MattePressStyle())
@@ -321,10 +321,10 @@ struct SettingsSheet: View {
             Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))
                 .font(.caption)
                 .italic()
-                .foregroundColor(theme.adaptiveMutedText)
+                .foregroundStyle(theme.adaptiveMutedText)
             Text("v\(appVersion) (\(buildNumber))")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundColor(theme.adaptiveMutedText.opacity(0.5))
+                .foregroundStyle(theme.adaptiveMutedText.opacity(0.5))
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
@@ -338,7 +338,7 @@ struct SettingsSheet: View {
     @State private var colorsRestored = false
     @State private var showOnboardingDemo = false
     @State private var replayOnboardingLive = false
-    @EnvironmentObject private var coachMarkManager: CoachMarkManager
+    @Environment(CoachMarkManager.self) private var coachMarkManager
 
     @State private var shieldActionLogs: [String] = []
     @State private var showShieldActionLogs = false
@@ -349,7 +349,10 @@ struct SettingsSheet: View {
             let text = model.blockingStore.dumpShieldDiagnostics()
             UIPasteboard.general.string = text
             diagCopied = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { diagCopied = false }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                diagCopied = false
+            }
         } label: {
             diagButton(
                 icon: "shield.lefthalf.filled",
@@ -414,7 +417,10 @@ struct SettingsSheet: View {
             #endif
             model.rebuildFamilyControlsShield()
             budgetsReset = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { budgetsReset = false }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                budgetsReset = false
+            }
         } label: {
             diagButton(
                 icon: "clock.arrow.circlepath",
@@ -432,7 +438,10 @@ struct SettingsSheet: View {
             model.persistDailyEnergyState()
             model.recalculateDailyEnergy()
             colorsRestored = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { colorsRestored = false }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                colorsRestored = false
+            }
         } label: {
             diagButton(
                 icon: "paintpalette",
@@ -488,12 +497,12 @@ struct SettingsSheet: View {
             rowIcon(icon)
             Text(text)
                 .font(.subheadline)
-                .foregroundColor(highlight ? .green : theme.adaptivePrimaryText)
+                .foregroundStyle(highlight ? .green : theme.adaptivePrimaryText)
             Spacer()
             if let trailing {
                 Image(systemName: trailing)
                     .font(.caption2)
-                    .foregroundColor(theme.adaptiveMutedText.opacity(0.7))
+                    .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
             }
         }
         .padding(.vertical, 12)
@@ -522,6 +531,10 @@ struct SettingsSheet: View {
             }
         }
     }
+}
+
+#Preview {
+    SettingsSheet(model: DIContainer.shared.makeAppModel(), embeddedInTab: true)
 }
 
 // `MattePressStyle` lives in `Settings/SettingsComponents.swift` so it can be

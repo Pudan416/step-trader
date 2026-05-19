@@ -230,16 +230,16 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
-                AppLogger.notifications.error("❌ Failed to send activity detected notification: \(error.localizedDescription)")
+                AppLogger.notifications.error("❌ Failed to send workout detected notification: \(error.localizedDescription)")
             } else {
-                AppLogger.notifications.debug("📤 Sent activity detected notification: \(title)")
+                AppLogger.notifications.debug("📤 Sent workout detected notification: \(title)")
             }
         }
     }
 
     func scheduleDailyCanvasReminder() {
         let defaults = UserDefaults.stepsTrader()
-        let enabled = defaults.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? true
+        let enabled = defaults.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? false
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: ["dailyCanvasReminder"])
         guard enabled else { return }

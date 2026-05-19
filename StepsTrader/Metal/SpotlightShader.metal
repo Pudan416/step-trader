@@ -17,10 +17,11 @@ using namespace metal;
 
     float2 lightPos = float2(-0.5 * aspect, -0.5);
 
-    float aim = 1.15 + 0.55 * sin(time * 0.55);
+    // Sync numeric values with RayShapeRenderer (shaderAim, coneAngleMin/Max, coneBreathSpeed).
+    float aim = 1.15;
     float2 dir = float2(sin(aim), cos(aim));
 
-    float coneAngle = mix(30.0, 110.0, 0.5 + 0.5 * sin(time * 0.45));
+    float coneAngle = mix(78.0, 105.0, 0.5 + 0.5 * sin(time * 0.45));
     float halfAngleRad = coneAngle * 0.5 * M_PI_F / 180.0;
 
     float2 dlt = p - lightPos;

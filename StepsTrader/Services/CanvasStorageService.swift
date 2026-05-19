@@ -21,51 +21,26 @@ final class CanvasStorageService {
 
     private init() {
         let fm = FileManager.default
+        let bundleID = Bundle.main.bundleIdentifier ?? "StepsTrader"
 
-        let storagePaths = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        if let appSupport = storagePaths.first {
-            let bundleID = Bundle.main.bundleIdentifier ?? "StepsTrader"
-            let dir = appSupport
-                .appendingPathComponent(bundleID, isDirectory: true)
-                .appendingPathComponent("canvases", isDirectory: true)
-            do {
-                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-            } catch {
-                Self.log.error("Failed to create canvas storage directory: \(error.localizedDescription)")
-            }
-            self.storageDirectory = dir
-        } else {
-            let fallback = fm.temporaryDirectory
-                .appendingPathComponent("StepsTrader", isDirectory: true)
-                .appendingPathComponent("canvases", isDirectory: true)
-            do {
-                try fm.createDirectory(at: fallback, withIntermediateDirectories: true)
-            } catch {
-                Self.log.error("Failed to create canvas storage fallback directory: \(error.localizedDescription)")
-            }
-            self.storageDirectory = fallback
+        let dir = URL.applicationSupportDirectory
+            .appending(path: bundleID, directoryHint: .isDirectory)
+            .appending(path: "canvases", directoryHint: .isDirectory)
+        do {
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        } catch {
+            Self.log.error("Failed to create canvas storage directory: \(error.localizedDescription)")
         }
+        self.storageDirectory = dir
 
-        let docPaths = fm.urls(for: .documentDirectory, in: .userDomainMask)
-        if let docDir = docPaths.first {
-            let dir = docDir.appendingPathComponent("canvas_snapshots", isDirectory: true)
-            do {
-                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-            } catch {
-                Self.log.error("Failed to create snapshot directory: \(error.localizedDescription)")
-            }
-            self.snapshotDirectory = dir
-        } else {
-            let fallback = fm.temporaryDirectory
-                .appendingPathComponent("StepsTrader", isDirectory: true)
-                .appendingPathComponent("canvas_snapshots", isDirectory: true)
-            do {
-                try fm.createDirectory(at: fallback, withIntermediateDirectories: true)
-            } catch {
-                Self.log.error("Failed to create snapshot fallback directory: \(error.localizedDescription)")
-            }
-            self.snapshotDirectory = fallback
+        let snapDir = URL.documentsDirectory
+            .appending(path: "canvas_snapshots", directoryHint: .isDirectory)
+        do {
+            try fm.createDirectory(at: snapDir, withIntermediateDirectories: true)
+        } catch {
+            Self.log.error("Failed to create snapshot directory: \(error.localizedDescription)")
         }
+        self.snapshotDirectory = snapDir
     }
 
     // MARK: - Canvas CRUD
@@ -118,7 +93,7 @@ final class CanvasStorageService {
             stepsColor: stepsColor,
             decayNorm: decayNorm,
             backgroundColor: backgroundColor,
-            fixedTime: Date(),
+            fixedTime: Date.now,
             isOffscreenRender: true
         )
         .frame(width: 390, height: 500)
@@ -151,7 +126,7 @@ final class CanvasStorageService {
             backgroundColor: backgroundColor,
             showLabelsOnCanvas: false,
             showsOutlinedLabels: false,
-            fixedTime: Date(),
+            fixedTime: Date.now,
             isOffscreenRender: true
         )
         .frame(width: 200, height: 200)
@@ -175,13 +150,13 @@ final class CanvasStorageService {
                 forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
             ) else { return }
 
-            let dir = containerURL.appendingPathComponent("widget_snapshots", isDirectory: true)
+            let dir = containerURL.appending(path: "widget_snapshots", directoryHint: .isDirectory)
             do {
                 try fm.createDirectory(at: dir, withIntermediateDirectories: true)
             } catch {
                 Self.log.error("Failed to create widget snapshot directory: \(error.localizedDescription)")
             }
-            let url = dir.appendingPathComponent("canvas_today.jpg")
+            let url = dir.appending(path: "canvas_today.jpg")
             do {
                 try data.write(to: url, options: .atomic)
             } catch {
@@ -221,7 +196,7 @@ final class CanvasStorageService {
 
     func pruneOldCanvases() {
         let calendar = Calendar.current
-        guard let cutoffDate = calendar.date(byAdding: .day, value: -retentionDays, to: Date()) else { return }
+        guard let cutoffDate = calendar.date(byAdding: .day, value: -retentionDays, to: Date.now) else { return }
 
         for dayKey in availableDayKeys() {
             guard let date = CachedFormatters.dayKey.date(from: dayKey), date < cutoffDate else { continue }
@@ -234,10 +209,10 @@ final class CanvasStorageService {
     // MARK: - Private
 
     private func canvasFileURL(for dayKey: String) -> URL {
-        storageDirectory.appendingPathComponent("canvas_\(dayKey).json")
+        storageDirectory.appending(path: "canvas_\(dayKey).json")
     }
 
     private func snapshotURL(for dayKey: String) -> URL {
-        snapshotDirectory.appendingPathComponent("canvas_\(dayKey).png")
+        snapshotDirectory.appending(path: "canvas_\(dayKey).png")
     }
 }

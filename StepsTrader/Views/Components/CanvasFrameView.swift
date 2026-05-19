@@ -174,7 +174,7 @@ struct CanvasFrameView<Content: View>: View {
                 if (steps ?? 0) > 0 || (sleepHours ?? 0) > 0 {
                     let parts = [
                         steps.map { "\(formatCompactNumber($0)) steps" },
-                        sleepHours.map { String(format: "%.1f h. sleep", $0) }
+                        sleepHours.map { "\($0.formatted(.number.precision(.fractionLength(1)))) h. sleep" }
                     ].compactMap { $0 }
 
                     Text(parts.joined(separator: " / "))

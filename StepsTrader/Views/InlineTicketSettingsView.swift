@@ -56,11 +56,11 @@ struct InlineTicketSettingsView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "trash")
                         .font(.body)
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                         .frame(width: 24)
                     Text(String(localized: "Delete"))
                         .font(.subheadline.weight(.medium))
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                     Spacer()
                 }
                 .padding(.vertical, 12)
@@ -159,14 +159,14 @@ struct InlineTicketSettingsView: View {
             HStack(spacing: 12) {
                 Image(systemName: "lock.open.fill")
                     .font(.title2)
-                    .foregroundColor(accent)
+                    .foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Open", comment: "Unlock status label"))
                         .font(.headline)
                         .foregroundStyle(.primary)
                     Text(String(localized: "\(budget) min remaining"))
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
             }
@@ -184,7 +184,7 @@ struct InlineTicketSettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(String(localized: "Spend colors on", comment: "Unlock section header"))
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 ForEach(intervals, id: \.self) { interval in
                     if group.enabledIntervals.contains(interval) {
                         quickUnlockButton(interval: interval)
@@ -201,6 +201,7 @@ struct InlineTicketSettingsView: View {
 
         return Button {
             guard canAfford, !isUnlocking else { return }
+            // TODO: Migrate to .sensoryFeedback()
             let generator = UIImpactFeedbackGenerator(style: .medium)
             generator.impactOccurred()
 

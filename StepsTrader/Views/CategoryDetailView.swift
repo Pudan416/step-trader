@@ -8,7 +8,7 @@ struct CategoryDetailView: View {
     @Environment(\.appTheme) private var theme
 
     var onActivityConfirmed: ((String, EnergyCategory, String, Int?) -> Void)? = nil
-    var onActivityUndo: ((String, EnergyCategory) -> Void)? = nil
+    var onCardUndo: ((String, EnergyCategory) -> Void)? = nil
     var onReroll: ((String, EnergyCategory) -> Void)? = nil
 
     @State private var entryColorCache: [String: Color] = [:]
@@ -16,19 +16,17 @@ struct CategoryDetailView: View {
 
     @State private var editingOptionId: String? = nil
     @State private var editColorHex: String = CanvasColorPalette.paletteHex[0]
-    @State private var editText: String = ""
-    @State private var editSaveForFuture: Bool = false
-    @FocusState private var isNoteFieldFocused: Bool
 
     @State private var customName: String = ""
     @State private var customIcon: String = "pencil"
     @State private var showPaywall = false
 
     #if DEBUG
-    @EnvironmentObject private var coachMarkManager: CoachMarkManager
+    @Environment(CoachMarkManager.self) private var coachMarkManager
     @State private var sheetAnchors: [CoachMarkAnchor] = []
     #endif
 
+    // TODO: Migrate to .sensoryFeedback() modifiers
     @MainActor
     private enum Haptics {
         static let light = UIImpactFeedbackGenerator(style: .light)
@@ -47,9 +45,9 @@ struct CategoryDetailView: View {
     private var selectionCount: Int {
         guard let category else { return 0 }
         switch category {
-        case .body:  return model.dailyActivitySelections.count
+        case .body:  return model.dailyBodySelections.count
         case .mind:  return model.dailyRestSelections.count
-        case .heart: return model.dailyJoysSelections.count
+        case .heart: return model.dailyHeartSelections.count
         }
     }
 
@@ -76,11 +74,10 @@ struct CategoryDetailView: View {
                 }
             }
         }
-        .scrollDismissesKeyboard(.interactively)
         .scrollIndicators(.hidden)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.ultraThinMaterial)
+        .choicesSheetPresentationBackground()
         .presentationCornerRadius(28)
         .onAppear {
             refreshEntryColorCache()
@@ -118,7 +115,7 @@ struct CategoryDetailView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: 28, height: 28)
-                        .background(Circle().fill(.primary.opacity(0.06)))
+                        .modifier(CategoryDetailIconChrome())
                 }
                 .buttonStyle(.plain)
                 .frame(width: 44, height: 44)
@@ -187,11 +184,7 @@ struct CategoryDetailView: View {
                 }
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.primary.opacity(0.03))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .glassCard(cornerRadius: 14, style: .lensTinted)
     }
 
     @ViewBuilder
@@ -275,7 +268,6 @@ struct CategoryDetailView: View {
             withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                 editingOptionId = nil
             }
-            isNoteFieldFocused = false
         } else if isSelected {
             withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                 openEditor(optionId: option.id, category: category)
@@ -294,11 +286,6 @@ struct CategoryDetailView: View {
         isCustom: Bool,
         activeColor: Color
     ) -> some View {
-        let examples = EnergyDefaults.examples(for: option.id)
-        let exampleList = examples
-            .components(separatedBy: ", ")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
         let description = EnergyDefaults.description(for: option.id)
         let isSelected = model.isDailySelected(option.id, category: category)
 
@@ -308,32 +295,6 @@ struct CategoryDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            if !exampleList.isEmpty {
-                FlowLayout(spacing: 6) {
-                    ForEach(exampleList, id: \.self) { example in
-                        exampleChip(example: example, optionId: option.id)
-                    }
-                }
-            }
-
-            TextField(
-                String(localized: "Add a note...", comment: "OptionEntry – note placeholder"),
-                text: $editText,
-                axis: .vertical
-            )
-            .textFieldStyle(.plain)
-            .font(.subheadline)
-            .lineLimit(2...4)
-            .padding(10)
-            .focused($isNoteFieldFocused)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(.primary.opacity(0.04))
-            )
-            .onChange(of: editText) { _, val in
-                if val.count > 200 { editText = String(val.prefix(200)) }
             }
 
             HStack(spacing: 8) {
@@ -355,7 +316,7 @@ struct CategoryDetailView: View {
                     }
                     .buttonStyle(.plain)
                     .frame(minHeight: 36)
-                    .accessibilityLabel(String(localized: "Delete custom activity"))
+                    .accessibilityLabel(String(localized: "Delete custom card"))
                 }
 
                 Spacer()
@@ -386,43 +347,15 @@ struct CategoryDetailView: View {
         .accessibilityElement(children: .contain)
     }
 
-    private func exampleChip(example: String, optionId: String) -> some View {
-        Button {
-            if editText.isEmpty {
-                editText = example
-            } else {
-                editText += ", \(example)"
-            }
-            Haptics.light.impactOccurred()
-            Haptics.light.prepare()
-            #if DEBUG
-            if example.lowercased() == "reading" && optionId == "mind_focusing" {
-                CoachMarkManager.postAction(for: .spotlightReading)
-            }
-            #endif
-        } label: {
-            Text(example)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 4)
-                .background(Capsule().stroke(.primary.opacity(0.08), lineWidth: 0.5))
-        }
-        .buttonStyle(.plain)
-        #if DEBUG
-        .modifier(ReadingTagAnchor(example: example, optionId: optionId))
-        #endif
-    }
 
     private func removeEntry(optionId: String, category: EnergyCategory) {
         withAnimation(.spring(response: 0.3)) {
             model.toggleDailySelection(optionId: optionId, category: category)
             deleteEntry(for: optionId)
             entryColorCache.removeValue(forKey: optionId)
-            onActivityUndo?(optionId, category)
+            onCardUndo?(optionId, category)
             editingOptionId = nil
         }
-        isNoteFieldFocused = false
         Haptics.medium.impactOccurred()
         Haptics.medium.prepare()
     }
@@ -431,16 +364,15 @@ struct CategoryDetailView: View {
         withAnimation(.spring(response: 0.3)) {
             model.deleteCustomOption(optionId: optionId)
             if let category {
-                onActivityUndo?(optionId, category)
+                onCardUndo?(optionId, category)
             }
             editingOptionId = nil
         }
-        isNoteFieldFocused = false
         Haptics.medium.impactOccurred()
         Haptics.medium.prepare()
     }
 
-    // MARK: - Add Custom Activity
+    // MARK: - Add Custom Card
 
     /// "Add your own" — fourth tile per category. Shown as a dashed-outline row to
     /// hint at "create" affordance (vs. the filled rows above). Free users see a
@@ -471,7 +403,7 @@ struct CategoryDetailView: View {
                                 .fill((canCreate ? accent : AppColors.brandAccent).opacity(0.1))
                         )
 
-                    Text(String(localized: "Add your own", comment: "CategoryDetail – add custom activity button"))
+                    Text(String(localized: "Add your own", comment: "CategoryDetail – add custom card button"))
                         .font(.system(size: 15, weight: .regular, design: .rounded))
                         .foregroundStyle(.primary.opacity(0.6))
 
@@ -489,34 +421,32 @@ struct CategoryDetailView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(
+                .glassCard(cornerRadius: 14, style: .lens, tint: .off)
+                .overlay {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .strokeBorder(
-                            .primary.opacity(0.08),
+                            .primary.opacity(0.12),
                             style: StrokeStyle(lineWidth: 1, dash: [5, 4])
                         )
-                )
+                }
             }
             .buttonStyle(.plain)
             .accessibilityLabel(canCreate
-                ? String(localized: "Add your own activity")
-                : String(localized: "Add your own activity, locked, requires Pro"))
+                ? String(localized: "Add your own card")
+                : String(localized: "Add your own card, locked, requires Pro"))
         } else {
-            customActivityEditor(category: category)
+            customCardEditor(category: category)
                 .padding(14)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(accent.opacity(0.04))
-                )
+                .glassCard(cornerRadius: 14, style: .lensTinted, tint: .fixed(accent))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(accent.opacity(0.15), lineWidth: 0.5)
+                        .stroke(accent.opacity(0.2), lineWidth: 0.5)
                 )
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
 
-    private func customActivityEditor(category: EnergyCategory) -> some View {
+    private func customCardEditor(category: EnergyCategory) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
                 Button {
@@ -538,7 +468,7 @@ struct CategoryDetailView: View {
                 .buttonStyle(.plain)
 
                 TextField(
-                    String(localized: "Activity name", comment: "CategoryDetail – custom activity name placeholder"),
+                    String(localized: "Card name", comment: "CategoryDetail – custom card name placeholder"),
                     text: $customName
                 )
                 .textFieldStyle(.plain)
@@ -580,7 +510,7 @@ struct CategoryDetailView: View {
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .background(Capsule().fill(.primary.opacity(0.06)))
+                        .modifier(CategoryDetailCapsuleChrome())
                 }
                 .buttonStyle(.plain)
 
@@ -589,7 +519,7 @@ struct CategoryDetailView: View {
                 Button {
                     createCustomActivity(category: category)
                 } label: {
-                    Text(String(localized: "Create", comment: "CategoryDetail – create custom activity button"))
+                    Text(String(localized: "Create", comment: "CategoryDetail – create custom card button"))
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 20)
@@ -682,7 +612,26 @@ struct CategoryDetailView: View {
                     overrideColor: isSelected ? color : nil
                 )
                 .opacity(isSelected ? 1.0 : 0.35)
+            case .organicBlob:
+                OrganicBlobPreview(
+                    seed: seed,
+                    colors: isSelected
+                        ? [color, color.opacity(0.5)]
+                        : [.primary.opacity(0.25), .primary.opacity(0.1)]
+                )
             case .circle:
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: isSelected
+                                ? [color, color.opacity(0.3)]
+                                : [.primary.opacity(0.25), .primary.opacity(0.08)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: size * 0.5
+                        )
+                    )
+            case .spirograph:
                 Circle()
                     .fill(
                         RadialGradient(
@@ -707,19 +656,16 @@ struct CategoryDetailView: View {
         editingOptionId = optionId
         if let entry = loadEntry(for: optionId) {
             editColorHex = entry.colorHex
-            editText = entry.text
         } else {
             editColorHex = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
-            editText = ""
         }
-        editSaveForFuture = false
     }
 
     private func addAndShowDetail(option: EnergyOption, category: EnergyCategory, color: String) {
-        let dayKey = AppModel.dayKey(for: Date())
+        let dayKey = AppModel.dayKey(for: Date.now)
         let entry = OptionEntry(
             id: "\(option.id)_\(dayKey)", dayKey: dayKey, optionId: option.id,
-            category: category, colorHex: color, text: "", timestamp: Date(), assetVariant: nil
+            category: category, colorHex: color, timestamp: Date.now, assetVariant: nil
         )
         saveEntry(entry, for: option)
         entryColorCache[option.id] = Color(hex: color)
@@ -733,36 +679,22 @@ struct CategoryDetailView: View {
         #endif
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             editColorHex = color
-            editText = ""
-            editSaveForFuture = false
             editingOptionId = option.id
         }
     }
 
     private func commitEntry(option: EnergyOption, category: EnergyCategory, isCustom: Bool) {
-        let dayKey = AppModel.dayKey(for: Date())
+        let dayKey = AppModel.dayKey(for: Date.now)
         let newEntry = OptionEntry(
             id: "\(option.id)_\(dayKey)", dayKey: dayKey, optionId: option.id,
             category: category, colorHex: editColorHex,
-            text: editText.trimmingCharacters(in: .whitespacesAndNewlines),
-            timestamp: Date(), assetVariant: nil
+            timestamp: Date.now, assetVariant: nil
         )
         saveEntry(newEntry, for: option)
         entryColorCache[option.id] = Color(hex: editColorHex)
         saveLastUsedPreferences(optionId: option.id, colorHex: editColorHex)
 
-        if editSaveForFuture && !isCustom {
-            let cleanName = editText.trimmingCharacters(in: .whitespacesAndNewlines)
-                .components(separatedBy: ",").first?
-                .trimmingCharacters(in: .whitespacesAndNewlines).capitalized ?? ""
-            if !cleanName.isEmpty {
-                let newId = model.addCustomOption(category: category, titleEn: cleanName, icon: option.icon)
-                saveLastUsedPreferences(optionId: newId, colorHex: editColorHex)
-            }
-        }
-
         withAnimation(.spring(response: 0.25)) { editingOptionId = nil }
-        isNoteFieldFocused = false
         Haptics.success.notificationOccurred(.success)
         Haptics.success.prepare()
         dismiss()
@@ -776,10 +708,10 @@ struct CategoryDetailView: View {
         let newId = model.addCustomOption(category: category, titleEn: name, icon: customIcon)
         saveLastUsedPreferences(optionId: newId, colorHex: color)
 
-        let dayKey = AppModel.dayKey(for: Date())
+        let dayKey = AppModel.dayKey(for: Date.now)
         let entry = OptionEntry(
             id: "\(newId)_\(dayKey)", dayKey: dayKey, optionId: newId,
-            category: category, colorHex: color, text: "", timestamp: Date(), assetVariant: nil
+            category: category, colorHex: color, timestamp: Date.now, assetVariant: nil
         )
         let opt = EnergyOption(id: newId, titleEn: name, category: category, icon: customIcon)
         saveEntry(entry, for: opt)
@@ -798,7 +730,7 @@ struct CategoryDetailView: View {
     // MARK: - Entry Persistence
 
     private func loadEntry(for optionId: String) -> OptionEntry? {
-        let dayKey = AppModel.dayKey(for: Date())
+        let dayKey = AppModel.dayKey(for: Date.now)
         let entryId = "\(optionId)_\(dayKey)"
         let g = UserDefaults.stepsTrader()
         guard let data = g.data(forKey: "option_entry_\(entryId)"),
@@ -821,7 +753,7 @@ struct CategoryDetailView: View {
     private func syncTodayEntriesToSupabase() {
         guard let cat = category else { return }
         let allOpts = model.orderedOptions(for: cat)
-        let dayKey = AppModel.dayKey(for: Date())
+        let dayKey = AppModel.dayKey(for: Date.now)
         var entries: [OptionEntry] = []
         let g = UserDefaults.stepsTrader()
         for opt in allOpts {
@@ -836,7 +768,7 @@ struct CategoryDetailView: View {
     }
 
     private func deleteEntry(for optionId: String) {
-        let dayKey = AppModel.dayKey(for: Date())
+        let dayKey = AppModel.dayKey(for: Date.now)
         let entryId = "\(optionId)_\(dayKey)"
         UserDefaults.stepsTrader().removeObject(forKey: "option_entry_\(entryId)")
     }
@@ -896,6 +828,28 @@ private struct CheckboxToggleStyle: ToggleStyle {
     }
 }
 
+// MARK: - Chrome (Liquid Glass on iOS 26+, matte fill before)
+
+private struct CategoryDetailIconChrome: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.liquidGlassControl(in: Circle(), tint: .off)
+        } else {
+            content.background(Circle().fill(.primary.opacity(0.06)))
+        }
+    }
+}
+
+private struct CategoryDetailCapsuleChrome: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.liquidGlassControl(in: Capsule(style: .continuous), style: .frosted, tint: .off)
+        } else {
+            content.background(Capsule().fill(.primary.opacity(0.06)))
+        }
+    }
+}
+
 // MARK: - Coach Mark Anchors (DEBUG)
 
 #if DEBUG
@@ -904,18 +858,6 @@ private struct FocusingRowAnchor: ViewModifier {
     func body(content: Content) -> some View {
         if optionId == "mind_focusing" {
             content.coachMarkAnchor(.spotlightFocusing)
-        } else {
-            content
-        }
-    }
-}
-
-private struct ReadingTagAnchor: ViewModifier {
-    let example: String
-    let optionId: String
-    func body(content: Content) -> some View {
-        if example.lowercased() == "reading" && optionId == "mind_focusing" {
-            content.coachMarkAnchor(.spotlightReading)
         } else {
             content
         }
@@ -934,3 +876,25 @@ private struct AddToCanvasAnchor: ViewModifier {
     }
 }
 #endif
+
+#Preview("Body") {
+    CategoryDetailView(
+        model: DIContainer.shared.makeAppModel(),
+        category: .body,
+        outerWorldSteps: 0
+    )
+    #if DEBUG
+    .environment(CoachMarkManager())
+    #endif
+}
+
+#Preview("Mind") {
+    CategoryDetailView(
+        model: DIContainer.shared.makeAppModel(),
+        category: .mind,
+        outerWorldSteps: 0
+    )
+    #if DEBUG
+    .environment(CoachMarkManager())
+    #endif
+}

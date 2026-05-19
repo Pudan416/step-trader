@@ -19,11 +19,11 @@ struct QuickStatusView: View {
 
                     Text(String(localized: "Quick Status", comment: "QuickStatus – title"))
                         .font(.largeTitle)
-                        .fontWeight(.bold)
+                        .bold()
 
                     Text(String(localized: "My progress overview", comment: "QuickStatus – subtitle"))
                         .font(.title3)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
 
@@ -34,8 +34,8 @@ struct QuickStatusView: View {
                         Spacer()
                         Text("\(Int(model.stepsToday))")
                             .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(.green)
+                            .bold()
+                            .foregroundStyle(.green)
                     }
                     .padding()
                     .glassCard(cornerRadius: 16, style: .frosted)
@@ -46,8 +46,8 @@ struct QuickStatusView: View {
                         Spacer()
                         Text(String(localized: "\(model.userEconomyStore.totalStepsBalance) steps", comment: "QuickStatus – balance value"))
                             .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(
+                            .bold()
+                            .foregroundStyle(
                                 model.userEconomyStore.totalStepsBalance >= model.userEconomyStore.entryCostSteps ? .green : .red)
                     }
                     .padding()
@@ -60,7 +60,7 @@ struct QuickStatusView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 50)
                 .background(Color.blue)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .font(.headline)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 20)
@@ -69,5 +69,9 @@ struct QuickStatusView: View {
             }
         }
     }
+}
+
+#Preview {
+    QuickStatusView(model: DIContainer.shared.makeAppModel())
 }
 #endif

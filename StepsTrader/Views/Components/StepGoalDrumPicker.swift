@@ -9,7 +9,9 @@ struct StepGoalDrumPicker: View {
 
     private var digitValues: [Int] {
         let clamped = max(minSteps, min(maxSteps, Int(value)))
-        return String(format: "%05d", clamped).map { Int(String($0))! }
+        let str = String(clamped)
+        let padded = String(repeating: "0", count: max(0, 5 - str.count)) + str
+        return padded.compactMap { $0.wholeNumberValue }
     }
 
     var body: some View {
@@ -133,6 +135,7 @@ private struct DrumDigitColumn: View {
         let canMove = isUp ? digit < 9 : digit > 0
         return Button {
             onChange(isUp ? digit + 1 : digit - 1)
+            // TODO: Migrate to .sensoryFeedback()
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } label: {
             Image(systemName: isUp ? "chevron.up" : "chevron.down")
@@ -153,9 +156,11 @@ private struct DrumDigitColumn: View {
                 let threshold: CGFloat = 15
                 if g.translation.height < -threshold, digit < 9 {
                     onChange(digit + 1)
+                    // TODO: Migrate to .sensoryFeedback()
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 } else if g.translation.height > threshold, digit > 0 {
                     onChange(digit - 1)
+                    // TODO: Migrate to .sensoryFeedback()
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 }
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) { dragOffset = 0 }

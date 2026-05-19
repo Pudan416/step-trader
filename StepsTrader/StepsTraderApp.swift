@@ -1,7 +1,6 @@
 import SwiftUI
 import StoreKit
 import Combine
-import UIKit
 import UserNotifications
 import BackgroundTasks
 
@@ -12,7 +11,7 @@ struct StepsTraderApp: App {
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var authService = AuthenticationService.shared
     #if DEBUG
-    @StateObject private var coachMarkManager = CoachMarkManager()
+    @State private var coachMarkManager = CoachMarkManager()
     #endif
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.night.rawValue
     /// Single versioned int that replaces the old 4-flag onboarding state machine
@@ -143,16 +142,16 @@ struct StepsTraderApp: App {
                             case .unknown, .loadingFromCache: break
                             default:
                                 if SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) {
-                                    try? await Task.sleep(nanoseconds: 600_000_000)
+                                    try? await Task.sleep(for: .milliseconds(600))
                                     showPostOnboardingPaywall = true
                                 }
                                 return
                             }
-                            try? await Task.sleep(nanoseconds: 200_000_000)
+                            try? await Task.sleep(for: .milliseconds(200))
                         }
                         // Fallback after timeout: respect cached isPro.
                         if SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) {
-                            try? await Task.sleep(nanoseconds: 600_000_000)
+                            try? await Task.sleep(for: .milliseconds(600))
                             showPostOnboardingPaywall = true
                         }
                     }
@@ -190,7 +189,8 @@ struct StepsTraderApp: App {
                         #if DEBUG
                         if UserDefaults.standard.bool(forKey: "shouldStartCoachMark") {
                             UserDefaults.standard.removeObject(forKey: "shouldStartCoachMark")
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(800))
                                 coachMarkManager.start()
                             }
                         }
@@ -217,7 +217,7 @@ struct StepsTraderApp: App {
             .tint(currentTheme.accentColor)
             .grayscale(0)
             #if DEBUG
-            .environmentObject(coachMarkManager)
+            .environment(coachMarkManager)
             #endif
             .alert(isPresented: $errorManager.showErrorAlert, error: errorManager.currentError) { _ in
                 Button("OK", role: .cancel) {
@@ -317,7 +317,7 @@ struct StepsTraderApp: App {
                    let bundleId = userInfo["bundleId"] as? String {
                     let g = UserDefaults.stepsTrader()
                     if let until = g.object(forKey: SharedKeys.payGateDismissedUntil) as? Date,
-                       Date() < until
+                       Date.now < until
                     {
                         AppLogger.app.debug("🚫 PayGate notification suppressed after dismiss")
                         return
@@ -338,14 +338,14 @@ struct StepsTraderApp: App {
                    let bundleId = userInfo["bundleId"] as? String {
                     let g = UserDefaults.stepsTrader()
                     if let until = g.object(forKey: SharedKeys.payGateDismissedUntil) as? Date,
-                       Date() < until
+                       Date.now < until
                     {
                         AppLogger.app.debug("🚫 PayGate local notification suppressed after dismiss")
                         return
                     }
                     let lastOpen = g.object(forKey: SharedKeys.lastAppOpenedFromStepsTrader(bundleId)) as? Date
                     if let lastOpen {
-                        let elapsed = Date().timeIntervalSince(lastOpen)
+                        let elapsed = Date.now.timeIntervalSince(lastOpen)
                         if elapsed < 10 {
                                 AppLogger.app.debug("PayGate local ignored for \(bundleId) to avoid loop (\(elapsed, format: .fixed(precision: 1))s since last open)")
                             return
@@ -474,11 +474,11 @@ struct StepsTraderApp: App {
 
     private func isRecentPayGateOpen(groupId: String, userDefaults: UserDefaults) -> Bool {
         if let last = userDefaults.object(forKey: SharedKeys.lastPayGateAction) as? Date,
-           Date().timeIntervalSince(last) < 5 {
+           Date.now.timeIntervalSince(last) < 5 {
             return true
         }
         if let last = userDefaults.object(forKey: SharedKeys.lastGroupPayGateOpen(groupId)) as? Date,
-           Date().timeIntervalSince(last) < 5 {
+           Date.now.timeIntervalSince(last) < 5 {
             return true
         }
         return false
@@ -492,7 +492,8 @@ struct StepsTraderApp: App {
         // the prompt exactly once.
         guard appLaunchCount >= 3, !hasRequestedReview else { return }
         hasRequestedReview = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
             requestReview()
         }
     }

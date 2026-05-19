@@ -27,7 +27,7 @@ struct PaywallView: View {
             backgroundGradient
                 .ignoresSafeArea()
 
-            ScrollView(showsIndicators: false) {
+            ScrollView {
                 VStack(spacing: 0) {
                     hero
                         .padding(.top, 60)
@@ -44,6 +44,7 @@ struct PaywallView: View {
                     Spacer(minLength: 180)
                 }
             }
+            .scrollIndicators(.hidden)
 
             closeButton
                 .padding(.top, 8)
@@ -223,6 +224,7 @@ struct PaywallView: View {
             return nil
         }()
 
+        // TODO: Migrate to .sensoryFeedback() modifiers
         return Button {
             #if canImport(UIKit)
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -319,6 +321,7 @@ struct PaywallView: View {
                 .foregroundStyle(.white.opacity(0.4))
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
+            // TODO: Migrate to .sensoryFeedback() modifiers
             Button {
                 store.clearLastError()
                 Task { await store.refresh() }
@@ -679,4 +682,12 @@ struct PostPurchaseLoginPrompt: View {
             if isAuth { dismiss() }
         }
     }
+}
+
+#Preview {
+    let model = DIContainer.shared.makeAppModel()
+    PaywallView(
+        model: model,
+        store: model.subscriptionStore
+    )
 }

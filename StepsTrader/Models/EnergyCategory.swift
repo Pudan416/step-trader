@@ -2,7 +2,7 @@ import Foundation
 
 enum EnergyCategory: String, CaseIterable, Codable, Identifiable {
     case body      // Body (steps + movement activities)
-    case mind      // Mind (attention + creativity)
+    case mind      // Mind (attention + rest)
     case heart     // Heart (feelings + connection)
 
     var id: String { rawValue }

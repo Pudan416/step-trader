@@ -49,39 +49,39 @@ struct DetectedWorkout: Identifiable, Equatable {
 
     private static func mapToCategory(activityType: UInt) -> EnergyCategory {
         switch activityType {
-        case 62: return .body
-        default: return .body
+        case 62: .body
+        default: .body
         }
     }
 
     static func displayName(for activityType: UInt) -> String {
         switch activityType {
-        case 37: return "Walking"
-        case 52: return "Running"
-        case 13: return "Cycling"
-        case 46: return "Strength Training"
-        case 50: return "Strength Training"
-        case 20: return "Cross Training"
-        case 35: return "Stair Climbing"
-        case 16: return "Core Training"
-        case 56: return "Swimming"
-        case 24: return "Yoga"
-        case 36: return "Pilates"
-        case 57: return "Tai Chi"
-        case 63: return "Flexibility"
-        case 38: return "Hiking"
-        case 17: return "Dance"
-        case 47: return "HIIT"
-        case 62: return "Mind & Body"
-        case 6:  return "Boxing"
-        case 25: return "Tennis"
-        case 32: return "Rowing"
-        case 10: return "Climbing"
-        case 55: return "Soccer"
-        case 4:  return "Basketball"
-        case 15: return "Cooldown"
-        case 3000: return "Other"
-        default: return "Workout"
+        case 37: "Walking"
+        case 52: "Running"
+        case 13: "Cycling"
+        case 46: "Strength Training"
+        case 50: "Strength Training"
+        case 20: "Cross Training"
+        case 35: "Stair Climbing"
+        case 16: "Core Training"
+        case 56: "Swimming"
+        case 24: "Yoga"
+        case 36: "Pilates"
+        case 57: "Tai Chi"
+        case 63: "Flexibility"
+        case 38: "Hiking"
+        case 17: "Dance"
+        case 47: "HIIT"
+        case 62: "Mind & Body"
+        case 6:  "Boxing"
+        case 25: "Tennis"
+        case 32: "Rowing"
+        case 10: "Climbing"
+        case 55: "Soccer"
+        case 4:  "Basketball"
+        case 15: "Cooldown"
+        case 3000: "Other"
+        default: "Workout"
         }
     }
 }
@@ -163,24 +163,24 @@ struct ActivitySuggestion: Identifiable, Equatable {
 
     private static func workoutIcon(for activityType: UInt) -> String {
         switch activityType {
-        case 37: return "figure.walk"
-        case 52: return "figure.run"
-        case 13: return "figure.outdoor.cycle"
-        case 56: return "figure.pool.swim"
-        case 24: return "figure.yoga"
-        case 36: return "figure.pilates"
-        case 38: return "figure.hiking"
-        case 17: return "figure.dance"
-        case 47: return "flame.fill"
-        case 46, 50: return "dumbbell.fill"
-        case 10: return "figure.climbing"
-        case 25: return "figure.tennis"
-        case 55: return "soccerball"
-        case 4:  return "figure.basketball"
-        case 32: return "figure.rowing"
-        case 6:  return "figure.boxing"
-        case 57: return "figure.taichi"
-        default: return "figure.run"
+        case 37: "figure.walk"
+        case 52: "figure.run"
+        case 13: "figure.outdoor.cycle"
+        case 56: "figure.pool.swim"
+        case 24: "figure.yoga"
+        case 36: "figure.pilates"
+        case 38: "figure.hiking"
+        case 17: "figure.dance"
+        case 47: "flame.fill"
+        case 46, 50: "dumbbell.fill"
+        case 10: "figure.climbing"
+        case 25: "figure.tennis"
+        case 55: "soccerball"
+        case 4:  "figure.basketball"
+        case 32: "figure.rowing"
+        case 6:  "figure.boxing"
+        case 57: "figure.taichi"
+        default: "figure.run"
         }
     }
 }

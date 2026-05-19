@@ -90,7 +90,7 @@ extension AppModel {
             return
         }
 
-        let todayKey = CachedFormatters.dayKey.string(from: Date())
+        let todayKey = CachedFormatters.dayKey.string(from: Date.now)
         let lastRolled = defaults.string(forKey: SharedKeys.dailyRandomThemeLastRolledKey) ?? ""
         guard lastRolled != todayKey else { return }
         rollDailyRandomTheme()
@@ -126,7 +126,7 @@ extension AppModel {
         }
 
         writeActiveTheme(styleRaw: newStyle.rawValue, paletteRaw: newPalette.rawValue)
-        let todayKey = CachedFormatters.dayKey.string(from: Date())
+        let todayKey = CachedFormatters.dayKey.string(from: Date.now)
         defaults.set(todayKey, forKey: SharedKeys.dailyRandomThemeLastRolledKey)
     }
 

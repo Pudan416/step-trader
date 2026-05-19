@@ -372,6 +372,10 @@ struct PayGateView: View {
     }
 }
 
+#Preview {
+    PayGateView(model: DIContainer.shared.makeAppModel())
+}
+
 struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

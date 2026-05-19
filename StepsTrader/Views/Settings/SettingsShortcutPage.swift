@@ -6,6 +6,7 @@ struct SettingsShortcutPage: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.appTheme) private var theme
 
+    // swiftlint:disable:next force_unwrapping
     private let shortcutURL = URL(string: "https://www.icloud.com/shortcuts/e32b44858d5f4c829b35c9f8ad5f2756")!
 
     private let steps: [(number: String, text: LocalizedStringKey)] = [
@@ -38,7 +39,7 @@ struct SettingsShortcutPage: View {
 
                         Text(String(localized: "Set today's energy canvas as your Lock Screen wallpaper automatically each time you close the app."))
                             .font(.subheadline)
-                            .foregroundColor(theme.adaptiveSecondaryText)
+                            .foregroundStyle(theme.adaptiveSecondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.horizontal, 16)
@@ -64,7 +65,7 @@ struct SettingsShortcutPage: View {
 
                                 Text(step.text)
                                     .font(.subheadline)
-                                    .foregroundColor(theme.adaptiveSecondaryText)
+                                    .foregroundStyle(theme.adaptiveSecondaryText)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             .padding(.horizontal, 14)
@@ -83,7 +84,7 @@ struct SettingsShortcutPage: View {
                             Text(String(localized: "Get Wallpaper Shortcut"))
                                 .font(.subheadline.weight(.semibold))
                         }
-                        .foregroundColor(AppAccentInk.primary)
+                        .foregroundStyle(AppAccentInk.primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Capsule().fill(AppColors.brandAccent))
@@ -99,5 +100,12 @@ struct SettingsShortcutPage: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
+    }
+}
+
+#Preview {
+    NavigationStack {
+        SettingsShortcutPage(model: DIContainer.shared.makeAppModel())
     }
 }

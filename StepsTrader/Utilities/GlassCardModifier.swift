@@ -28,17 +28,8 @@ enum GlassTint: Equatable {
 
 // MARK: - Environment value: current global shimmer color
 
-private struct GlassShimmerColorKey: EnvironmentKey {
-    static let defaultValue: Color? = nil
-}
-
 extension EnvironmentValues {
-    /// Currently active "shimmer" tint, published by `GlassShimmerProvider` at
-    /// the root of the app. `nil` outside a provider scope (defaults to no tint).
-    var glassShimmerColor: Color? {
-        get { self[GlassShimmerColorKey.self] }
-        set { self[GlassShimmerColorKey.self] = newValue }
-    }
+    @Entry var glassShimmerColor: Color? = nil
 }
 
 // MARK: - Shimmer provider (one TimelineView for the whole app)
@@ -200,6 +191,51 @@ extension View {
         tint: GlassTint = .auto
     ) -> some View {
         modifier(GlassCardModifier(cornerRadius: cornerRadius, style: style, tint: tint))
+    }
+
+    /// Sheet background for category / choices pickers.
+    /// iOS 26+ uses the system Liquid Glass sheet; older OS keeps ultraThinMaterial.
+    @ViewBuilder
+    func choicesSheetPresentationBackground() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+        } else {
+            presentationBackground(.ultraThinMaterial)
+        }
+    }
+
+    /// Compact inset field (note inputs inside choice rows).
+    func inlineGlassField(cornerRadius: CGFloat = 10) -> some View {
+        modifier(InlineGlassFieldModifier(cornerRadius: cornerRadius))
+    }
+}
+
+// MARK: - Inline field (notes inside choice sheets)
+
+private struct InlineGlassFieldModifier: ViewModifier {
+    var cornerRadius: CGFloat
+    @Environment(\.glassShimmerColor) private var shimmerColor
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if reduceTransparency {
+            content.background(
+                colorScheme == .dark ? Color(white: 0.14) : Color(white: 0.96),
+                in: shape
+            )
+        } else if #available(iOS 26.0, *) {
+            content.glassEffect(makeTintedFrostedGlass(tint: shimmerColor), in: shape)
+        } else {
+            content
+                .background(.ultraThinMaterial, in: shape)
+                .overlay {
+                    if let shimmerColor {
+                        shape.fill(shimmerColor.opacity(AppGlassTint.fallbackStrength))
+                    }
+                }
+        }
     }
 }
 

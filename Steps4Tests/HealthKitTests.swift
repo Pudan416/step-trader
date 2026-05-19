@@ -190,6 +190,17 @@ final class HealthStoreTests: XCTestCase {
         XCTAssertTrue(store.hasStepsData)
     }
 
+    /// Read-only HealthKit apps keep `.notDetermined` write status after the user allows reads.
+    /// HealthKitService must still run queries (regression: guard on `.notDetermined` returned 0 steps).
+    func testRefreshStepsWhenWriteStatusNotDetermined() async {
+        mock.authStatus = .notDetermined
+        mock.stepsToReturn = 9999
+        await store.refreshStepsIfAuthorized()
+
+        XCTAssertEqual(store.stepsToday, 9999)
+        XCTAssertTrue(store.hasStepsData)
+    }
+
     func testRefreshStepsZeroIsValid() async {
         mock.stepsToReturn = 0
         await store.refreshStepsIfAuthorized()

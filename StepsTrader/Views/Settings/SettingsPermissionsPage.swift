@@ -16,6 +16,13 @@ struct SettingsPermissionsPage: View {
         HKHealthStore.isHealthDataAvailable()
     }
 
+    /// HealthKit hides read-permission status — `hasStepsData` becomes `true` even
+    /// when the user denied read access (fetch returns 0, no error). Use actual
+    /// non-zero data as the verification signal for the permissions badge.
+    private var healthVerified: Bool {
+        model.stepsToday > 0 || model.dailySleepHours > 0
+    }
+
     private var hasHealthData: Bool {
         model.hasStepsData || model.hasSleepData
     }
@@ -30,7 +37,7 @@ struct SettingsPermissionsPage: View {
 
     private var missingPermissionCount: Int {
         var count = 0
-        if !hasHealthData { count += 1 }
+        if !healthVerified { count += 1 }
         if !isFamilyControlsAuthorized { count += 1 }
         if !isNotificationsGranted { count += 1 }
         return count
@@ -55,16 +62,16 @@ struct SettingsPermissionsPage: View {
                             icon: "heart.fill",
                             title: String(localized: "Health", comment: "Permission row – HealthKit"),
                             subtitle: String(localized: "Steps, sleep, workouts", comment: "Permission row – HealthKit detail"),
-                            isGranted: hasHealthData,
+                            isGranted: healthVerified,
                             isAvailable: isHealthKitAvailable,
+                            alwaysTappable: true,
                             onFix: {
                                 Task {
                                     do {
                                         try await model.healthStore.requestAuthorization()
-                                        await model.healthStore.refreshStepsIfAuthorized()
-                                        await model.healthStore.refreshSleepIfAuthorized()
+                                        await model.refreshStepsIfAuthorized()
                                     } catch {
-                                        openAppSettings()
+                                        AppLogger.healthKit.error("Permission page auth failed: \(error.localizedDescription)")
                                     }
                                 }
                             }
@@ -124,6 +131,7 @@ struct SettingsPermissionsPage: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
         .task {
             await refreshNotificationStatus()
         }
@@ -157,10 +165,11 @@ struct SettingsPermissionsPage: View {
         subtitle: String,
         isGranted: Bool,
         isAvailable: Bool,
+        alwaysTappable: Bool = false,
         onFix: @escaping () -> Void
     ) -> some View {
         Button(action: {
-            if !isGranted { onFix() }
+            onFix()
         }) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
@@ -204,7 +213,7 @@ struct SettingsPermissionsPage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(MattePressStyle())
-        .disabled(!isAvailable || isGranted)
+        .disabled(!isAvailable || (!alwaysTappable && isGranted))
     }
 
     // MARK: - Helpers
@@ -219,5 +228,12 @@ struct SettingsPermissionsPage: View {
     private func openAppSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
+    }
+
+}
+
+#Preview {
+    NavigationStack {
+        SettingsPermissionsPage(model: DIContainer.shared.makeAppModel())
     }
 }

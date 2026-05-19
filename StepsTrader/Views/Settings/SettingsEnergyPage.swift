@@ -94,6 +94,7 @@ struct SettingsEnergyPage: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
         .onAppear { syncBedtimeFromStorage() }
     }
 
@@ -138,4 +139,10 @@ struct SettingsEnergyPage: View {
         .padding(.top, 4)
     }
 
+}
+
+#Preview {
+    NavigationStack {
+        SettingsEnergyPage(model: DIContainer.shared.makeAppModel())
+    }
 }

@@ -15,11 +15,23 @@ struct DayCanvas: Codable {
     var gradientPalette: String?
     var overlayStyle: String?
     var textureRaw: String?
+    var hasStepsData: Bool?
+    var hasSleepData: Bool?
 
     /// 0.0 = pristine (nothing spent), 1.0 = fully degraded (all colors spent)
     var decayNorm: Double {
         guard inkEarned > 0 else { return 0 }
         return min(1.0, Double(inkSpent) / Double(inkEarned))
+    }
+
+    /// Resolved flag: prefers stored boolean, falls back to points > 0 for legacy canvases.
+    var resolvedHasStepsData: Bool {
+        hasStepsData ?? (stepsPoints > 0)
+    }
+
+    /// Resolved flag: prefers stored boolean, falls back to points > 0 for legacy canvases.
+    var resolvedHasSleepData: Bool {
+        hasSleepData ?? (sleepPoints > 0)
     }
 
     init(dayKey: String) {
@@ -31,9 +43,11 @@ struct DayCanvas: Codable {
         self.stepsColorHex = "#FED415"
         self.inkEarned = 0
         self.inkSpent = 0
-        self.createdAt = Date()
-        self.lastModified = Date()
+        self.createdAt = .now
+        self.lastModified = .now
         self.gradientStyle = nil
         self.gradientPalette = nil
+        self.hasStepsData = nil
+        self.hasSleepData = nil
     }
 }

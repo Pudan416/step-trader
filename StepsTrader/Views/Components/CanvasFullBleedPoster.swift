@@ -120,7 +120,7 @@ struct CanvasFullBleedPoster<Content: View>: View {
             if (steps ?? 0) > 0 || (sleepHours ?? 0) > 0 {
                 let parts = [
                     steps.map { "\(formatCompactNumber($0)) steps" },
-                    sleepHours.map { String(format: "%.1f h. sleep", $0) }
+                    sleepHours.map { "\($0.formatted(.number.precision(.fractionLength(1)))) h. sleep" }
                 ].compactMap { $0 }
                 Text(parts.joined(separator: " / "))
                     .font(.system(size: fontSize, weight: .regular))
@@ -172,4 +172,22 @@ struct CanvasFullBleedPoster<Content: View>: View {
         let d = cal.component(.day, from: date)
         return String(format: "%04d/%02d/%02d", y, m, d)
     }
+}
+
+#Preview {
+    CanvasFullBleedPoster(
+        date: Date.now,
+        userName: "Kosta",
+        steps: 8432,
+        sleepHours: 7.5,
+        inkEarned: 72,
+        inkSpent: 15
+    ) {
+        LinearGradient(
+            colors: [.purple, .blue, .cyan],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    .frame(width: 300, height: 424)
 }

@@ -127,6 +127,9 @@ class AuthenticationService: NSObject, ObservableObject {
     // MARK: - Public Methods
     
     func signOut() {
+        if let userId = currentUser?.id {
+            clearCachedProfile(for: userId)
+        }
         clearStoredSession()
         currentUser = nil
         isAuthenticated = false
@@ -159,6 +162,7 @@ class AuthenticationService: NSObject, ObservableObject {
         
         let userId = session.user.id
         clearStoredSession()
+        clearCachedProfile(for: userId)
         storeAvatarData(nil, for: userId)
         UserDefaults.standard.removeObject(forKey: appleNamePrefix + userId)
         UserDefaults.standard.removeObject(forKey: customNicknamePrefix + userId)
@@ -218,31 +222,53 @@ class AuthenticationService: NSObject, ObservableObject {
                 AppLogger.auth.debug("🔐 supabaseSignInWithApple — starting token exchange")
                 let session = try await self.supabaseSignInWithApple(idToken: idTokenString, nonce: nonce)
                 AppLogger.auth.debug("🔐 supabaseSignInWithApple — success, userId: \(session.user.id.prefix(8))…, expiresAt: \(session.expiresAt)")
-                
+
                 self.storeSession(session)
                 if let name = appleFullName {
                     self.storeAppleDisplayName(name, for: session.user.id)
                 }
-                
-                AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — fetching profile")
-                try await self.loadCurrentUserFromSupabase(session: session)
-                AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — done, user: \(self.currentUser?.displayName ?? "nil")")
-                
-                if let name = appleFullName {
-                    await self.promoteAppleNameAsDefaultProfileNameIfNeeded(name, session: session)
-                }
-                self.isAuthenticated = (self.currentUser != nil)
+
+                // Optimistic: token is valid — show logged-in UI before profile fetch finishes.
+                self.applyCachedSessionState(
+                    userId: session.user.id,
+                    email: session.user.email,
+                    createdAt: session.user.createdAt
+                )
                 self.currentNonce = nil
                 self.isLoading = false
+                AppLogger.auth.debug("🔐 Optimistic sign-in — isAuthenticated: \(self.isAuthenticated)")
+
+                do {
+                    AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — fetching profile")
+                    try await self.loadCurrentUserFromSupabase(session: session)
+                    AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — done, user: \(self.currentUser?.displayName ?? "nil")")
+
+                    if let name = appleFullName {
+                        await self.promoteAppleNameAsDefaultProfileNameIfNeeded(name, session: session)
+                    }
+                } catch {
+                    if self.isSessionInvalidatingError(error) {
+                        AppLogger.auth.error("🔐 Profile fetch invalidated session: \(error.localizedDescription)")
+                        self.clearStoredSession()
+                        self.clearCachedProfile(for: session.user.id)
+                        self.currentUser = nil
+                        self.isAuthenticated = false
+                        self.error = error.localizedDescription
+                        return
+                    }
+                    AppLogger.auth.warning("🔐 Profile refresh after sign-in deferred: \(error.localizedDescription)")
+                    if let user = self.currentUser {
+                        self.persistCachedProfile(user)
+                    }
+                }
+
                 AppLogger.auth.debug("🔐 Sign in complete — isAuthenticated: \(self.isAuthenticated)")
 
-                let uid = self.currentUser?.id
+                let uid = self.currentUser?.id ?? session.user.id
                 let appModel = self.postLoginSyncModel
                 Task {
-                    if let uid {
-                        AppLogger.auth.debug("🔐 Post-login — linking RC userId: \(uid.prefix(8))…")
-                        await SubscriptionStore.shared.logIn(supabaseUserID: uid)
-                    }
+                    AppLogger.auth.debug("🔐 Post-login — linking RC userId: \(uid.prefix(8))…")
+                    await SubscriptionStore.shared.logIn(supabaseUserID: uid)
                     if let appModel {
                         AppLogger.auth.debug("🔐 Post-login — starting full Supabase sync")
                         await SupabaseSyncService.shared.performFullSync(model: appModel)
@@ -308,7 +334,7 @@ class AuthenticationService: NSObject, ObservableObject {
         // Update local user immediately for responsive UI
         user.nickname = nickname
         user.country = country
-        currentUser = user
+        setCurrentUserAndCache(user)
         
         Task { @MainActor in
             do {
@@ -353,7 +379,7 @@ class AuthenticationService: NSObject, ObservableObject {
         // Update local user immediately
         user.nickname = nickname
         user.country = country
-        currentUser = user
+        setCurrentUserAndCache(user)
         
         guard let session = loadStoredSession() else { return }
         
@@ -383,18 +409,12 @@ class AuthenticationService: NSObject, ObservableObject {
         }
     }
     
-    private static func avatarFileURL(for userId: String) -> URL? {
-        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        return docs.appendingPathComponent("avatar_\(userId).png")
+    private static func avatarFileURL(for userId: String) -> URL {
+        URL.documentsDirectory.appending(path: "avatar_\(userId).png")
     }
 
     private func storeAvatarData(_ data: Data?, for userId: String) {
-        guard let fileURL = Self.avatarFileURL(for: userId) else {
-            AppLogger.auth.error("Failed to resolve documents directory for avatar storage")
-            return
-        }
+        let fileURL = Self.avatarFileURL(for: userId)
         if let data, !data.isEmpty {
             do {
                 try data.write(to: fileURL, options: .atomic)
@@ -407,8 +427,8 @@ class AuthenticationService: NSObject, ObservableObject {
         UserDefaults.standard.removeObject(forKey: avatarDefaultsPrefix + userId)
     }
     
-    private func loadAvatarData(for userId: String) -> Data? {
-        guard let fileURL = Self.avatarFileURL(for: userId) else { return nil }
+    func loadAvatarData(for userId: String) -> Data? {
+        let fileURL = Self.avatarFileURL(for: userId)
         if let data = try? Data(contentsOf: fileURL) {
             return data
         }
@@ -429,7 +449,7 @@ class AuthenticationService: NSObject, ObservableObject {
         UserDefaults.standard.set(name, forKey: appleNamePrefix + userId)
     }
     
-    private func loadAppleDisplayName(for userId: String) -> String? {
+    func loadAppleDisplayName(for userId: String) -> String? {
         UserDefaults.standard.string(forKey: appleNamePrefix + userId)
     }
     
@@ -445,7 +465,7 @@ class AuthenticationService: NSObject, ObservableObject {
         guard !user.hasSetCustomNickname else {
             if user.appleDisplayName != trimmed {
                 user.appleDisplayName = trimmed
-                currentUser = user
+                setCurrentUserAndCache(user)
             }
             return
         }
@@ -460,7 +480,7 @@ class AuthenticationService: NSObject, ObservableObject {
             didMutateLocalUser = true
         }
         if didMutateLocalUser {
-            currentUser = user
+            setCurrentUserAndCache(user)
         }
 
         do {
@@ -471,7 +491,7 @@ class AuthenticationService: NSObject, ObservableObject {
         }
     }
     
-    private func loadHasCustomNickname(for userId: String) -> Bool {
+    func loadHasCustomNickname(for userId: String) -> Bool {
         UserDefaults.standard.bool(forKey: customNicknamePrefix + userId)
     }
     
@@ -520,6 +540,13 @@ class AuthenticationService: NSObject, ObservableObject {
         AppLogger.auth.debug("🔐 Found stored session, user: \(session.user.id.prefix(8))…, expires: \(session.expiresAt)")
         #endif
         
+        // Show logged-in UI immediately; refresh profile/token in background.
+        applyCachedSessionState(
+            userId: session.user.id,
+            email: session.user.email,
+            createdAt: session.user.createdAt
+        )
+        
         do {
             let validSession = try await ensureValidSession(session)
             AppLogger.auth.debug("🔐 Session validated/refreshed successfully")
@@ -537,11 +564,23 @@ class AuthenticationService: NSObject, ObservableObject {
                 await SubscriptionStore.shared.logIn(supabaseUserID: uid)
             }
         } catch {
-            AppLogger.auth.error("🔐 Session restore failed: \(error.localizedDescription)")
-            // Session likely invalid/revoked
-            clearStoredSession()
-            currentUser = nil
-            isAuthenticated = false
+            if isSessionInvalidatingError(error) {
+                AppLogger.auth.error("🔐 Session invalid — signing out locally: \(error.localizedDescription)")
+                clearStoredSession()
+                clearCachedProfile(for: session.user.id)
+                currentUser = nil
+                isAuthenticated = false
+            } else {
+                AppLogger.auth.warning("🔐 Session refresh deferred (offline/transient): \(error.localizedDescription)")
+                if currentUser == nil {
+                    applyCachedSessionState(
+            userId: session.user.id,
+            email: session.user.email,
+            createdAt: session.user.createdAt
+        )
+                }
+                isAuthenticated = currentUser != nil
+            }
         }
     }
     
@@ -611,7 +650,7 @@ class AuthenticationService: NSObject, ObservableObject {
     }
     
     private func ensureValidSession(_ session: SupabaseSessionResponse) async throws -> SupabaseSessionResponse {
-        let threshold = Date().addingTimeInterval(AppConstants.Timing.sessionRefreshThreshold)
+        let threshold = Date.now.addingTimeInterval(AppConstants.Timing.sessionRefreshThreshold)
         if session.expiresAt > threshold {
             AppLogger.auth.debug("🔐 ensureValidSession — token still valid (expires: \(session.expiresAt))")
             return session
@@ -639,6 +678,10 @@ class AuthenticationService: NSObject, ObservableObject {
         
         AppLogger.auth.debug("🔐 ensureValidSession — refresh response status: \(http.statusCode)")
         
+        if http.statusCode == 401 || http.statusCode == 403 {
+            AppLogger.auth.error("🔐 ensureValidSession — refresh rejected (\(http.statusCode))")
+            throw AuthError.sessionExpired
+        }
         if http.statusCode >= 400 {
             let msg = String(data: data, encoding: .utf8) ?? "Supabase refresh failed"
             AppLogger.auth.error("🔐 ensureValidSession — refresh FAILED: \(msg.prefix(300))")
@@ -678,6 +721,9 @@ class AuthenticationService: NSObject, ObservableObject {
             body: nil
         )
         
+        if http.statusCode == 401 || http.statusCode == 403 {
+            throw AuthError.sessionExpired
+        }
         if http.statusCode >= 400 {
             let msg = String(data: data, encoding: .utf8) ?? "Failed to load profile"
             throw AuthError.supabaseError(msg)
@@ -687,16 +733,11 @@ class AuthenticationService: NSObject, ObservableObject {
         guard let row = rows.first else {
             // Trigger might not have created the row yet; fallback to auth user.
             // Do not auto-generate nicknames; prefer Apple name or email fallback in UI.
-            currentUser = AppUser(
-                id: session.user.id,
+            setCurrentUserAndCache(minimalUser(
+                userId: session.user.id,
                 email: session.user.email,
-                nickname: nil,
-                country: nil,
-                avatarData: loadAvatarData(for: session.user.id),
-                createdAt: session.user.createdAt ?? Date(),
-                appleDisplayName: loadAppleDisplayName(for: session.user.id),
-                hasSetCustomNickname: loadHasCustomNickname(for: session.user.id)
-            )
+                createdAt: session.user.createdAt
+            ))
             return
         }
         
@@ -704,8 +745,8 @@ class AuthenticationService: NSObject, ObservableObject {
         
         if row.isBanned {
             let until = row.banUntil
-            if until == nil || (until.map { $0 > Date() } ?? true) {
-                currentUser = AppUser(
+            if until == nil || (until.map { $0 > Date.now } ?? true) {
+                setCurrentUserAndCache(AppUser(
                     id: row.id,
                     email: row.email,
                     nickname: row.nickname,
@@ -714,14 +755,13 @@ class AuthenticationService: NSObject, ObservableObject {
                     createdAt: row.createdAt,
                     appleDisplayName: loadAppleDisplayName(for: row.id),
                     hasSetCustomNickname: loadHasCustomNickname(for: row.id)
-                )
-                isAuthenticated = true
+                ))
                 error = "Account is banned."
                 return
             }
         }
         
-        currentUser = AppUser(
+        setCurrentUserAndCache(AppUser(
             id: row.id,
             email: row.email,
             nickname: row.nickname,
@@ -730,7 +770,7 @@ class AuthenticationService: NSObject, ObservableObject {
             createdAt: row.createdAt,
             appleDisplayName: loadAppleDisplayName(for: row.id),
             hasSetCustomNickname: loadHasCustomNickname(for: row.id)
-        )
+        ))
     }
     
     private func patchUserProfile(session: SupabaseSessionResponse, userId: String, nickname: String?, country: String?) async throws {
@@ -983,6 +1023,7 @@ enum AuthError: LocalizedError {
     case invalidCredential
     case cancelled
     case misconfiguredSupabase
+    case sessionExpired
     case supabaseError(String)
     case unknown
     
@@ -994,6 +1035,8 @@ enum AuthError: LocalizedError {
             return "Sign in was cancelled"
         case .misconfiguredSupabase:
             return "Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in Info.plist."
+        case .sessionExpired:
+            return "Session expired"
         case .supabaseError(let message):
             return message
         case .unknown:
@@ -1060,7 +1103,7 @@ private struct SupabaseSessionResponse: Codable {
         if let stored = try? c.decode(Date.self, forKey: .expiresAt) {
             expiresAt = stored
         } else {
-            expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
+            expiresAt = Date.now.addingTimeInterval(TimeInterval(expiresIn))
         }
     }
     

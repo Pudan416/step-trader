@@ -19,13 +19,13 @@ struct HandoffProtectionView: View {
 
                     Text(String(localized: "Protection Screen"))
                         .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
+                        .bold()
+                        .foregroundStyle(.white)
                         .accessibilityAddTraits(.isHeader)
 
                     Text(String(localized: "You're about to open \(token.targetAppName)"))
                         .font(.title2)
-                        .foregroundColor(.white.opacity(0.8))
+                        .foregroundStyle(.white.opacity(0.8))
                         .multilineTextAlignment(.center)
                 }
 
@@ -41,7 +41,7 @@ struct HandoffProtectionView: View {
 
                     Text(String(localized: "Entries left today: \(opensLeftText)"))
                         .font(.body)
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundStyle(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)
 
@@ -74,7 +74,7 @@ struct HandoffProtectionView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 50)
         .background(Color.gray.opacity(0.3))
-        .foregroundColor(.white)
+        .foregroundStyle(.white)
         .font(.headline)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .accessibilityLabel(String(localized: "Cancel opening \(token.targetAppName)", comment: "Handoff – cancel button accessibility"))
@@ -87,10 +87,24 @@ struct HandoffProtectionView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 50)
         .background(Color.blue)
-        .foregroundColor(.white)
+        .foregroundStyle(.white)
         .font(.headline)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .accessibilityLabel(String(localized: "Open \(token.targetAppName)", comment: "Handoff – open button accessibility"))
         .accessibilityHint(String(localized: "Opens the app \(token.targetAppName) after confirming access", comment: "Handoff – open button accessibility hint"))
     }
+}
+
+#Preview {
+    HandoffProtectionView(
+        model: DIContainer.shared.makeAppModel(),
+        token: HandoffToken(
+            targetBundleId: "com.burbn.instagram",
+            targetAppName: "Instagram",
+            createdAt: Date.now,
+            tokenId: UUID().uuidString
+        ),
+        onContinue: {},
+        onCancel: {}
+    )
 }

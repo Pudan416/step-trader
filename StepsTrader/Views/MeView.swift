@@ -36,7 +36,7 @@ struct MeView: View {
     private var mainScrollContent: some View {
         if useTightMeLayout {
             GeometryReader { geo in
-                ScrollView(.vertical, showsIndicators: false) {
+                ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
                         weekRow
                             .padding(.top, 16)
@@ -50,10 +50,11 @@ struct MeView: View {
                     .frame(width: geo.size.width)
                     .frame(minHeight: geo.size.height, alignment: .topLeading)
                 }
+                .scrollIndicators(.hidden)
                 .scrollBounceBehavior(.basedOnSize)
             }
         } else {
-            ScrollView(.vertical, showsIndicators: false) {
+            ScrollView(.vertical) {
                 VStack(spacing: 0) {
                     weekRow
                         .padding(.top, 20)
@@ -65,6 +66,7 @@ struct MeView: View {
                 }
                 .padding(.horizontal, 20)
             }
+            .scrollIndicators(.hidden)
         }
     }
 
@@ -254,7 +256,7 @@ struct MeView: View {
                             .font(.system(size: 13))
                             .foregroundStyle(theme.textSecondary)
                             .frame(width: 18, alignment: .center)
-                        Text(String(format: "%.1f", summary.avgSleep) + "h")
+                        Text(summary.avgSleep.formatted(.number.precision(.fractionLength(1))) + "h")
                             .font(meProse.weight(.semibold))
                             .monospacedDigit()
                             .foregroundStyle(theme.textPrimary)
@@ -336,7 +338,7 @@ struct MeView: View {
     // MARK: - Helpers
 
     private var greetingString: String {
-        let hour = Calendar.current.component(.hour, from: Date())
+        let hour = Calendar.current.component(.hour, from: Date.now)
         switch hour {
         case 5..<12: return String(localized: "Good morning")
         case 12..<17: return String(localized: "Good afternoon")
@@ -450,14 +452,14 @@ struct MeView: View {
     }
 
     private func isToday(_ dayKey: String) -> Bool {
-        dayKey == AppModel.dayKey(for: Date())
+        dayKey == AppModel.dayKey(for: Date.now)
     }
 
     fileprivate static func computeDayKeys() -> [String] {
         let cal = Calendar.current
         let (endH, endM) = DayBoundary.storedDayEnd()
         return (0..<7).reversed().map { offset in
-            let d = cal.date(byAdding: .day, value: -offset, to: Date()) ?? Date()
+            let d = cal.date(byAdding: .day, value: -offset, to: Date.now) ?? Date.now
             return DayBoundary.dayKey(for: d, dayEndHour: endH, dayEndMinute: endM)
         }
     }

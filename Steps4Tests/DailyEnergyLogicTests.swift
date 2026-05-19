@@ -87,7 +87,7 @@ final class DailyEnergyLogicTests: XCTestCase {
         XCTAssertEqual(pointsFromSelections(count: 100, maxSelections: 4, pointsPer: 5), 20)
     }
 
-    /// Zero activity day yields zero energy.
+    /// Zero body day yields zero energy.
     func testZeroActivityDayYieldsZero() {
         let total = pointsFromSteps(steps: 0, target: 10_000, maxPoints: 20)
             + pointsFromSleep(hours: 0, target: 8, maxPoints: 20)
@@ -133,7 +133,7 @@ final class DailyEnergyLogicTests: XCTestCase {
         }
     }
 
-    /// Body, mind, heart are independent; body = activityPointsToday only (no steps), heart = joysCategoryPointsToday only (no sleep).
+    /// Body, mind, heart are independent; body = bodyPointsToday only (no steps), heart = heartPointsToday only (no sleep).
     func testBodyMindHeartIndependentOfStepsSleep() {
         // Body: only card selections, not steps
         let bodyWithZeroCards = pointsFromSelections(count: 0, maxSelections: 4, pointsPer: 5)

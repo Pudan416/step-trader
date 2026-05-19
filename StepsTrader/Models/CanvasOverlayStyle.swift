@@ -1,8 +1,4 @@
-import Foundation
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 /// User-selectable interactive overlay rendered on top of the gallery canvas.
 /// Persisted via `SharedKeys.canvasOverlayStyle` in the App-Group defaults so
@@ -21,36 +17,36 @@ enum CanvasOverlayStyle: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .none:
-            return String(localized: "Off",
-                          comment: "Canvas animation picker – no overlay")
+            String(localized: "Off",
+                   comment: "Canvas animation picker – no overlay")
         case .smudge:
-            return String(localized: "Smudge",
-                          comment: "Canvas animation picker – smudge option")
+            String(localized: "Smudge",
+                   comment: "Canvas animation picker – smudge option")
         case .cosmic:
-            return String(localized: "Cosmic",
-                          comment: "Canvas animation picker – cosmic shader option")
+            String(localized: "Cosmic",
+                   comment: "Canvas animation picker – cosmic shader option")
         }
     }
 
     var subtitle: String {
         switch self {
         case .none:
-            return String(localized: "No overlay on the canvas.",
-                          comment: "Canvas animation picker – off subtitle")
+            String(localized: "No overlay on the canvas.",
+                   comment: "Canvas animation picker – off subtitle")
         case .smudge:
-            return String(localized: "Drag to smudge the canvas.",
-                          comment: "Canvas animation picker – smudge subtitle")
+            String(localized: "Drag to smudge the canvas.",
+                   comment: "Canvas animation picker – smudge subtitle")
         case .cosmic:
-            return String(localized: "Drifting field — tap and drag to morph it.",
-                          comment: "Canvas animation picker – cosmic subtitle")
+            String(localized: "Drifting field — tap and drag to morph it.",
+                   comment: "Canvas animation picker – cosmic subtitle")
         }
     }
 
     var iconName: String {
         switch self {
-        case .none:   return "circle.slash"
-        case .smudge: return "hand.draw"
-        case .cosmic: return "sparkles"
+        case .none:   "circle.slash"
+        case .smudge: "hand.draw"
+        case .cosmic: "sparkles"
         }
     }
 }
@@ -72,43 +68,43 @@ enum CanvasTexture: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .none:          return String(localized: "Off", comment: "Texture picker – no texture")
-        case .grainSmall:    return String(localized: "Small", comment: "Texture picker – small grain")
-        case .grainMedium:   return String(localized: "Medium", comment: "Texture picker – medium grain")
-        case .grainIntense:  return String(localized: "Intense", comment: "Texture picker – intense grain")
-        case .grainDigital:  return String(localized: "Digital", comment: "Texture picker – digital grain")
-        case .plastic:       return String(localized: "Plastic", comment: "Texture picker – plastic")
-        case .glass:         return String(localized: "Glass", comment: "Texture picker – glass")
+        case .none:          String(localized: "Off", comment: "Texture picker – no texture")
+        case .grainSmall:    String(localized: "Small", comment: "Texture picker – small grain")
+        case .grainMedium:   String(localized: "Medium", comment: "Texture picker – medium grain")
+        case .grainIntense:  String(localized: "Intense", comment: "Texture picker – intense grain")
+        case .grainDigital:  String(localized: "Digital", comment: "Texture picker – digital grain")
+        case .plastic:       String(localized: "Plastic", comment: "Texture picker – plastic")
+        case .glass:         String(localized: "Glass", comment: "Texture picker – glass")
         }
     }
 
     var assetName: String? {
         switch self {
-        case .none: return nil
-        default:    return rawValue
+        case .none: nil
+        default:    rawValue
         }
     }
 
     var blendMode: BlendMode {
         switch self {
-        case .none:         return .normal
-        case .grainSmall:   return .overlay
-        case .grainMedium:  return .colorDodge
-        case .grainIntense: return .colorDodge
-        case .grainDigital: return .overlay
-        case .plastic:      return .overlay
-        case .glass:        return .overlay
+        case .none:         .normal
+        case .grainSmall:   .overlay
+        case .grainMedium:  .colorDodge
+        case .grainIntense: .colorDodge
+        case .grainDigital: .overlay
+        case .plastic:      .overlay
+        case .glass:        .overlay
         }
     }
 
     var defaultOpacity: Double {
         switch self {
-        case .none:         return 0
-        case .grainSmall:   return 0.4
-        case .grainDigital: return 0.2
-        case .plastic:      return 0.15
-        case .glass:        return 0.5
-        default:            return 0.35
+        case .none:         0
+        case .grainSmall:   0.4
+        case .grainDigital: 0.2
+        case .plastic:      0.15
+        case .glass:        0.5
+        default:            0.35
         }
     }
 
@@ -122,8 +118,8 @@ enum CanvasTexture: String, CaseIterable, Identifiable {
 
     var isPro: Bool {
         switch self {
-        case .none, .grainSmall: return false
-        default: return true
+        case .none, .grainSmall: false
+        default: true
         }
     }
 

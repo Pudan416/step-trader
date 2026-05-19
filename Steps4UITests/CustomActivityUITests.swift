@@ -10,7 +10,7 @@ final class CustomActivityUITests: XCTestCase {
         app.launchArguments = ["ui-testing"]
 
         let seedJSON = """
-        [{"id":"custom_body_uitest","titleEn":"UITest Custom Activity","category":"body","icon":"figure.run"}]
+        [{"id":"custom_body_uitest","titleEn":"UITest Custom Card","category":"body","icon":"figure.run"}]
         """
         app.launchEnvironment["UITEST_CUSTOM_ENERGY_OPTIONS"] = seedJSON
         app.launch()

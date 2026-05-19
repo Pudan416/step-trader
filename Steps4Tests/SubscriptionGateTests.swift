@@ -23,16 +23,17 @@ final class SubscriptionGateTests: XCTestCase {
         }
     }
 
-    func testCanAddBlockingGroup_freeAtZero() {
+    func testCanAddBlockingGroup_freeBelowLimit() {
         XCTAssertTrue(SubscriptionGate.canAddBlockingGroup(isPro: false, currentCount: 0))
+        XCTAssertTrue(SubscriptionGate.canAddBlockingGroup(isPro: false, currentCount: 1))
     }
 
     func testCanAddBlockingGroup_freeAtLimit() {
-        XCTAssertFalse(SubscriptionGate.canAddBlockingGroup(isPro: false, currentCount: 1))
+        XCTAssertFalse(SubscriptionGate.canAddBlockingGroup(isPro: false, currentCount: 2))
         XCTAssertFalse(SubscriptionGate.canAddBlockingGroup(isPro: false, currentCount: 5))
     }
 
-    // MARK: - Custom Activity
+    // MARK: - Custom Card
 
     func testCanCreateCustomActivity_proBypasses() {
         XCTAssertTrue(SubscriptionGate.canCreateCustomActivity(isPro: true))

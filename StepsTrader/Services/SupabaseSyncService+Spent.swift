@@ -24,7 +24,7 @@ extension SupabaseSyncService {
         pendingDailySpent = payload
         dailySpentSyncTask?.cancel()
         dailySpentSyncTask = Task {
-            try? await Task.sleep(nanoseconds: spentDebounceNs)
+            try? await Task.sleep(for: spentDebounceDuration)
             guard !Task.isCancelled else { return }
             guard let latest = pendingDailySpent else { return }
             await performDailySpentSync(payload: latest)
@@ -105,10 +105,10 @@ extension SupabaseSyncService {
         let token = auth.token
         let userId = auth.userId
         
-        let today = AppModel.dayKey(for: Date())
+        let today = AppModel.dayKey(for: Date.now)
         if let cached = cachedTodaySpent,
            cached.dayKey == today,
-           Date().timeIntervalSince(cached.timestamp) < todayCacheTTL {
+           Date.now.timeIntervalSince(cached.timestamp) < todayCacheTTL {
             return cached.value
         }
         
@@ -146,7 +146,7 @@ extension SupabaseSyncService {
             AppLogger.network.debug("📡 Loaded today's spent from server: total=\(row.totalSpent), byApp=\(row.spentByApp)")
             
             let value = (row.totalSpent, row.spentByApp)
-            cachedTodaySpent = CachedTodayValue(dayKey: today, value: value, timestamp: Date())
+            cachedTodaySpent = CachedTodayValue(dayKey: today, value: value, timestamp: Date.now)
             return value
         } catch {
             AppLogger.network.error("📡 Failed to load today's spent: \(error)")

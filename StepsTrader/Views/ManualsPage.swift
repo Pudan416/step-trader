@@ -5,7 +5,7 @@ struct ManualsPage: View {
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
 
-    @StateObject private var readTracker = NoteReadTracker()
+    @State private var readTracker = NoteReadTracker()
     @State private var currentIndex: Int = 0
     @State private var showAllNotes = false
 
@@ -50,6 +50,7 @@ struct ManualsPage: View {
                     readTracker.markRead(note)
                     showAllNotes = false
                 }
+                .choicesSheetPresentationBackground()
             }
             .onChange(of: currentIndex) { _, newValue in
                 readTracker.markRead(notes[newValue])
@@ -66,19 +67,19 @@ struct ManualsPage: View {
     // MARK: - Note card
 
     private func noteCard(_ note: Note) -> some View {
-        ScrollView(.vertical, showsIndicators: false) {
+        ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(note.topic)
                     .font(.system(size: 13, weight: .medium, design: .default))
                     .tracking(1.5)
                     .textCase(.uppercase)
-                    .foregroundColor(theme.textSecondary.opacity(0.5))
+                    .foregroundStyle(theme.textSecondary.opacity(0.5))
                     .padding(.bottom, 20)
 
                 Text(note.body)
                     .font(.system(size: 20, weight: .thin, design: .serif))
                     .italic()
-                    .foregroundColor(theme.textPrimary)
+                    .foregroundStyle(theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                     .lineSpacing(6)
                     .multilineTextAlignment(.leading)
@@ -86,13 +87,10 @@ struct ManualsPage: View {
             .padding(28)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(theme.backgroundSecondary.opacity(0.85))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .scrollIndicators(.hidden)
+        .glassCard(cornerRadius: 20, style: .lensTinted)
         .overlay(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(theme.stroke.opacity(theme.strokeOpacity * 0.5), lineWidth: 0.5)
         )
         .padding(.horizontal, 28)
@@ -131,12 +129,10 @@ struct ManualsPage: View {
                             .frame(width: 6, height: 6)
                     }
                 }
-                .foregroundColor(theme.textPrimary)
+                .foregroundStyle(theme.textPrimary)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 11)
-                .background(theme.backgroundSecondary.opacity(0.7))
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(theme.stroke.opacity(theme.strokeOpacity * 0.5), lineWidth: 0.5))
+                .modifier(NotesCapsuleChrome(theme: theme))
             }
             .buttonStyle(.plain)
         }
@@ -146,7 +142,7 @@ struct ManualsPage: View {
 // MARK: - All notes list
 
 struct AllNotesListView: View {
-    @ObservedObject var readTracker: NoteReadTracker
+    var readTracker: NoteReadTracker
     @Environment(\.appTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     var onSelect: (Note) -> Void
@@ -154,7 +150,7 @@ struct AllNotesListView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(spacing: 1) {
+                LazyVStack(spacing: 0) {
                     ForEach(NoteCatalog.all) { note in
                         Button {
                             onSelect(note)
@@ -173,12 +169,12 @@ struct AllNotesListView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(note.topic)
                                         .font(.system(size: 15, weight: readTracker.isRead(note) ? .regular : .medium))
-                                        .foregroundColor(.primary)
+                                        .foregroundStyle(.primary)
 
                                     Text(note.body)
                                         .font(.system(size: 13, weight: .light))
                                         .italic()
-                                        .foregroundColor(.secondary)
+                                        .foregroundStyle(.secondary)
                                         .lineLimit(2)
                                 }
 
@@ -186,19 +182,23 @@ struct AllNotesListView: View {
 
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 12, weight: .light))
-                                    .foregroundColor(.secondary.opacity(0.4))
+                                    .foregroundStyle(.secondary.opacity(0.4))
                             }
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, 16)
                             .padding(.vertical, 14)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
 
                         if note.id != NoteCatalog.all.last?.id {
                             Divider()
-                                .padding(.leading, 42)
+                                .padding(.leading, 38)
                         }
                     }
                 }
+                .glassCard(cornerRadius: 16, style: .lensTinted)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
             }
             .navigationTitle(String(localized: "all notes", comment: "ManualsPage – accessibility label for all filter"))
             .navigationBarTitleDisplayMode(.inline)
@@ -212,4 +212,24 @@ struct AllNotesListView: View {
             }
         }
     }
+}
+
+// MARK: - Chrome (Liquid Glass on iOS 26+, matte fill before)
+
+private struct NotesCapsuleChrome: ViewModifier {
+    let theme: AppTheme
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.liquidGlassControl(in: Capsule(style: .continuous), style: .frosted, tint: .off)
+        } else {
+            content
+                .background(theme.backgroundSecondary.opacity(0.7), in: Capsule())
+                .overlay(Capsule().stroke(theme.stroke.opacity(theme.strokeOpacity * 0.5), lineWidth: 0.5))
+        }
+    }
+}
+
+#Preview {
+    ManualsPage(model: DIContainer.shared.makeAppModel())
 }

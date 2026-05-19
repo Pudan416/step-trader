@@ -62,8 +62,14 @@ final class SubscriptionStore: ObservableObject {
     /// increment runs before or after `configure()`. A brand-new install has
     /// either 0 (incremented later) or 1 (incremented earlier); a user with any
     /// prior launches has ≥ 2 by the time the next launch's increment runs.
-    // TODO: restore original detection before production release
     private static func detectExistingUser(_ defaults: UserDefaults = .standard) -> Bool {
+        if defaults.bool(forKey: "hasCompletedOnboarding_v1") { return true }
+        if defaults.integer(forKey: "onboarding_state_v1") >= 1 { return true }
+        if defaults.integer(forKey: "appLaunchCount") > 1 { return true }
+        // Anything in our App Group also counts (existing ticket groups, etc.)
+        let g = SharedKeys.appGroupDefaults()
+        if g.data(forKey: SharedKeys.ticketGroups) != nil { return true }
+        if g.data(forKey: SharedKeys.legacyShieldGroups) != nil { return true }
         return false
     }
 
@@ -144,7 +150,7 @@ final class SubscriptionStore: ObservableObject {
         }
 
         let isExisting = Self.detectExistingUser(defaults)
-        defaults.set(Date(), forKey: SharedKeys.grandfatherEvaluatedAt)
+        defaults.set(Date.now, forKey: SharedKeys.grandfatherEvaluatedAt)
         defaults.set(isExisting, forKey: SharedKeys.isGrandfathered)
 
         if isExisting {
@@ -155,7 +161,7 @@ final class SubscriptionStore: ObservableObject {
             // Tag in RC so dashboard can segment grandfathered users.
             Purchases.shared.attribution.setAttributes([
                 SubscriptionIDs.Attribute.grandfathered: "true",
-                SubscriptionIDs.Attribute.grandfatheredAt: ISO8601DateFormatter().string(from: Date()),
+                SubscriptionIDs.Attribute.grandfatheredAt: ISO8601DateFormatter().string(from: Date.now),
                 SubscriptionIDs.Attribute.appLaunchCount: String(defaults.integer(forKey: "appLaunchCount"))
             ])
             #endif
@@ -203,12 +209,19 @@ final class SubscriptionStore: ObservableObject {
         #if canImport(RevenueCat)
         isLoading = true
         defer { isLoading = false }
+
+        // Entitlement state — best-effort; offerings can still load if this fails.
         do {
-            // Customer info — entitlement state.
             let info = try await Purchases.shared.customerInfo()
             applyCustomerInfo(info)
+        } catch {
+            AppLogger.app.error("RC customerInfo failed: \(error.localizedDescription)")
+        }
 
-            // Offerings — what the paywall shows.
+        var offeringsError: Error?
+
+        // Preferred path: RevenueCat offering → packages (preserves RC package metadata).
+        do {
             let offerings = try await Purchases.shared.offerings()
             let offering: Offering? = {
                 if let id = SubscriptionIDs.currentOffering {
@@ -216,12 +229,25 @@ final class SubscriptionStore: ObservableObject {
                 }
                 return offerings.current
             }()
-            packages = (offering?.availablePackages ?? []).map(PurchasePackage.init(rcPackage:))
-            lastError = nil
+            let fromOffering = (offering?.availablePackages ?? []).map(PurchasePackage.init(rcPackage:))
+            if !fromOffering.isEmpty {
+                packages = fromOffering
+                lastError = nil
+                return
+            }
+            if offering == nil {
+                AppLogger.app.error("RC offerings: no current offering — mark one as Current in the RevenueCat dashboard")
+            } else {
+                AppLogger.app.error("RC offerings: offering '\(offering!.identifier)' has no available packages")
+            }
         } catch {
-            lastError = error.localizedDescription
-            AppLogger.app.error("RC refresh failed: \(error.localizedDescription)")
+            offeringsError = error
+            AppLogger.app.error("RC offerings failed: \(error.localizedDescription)")
         }
+
+        // Fallback: fetch StoreProducts directly by product ID. Often succeeds when
+        // offerings() fails with CONFIGURATION_ERROR but ASC / StoreKit products exist.
+        await loadPackagesFromStoreProducts(fallbackError: offeringsError)
         #endif
     }
 
@@ -247,15 +273,24 @@ final class SubscriptionStore: ObservableObject {
 
     func purchase(_ package: PurchasePackage) async -> SubscriptionPurchaseResult {
         #if canImport(RevenueCat)
-        guard let rc = package.rcPackage else {
-            return .failed(NSError(domain: "Subscription", code: -2, userInfo: [NSLocalizedDescriptionKey: "Missing RC package"]))
-        }
         isLoading = true
         defer { isLoading = false }
         do {
-            let result = try await Purchases.shared.purchase(package: rc)
-            if result.userCancelled { return .userCancelled }
-            applyCustomerInfo(result.customerInfo)
+            if let rc = package.rcPackage {
+                let result = try await Purchases.shared.purchase(package: rc)
+                if result.userCancelled { return .userCancelled }
+                applyCustomerInfo(result.customerInfo)
+            } else if let product = package.storeProduct {
+                let result = try await Purchases.shared.purchase(product: product)
+                if result.userCancelled { return .userCancelled }
+                applyCustomerInfo(result.customerInfo)
+            } else {
+                return .failed(NSError(
+                    domain: "Subscription",
+                    code: -2,
+                    userInfo: [NSLocalizedDescriptionKey: "Missing store product"]
+                ))
+            }
             lastError = nil
             return .success
         } catch {
@@ -317,6 +352,40 @@ final class SubscriptionStore: ObservableObject {
     // MARK: - Private
 
     #if canImport(RevenueCat)
+    /// Loads products by ID when offerings are empty or misconfigured.
+    private func loadPackagesFromStoreProducts(fallbackError: Error?) async {
+        let storeProducts = await Purchases.shared.products(SubscriptionIDs.allProductIdentifiers)
+        let byID = Dictionary(uniqueKeysWithValues: storeProducts.map { ($0.productIdentifier, $0) })
+        let ordered = SubscriptionIDs.allProductIdentifiers.compactMap { byID[$0] }
+
+        if ordered.isEmpty {
+            packages = []
+            lastError = Self.userFacingOfferingsError(fallbackError)
+            let ids = SubscriptionIDs.allProductIdentifiers.joined(separator: ", ")
+            AppLogger.app.error("RC: no StoreProducts for [\(ids)]. Verify App Store Connect, RevenueCat offering, and Paid Apps agreement.")
+            return
+        }
+
+        packages = ordered.map(PurchasePackage.init(storeProduct:))
+        lastError = nil
+        if fallbackError != nil {
+            AppLogger.app.debug("Loaded \(ordered.count) plan(s) via StoreProduct fallback")
+        }
+    }
+
+    private static func userFacingOfferingsError(_ error: Error?) -> String {
+        guard let error else {
+            return String(localized: "No subscription plans are available right now.")
+        }
+        let description = error.localizedDescription
+        if description.localizedCaseInsensitiveContains("configuration") {
+            return String(
+                localized: "Plans couldn't be loaded. Check that pro_monthly, pro_annual, and pro_lifetime exist in App Store Connect and are attached to a Current offering in RevenueCat."
+            )
+        }
+        return description
+    }
+
     private func applyCustomerInfo(_ info: CustomerInfo) {
         // Grandfathering trumps RC entitlement — once granted, never revoke.
         // Before the local check, try to restore grandfathered status from the
@@ -381,13 +450,13 @@ final class SubscriptionStore: ObservableObject {
         AppLogger.app.debug("🎁 Re-grandfathered user from receipt — originalBuild=\(originalBuild) < threshold=\(threshold)")
         defaults.set(true, forKey: SharedKeys.isGrandfathered)
         if defaults.object(forKey: SharedKeys.grandfatherEvaluatedAt) == nil {
-            defaults.set(Date(), forKey: SharedKeys.grandfatherEvaluatedAt)
+            defaults.set(Date.now, forKey: SharedKeys.grandfatherEvaluatedAt)
         }
         cacheProFlag(true)
 
         Purchases.shared.attribution.setAttributes([
             SubscriptionIDs.Attribute.grandfathered: "true",
-            SubscriptionIDs.Attribute.grandfatheredAt: ISO8601DateFormatter().string(from: Date()),
+            SubscriptionIDs.Attribute.grandfatheredAt: ISO8601DateFormatter().string(from: Date.now),
             "grandfather_source": "receipt_originalApplicationVersion",
             "grandfather_originalBuild": String(originalBuild)
         ])
@@ -409,6 +478,8 @@ struct PurchasePackage: Identifiable, Equatable {
 
     /// Underlying RC package — kept opaque to view layer.
     fileprivate let rcPackageRef: AnyObject?
+    /// Store product used when loaded outside an offering (fallback path).
+    fileprivate let storeProductRef: AnyObject?
 
     static func == (lhs: PurchasePackage, rhs: PurchasePackage) -> Bool {
         lhs.id == rhs.id && lhs.priceString == rhs.priceString
@@ -428,9 +499,37 @@ extension PurchasePackage {
             $0.localizedDescription
         }
         self.rcPackageRef = rcPackage
+        self.storeProductRef = nil
+    }
+
+    init(storeProduct: StoreProduct) {
+        self.id = storeProduct.productIdentifier
+        self.title = storeProduct.localizedTitle
+        self.priceString = storeProduct.localizedPriceString
+        self.productId = storeProduct.productIdentifier
+        self.durationDays = storeProduct.subscriptionPeriod?.approxDurationDays
+        self.pricePerMonthString = storeProduct.pricePerMonthString
+        self.introOfferDescription = storeProduct.introductoryDiscount.flatMap {
+            $0.localizedDescription
+        }
+        self.rcPackageRef = nil
+        self.storeProductRef = storeProduct
     }
 
     fileprivate var rcPackage: Package? { rcPackageRef as? Package }
+    fileprivate var storeProduct: StoreProduct? { storeProductRef as? StoreProduct }
+}
+
+private extension RevenueCat.SubscriptionPeriod {
+    var approxDurationDays: Int? {
+        switch unit {
+        case .day: return value
+        case .week: return value * 7
+        case .month: return value * 30
+        case .year: return value * 365
+        @unknown default: return nil
+        }
+    }
 }
 
 private extension PackageType {

@@ -66,7 +66,7 @@ final class BlockingStore: ObservableObject {
         saveAppSelectionTask?.cancel()
         
         saveAppSelectionTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+            try? await Task.sleep(for: .milliseconds(50))
             guard let self = self, !Task.isCancelled else { return }
             
             self.saveAppSelection()
@@ -88,7 +88,7 @@ final class BlockingStore: ObservableObject {
         let defaults = UserDefaults.stepsTrader()
         if let data = try? JSONEncoder().encode(appSelection) {
             defaults.set(data, forKey: SharedKeys.appSelection)
-            defaults.set(Date(), forKey: SharedKeys.appSelectionSavedDate)
+            defaults.set(Date.now, forKey: SharedKeys.appSelectionSavedDate)
         }
     }
     
@@ -148,7 +148,7 @@ final class BlockingStore: ObservableObject {
         // on rapid successive persists (reorder, batch updates, etc.)
         persistAndRebuildTask?.cancel()
         persistAndRebuildTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms debounce
+            try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
             WidgetCenter.shared.reloadAllTimelines()
             self.rebuildFamilyControlsShield()
@@ -233,7 +233,7 @@ final class BlockingStore: ObservableObject {
         rebuildBlockTask?.cancel()
 
         rebuildBlockTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            try? await Task.sleep(for: .milliseconds(50))
             guard !Task.isCancelled else { return }
 
             familyControlsService.refreshAuthorizationStatus()
@@ -322,7 +322,7 @@ final class BlockingStore: ObservableObject {
     static func logShieldDiagnostic(source: String, apps: Int, categories: Int, detail: String) {
         let defaults = UserDefaults.stepsTrader()
         let iso = ISO8601DateFormatter()
-        let ts = iso.string(from: Date())
+        let ts = iso.string(from: Date.now)
         let entry = "[\(ts)] [\(source)] apps=\(apps) cats=\(categories) \(detail)"
 
         var history = defaults.stringArray(forKey: SharedKeys.shieldDiagHistory) ?? []
@@ -340,7 +340,7 @@ final class BlockingStore: ObservableObject {
     /// ticket groups, extension logs, and rebuild history.
     func dumpShieldDiagnostics() -> String {
         let defaults = UserDefaults.stepsTrader()
-        let now = Date()
+        let now = Date.now
         let iso = ISO8601DateFormatter()
         var lines: [String] = ["=== Shield Diagnostics (\(iso.string(from: now))) ===", ""]
 

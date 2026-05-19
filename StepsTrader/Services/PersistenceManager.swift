@@ -10,13 +10,8 @@ actor PersistenceManager {
     }
     
     private static var storageDirectory: URL {
-        // Use Application Support directory for data that shouldn't be exposed to the user directly
-        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        guard let appSupport = paths.first else {
-            return FileManager.default.temporaryDirectory.appendingPathComponent("StepsTrader", isDirectory: true)
-        }
         let bundleID = Bundle.main.bundleIdentifier ?? "StepsTrader"
-        return appSupport.appendingPathComponent(bundleID, isDirectory: true)
+        return URL.applicationSupportDirectory.appending(path: bundleID, directoryHint: .isDirectory)
     }
     
     private var storageDirectory: URL {
@@ -24,7 +19,7 @@ actor PersistenceManager {
     }
     
     func save<T: Encodable>(_ object: T, to filename: String) async throws {
-        let url = storageDirectory.appendingPathComponent(filename)
+        let url = storageDirectory.appending(path: filename)
         do {
             let data = try JSONEncoder().encode(object)
             try data.write(to: url, options: .atomic)
@@ -35,7 +30,7 @@ actor PersistenceManager {
     }
     
     func load<T: Decodable>(_ type: T.Type, from filename: String) async throws -> T {
-        let url = storageDirectory.appendingPathComponent(filename)
+        let url = storageDirectory.appending(path: filename)
         do {
             let data = try Data(contentsOf: url)
             return try JSONDecoder().decode(type, from: data)
@@ -49,12 +44,12 @@ actor PersistenceManager {
     }
     
     func delete(_ filename: String) async {
-        let url = storageDirectory.appendingPathComponent(filename)
+        let url = storageDirectory.appending(path: filename)
         try? fileManager.removeItem(at: url)
     }
     
     func exists(_ filename: String) -> Bool {
-        let url = storageDirectory.appendingPathComponent(filename)
+        let url = storageDirectory.appending(path: filename)
         return fileManager.fileExists(atPath: url.path)
     }
 
@@ -69,12 +64,12 @@ actor PersistenceManager {
     /// URL for payment transactions file (sync read/write from AppModel+PayGate). Same directory as other persisted data.
     static var paymentTransactionsFileURL: URL {
         ensureStorageDirectoryExists()
-        return storageDirectory.appendingPathComponent("paymentTransactions.json")
+        return storageDirectory.appending(path: "paymentTransactions.json")
     }
 
     /// URL for past day snapshots file (sync read/write from AppModel+DailyEnergy). Same directory as other persisted data.
     static var pastDaySnapshotsFileURL: URL {
         ensureStorageDirectoryExists()
-        return storageDirectory.appendingPathComponent("pastDaySnapshots.json")
+        return storageDirectory.appending(path: "pastDaySnapshots.json")
     }
 }
