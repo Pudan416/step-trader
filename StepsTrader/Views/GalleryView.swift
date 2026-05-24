@@ -491,16 +491,26 @@ struct GalleryView: View {
             Spacer()
 
             // Share button hides while the radial fan is open so the Moment node
-            // at 0° (right) has room to appear without overlapping. Reduce Motion
-            // gets a plain opacity crossfade instead of the spring + scale.
-            shareButton
-                .opacity(isFanOpen ? 0 : 1)
-                .scaleEffect(reduceMotion ? 1 : (isFanOpen ? 0.8 : 1))
-                .animation(reduceMotion
-                           ? .easeInOut(duration: 0.15)
-                           : .spring(response: 0.25, dampingFraction: 0.85),
-                           value: isFanOpen)
-                .allowsHitTesting(!isFanOpen)
+            // at 0° (right) has room to appear without overlapping.
+            //
+            // We can't just use `.opacity(0)` here — on iOS 26 the
+            // `liquidGlassControl` renders the glass capsule as a separate
+            // compositing layer that ignores opacity. So we conditionally
+            // remove the entire view and reserve the slot with a clear frame
+            // of the same size to keep the HStack layout stable.
+            ZStack {
+                if !isFanOpen {
+                    shareButton
+                        .transition(reduceMotion
+                                    ? .opacity
+                                    : .scale(scale: 0.85).combined(with: .opacity))
+                }
+            }
+            .frame(width: 72, height: 72)
+            .animation(reduceMotion
+                       ? .easeInOut(duration: 0.15)
+                       : .spring(response: 0.25, dampingFraction: 0.85),
+                       value: isFanOpen)
         }
     }
 
