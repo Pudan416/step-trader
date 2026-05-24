@@ -59,7 +59,7 @@
       }
     },
     "%@ category" : {
-
+      "comment" : "MomentEntry – category VoiceOver label\nRadialMenu – category VoiceOver label"
     },
     "%@ every %lld days" : {
       "localizations" : {
@@ -474,7 +474,7 @@
       "comment" : "Canvas shape type"
     },
     "Body" : {
-      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nMomentEntry – category name\nRadialMenu – energy category label\nStepBalanceCard – body chip label"
+      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nEnergyCategory display name\nStepBalanceCard – body chip label"
     },
     "Body tracks movement and exercise. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
@@ -875,7 +875,7 @@
       "comment" : "Permission row – HealthKit"
     },
     "Heart" : {
-      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nMomentEntry – category name\nRadialMenu – energy category label\nStepBalanceCard – heart chip label"
+      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nEnergyCategory display name\nStepBalanceCard – heart chip label"
     },
     "Heart tracks things that make you feel alive. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
@@ -997,7 +997,7 @@
 
     },
     "Mind" : {
-      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nMomentEntry – category name\nRadialMenu – energy category label\nStepBalanceCard – mind chip label"
+      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nEnergyCategory display name\nStepBalanceCard – mind chip label"
     },
     "Mind tracks rest and attention. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
