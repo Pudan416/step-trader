@@ -112,7 +112,7 @@ struct PastDaySnapshot: Codable, Equatable {
         sleepHours = try container.decodeIfPresent(Double.self, forKey: .sleepHours) ?? 0
         stepsTarget = try container.decodeIfPresent(Double.self, forKey: .stepsTarget) ?? EnergyDefaults.stepsTarget
         sleepTargetHours = try container.decodeIfPresent(Double.self, forKey: .sleepTargetHours) ?? EnergyDefaults.sleepTargetHours
-        moments = (try? container.decodeIfPresent([EphemeralMoment].self, forKey: .moments)) ?? []
+        moments = try container.decodeIfPresent([EphemeralMoment].self, forKey: .moments) ?? []
     }
 
     func encode(to encoder: Encoder) throws {

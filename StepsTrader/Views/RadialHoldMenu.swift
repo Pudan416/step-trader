@@ -24,10 +24,17 @@ struct RadialHoldMenu: View {
     @State private var holdActivated = false
     @State private var holdActivationTask: Task<Void, Never>?
 
-    private let nodes: [(category: EnergyCategory, label: String, icon: String, angle: Double)] = [
-        (.body,   String(localized: "Body", comment: "RadialMenu – energy category label"),  "figure.walk",       135),  // upper-left
-        (.mind,   String(localized: "Mind", comment: "RadialMenu – energy category label"),  "brain.head.profile", 90),  // straight up
-        (.heart,  String(localized: "Heart", comment: "RadialMenu – energy category label"), "heart.fill",         45),  // upper-right
+    // Haptic triggers for declarative `.sensoryFeedback`. Bump the counter to
+    // fire the corresponding impact — no UIKit cold-start latency, no
+    // `prepare()` book-keeping. Two separate triggers keep light/medium
+    // independent in the same view.
+    @State private var lightHapticTick = 0
+    @State private var mediumHapticTick = 0
+
+    private let nodes: [(category: EnergyCategory, angle: Double)] = [
+        (.body,  135),  // upper-left
+        (.mind,   90),  // straight up
+        (.heart,  45),  // upper-right
     ]
 
     /// Moment node sits to the right, outside the main fan arc.
@@ -36,17 +43,6 @@ struct RadialHoldMenu: View {
 
     private let fanRadius: CGFloat = 80
     private let activationDistance: CGFloat = 55
-    // TODO: Migrate to .sensoryFeedback() modifiers
-    private static let hapticMedium = UIImpactFeedbackGenerator(style: .medium)
-    private static let hapticLight = UIImpactFeedbackGenerator(style: .light)
-
-    /// Warm up haptic generators so the first `impactOccurred()` doesn't pay cold-start latency
-    /// (~50–150ms). Call once on appear and again when a touch begins so the engine stays hot
-    /// across the user's actual gesture.
-    static func prepareAll() {
-        hapticMedium.prepare()
-        hapticLight.prepare()
-    }
 
     private func nodeOffset(angleDeg: Double, radius: CGFloat? = nil) -> CGSize {
         let r = radius ?? fanRadius
@@ -66,6 +62,8 @@ struct RadialHoldMenu: View {
                 menuStack
             }
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
+        .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
     }
 
     @ViewBuilder
@@ -74,24 +72,28 @@ struct RadialHoldMenu: View {
             // Category nodes — visible in either fan-tap mode or hold-drag mode
             if isFanOpen || isHolding {
                 ForEach(nodes, id: \.category) { node in
-                    let offset = nodeOffset(angleDeg: node.angle)
-                    categoryNode(
-                        label: node.label,
-                        icon: node.icon,
+                    RadialCategoryNode(
                         category: node.category,
+                        labelColor: labelColor,
                         isHovered: hoveredCategory == node.category,
-                        offset: offset
+                        offset: nodeOffset(angleDeg: node.angle),
+                        onTap: { selectCategory(node.category) }
                     )
                 }
                 .transition(.scale.combined(with: .opacity))
 
                 // Moment node — separate from the fan arc, appears to the right
-                momentNode
-                    .transition(
-                        .scale(scale: 0.6)
-                        .combined(with: .opacity)
-                        .animation(.spring(response: 0.35, dampingFraction: 0.7).delay(0.05))
-                    )
+                RadialMomentNode(
+                    labelColor: labelColor,
+                    isHovered: hoveredMoment,
+                    offset: nodeOffset(angleDeg: momentAngle, radius: momentRadius),
+                    onTap: selectMoment
+                )
+                .transition(
+                    .scale(scale: 0.6)
+                    .combined(with: .opacity)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.7).delay(0.05))
+                )
             }
 
             // + button with liquid dots
@@ -100,7 +102,6 @@ struct RadialHoldMenu: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isFanOpen || isHolding)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: hoveredCategory)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: hoveredMoment)
-        .onAppear { Self.prepareAll() }
     }
 
     // MARK: - Plus Button
@@ -113,7 +114,6 @@ struct RadialHoldMenu: View {
                 if touchDownTime == nil {
                     touchDownTime = Date.now
                     holdActivated = false
-                    Self.prepareAll()
                     scheduleHoldActivation()
                 }
                 if holdActivated {
@@ -127,12 +127,12 @@ struct RadialHoldMenu: View {
                     toggleFan()
                 } else {
                     if hoveredMoment {
-                        Self.hapticMedium.impactOccurred()
+                        mediumHapticTick &+= 1
                         onMomentSelected?()
                         isHolding = false
                         hoveredMoment = false
                     } else if let category = hoveredCategory {
-                        Self.hapticMedium.impactOccurred()
+                        mediumHapticTick &+= 1
                         onCategorySelected(category)
                     }
                     isHolding = false
@@ -171,13 +171,12 @@ struct RadialHoldMenu: View {
             holdActivated = true
             isFanOpen = false
             isHolding = true
-            Self.hapticMedium.impactOccurred()
-            Self.prepareAll()
+            mediumHapticTick &+= 1
         }
     }
 
     private func toggleFan() {
-        Self.hapticLight.impactOccurred()
+        lightHapticTick &+= 1
         if isFanOpen {
             isFanOpen = false
         } else {
@@ -187,79 +186,20 @@ struct RadialHoldMenu: View {
         UIAccessibility.post(notification: .layoutChanged, argument: nil)
     }
 
-    // MARK: - Category Node
+    // MARK: - Selection actions (used by subviews)
 
-    private func categoryNode(
-        label: String,
-        icon: String,
-        category: EnergyCategory,
-        isHovered: Bool,
-        offset: CGSize
-    ) -> some View {
-        Button {
-            if isFanOpen {
-                Self.hapticMedium.impactOccurred()
-                onCategorySelected(category)
-                isFanOpen = false
-            }
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: isHovered ? 20 : 16, weight: .medium))
-                    .foregroundStyle(labelColor.opacity(isHovered ? 1.0 : 0.85))
-                    .frame(width: 44, height: 44)
-                    .liquidGlassControl(in: Circle())
-                    .scaleEffect(isHovered ? 1.15 : 1.0)
-
-                Text(label)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(labelColor.opacity(isHovered ? 1.0 : 0.9))
-                    .contrastingOnGlass()
-            }
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("radial_\(category.rawValue)")
-        .accessibilityLabel(Text("\(label) category"))
-        .accessibilityAddTraits(.isButton)
-        #if DEBUG
-        .modifier(MindNodeAnchor(category: category))
-        #endif
-        .offset(offset)
+    private func selectCategory(_ category: EnergyCategory) {
+        guard isFanOpen else { return }
+        mediumHapticTick &+= 1
+        onCategorySelected(category)
+        isFanOpen = false
     }
 
-    // MARK: - Moment Node
-
-    private var momentNode: some View {
-        let offset = nodeOffset(angleDeg: momentAngle, radius: momentRadius)
-        return Button {
-            if isFanOpen {
-                Self.hapticMedium.impactOccurred()
-                onMomentSelected?()
-                isFanOpen = false
-            }
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: hoveredMoment ? 18 : 14, weight: .medium))
-                    .foregroundStyle(labelColor.opacity(hoveredMoment ? 1.0 : 0.75))
-                    .frame(width: 38, height: 38)
-                    .liquidGlassControl(in: Circle())
-                    .scaleEffect(hoveredMoment ? 1.15 : 1.0)
-
-                Text(String(localized: "Moment", comment: "RadialMenu – moment node label"))
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(labelColor.opacity(hoveredMoment ? 1.0 : 0.75))
-                    .contrastingOnGlass()
-            }
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("radial_moment")
-        .accessibilityLabel(String(localized: "Log a moment", comment: "RadialMenu – moment VoiceOver label"))
-        .accessibilityHint(String(localized: "Log a one-time life event for today", comment: "RadialMenu – moment VoiceOver hint"))
-        .accessibilityAddTraits(.isButton)
-        .offset(offset)
+    private func selectMoment() {
+        guard isFanOpen else { return }
+        mediumHapticTick &+= 1
+        onMomentSelected?()
+        isFanOpen = false
     }
 
     // MARK: - Hit Testing (drag mode)
@@ -290,13 +230,84 @@ struct RadialHoldMenu: View {
         }
 
         if newHoveredMoment != hoveredMoment {
-            if newHoveredMoment { Self.hapticLight.impactOccurred() }
+            if newHoveredMoment { lightHapticTick &+= 1 }
             hoveredMoment = newHoveredMoment
         }
         if closest != hoveredCategory {
-            if closest != nil { Self.hapticLight.impactOccurred() }
+            if closest != nil { lightHapticTick &+= 1 }
             hoveredCategory = closest
         }
+    }
+}
+
+// MARK: - Radial Category Node
+
+private struct RadialCategoryNode: View {
+    let category: EnergyCategory
+    let labelColor: Color
+    let isHovered: Bool
+    let offset: CGSize
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 4) {
+                Image(systemName: category.iconName)
+                    .font(.system(size: isHovered ? 20 : 16, weight: .medium))
+                    .foregroundStyle(labelColor.opacity(isHovered ? 1.0 : 0.85))
+                    .frame(width: 44, height: 44)
+                    .liquidGlassControl(in: Circle())
+                    .scaleEffect(isHovered ? 1.15 : 1.0)
+
+                Text(category.displayName)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(labelColor.opacity(isHovered ? 1.0 : 0.9))
+                    .contrastingOnGlass()
+            }
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("radial_\(category.rawValue)")
+        .accessibilityLabel(Text("\(category.displayName) category", comment: "RadialMenu – category VoiceOver label"))
+        .accessibilityAddTraits(.isButton)
+        #if DEBUG
+        .modifier(MindNodeAnchor(category: category))
+        #endif
+        .offset(offset)
+    }
+}
+
+// MARK: - Radial Moment Node
+
+private struct RadialMomentNode: View {
+    let labelColor: Color
+    let isHovered: Bool
+    let offset: CGSize
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 4) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: isHovered ? 18 : 14, weight: .medium))
+                    .foregroundStyle(labelColor.opacity(isHovered ? 1.0 : 0.75))
+                    .frame(width: 38, height: 38)
+                    .liquidGlassControl(in: Circle())
+                    .scaleEffect(isHovered ? 1.15 : 1.0)
+
+                Text(String(localized: "Moment", comment: "RadialMenu – moment node label"))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(labelColor.opacity(isHovered ? 1.0 : 0.75))
+                    .contrastingOnGlass()
+            }
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("radial_moment")
+        .accessibilityLabel(String(localized: "Log a moment", comment: "RadialMenu – moment VoiceOver label"))
+        .accessibilityHint(String(localized: "Log a one-time life event for today", comment: "RadialMenu – moment VoiceOver hint"))
+        .accessibilityAddTraits(.isButton)
+        .offset(offset)
     }
 }
 

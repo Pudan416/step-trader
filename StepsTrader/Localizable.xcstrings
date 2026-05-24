@@ -253,6 +253,9 @@
         }
       }
     },
+    "%lld steps" : {
+      "comment" : "QuickStatus – balance value"
+    },
     "%lld/%lld" : {
       "localizations" : {
         "en" : {
@@ -280,6 +283,12 @@
     },
     "⏱️ %@" : {
       "comment" : "Notification – timer title with app name"
+    },
+    "🐛 Force unlock" : {
+
+    },
+    "📊" : {
+
     },
     "🛡️" : {
 
@@ -377,6 +386,9 @@
     "Add card" : {
       "comment" : "RadialMenu – VoiceOver label"
     },
+    "Add Moment" : {
+      "comment" : "MomentEntry – confirm button"
+    },
     "Add the things that colored up your day to the canvas." : {
       "comment" : "Notification – daily canvas reminder body"
     },
@@ -462,7 +474,7 @@
       "comment" : "Canvas shape type"
     },
     "Body" : {
-      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – body chip label"
+      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nMomentEntry – category name\nRadialMenu – energy category label\nStepBalanceCard – body chip label"
     },
     "Body tracks movement and exercise. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
@@ -547,11 +559,20 @@
     "Circle" : {
       "comment" : "Canvas shape type"
     },
+    "Clear" : {
+
+    },
     "Close" : {
-      "comment" : "CategoryDetail – close button VoiceOver label\nDayCanvasViewer – close VoiceOver\nPayGate – close button VoiceOver label"
+      "comment" : "CategoryDetail – close button VoiceOver label\nDayCanvasViewer – close VoiceOver\nPayGate – close button VoiceOver label\nQuickStatus – dismiss button"
     },
     "Close menu" : {
       "comment" : "RadialMenu – VoiceOver label"
+    },
+    "Close quick status" : {
+      "comment" : "QuickStatus – close VoiceOver label"
+    },
+    "Closes the quick status view" : {
+      "comment" : "QuickStatus – close VoiceOver hint"
     },
     "Code" : {
 
@@ -596,6 +617,9 @@
       "comment" : "About section header"
     },
     "Continue" : {
+
+    },
+    "Copy All" : {
 
     },
     "Cosmic" : {
@@ -670,6 +694,9 @@
     "do you want me to show you around?" : {
 
     },
+    "done" : {
+
+    },
     "Done" : {
       "comment" : "AppSelection – done button\nManualsPage – dismiss button\nTimeAccessPicker – dismiss button"
     },
@@ -732,6 +759,9 @@
     },
     "Entries left today: %@" : {
 
+    },
+    "Entry balance:" : {
+      "comment" : "QuickStatus – balance label"
     },
     "Error" : {
       "comment" : "ProfileEditor – error alert title"
@@ -838,11 +868,14 @@
     "GRADIENT STYLE" : {
       "comment" : "Appearance section header"
     },
+    "Grandfathering reset — restart app" : {
+
+    },
     "Health" : {
       "comment" : "Permission row – HealthKit"
     },
     "Heart" : {
-      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – heart chip label"
+      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nMomentEntry – category name\nRadialMenu – energy category label\nStepBalanceCard – heart chip label"
     },
     "Heart tracks things that make you feel alive. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
@@ -939,6 +972,12 @@
     "Loading…" : {
 
     },
+    "Log a moment" : {
+      "comment" : "RadialMenu – moment VoiceOver label"
+    },
+    "Log a one-time life event for today" : {
+      "comment" : "RadialMenu – moment VoiceOver hint"
+    },
     "Long-press the widget → Edit to choose which group to display." : {
 
     },
@@ -958,7 +997,7 @@
 
     },
     "Mind" : {
-      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nRadialMenu – energy category label\nStepBalanceCard – mind chip label"
+      "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nMomentEntry – category name\nRadialMenu – energy category label\nStepBalanceCard – mind chip label"
     },
     "Mind tracks rest and attention. Pick up to 4 cards for %lld colors (%lld colors today)." : {
       "localizations" : {
@@ -980,6 +1019,9 @@
         }
       }
     },
+    "Moment" : {
+      "comment" : "RadialMenu – moment node label"
+    },
     "month" : {
 
     },
@@ -998,6 +1040,9 @@
     "My Feeds" : {
       "comment" : "Feeds page title"
     },
+    "My progress overview" : {
+      "comment" : "QuickStatus – subtitle"
+    },
     "N/A" : {
       "comment" : "Permission – not available badge"
     },
@@ -1006,6 +1051,9 @@
     },
     "New Feed" : {
       "comment" : "TemplatePicker – navigation title"
+    },
+    "next" : {
+
     },
     "Next" : {
 
@@ -2150,6 +2198,9 @@
     "Plastic" : {
       "comment" : "Texture picker – plastic"
     },
+    "Preview Paywall (debug)" : {
+
+    },
     "Privacy" : {
 
     },
@@ -2186,6 +2237,9 @@
     "Purchase Failed" : {
 
     },
+    "Quick Status" : {
+      "comment" : "QuickStatus – title"
+    },
     "Radial" : {
 
     },
@@ -2220,6 +2274,12 @@
 
     },
     "reset" : {
+
+    },
+    "Reset Grandfathering (debug)" : {
+
+    },
+    "Reset Welcome Paywall (debug)" : {
 
     },
     "Resting" : {
@@ -2285,6 +2345,9 @@
     "Share canvas" : {
       "comment" : "DayCanvasViewer – share VoiceOver\nGalleryView – share button VoiceOver label"
     },
+    "ShieldAction Logs" : {
+
+    },
     "Sign in to keep your data safe and synced across devices" : {
 
     },
@@ -2304,6 +2367,12 @@
       "comment" : "Onboarding – Apple sign-in success state"
     },
     "Skip" : {
+
+    },
+    "skip all" : {
+
+    },
+    "Skip onboarding" : {
 
     },
     "Sleep" : {
@@ -2381,6 +2450,9 @@
     "someone" : {
 
     },
+    "Something special today" : {
+      "comment" : "MomentEntry – sheet title"
+    },
     "Something went wrong" : {
 
     },
@@ -2434,6 +2506,9 @@
     },
     "steps today" : {
 
+    },
+    "Steps today:" : {
+      "comment" : "QuickStatus – steps label"
     },
     "Steps, sleep, workouts" : {
       "comment" : "Permission row – HealthKit detail"
@@ -2503,6 +2578,9 @@
     },
     "This name will be displayed instead of my real name" : {
       "comment" : "ProfileEditor – nickname hint"
+    },
+    "This stays on today's canvas and history — not in your library." : {
+      "comment" : "MomentEntry – subtitle"
     },
     "this uses apple's screen time. you'll see a system prompt." : {
 
@@ -2608,6 +2686,9 @@
     "Website" : {
 
     },
+    "Wedding, concert, new job…" : {
+      "comment" : "MomentEntry – text field placeholder"
+    },
     "week" : {
 
     },
@@ -2615,6 +2696,9 @@
 
     },
     "Welcome offer." : {
+
+    },
+    "Welcome paywall reset — re-onboard to see" : {
 
     },
     "welcome to" : {

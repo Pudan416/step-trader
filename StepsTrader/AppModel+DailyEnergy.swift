@@ -73,10 +73,7 @@ extension AppModel {
 
         baseEnergyToday = g.integer(forKey: _baseEnergyTodayKey)
         spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
-        if let data = g.data(forKey: _dailyMomentsKey),
-           let decoded = try? JSONDecoder().decode([EphemeralMoment].self, from: data) {
-            dailyMoments = decoded
-        }
+        dailyMoments = Self.loadSavedMoments(from: g)
 
         AppLogger.energy.debug("📥 loadDailyEnergyState LOADED: body=\(self.dailyBodySelections), mind=\(self.dailyRestSelections), heart=\(self.dailyHeartSelections), base=\(self.baseEnergyToday), spent=\(self.spentStepsToday)")
         
@@ -406,13 +403,7 @@ extension AppModel {
         let savedStepsTarget = userStepsTarget
         let savedSleepTarget = userSleepTarget
         let savedBaseEnergy = g.integer(forKey: _baseEnergyTodayKey)
-        let savedMoments: [EphemeralMoment]
-        if let data = g.data(forKey: _dailyMomentsKey),
-           let decoded = try? JSONDecoder().decode([EphemeralMoment].self, from: data) {
-            savedMoments = decoded
-        } else {
-            savedMoments = []
-        }
+        let savedMoments = Self.loadSavedMoments(from: g)
 
         let daySnapshot = buildPastDaySnapshot(
             savedSpent: savedSpent,
@@ -738,17 +729,32 @@ extension AppModel {
 
     // MARK: - Ephemeral Moments
 
+    /// Decode persisted `dailyMoments` from UserDefaults, returning `[]` on
+    /// missing data or decode failure. Centralized so loaders and the
+    /// pre-reset snapshot path stay in sync.
+    static func loadSavedMoments(from defaults: UserDefaults) -> [EphemeralMoment] {
+        guard let data = defaults.data(forKey: _dailyMomentsKey),
+              let decoded = try? JSONDecoder().decode([EphemeralMoment].self, from: data)
+        else { return [] }
+        return decoded
+    }
+
     /// Add a one-time moment for today.
     /// The moment's ID is added to the appropriate category selection so the
     /// energy economy is unaffected — moment counts like a regular activity.
     @discardableResult
     func addMoment(label: String, icon: String, category: EnergyCategory) -> EphemeralMoment? {
+        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            AppLogger.energy.debug("⚡️ addMoment: empty label, skipping")
+            return nil
+        }
         guard dailySelections(for: category).count < EnergyDefaults.maxSelectionsPerCategory else {
             AppLogger.energy.debug("⚡️ addMoment: category \(category.rawValue) is full, skipping")
             return nil
         }
         let dayKey = AppModel.dayKey(for: Date.now)
-        let moment = EphemeralMoment(label: label, icon: icon, category: category, dayKey: dayKey)
+        let moment = EphemeralMoment(label: trimmed, icon: icon, category: category, dayKey: dayKey)
         dailyMoments.append(moment)
         // Register the ID in the category selection so it contributes energy
         var selections = dailySelections(for: category)
@@ -757,7 +763,7 @@ extension AppModel {
         syncFromSelectionsToSlots()
         recalculateDailyEnergy()
         persistDailyEnergyState()
-        AppLogger.energy.debug("✦ addMoment: '\(label)' → \(category.rawValue) [\(moment.id)]")
+        AppLogger.energy.debug("✦ addMoment: '\(trimmed)' → \(category.rawValue) [\(moment.id)]")
         return moment
     }
 

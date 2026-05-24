@@ -54,6 +54,7 @@ struct GalleryView: View {
     @State private var userCollapsedWide: Bool = false
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.topCardHeight) private var topCardHeight
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var safeAreaTop: CGFloat = 0
     @State private var safeAreaBottom: CGFloat = 0
@@ -490,11 +491,15 @@ struct GalleryView: View {
             Spacer()
 
             // Share button hides while the radial fan is open so the Moment node
-            // at 0° (right) has room to appear without overlapping.
+            // at 0° (right) has room to appear without overlapping. Reduce Motion
+            // gets a plain opacity crossfade instead of the spring + scale.
             shareButton
                 .opacity(isFanOpen ? 0 : 1)
-                .scaleEffect(isFanOpen ? 0.8 : 1)
-                .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isFanOpen)
+                .scaleEffect(reduceMotion ? 1 : (isFanOpen ? 0.8 : 1))
+                .animation(reduceMotion
+                           ? .easeInOut(duration: 0.15)
+                           : .spring(response: 0.25, dampingFraction: 0.85),
+                           value: isFanOpen)
                 .allowsHitTesting(!isFanOpen)
         }
     }

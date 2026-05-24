@@ -23,7 +23,7 @@ struct MomentEntrySheet: View {
         VStack(spacing: 0) {
             // Handle
             RoundedRectangle(cornerRadius: 3)
-                .fill(Color.primary.opacity(0.2))
+                .fill(theme.adaptiveSecondaryText.opacity(0.4))
                 .frame(width: 36, height: 4)
                 .padding(.top, 12)
                 .padding(.bottom, 20)
@@ -70,7 +70,15 @@ struct MomentEntrySheet: View {
             // Category picker
             HStack(spacing: 10) {
                 ForEach(EnergyCategory.allCases) { category in
-                    categoryButton(category)
+                    MomentCategoryButton(
+                        category: category,
+                        isSelected: selectedCategory == category,
+                        onTap: {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                selectedCategory = category
+                            }
+                        }
+                    )
                 }
             }
             .padding(.horizontal, 20)
@@ -94,41 +102,14 @@ struct MomentEntrySheet: View {
 
             Spacer(minLength: 0)
         }
-        .presentationDetents([.height(340)])
+        // `.medium` resizes naturally with Dynamic Type and respects the
+        // safe-area on every device — a fixed height would clip large-text
+        // users mid-button.
+        .presentationDetents([.medium])
         .presentationDragIndicator(.hidden)
         .choicesSheetPresentationBackground()
         .presentationCornerRadius(28)
         .onAppear { isLabelFocused = true }
-    }
-
-    // MARK: - Category Button
-
-    private func categoryButton(_ category: EnergyCategory) -> some View {
-        let isSelected = selectedCategory == category
-        let name = categoryDisplayName(category)
-        return Button {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                selectedCategory = category
-            }
-        } label: {
-            VStack(spacing: 6) {
-                Image(systemName: categoryIcon(category))
-                    .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? category.color : theme.adaptiveSecondaryText)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        Circle()
-                            .fill(isSelected ? category.color.opacity(0.15) : Color.primary.opacity(0.05))
-                    )
-                Text(name)
-                    .font(.caption.weight(isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? category.color : theme.adaptiveSecondaryText)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(name) category")
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     // MARK: - Commit
@@ -141,21 +122,35 @@ struct MomentEntrySheet: View {
     }
 }
 
-// MARK: - EnergyCategory display helpers (local only — no new extension, use EnergyCategory+Helpers)
+// MARK: - Category Button
 
-private func categoryDisplayName(_ category: EnergyCategory) -> String {
-    switch category {
-    case .body:  String(localized: "Body", comment: "MomentEntry – category name")
-    case .mind:  String(localized: "Mind", comment: "MomentEntry – category name")
-    case .heart: String(localized: "Heart", comment: "MomentEntry – category name")
-    }
-}
+private struct MomentCategoryButton: View {
+    let category: EnergyCategory
+    let isSelected: Bool
+    let onTap: () -> Void
 
-private func categoryIcon(_ category: EnergyCategory) -> String {
-    switch category {
-    case .body:  "figure.walk"
-    case .mind:  "brain.head.profile"
-    case .heart: "heart.fill"
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 6) {
+                Image(systemName: category.iconName)
+                    .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? category.color : theme.adaptiveSecondaryText)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Circle()
+                            .fill(isSelected ? category.color.opacity(0.15) : Color.primary.opacity(0.05))
+                    )
+                Text(category.displayName)
+                    .font(.caption.weight(isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? category.color : theme.adaptiveSecondaryText)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("\(category.displayName) category", comment: "MomentEntry – category VoiceOver label"))
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
 
