@@ -12,20 +12,11 @@ struct RadialHoldMenu: View {
     var onMomentSelected: (() -> Void)? = nil
     /// Mirrors the fan open/close state into the parent so sibling views
     /// (e.g. the share button) react in the same SwiftUI update cycle —
-    /// no callback delay, no one-frame overlap.
-    var isFanOpen: Binding<Bool>? = nil
+    /// no callback delay, no one-frame overlap. The parent always owns
+    /// this state; use `.constant(false)` in previews/standalone usage.
+    @Binding var isFanOpen: Bool
     var onFanOpened: (() -> Void)? = nil
 
-    @State private var _isFanOpen = false
-
-    /// Single source of truth: prefers the external binding when provided.
-    private var fanOpen: Bool {
-        get { isFanOpen?.wrappedValue ?? _isFanOpen }
-    }
-    private func setFanOpen(_ value: Bool) {
-        isFanOpen?.wrappedValue = value
-        _isFanOpen = value
-    }
     @State private var isHolding = false
     @State private var hoveredCategory: EnergyCategory? = nil
     @State private var hoveredMoment = false
@@ -81,7 +72,7 @@ struct RadialHoldMenu: View {
     private var menuStack: some View {
         ZStack {
             // Category nodes — visible in either fan-tap mode or hold-drag mode
-            if fanOpen || isHolding {
+            if isFanOpen || isHolding {
                 ForEach(nodes, id: \.category) { node in
                     let offset = nodeOffset(angleDeg: node.angle)
                     categoryNode(
@@ -106,7 +97,7 @@ struct RadialHoldMenu: View {
             // + button with liquid dots
             plusButton
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: fanOpen || isHolding)
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isFanOpen || isHolding)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: hoveredCategory)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: hoveredMoment)
         .onAppear { Self.prepareAll() }
@@ -152,19 +143,19 @@ struct RadialHoldMenu: View {
                 holdActivated = false
             }
 
-        let isActive = fanOpen || isHolding
+        let isActive = isFanOpen || isHolding
 
         return Image(systemName: isActive ? "xmark" : "plus")
             .font(.system(size: 22, weight: .regular))
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(labelColor.opacity(isActive ? 0.85 : 1.0))
-            .rotationEffect(.degrees(fanOpen ? 45 : 0))
+            .rotationEffect(.degrees(isFanOpen ? 45 : 0))
             .frame(width: 56, height: 56)
             .liquidGlassControl(in: Circle())
             .frame(width: 72, height: 72)
             .contentShape(Circle())
             .accessibilityIdentifier("radial_plus_button")
-            .accessibilityLabel(fanOpen
+            .accessibilityLabel(isFanOpen
                 ? String(localized: "Close menu", comment: "RadialMenu – VoiceOver label")
                 : String(localized: "Add card", comment: "RadialMenu – VoiceOver label"))
             .accessibilityHint(String(localized: "Hold and drag to quickly select a category, or tap to open the menu", comment: "RadialMenu – VoiceOver hint"))
@@ -178,7 +169,7 @@ struct RadialHoldMenu: View {
             try? await Task.sleep(for: .seconds(holdThreshold))
             guard !Task.isCancelled, touchDownTime != nil else { return }
             holdActivated = true
-            setFanOpen(false)
+            isFanOpen = false
             isHolding = true
             Self.hapticMedium.impactOccurred()
             Self.prepareAll()
@@ -187,10 +178,10 @@ struct RadialHoldMenu: View {
 
     private func toggleFan() {
         Self.hapticLight.impactOccurred()
-        if fanOpen {
-            setFanOpen(false)
+        if isFanOpen {
+            isFanOpen = false
         } else {
-            setFanOpen(true)
+            isFanOpen = true
             onFanOpened?()
         }
         UIAccessibility.post(notification: .layoutChanged, argument: nil)
@@ -206,10 +197,10 @@ struct RadialHoldMenu: View {
         offset: CGSize
     ) -> some View {
         Button {
-            if fanOpen {
+            if isFanOpen {
                 Self.hapticMedium.impactOccurred()
                 onCategorySelected(category)
-                setFanOpen(false)
+                isFanOpen = false
             }
         } label: {
             VStack(spacing: 4) {
@@ -242,10 +233,10 @@ struct RadialHoldMenu: View {
     private var momentNode: some View {
         let offset = nodeOffset(angleDeg: momentAngle, radius: momentRadius)
         return Button {
-            if fanOpen {
+            if isFanOpen {
                 Self.hapticMedium.impactOccurred()
                 onMomentSelected?()
-                setFanOpen(false)
+                isFanOpen = false
             }
         } label: {
             VStack(spacing: 4) {
@@ -325,16 +316,22 @@ private struct MindNodeAnchor: ViewModifier {
 // MARK: - Preview
 
 #Preview {
+    @Previewable @State var fanOpen = false
     ZStack {
         Color.black.ignoresSafeArea()
 
         VStack {
             Spacer()
-            RadialHoldMenu(labelColor: .white) { category in
-                AppLogger.ui.debug("Selected: \(category.rawValue)")
-            } onMomentSelected: {
-                AppLogger.ui.debug("Moment selected")
-            }
+            RadialHoldMenu(
+                labelColor: .white,
+                onCategorySelected: { category in
+                    AppLogger.ui.debug("Selected: \(category.rawValue)")
+                },
+                onMomentSelected: {
+                    AppLogger.ui.debug("Moment selected")
+                },
+                isFanOpen: $fanOpen
+            )
             .padding(.bottom, 80)
         }
     }
