@@ -49,13 +49,16 @@ final class HealthStore: ObservableObject {
         // not READ. Read access may be granted even when write status is .notDetermined
         // or .sharingDenied, so guarding on .sharingAuthorized silently blocks step fetching
         // for most users.
+        let before = stepsToday
         do {
             stepsToday = try await fetchStepsForCurrentDay()
             hasStepsData = true
             cacheStepsToday()
+            AppLogger.healthKit.info("👣 refreshSteps: \(Int(before)) → \(Int(self.stepsToday)) (fetched OK, cached)")
         } catch {
-            AppLogger.healthKit.error("⚠️ Failed to refresh steps: \(error.localizedDescription)")
+            AppLogger.healthKit.error("👣 refreshSteps FAILED: \(error.localizedDescription), was \(Int(before))")
             loadCachedStepsToday()
+            AppLogger.healthKit.error("👣 refreshSteps: fallback to cache → \(Int(self.stepsToday))")
         }
     }
     
@@ -72,6 +75,7 @@ final class HealthStore: ObservableObject {
             AppLogger.healthKit.debug("🛌 Fetched sleep hours: \(String(format: "%.2f", self.dailySleepHours))h")
         } catch {
             AppLogger.healthKit.error("⚠️ Failed to refresh sleep: \(error.localizedDescription)")
+            loadCachedSleepToday()
         }
     }
     
@@ -113,9 +117,18 @@ final class HealthStore: ObservableObject {
     
     private func loadCachedStepsToday() {
         let g = UserDefaults.stepsTrader()
+        let (hour, minute) = DayBoundary.storedDayEnd()
+        if let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date,
+           DayBoundary.isPersistedDayBehind(anchor: anchor, relativeTo: .now, dayEndHour: hour, dayEndMinute: minute) {
+            AppLogger.healthKit.info("👣 loadCache: STALE anchor \(anchor), clearing to 0")
+            stepsToday = 0
+            hasStepsData = false
+            return
+        }
         let cached = g.double(forKey: SharedKeys.cachedStepsToday)
         stepsToday = cached
         hasStepsData = g.bool(forKey: SharedKeys.hasStepsData)
+        AppLogger.healthKit.info("👣 loadCache: loaded \(Int(cached)) from UserDefaults")
     }
 
     private static let cachedSleepKey = "cachedSleepHoursToday"
@@ -129,14 +142,21 @@ final class HealthStore: ObservableObject {
         if cached > 0 { dailySleepHours = cached }
     }
     
+    func clearCachedStepCount() {
+        healthKitService.clearLastStepCount()
+    }
+
     // MARK: - Observation
     @MainActor
     func startObservingSteps() {
         healthKitService.startObservingSteps { [weak self] (steps: Double) in
             Task { @MainActor [weak self] in
-                self?.stepsToday = steps
-                self?.hasStepsData = true
-                self?.cacheStepsToday()
+                guard let self else { return }
+                let before = self.stepsToday
+                self.stepsToday = steps
+                self.hasStepsData = true
+                self.cacheStepsToday()
+                AppLogger.healthKit.info("👣 OBSERVER→UI: \(Int(before)) → \(Int(steps))")
             }
         }
     }

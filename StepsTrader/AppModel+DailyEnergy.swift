@@ -437,6 +437,7 @@ extension AppModel {
         dailySleepHours = 0
         stepsToday = 0
         healthStore.hasStepsData = false
+        healthStore.clearCachedStepCount()
         g.removeObject(forKey: SharedKeys.cachedStepsToday)
         g.set(false, forKey: SharedKeys.hasStepsData)
         g.removeObject(forKey: "cachedSleepHoursToday")
@@ -881,6 +882,7 @@ extension AppModel {
         let sleepPts = sleepPointsToday
         let total = stepsPts + sleepPts + bodyPointsToday + mindPointsToday + heartPointsToday
 
+        AppLogger.energy.info("👣 recalcEnergy: stepsToday=\(Int(self.stepsToday)), stepsForEnergy=\(Int(stepsForEnergy)), stepsPts=\(stepsPts)")
         AppLogger.energy.debug("⚡️ recalculateDailyEnergy: steps=\(stepsPts) + sleep=\(sleepPts)\(self.isSleepAssumed ? " (assumed)" : "") + body=\(self.bodyPointsToday) + mind=\(self.mindPointsToday) + heart=\(self.heartPointsToday) = \(total)")
         
         let adjustedTotal = isRestDayOverrideEnabled ? max(total, 30) : total

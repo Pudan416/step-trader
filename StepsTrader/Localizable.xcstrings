@@ -392,9 +392,6 @@
     "all" : {
       "comment" : "ManualsPage – filter showing all notes"
     },
-    "All history" : {
-      "comment" : "MeView – history link label"
-    },
     "all notes" : {
       "comment" : "ManualsPage – accessibility label for all filter"
     },
@@ -871,7 +868,7 @@
 
     },
     "History" : {
-      "comment" : "HistoryView – page title"
+      "comment" : "Tab bar title"
     },
     "Hold and drag to quickly select a category, or tap to open the menu" : {
       "comment" : "RadialMenu – VoiceOver hint"
@@ -1055,8 +1052,8 @@
     "not selected" : {
 
     },
-    "Notes" : {
-      "comment" : "Tab bar title"
+    "Notes from Kosta" : {
+      "comment" : "ManualsPage – page title\nSettings row label"
     },
     "Nothing to restore" : {
 
@@ -1096,9 +1093,6 @@
     },
     "Open %@" : {
       "comment" : "Handoff – open button accessibility"
-    },
-    "Open canvas history" : {
-      "comment" : "MeView – history link a11y"
     },
     "Open Shortcuts → Automation → +" : {
 

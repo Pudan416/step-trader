@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import UserNotifications
 
 // MARK: - Notification Manager
@@ -6,12 +7,16 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
     func requestPermission() async throws {
         let center = UNUserNotificationCenter.current()
         let granted = try await center.requestAuthorization(options: [.alert, .sound])
-        
+
         if !granted {
             throw NotificationError.permissionDenied
         }
-        
+
         AppLogger.notifications.debug("📲 Notification permissions granted")
+
+        await MainActor.run {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
     }
     
     func sendTimeExpiredNotification() {

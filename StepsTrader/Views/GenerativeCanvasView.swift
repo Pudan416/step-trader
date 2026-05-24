@@ -488,7 +488,7 @@ struct GenerativeCanvasView: View {
     private func drawLabel(_ element: CanvasElement, at point: CGPoint, context: inout GraphicsContext, labelColor: Color, shadowColor: Color) {
         let raw = element.displayLabel
         let labelText = raw.prefix(1).uppercased() + raw.dropFirst().lowercased()
-        let font: Font = .system(size: 9, weight: .light, design: .default)
+        let font: Font = .system(size: 11, weight: .regular, design: .default)
         if showsOutlinedLabels {
             // 4 diagonal offsets give the same visual halo as 8 at 1pt,
             // cutting drawLayer + Text resolution calls in half.

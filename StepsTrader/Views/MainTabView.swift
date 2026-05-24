@@ -39,7 +39,7 @@ struct MainTabView: View {
         case canvas = 0
         case feeds = 1
         case me = 2
-        case notes = 3
+        case history = 3
         case settings = 4
 
         var icon: String {
@@ -47,7 +47,7 @@ struct MainTabView: View {
             case .feeds: return "square.grid.2x2"
             case .canvas: return "paintbrush"
             case .me: return "person.circle"
-            case .notes: return "book"
+            case .history: return "calendar"
             case .settings: return "gearshape"
             }
         }
@@ -57,18 +57,18 @@ struct MainTabView: View {
             case .feeds: return String(localized: "Feeds", comment: "Tab bar title")
             case .canvas: return String(localized: "Canvas", comment: "Tab bar title")
             case .me: return String(localized: "Now", comment: "Tab bar title")
-            case .notes: return String(localized: "Notes", comment: "Tab bar title")
+            case .history: return String(localized: "History", comment: "Tab bar title")
             case .settings: return String(localized: "Settings", comment: "Tab bar title")
             }
         }
-        
-        
+
+
         var accessibilityId: String {
             switch self {
             case .feeds: return "tab_feeds"
             case .canvas: return "tab_canvas"
             case .me: return "tab_me"
-            case .notes: return "tab_notes"
+            case .history: return "tab_history"
             case .settings: return "tab_settings"
             }
         }
@@ -157,10 +157,10 @@ struct MainTabView: View {
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.me.rawValue)
 
-                // 3: Notes
-                ManualsPage(model: model)
+                // 3: History
+                HistoryView(model: model)
                     .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.notes.rawValue)
+                    .tag(Tab.history.rawValue)
                 
                 // 4: Settings
                 SettingsSheet(model: model, embeddedInTab: true)

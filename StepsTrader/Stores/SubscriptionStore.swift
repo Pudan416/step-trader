@@ -42,7 +42,7 @@ final class SubscriptionStore: ObservableObject {
     @Published private(set) var packages: [PurchasePackage] = []
     @Published private(set) var lastError: String?
 
-    var isPro: Bool { state.isPro }
+    var isPro: Bool { SubscriptionGate.allFeaturesUnlocked || state.isPro }
 
     /// Clear any sticky error string. Call from UI before retrying a fetch
     /// so the loading state is unambiguous.

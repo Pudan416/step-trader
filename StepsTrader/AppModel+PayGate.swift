@@ -270,17 +270,36 @@ extension AppModel {
         for group in ticketGroups {
             let spendTrackingKey = SharedKeys.pendingSpendTrackingKey(group.id)
             let spendAmountKey = SharedKeys.pendingSpendAmountKey(group.id)
+            let spendWindowKey = SharedKeys.pendingSpendWindowKey(group.id)
+            let spendMinutesKey = SharedKeys.pendingSpendMinutesKey(group.id)
             guard defaults.bool(forKey: spendTrackingKey) else { continue }
             let amount = defaults.integer(forKey: spendAmountKey)
             guard amount > 0 else {
                 defaults.removeObject(forKey: spendTrackingKey)
                 defaults.removeObject(forKey: spendAmountKey)
+                defaults.removeObject(forKey: spendWindowKey)
+                defaults.removeObject(forKey: spendMinutesKey)
                 continue
             }
             AppLogger.shield.debug("📡 Syncing widget spend tracking: \(group.name) \(amount) colors")
             addSpentSteps(amount, for: "group_\(group.id)")
+
+            let window = defaults.string(forKey: spendWindowKey).flatMap { AccessWindow(rawValue: $0) }
+            let pendingMinutes = defaults.integer(forKey: spendMinutesKey)
+            logPaymentTransaction(
+                amount: amount,
+                target: "group_\(group.id)",
+                targetName: group.name,
+                window: window,
+                minutes: pendingMinutes > 0 ? pendingMinutes : nil,
+                balanceBefore: self.totalStepsBalance + amount,
+                balanceAfter: self.totalStepsBalance
+            )
+
             defaults.removeObject(forKey: spendTrackingKey)
             defaults.removeObject(forKey: spendAmountKey)
+            defaults.removeObject(forKey: spendWindowKey)
+            defaults.removeObject(forKey: spendMinutesKey)
         }
     }
 
@@ -390,11 +409,12 @@ extension AppModel {
         let target: String
         let targetName: String?
         let window: String?
+        let minutes: Int?
         let balanceBefore: Int
         let balanceAfter: Int
     }
-    
-    private func logPaymentTransaction(amount: Int, target: String, targetName: String?, window: AccessWindow?, balanceBefore: Int, balanceAfter: Int) {
+
+    private func logPaymentTransaction(amount: Int, target: String, targetName: String?, window: AccessWindow?, minutes: Int? = nil, balanceBefore: Int, balanceAfter: Int) {
         let transaction = PaymentTransaction(
             id: UUID().uuidString,
             timestamp: Date.now,
@@ -402,6 +422,7 @@ extension AppModel {
             target: target,
             targetName: targetName,
             window: window?.rawValue,
+            minutes: minutes ?? window?.minutes,
             balanceBefore: balanceBefore,
             balanceAfter: balanceAfter
         )

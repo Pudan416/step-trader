@@ -4,12 +4,29 @@ import Combine
 import UserNotifications
 import BackgroundTasks
 
+// MARK: - AppDelegate (Remote Notifications)
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
+        AppLogger.notifications.debug("📲 APNs token: \(hex)")
+        Task {
+            await SupabaseSyncService.shared.registerDeviceToken(hex)
+        }
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        AppLogger.notifications.error("📲 APNs registration failed: \(error.localizedDescription)")
+    }
+}
+
 @main
 struct StepsTraderApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model: AppModel
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var authService = AuthenticationService.shared
+    @StateObject private var announcementService = AnnouncementService.shared
     #if DEBUG
     @State private var coachMarkManager = CoachMarkManager()
     #endif
@@ -226,6 +243,19 @@ struct StepsTraderApp: App {
             } message: { error in
                 Text(error.recoverySuggestion ?? "")
             }
+            .alert(
+                announcementService.activeAnnouncement?.title ?? "",
+                isPresented: Binding(
+                    get: { announcementService.activeAnnouncement != nil },
+                    set: { if !$0, let a = announcementService.activeAnnouncement { announcementService.dismiss(a) } }
+                )
+            ) {
+                Button("OK", role: .cancel) {
+                    if let a = announcementService.activeAnnouncement { announcementService.dismiss(a) }
+                }
+            } message: {
+                Text(announcementService.activeAnnouncement?.message ?? "")
+            }
             .onAppear {
                 // STOPGAP: install legacy bar appearances after init() instead of during it.
                 // This avoids doing UIKit work in App.init while keeping the transparent
@@ -251,6 +281,7 @@ struct StepsTraderApp: App {
                 } else {
                     Task { await model.bootstrap(requestPermissions: false) }
                 }
+                Task { await announcementService.fetchActiveAnnouncement() }
                 AppLogger.app.debug(
                     "🎭 StepsTraderApp appeared - showPayGate: \(model.userEconomyStore.showPayGate), showQuickStatusPage: \(model.showQuickStatusPage)"
                 )

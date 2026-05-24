@@ -1363,7 +1363,7 @@ struct OnboardingStoriesView: View {
                     .padding(.bottom, 28)
             }
 
-            if let auth = authService, auth.isAuthenticated {
+            if let auth = authService, auth.hasAppleAccount {
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.circle")
                         .font(.systemSerif(20, weight: .thin, relativeTo: .title3))
@@ -1386,7 +1386,7 @@ struct OnboardingStoriesView: View {
                             for _ in 0..<40 {
                                 try? await Task.sleep(for: .milliseconds(250))
                                 guard !Task.isCancelled else { return }
-                                if auth.isAuthenticated {
+                                if auth.hasAppleAccount {
                                     try? await Task.sleep(for: .milliseconds(500))
                                     guard !Task.isCancelled else { return }
                                     trackSlideCompleted(action: "signed_in")
@@ -1860,7 +1860,7 @@ struct OnboardingStoriesView: View {
 
     private var isAppleLoginSkippable: Bool {
         guard slides.indices.contains(index) else { return false }
-        return slides[index].slideType == .appleLogin && authService?.isAuthenticated != true
+        return slides[index].slideType == .appleLogin && authService?.hasAppleAccount != true
     }
 
     // MARK: - Button Logic
@@ -1871,7 +1871,7 @@ struct OnboardingStoriesView: View {
         if index == lastIndex { return startText }
         if slides[index].action != .none { return allowText }
         if slides[index].slideType == .appleLogin {
-            if authService?.isAuthenticated == true { return nextText }
+            if authService?.hasAppleAccount == true { return nextText }
             return skipText
         }
         return nextText

@@ -102,6 +102,9 @@ struct UnlockGroupWidgetIntent: AppIntent {
         let existingPendingSpend = g.integer(forKey: SharedKeys.pendingSpendAmountKey(groupId))
         g.set(existingPendingSpend + cost, forKey: SharedKeys.pendingSpendAmountKey(groupId))
         g.set(true, forKey: SharedKeys.pendingSpendTrackingKey(groupId))
+        g.set(windowRaw, forKey: SharedKeys.pendingSpendWindowKey(groupId))
+        let existingPendingMinutes = g.integer(forKey: SharedKeys.pendingSpendMinutesKey(groupId))
+        g.set(existingPendingMinutes + minutes, forKey: SharedKeys.pendingSpendMinutesKey(groupId))
 
         let updatedBonus = remainingCost > 0 ? max(0, bonusSteps - remainingCost) : bonusSteps
         let prev = WidgetDataFile.read()

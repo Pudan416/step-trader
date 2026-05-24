@@ -10,7 +10,6 @@ import UIKit
 struct HistoryView: View {
     @ObservedObject var model: AppModel
     @Environment(\.appTheme) private var theme
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.topCardHeight) private var topCardHeight
 
     @State private var pastDays: [String: PastDaySnapshot] = [:]
@@ -56,14 +55,10 @@ struct HistoryView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                DetailHeader(title: String(localized: "History", comment: "HistoryView – page title"))
-                    .padding(.horizontal, 16)
-
                 content
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
@@ -306,7 +301,7 @@ struct DayHistoryTile: View {
             }
 
             Text(dayNumber)
-                .font(.system(size: 28, weight: .ultraLight, design: .rounded))
+                .font(.system(size: 28, weight: .black, design: .serif))
                 .foregroundStyle(Color.yellow)
                 .padding(8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)

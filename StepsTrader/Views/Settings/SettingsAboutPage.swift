@@ -12,8 +12,9 @@ struct SettingsAboutPage: View {
         static let feedbackEmail = "hello@itsnowhere.net"
         static let telegramHandle = "@pudan416"
         static let telegramURL = "https://t.me/pudan416"
-        static let websiteURL = "https://itsnowhere.net"
-        static let websiteDisplay = "itsnowhere.net"
+        static let websiteURL = "https://nowhere.pudan.me"
+        static let websiteDisplay = "nowhere.pudan.me"
+        static let productHuntURL = "https://www.producthunt.com/products/nowhere-now-here"
         static var feedbackMailto: String { "mailto:\(feedbackEmail)" }
     }
 
@@ -116,6 +117,21 @@ struct SettingsAboutPage: View {
                                 icon: "globe",
                                 title: String(localized: "Website"),
                                 detail: Identity.websiteDisplay
+                            )
+                        }
+                        .buttonStyle(MattePressStyle())
+
+                        DetailDivider()
+
+                        Button {
+                            if let url = URL(string: Identity.productHuntURL) {
+                                openURL(url)
+                            }
+                        } label: {
+                            SettingsLinkRow(
+                                icon: "arrow.up.right.square",
+                                title: "Product Hunt",
+                                detail: "Nowhere (Now Here)"
                             )
                         }
                         .buttonStyle(MattePressStyle())

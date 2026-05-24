@@ -299,6 +299,9 @@ final class AppModel: ObservableObject {
             clearAllUsageBudgets(reason: "dayBoundary")
         }
         if (didReset || dayChanged) && !isBootstrapping {
+            AppLogger.healthKit.info("👣 checkDayBoundary: day changed (didReset=\(didReset), dayChanged=\(dayChanged)), stepsToday=\(Int(self.stepsToday)) — stopping observer & clearing cache")
+            healthStore.stopObservingSteps()
+            healthStore.clearCachedStepCount()
             Task { await refreshStepsIfAuthorized() }
         }
         if dayChanged {
@@ -527,6 +530,12 @@ final class AppModel: ObservableObject {
         
         // 4.5 Snapshot notification authorization so permission badge is accurate on launch
         await refreshNotificationAuthorizationStatus()
+
+        // 4.6 Register for remote notifications if permission already granted
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        if settings.authorizationStatus == .authorized {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
         
         // 5. Schedule day boundary timer (was missing — only ran on foreground resume)
         scheduleDayBoundaryTimer()

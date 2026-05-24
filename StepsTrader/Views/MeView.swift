@@ -40,8 +40,6 @@ struct MeView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         weekRow
                             .padding(.top, 16)
-                            .padding(.bottom, 8)
-                        historyLink
                             .padding(.bottom, 12)
                         contentSection
                         Spacer(minLength: 0)
@@ -58,8 +56,6 @@ struct MeView: View {
                 VStack(spacing: 0) {
                     weekRow
                         .padding(.top, 20)
-                        .padding(.bottom, 10)
-                    historyLink
                         .padding(.bottom, 16)
                     contentSection
                         .padding(.bottom, 24)
@@ -68,27 +64,6 @@ struct MeView: View {
             }
             .scrollIndicators(.hidden)
         }
-    }
-
-    private var historyLink: some View {
-        NavigationLink {
-            HistoryView(model: model)
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "calendar.badge.clock")
-                    .font(.system(size: 14, weight: .semibold))
-                Text(String(localized: "All history", comment: "MeView – history link label"))
-                    .font(.system(size: 13, weight: .semibold))
-            }
-            .foregroundStyle(theme.textPrimary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 9)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(theme.textPrimary.opacity(0.15), lineWidth: 0.5))
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityLabel(String(localized: "Open canvas history", comment: "MeView – history link a11y"))
     }
 
     private var meLifecycle: MeLifecycleModifier {
@@ -173,7 +148,7 @@ struct MeView: View {
                 .font(meProse)
                 .foregroundStyle(theme.textPrimary)
             Button {
-                if authService.isAuthenticated { showProfileEditor = true }
+                if authService.hasAppleAccount { showProfileEditor = true }
                 else { showLogin = true }
             } label: {
                 Text(userName)
@@ -348,7 +323,7 @@ struct MeView: View {
     }
 
     private var userName: String {
-        if authService.isAuthenticated, let user = authService.currentUser {
+        if authService.hasAppleAccount, let user = authService.currentUser {
             return user.displayName
         }
         return String(localized: "someone")
@@ -575,6 +550,7 @@ struct MeView: View {
         let timestamp: Date
         let target: String
         let window: String?
+        let minutes: Int?
     }
 
     private nonisolated static func loadWeeklyMinutesByTarget(dayKeys: Set<String>) -> [String: Int] {
@@ -587,14 +563,18 @@ struct MeView: View {
         for tx in txs {
             let txKey = AppModel.dayKey(for: tx.timestamp)
             guard dayKeys.contains(txKey) else { continue }
-            let minutes: Int
-            switch tx.window {
-            case "minutes10": minutes = 10
-            case "minutes30": minutes = 30
-            case "hour1": minutes = 60
-            default: continue
+            let resolved: Int
+            if let m = tx.minutes, m > 0 {
+                resolved = m
+            } else {
+                switch tx.window {
+                case "minutes10": resolved = 10
+                case "minutes30": resolved = 30
+                case "hour1": resolved = 60
+                default: continue
+                }
             }
-            minutesByTarget[tx.target, default: 0] += minutes
+            minutesByTarget[tx.target, default: 0] += resolved
         }
         return minutesByTarget
     }

@@ -40,8 +40,10 @@ struct SettingsSheet: View {
 
                     accountRow
 
-                    section(header: String(localized: "Membership", comment: "Settings section header")) {
-                        subscriptionRow
+                    if !SubscriptionGate.allFeaturesUnlocked {
+                        section(header: String(localized: "Membership", comment: "Settings section header")) {
+                            subscriptionRow
+                        }
                     }
 
                     section(header: String(localized: "General", comment: "Settings section header")) {
@@ -67,6 +69,10 @@ struct SettingsSheet: View {
                     }
 
                     section(header: String(localized: "Info", comment: "Settings section header")) {
+                        flatRow(icon: "book", title: String(localized: "Notes from Kosta", comment: "Settings row label")) {
+                            ManualsPage(model: model)
+                        }
+                        rowDivider
                         flatRow(icon: "info.circle", title: String(localized: "About", comment: "Settings row label")) {
                             SettingsAboutPage(model: model)
                         }
@@ -273,7 +279,7 @@ struct SettingsSheet: View {
 
     @ViewBuilder
     private var accountRow: some View {
-        if authService.isAuthenticated, let user = authService.currentUser {
+        if authService.hasAppleAccount, let user = authService.currentUser {
             Button { showProfileEditor = true } label: {
                 HStack(spacing: 12) {
                     accountAvatar(user: user)
@@ -336,6 +342,7 @@ struct SettingsSheet: View {
     @State private var diagCopied = false
     @State private var budgetsReset = false
     @State private var colorsRestored = false
+    @State private var healthReset = false
     @State private var showOnboardingDemo = false
     @State private var replayOnboardingLive = false
     @Environment(CoachMarkManager.self) private var coachMarkManager
@@ -448,6 +455,25 @@ struct SettingsSheet: View {
                 text: colorsRestored ? "Colors restored!" : "Restore Colors to Max",
                 highlight: colorsRestored,
                 trailing: "arrow.counterclockwise"
+            )
+        }
+        .buttonStyle(MattePressStyle())
+
+        rowDivider
+
+        Button {
+            Task {
+                await model.debugForceHealthReset()
+                healthReset = true
+                try? await Task.sleep(for: .seconds(2))
+                healthReset = false
+            }
+        } label: {
+            diagButton(
+                icon: "heart.text.clipboard",
+                text: healthReset ? "Health data refreshed!" : "Force Health Reset (New Day)",
+                highlight: healthReset,
+                trailing: "arrow.clockwise"
             )
         }
         .buttonStyle(MattePressStyle())

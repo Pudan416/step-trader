@@ -52,6 +52,8 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
         observerHandler = nil
     }
 
+    func clearLastStepCount() {}
+
     /// Simulate a step observation update (for testing the callback path).
     func simulateStepUpdate(_ steps: Double) {
         observerHandler?(steps)
@@ -167,16 +169,18 @@ final class HealthStoreTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mock = ConfigurableHealthKitMock()
-        store = HealthStore(healthKitService: mock)
         defaults = UserDefaults.stepsTrader()
-        // Clear cached values
+        // Clear cached values before creating the store (init reads cache)
         defaults.removeObject(forKey: SharedKeys.cachedStepsToday)
         defaults.removeObject(forKey: SharedKeys.hasStepsData)
+        defaults.removeObject(forKey: "cachedSleepHoursToday")
+        store = HealthStore(healthKitService: mock)
     }
 
     override func tearDown() {
         defaults.removeObject(forKey: SharedKeys.cachedStepsToday)
         defaults.removeObject(forKey: SharedKeys.hasStepsData)
+        defaults.removeObject(forKey: "cachedSleepHoursToday")
         super.tearDown()
     }
 

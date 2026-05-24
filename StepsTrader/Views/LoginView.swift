@@ -46,13 +46,19 @@ struct LoginView: View {
             Text(authService.error ?? String(localized: "Something went wrong"))
         }
         .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
-            if isAuthenticated {
+            if isAuthenticated && !authService.isAnonymous {
+                onAuthenticated?()
+                if showsClose { dismiss() }
+            }
+        }
+        .onChange(of: authService.isAnonymous) { _, isAnonymous in
+            if !isAnonymous && authService.isAuthenticated {
                 onAuthenticated?()
                 if showsClose { dismiss() }
             }
         }
         .onChange(of: authService.error) { _, newError in
-            if newError != nil, !authService.isAuthenticated {
+            if newError != nil, !authService.hasAppleAccount {
                 showError = true
             }
         }
@@ -195,7 +201,7 @@ struct LoginView: View {
         .signInWithAppleButtonStyle(resolvedTheme.isLight ? .black : .white)
         .frame(height: 52)
         .shadow(color: .black.opacity(resolvedTheme.isLight ? 0.08 : 0.2), radius: 12, x: 0, y: 6)
-        .disabled(authService.isLoading || authService.isAuthenticated)
+        .disabled(authService.isLoading || authService.hasAppleAccount)
     }
 
     private func featureRow(icon: String, text: String, tint: Color) -> some View {

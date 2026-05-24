@@ -70,8 +70,11 @@ class AuthenticationService: NSObject, ObservableObject {
 
     @Published var currentUser: AppUser?
     @Published var isAuthenticated: Bool = false
+    @Published var isAnonymous: Bool = false
     @Published var isLoading: Bool = false
     @Published var error: String?
+
+    var hasAppleAccount: Bool { isAuthenticated && !isAnonymous }
     
     /// Indicates if the initial session restore has completed
     @Published private(set) var isInitialized: Bool = false
@@ -133,7 +136,47 @@ class AuthenticationService: NSObject, ObservableObject {
         clearStoredSession()
         currentUser = nil
         isAuthenticated = false
+        isAnonymous = false
         Task { await SubscriptionStore.shared.logOut() }
+    }
+
+    // MARK: - Anonymous Auth
+
+    private func signInAnonymously() async {
+        do {
+            let cfg = try SupabaseConfig.load()
+            let url = cfg.baseURL.appendingPathComponent("auth/v1/signup")
+
+            let (data, http) = try await makeJSONRequest(
+                url: url,
+                method: "POST",
+                headers: [
+                    "apikey": cfg.anonKey,
+                    "authorization": "Bearer \(cfg.anonKey)"
+                ],
+                body: Data("{}".utf8)
+            )
+
+            guard http.statusCode < 400 else {
+                let msg = String(data: data, encoding: .utf8) ?? "Anonymous sign-in failed"
+                AppLogger.auth.error("🔐 Anonymous sign-in failed: status \(http.statusCode), body: \(msg.prefix(300))")
+                return
+            }
+
+            let session = try supabaseDecoder.decode(SupabaseSessionResponse.self, from: data)
+            storeSession(session)
+            isAnonymous = session.user.isAnonymous
+
+            applyCachedSessionState(
+                userId: session.user.id,
+                email: nil,
+                createdAt: session.user.createdAt
+            )
+
+            AppLogger.auth.debug("🔐 Anonymous sign-in successful, userId: \(session.user.id.prefix(8))…")
+        } catch {
+            AppLogger.auth.error("🔐 Anonymous sign-in error: \(error.localizedDescription)")
+        }
     }
     
     /// Permanently deletes the user's account and all associated server-side data
@@ -224,6 +267,7 @@ class AuthenticationService: NSObject, ObservableObject {
                 AppLogger.auth.debug("🔐 supabaseSignInWithApple — success, userId: \(session.user.id.prefix(8))…, expiresAt: \(session.expiresAt)")
 
                 self.storeSession(session)
+                self.isAnonymous = false
                 if let name = appleFullName {
                     self.storeAppleDisplayName(name, for: session.user.id)
                 }
@@ -530,11 +574,11 @@ class AuthenticationService: NSObject, ObservableObject {
     private func loadStoredSessionAndRefreshUser() async {
         AppLogger.auth.debug("🔐 loadStoredSessionAndRefreshUser called")
         guard let session = loadStoredSession() else {
-            AppLogger.auth.debug("🔐 No stored session found in Keychain")
-            currentUser = nil
-            isAuthenticated = false
+            AppLogger.auth.debug("🔐 No stored session found in Keychain, signing in anonymously")
+            await signInAnonymously()
             return
         }
+        isAnonymous = session.user.isAnonymous
         
         #if DEBUG
         AppLogger.auth.debug("🔐 Found stored session, user: \(session.user.id.prefix(8))…, expires: \(session.expiresAt)")
@@ -631,10 +675,13 @@ class AuthenticationService: NSObject, ObservableObject {
         
         let payload = SupabaseIdTokenGrantRequest(provider: "apple", idToken: idToken, nonce: nonce)
         let body = try JSONEncoder().encode(payload)
+        // Use existing session token (anonymous or otherwise) so GoTrue can
+        // link the Apple identity to the current anonymous user.
+        let authToken = self.accessToken ?? cfg.anonKey
         let (data, http) = try await makeJSONRequest(
             url: finalURL,
             method: "POST",
-            headers: ["apikey": cfg.anonKey, "authorization": "Bearer \(cfg.anonKey)"],
+            headers: ["apikey": cfg.anonKey, "authorization": "Bearer \(authToken)"],
             body: body
         )
         
@@ -1068,11 +1115,21 @@ private struct SupabaseAuthUser: Codable {
     let id: String
     let email: String?
     let createdAt: Date?
-    
+    let isAnonymous: Bool
+
     enum CodingKeys: String, CodingKey {
         case id
         case email
         case createdAt = "created_at"
+        case isAnonymous = "is_anonymous"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        email = try c.decodeIfPresent(String.self, forKey: .email)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        isAnonymous = try c.decodeIfPresent(Bool.self, forKey: .isAnonymous) ?? false
     }
 }
 

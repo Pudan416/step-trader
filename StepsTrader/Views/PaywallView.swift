@@ -71,7 +71,7 @@ struct PaywallView: View {
         }
         .onChange(of: store.isPro) { _, isPro in
             if isPro && didPurchaseSucceed {
-                if authService.isAuthenticated {
+                if authService.hasAppleAccount {
                     dismiss()
                 } else {
                     showPostPurchaseLogin = true
@@ -679,7 +679,10 @@ struct PostPurchaseLoginPrompt: View {
             Text(authService.error ?? String(localized: "Something went wrong"))
         }
         .onChange(of: authService.isAuthenticated) { _, isAuth in
-            if isAuth { dismiss() }
+            if isAuth && !authService.isAnonymous { dismiss() }
+        }
+        .onChange(of: authService.isAnonymous) { _, isAnon in
+            if !isAnon && authService.isAuthenticated { dismiss() }
         }
     }
 }

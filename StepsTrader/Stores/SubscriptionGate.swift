@@ -10,6 +10,13 @@ import SwiftUI
 /// Pro users (subscribed, lifetime, grandfathered) bypass all gates.
 enum SubscriptionGate {
 
+    // MARK: - Kill-switch
+
+    /// While the app is under review and payments are not active, grant Pro
+    /// to every user so all features are available for free.  Flip to `false`
+    /// once IAP is approved and ready to go live.
+    static let allFeaturesUnlocked = true
+
     // MARK: - Hard limits (Free tier)
 
     /// Maximum number of `TicketGroup`s a Free user can create.

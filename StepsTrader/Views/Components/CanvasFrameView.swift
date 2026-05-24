@@ -84,20 +84,22 @@ struct CanvasFrameView<Content: View>: View {
                 frameColor
 
                 VStack(spacing: 0) {
-                    // Header: NOWHERE + date
+                    // Header: date (big) + user name (small italic)
                     HStack(alignment: .lastTextBaseline) {
-                        Text("NOWHERE")
+                        Text(formattedDate)
                             .font(.system(size: max(6, w * Self.brandSizeR), weight: .black, design: .serif))
                             .foregroundStyle(Color.black)
                             .lineLimit(1)
 
                         Spacer(minLength: 4)
 
-                        Text(formattedDate)
-                            .font(.system(size: max(5, w * Self.dateSizeR), weight: .regular, design: .serif))
-                            .italic()
-                            .foregroundStyle(Color.black)
-                            .lineLimit(1)
+                        if let name = userName, !name.isEmpty {
+                            Text(name)
+                                .font(.system(size: max(5, w * Self.dateSizeR), weight: .regular, design: .serif))
+                                .italic()
+                                .foregroundStyle(Color.black)
+                                .lineLimit(1)
+                        }
                     }
                     .padding(.horizontal, sidePad)
                     .frame(height: headerH, alignment: .bottom)
@@ -130,15 +132,13 @@ struct CanvasFrameView<Content: View>: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, lineLeft)
 
-                    // Footer: name + stats
+                    // Footer: NOWHERE + stats
                     HStack(alignment: .firstTextBaseline) {
-                        if let name = userName, !name.isEmpty {
-                            Text(name)
-                                .font(.system(size: max(5, w * Self.nameSizeR), weight: .semibold, design: .serif))
-                                .foregroundStyle(Color.black)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.5)
-                        }
+                        Text("NOWHERE")
+                            .font(.system(size: max(5, w * Self.nameSizeR), weight: .black, design: .serif))
+                            .foregroundStyle(Color.black)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
 
                         Spacer(minLength: 4)
 
@@ -206,9 +206,9 @@ struct CanvasFrameView<Content: View>: View {
 
     private var formattedDate: String {
         let cal = Calendar.current
-        let y = cal.component(.year, from: date)
+        let y = cal.component(.year, from: date) % 100
         let m = cal.component(.month, from: date)
         let d = cal.component(.day, from: date)
-        return String(format: "%04d/%02d/%02d", y, m, d)
+        return String(format: "%02d/%02d/%02d", d, m, y)
     }
 }

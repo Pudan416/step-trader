@@ -189,4 +189,6 @@ enum SharedKeys {
     static let pendingBudgetMinutesPrefix = "pendingBudgetMinutes_"
     static func pendingSpendAmountKey(_ groupId: String) -> String { "pendingSpendAmount_\(groupId)" }
     static func pendingSpendTrackingKey(_ groupId: String) -> String { "pendingSpendTracking_\(groupId)" }
+    static func pendingSpendWindowKey(_ groupId: String) -> String { "pendingSpendWindow_\(groupId)" }
+    static func pendingSpendMinutesKey(_ groupId: String) -> String { "pendingSpendMinutes_\(groupId)" }
 }

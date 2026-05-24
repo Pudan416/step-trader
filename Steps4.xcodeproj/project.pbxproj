@@ -11,8 +11,8 @@
 		20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */; };
 		200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47A2F0C795D0018004E /* TargetResolver.swift */; };
 		200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A52F16DA3F0018004E /* AuthenticationService.swift */; };
-		200AC5B12F16DB100018004E /* AuthenticationService+CachedProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */; };
 		200AC5A82F16DA570018004E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A72F16DA570018004E /* LoginView.swift */; };
+		200AC5B12F16DB100018004E /* AuthenticationService+CachedProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */; };
 		201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816112F33C8C10006B350 /* CustomActivityTests.swift */; };
 		201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816132F33C8CC0006B350 /* DayBoundaryTests.swift */; };
 		201816162F33C8D80006B350 /* CustomActivityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816152F33C8D80006B350 /* CustomActivityUITests.swift */; };
@@ -79,6 +79,7 @@
 		20AA24882F70BEE1002F2F2C /* AppUnlockSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */; };
 		20AA24892F70BEEA002F2F2C /* AccessWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47C2F0C825C0018004E /* AccessWindow.swift */; };
 		20AA248A2F70C00100000001 /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
+		20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */; };
 		20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */; };
 		20B0A3562E8C65E700D5EBE4 /* SharedKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */; };
 		20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */; };
@@ -136,6 +137,7 @@
 		20SS02072F87000000000007 /* SupabaseSyncService+Spent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS01072F87000000000007 /* SupabaseSyncService+Spent.swift */; };
 		20SS02082F87000000000008 /* SupabaseSyncService+Entries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS01082F87000000000008 /* SupabaseSyncService+Entries.swift */; };
 		20SS02092F87000000000009 /* SupabaseSyncService+Routines.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS01092F87000000000009 /* SupabaseSyncService+Routines.swift */; };
+		20SS020A2F8700000000000A /* SupabaseSyncService+DeviceToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS010A2F8700000000000A /* SupabaseSyncService+DeviceToken.swift */; };
 		2CBA49F88060F2EC9F69839A /* ThemeModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1146D29605946EC6B4301B /* ThemeModifiers.swift */; };
 		30A1D1B12F3C000100000003 /* DayEndSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */; };
 		30A1D1B32F3C000100000005 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */; };
@@ -166,6 +168,7 @@
 		60SP0001300000000060SP0001 /* ShaderParkShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 60SP0002300000000060SP0002 /* ShaderParkShader.metal */; };
 		60SP0003300000000060SP0003 /* MetalShaderParkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SP0004300000000060SP0004 /* MetalShaderParkRenderer.swift */; };
 		60SP0005300000000060SP0005 /* ShaderParkOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SP0006300000000060SP0006 /* ShaderParkOverlayView.swift */; };
+		62FCEE93619D57A0D6E82263 /* AnnouncementService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */; };
 		69624326AA0BD3D99B13FBCA /* GalleryNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51444749A1B225FCD6A4DCF /* GalleryNotifications.swift */; };
 		6B454ECDBA75497D1287A4E1 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7F473D8EA05B52428ABD08 /* AppColors.swift */; };
 		6D2A49FE92B422EDEAFE63BE /* CanvasColorPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C347368C4F416256BE0CF8 /* CanvasColorPalette.swift */; };
@@ -199,7 +202,6 @@
 		AA000001AAAA000100000001 /* TariffDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AAAA000100000002 /* TariffDecodingTests.swift */; };
 		AA000002AAAA000200000001 /* TicketGroupCostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002AAAA000200000002 /* TicketGroupCostTests.swift */; };
 		AA000003AAAA000300000001 /* HealthKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000003AAAA000300000002 /* HealthKitTests.swift */; };
-		20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */; };
 		AA00NOTE2F3A000100000001 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00NOTE2F3A000100000002 /* Note.swift */; };
 		AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB001100110011AABB0010 /* SubscriptionGateTests.swift */; };
 		AABB002200220022AABB0022 /* PaymentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB002200220022AABB0020 /* PaymentTests.swift */; };
@@ -314,8 +316,8 @@
 		200AC4892F1402CF0018004E /* ManagedSettings.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettings.framework; path = System/Library/Frameworks/ManagedSettings.framework; sourceTree = SDKROOT; };
 		200AC48B2F1402CF0018004E /* ManagedSettingsUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettingsUI.framework; path = System/Library/Frameworks/ManagedSettingsUI.framework; sourceTree = SDKROOT; };
 		200AC5A52F16DA3F0018004E /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
-		200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthenticationService+CachedProfile.swift"; sourceTree = "<group>"; };
 		200AC5A72F16DA570018004E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthenticationService+CachedProfile.swift"; sourceTree = "<group>"; };
 		201816112F33C8C10006B350 /* CustomActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityTests.swift; sourceTree = "<group>"; };
 		201816132F33C8CC0006B350 /* DayBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBoundaryTests.swift; sourceTree = "<group>"; };
 		201816152F33C8D80006B350 /* CustomActivityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityUITests.swift; sourceTree = "<group>"; };
@@ -378,6 +380,7 @@
 		20AA247F2F70BD6F002F2F2C /* ShieldRebuildHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldRebuildHelper.swift; sourceTree = "<group>"; };
 		20AA24842F70BDB1002F2F2C /* FamilyControls.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FamilyControls.framework; path = System/Library/Frameworks/FamilyControls.framework; sourceTree = SDKROOT; };
 		20AA24862F70BDC4002F2F2C /* UnlockWidgetExtensionRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UnlockWidgetExtensionRelease.entitlements; sourceTree = "<group>"; };
+		20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSessionRestoreTests.swift; sourceTree = "<group>"; };
 		20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StepsTrader.swift"; sourceTree = "<group>"; };
 		20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeys.swift; sourceTree = "<group>"; };
 		20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffManager.swift; sourceTree = "<group>"; };
@@ -430,6 +433,7 @@
 		20SS01072F87000000000007 /* SupabaseSyncService+Spent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+Spent.swift"; sourceTree = "<group>"; };
 		20SS01082F87000000000008 /* SupabaseSyncService+Entries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+Entries.swift"; sourceTree = "<group>"; };
 		20SS01092F87000000000009 /* SupabaseSyncService+Routines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+Routines.swift"; sourceTree = "<group>"; };
+		20SS010A2F8700000000000A /* SupabaseSyncService+DeviceToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+DeviceToken.swift"; sourceTree = "<group>"; };
 		2E3143C1B5B277380C445D26 /* BudgetEngineProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BudgetEngineProtocol.swift; path = StepsTrader/Protocols/BudgetEngineProtocol.swift; sourceTree = SOURCE_ROOT; };
 		30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayEndSettingsView.swift; sourceTree = "<group>"; };
 		30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
@@ -481,6 +485,7 @@
 		80PS00013005000080PS0001 /* PosterStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PosterStyle.swift; sourceTree = "<group>"; };
 		80PV00013005000080PV0001 /* CanvasPosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPosterView.swift; sourceTree = "<group>"; };
 		8C8648A4882378AF2E1E742F /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Color+Hex.swift"; path = "StepsTrader/Extensions/Color+Hex.swift"; sourceTree = SOURCE_ROOT; };
+		9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementService.swift; sourceTree = "<group>"; };
 		A0B10001A0B10001A0B10010 /* OnboardingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingModels.swift; sourceTree = "<group>"; };
 		A0B10002A0B10002A0B10020 /* OnboardingFloaters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFloaters.swift; sourceTree = "<group>"; };
 		A0B10003A0B10003A0B10030 /* AppleSignInCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInCoordinator.swift; sourceTree = "<group>"; };
@@ -493,7 +498,6 @@
 		AA000001AAAA000100000002 /* TariffDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TariffDecodingTests.swift; sourceTree = "<group>"; };
 		AA000002AAAA000200000002 /* TicketGroupCostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketGroupCostTests.swift; sourceTree = "<group>"; };
 		AA000003AAAA000300000002 /* HealthKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitTests.swift; sourceTree = "<group>"; };
-		20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSessionRestoreTests.swift; sourceTree = "<group>"; };
 		AA00NOTE2F3A000100000002 /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
 		AABB001100110011AABB0010 /* SubscriptionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionGateTests.swift; sourceTree = "<group>"; };
 		AABB002200220022AABB0020 /* PaymentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTests.swift; sourceTree = "<group>"; };
@@ -756,6 +760,7 @@
 				2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */,
 				201A0FBB2F2CDEE8001BB105 /* SupabaseSyncService.swift */,
 				70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */,
+				9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */,
 				2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */,
 				2061EB942F269CE6009FEC24 /* ProfileLocationManager.swift */,
 				30CA000A300000000000CA0A /* CanvasStorageService.swift */,
@@ -768,6 +773,7 @@
 				20SS01062F87000000000006 /* SupabaseSyncService+Preferences.swift */,
 				20SS01072F87000000000007 /* SupabaseSyncService+Spent.swift */,
 				20SS01082F87000000000008 /* SupabaseSyncService+Entries.swift */,
+				20SS010A2F8700000000000A /* SupabaseSyncService+DeviceToken.swift */,
 				20SS01092F87000000000009 /* SupabaseSyncService+Routines.swift */,
 				20HV0006AAAA000100000006 /* HistoryThumbnailCache.swift */,
 				20IC0002AAAA000100000002 /* ShapeIconCache.swift */,
@@ -1116,6 +1122,9 @@
 				20AA246B2F70BB3A002F2F2C /* PBXTargetDependency */,
 			);
 			name = Steps4;
+			packageProductDependencies = (
+				20B8843A2FAF9A920088AA6D /* RevenueCat */,
+			);
 			productName = Steps4;
 			productReference = 2089F0B42E71A18E00ABF5FA /* Nowhere.app */;
 			productType = "com.apple.product-type.application";
@@ -1380,6 +1389,7 @@
 				30A1D1B32F3C000100000005 /* NotificationSettingsView.swift in Sources */,
 				2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */,
 				20AA24892F70BEEA002F2F2C /* AccessWindow.swift in Sources */,
+				62FCEE93619D57A0D6E82263 /* AnnouncementService.swift in Sources */,
 				2061EB8A2F269CC7009FEC24 /* NotificationDelegate.swift in Sources */,
 				2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */,
 				20AA24812F70BD6F002F2F2C /* ShieldRebuildHelper.swift in Sources */,
@@ -1482,6 +1492,7 @@
 				20SS02062F87000000000006 /* SupabaseSyncService+Preferences.swift in Sources */,
 				20SS02072F87000000000007 /* SupabaseSyncService+Spent.swift in Sources */,
 				20SS02082F87000000000008 /* SupabaseSyncService+Entries.swift in Sources */,
+				20SS020A2F8700000000000A /* SupabaseSyncService+DeviceToken.swift in Sources */,
 				20SS02092F87000000000009 /* SupabaseSyncService+Routines.swift in Sources */,
 				6E084403B0B19A902D745C32 /* HealthKitServiceProtocol.swift in Sources */,
 				DDE443E5AA653BF8DD6BECED /* FamilyControlsServiceProtocol.swift in Sources */,
@@ -1645,7 +1656,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.DeviceActivityMonitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1684,7 +1695,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1725,7 +1736,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1768,7 +1779,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1810,7 +1821,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1989,7 +2000,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Steps4;
 				PRODUCT_NAME = Nowhere;
@@ -2045,7 +2056,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Steps4;
 				PRODUCT_NAME = Nowhere;
@@ -2078,7 +2089,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
 				PRODUCT_NAME = Steps4Tests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2106,7 +2117,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
 				PRODUCT_NAME = Steps4Tests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2133,7 +2144,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
 				PRODUCT_NAME = Steps4UITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2160,7 +2171,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
 				PRODUCT_NAME = Steps4UITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2200,7 +2211,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.UnlockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -2243,7 +2254,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.UnlockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -2285,7 +2296,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.DeviceActivityMonitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

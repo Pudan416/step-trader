@@ -12,55 +12,56 @@ struct ManualsPage: View {
     private var notes: [Note] { NoteCatalog.all }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                VStack(spacing: 0) {
-                    Spacer(minLength: 20)
+        ZStack {
+            SettingsGradientBG(model: model)
 
-                    TabView(selection: $currentIndex) {
-                        ForEach(Array(notes.enumerated()), id: \.element.id) { index, note in
-                            noteCard(note)
-                                .tag(index)
-                        }
+            VStack(spacing: 0) {
+                DetailHeader(title: String(localized: "Notes from Kosta", comment: "ManualsPage – page title"))
+                    .padding(.horizontal, 16)
+
+                Spacer(minLength: 20)
+
+                TabView(selection: $currentIndex) {
+                    ForEach(Array(notes.enumerated()), id: \.element.id) { index, note in
+                        noteCard(note)
+                            .tag(index)
                     }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
-
-                    pageIndicator
-                        .padding(.top, 20)
-
-                    Spacer(minLength: 20)
-
-                    bottomButtons
-                        .padding(.bottom, 100)
                 }
-                .padding(.horizontal, 0)
+                .tabViewStyle(.page(indexDisplayMode: .never))
+
+                pageIndicator
+                    .padding(.top, 20)
+
+                Spacer(minLength: 20)
+
+                bottomButtons
+                    .padding(.bottom, 100)
             }
-            .energyGradientBackground(model: model, showGrain: false)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: topCardHeight)
-            }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $showAllNotes) {
-                AllNotesListView(readTracker: readTracker) { note in
-                    if let idx = notes.firstIndex(where: { $0.id == note.id }) {
-                        currentIndex = idx
-                    }
-                    readTracker.markRead(note)
-                    showAllNotes = false
+            .padding(.horizontal, 0)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Color.clear.frame(height: topCardHeight)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
+        .sheet(isPresented: $showAllNotes) {
+            AllNotesListView(readTracker: readTracker) { note in
+                if let idx = notes.firstIndex(where: { $0.id == note.id }) {
+                    currentIndex = idx
                 }
-                .choicesSheetPresentationBackground()
+                readTracker.markRead(note)
+                showAllNotes = false
             }
-            .onChange(of: currentIndex) { _, newValue in
-                readTracker.markRead(notes[newValue])
+            .choicesSheetPresentationBackground()
+        }
+        .onChange(of: currentIndex) { _, newValue in
+            readTracker.markRead(notes[newValue])
+        }
+        .onAppear {
+            if let firstUnread = notes.firstIndex(where: { !readTracker.isRead($0) }) {
+                currentIndex = firstUnread
             }
-            .onAppear {
-                if let firstUnread = notes.firstIndex(where: { !readTracker.isRead($0) }) {
-                    currentIndex = firstUnread
-                }
-                readTracker.markRead(notes[currentIndex])
-            }
+            readTracker.markRead(notes[currentIndex])
         }
     }
 

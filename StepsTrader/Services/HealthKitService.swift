@@ -229,16 +229,41 @@ final class HealthKitService: HealthKitServiceProtocol {
             log.warning("Step type not available, returning cached: \(self.lastStepCount)")
             return lastStepCount
         }
-        
+
         // Passive HKStatisticsQuery does not show the permission sheet.
         // Do not gate on authorizationStatus(for:) — it reports WRITE status only.
         // Read-only apps (toShare: []) stay .notDetermined even after the user allows reads.
 
-        // Avoid .strictStartDate — interval samples often start before the day boundary
-        // and would be excluded, yielding 0 steps despite data in Health.
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
-        log.debug("fetchSteps query \(start) … \(end)")
-        
+        // Use .strictStartDate to exclude samples that started before the day boundary.
+        // Without it, sources like WHOOP that write one giant sample spanning 22+ hours
+        // leak yesterday's entire step count into today's total (14k+ phantom steps).
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        log.info("👣 fetchSteps QUERY: \(start) … \(end), lastStepCount=\(self.lastStepCount)")
+
+        // Diagnostic: log sample breakdown by source (runs in background, doesn't affect result)
+        let diagnosticStore = self.store
+        Task.detached {
+            let sampleQuery = HKSampleQuery(
+                sampleType: stepType,
+                predicate: HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate),
+                limit: 200,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+            ) { _, samples, _ in
+                guard let samples = samples as? [HKQuantitySample] else { return }
+                var bySource: [String: Double] = [:]
+                for s in samples {
+                    let source = s.sourceRevision.source.name
+                    let steps = s.quantity.doubleValue(for: .count())
+                    bySource[source, default: 0] += steps
+                }
+                log.info("👣 DIAG: \(samples.count) samples (strictStartDate)")
+                for (source, total) in bySource.sorted(by: { $0.value > $1.value }) {
+                    log.info("👣 DIAG source '\(source)': \(Int(total)) steps")
+                }
+            }
+            diagnosticStore.execute(sampleQuery)
+        }
+
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: predicate, options: .cumulativeSum) { [weak self] _, stats, error in
                 guard let self = self else {
@@ -246,12 +271,11 @@ final class HealthKitService: HealthKitServiceProtocol {
                     return
                 }
                 if let error = error {
-                    // If the error is "No data available", return 0 instead of failing
                     let nsError = error as NSError
                     if nsError.code == 11 || // HKErrorCode 11 - no data available
                        nsError.localizedDescription.contains("No data available") {
-                        log.debug("No step data available for today, returning cached")
-                        continuation.resume(returning: self.lastStepCount)
+                        log.debug("No step data available for period, returning 0")
+                        continuation.resume(returning: 0)
                         return
                     }
                     log.error("HealthKit error: \(error.localizedDescription)")
@@ -262,10 +286,11 @@ final class HealthKitService: HealthKitServiceProtocol {
                     }
                     return
                 }
-                
+
                 let steps = stats?.sumQuantity()?.doubleValue(for: .count()) ?? 0
+                let prevCached = self.lastStepCount
                 self.lastStepCount = steps
-                log.info("Fetched \(Int(steps)) steps for today")
+                log.info("👣 fetchSteps RESULT: HK returned \(Int(steps)) steps (was cached: \(Int(prevCached)))")
                 if steps > 0 {
                     self.logAuthorizationStatus(context: "fetchTodaySteps:data-available")
                 }
@@ -371,9 +396,14 @@ final class HealthKitService: HealthKitServiceProtocol {
         Task { [weak self] in
             guard let self = self else { return }
             // Initial fetch so UI has fresh value before observer fires
-            if let steps = try? await self.fetchSteps(from: Date.startOfToday, to: Date.now) {
+            let dayStart = Date.startOfToday
+            log.info("👣 startObservingSteps: initial fetch dayStart=\(dayStart)")
+            if let steps = try? await self.fetchSteps(from: dayStart, to: Date.now) {
+                log.info("👣 startObservingSteps: initial fetch returned \(Int(steps)), pushing to UI")
                 self.lastStepCount = steps
                 await MainActor.run { updateHandler(steps) }
+            } else {
+                log.warning("👣 startObservingSteps: initial fetch FAILED, lastStepCount=\(self.lastStepCount)")
             }
             await self.beginObservation(updateHandler: updateHandler)
         }
@@ -382,11 +412,15 @@ final class HealthKitService: HealthKitServiceProtocol {
     @MainActor
     func stopObservingSteps() {
         guard let query = observerQuery else { return }
-        
+
         store.stop(query)
         observerQuery = nil
         isObserving = false
         log.info("Step observation stopped")
+    }
+
+    func clearLastStepCount() {
+        lastStepCount = 0
     }
 
     @MainActor
@@ -397,10 +431,11 @@ final class HealthKitService: HealthKitServiceProtocol {
             return
         }
 
-        log.info("Starting step observation")
+        let observerDayStart = Date.startOfToday
+        log.info("👣 beginObservation: predicate startDate=\(observerDayStart)")
 
         let predicate = HKQuery.predicateForSamples(
-            withStart: Date.startOfToday,
+            withStart: observerDayStart,
             end: nil,
             options: .strictStartDate
         )
@@ -420,12 +455,15 @@ final class HealthKitService: HealthKitServiceProtocol {
             }
             Task {
                 defer { completionHandler() }
+                let refetchStart = Date.startOfToday
+                log.info("👣 OBSERVER FIRED: re-fetching from \(refetchStart)")
                 do {
-                    let steps = try await self.fetchSteps(from: Date.startOfToday, to: Date.now)
+                    let steps = try await self.fetchSteps(from: refetchStart, to: Date.now)
+                    log.info("👣 OBSERVER re-fetch: \(Int(steps)) steps, pushing to UI")
                     self.lastStepCount = steps
                     await MainActor.run { updateHandler(steps) }
                 } catch {
-                    log.error("Observer re-fetch failed: \(error.localizedDescription)")
+                    log.error("👣 OBSERVER re-fetch FAILED: \(error.localizedDescription), lastStepCount=\(self.lastStepCount)")
                 }
             }
         }
