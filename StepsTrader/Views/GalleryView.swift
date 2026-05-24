@@ -41,6 +41,12 @@ struct GalleryView: View {
     /// canvas-edit fields hoisted to a separate Observable manager.
     @State private var editState = CanvasEditState()
     @Binding var isWideCanvas: Bool
+    /// Controls the MomentEntrySheet presentation.
+    @State private var showMomentEntry = false
+    /// Shown when a free user taps the Moment node.
+    @State private var showMomentPaywall = false
+    /// Mirrors RadialHoldMenu fan state so the share button can hide when the fan is open.
+    @State private var isFanOpen = false
     @State private var isManuallyExpanded: Bool = false
     @State private var isNaturallyWide: Bool = false
     /// Tracks whether the user explicitly collapsed wide mode so we don't
@@ -343,6 +349,12 @@ struct GalleryView: View {
                 CanvasShareSheet(items: [image])
             }
         }
+        .sheet(isPresented: $showMomentEntry, onDismiss: { isFanOpen = false }) {
+            MomentEntrySheet(model: model)
+        }
+        .fullScreenCover(isPresented: $showMomentPaywall, onDismiss: { isFanOpen = false }) {
+            PaywallView(model: model, store: model.subscriptionStore, source: .feature)
+        }
         .onChange(of: toolbar.showShareSheet) { _, isPresented in
             if !isPresented { toolbar.shareImage = nil }
         }
@@ -457,19 +469,41 @@ struct GalleryView: View {
                     }
                     #endif
                 },
+                onMomentSelected: {
+                    if SubscriptionGate.canAddMoment(isPro: model.isPro) {
+                        showMomentEntry = true
+                    } else {
+                        showMomentPaywall = true
+                    }
+                },
                 onFanOpened: {
+                    isFanOpen = true
                     #if DEBUG
                     CoachMarkManager.postAction(for: .tapPlusButton)
                     #endif
+                },
+                onFanClosed: {
+                    isFanOpen = false
                 }
             )
             #if DEBUG
             .coachMarkAnchor(.tapPlusButton)
             #endif
+            // Track fan closure: when pickerCategory is set the fan closes,
+            // and when the sheet dismisses the fan is already gone.
+            .onChange(of: toolbar.pickerCategory) { _, val in
+                if val == nil { isFanOpen = false }
+            }
 
             Spacer()
 
+            // Share button hides while the radial fan is open so the Moment node
+            // at 0° (right) has room to appear without overlapping.
             shareButton
+                .opacity(isFanOpen ? 0 : 1)
+                .scaleEffect(isFanOpen ? 0.8 : 1)
+                .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isFanOpen)
+                .allowsHitTesting(!isFanOpen)
         }
     }
 

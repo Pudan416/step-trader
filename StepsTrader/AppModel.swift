@@ -173,6 +173,9 @@ final class AppModel: ObservableObject {
     @Published var dailyBodySelections: [String] = []
     @Published var dailyRestSelections: [String] = []
     @Published var dailyHeartSelections: [String] = []
+    /// Ephemeral moments logged today. Labels are stored here; IDs also appear
+    /// in the corresponding daily*Selections array for energy accounting.
+    @Published var dailyMoments: [EphemeralMoment] = []
     /// Canvas tab: 4 slots (category + option each). Synced with daily *Selections.
     @Published var dailyCanvasSlots: [DayCanvasSlot] = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
     @Published var preferredBodyOptions: [String] = []

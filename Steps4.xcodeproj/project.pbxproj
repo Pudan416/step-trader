@@ -160,6 +160,8 @@
 		57E04F4FB048E115C40D98E7 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8648A4882378AF2E1E742F /* Color+Hex.swift */; };
 		5E9E43978D80841CEA8F84B8 /* ShapeStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = C669447E94C63E9A8EB39A0B /* ShapeStyles.swift */; };
 		5F0E443EA93FB23E1E618222 /* EnergyOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD224EC1A882989A8351AB57 /* EnergyOption.swift */; };
+		EPHM0001000000000000BF01 /* EphemeralMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = EPHM0002000000000000BF02 /* EphemeralMoment.swift */; };
+		MMSH0001000000000000BF01 /* MomentEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = MMSH0002000000000000BF02 /* MomentEntrySheet.swift */; };
 		605D42CA9EBF1B3A09237455 /* MetaballGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E94D8EA5C48F5875A51740 /* MetaballGenerator.swift */; };
 		60CO0001300000000060CO0001 /* CanvasOverlayStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0002300000000060CO0002 /* CanvasOverlayStyle.swift */; };
 		60CO0003300000000060CO0003 /* CanvasAnimationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0004300000000060CO0004 /* CanvasAnimationOverlay.swift */; };
@@ -454,6 +456,8 @@
 		50SM00053002000050SM0005 /* MetalSmudgeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalSmudgeRenderer.swift; sourceTree = "<group>"; };
 		50SM00063002000050SM0006 /* SmudgeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmudgeCanvasView.swift; sourceTree = "<group>"; };
 		524F432B8921ECFAF49A568E /* EnergyCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EnergyCategory.swift; path = StepsTrader/Models/EnergyCategory.swift; sourceTree = SOURCE_ROOT; };
+		EPHM0002000000000000BF02 /* EphemeralMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EphemeralMoment.swift; path = StepsTrader/Models/EphemeralMoment.swift; sourceTree = SOURCE_ROOT; };
+		MMSH0002000000000000BF02 /* MomentEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentEntrySheet.swift; sourceTree = "<group>"; };
 		554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeviceActivityMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5C664BEFA2BBECD3F1AB1266 /* FamilyControlsServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamilyControlsServiceProtocol.swift; path = StepsTrader/Protocols/FamilyControlsServiceProtocol.swift; sourceTree = SOURCE_ROOT; };
 		5F4C4CBBA3ED654713693D34 /* BodyShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BodyShapeGenerator.swift; path = StepsTrader/Shapes/BodyShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
@@ -673,6 +677,7 @@
 				77E648AABF4FC13465DF42C1 /* PastDaySnapshot.swift */,
 				524F432B8921ECFAF49A568E /* EnergyCategory.swift */,
 				FD224EC1A882989A8351AB57 /* EnergyOption.swift */,
+				EPHM0002000000000000BF02 /* EphemeralMoment.swift */,
 				7A214D7EB007648A8206D56D /* EnergyDefaults.swift */,
 				49124F0393F299111D41A1B0 /* ActivitySuggestion.swift */,
 				DB2D4682957CC0830F537534 /* ShapeHelpers.swift */,
@@ -893,6 +898,7 @@
 				20F5A0062FFF000100000006 /* AppsPageSimplified.swift */,
 				30CA0004300000000000CA04 /* GenerativeCanvasView.swift */,
 				30CA0006300000000000CA06 /* RadialHoldMenu.swift */,
+				MMSH0002000000000000BF02 /* MomentEntrySheet.swift */,
 				20HV0002AAAA000100000002 /* HistoryView.swift */,
 				20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */,
 			);
@@ -1502,6 +1508,8 @@
 				DCAF4095B8C209EC8B21F367 /* GradientPalette.swift in Sources */,
 				F6494E388E7886039A147EA3 /* HandoffToken.swift in Sources */,
 				5E9E43978D80841CEA8F84B8 /* ShapeStyles.swift in Sources */,
+				EPHM0001000000000000BF01 /* EphemeralMoment.swift in Sources */,
+				MMSH0001000000000000BF01 /* MomentEntrySheet.swift in Sources */,
 				C131435BA6E0DC0B711B9400 /* FamilyControlsCompat.swift in Sources */,
 				C4C44E3683F8DD55B092F759 /* AppTheme.swift in Sources */,
 				6B454ECDBA75497D1287A4E1 /* AppColors.swift in Sources */,

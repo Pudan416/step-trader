@@ -2,16 +2,21 @@ import SwiftUI
 
 // MARK: - Radial Hold Menu (tap to fan, or long-press+drag)
 
-/// Tap shows 3 category buttons (Body / Mind / Heart) in a fan arc.
+/// Tap shows 3 category buttons (Body / Mind / Heart) in a fan arc, plus a
+/// separate ✦ Moment node to the right for logging ephemeral life events.
 /// Long-press + drag also works: nodes appear and you can drag to select.
 struct RadialHoldMenu: View {
     var labelColor: Color = .white
     let onCategorySelected: (EnergyCategory) -> Void
+    /// Called when the ✦ Moment node is tapped (Pro-only feature).
+    var onMomentSelected: (() -> Void)? = nil
     var onFanOpened: (() -> Void)? = nil
+    var onFanClosed: (() -> Void)? = nil
 
     @State private var isFanOpen = false
     @State private var isHolding = false
     @State private var hoveredCategory: EnergyCategory? = nil
+    @State private var hoveredMoment = false
     @State private var touchDownTime: Date? = nil
     @State private var holdActivated = false
     @State private var holdActivationTask: Task<Void, Never>?
@@ -21,6 +26,10 @@ struct RadialHoldMenu: View {
         (.mind,   String(localized: "Mind", comment: "RadialMenu – energy category label"),  "brain.head.profile", 90),  // straight up
         (.heart,  String(localized: "Heart", comment: "RadialMenu – energy category label"), "heart.fill",         45),  // upper-right
     ]
+
+    /// Moment node sits to the right, outside the main fan arc.
+    private let momentAngle: Double = 0       // 0° = straight right
+    private let momentRadius: CGFloat = 90    // slightly further than the 3 main nodes (80pt)
 
     private let fanRadius: CGFloat = 80
     private let activationDistance: CGFloat = 55
@@ -36,9 +45,10 @@ struct RadialHoldMenu: View {
         hapticLight.prepare()
     }
 
-    private func nodeOffset(angleDeg: Double) -> CGSize {
+    private func nodeOffset(angleDeg: Double, radius: CGFloat? = nil) -> CGSize {
+        let r = radius ?? fanRadius
         let rad = angleDeg * .pi / 180
-        return CGSize(width: cos(rad) * fanRadius, height: -sin(rad) * fanRadius)
+        return CGSize(width: cos(rad) * r, height: -sin(rad) * r)
     }
 
     var body: some View {
@@ -71,6 +81,14 @@ struct RadialHoldMenu: View {
                     )
                 }
                 .transition(.scale.combined(with: .opacity))
+
+                // Moment node — separate from the fan arc, appears to the right
+                momentNode
+                    .transition(
+                        .scale(scale: 0.6)
+                        .combined(with: .opacity)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.7).delay(0.05))
+                    )
             }
 
             // + button with liquid dots
@@ -78,6 +96,7 @@ struct RadialHoldMenu: View {
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isFanOpen || isHolding)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: hoveredCategory)
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: hoveredMoment)
         .onAppear { Self.prepareAll() }
     }
 
@@ -104,12 +123,18 @@ struct RadialHoldMenu: View {
                 if wasTap {
                     toggleFan()
                 } else {
-                    if let category = hoveredCategory {
+                    if hoveredMoment {
+                        Self.hapticMedium.impactOccurred()
+                        onMomentSelected?()
+                        isHolding = false
+                        hoveredMoment = false
+                    } else if let category = hoveredCategory {
                         Self.hapticMedium.impactOccurred()
                         onCategorySelected(category)
                     }
                     isHolding = false
                     hoveredCategory = nil
+                    hoveredMoment = false
                 }
                 touchDownTime = nil
                 holdActivated = false
@@ -152,6 +177,7 @@ struct RadialHoldMenu: View {
         Self.hapticLight.impactOccurred()
         if isFanOpen {
             isFanOpen = false
+            onFanClosed?()
         } else {
             isFanOpen = true
             onFanOpened?()
@@ -200,27 +226,73 @@ struct RadialHoldMenu: View {
         .offset(offset)
     }
 
+    // MARK: - Moment Node
+
+    private var momentNode: some View {
+        let offset = nodeOffset(angleDeg: momentAngle, radius: momentRadius)
+        return Button {
+            if isFanOpen {
+                Self.hapticMedium.impactOccurred()
+                onMomentSelected?()
+                isFanOpen = false
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: hoveredMoment ? 18 : 14, weight: .medium))
+                    .foregroundStyle(labelColor.opacity(hoveredMoment ? 1.0 : 0.75))
+                    .frame(width: 38, height: 38)
+                    .liquidGlassControl(in: Circle())
+                    .scaleEffect(hoveredMoment ? 1.15 : 1.0)
+
+                Text(String(localized: "Moment", comment: "RadialMenu – moment node label"))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(labelColor.opacity(hoveredMoment ? 1.0 : 0.75))
+                    .contrastingOnGlass()
+            }
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("radial_moment")
+        .accessibilityLabel(String(localized: "Log a moment", comment: "RadialMenu – moment VoiceOver label"))
+        .accessibilityHint(String(localized: "Log a one-time life event for today", comment: "RadialMenu – moment VoiceOver hint"))
+        .accessibilityAddTraits(.isButton)
+        .offset(offset)
+    }
+
     // MARK: - Hit Testing (drag mode)
 
     private func updateHoveredCategory(from translation: CGSize) {
+        // Check moment node first
+        let momentOffset = nodeOffset(angleDeg: momentAngle, radius: momentRadius)
+        let mdx = translation.width - momentOffset.width
+        let mdy = translation.height - momentOffset.height
+        let momentDist = sqrt(mdx * mdx + mdy * mdy)
+        let newHoveredMoment = momentDist < activationDistance
+
+        // Check category nodes
         var closest: EnergyCategory? = nil
         var closestDist: CGFloat = .infinity
 
-        for node in nodes {
-            let off = nodeOffset(angleDeg: node.angle)
-            let dx = translation.width - off.width
-            let dy = translation.height - off.height
-            let dist = sqrt(dx * dx + dy * dy)
-            if dist < activationDistance && dist < closestDist {
-                closest = node.category
-                closestDist = dist
+        if !newHoveredMoment {
+            for node in nodes {
+                let off = nodeOffset(angleDeg: node.angle)
+                let dx = translation.width - off.width
+                let dy = translation.height - off.height
+                let dist = sqrt(dx * dx + dy * dy)
+                if dist < activationDistance && dist < closestDist {
+                    closest = node.category
+                    closestDist = dist
+                }
             }
         }
 
+        if newHoveredMoment != hoveredMoment {
+            if newHoveredMoment { Self.hapticLight.impactOccurred() }
+            hoveredMoment = newHoveredMoment
+        }
         if closest != hoveredCategory {
-            if closest != nil {
-                Self.hapticLight.impactOccurred()
-            }
+            if closest != nil { Self.hapticLight.impactOccurred() }
             hoveredCategory = closest
         }
     }
@@ -249,6 +321,8 @@ private struct MindNodeAnchor: ViewModifier {
             Spacer()
             RadialHoldMenu(labelColor: .white) { category in
                 AppLogger.ui.debug("Selected: \(category.rawValue)")
+            } onMomentSelected: {
+                AppLogger.ui.debug("Moment selected")
             }
             .padding(.bottom, 80)
         }

@@ -67,6 +67,13 @@ enum SubscriptionGate {
         return freeCanCreateCustomActivity
     }
 
+    /// Can the user log an ephemeral moment (one-time life event)?
+    /// Moment entry is a Pro-only feature — the ✦ node in the radial fan is
+    /// visible to all users but tapping it shows a paywall for free users.
+    static func canAddMoment(isPro: Bool) -> Bool {
+        return isPro
+    }
+
     /// Can the user enable daily random theme?
     static func canUseDailyRandomTheme(isPro: Bool) -> Bool {
         if isPro { return true }

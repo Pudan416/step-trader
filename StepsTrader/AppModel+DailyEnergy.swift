@@ -10,6 +10,7 @@ private let _pastDaySnapshotsKey = "pastDaySnapshots_v1"
 private let _dailyCanvasSlotsKey = "dailyChoiceSlots_v1"
 private let _customEnergyOptionsKey = "customEnergyOptions_v1"
 private let _savedRoutinesKey = "savedEnergyRoutines_v1"
+private let _dailyMomentsKey = "dailyMoments_v1"
 
 // MARK: - Daily Energy Management
 extension AppModel {
@@ -72,7 +73,11 @@ extension AppModel {
 
         baseEnergyToday = g.integer(forKey: _baseEnergyTodayKey)
         spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
-        
+        if let data = g.data(forKey: _dailyMomentsKey),
+           let decoded = try? JSONDecoder().decode([EphemeralMoment].self, from: data) {
+            dailyMoments = decoded
+        }
+
         AppLogger.energy.debug("📥 loadDailyEnergyState LOADED: body=\(self.dailyBodySelections), mind=\(self.dailyRestSelections), heart=\(self.dailyHeartSelections), base=\(self.baseEnergyToday), spent=\(self.spentStepsToday)")
         
         loadDailyCanvasSlots()
@@ -145,6 +150,10 @@ extension AppModel {
 
     /// Resolve the user-facing title for any option ID (built-in or custom).
     func resolveOptionTitle(for optionId: String) -> String {
+        // Ephemeral moments: label stored in dailyMoments, not in the library
+        if optionId.hasPrefix("moment_") {
+            return momentLabel(for: optionId) ?? optionId
+        }
         let lang = Locale.current.language.languageCode?.identifier ?? "en"
         return EnergyDefaults.options.first(where: { $0.id == optionId })?.title(for: lang)
             ?? customOptionTitle(for: optionId, lang: lang)
@@ -397,6 +406,13 @@ extension AppModel {
         let savedStepsTarget = userStepsTarget
         let savedSleepTarget = userSleepTarget
         let savedBaseEnergy = g.integer(forKey: _baseEnergyTodayKey)
+        let savedMoments: [EphemeralMoment]
+        if let data = g.data(forKey: _dailyMomentsKey),
+           let decoded = try? JSONDecoder().decode([EphemeralMoment].self, from: data) {
+            savedMoments = decoded
+        } else {
+            savedMoments = []
+        }
 
         let daySnapshot = buildPastDaySnapshot(
             savedSpent: savedSpent,
@@ -408,7 +424,8 @@ extension AppModel {
             savedSteps: savedSteps,
             savedStepsTarget: savedStepsTarget,
             savedSleepTarget: savedSleepTarget,
-            savedBaseEnergy: savedBaseEnergy
+            savedBaseEnergy: savedBaseEnergy,
+            savedMoments: savedMoments
         )
         savePastDaySnapshot(dayKey: dayKeyToSave, daySnapshot)
         
@@ -444,6 +461,8 @@ extension AppModel {
         dailyBodySelections = []
         dailyRestSelections = []
         dailyHeartSelections = []
+        dailyMoments = []
+        g.removeObject(forKey: _dailyMomentsKey)
         dailyCanvasSlots = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
         baseEnergyToday = 0
         spentStepsToday = 0
@@ -465,7 +484,8 @@ extension AppModel {
         savedSteps: Int,
         savedStepsTarget: Double,
         savedSleepTarget: Double,
-        savedBaseEnergy: Int
+        savedBaseEnergy: Int,
+        savedMoments: [EphemeralMoment] = []
     ) -> PastDaySnapshot {
         let stepsForInk = cachedSteps > 0 ? cachedSteps : Double(savedSteps)
         let sleepPts = savedSleep > 0
@@ -490,7 +510,8 @@ extension AppModel {
             steps: savedSteps,
             sleepHours: savedSleep,
             stepsTarget: savedStepsTarget,
-            sleepTargetHours: savedSleepTarget
+            sleepTargetHours: savedSleepTarget,
+            moments: savedMoments
         )
     }
 
@@ -715,6 +736,48 @@ extension AppModel {
         dailySelections(for: category).contains(optionId)
     }
 
+    // MARK: - Ephemeral Moments
+
+    /// Add a one-time moment for today.
+    /// The moment's ID is added to the appropriate category selection so the
+    /// energy economy is unaffected — moment counts like a regular activity.
+    @discardableResult
+    func addMoment(label: String, icon: String, category: EnergyCategory) -> EphemeralMoment? {
+        guard dailySelections(for: category).count < EnergyDefaults.maxSelectionsPerCategory else {
+            AppLogger.energy.debug("⚡️ addMoment: category \(category.rawValue) is full, skipping")
+            return nil
+        }
+        let dayKey = AppModel.dayKey(for: Date.now)
+        let moment = EphemeralMoment(label: label, icon: icon, category: category, dayKey: dayKey)
+        dailyMoments.append(moment)
+        // Register the ID in the category selection so it contributes energy
+        var selections = dailySelections(for: category)
+        selections.append(moment.id)
+        setDailySelections(selections, category: category)
+        syncFromSelectionsToSlots()
+        recalculateDailyEnergy()
+        persistDailyEnergyState()
+        AppLogger.energy.debug("✦ addMoment: '\(label)' → \(category.rawValue) [\(moment.id)]")
+        return moment
+    }
+
+    /// Remove a moment logged today (undo support).
+    func removeMoment(id: String) {
+        guard let moment = dailyMoments.first(where: { $0.id == id }) else { return }
+        dailyMoments.removeAll { $0.id == id }
+        var selections = dailySelections(for: moment.category)
+        selections.removeAll { $0 == id }
+        setDailySelections(selections, category: moment.category)
+        syncFromSelectionsToSlots()
+        recalculateDailyEnergy()
+        persistDailyEnergyState()
+    }
+
+    /// Resolve a moment label for a given optionId (used by resolveOptionTitle).
+    func momentLabel(for optionId: String) -> String? {
+        dailyMoments.first(where: { $0.id == optionId })?.label
+    }
+
     func dailySelectionsCount(for category: EnergyCategory) -> Int {
         dailySelections(for: category).count
     }
@@ -746,6 +809,9 @@ extension AppModel {
         saveStringArray(dailyBodySelections, forKey: dailySelectionsKey(for: .body))
         saveStringArray(dailyRestSelections, forKey: dailySelectionsKey(for: .mind))
         saveStringArray(dailyHeartSelections, forKey: dailySelectionsKey(for: .heart))
+        if let data = try? JSONEncoder().encode(dailyMoments) {
+            g.set(data, forKey: _dailyMomentsKey)
+        }
         g.set(baseEnergyToday, forKey: _baseEnergyTodayKey)
         g.set(spentStepsToday, forKey: SharedKeys.spentStepsToday)
         g.set(currentDayStart(for: Date.now), forKey: SharedKeys.stepsBalanceAnchor)
