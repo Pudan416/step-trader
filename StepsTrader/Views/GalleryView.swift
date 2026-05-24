@@ -476,24 +476,16 @@ struct GalleryView: View {
                         showMomentPaywall = true
                     }
                 },
+                isFanOpen: $isFanOpen,
                 onFanOpened: {
-                    isFanOpen = true
                     #if DEBUG
                     CoachMarkManager.postAction(for: .tapPlusButton)
                     #endif
-                },
-                onFanClosed: {
-                    isFanOpen = false
                 }
             )
             #if DEBUG
             .coachMarkAnchor(.tapPlusButton)
             #endif
-            // Track fan closure: when pickerCategory is set the fan closes,
-            // and when the sheet dismisses the fan is already gone.
-            .onChange(of: toolbar.pickerCategory) { _, val in
-                if val == nil { isFanOpen = false }
-            }
 
             Spacer()
 
