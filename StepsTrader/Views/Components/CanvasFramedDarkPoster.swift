@@ -163,7 +163,7 @@ struct CanvasFramedDarkPoster<Content: View>: View {
 
     private func taglineView(fontSize: CGFloat) -> some View {
         VStack(alignment: .trailing, spacing: 1) {
-            Text("«Nowhere — Now Here» iOS app")
+            Text("«Nowhere» is an iOS app")
                 .font(.system(size: fontSize, weight: .regular))
                 .foregroundStyle(.white)
                 .lineLimit(1)

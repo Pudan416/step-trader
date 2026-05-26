@@ -40,8 +40,27 @@ extension SupabaseSyncService {
         }
     }
 
-    func removeDeviceToken(_ tokenHex: String) async {
-        guard let auth = await authenticatedContext() else { return }
+    /// Deletes this device's row from `device_tokens` for the given user.
+    ///
+    /// `bearer` / `userId` overrides exist so that sign-out and account-deletion
+    /// flows can pass a session they captured *before* wiping the keychain —
+    /// otherwise `authenticatedContext()` would read `nil` mid-teardown and the
+    /// row would be left orphaned for the outgoing user.
+    func removeDeviceToken(
+        _ tokenHex: String,
+        bearer: String? = nil,
+        userId: String? = nil
+    ) async {
+        let resolvedToken: String
+        let resolvedUserId: String
+        if let bearer, let userId {
+            resolvedToken = bearer
+            resolvedUserId = userId
+        } else {
+            guard let auth = await authenticatedContext() else { return }
+            resolvedToken = auth.token
+            resolvedUserId = auth.userId
+        }
 
         do {
             let cfg = try SupabaseConfig.load()
@@ -49,13 +68,13 @@ extension SupabaseSyncService {
             guard var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
             comps.queryItems = [
                 URLQueryItem(name: "token", value: "eq.\(tokenHex)"),
-                URLQueryItem(name: "user_id", value: "eq.\(auth.userId)")
+                URLQueryItem(name: "user_id", value: "eq.\(resolvedUserId)")
             ]
             guard let deleteURL = comps.url else { return }
 
             var request = URLRequest(url: deleteURL)
             request.httpMethod = "DELETE"
-            request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(resolvedToken)", forHTTPHeaderField: "Authorization")
             request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
 
             let (_, response) = try await network.data(for: request)

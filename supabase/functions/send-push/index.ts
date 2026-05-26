@@ -1,11 +1,51 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
-// APNs JWT generation
+// --- Required env vars ---
+// Read once at startup. Missing values throw immediately rather than failing
+// silently per request (defends against §6.3: a missing APNS_BUNDLE_ID used to
+// silently fall back to the production identifier and could mass-delete tokens
+// via §6.4's cleanup heuristic).
+function requireEnv(name: string): string {
+  const v = Deno.env.get(name);
+  if (!v) {
+    throw new Error(`Missing required env var: ${name}`);
+  }
+  return v;
+}
+
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+const APNS_BUNDLE_ID = requireEnv("APNS_BUNDLE_ID");
+const IS_PRODUCTION = Deno.env.get("APNS_ENVIRONMENT") !== "sandbox";
+
+// --- Constant-time string compare ---
+// Prevents timing oracles when checking the caller's bearer against the service
+// role key. Both inputs are ASCII (Supabase keys are JWT-ish base64), so byte
+// length difference is informative on its own — we still iterate the longer
+// string to keep the timing bound by max(len(a), len(b)).
+function timingSafeEqual(a: string, b: string): boolean {
+  const aBytes = new TextEncoder().encode(a);
+  const bBytes = new TextEncoder().encode(b);
+  const len = Math.max(aBytes.length, bBytes.length);
+  let mismatch = aBytes.length ^ bBytes.length;
+  for (let i = 0; i < len; i++) {
+    mismatch |= (aBytes[i] ?? 0) ^ (bBytes[i] ?? 0);
+  }
+  return mismatch === 0;
+}
+
+function extractBearer(header: string | null): string | null {
+  if (!header) return null;
+  const m = header.match(/^Bearer\s+(.+)$/i);
+  return m ? m[1].trim() : null;
+}
+
+// --- APNs JWT generation (unchanged) ---
 async function generateAPNsJWT(): Promise<string> {
-  const teamId = Deno.env.get("APNS_TEAM_ID")!;
-  const keyId = Deno.env.get("APNS_KEY_ID")!;
-  const privateKeyPem = Deno.env.get("APNS_PRIVATE_KEY")!;
+  const teamId = requireEnv("APNS_TEAM_ID");
+  const keyId = requireEnv("APNS_KEY_ID");
+  const privateKeyPem = requireEnv("APNS_PRIVATE_KEY");
 
   const header = { alg: "ES256", kid: keyId };
   const now = Math.floor(Date.now() / 1000);
@@ -40,8 +80,7 @@ async function generateAPNsJWT(): Promise<string> {
     new TextEncoder().encode(signingInput)
   );
 
-  // Convert DER signature to raw r||s format is not needed — WebCrypto ECDSA
-  // already returns raw IEEE P1363 (r||s) format.
+  // WebCrypto ECDSA already returns raw IEEE P1363 (r||s) format.
   const sigB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
@@ -89,32 +128,60 @@ async function sendAPNs(
 
     const errBody = await res.json().catch(() => ({}));
     return { token, success: false, status, reason: errBody.reason };
-  } catch (e) {
-    return { token, success: false, status: 0, reason: String(e) };
+  } catch (_e) {
+    // Don't surface raw exception strings — they can include URL fragments
+    // containing token bytes.
+    return { token, success: false, status: 0, reason: "network_error" };
   }
 }
 
+// --- Request handler ---
+//
+// Security contract:
+// - Caller MUST present `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>`.
+//   This endpoint can broadcast to every registered iOS device, so it is
+//   restricted to server-side / admin invocations only. No iOS client should
+//   ever ship the service-role key. (§6.1)
+// - CORS is closed by default. The function is intended to be called from
+//   server-to-server contexts (cron, admin tooling), never from a browser.
+//   If a browser caller is added later, narrow `Access-Control-Allow-Origin`
+//   to a specific allow-list — do not return "*".
 serve(async (req) => {
+  // No browser callers expected. Reject preflights instead of advertising
+  // "*". A future legitimate caller can be added to an allow-list here.
   if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers":
-          "authorization, x-client-info, apikey, content-type",
-      },
+    return new Response("CORS disabled for this endpoint", { status: 405 });
+  }
+
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { "Content-Type": "application/json" },
     });
   }
 
-  // Authenticate caller — must be a valid Supabase user
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: "Missing authorization" }), {
+  // Authenticate: require service role bearer, constant-time compare.
+  const bearer = extractBearer(req.headers.get("Authorization"));
+  if (!bearer || !timingSafeEqual(bearer, SERVICE_ROLE_KEY)) {
+    // Same 401 shape for missing / invalid — don't leak which case failed.
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  const { title, body: pushBody } = await req.json();
+  let parsed: { title?: unknown; body?: unknown };
+  try {
+    parsed = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const title = typeof parsed.title === "string" ? parsed.title : "";
+  const pushBody = typeof parsed.body === "string" ? parsed.body : "";
   if (!title || !pushBody) {
     return new Response(
       JSON.stringify({ error: "title and body are required" }),
@@ -123,10 +190,7 @@ serve(async (req) => {
   }
 
   // Use service role to read all tokens
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
   const { data: tokens, error } = await supabase
     .from("device_tokens")
@@ -134,7 +198,7 @@ serve(async (req) => {
     .eq("platform", "ios");
 
   if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: "Database error" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
@@ -147,8 +211,6 @@ serve(async (req) => {
     });
   }
 
-  const bundleId = Deno.env.get("APNS_BUNDLE_ID") ?? "personal-project.StepsTrader";
-  const isProduction = Deno.env.get("APNS_ENVIRONMENT") !== "sandbox";
   const jwt = await generateAPNsJWT();
 
   // Send to all tokens in parallel (batches of 50)
@@ -158,22 +220,36 @@ serve(async (req) => {
     const batch = tokens.slice(i, i + batchSize);
     const batchResults = await Promise.all(
       batch.map((t) =>
-        sendAPNs(t.token, title, pushBody, jwt, bundleId, isProduction)
+        sendAPNs(t.token, title, pushBody, jwt, APNS_BUNDLE_ID, IS_PRODUCTION)
       )
     );
     results.push(...batchResults);
   }
 
-  // Clean up invalid tokens
+  // Clean up invalid tokens.
+  // §6.4: only delete on `BadDeviceToken` (token never valid) or `Unregistered`
+  // (app uninstalled). DO NOT delete on `DeviceTokenNotForTopic` — that signals
+  // a server config error (wrong APNS_BUNDLE_ID for this token's app) and
+  // deleting would wipe live tokens on a misconfigured deploy.
   const invalidTokens = results
     .filter(
       (r) =>
         !r.success &&
-        (r.reason === "BadDeviceToken" ||
-          r.reason === "Unregistered" ||
-          r.reason === "DeviceTokenNotForTopic")
+        (r.reason === "BadDeviceToken" || r.reason === "Unregistered")
     )
     .map((r) => r.token);
+
+  // Surface DeviceTokenNotForTopic separately so it shows up in function logs
+  // as a deploy-config alert rather than silently triggering cleanup.
+  const topicMismatches = results.filter(
+    (r) => !r.success && r.reason === "DeviceTokenNotForTopic"
+  ).length;
+  if (topicMismatches > 0) {
+    console.warn(
+      `[send-push] ${topicMismatches} tokens returned DeviceTokenNotForTopic — ` +
+        `check APNS_BUNDLE_ID="${APNS_BUNDLE_ID}" and APNS_ENVIRONMENT.`
+    );
+  }
 
   if (invalidTokens.length > 0) {
     await supabase
@@ -190,6 +266,7 @@ serve(async (req) => {
       sent,
       failed,
       cleaned: invalidTokens.length,
+      topic_mismatches: topicMismatches,
       total: tokens.length,
     }),
     { status: 200, headers: { "Content-Type": "application/json" } }

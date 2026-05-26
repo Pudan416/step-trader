@@ -60,7 +60,11 @@ final class ShapeIconCache {
             }
         }
 
-        return UIImage(cgImage: image.cgImage!, scale: scale, orientation: .up)
+        // §5.6: a zero-sized rect or interrupted render can yield a UIImage
+        // whose `cgImage` is nil. Falling back to the renderer's UIImage is
+        // safe — we only re-wrap to override `scale`/`orientation`.
+        guard let cg = image.cgImage else { return image }
+        return UIImage(cgImage: cg, scale: scale, orientation: .up)
     }
 
     // MARK: - Per-shape rendering

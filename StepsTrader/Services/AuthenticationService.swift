@@ -97,8 +97,20 @@ class AuthenticationService: NSObject, ObservableObject {
     private let avatarDefaultsPrefix = "userAvatarData_v1_"
     private let appleNamePrefix = "appleDisplayName_v1_"
     private let customNicknamePrefix = "hasCustomNickname_v1_"
+    /// UserDefaults key for the APNs hex device token cached by `AppDelegate.
+    /// application(_:didRegisterForRemoteNotificationsWithDeviceToken:)`.
+    /// `signOut` / `deleteAccount` read this so they can call
+    /// `removeDeviceToken` under the still-valid session bearer before
+    /// wiping the keychain entry. (§5.2)
+    static let pushTokenStorageKey = "apns_device_token_v1"
     private var currentNonce: String?
     private var pendingContinuations: [CheckedContinuation<Void, Never>] = []
+
+    /// Handle to the background work spawned after a successful sign-in
+    /// (RC link + full Supabase sync). Stored so logout can cancel it
+    /// before the late-arriving sync writes back to a stale `AppModel`.
+    /// (§3.1)
+    private var postLoginSyncTask: Task<Void, Never>?
     
     override init() {
         super.init()
@@ -130,6 +142,16 @@ class AuthenticationService: NSObject, ObservableObject {
     // MARK: - Public Methods
     
     func signOut() {
+        // Cancel any in-flight post-login work first so it can't write back
+        // to AppModel after we've flipped the user-facing state. (§3.1)
+        postLoginSyncTask?.cancel()
+        postLoginSyncTask = nil
+
+        // Capture the bearer + userId BEFORE we clear the keychain — the push
+        // token DELETE and any other authenticated cleanup need a still-valid
+        // session. (§5.2)
+        let pendingTeardown = capturePendingTeardown()
+
         if let userId = currentUser?.id {
             clearCachedProfile(for: userId)
         }
@@ -137,46 +159,91 @@ class AuthenticationService: NSObject, ObservableObject {
         currentUser = nil
         isAuthenticated = false
         isAnonymous = false
-        Task { await SubscriptionStore.shared.logOut() }
+
+        Task { @MainActor in
+            await Self.performTeardown(pendingTeardown)
+        }
+    }
+
+    /// Snapshot of credentials and device-token needed to tear down the
+    /// previous session AFTER the local keychain entry has been wiped. Pass
+    /// to `performTeardown(_:)` from a detached `Task`.
+    private struct PendingTeardown {
+        let bearer: String
+        let userId: String
+        let deviceTokenHex: String?
+    }
+
+    private func capturePendingTeardown() -> PendingTeardown? {
+        guard let session = loadStoredSession() else { return nil }
+        let deviceToken = UserDefaults.standard.string(forKey: Self.pushTokenStorageKey)
+        return PendingTeardown(
+            bearer: session.accessToken,
+            userId: session.user.id,
+            deviceTokenHex: deviceToken
+        )
+    }
+
+    /// Runs sign-out side-effects against the *previous* session's bearer.
+    ///
+    /// Order matters: we must delete the `device_tokens` row before RC logout
+    /// because the DELETE call goes through PostgREST (RLS-checked against the
+    /// captured bearer), while RC logout only touches the RevenueCat SDK.
+    /// Both happen after the keychain has already been wiped — that's fine,
+    /// the bearer JWT is still valid until its server-side expiry. (§5.1, §5.2)
+    private static func performTeardown(_ pending: PendingTeardown?) async {
+        if let pending {
+            if let tokenHex = pending.deviceTokenHex {
+                await SupabaseSyncService.shared.removeDeviceToken(
+                    tokenHex,
+                    bearer: pending.bearer,
+                    userId: pending.userId
+                )
+            }
+        }
+        // Clear the cached APNs token regardless — a fresh registration
+        // happens on the next launch via UIApplication.registerForRemoteNotifications.
+        UserDefaults.standard.removeObject(forKey: pushTokenStorageKey)
+
+        await SubscriptionStore.shared.logOut()
     }
 
     // MARK: - Anonymous Auth
 
-    private func signInAnonymously() async {
-        do {
-            let cfg = try SupabaseConfig.load()
-            let url = cfg.baseURL.appendingPathComponent("auth/v1/signup")
+    /// Creates a fresh anonymous Supabase session. Throws on any failure so
+    /// the caller can surface a real error to the UI instead of leaving the
+    /// app in a silently-unauthenticated state. (§5.3)
+    private func signInAnonymously() async throws {
+        let cfg = try SupabaseConfig.load()
+        let url = cfg.baseURL.appendingPathComponent("auth/v1/signup")
 
-            let (data, http) = try await makeJSONRequest(
-                url: url,
-                method: "POST",
-                headers: [
-                    "apikey": cfg.anonKey,
-                    "authorization": "Bearer \(cfg.anonKey)"
-                ],
-                body: Data("{}".utf8)
-            )
+        let (data, http) = try await makeJSONRequest(
+            url: url,
+            method: "POST",
+            headers: [
+                "apikey": cfg.anonKey,
+                "authorization": "Bearer \(cfg.anonKey)"
+            ],
+            body: Data("{}".utf8)
+        )
 
-            guard http.statusCode < 400 else {
-                let msg = String(data: data, encoding: .utf8) ?? "Anonymous sign-in failed"
-                AppLogger.auth.error("🔐 Anonymous sign-in failed: status \(http.statusCode), body: \(msg.prefix(300))")
-                return
-            }
-
-            let session = try supabaseDecoder.decode(SupabaseSessionResponse.self, from: data)
-            storeSession(session)
-            isAnonymous = session.user.isAnonymous
-
-            applyCachedSessionState(
-                userId: session.user.id,
-                email: nil,
-                createdAt: session.user.createdAt
-            )
-
-            AppLogger.auth.debug("🔐 Anonymous sign-in successful, userId: \(session.user.id.prefix(8))…")
-        } catch {
-            AppLogger.auth.error("🔐 Anonymous sign-in error: \(error.localizedDescription)")
+        guard http.statusCode < 400 else {
+            let msg = String(data: data, encoding: .utf8) ?? "Anonymous sign-in failed"
+            AppLogger.auth.error("🔐 Anonymous sign-in failed: status \(http.statusCode), body: \(msg.prefix(300))")
+            throw AuthError.supabaseError("Anonymous sign-in failed (\(http.statusCode))")
         }
+
+        let session = try supabaseDecoder.decode(SupabaseSessionResponse.self, from: data)
+        storeSession(session)
+        isAnonymous = session.user.isAnonymous
+
+        applyCachedSessionState(
+            userId: session.user.id,
+            email: nil,
+            createdAt: session.user.createdAt
+        )
+
+        AppLogger.auth.debug("🔐 Anonymous sign-in successful, userId: \(session.user.id.prefix(8))…")
     }
     
     /// Permanently deletes the user's account and all associated server-side data
@@ -185,10 +252,15 @@ class AuthenticationService: NSObject, ObservableObject {
         guard let session = loadStoredSession() else {
             throw AuthError.supabaseError("No active session")
         }
-        
+
+        // Cancel any in-flight post-login work — the user we'd be syncing for
+        // is about to stop existing. (§3.1)
+        postLoginSyncTask?.cancel()
+        postLoginSyncTask = nil
+
         let cfg = try SupabaseConfig.load()
         let url = cfg.baseURL.appendingPathComponent("functions/v1/delete-user")
-        
+
         let (data, http) = try await makeJSONRequest(
             url: url,
             method: "POST",
@@ -197,22 +269,34 @@ class AuthenticationService: NSObject, ObservableObject {
                 "authorization": "Bearer \(session.accessToken)"
             ]
         )
-        
+
         if http.statusCode >= 400 {
             let msg = String(data: data, encoding: .utf8) ?? "Account deletion failed"
             throw AuthError.supabaseError(msg)
         }
-        
+
         let userId = session.user.id
+        let pendingTeardown = PendingTeardown(
+            bearer: session.accessToken,
+            userId: userId,
+            deviceTokenHex: UserDefaults.standard.string(forKey: Self.pushTokenStorageKey)
+        )
+
         clearStoredSession()
         clearCachedProfile(for: userId)
         storeAvatarData(nil, for: userId)
         UserDefaults.standard.removeObject(forKey: appleNamePrefix + userId)
         UserDefaults.standard.removeObject(forKey: customNicknamePrefix + userId)
-        
+
         currentUser = nil
         isAuthenticated = false
-        
+
+        // §5.1 / §5.2: remove the push-token row and log out RevenueCat with
+        // the captured bearer. The DELETE may 404 if the server-side cascade
+        // (auth.users → public.users / device_tokens) already removed it —
+        // that's fine, removeDeviceToken treats non-200 as best-effort.
+        await Self.performTeardown(pendingTeardown)
+
         #if DEBUG
         AppLogger.auth.debug("🗑️ Account deleted successfully for user \(userId.prefix(8))…")
         #endif
@@ -309,11 +393,14 @@ class AuthenticationService: NSObject, ObservableObject {
                 AppLogger.auth.debug("🔐 Sign in complete — isAuthenticated: \(self.isAuthenticated)")
 
                 let uid = self.currentUser?.id ?? session.user.id
-                let appModel = self.postLoginSyncModel
-                Task {
+                // Replace any previously-running post-login task (e.g. a
+                // re-sign-in before the previous sync settled). (§3.1)
+                self.postLoginSyncTask?.cancel()
+                self.postLoginSyncTask = Task { [weak self] in
                     AppLogger.auth.debug("🔐 Post-login — linking RC userId: \(uid.prefix(8))…")
                     await SubscriptionStore.shared.logIn(supabaseUserID: uid)
-                    if let appModel {
+                    guard !Task.isCancelled else { return }
+                    if let appModel = await self?.postLoginSyncModel {
                         AppLogger.auth.debug("🔐 Post-login — starting full Supabase sync")
                         await SupabaseSyncService.shared.performFullSync(model: appModel)
                         AppLogger.auth.debug("🔐 Post-login — full sync finished")
@@ -575,22 +662,27 @@ class AuthenticationService: NSObject, ObservableObject {
         AppLogger.auth.debug("🔐 loadStoredSessionAndRefreshUser called")
         guard let session = loadStoredSession() else {
             AppLogger.auth.debug("🔐 No stored session found in Keychain, signing in anonymously")
-            await signInAnonymously()
+            do {
+                try await signInAnonymously()
+            } catch {
+                // Surface to the UI so the user knows something went wrong
+                // instead of seeing a permanently-empty app. (§5.3)
+                self.error = String(
+                    localized: "Couldn't initialise your account. Please check your connection and try again.",
+                    comment: "Auth – anonymous signup failure surfaced on cold launch"
+                )
+            }
             return
         }
         isAnonymous = session.user.isAnonymous
-        
+
         #if DEBUG
         AppLogger.auth.debug("🔐 Found stored session, user: \(session.user.id.prefix(8))…, expires: \(session.expiresAt)")
         #endif
-        
+
         // Show logged-in UI immediately; refresh profile/token in background.
-        applyCachedSessionState(
-            userId: session.user.id,
-            email: session.user.email,
-            createdAt: session.user.createdAt
-        )
-        
+        reapplyCachedState(for: session)
+
         do {
             let validSession = try await ensureValidSession(session)
             AppLogger.auth.debug("🔐 Session validated/refreshed successfully")
@@ -617,15 +709,22 @@ class AuthenticationService: NSObject, ObservableObject {
             } else {
                 AppLogger.auth.warning("🔐 Session refresh deferred (offline/transient): \(error.localizedDescription)")
                 if currentUser == nil {
-                    applyCachedSessionState(
-            userId: session.user.id,
-            email: session.user.email,
-            createdAt: session.user.createdAt
-        )
+                    reapplyCachedState(for: session)
                 }
                 isAuthenticated = currentUser != nil
             }
         }
+    }
+
+    /// Single source of truth for restoring optimistic logged-in UI from a
+    /// (possibly-stale) cached session. Both the cold-launch path and the
+    /// transient-error recovery branch route through here. (§9.4)
+    private func reapplyCachedState(for session: SupabaseSessionResponse) {
+        applyCachedSessionState(
+            userId: session.user.id,
+            email: session.user.email,
+            createdAt: session.user.createdAt
+        )
     }
     
     // MARK: - Supabase REST

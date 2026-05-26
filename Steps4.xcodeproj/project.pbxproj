@@ -147,6 +147,7 @@
 		30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0008300000000000CA08 /* CanvasStateManagers.swift */; };
 		30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA000A300000000000CA0A /* CanvasStorageService.swift */; };
 		30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EA00013001000000EA0001 /* EnergyGradientBackground.swift */; };
+		30EA00043001000000EA0004 /* EnergySignatureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EA00033001000000EA0003 /* EnergySignatureView.swift */; };
 		31E56CC97BFC4B2EB6CAA2A8 /* AppModel+PayGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E8B78AD65E54737AA7CA90F /* AppModel+PayGate.swift */; };
 		3B9C4E54AE20A00DECDAFDAF /* PastDaySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E648AABF4FC13465DF42C1 /* PastDaySnapshot.swift */; };
 		40IN00022FFF050000000002 /* ExportCanvasWallpaperIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40IN00012FFF050000000001 /* ExportCanvasWallpaperIntent.swift */; };
@@ -445,6 +446,7 @@
 		30CA0008300000000000CA08 /* CanvasStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStateManagers.swift; sourceTree = "<group>"; };
 		30CA000A300000000000CA0A /* CanvasStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStorageService.swift; sourceTree = "<group>"; };
 		30EA00013001000000EA0001 /* EnergyGradientBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyGradientBackground.swift; sourceTree = "<group>"; };
+		30EA00033001000000EA0003 /* EnergySignatureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergySignatureView.swift; sourceTree = "<group>"; };
 		40IN00012FFF050000000001 /* ExportCanvasWallpaperIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCanvasWallpaperIntent.swift; sourceTree = "<group>"; };
 		40IN00032FFF050000000003 /* AppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcuts.swift; sourceTree = "<group>"; };
 		45F540E48318D3A7CEF51B99 /* ThemeTextStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ThemeTextStyles.swift; path = StepsTrader/Theme/ThemeTextStyles.swift; sourceTree = SOURCE_ROOT; };
@@ -851,6 +853,7 @@
 				20F5A00F2FFF020000000000 /* StepBalanceCard.swift */,
 				20C7E6132F8BF2A200BD06AA /* CanvasShapePreview.swift */,
 				30EA00013001000000EA0001 /* EnergyGradientBackground.swift */,
+				30EA00033001000000EA0003 /* EnergySignatureView.swift */,
 				DD000001DDDD000100000002 /* PaperTicketView.swift */,
 				WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */,
 				2061EB922F269CE6009FEC24 /* ImagePicker.swift */,
@@ -1408,6 +1411,7 @@
 				200AC5B12F16DB100018004E /* AuthenticationService+CachedProfile.swift in Sources */,
 				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
 				30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */,
+					30EA00043001000000EA0004 /* EnergySignatureView.swift in Sources */,
 				DD000001DDDD000100000001 /* PaperTicketView.swift in Sources */,
 				WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */,
 				DD000002DDDD000200000001 /* TicketTemplatePickerView.swift in Sources */,

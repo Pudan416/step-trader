@@ -1408,33 +1408,43 @@ struct GalleryView: View {
 
     private func metricPopover(kind: MetricOverlayKind) -> some View {
         ZStack {
-            Color.black.opacity(0.4)
+            // Same dim backdrop as the radar AxisDetail overlay in MeView.
+            Color.black.opacity(0.40)
                 .ignoresSafeArea()
                 .onTapGesture { metricOverlay = nil }
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
+            // Liquid Glass card — header (title + close) over content. Hugs
+            // its content vertically so there's no empty space below.
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 10) {
                     Text(overlayTitle(for: kind))
-                        .font(.headline)
-                    Spacer()
-                    Button { metricOverlay = nil } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Spacer(minLength: 8)
+                    Button {
+                        metricOverlay = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .frame(width: 30, height: 30)
+                            .background(.white.opacity(0.12), in: Circle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "Close",
+                        comment: "MetricOverlay – close button"))
                 }
+
                 overlayContent(for: kind)
             }
-            .padding(16)
-            .frame(maxWidth: 320)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(theme.backgroundSecondary.opacity(0.98))
-                    .shadow(color: Color.black.opacity(0.2), radius: 16, x: 0, y: 8)
-            )
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 20)
+            .padding(.top, 22)
+            .padding(.bottom, 22)
+            .frame(maxWidth: 360)
+            .fixedSize(horizontal: false, vertical: true)
+            .glassCard(cornerRadius: 26, style: .frosted)
+            .padding(.horizontal, 20)
         }
     }
 

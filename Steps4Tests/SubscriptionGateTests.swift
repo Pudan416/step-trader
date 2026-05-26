@@ -69,8 +69,14 @@ final class SubscriptionGateTests: XCTestCase {
         XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: true, paletteRaw: "anything"))
     }
 
-    func testIsGradientPaletteAvailable_freeOnlyWarmSunset() {
+    func testIsGradientPaletteAvailable_freeSunsetOceanAurora() {
         XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "warmSunset"))
+        XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "ocean"))
+        XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "aurora"))
+        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "dusk"))
+        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "dawn"))
+        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "ember"))
+        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "horizon"))
         XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "coolOcean"))
     }
 

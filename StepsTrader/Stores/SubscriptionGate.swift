@@ -30,9 +30,10 @@ enum SubscriptionGate {
 
     // MARK: - Allowed visual options for Free
 
-    /// Gradient palette Free users can pick. Other palettes are locked
+    /// Gradient palettes Free users can pick. Other palettes are locked
     /// behind a paywall in `SettingsAppearancePage`.
-    static let freeGradientPaletteRaw: String = "warmSunset"
+    /// `warmSunset` is the raw value for the "Sunset" palette (see `GradientPalette`).
+    static let freeGradientPaletteRaws: Set<String> = ["warmSunset", "ocean", "aurora"]
 
     /// Gradient styles Free users can pick.
     /// `circular` in product spec maps to `radial` in `GradientStyle`.
@@ -89,7 +90,7 @@ enum SubscriptionGate {
     /// Is this gradient palette available to the user?
     static func isGradientPaletteAvailable(isPro: Bool, paletteRaw: String) -> Bool {
         if isPro { return true }
-        return paletteRaw == freeGradientPaletteRaw
+        return freeGradientPaletteRaws.contains(paletteRaw)
     }
 
     /// Is this gradient style available to the user?

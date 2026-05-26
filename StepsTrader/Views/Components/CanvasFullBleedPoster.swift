@@ -147,7 +147,7 @@ struct CanvasFullBleedPoster<Content: View>: View {
 
     private func taglineView(fontSize: CGFloat) -> some View {
         VStack(alignment: .trailing, spacing: 1) {
-            Text("«Nowhere — Now Here» iOS app")
+            Text("«Nowhere» is an iOS app")
                 .font(.system(size: fontSize, weight: .regular))
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.5), radius: 3, y: 1)

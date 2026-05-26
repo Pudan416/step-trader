@@ -9,6 +9,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
         AppLogger.notifications.debug("📲 APNs token: \(hex)")
+        // Cache so sign-out / account-deletion can call removeDeviceToken with
+        // a concrete value. Stored in `.standard` (not the app group) because
+        // it's user-scoped, not extension-shared. See §5.2 in CODE_AUDIT.md.
+        UserDefaults.standard.set(hex, forKey: AuthenticationService.pushTokenStorageKey)
         Task {
             await SupabaseSyncService.shared.registerDeviceToken(hex)
         }
@@ -119,6 +123,61 @@ struct StepsTraderApp: App {
         UITabBar.appearance().scrollEdgeAppearance = tabAppearance
     }
 
+    /// Run the in-app coach mark tour if the user opted into it on the last
+    /// onboarding slide (see `OnboardingStoriesView.finish(wantsTour:)`).
+    ///
+    /// Blocks until the tour completes (or returns immediately if no tour was
+    /// requested). The caller — the welcome-paywall `.task` — uses this as a
+    /// gate so the paywall never appears over an in-progress coach mark.
+    ///
+    /// Coach marks themselves are DEBUG-only (`CoachMarkManager` is wrapped
+    /// in `#if DEBUG`), so in release this method is a no-op.
+    @MainActor
+    private func runCoachMarksIfRequested() async {
+        #if DEBUG
+        let defaults = UserDefaults.standard
+        let wantsTour = defaults.bool(forKey: "shouldStartCoachMark")
+
+        // Start the tour if it was requested and not already running. We read
+        // & clear `shouldStartCoachMark` here (instead of in `onFinish`) so
+        // the start is sequenced inside the same task that gates the paywall.
+        if wantsTour && !coachMarkManager.isActive {
+            defaults.removeObject(forKey: "shouldStartCoachMark")
+            // Let the canvas render before the first coach mark anchors so
+            // overlay positions resolve against laid-out geometry.
+            try? await Task.sleep(for: .milliseconds(800))
+            if Task.isCancelled { return }
+            coachMarkManager.start()
+        }
+
+        // Wait for any in-progress tour to complete (covers both the fresh
+        // start above and the `.task` re-firing mid-tour after a view rebuild).
+        while coachMarkManager.isActive {
+            try? await Task.sleep(for: .milliseconds(300))
+            if Task.isCancelled { return }
+        }
+
+        // Breathing room between the last coach mark dismissing and whatever
+        // comes next (typically the welcome paywall sliding up).
+        if wantsTour {
+            try? await Task.sleep(for: .milliseconds(400))
+            if Task.isCancelled { return }
+        }
+        #endif
+    }
+
+    /// Decide whether to flip `showPostOnboardingPaywall` to `true`.
+    /// Called only after `runCoachMarksIfRequested()` has returned, so the
+    /// tour (if any) is guaranteed to be finished by this point.
+    @MainActor
+    private func presentPostOnboardingPaywallIfNeeded() async {
+        guard SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) else { return }
+        // Brief cosmetic delay so the welcome screen renders before the paywall.
+        try? await Task.sleep(for: .milliseconds(600))
+        if Task.isCancelled { return }
+        showPostOnboardingPaywall = true
+    }
+
     var body: some Scene {
         WindowGroup {
             GlassShimmerProvider {
@@ -147,30 +206,39 @@ struct StepsTraderApp: App {
                     // and the closure's deferred presentation.
                     .task {
                         guard !isUITest else { return }
-                        // Wait for subscription state to settle off transient
+
+                        // 1) Run the optional in-app coach mark tour FIRST.
+                        // The paywall must never appear while the tour is
+                        // active — it would slide up over the coach overlay
+                        // and break the flow. `runCoachMarksIfRequested` is a
+                        // no-op (returns immediately) when the user declined
+                        // the tour, so non-tour users don't pay any latency.
+                        await runCoachMarksIfRequested()
+                        if Task.isCancelled { return }
+
+                        // 2) Wait for subscription state to settle off transient
                         // states (`.unknown` and `.loadingFromCache`) so we
                         // don't accidentally show paywall to a grandfathered
                         // or freshly-restored user before RC bootstraps.
                         // 2s budget is plenty for cached/local resolution;
                         // if RC is offline we proceed anyway based on cached
                         // `isPro` (correct: cached==true → no paywall).
+                        // .task cancels when the view disappears — make sure
+                        // sleeps don't keep us "alive" past that point and
+                        // accidentally trigger the paywall on a stale view.
+                        // (§3.7)
                         for _ in 0..<10 {
                             switch model.subscriptionStore.state {
                             case .unknown, .loadingFromCache: break
                             default:
-                                if SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) {
-                                    try? await Task.sleep(for: .milliseconds(600))
-                                    showPostOnboardingPaywall = true
-                                }
+                                await presentPostOnboardingPaywallIfNeeded()
                                 return
                             }
                             try? await Task.sleep(for: .milliseconds(200))
+                            if Task.isCancelled { return }
                         }
                         // Fallback after timeout: respect cached isPro.
-                        if SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) {
-                            try? await Task.sleep(for: .milliseconds(600))
-                            showPostOnboardingPaywall = true
-                        }
+                        await presentPostOnboardingPaywallIfNeeded()
                     }
 
                     // Handoff protection screen (disabled for Instagram flow and UI tests)
@@ -195,23 +263,16 @@ struct StepsTraderApp: App {
                             await model.refreshSleepIfAuthorized()
                         }
 
-                        // NOTE: Post-onboarding paywall is now triggered from
-                        // the `.task` on the `hasCompletedOnboarding` branch
-                        // above — that path always fires when the root flips,
-                        // even if the user kills the app immediately after
-                        // onboarding completes (the paywall marker is set on
-                        // dismiss, so a kill-before-dismiss still allows it to
-                        // appear on the next cold launch).
-
-                        #if DEBUG
-                        if UserDefaults.standard.bool(forKey: "shouldStartCoachMark") {
-                            UserDefaults.standard.removeObject(forKey: "shouldStartCoachMark")
-                            Task { @MainActor in
-                                try? await Task.sleep(for: .milliseconds(800))
-                                coachMarkManager.start()
-                            }
-                        }
-                        #endif
+                        // NOTE: Post-onboarding paywall AND the optional coach
+                        // mark tour are both triggered from the `.task` on the
+                        // `hasCompletedOnboarding` branch above — that path
+                        // always fires when the root flips, even if the user
+                        // kills the app immediately after onboarding completes
+                        // (the paywall marker is set on dismiss, so a kill-
+                        // before-dismiss still allows it to appear on the next
+                        // cold launch). The `.task` runs the tour first and
+                        // only then evaluates the paywall, so the welcome flow
+                        // is never interrupted mid-tour.
                     }
                     .transition(.opacity)
                     .zIndex(3)

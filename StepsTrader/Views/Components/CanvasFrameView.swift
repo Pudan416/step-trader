@@ -150,7 +150,7 @@ struct CanvasFrameView<Content: View>: View {
                 }
 
                 // Tagline — rotated 90° along right edge of canvas
-                Text("«Nowhere — Now Here»  iOS app by Kosta Pudan")
+                Text("«Nowhere» is an iOS app by Kosta Pudan")
                     .font(.system(size: max(4, w * Self.taglineSizeR), design: .serif))
                     .italic()
                     .foregroundStyle(Color.black)

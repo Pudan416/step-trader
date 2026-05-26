@@ -39,18 +39,6 @@ private struct MotionAnimationModifier<V: Equatable>: ViewModifier {
     }
 }
 
-extension AnyTransition {
-    /// Standard transition that becomes a cross-fade when Reduce Motion is on.
-    /// Pass the "rich" transition you'd normally use; falls back to `.opacity`.
-    ///
-    /// Note: `AnyTransition` is evaluated at the call site. Callers should branch on the
-    /// `@Environment(\.accessibilityReduceMotion)` value directly for correct behavior;
-    /// this helper exists as a convenience namespace.
-    static func motionSafe(_ rich: AnyTransition, reducedMotionFallback: AnyTransition = .opacity) -> AnyTransition {
-        rich
-    }
-}
-
 /// Convenience helper for one-shot `withAnimation`: respects Reduce Motion.
 @MainActor
 func withMotionAnimation<Result>(

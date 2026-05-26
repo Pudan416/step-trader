@@ -147,8 +147,11 @@ extension AppModel {
 
     /// Resolve the user-facing title for any option ID (built-in or custom).
     func resolveOptionTitle(for optionId: String) -> String {
-        // Ephemeral moments: label stored in dailyMoments, not in the library
-        if optionId.hasPrefix("moment_") {
+        // Ephemeral moments: label stored in dailyMoments, not in the library.
+        // Moments are filtered at every sync boundary (see EphemeralMoment), so
+        // a `moment_*` ID arriving from server is treated as stale — fall back
+        // to the raw ID just in case, but expect this branch to be local-only.
+        if EphemeralMoment.isMomentId(optionId) {
             return momentLabel(for: optionId) ?? optionId
         }
         let lang = Locale.current.language.languageCode?.identifier ?? "en"
@@ -1112,12 +1115,15 @@ extension AppModel {
     }
 
     /// Save current selections as a named routine.
+    /// Ephemeral moments are stripped — a routine is a reusable template and a
+    /// one-time moment ID would never resolve on a future day (and shouldn't
+    /// leave this device via the routine sync either).
     func saveCurrentAsRoutine(name: String) {
         let routine = EnergyRoutine(
             name: name,
-            bodyIds: dailyBodySelections,
-            mindIds: dailyRestSelections,
-            heartIds: dailyHeartSelections,
+            bodyIds: EphemeralMoment.filteredOutOfSync(dailyBodySelections),
+            mindIds: EphemeralMoment.filteredOutOfSync(dailyRestSelections),
+            heartIds: EphemeralMoment.filteredOutOfSync(dailyHeartSelections),
             lastUsed: Date.now
         )
         savedRoutines.append(routine)

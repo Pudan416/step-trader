@@ -21,6 +21,9 @@ struct MomentEntrySheet: View {
     @FocusState private var isLabelFocused: Bool
 
     private let maxSelections = EnergyDefaults.maxSelectionsPerCategory
+    /// How long the "category is full" warning stays visible before auto-fading.
+    /// Long enough to read, short enough not to feel sticky.
+    private static let warningAutoDismissDelay: Duration = .seconds(3)
 
     private func selectionsCount(for category: EnergyCategory) -> Int {
         model.dailySelectionsCount(for: category)
@@ -60,7 +63,10 @@ struct MomentEntrySheet: View {
                 .foregroundStyle(theme.textPrimary)
                 .padding(.bottom, 6)
 
-            Text(String(localized: "This stays on today's canvas and history — not in your library.", comment: "MomentEntry – subtitle"))
+            // §5.5: moments are NOT synced server-side yet. The label lives
+            // only in today's snapshot on this device. Don't promise history
+            // persistence until the JSONB column ships.
+            Text(String(localized: "Just for today, on this device.", comment: "MomentEntry – subtitle: ephemeral and local-only"))
                 .font(.caption)
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .multilineTextAlignment(.center)
@@ -206,7 +212,7 @@ struct MomentEntrySheet: View {
     private func scheduleWarningDismiss() {
         warningDismissTask?.cancel()
         warningDismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: Self.warningAutoDismissDelay)
             guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.2)) {
                 fullCategoryWarning = nil
@@ -219,7 +225,20 @@ struct MomentEntrySheet: View {
     private func commit() {
         let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isFull(selectedCategory) else { return }
-        model.addMoment(label: trimmed, icon: "sparkles", category: selectedCategory)
+
+        // `addMoment` re-checks `isFull` and can return nil if the category
+        // filled between `canAdd` and now (e.g. a background sync wrote new
+        // selections in between). Don't dismiss on nil — surface the warning
+        // and keep the sheet open so the user can pick another category.
+        // (§5.4)
+        guard let _ = model.addMoment(label: trimmed, icon: "sparkles", category: selectedCategory) else {
+            warningHapticTick &+= 1
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                fullCategoryWarning = selectedCategory
+            }
+            scheduleWarningDismiss()
+            return
+        }
         dismiss()
     }
 }

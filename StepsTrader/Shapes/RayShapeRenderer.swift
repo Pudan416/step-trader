@@ -16,6 +16,22 @@ enum RayShapeRenderer {
     static let coneAngleMax: Float = 105
     static let coneBreathSpeed: Float = 0.45
 
+    /// Reference-date timestamps are ~8e8 seconds, which only have ~32-second
+    /// resolution when narrowed to `Float`. That quantisation makes the shader's
+    /// `sin(time * coneBreathSpeed)` jump 2+ full cycles between frames → visible
+    /// brightness/cone-width pulsing. Wrap the Double timestamp with this period
+    /// (an integer multiple of `2π / coneBreathSpeed`) before narrowing so the
+    /// Float-side argument stays small and the sin wraps seamlessly.
+    static let shaderTimeWrap: Double = (2 * .pi / Double(coneBreathSpeed)) * 100   // ≈ 1396.26 s
+
+    /// Wraps a high-magnitude reference-date timestamp into a small range
+    /// (multiple of the cone-breath period) so `Float(.)` keeps full precision
+    /// for sub-second deltas.
+    @inline(__always)
+    static func wrapShaderTime(_ t: Double) -> Float {
+        Float(t.truncatingRemainder(dividingBy: shaderTimeWrap))
+    }
+
     // MARK: - Edit / Hit Test
 
     static func editBoundsDiameter(
@@ -126,7 +142,8 @@ enum RayShapeRenderer {
         } else {
             let seed = e.shapeSeed ?? UInt64(bitPattern: Int64(e.id.hashValue))
             let (near, mid, far) = resolveColors(e, seed: seed)
-            let shaderTime = Float(t + e.phaseOffset)
+            // Wrap before narrowing to Float — see `shaderTimeWrap` doc.
+            let shaderTime = wrapShaderTime(t + e.phaseOffset)
 
             guard let cgImage = renderSpotlightBitmap(
                 size: Int(symbolSize),
@@ -163,9 +180,36 @@ enum RayShapeRenderer {
         }
     }
 
+    // MARK: - Spotlight Bitmap Cache
+    //
+    // Shared cache used by both EnergySignatureView (standalone) and the full-screen
+    // background ray canvas in MeView.  Rate-limited to ~8 fps to avoid CPU spikes.
+
+    private static var _spotCache: [String: (img: CGImage, t: Float)] = [:]
+
+    /// Returns a cached spotlight bitmap, re-rendering only if the stored frame is
+    /// more than 0.12 s older than `time`.
+    static func cachedSpotlight(
+        id: String,
+        time: Float,
+        near: (Float, Float, Float),
+        mid:  (Float, Float, Float),
+        far:  (Float, Float, Float)
+    ) -> CGImage? {
+        let interval: Float = 0.12
+        if let hit = _spotCache[id], abs(hit.t - time) < interval { return hit.img }
+        guard let img = renderSpotlightBitmap(
+            size: Int(symbolSize), time: time, near: near, mid: mid, far: far
+        ) else { return nil }
+        if _spotCache.count > 20 { _spotCache.removeAll(keepingCapacity: true) }
+        _spotCache[id] = (img, time)
+        return img
+    }
+
     // MARK: - CPU Spotlight Renderer (pixel-matched to SpotlightShader.metal)
 
-    private static func rgbComponents(_ color: Color) -> (Float, Float, Float) {
+    /// Exposed for use by EnergySignatureView.
+    static func rgbComponents(_ color: Color) -> (Float, Float, Float) {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
         UIColor(color).getRed(&r, green: &g, blue: &b, alpha: nil)
         return (Float(r), Float(g), Float(b))
@@ -178,8 +222,8 @@ enum RayShapeRenderer {
 
     /// Pixel-accurate CPU port of `spotlightEffect` from SpotlightShader.metal.
     /// Produces a premultiplied-alpha CGImage matching the Metal shader output.
-    /// ~10ms per 256×256 element on modern iPhones.
-    private static func renderSpotlightBitmap(
+    /// ~10ms per 256×256 element on modern iPhones. Exposed for EnergySignatureView.
+    static func renderSpotlightBitmap(
         size: Int,
         time: Float,
         near: (Float, Float, Float),

@@ -114,8 +114,12 @@ Config/Secrets.xcconfig
 # Documentation build
 docs/
 documentation/
-# Claude worktrees (stale copies from experiments)
-.claude/worktrees/
+# Claude Code local tooling — per-contributor session state, not shared project artefacts.
+.claude/
+.agents/
+# Per-contributor skill plugin lock — pins Claude Code skill versions for
+# the local session, not a shared project artefact.
+skills-lock.json
 
 # Node
 node_modules/

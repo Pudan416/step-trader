@@ -193,12 +193,14 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "content-type")
             request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "prefer")
             
+            // §5.5 — moment IDs are device-local; strip before the upsert hits
+            // user_daily_selections. See EphemeralMoment for the contract.
             let row = DailySelectionsRow(
                 userId: userId,
                 dayKey: dayKey,
-                activityIds: activityIds,
-                restIds: recoveryIds,
-                joysIds: joysIds
+                activityIds: EphemeralMoment.filteredOutOfSync(activityIds),
+                restIds: EphemeralMoment.filteredOutOfSync(recoveryIds),
+                joysIds: EphemeralMoment.filteredOutOfSync(joysIds)
             )
             
             let bodyData = try JSONEncoder().encode(row)

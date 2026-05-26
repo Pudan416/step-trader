@@ -128,7 +128,8 @@ struct GenerativeCanvasView: View {
                 .fill(.white)
                 .layerEffect(ShaderLibrary.spotlightEffect(
                     .float2(Float(RayShapeRenderer.symbolSize), Float(RayShapeRenderer.symbolSize)),
-                    .float(Float(t + e.phaseOffset)),
+                    // Wrap before narrowing to Float — see RayShapeRenderer.shaderTimeWrap.
+                    .float(RayShapeRenderer.wrapShaderTime(t + e.phaseOffset)),
                     .color(near),
                     .color(mid),
                     .color(far)
