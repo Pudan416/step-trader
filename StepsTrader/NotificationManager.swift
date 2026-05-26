@@ -32,11 +32,12 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         )
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                AppLogger.notifications.error("❌ Failed to send time expired notification: \(error.localizedDescription)")
-            } else {
+        Task {
+            do {
+                try await UNUserNotificationCenter.current().add(request)
                 AppLogger.notifications.debug("📤 Sent time expired notification")
+            } catch {
+                AppLogger.notifications.error("❌ Failed to send time expired notification: \(error.localizedDescription)")
             }
         }
     }
@@ -54,11 +55,12 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
         )
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                AppLogger.notifications.error("❌ Failed to send unblock notification: \(error.localizedDescription)")
-            } else {
+        Task {
+            do {
+                try await UNUserNotificationCenter.current().add(request)
                 AppLogger.notifications.debug("📤 Sent unblock notification with \(remainingMinutes) minutes")
+            } catch {
+                AppLogger.notifications.error("❌ Failed to send unblock notification: \(error.localizedDescription)")
             }
         }
     }
@@ -76,11 +78,12 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
         )
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                AppLogger.notifications.error("❌ Failed to send remaining time notification: \(error.localizedDescription)")
-            } else {
+        Task {
+            do {
+                try await UNUserNotificationCenter.current().add(request)
                 AppLogger.notifications.debug("📤 Sent remaining time notification: \(remainingMinutes) minutes")
+            } catch {
+                AppLogger.notifications.error("❌ Failed to send remaining time notification: \(error.localizedDescription)")
             }
         }
     }
@@ -109,11 +112,12 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
         )
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                AppLogger.notifications.error("❌ Failed to send minute mode summary notification: \(error.localizedDescription)")
-            } else {
+        Task {
+            do {
+                try await UNUserNotificationCenter.current().add(request)
                 AppLogger.notifications.debug("📤 Sent minute mode summary for \(bundleId): \(minutesUsed)m, \(stepsCharged) fuel")
+            } catch {
+                AppLogger.notifications.error("❌ Failed to send minute mode summary notification: \(error.localizedDescription)")
             }
         }
     }
@@ -131,11 +135,12 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         )
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                AppLogger.notifications.error("❌ Failed to send test notification: \(error.localizedDescription)")
-            } else {
+        Task {
+            do {
+                try await UNUserNotificationCenter.current().add(request)
                 AppLogger.notifications.debug("📤 Sent test notification")
+            } catch {
+                AppLogger.notifications.error("❌ Failed to send test notification: \(error.localizedDescription)")
             }
         }
     }
@@ -159,11 +164,12 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
         )
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                AppLogger.notifications.error("❌ Failed to send access window reminder: \(error.localizedDescription)")
-            } else {
+        Task {
+            do {
+                try await UNUserNotificationCenter.current().add(request)
                 AppLogger.notifications.debug("📤 Sent access window reminder for \(bundleId)")
+            } catch {
+                AppLogger.notifications.error("❌ Failed to send access window reminder: \(error.localizedDescription)")
             }
         }
     }
@@ -204,11 +210,12 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
                 trigger: UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(fireIn), repeats: false)
             )
             
-            UNUserNotificationCenter.current().add(request) { error in
-                if let error = error {
-                    AppLogger.notifications.error("❌ Failed to schedule access window status: \(error.localizedDescription)")
-                } else {
+            Task {
+                do {
+                    try await UNUserNotificationCenter.current().add(request)
                     AppLogger.notifications.debug("📤 Scheduled access window status for \(bundleId) in \(fireIn)s")
+                } catch {
+                    AppLogger.notifications.error("❌ Failed to schedule access window status: \(error.localizedDescription)")
                 }
             }
         }
@@ -233,11 +240,12 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.5, repeats: false)
         )
 
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error {
-                AppLogger.notifications.error("❌ Failed to send workout detected notification: \(error.localizedDescription)")
-            } else {
+        Task {
+            do {
+                try await UNUserNotificationCenter.current().add(request)
                 AppLogger.notifications.debug("📤 Sent workout detected notification: \(title)")
+            } catch {
+                AppLogger.notifications.error("❌ Failed to send workout detected notification: \(error.localizedDescription)")
             }
         }
     }
@@ -262,11 +270,12 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
         comps.minute = minute
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
         let request = UNNotificationRequest(identifier: "dailyCanvasReminder", content: content, trigger: trigger)
-        center.add(request) { error in
-            if let error {
-                AppLogger.notifications.error("❌ Failed to schedule canvas reminder: \(error.localizedDescription)")
-            } else {
+        Task {
+            do {
+                try await center.add(request)
                 AppLogger.notifications.debug("📤 Scheduled daily canvas reminder at \(hour):\(String(format: "%02d", minute))")
+            } catch {
+                AppLogger.notifications.error("❌ Failed to schedule canvas reminder: \(error.localizedDescription)")
             }
         }
     }
@@ -300,11 +309,12 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
 
         let trigger = UNCalendarNotificationTrigger(dateMatching: fireComps, repeats: true)
         let request = UNNotificationRequest(identifier: "dayResetWarning", content: content, trigger: trigger)
-        center.add(request) { error in
-            if let error {
-                AppLogger.notifications.error("❌ Failed to schedule day reset warning: \(error.localizedDescription)")
-            } else {
+        Task {
+            do {
+                try await center.add(request)
                 AppLogger.notifications.debug("📤 Scheduled day reset warning \(hoursBeforeReset)h before \(dayEndHour):\(String(format: "%02d", dayEndMinute))")
+            } catch {
+                AppLogger.notifications.error("❌ Failed to schedule day reset warning: \(error.localizedDescription)")
             }
         }
     }
