@@ -400,7 +400,10 @@ class AuthenticationService: NSObject, ObservableObject {
                     AppLogger.auth.debug("🔐 Post-login — linking RC userId: \(uid.prefix(8))…")
                     await SubscriptionStore.shared.logIn(supabaseUserID: uid)
                     guard !Task.isCancelled else { return }
-                    if let appModel = await self?.postLoginSyncModel {
+                    // postLoginSyncModel is a @MainActor `weak var` and this
+                    // closure inherits MainActor isolation from the surrounding
+                    // Task { @MainActor in ... } — no `await` needed.
+                    if let appModel = self?.postLoginSyncModel {
                         AppLogger.auth.debug("🔐 Post-login — starting full Supabase sync")
                         await SupabaseSyncService.shared.performFullSync(model: appModel)
                         AppLogger.auth.debug("🔐 Post-login — full sync finished")
