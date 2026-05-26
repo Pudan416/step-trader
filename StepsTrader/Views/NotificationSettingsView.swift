@@ -13,7 +13,7 @@ struct NotificationSettingsView: View {
     private var timerOver: Bool = true
 
     @AppStorage(SharedKeys.notifyCanvasReminder, store: UserDefaults.stepsTrader())
-    private var canvasReminder: Bool = true
+    private var canvasReminder: Bool = false
 
     @AppStorage(SharedKeys.canvasReminderHour, store: UserDefaults.stepsTrader())
     private var canvasHour: Int = 21
@@ -33,7 +33,7 @@ struct NotificationSettingsView: View {
                 var comps = DateComponents()
                 comps.hour = canvasHour
                 comps.minute = canvasMinute
-                return Calendar.current.date(from: comps) ?? Date()
+                return Calendar.current.date(from: comps) ?? Date.now
             },
             set: { newDate in
                 let comps = Calendar.current.dateComponents([.hour, .minute], from: newDate)
@@ -179,6 +179,7 @@ struct NotificationSettingsView: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
     }
 
     // MARK: - Reschedule helpers
@@ -190,5 +191,11 @@ struct NotificationSettingsView: View {
     private func rescheduleDayReset() {
         (model.notificationService as? NotificationManager)?
             .scheduleDayResetWarning(dayEndHour: model.dayEndHour, dayEndMinute: model.dayEndMinute)
+    }
+}
+
+#Preview {
+    NavigationStack {
+        NotificationSettingsView(model: DIContainer.shared.makeAppModel())
     }
 }

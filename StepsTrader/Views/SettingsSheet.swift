@@ -40,8 +40,10 @@ struct SettingsSheet: View {
 
                     accountRow
 
-                    section(header: String(localized: "Membership", comment: "Settings section header")) {
-                        subscriptionRow
+                    if !SubscriptionGate.allFeaturesUnlocked {
+                        section(header: String(localized: "Membership", comment: "Settings section header")) {
+                            subscriptionRow
+                        }
                     }
 
                     section(header: String(localized: "General", comment: "Settings section header")) {
@@ -67,6 +69,10 @@ struct SettingsSheet: View {
                     }
 
                     section(header: String(localized: "Info", comment: "Settings section header")) {
+                        flatRow(icon: "book", title: String(localized: "Notes from Kosta", comment: "Settings row label")) {
+                            ManualsPage(model: model)
+                        }
+                        rowDivider
                         flatRow(icon: "info.circle", title: String(localized: "About", comment: "Settings row label")) {
                             SettingsAboutPage(model: model)
                         }
@@ -273,7 +279,7 @@ struct SettingsSheet: View {
 
     @ViewBuilder
     private var accountRow: some View {
-        if authService.isAuthenticated, let user = authService.currentUser {
+        if authService.hasAppleAccount, let user = authService.currentUser {
             Button { showProfileEditor = true } label: {
                 HStack(spacing: 12) {
                     accountAvatar(user: user)
@@ -301,13 +307,13 @@ struct SettingsSheet: View {
                 }
                 .padding(.vertical, 14)
                 .padding(.horizontal, 4)
-                .overlay(
+                .overlay {
                     Rectangle()
                         .stroke(
                             theme.adaptivePrimaryText.opacity(0.45),
                             style: StrokeStyle(lineWidth: 0.8, dash: [3, 4])
                         )
-                )
+                }
                 .contentShape(Rectangle())
             }
             .buttonStyle(MattePressStyle())
@@ -321,10 +327,10 @@ struct SettingsSheet: View {
             Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))
                 .font(.caption)
                 .italic()
-                .foregroundColor(theme.adaptiveMutedText)
+                .foregroundStyle(theme.adaptiveMutedText)
             Text("v\(appVersion) (\(buildNumber))")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundColor(theme.adaptiveMutedText.opacity(0.5))
+                .foregroundStyle(theme.adaptiveMutedText.opacity(0.5))
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
@@ -336,9 +342,10 @@ struct SettingsSheet: View {
     @State private var diagCopied = false
     @State private var budgetsReset = false
     @State private var colorsRestored = false
+    @State private var healthReset = false
     @State private var showOnboardingDemo = false
     @State private var replayOnboardingLive = false
-    @EnvironmentObject private var coachMarkManager: CoachMarkManager
+    @Environment(CoachMarkManager.self) private var coachMarkManager
 
     @State private var shieldActionLogs: [String] = []
     @State private var showShieldActionLogs = false
@@ -349,7 +356,10 @@ struct SettingsSheet: View {
             let text = model.blockingStore.dumpShieldDiagnostics()
             UIPasteboard.general.string = text
             diagCopied = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { diagCopied = false }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                diagCopied = false
+            }
         } label: {
             diagButton(
                 icon: "shield.lefthalf.filled",
@@ -414,7 +424,10 @@ struct SettingsSheet: View {
             #endif
             model.rebuildFamilyControlsShield()
             budgetsReset = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { budgetsReset = false }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                budgetsReset = false
+            }
         } label: {
             diagButton(
                 icon: "clock.arrow.circlepath",
@@ -432,13 +445,35 @@ struct SettingsSheet: View {
             model.persistDailyEnergyState()
             model.recalculateDailyEnergy()
             colorsRestored = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { colorsRestored = false }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                colorsRestored = false
+            }
         } label: {
             diagButton(
                 icon: "paintpalette",
                 text: colorsRestored ? "Colors restored!" : "Restore Colors to Max",
                 highlight: colorsRestored,
                 trailing: "arrow.counterclockwise"
+            )
+        }
+        .buttonStyle(MattePressStyle())
+
+        rowDivider
+
+        Button {
+            Task {
+                await model.debugForceHealthReset()
+                healthReset = true
+                try? await Task.sleep(for: .seconds(2))
+                healthReset = false
+            }
+        } label: {
+            diagButton(
+                icon: "heart.text.clipboard",
+                text: healthReset ? "Health data refreshed!" : "Force Health Reset (New Day)",
+                highlight: healthReset,
+                trailing: "arrow.clockwise"
             )
         }
         .buttonStyle(MattePressStyle())
@@ -488,12 +523,12 @@ struct SettingsSheet: View {
             rowIcon(icon)
             Text(text)
                 .font(.subheadline)
-                .foregroundColor(highlight ? .green : theme.adaptivePrimaryText)
+                .foregroundStyle(highlight ? .green : theme.adaptivePrimaryText)
             Spacer()
             if let trailing {
                 Image(systemName: trailing)
                     .font(.caption2)
-                    .foregroundColor(theme.adaptiveMutedText.opacity(0.7))
+                    .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
             }
         }
         .padding(.vertical, 12)
@@ -522,6 +557,10 @@ struct SettingsSheet: View {
             }
         }
     }
+}
+
+#Preview {
+    SettingsSheet(model: DIContainer.shared.makeAppModel(), embeddedInTab: true)
 }
 
 // `MattePressStyle` lives in `Settings/SettingsComponents.swift` so it can be

@@ -71,6 +71,7 @@ struct ShaderParkOverlayView: UIViewRepresentable {
         view.contentScaleFactor  = min(UIScreen.main.scale, 1.25)
 
         let coord = context.coordinator
+        // TODO: Migrate to .sensoryFeedback()
         let touchHaptic = UIImpactFeedbackGenerator(style: .light)
         touchHaptic.prepare()
 

@@ -124,10 +124,10 @@ private func bodyBlobPath(seed: UInt64, size: CGFloat, phase: Double, t: Double)
     }
 
     var path = Path()
-    guard points.count >= 3 else { return path }
+    guard points.count >= 3, let last = points.last else { return path }
     path.move(to: CGPoint(
-        x: (points.last!.x + points[0].x) / 2,
-        y: (points.last!.y + points[0].y) / 2
+        x: (last.x + points[0].x) / 2,
+        y: (last.y + points[0].y) / 2
     ))
     for i in 0..<points.count {
         let next = points[(i + 1) % points.count]

@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// System fonts (SF) as app-wide typography.
 extension Font {

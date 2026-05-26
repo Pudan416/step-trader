@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 import os.log
 
 extension Notification.Name {
@@ -32,9 +31,8 @@ final class HistoryThumbnailCache {
     private var observer: NSObjectProtocol?
 
     private init() {
-        let cachesDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
-            ?? fileManager.temporaryDirectory
-        diskCacheURL = cachesDir.appendingPathComponent("HistoryThumbnails", isDirectory: true)
+        let cachesDir = URL.cachesDirectory
+        diskCacheURL = cachesDir.appending(path: "HistoryThumbnails", directoryHint: .isDirectory)
         do {
             try fileManager.createDirectory(at: diskCacheURL, withIntermediateDirectories: true)
         } catch {
@@ -102,7 +100,7 @@ final class HistoryThumbnailCache {
 
         if let files = try? fileManager.contentsOfDirectory(atPath: diskCacheURL.path) {
             for file in files where file.hasPrefix(prefix) {
-                let url = diskCacheURL.appendingPathComponent(file)
+                let url = diskCacheURL.appending(path: file)
                 try? fileManager.removeItem(at: url)
             }
         }
@@ -139,14 +137,12 @@ final class HistoryThumbnailCache {
         fixedTime: Date,
         theme: AppTheme
     ) -> UIImage? {
-        let renderSize = CGSize(width: size.width * 2, height: size.height * 2)
-
         let rawCanvas = ZStack {
             EnergyGradientBackground(
                 stepsPoints: canvas.stepsPoints,
                 sleepPoints: canvas.sleepPoints,
-                hasStepsData: canvas.stepsPoints > 0,
-                hasSleepData: canvas.sleepPoints > 0,
+                hasStepsData: canvas.resolvedHasStepsData,
+                hasSleepData: canvas.resolvedHasSleepData,
                 showGrain: true,
                 gradientStyleOverride: canvas.gradientStyle,
                 gradientPaletteOverride: canvas.gradientPalette,
@@ -165,28 +161,20 @@ final class HistoryThumbnailCache {
                 showLabelsOnCanvas: false,
                 showsOutlinedLabels: false,
                 showsBackgroundGradient: false,
-                hasStepsData: canvas.stepsPoints > 0,
-                hasSleepData: canvas.sleepPoints > 0,
+                hasStepsData: canvas.resolvedHasStepsData,
+                hasSleepData: canvas.resolvedHasSleepData,
                 fixedTime: fixedTime,
                 isOffscreenRender: true
             )
         }
-        .frame(width: renderSize.width, height: renderSize.height)
+        .frame(width: size.width, height: size.height)
         .environment(\.appTheme, theme)
 
         let renderer = ImageRenderer(content: rawCanvas)
-        renderer.scale = 1.0
-        renderer.proposedSize = .init(renderSize)
+        renderer.scale = 2.0
+        renderer.proposedSize = .init(size)
 
-        guard let raw = renderer.uiImage else { return nil }
-
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = UIScreen.main.scale
-        format.opaque = true
-        let scaled = UIGraphicsImageRenderer(size: size, format: format).image { _ in
-            raw.draw(in: CGRect(origin: .zero, size: size))
-        }
-        return scaled
+        return renderer.uiImage
     }
 
     // MARK: - Disk
@@ -198,14 +186,14 @@ final class HistoryThumbnailCache {
     }
 
     private func loadFromDisk(key: String) -> UIImage? {
-        let url = diskCacheURL.appendingPathComponent("\(key).png")
+        let url = diskCacheURL.appending(path: "\(key).png")
         guard let data = try? Data(contentsOf: url) else { return nil }
         return UIImage(data: data)
     }
 
     private func saveToDisk(_ image: UIImage, key: String) {
         guard let data = image.pngData() else { return }
-        let url = diskCacheURL.appendingPathComponent("\(key).png")
+        let url = diskCacheURL.appending(path: "\(key).png")
         try? data.write(to: url, options: .atomic)
     }
 }

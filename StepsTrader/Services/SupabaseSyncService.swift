@@ -2,7 +2,7 @@ import Foundation
 import os.log
 
 // MARK: - Supabase Sync Service
-/// Handles syncing user activity data to Supabase
+/// Handles syncing user data to Supabase
 actor SupabaseSyncService {
     
     nonisolated static let shared = SupabaseSyncService()
@@ -34,9 +34,9 @@ actor SupabaseSyncService {
     
     // MARK: - Debounce Windows (nanoseconds)
     
-    let selectionsDebounceNs: UInt64 = 1_500_000_000 // 1.5 sec
-    let statsDebounceNs: UInt64 = 2_000_000_000 // 2 sec
-    let spentDebounceNs: UInt64 = 1_500_000_000 // 1.5 sec
+    let selectionsDebounceDuration: Duration = .seconds(1.5)
+    let statsDebounceDuration: Duration = .seconds(2)
+    let spentDebounceDuration: Duration = .seconds(1.5)
     
     var lastSyncedCustomActivitiesHash: Int = 0
     var lastSyncedDayKey: String = ""
@@ -51,7 +51,7 @@ actor SupabaseSyncService {
     
     // Cached at init to avoid reading UserDefaults from actor context on every call.
     let todayCacheTTL: TimeInterval
-    var cachedTodaySelections: CachedTodayValue<(activity: [String], rest: [String], joys: [String])>?
+    var cachedTodaySelections: CachedTodayValue<(body: [String], mind: [String], heart: [String])>?
     var cachedTodayStats: CachedTodayValue<(steps: Int, sleepHours: Double, baseEnergy: Int, bonusEnergy: Int, remainingBalance: Int)>?
     var cachedTodaySpent: CachedTodayValue<(totalSpent: Int, spentByApp: [String: Int])>?
     
@@ -155,7 +155,7 @@ actor SupabaseSyncService {
         let preferHeader: String?
         let createdAt: Date
         
-        var isExpired: Bool { Date().timeIntervalSince(createdAt) > 86_400 * 3 } // 3 days TTL
+        var isExpired: Bool { Date.now.timeIntervalSince(createdAt) > 86_400 * 3 } // 3 days TTL
     }
     
     private static let retryQueueKey = "supabaseSyncRetryQueue_v1"
@@ -168,7 +168,7 @@ actor SupabaseSyncService {
             method: request.httpMethod ?? "POST",
             body: request.httpBody,
             preferHeader: request.value(forHTTPHeaderField: "prefer"),
-            createdAt: Date()
+            createdAt: Date.now
         )
         var queue = loadRetryQueue()
         queue.append(entry)
@@ -334,9 +334,9 @@ actor SupabaseSyncService {
             let g = UserDefaults.stepsTrader()
             return (
                 customEnergyOptions: model.customEnergyOptions,
-                dailyActivitySelections: model.dailyActivitySelections,
+                dailyBodySelections: model.dailyBodySelections,
                 dailyRestSelections: model.dailyRestSelections,
-                dailyJoysSelections: model.dailyJoysSelections,
+                dailyHeartSelections: model.dailyHeartSelections,
                 stepsToday: model.healthStore.stepsToday,
                 dailySleepHours: model.healthStore.dailySleepHours,
                 baseEnergyToday: model.healthStore.baseEnergyToday,
@@ -348,15 +348,15 @@ actor SupabaseSyncService {
                 dayEndHour: model.dayEndHour,
                 dayEndMinute: model.dayEndMinute,
                 restDayOverride: model.isRestDayOverrideEnabled,
-                preferredBody: model.preferredActivityOptions,
+                preferredBody: model.preferredBodyOptions,
                 preferredMind: model.preferredRestOptions,
-                preferredHeart: model.preferredJoysOptions,
+                preferredHeart: model.preferredHeartOptions,
                 canvasSlots: model.dailyCanvasSlots,
                 ticketGroups: model.ticketGroups
             )
         }
         
-        let today = AppModel.dayKey(for: Date())
+        let today = AppModel.dayKey(for: Date.now)
         let todaySpent = snapshot.appStepsSpentByDay[today] ?? [:]
         let totalSpent = todaySpent.values.reduce(0, +)
         let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? UserDefaults.standard
@@ -364,9 +364,9 @@ actor SupabaseSyncService {
             .map { TicketGroupSyncRow.from(group: $0) }
             .sorted { $0.bundleId < $1.bundleId }
 
-        let hasLocalData = !snapshot.dailyActivitySelections.isEmpty
+        let hasLocalData = !snapshot.dailyBodySelections.isEmpty
             || !snapshot.dailyRestSelections.isEmpty
-            || !snapshot.dailyJoysSelections.isEmpty
+            || !snapshot.dailyHeartSelections.isEmpty
             || snapshot.stepsToday > 0
 
         await withTaskGroup(of: Void.self) { group in
@@ -376,9 +376,9 @@ actor SupabaseSyncService {
                     await self.performDailySelectionsSync(
                         payload: DailySelectionsPayload(
                             dayKey: today,
-                            activityIds: snapshot.dailyActivitySelections,
+                            activityIds: snapshot.dailyBodySelections,
                             recoveryIds: snapshot.dailyRestSelections,
-                            joysIds: snapshot.dailyJoysSelections
+                            joysIds: snapshot.dailyHeartSelections
                         )
                     )
                 }
@@ -423,14 +423,14 @@ actor SupabaseSyncService {
                         wallpaperShortcutUses: g.integer(forKey: "wallpaperShortcutUses"),
                         notifyOneMinBefore: g.object(forKey: SharedKeys.notifyOneMinBefore) as? Bool ?? true,
                         notifyWhenTimerOver: g.object(forKey: SharedKeys.notifyWhenTimerOver) as? Bool ?? true,
-                        notifyCanvasReminder: g.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? true,
+                        notifyCanvasReminder: g.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? false,
                         canvasReminderHour: g.object(forKey: SharedKeys.canvasReminderHour) as? Int ?? 21,
                         canvasReminderMinute: g.object(forKey: SharedKeys.canvasReminderMinute) as? Int ?? 0,
                         notifyDayResetWarning: g.object(forKey: SharedKeys.notifyDayResetWarning) as? Bool ?? true,
                         dayResetWarningHours: g.object(forKey: SharedKeys.dayResetWarningHours) as? Int ?? 1,
                         hasMediumWidget: g.bool(forKey: SharedKeys.hasMediumWidget),
                         hasLargeWidget: g.bool(forKey: SharedKeys.hasLargeWidget),
-                        lastOpenedAt: Date(),
+                        lastOpenedAt: Date.now,
                         gradientStyle: std.string(forKey: SharedKeys.gradientStyle) ?? GradientStyle.radial.rawValue,
                         gradientPalette: std.string(forKey: SharedKeys.gradientPalette) ?? GradientPalette.warmSunset.rawValue,
                         userGradientStyle: std.string(forKey: SharedKeys.userGradientStyle) ?? GradientStyle.radial.rawValue,
@@ -473,12 +473,12 @@ actor SupabaseSyncService {
         }
         
         if let selections = await loadTodaySelectionsFromServer() {
-            let hasData = !selections.activity.isEmpty || !selections.rest.isEmpty || !selections.joys.isEmpty
+            let hasData = !selections.body.isEmpty || !selections.mind.isEmpty || !selections.heart.isEmpty
             if hasData {
                 await MainActor.run {
-                    model.dailyActivitySelections = selections.activity
-                    model.dailyRestSelections = selections.rest
-                    model.dailyJoysSelections = selections.joys
+                    model.dailyBodySelections = selections.body
+                    model.dailyRestSelections = selections.mind
+                    model.dailyHeartSelections = selections.heart
                     model.persistDailyEnergyState()
                 }
                 didRestore = true
@@ -489,7 +489,7 @@ actor SupabaseSyncService {
             if spent.totalSpent > 0 {
                 await MainActor.run {
                     model.spentStepsToday = spent.totalSpent
-                    let today = AppModel.dayKey(for: Date())
+                    let today = AppModel.dayKey(for: Date.now)
                     model.appStepsSpentByDay[today] = spent.spentByApp
                     model.persistAppStepsSpentToday()
                 }
@@ -532,9 +532,9 @@ actor SupabaseSyncService {
                 }
                 model.dayEndHour = prefs.dayEndHour
                 model.dayEndMinute = prefs.dayEndMinute
-                model.preferredActivityOptions = prefs.preferredBody
+                model.preferredBodyOptions = prefs.preferredBody
                 model.preferredRestOptions = prefs.preferredMind
-                model.preferredJoysOptions = prefs.preferredHeart
+                model.preferredHeartOptions = prefs.preferredHeart
                 if !prefs.canvasSlots.isEmpty {
                     model.dailyCanvasSlots = prefs.canvasSlots
                 }
@@ -561,7 +561,7 @@ actor SupabaseSyncService {
         }
 
         // Restore option entries (journal notes/colors) for today
-        let today = AppModel.dayKey(for: Date())
+        let today = AppModel.dayKey(for: Date.now)
         if let entries = await loadOptionEntriesFromServer(dayKey: today), !entries.isEmpty {
             AppLogger.network.debug("📡 Restored \(entries.count) option entries for today")
             didRestore = true

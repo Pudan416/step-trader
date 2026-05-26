@@ -12,35 +12,35 @@ enum PosterStyle: String, CaseIterable, Codable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .museum:     return String(localized: "Museum", comment: "Poster style name")
-        case .fullBleed:  return String(localized: "Full Bleed", comment: "Poster style name")
-        case .framedDark: return String(localized: "Framed", comment: "Poster style name")
+        case .museum:     String(localized: "Museum", comment: "Poster style name")
+        case .fullBleed:  String(localized: "Full Bleed", comment: "Poster style name")
+        case .framedDark: String(localized: "Framed", comment: "Poster style name")
         }
     }
 
     var iconName: String {
         switch self {
-        case .museum:     return "text.below.photo"
-        case .fullBleed:  return "photo"
-        case .framedDark: return "photo.artframe"
+        case .museum:     "text.below.photo"
+        case .fullBleed:  "photo"
+        case .framedDark: "photo.artframe"
         }
     }
 
     /// Background color used to pad the poster to 9:16 for social media.
     var padColor: Color {
         switch self {
-        case .museum:     return Color(red: 0.969, green: 0.961, blue: 0.925)
-        case .fullBleed:  return .black
-        case .framedDark: return .black
+        case .museum:     Color(red: 0.969, green: 0.961, blue: 0.925)
+        case .fullBleed:  .black
+        case .framedDark: .black
         }
     }
 
     /// The poster's native aspect ratio (width / height) from Figma sources.
-    var nativeAspect: CGFloat {
+    var nativeAspect: Double {
         switch self {
-        case .museum:     return 604.0 / 842.0
-        case .fullBleed:  return 595.0 / 842.0
-        case .framedDark: return 595.0 / 842.0
+        case .museum:     604.0 / 842.0
+        case .fullBleed:  595.0 / 842.0
+        case .framedDark: 595.0 / 842.0
         }
     }
 }

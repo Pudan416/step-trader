@@ -23,16 +23,17 @@ final class SubscriptionGateTests: XCTestCase {
         }
     }
 
-    func testCanAddBlockingGroup_freeAtZero() {
+    func testCanAddBlockingGroup_freeBelowLimit() {
         XCTAssertTrue(SubscriptionGate.canAddBlockingGroup(isPro: false, currentCount: 0))
+        XCTAssertTrue(SubscriptionGate.canAddBlockingGroup(isPro: false, currentCount: 1))
     }
 
     func testCanAddBlockingGroup_freeAtLimit() {
-        XCTAssertFalse(SubscriptionGate.canAddBlockingGroup(isPro: false, currentCount: 1))
+        XCTAssertFalse(SubscriptionGate.canAddBlockingGroup(isPro: false, currentCount: 2))
         XCTAssertFalse(SubscriptionGate.canAddBlockingGroup(isPro: false, currentCount: 5))
     }
 
-    // MARK: - Custom Activity
+    // MARK: - Custom Card
 
     func testCanCreateCustomActivity_proBypasses() {
         XCTAssertTrue(SubscriptionGate.canCreateCustomActivity(isPro: true))
@@ -68,8 +69,14 @@ final class SubscriptionGateTests: XCTestCase {
         XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: true, paletteRaw: "anything"))
     }
 
-    func testIsGradientPaletteAvailable_freeOnlyWarmSunset() {
+    func testIsGradientPaletteAvailable_freeSunsetOceanAurora() {
         XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "warmSunset"))
+        XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "ocean"))
+        XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "aurora"))
+        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "dusk"))
+        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "dawn"))
+        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "ember"))
+        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "horizon"))
         XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "coolOcean"))
     }
 

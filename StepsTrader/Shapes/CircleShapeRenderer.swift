@@ -1,10 +1,7 @@
 import SwiftUI
 
 /// Self-contained renderer for the "Circle" shape type.
-/// Dense gradient-filled perfect circles that overlap and blend.
-/// No organic deformation — geometry is always a clean ellipse.
-/// Radial gradient is thick and saturated (unlike the hollow rim
-/// gradient of blobs), producing the layered risograph look.
+/// Renders gradient-filled discs with procedural fill variation.
 @MainActor
 enum CircleShapeRenderer {
 
@@ -48,9 +45,9 @@ enum CircleShapeRenderer {
         ampScale: Double
     ) -> Double {
         let dim = Double(min(size.width, size.height))
-        let effectiveSize = e.userSize ?? e.size
+        let effectiveSize = Double(e.userSize ?? CGFloat(e.size))
         let pulse = 1.0 + sin(t * (0.2 + e.pulseFrequency * 0.2) + e.phaseOffset) * 0.015 * ampScale
-        return Double(effectiveSize) * dim * sizeScale * pulse
+        return effectiveSize * dim * sizeScale * pulse
     }
 
     // MARK: - Single Element Drawing
@@ -83,13 +80,9 @@ enum CircleShapeRenderer {
         )
     }
 
-    // MARK: - Fill Style
-
-    /// Deterministic per-element style derived from seed.
-    /// ~50% solid, ~50% gradient. Opacity varies ±15%.
     private struct FillStyle {
         let isSolid: Bool
-        let opacityMul: Double   // 0.85 … 1.0
+        let opacityMul: Double
 
         init(seed: UInt64) {
             isSolid = (seed &>> 3) % 2 == 0
@@ -98,7 +91,7 @@ enum CircleShapeRenderer {
         }
     }
 
-    // MARK: - Fill Rendering
+    // MARK: - Base Circle Fill Rendering
 
     static func drawFill(
         center: CGPoint,

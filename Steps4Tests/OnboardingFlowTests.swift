@@ -122,26 +122,12 @@ final class OnboardingFlowTests: XCTestCase {
 
     // MARK: - OnboardingCoordinator navigation
 
-    private func makeV8Slides() -> [OnboardingSlide] {
-        [
-            OnboardingSlide(lines: ["slide 0"], slideType: .coldOpen),
-            OnboardingSlide(lines: ["slide 1"], slideType: .theApp),
-            OnboardingSlide(lines: ["slide 2"], slideType: .canvasSleep),
-            OnboardingSlide(lines: ["slide 3"], slideType: .canvasSteps),
-            OnboardingSlide(lines: ["slide 4"], slideType: .resetBedtime),
-            OnboardingSlide(lines: ["slide 5"], slideType: .balance),
-            OnboardingSlide(lines: ["slide 6"], slideType: .bodyMindHeart),
-            OnboardingSlide(lines: ["slide 7"], slideType: .colorCapV8),
-            OnboardingSlide(lines: ["allow health"], action: .requestHealth),
-            OnboardingSlide(lines: ["pick app"], slideType: .feedSelection),
-            OnboardingSlide(lines: ["notifications"], action: .requestNotifications, slideType: .notificationPermission),
-            OnboardingSlide(lines: ["sign in"], slideType: .appleLogin),
-            OnboardingSlide(lines: ["welcome"], slideType: .welcomeV8),
-        ]
+    private func makeSlides() -> [OnboardingSlide] {
+        OnboardingSlides.makeSlides()
     }
 
     func testCoordinator_initialState() {
-        let slides = makeV8Slides()
+        let slides = makeSlides()
         let coord = OnboardingCoordinator(slides: slides, flowVersion: "v8")
         XCTAssertEqual(coord.index, 0)
         XCTAssertFalse(coord.isLastSlide)
@@ -150,7 +136,7 @@ final class OnboardingFlowTests: XCTestCase {
     }
 
     func testCoordinator_nextAdvances() {
-        let slides = makeV8Slides()
+        let slides = makeSlides()
         let coord = OnboardingCoordinator(slides: slides, flowVersion: "v8")
 
         let result = coord.next(
@@ -163,7 +149,7 @@ final class OnboardingFlowTests: XCTestCase {
     }
 
     func testCoordinator_goBack() {
-        let slides = makeV8Slides()
+        let slides = makeSlides()
         let coord = OnboardingCoordinator(slides: slides, flowVersion: "v8")
 
         _ = coord.next(isAuthenticated: true, hasAppSelection: false,
@@ -177,7 +163,7 @@ final class OnboardingFlowTests: XCTestCase {
     }
 
     func testCoordinator_goBackAtZeroStays() {
-        let slides = makeV8Slides()
+        let slides = makeSlides()
         let coord = OnboardingCoordinator(slides: slides, flowVersion: "v8")
 
         coord.goBack()
@@ -185,7 +171,7 @@ final class OnboardingFlowTests: XCTestCase {
     }
 
     func testCoordinator_skipToSetup() {
-        let slides = makeV8Slides()
+        let slides = makeSlides()
         let coord = OnboardingCoordinator(slides: slides, flowVersion: "v8")
 
         XCTAssertTrue(coord.isInStoryPhase)
@@ -197,7 +183,7 @@ final class OnboardingFlowTests: XCTestCase {
     }
 
     func testCoordinator_lastSlideFinishes() {
-        let slides = makeV8Slides()
+        let slides = makeSlides()
         let coord = OnboardingCoordinator(slides: slides, flowVersion: "v8")
 
         for i in 0..<slides.count - 1 {
@@ -311,7 +297,7 @@ final class OnboardingFlowTests: XCTestCase {
     // MARK: - isInStoryPhase
 
     func testCoordinator_isInStoryPhase() {
-        let slides = makeV8Slides()
+        let slides = makeSlides()
         let coord = OnboardingCoordinator(slides: slides, flowVersion: "v8")
 
         XCTAssertTrue(coord.isInStoryPhase, "coldOpen is story")
@@ -327,7 +313,7 @@ final class OnboardingFlowTests: XCTestCase {
     // MARK: - firstSetupSlideIndex
 
     func testCoordinator_firstSetupSlideIndex_v8() {
-        let slides = makeV8Slides()
+        let slides = makeSlides()
         let coord = OnboardingCoordinator(slides: slides, flowVersion: "v8")
 
         let idx = coord.firstSetupSlideIndex
@@ -372,41 +358,25 @@ final class OnboardingFlowTests: XCTestCase {
     // MARK: - markFamilyControlsRequested
 
     func testCoordinator_markFamilyControls() {
-        let coord = OnboardingCoordinator(slides: makeV8Slides(), flowVersion: "v8")
+        let coord = OnboardingCoordinator(slides: makeSlides(), flowVersion: "v8")
         XCTAssertFalse(coord.didTriggerFamilyControlsRequest)
         coord.markFamilyControlsRequested()
         XCTAssertTrue(coord.didTriggerFamilyControlsRequest)
     }
 
-    // MARK: - v7 slide sequence structure
-
-    func testV7SlideSequence_firstAndLast() {
-        let v7Slides: [OnboardingSlideType] = [
-            .coldOpen, .nowHereReveal, .colorCap, .spendDemo,
-            .howItWorks, .stepsSetup, .sleepSetup, .text,
-            .feedSelection, .appleLogin, .welcome
-        ]
-        XCTAssertEqual(v7Slides.first, .coldOpen)
-        XCTAssertEqual(v7Slides.last, .welcome)
-        XCTAssertEqual(v7Slides.count, 11)
-    }
-
-    func testV8SlideSequence_firstAndLast() {
-        let v8Slides: [OnboardingSlideType] = [
-            .coldOpen, .theApp, .canvasSleep, .canvasSteps,
-            .resetBedtime, .balance, .bodyMindHeart, .colorCapV8,
-            .text, .feedSelection, .notificationPermission,
-            .appleLogin, .welcomeV8
-        ]
-        XCTAssertEqual(v8Slides.first, .coldOpen)
-        XCTAssertEqual(v8Slides.last, .welcomeV8)
-        XCTAssertEqual(v8Slides.count, 13)
+    func testSlideSequence_matchesCanonicalOrder() {
+        let slides = makeSlides()
+        XCTAssertEqual(slides.map(\.slideType), OnboardingSlides.slideTypes)
+        XCTAssertEqual(slides.first?.slideType, .coldOpen)
+        XCTAssertEqual(slides.last?.slideType, .welcomeV8)
+        XCTAssertEqual(slides.count, 13)
+        XCTAssertEqual(OnboardingSlides.flowVersion, "v8")
     }
 
     // MARK: - Phase transitions in v8 flow
 
     func testV8Flow_phaseOrder() {
-        let slides = makeV8Slides()
+        let slides = makeSlides()
         var seenSetup = false
         var seenAction = false
 
@@ -425,7 +395,7 @@ final class OnboardingFlowTests: XCTestCase {
     // MARK: - Full navigation walk-through
 
     func testCoordinator_fullWalkthrough() {
-        let slides = makeV8Slides()
+        let slides = makeSlides()
         let coord = OnboardingCoordinator(slides: slides, flowVersion: "v8")
 
         var healthCalled = false

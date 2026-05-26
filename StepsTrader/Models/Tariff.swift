@@ -20,37 +20,37 @@ enum Tariff: String, CaseIterable, Codable {
     
     var stepsPerMinute: Double {
         switch self {
-        case .free: return 0
-        case .easy: return 100
-        case .medium: return 500
-        case .hard: return 1000
+        case .free: 0
+        case .easy: 100
+        case .medium: 500
+        case .hard: 1000
         }
     }
     
     var displayName: String {
         switch self {
-        case .free: return "Free"
-        case .easy: return "Easy"
-        case .medium: return "Medium"
-        case .hard: return "Hard"
+        case .free: "Free"
+        case .easy: "Easy"
+        case .medium: "Medium"
+        case .hard: "Hard"
         }
     }
     
     var entryCostSteps: Int {
         switch self {
-        case .free: return 0
-        case .easy: return 10
-        case .medium: return 50
-        case .hard: return 100
+        case .free: 0
+        case .easy: 10
+        case .medium: 50
+        case .hard: 100
         }
     }
     
     var description: String {
         switch self {
-        case .free: return "0 steps"
-        case .easy: return "10 steps"
-        case .medium: return "50 steps"
-        case .hard: return "100 steps"
+        case .free: "0 steps"
+        case .easy: "10 steps"
+        case .medium: "50 steps"
+        case .hard: "100 steps"
         }
     }
 }

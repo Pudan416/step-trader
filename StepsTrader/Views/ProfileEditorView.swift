@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct ProfileEditorView: View {
     @ObservedObject var authService: AuthenticationService
@@ -56,7 +55,7 @@ struct ProfileEditorView: View {
                                     
                                     Text(String((authService.currentUser?.displayName ?? "U").prefix(2)).uppercased())
                                         .font(.title2.weight(.bold))
-                                        .foregroundColor(.white)
+                                        .foregroundStyle(.white)
                                 }
                                 
                                 Circle()
@@ -65,7 +64,7 @@ struct ProfileEditorView: View {
                                     .overlay(
                                         Image(systemName: "camera.fill")
                                             .font(.systemSerif(14))
-                                            .foregroundColor(.white)
+                                            .foregroundStyle(.white)
                                     )
                                     .offset(x: 34, y: 34)
                             }
@@ -92,7 +91,7 @@ struct ProfileEditorView: View {
                 Section {
                     HStack {
                         Image(systemName: "at")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .frame(width: 24)
                         TextField(String(localized: "Nickname", comment: "ProfileEditor – nickname field"), text: $nickname)
                             .textInputAutocapitalization(.never)
@@ -109,10 +108,10 @@ struct ProfileEditorView: View {
                     Section {
                         HStack {
                             Image(systemName: "envelope")
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                                 .frame(width: 24)
                             Text(email)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     } header: {
                         Text(String(localized: "Email", comment: "ProfileEditor – email label"))
@@ -311,4 +310,11 @@ struct ProfileEditorView: View {
             isDeleting = false
         }
     }
+}
+
+#Preview {
+    ProfileEditorView(
+        authService: AuthenticationService.shared,
+        model: DIContainer.shared.makeAppModel()
+    )
 }

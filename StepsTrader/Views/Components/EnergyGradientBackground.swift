@@ -64,7 +64,12 @@ enum EnergyGradientRenderer {
     ]
 
     static func palette(for scheme: GradientPalette) -> Palette {
-        palettes[scheme] ?? palettes[.warmSunset]!
+        palettes[scheme] ?? palettes[.warmSunset] ?? Palette(
+            bright: Color(hex: "#FFBF65"),
+            warm:   Color(hex: "#FD8973"),
+            cool:   Color(hex: "#003A6C"),
+            dark:   Color(hex: "#002646")
+        )
     }
 
     // Backward-compat statics (warmSunset default)
@@ -101,7 +106,7 @@ enum EnergyGradientRenderer {
 
     /// Day seed: same value all day, changes at midnight.
     static var daySeed: UInt64 {
-        UInt64(Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 1)
+        UInt64(Calendar.current.ordinality(of: .day, in: .era, for: .now) ?? 1)
     }
 
     /// Generate organic blob layout from opacities + day seed.
@@ -177,12 +182,10 @@ enum EnergyGradientRenderer {
         let cols = 3
         let rows = 4
 
-        let colorPool: [(Color, Double)] = [
-            (pal.bright, opacities.gold),
-            (pal.warm,   opacities.coral),
-            (pal.cool,   opacities.navy),
-            (pal.dark,   opacities.night),
-        ]
+        let sN = opacities.stepsNorm
+        let lN = opacities.sleepNorm
+
+        let colorPool: [Color] = [pal.bright, pal.warm, pal.cool, pal.dark]
 
         for row in 0..<rows {
             for col in 0..<cols {
@@ -204,8 +207,14 @@ enum EnergyGradientRenderer {
                     pick = roll < 0.20 ? 0 : (roll < 0.50 ? 1 : (roll < 0.80 ? 2 : 3))
                 }
 
-                let (color, baseOpacity) = colorPool[pick]
-                let opacity = max(baseOpacity, 0.35) * rng.nextDouble(in: 0.65...1.0)
+                let color = colorPool[pick]
+                let opacity: Double
+                switch pick {
+                case 0: opacity = (0.35 + sN * 0.60) * rng.nextDouble(in: 0.65...1.0)
+                case 1: opacity = (0.35 + sN * 0.45 + lN * 0.10) * rng.nextDouble(in: 0.65...1.0)
+                case 2: opacity = (0.25 + lN * 0.50 + sN * 0.05) * rng.nextDouble(in: 0.65...1.0)
+                default: opacity = (0.20 + lN * 0.45) * rng.nextDouble(in: 0.65...1.0)
+                }
                 let radius = rng.nextDouble(in: 0.40...0.65)
 
                 blobs.append(Blob(
@@ -232,6 +241,10 @@ enum EnergyGradientRenderer {
         let goldLoc: Double    // gold starts at 0.0, ends here
         let coralLoc: Double   // coral ends here
         let navyLoc: Double    // navy ends here (night fills the rest → 1.0)
+
+        /// Raw smoothed norms (0…1) for styles that need continuous per-point response.
+        let stepsNorm: Double
+        let sleepNorm: Double
     }
 
     /// Compute per-stop opacities from **already-smoothed** normalized values.
@@ -327,20 +340,25 @@ enum EnergyGradientRenderer {
             glow: glowOp,
             goldLoc: goldLoc,
             coralLoc: coralLoc,
-            navyLoc: navyLoc
+            navyLoc: navyLoc,
+            stepsNorm: Ss,
+            sleepNorm: Ls
         )
     }
 
     // MARK: - Drawing
 
     /// Draw the energy gradient into a `GraphicsContext`.
+    /// Pass `time` (seconds since reference date) to enable drift animation for `.mesh`.
+    /// Nil = static frame (used by ImageRenderer, widgets, thumbnails).
     static func draw(
         context: inout GraphicsContext,
         size: CGSize,
         opacities: Opacities,
         baseColor: Color = night,
         gradientStyle: GradientStyle = .radial,
-        colorPalette: Palette? = nil
+        colorPalette: Palette? = nil,
+        time: Double? = nil
     ) {
         let pal = colorPalette ?? palette(for: .warmSunset)
         let w = Double(size.width)
@@ -420,12 +438,70 @@ enum EnergyGradientRenderer {
                     )
                 }
             }
+        case .angular:
+            let t = time ?? 0
+            var angRng = SeededRNG(seed: daySeed &+ 0xAA09)
+            let segmentCount = 6 + angRng.nextInt(in: 0...2)
+
+            let sN = opacities.stepsNorm
+            let lN = opacities.sleepNorm
+
+            var colors: [Color] = []
+            for _ in 0..<segmentCount {
+                let isWarm = angRng.next() % 2 == 0
+                if isWarm {
+                    let pick = angRng.next() % 2 == 0 ? pal.bright : pal.warm
+                    colors.append(pick.opacity(0.35 + sN * 0.60))
+                } else {
+                    let pick = angRng.next() % 2 == 0 ? pal.cool : pal.dark
+                    colors.append(pick.opacity(0.25 + lN * 0.50))
+                }
+            }
+            colors.append(colors[0])
+
+            let angle = Angle.degrees((t * 4).truncatingRemainder(dividingBy: 360))
+            let maxR = max(w, h) * 0.9
+            let sweepRect = CGRect(x: center.x - maxR, y: center.y - maxR, width: maxR * 2, height: maxR * 2)
+
+            context.fill(
+                Ellipse().path(in: sweepRect),
+                with: .conicGradient(Gradient(colors: colors), center: center, angle: angle)
+            )
+
+            let glowStrength = 0.25 + sN * 0.35 + lN * 0.15
+            let glow = Gradient(colors: [
+                pal.bright.opacity(glowStrength),
+                pal.warm.opacity(glowStrength * 0.5),
+                pal.cool.opacity(lN * 0.25),
+                .clear,
+            ])
+            context.drawLayer { ctx in
+                ctx.blendMode = .plusLighter
+                ctx.fill(
+                    Ellipse().path(in: sweepRect),
+                    with: .radialGradient(glow, center: center, startRadius: 0, endRadius: maxR * 0.65)
+                )
+            }
         case .mesh:
             let meshBlobs = meshBlobs(opacities: opacities, seed: daySeed, palette: pal)
-            for blob in meshBlobs {
-                let cx = blob.x * w
-                let cy = blob.y * h
-                let r = blob.radius * maxReach
+            for (i, blob) in meshBlobs.enumerated() {
+                let phase = Double(i) * 0.73
+                let phase2 = Double(i) * 1.37
+                let dx: Double
+                let dy: Double
+                let scalePulse: Double
+                if let t = time {
+                    dx = sin(t * 0.12 + phase) * 0.06
+                        + sin(t * 0.07 + phase2) * 0.03
+                    dy = cos(t * 0.10 + phase * 1.4) * 0.05
+                        + cos(t * 0.06 + phase2 * 0.8) * 0.025
+                    scalePulse = 1.0 + sin(t * 0.08 + phase) * 0.08
+                } else {
+                    dx = 0; dy = 0; scalePulse = 1.0
+                }
+                let cx = (blob.x + dx) * w
+                let cy = (blob.y + dy) * h
+                let r = blob.radius * maxReach * scalePulse
                 let blobGrad = Gradient(colors: [
                     blob.color.opacity(blob.opacity),
                     blob.color.opacity(blob.opacity * 0.45),
@@ -433,10 +509,11 @@ enum EnergyGradientRenderer {
                     blob.color.opacity(0),
                 ])
                 let stretchX = 1.0 + abs(blob.skewAngle) * 0.6
+                let rotationDrift = time.map { t in blob.skewAngle + sin(t * 0.09 + phase) * 0.25 } ?? blob.skewAngle
                 context.drawLayer { ctx in
                     ctx.blendMode = blob.blendMode
                     ctx.translateBy(x: cx, y: cy)
-                    ctx.rotate(by: .radians(blob.skewAngle))
+                    ctx.rotate(by: .radians(rotationDrift))
                     ctx.scaleBy(x: stretchX, y: 1.0)
                     ctx.fill(
                         Ellipse().path(in: CGRect(x: -r, y: -r, width: r * 2, height: r * 2)),
@@ -446,7 +523,7 @@ enum EnergyGradientRenderer {
             }
         }
 
-        if gradientStyle == .organic || gradientStyle == .mesh { return }
+        if gradientStyle == .organic || gradientStyle == .mesh || gradientStyle == .angular { return }
 
         let secondaryGrad = Gradient(colors: [
             pal.bright.opacity(opacities.glow * 0.6),
@@ -474,7 +551,7 @@ enum EnergyGradientRenderer {
             let glowH = h * 0.4
             let shading = GraphicsContext.Shading.linearGradient(secondaryGrad, startPoint: CGPoint(x: w * 0.5, y: 0), endPoint: CGPoint(x: w * 0.5, y: glowH))
             context.drawLayer { ctx in ctx.fill(Path(CGRect(x: 0, y: 0, width: w, height: glowH)), with: shading) }
-        case .organic, .mesh:
+        case .organic, .mesh, .angular:
             break
         }
     }
@@ -524,6 +601,80 @@ private struct EnergyGradientAnimator: ViewModifier, Animatable {
     }
 }
 
+/// Dedicated animated gradient view for styles that need continuous TimelineView updates.
+/// Separated from `EnergyGradientAnimator` because `Animatable` suppresses TimelineView redraws.
+private struct AnimatedGradientView: View {
+    let stepsNorm: Double
+    let sleepNorm: Double
+    let hasStepsData: Bool
+    let hasSleepData: Bool
+    let gradientStyle: GradientStyle
+    let gradientPalette: GradientPalette
+
+    @State private var stepsOrigin: Double = 0
+    @State private var stepsTarget: Double = 0
+    @State private var stepsTransStart: TimeInterval = 0
+
+    @State private var sleepOrigin: Double = 0
+    @State private var sleepTarget: Double = 0
+    @State private var sleepTransStart: TimeInterval = 0
+
+    private static let transDuration: Double = 0.8
+
+    private func eased(_ origin: Double, _ target: Double, _ start: TimeInterval, _ now: TimeInterval) -> Double {
+        guard now > start else { return target }
+        let progress = min((now - start) / Self.transDuration, 1.0)
+        let e = progress * progress * (3 - 2 * progress)
+        return origin + (target - origin) * e
+    }
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            let smoothSteps = eased(stepsOrigin, stepsTarget, stepsTransStart, t)
+            let smoothSleep = eased(sleepOrigin, sleepTarget, sleepTransStart, t)
+            let pal = EnergyGradientRenderer.palette(for: gradientPalette)
+            Canvas { context, size in
+                let Ss = EnergyGradientRenderer.smoothstep(smoothSteps)
+                let Ls = EnergyGradientRenderer.smoothstep(smoothSleep)
+                let opacities = EnergyGradientRenderer.computeOpacities(
+                    smoothedS: Ss,
+                    smoothedL: Ls,
+                    hasStepsData: hasStepsData,
+                    hasSleepData: hasSleepData
+                )
+                EnergyGradientRenderer.draw(
+                    context: &context,
+                    size: size,
+                    opacities: opacities,
+                    baseColor: pal.dark,
+                    gradientStyle: gradientStyle,
+                    colorPalette: pal,
+                    time: t
+                )
+            }
+        }
+        .onAppear {
+            stepsOrigin = stepsNorm
+            stepsTarget = stepsNorm
+            sleepOrigin = sleepNorm
+            sleepTarget = sleepNorm
+        }
+        .onChange(of: stepsNorm) { _, newValue in
+            let now = Date().timeIntervalSinceReferenceDate
+            stepsOrigin = eased(stepsOrigin, stepsTarget, stepsTransStart, now)
+            stepsTarget = newValue
+            stepsTransStart = now
+        }
+        .onChange(of: sleepNorm) { _, newValue in
+            let now = Date().timeIntervalSinceReferenceDate
+            sleepOrigin = eased(sleepOrigin, sleepTarget, sleepTransStart, now)
+            sleepTarget = newValue
+            sleepTransStart = now
+        }
+    }
+}
+
 // MARK: - EnergyGradientBackground View
 /// Shared energy gradient + grain background used by every tab.
 ///
@@ -568,20 +719,10 @@ struct EnergyGradientBackground: View {
         Double(min(max(sleepPoints, 0), 20)) / 20.0
     }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        Color.clear
-            .modifier(EnergyGradientAnimator(
-                stepsNorm: stepsNorm,
-                sleepNorm: sleepNorm,
-                hasStepsData: hasStepsData,
-                hasSleepData: hasSleepData,
-                gradientStyle: gradientStyle,
-                gradientPalette: gradientPaletteValue
-            ))
-            .animation(.easeInOut(duration: 0.8), value: stepsPoints)
-            .animation(.easeInOut(duration: 0.8), value: sleepPoints)
-            .animation(.easeInOut(duration: 0.8), value: hasStepsData)
-            .animation(.easeInOut(duration: 0.8), value: hasSleepData)
+        gradientContent
             .ignoresSafeArea()
             .overlay {
                 if showGrain && !reduceTransparency {
@@ -590,6 +731,34 @@ struct EnergyGradientBackground: View {
                     TextureOverlayView(texture: texture)
                 }
             }
+    }
+
+    @ViewBuilder
+    private var gradientContent: some View {
+        if gradientStyle.isAnimated && !reduceMotion {
+            AnimatedGradientView(
+                stepsNorm: stepsNorm,
+                sleepNorm: sleepNorm,
+                hasStepsData: hasStepsData,
+                hasSleepData: hasSleepData,
+                gradientStyle: gradientStyle,
+                gradientPalette: gradientPaletteValue
+            )
+        } else {
+            Color.clear
+                .modifier(EnergyGradientAnimator(
+                    stepsNorm: stepsNorm,
+                    sleepNorm: sleepNorm,
+                    hasStepsData: hasStepsData,
+                    hasSleepData: hasSleepData,
+                    gradientStyle: gradientStyle,
+                    gradientPalette: gradientPaletteValue
+                ))
+                .animation(.easeInOut(duration: 0.8), value: stepsPoints)
+                .animation(.easeInOut(duration: 0.8), value: sleepPoints)
+                .animation(.easeInOut(duration: 0.8), value: hasStepsData)
+                .animation(.easeInOut(duration: 0.8), value: hasSleepData)
+        }
     }
 }
 
@@ -648,5 +817,25 @@ extension View {
         sleepPoints: 20,
         hasStepsData: true,
         hasSleepData: true
+    )
+}
+
+#Preview("E) Mesh Animated") {
+    EnergyGradientBackground(
+        stepsPoints: 15,
+        sleepPoints: 10,
+        hasStepsData: true,
+        hasSleepData: true,
+        gradientStyleOverride: GradientStyle.mesh.rawValue
+    )
+}
+
+#Preview("F) Angular Animated") {
+    EnergyGradientBackground(
+        stepsPoints: 18,
+        sleepPoints: 8,
+        hasStepsData: true,
+        hasSleepData: true,
+        gradientStyleOverride: GradientStyle.angular.rawValue
     )
 }

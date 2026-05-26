@@ -21,7 +21,7 @@ extension SupabaseSyncService {
         pendingTicketGroupsPayload = rows
         ticketGroupsSyncTask?.cancel()
         ticketGroupsSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5s debounce
+            try? await Task.sleep(for: .seconds(1.5))
             guard !Task.isCancelled else { return }
             let latest = pendingTicketGroupsPayload
             await performTicketGroupsSync(rows: latest)

@@ -10,12 +10,19 @@ import SwiftUI
 /// Pro users (subscribed, lifetime, grandfathered) bypass all gates.
 enum SubscriptionGate {
 
+    // MARK: - Kill-switch
+
+    /// While the app is under review and payments are not active, grant Pro
+    /// to every user so all features are available for free.  Flip to `false`
+    /// once IAP is approved and ready to go live.
+    static let allFeaturesUnlocked = true
+
     // MARK: - Hard limits (Free tier)
 
     /// Maximum number of `TicketGroup`s a Free user can create.
     /// Existing groups beyond the limit (legacy users, downgrade after trial)
     /// are NOT removed — only blocking new creation.
-    static let freeMaxBlockingGroups: Int = 1
+    static let freeMaxBlockingGroups: Int = 2
 
     /// Number of past days unlocked in `HistoryView` for Free users.
     /// Older days (8…90) render blurred behind a paywall.
@@ -23,9 +30,10 @@ enum SubscriptionGate {
 
     // MARK: - Allowed visual options for Free
 
-    /// Gradient palette Free users can pick. Other palettes are locked
+    /// Gradient palettes Free users can pick. Other palettes are locked
     /// behind a paywall in `SettingsAppearancePage`.
-    static let freeGradientPaletteRaw: String = "warmSunset"
+    /// `warmSunset` is the raw value for the "Sunset" palette (see `GradientPalette`).
+    static let freeGradientPaletteRaws: Set<String> = ["warmSunset", "ocean", "aurora"]
 
     /// Gradient styles Free users can pick.
     /// `circular` in product spec maps to `radial` in `GradientStyle`.
@@ -54,10 +62,17 @@ enum SubscriptionGate {
         return currentCount < freeMaxBlockingGroups
     }
 
-    /// Can the user create a custom energy activity?
+    /// Can the user create a custom energy card?
     static func canCreateCustomActivity(isPro: Bool) -> Bool {
         if isPro { return true }
         return freeCanCreateCustomActivity
+    }
+
+    /// Can the user log an ephemeral moment (one-time life event)?
+    /// Moment entry is a Pro-only feature — the ✦ node in the radial fan is
+    /// visible to all users but tapping it shows a paywall for free users.
+    static func canAddMoment(isPro: Bool) -> Bool {
+        return isPro
     }
 
     /// Can the user enable daily random theme?
@@ -75,7 +90,7 @@ enum SubscriptionGate {
     /// Is this gradient palette available to the user?
     static func isGradientPaletteAvailable(isPro: Bool, paletteRaw: String) -> Bool {
         if isPro { return true }
-        return paletteRaw == freeGradientPaletteRaw
+        return freeGradientPaletteRaws.contains(paletteRaw)
     }
 
     /// Is this gradient style available to the user?
@@ -116,6 +131,6 @@ enum SubscriptionGate {
 
     /// Mark the post-onboarding paywall as shown so it never appears again.
     static func markPostOnboardingPaywallShown(defaults: UserDefaults = .standard) {
-        defaults.set(Date(), forKey: postOnboardingPaywallShownKey)
+        defaults.set(Date.now, forKey: postOnboardingPaywallShownKey)
     }
 }

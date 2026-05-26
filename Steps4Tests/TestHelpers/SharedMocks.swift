@@ -12,6 +12,7 @@ final class MockHealthKitService: HealthKitServiceProtocol {
     func fetchMindfulMinutes(from: Date, to: Date) async throws -> Double { 0 }
     func startObservingSteps(updateHandler: @escaping (Double) -> Void) {}
     func stopObservingSteps() {}
+    func clearLastStepCount() {}
 }
 
 @MainActor

@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 // MARK: - Day Canvas Viewer
 /// Full-screen viewer for a past day's canvas. Renders the **persisted** canvas
@@ -37,7 +36,7 @@ struct DayCanvasViewerView: View {
     }
 
     private var displayDate: Date {
-        CachedFormatters.dayKey.date(from: dayKey) ?? Date()
+        CachedFormatters.dayKey.date(from: dayKey) ?? .now
     }
 
     var body: some View {
@@ -100,6 +99,8 @@ struct DayCanvasViewerView: View {
                         isImmersive.toggle()
                     }
                 }
+                .accessibilityLabel(isImmersive ? String(localized: "Exit immersive mode") : String(localized: "View canvas"))
+                .accessibilityAddTraits(.isButton)
                 .contextMenu {
                     Button {
                         Task { await saveToPhotos() }
@@ -151,8 +152,8 @@ struct DayCanvasViewerView: View {
             EnergyGradientBackground(
                 stepsPoints: dc.stepsPoints,
                 sleepPoints: dc.sleepPoints,
-                hasStepsData: dc.stepsPoints > 0,
-                hasSleepData: dc.sleepPoints > 0,
+                hasStepsData: dc.resolvedHasStepsData,
+                hasSleepData: dc.resolvedHasSleepData,
                 showGrain: true,
                 gradientStyleOverride: dc.gradientStyle,
                 gradientPaletteOverride: dc.gradientPalette,
@@ -171,8 +172,8 @@ struct DayCanvasViewerView: View {
                 showLabelsOnCanvas: true,
                 showsOutlinedLabels: false,
                 showsBackgroundGradient: false,
-                hasStepsData: dc.stepsPoints > 0,
-                hasSleepData: dc.sleepPoints > 0,
+                hasStepsData: dc.resolvedHasStepsData,
+                hasSleepData: dc.resolvedHasSleepData,
                 fixedTime: fixedTime,
                 isOffscreenRender: isOffscreenRender
             )
@@ -326,7 +327,7 @@ struct DayCanvasViewerView: View {
     // MARK: - Helpers
 
     static func endOfDay(for dayKey: String) -> Date {
-        let date = CachedFormatters.dayKey.date(from: dayKey) ?? Date()
+        let date = CachedFormatters.dayKey.date(from: dayKey) ?? .now
         return Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: date) ?? date
     }
 }
@@ -334,6 +335,6 @@ struct DayCanvasViewerView: View {
 #Preview {
     DayCanvasViewerView(
         model: DIContainer.shared.makeAppModel(),
-        dayKey: AppModel.dayKey(for: Date())
+        dayKey: AppModel.dayKey(for: .now)
     )
 }

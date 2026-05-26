@@ -10,6 +10,7 @@ enum HealthKitServiceError: LocalizedError {
     case healthKitNotAvailable
     case stepTypeNotAvailable
     case sleepTypeNotAvailable
+    case authorizationTimeout
     
     var errorDescription: String? {
         switch self {
@@ -19,8 +20,15 @@ enum HealthKitServiceError: LocalizedError {
             return "Step count type is not available"
         case .sleepTypeNotAvailable:
             return "Sleep analysis type is not available"
+        case .authorizationTimeout:
+            return "HealthKit authorization dialog did not appear"
         }
     }
+}
+
+private final class UnsafeSendableBox: @unchecked Sendable {
+    var value: Bool
+    init(_ value: Bool) { self.value = value }
 }
 
 @preconcurrency
@@ -88,19 +96,54 @@ final class HealthKitService: HealthKitServiceProtocol {
             readTypes.insert(mindfulType)
         }
         let status = try await store.statusForAuthorizationRequest(toShare: [], read: readTypes)
-        log.info("Request status: \(status.rawValue)")
+        log.info("Request status: \(status.rawValue) (\(Self.describeAuthorizationRequestStatus(status)))")
         logAuthorizationStatus(context: "requestAuthorization:pre-flight")
         
-        // Native async API — no continuation wrapper or timeout watchdog needed
-        try await store.requestAuthorization(toShare: [], read: readTypes)
-        log.info("requestAuthorization completed")
-        logAuthorizationStatus(context: "requestAuthorization:post-request")
+        if status == .unnecessary {
+            log.info("requestAuthorization skipped — read access already granted")
+        } else {
+            // Use the completion-handler API and wrap in a continuation.
+            // The async overload silently hangs on some iOS versions.
+            let didFinish = UnsafeSendableBox(false)
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
+                store.requestAuthorization(toShare: [], read: readTypes) { success, error in
+                    guard !didFinish.value else { return }
+                    didFinish.value = true
+                    if let error {
+                        cont.resume(throwing: error)
+                    } else {
+                        cont.resume()
+                    }
+                }
+                // Timeout — release the continuation after 10s even if the
+                // completion handler never fires.
+                Task.detached {
+                    try? await Task.sleep(for: .seconds(10))
+                    if !didFinish.value {
+                        didFinish.value = true
+                        log.warning("requestAuthorization timed out after 10s")
+                        cont.resume(throwing: HealthKitServiceError.authorizationTimeout)
+                    }
+                }
+            }
+            log.info("requestAuthorization completed")
+            logAuthorizationStatus(context: "requestAuthorization:post-request")
+        }
         
         // Enable background delivery for steps so HKObserverQuery fires when suspended.
         // Sleep background delivery removed — no observer registered; sleep refreshes on foreground.
         if let stepType = self.stepType {
             try await store.enableBackgroundDelivery(for: stepType, frequency: .immediate)
             log.info("Background delivery for step count enabled")
+        }
+    }
+
+    private static func describeAuthorizationRequestStatus(_ status: HKAuthorizationRequestStatus) -> String {
+        switch status {
+        case .shouldRequest: return "shouldRequest"
+        case .unnecessary: return "unnecessary"
+        case .unknown: return "unknown"
+        @unknown default: return "unknown(\(status.rawValue))"
         }
     }
 
@@ -186,17 +229,41 @@ final class HealthKitService: HealthKitServiceProtocol {
             log.warning("Step type not available, returning cached: \(self.lastStepCount)")
             return lastStepCount
         }
-        
-        // Never trigger system permission prompts from passive data reads.
-        // Onboarding controls when authorization is requested.
-        let stepAuthStatus = store.authorizationStatus(for: stepType)
-        if stepAuthStatus == .notDetermined {
-            log.debug("Step authorization not determined; skipping fetch until explicit onboarding consent")
-            return lastStepCount
+
+        // Passive HKStatisticsQuery does not show the permission sheet.
+        // Do not gate on authorizationStatus(for:) — it reports WRITE status only.
+        // Read-only apps (toShare: []) stay .notDetermined even after the user allows reads.
+
+        // Use .strictStartDate to exclude samples that started before the day boundary.
+        // Without it, sources like WHOOP that write one giant sample spanning 22+ hours
+        // leak yesterday's entire step count into today's total (14k+ phantom steps).
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        log.info("👣 fetchSteps QUERY: \(start) … \(end), lastStepCount=\(self.lastStepCount)")
+
+        // Diagnostic: log sample breakdown by source (runs in background, doesn't affect result)
+        let diagnosticStore = self.store
+        Task.detached {
+            let sampleQuery = HKSampleQuery(
+                sampleType: stepType,
+                predicate: HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate),
+                limit: 200,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+            ) { _, samples, _ in
+                guard let samples = samples as? [HKQuantitySample] else { return }
+                var bySource: [String: Double] = [:]
+                for s in samples {
+                    let source = s.sourceRevision.source.name
+                    let steps = s.quantity.doubleValue(for: .count())
+                    bySource[source, default: 0] += steps
+                }
+                log.info("👣 DIAG: \(samples.count) samples (strictStartDate)")
+                for (source, total) in bySource.sorted(by: { $0.value > $1.value }) {
+                    log.info("👣 DIAG source '\(source)': \(Int(total)) steps")
+                }
+            }
+            diagnosticStore.execute(sampleQuery)
         }
 
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
-        
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: predicate, options: .cumulativeSum) { [weak self] _, stats, error in
                 guard let self = self else {
@@ -204,12 +271,11 @@ final class HealthKitService: HealthKitServiceProtocol {
                     return
                 }
                 if let error = error {
-                    // If the error is "No data available", return 0 instead of failing
                     let nsError = error as NSError
                     if nsError.code == 11 || // HKErrorCode 11 - no data available
                        nsError.localizedDescription.contains("No data available") {
-                        log.debug("No step data available for today, returning cached")
-                        continuation.resume(returning: self.lastStepCount)
+                        log.debug("No step data available for period, returning 0")
+                        continuation.resume(returning: 0)
                         return
                     }
                     log.error("HealthKit error: \(error.localizedDescription)")
@@ -220,10 +286,11 @@ final class HealthKitService: HealthKitServiceProtocol {
                     }
                     return
                 }
-                
+
                 let steps = stats?.sumQuantity()?.doubleValue(for: .count()) ?? 0
+                let prevCached = self.lastStepCount
                 self.lastStepCount = steps
-                log.info("Fetched \(Int(steps)) steps for today")
+                log.info("👣 fetchSteps RESULT: HK returned \(Int(steps)) steps (was cached: \(Int(prevCached)))")
                 if steps > 0 {
                     self.logAuthorizationStatus(context: "fetchTodaySteps:data-available")
                 }
@@ -329,9 +396,14 @@ final class HealthKitService: HealthKitServiceProtocol {
         Task { [weak self] in
             guard let self = self else { return }
             // Initial fetch so UI has fresh value before observer fires
-            if let steps = try? await self.fetchSteps(from: Date.startOfToday, to: Date()) {
+            let dayStart = Date.startOfToday
+            log.info("👣 startObservingSteps: initial fetch dayStart=\(dayStart)")
+            if let steps = try? await self.fetchSteps(from: dayStart, to: Date.now) {
+                log.info("👣 startObservingSteps: initial fetch returned \(Int(steps)), pushing to UI")
                 self.lastStepCount = steps
                 await MainActor.run { updateHandler(steps) }
+            } else {
+                log.warning("👣 startObservingSteps: initial fetch FAILED, lastStepCount=\(self.lastStepCount)")
             }
             await self.beginObservation(updateHandler: updateHandler)
         }
@@ -340,11 +412,15 @@ final class HealthKitService: HealthKitServiceProtocol {
     @MainActor
     func stopObservingSteps() {
         guard let query = observerQuery else { return }
-        
+
         store.stop(query)
         observerQuery = nil
         isObserving = false
         log.info("Step observation stopped")
+    }
+
+    func clearLastStepCount() {
+        lastStepCount = 0
     }
 
     @MainActor
@@ -355,10 +431,11 @@ final class HealthKitService: HealthKitServiceProtocol {
             return
         }
 
-        log.info("Starting step observation")
+        let observerDayStart = Date.startOfToday
+        log.info("👣 beginObservation: predicate startDate=\(observerDayStart)")
 
         let predicate = HKQuery.predicateForSamples(
-            withStart: Date.startOfToday,
+            withStart: observerDayStart,
             end: nil,
             options: .strictStartDate
         )
@@ -378,12 +455,15 @@ final class HealthKitService: HealthKitServiceProtocol {
             }
             Task {
                 defer { completionHandler() }
+                let refetchStart = Date.startOfToday
+                log.info("👣 OBSERVER FIRED: re-fetching from \(refetchStart)")
                 do {
-                    let steps = try await self.fetchSteps(from: Date.startOfToday, to: Date())
+                    let steps = try await self.fetchSteps(from: refetchStart, to: Date.now)
+                    log.info("👣 OBSERVER re-fetch: \(Int(steps)) steps, pushing to UI")
                     self.lastStepCount = steps
                     await MainActor.run { updateHandler(steps) }
                 } catch {
-                    log.error("Observer re-fetch failed: \(error.localizedDescription)")
+                    log.error("👣 OBSERVER re-fetch FAILED: \(error.localizedDescription), lastStepCount=\(self.lastStepCount)")
                 }
             }
         }

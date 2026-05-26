@@ -19,4 +19,5 @@ protocol HealthKitServiceProtocol {
     func fetchMindfulMinutes(from: Date, to: Date) async throws -> Double
     @MainActor func startObservingSteps(updateHandler: @escaping (Double) -> Void)
     @MainActor func stopObservingSteps()
+    func clearLastStepCount()
 }

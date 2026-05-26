@@ -4,15 +4,15 @@ import SwiftUI
 
 extension Text {
     func themedPrimary(_ theme: AppTheme) -> Text {
-        self.foregroundColor(theme.textPrimary)
+        self.foregroundStyle(theme.textPrimary)
     }
 
     func themedSecondary(_ theme: AppTheme) -> Text {
-        self.foregroundColor(theme.textSecondary)
+        self.foregroundStyle(theme.textSecondary)
     }
 
     func themedAccent(_ theme: AppTheme) -> Text {
-        self.foregroundColor(theme.accentColor)
+        self.foregroundStyle(theme.accentColor)
     }
 }
 

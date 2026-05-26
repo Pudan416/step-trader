@@ -55,6 +55,7 @@ struct SettingsAppearancePage: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
         .sheet(item: $previewConfig) { config in
             GradientPreviewSheet(
                 config: config,
@@ -62,6 +63,7 @@ struct SettingsAppearancePage: View {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         gradientStyleRaw = config.style.rawValue
                     }
+                    // TODO: Migrate to .sensoryFeedback()
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     previewConfig = nil
                     model.syncUserPreferencesToSupabase()
@@ -122,6 +124,7 @@ struct SettingsAppearancePage: View {
                     get: { dailyRandomThemeEnabled },
                     set: { newValue in
                         model.setDailyRandomTheme(enabled: newValue)
+                        // TODO: Migrate to .sensoryFeedback()
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     }
                 ))
@@ -139,9 +142,11 @@ struct SettingsAppearancePage: View {
         .onTapGesture {
             if !model.isPro {
                 showPaywall = true
+                // TODO: Migrate to .sensoryFeedback()
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             }
         }
+        .accessibilityAddTraits(.isButton)
     }
 
     private var rerollRow: some View {
@@ -149,6 +154,7 @@ struct SettingsAppearancePage: View {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
                 model.rerollDailyTheme()
             }
+            // TODO: Migrate to .sensoryFeedback()
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         } label: {
             HStack(spacing: 12) {
@@ -199,7 +205,7 @@ struct SettingsAppearancePage: View {
     // MARK: - Palette (horizontal scroll)
 
     private var paletteHScroll: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal) {
             HStack(spacing: 14) {
                 ForEach(GradientPalette.allCases, id: \.rawValue) { scheme in
                     let isSelected = selectedPalette == scheme
@@ -217,6 +223,7 @@ struct SettingsAppearancePage: View {
                         } else {
                             showPaywall = true
                         }
+                        // TODO: Migrate to .sensoryFeedback()
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     } label: {
                         paletteChip(scheme: scheme, isSelected: isSelected, isLocked: !isUnlocked)
@@ -228,6 +235,7 @@ struct SettingsAppearancePage: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 4)
         }
+        .scrollIndicators(.hidden)
     }
 
     private func paletteChip(scheme: GradientPalette, isSelected: Bool, isLocked: Bool) -> some View {
@@ -252,7 +260,7 @@ struct SettingsAppearancePage: View {
 
                     Image(systemName: "checkmark")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                 }
 
@@ -269,7 +277,7 @@ struct SettingsAppearancePage: View {
 
             Text(scheme.displayName)
                 .font(.system(size: 10, weight: isSelected ? .bold : .medium))
-                .foregroundColor(isSelected ? .primary : .secondary)
+                .foregroundStyle(isSelected ? .primary : .secondary)
                 .opacity(isLocked ? 0.6 : 1.0)
         }
         .accessibilityLabel(isLocked
@@ -280,7 +288,7 @@ struct SettingsAppearancePage: View {
     // MARK: - Gradient Style (horizontal scroll)
 
     private var gradientStyleHScroll: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal) {
             HStack(spacing: 10) {
                 ForEach(GradientStyle.allCases, id: \.rawValue) { style in
                     let isSelected = gradientStyleRaw == style.rawValue
@@ -295,6 +303,7 @@ struct SettingsAppearancePage: View {
                         } else {
                             showPaywall = true
                         }
+                        // TODO: Migrate to .sensoryFeedback()
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     } label: {
                         VStack(spacing: 6) {
@@ -329,17 +338,17 @@ struct SettingsAppearancePage: View {
                                         .background(Circle().fill(.black.opacity(0.55)))
                                 }
                             }
-                            .overlay(
+                            .overlay {
                                 RoundedRectangle(cornerRadius: 10)
                                     .strokeBorder(
                                         isSelected ? AppColors.brandAccent : Color.white.opacity(0.08),
                                         lineWidth: isSelected ? 2 : 0.5
                                     )
-                            )
+                            }
 
                             Text(style.displayName)
                                 .font(.system(size: 10, weight: isSelected ? .bold : .medium))
-                                .foregroundColor(isSelected ? .primary : .secondary)
+                                .foregroundStyle(isSelected ? .primary : .secondary)
                                 .opacity(isUnlocked ? 1.0 : 0.6)
                                 .lineLimit(1)
                         }
@@ -354,6 +363,7 @@ struct SettingsAppearancePage: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 4)
         }
+        .scrollIndicators(.hidden)
     }
 
     // MARK: - Manual Group (shapes + textures)
@@ -432,10 +442,12 @@ struct SettingsAppearancePage: View {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 selectedRaw.wrappedValue = shape.rawValue
                             }
+                            // TODO: Migrate to .sensoryFeedback()
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             model.syncUserPreferencesToSupabase()
                         } else {
                             showPaywall = true
+                            // TODO: Migrate to .sensoryFeedback()
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         }
                     } label: {
@@ -456,24 +468,21 @@ struct SettingsAppearancePage: View {
     }
 
     private func compactShapeChip(shape: CanvasShapeType, isSelected: Bool, isUnlocked: Bool) -> some View {
-        let yellow = Color(red: 0.95, green: 0.85, blue: 0.25)
-        let chipColor = isUnlocked ? yellow : theme.adaptiveMutedText.opacity(0.35)
-
-        return ZStack {
+        ZStack {
             RoundedRectangle(cornerRadius: 8)
                 .fill(theme.adaptivePrimaryText.opacity(isSelected ? 0.1 : 0.04))
                 .frame(width: 48, height: 48)
 
-            shapeTypePreview(shape: shape, color: chipColor)
+            shapeTypePreview(shape: shape)
                 .frame(width: 34, height: 34)
         }
-        .overlay(
+        .overlay {
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(
                     isSelected ? AppColors.brandAccent : theme.adaptivePrimaryText.opacity(0.06),
                     lineWidth: isSelected ? 2 : 0.5
                 )
-        )
+        }
         .saturation(isUnlocked ? 1.0 : 0.4)
         .accessibilityLabel(isUnlocked
             ? shape.displayName
@@ -481,59 +490,41 @@ struct SettingsAppearancePage: View {
     }
 
     @ViewBuilder
-    private func shapeTypePreview(shape: CanvasShapeType, color: Color) -> some View {
-        Canvas { ctx, size in
-            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 2, dy: 2)
+    private func shapeTypePreview(shape: CanvasShapeType) -> some View {
+        let brandYellow = AppColors.brandAccent
+        let previewSeed: UInt64 = 42_091
 
-            switch shape {
-            case .blob:
-                let path = ProceduralShapeGenerator.bodyPath(
-                    seed: 31337, complexity: 0.5, time: 0, in: rect
-                )
-                ctx.fill(path, with: .color(color))
-
-            case .snowflake:
-                let frame = ProceduralShapeGenerator.rectMorphFrame(
-                    seed: 7919, time: 0, in: rect
-                )
-                ctx.fill(frame.path, with: .color(color.opacity(0.35)))
-                ctx.stroke(
-                    frame.path, with: .color(color),
-                    style: StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round)
-                )
-
-            case .rays:
-                let center = CGPoint(x: rect.midX, y: rect.midY)
-                let reach = min(rect.width, rect.height) * 0.45
-                let rays = ProceduralShapeGenerator.heartRays(
-                    seed: 6271, complexity: 0.4, time: 0,
-                    origin: center,
-                    direction: CGPoint(x: 0, y: -1),
-                    reach: reach
-                )
-                for ray in rays {
-                    ctx.fill(ray.path, with: .color(color.opacity(0.7)))
-                }
-
-            case .circle:
-                let r = min(rect.width, rect.height) * 0.38
-                let offsets: [(CGFloat, CGFloat)] = [(-0.18, -0.15), (0.20, -0.10), (0.0, 0.20)]
-                for (i, off) in offsets.enumerated() {
-                    let cx = rect.midX + off.0 * rect.width
-                    let cy = rect.midY + off.1 * rect.height
-                    let ellipse = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
-                    let opacity = 0.85 - Double(i) * 0.15
-                    let grad = Gradient(stops: [
-                        .init(color: color.opacity(opacity), location: 0),
-                        .init(color: color.opacity(opacity * 0.5), location: 0.6),
-                        .init(color: color.opacity(opacity * 0.15), location: 1.0),
-                    ])
-                    ctx.fill(
-                        Path(ellipseIn: ellipse),
-                        with: .radialGradient(grad, center: CGPoint(x: cx, y: cy), startRadius: 0, endRadius: r)
+        switch shape {
+        case .circle, .spirograph:
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [brandYellow, brandYellow.opacity(0.3)],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 17
                     )
-                }
-            }
+                )
+        case .snowflake:
+            RectMorphPreview(
+                seed: previewSeed,
+                color: brandYellow
+            )
+        case .rays:
+            SpotlightPreview(
+                seed: previewSeed,
+                overrideColor: brandYellow
+            )
+        case .organicBlob:
+            OrganicBlobPreview(
+                seed: previewSeed,
+                colors: [brandYellow, brandYellow.opacity(0.5)]
+            )
+        case .blob:
+            BodyBlobPreview(
+                seed: previewSeed,
+                colors: [brandYellow, brandYellow.opacity(0.5)]
+            )
         }
     }
 
@@ -548,7 +539,7 @@ struct SettingsAppearancePage: View {
             sectionLabel(String(localized: "TEXTURE", comment: "Appearance section header"))
                 .padding(.horizontal, 16)
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            ScrollView(.horizontal) {
                 HStack(spacing: 12) {
                     textureChip(texture: .none)
                     ForEach(CanvasTexture.textures) { texture in
@@ -558,6 +549,7 @@ struct SettingsAppearancePage: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 4)
             }
+            .scrollIndicators(.hidden)
         }
     }
 
@@ -570,10 +562,12 @@ struct SettingsAppearancePage: View {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                     canvasTextureRaw = texture.rawValue
                 }
+                // TODO: Migrate to .sensoryFeedback()
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 model.syncUserPreferencesToSupabase()
             } else {
                 showPaywall = true
+                // TODO: Migrate to .sensoryFeedback()
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             }
         } label: {
@@ -607,17 +601,17 @@ struct SettingsAppearancePage: View {
                     }
                 }
                 .frame(width: 56, height: 56)
-                .overlay(
+                .overlay {
                     RoundedRectangle(cornerRadius: 10)
                         .strokeBorder(
                             isSelected ? AppColors.brandAccent : Color.white.opacity(0.08),
                             lineWidth: isSelected ? 2 : 0.5
                         )
-                )
+                }
 
                 Text(texture.displayName)
                     .font(.system(size: 9, weight: isSelected ? .bold : .medium))
-                    .foregroundColor(isSelected ? .primary : .secondary)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
             }
         }
@@ -651,5 +645,11 @@ struct SettingsAppearancePage: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(Capsule().fill(theme.adaptiveMutedText.opacity(0.12)))
+    }
+}
+
+#Preview {
+    NavigationStack {
+        SettingsAppearancePage(model: DIContainer.shared.makeAppModel())
     }
 }

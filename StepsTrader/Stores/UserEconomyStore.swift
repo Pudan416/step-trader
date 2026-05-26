@@ -62,7 +62,6 @@ final class UserEconomyStore: ObservableObject {
             AppLogger.energy.debug("💾 setNeedsFlush: stepsBalance=\(self.stepsBalance), spentSteps=\(self.spentSteps) (UD was \(udSpent))")
             g.set(self.stepsBalance, forKey: SharedKeys.stepsBalance)
             g.set(self.spentSteps, forKey: SharedKeys.spentStepsToday)
-            g.synchronize()
         }
     }
     
@@ -98,7 +97,7 @@ final class UserEconomyStore: ObservableObject {
             appStepsSpentByDay = [:]
         }
         
-        let dayKey = AppModel.dayKey(for: Date())
+        let dayKey = AppModel.dayKey(for: Date.now)
         appStepsSpentToday = appStepsSpentByDay[dayKey] ?? [:]
         
         if appStepsSpentLifetime.isEmpty {
@@ -119,7 +118,7 @@ final class UserEconomyStore: ObservableObject {
     
     
     func persistAppStepsSpentToday() {
-        let dayKey = AppModel.dayKey(for: Date())
+        let dayKey = AppModel.dayKey(for: Date.now)
         appStepsSpentByDay[dayKey] = appStepsSpentToday
         persistAppStepsSpentByDay()
     }
@@ -215,7 +214,7 @@ final class UserEconomyStore: ObservableObject {
     }
     
     private func clearExpiredDayPasses() {
-        let now = Date()
+        let now = Date.now
         let g = UserDefaults.stepsTrader()
         let hour = (g.object(forKey: SharedKeys.dayEndHour) as? Int) ?? 0
         let minute = (g.object(forKey: SharedKeys.dayEndMinute) as? Int) ?? 0

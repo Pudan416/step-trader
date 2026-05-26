@@ -13,7 +13,8 @@ extension AppModel {
         
         await refreshStepsIfAuthorized()
     }
-    
+
+
     /// Fetches steps only and updates the budget. Does NOT recalculate energy.
     func refreshStepsBalance() async {
         await healthStore.refreshStepsIfAuthorized()
@@ -50,4 +51,36 @@ extension AppModel {
     func startStepObservation() {
         healthStore.startObservingSteps()
     }
+
+    #if DEBUG
+    /// Simulates a new-day boundary: resets all daily state, clears caches,
+    /// restarts the observer, and re-fetches fresh data from HealthKit.
+    func debugForceHealthReset() async {
+        AppLogger.healthKit.debug("🔧 DEBUG: forcing day-boundary health reset")
+
+        // 1. Stop observer (stale predicate)
+        healthStore.stopObservingSteps()
+
+        // 2. Clear in-memory HealthKit cache so stale values aren't returned on error
+        healthStore.clearCachedStepCount()
+
+        // 3. Zero out all health state + UserDefaults caches
+        stepsToday = 0
+        dailySleepHours = 0
+        healthStore.hasStepsData = false
+        healthStore.hasSleepData = false
+        let g = UserDefaults.stepsTrader()
+        g.removeObject(forKey: SharedKeys.cachedStepsToday)
+        g.set(false, forKey: SharedKeys.hasStepsData)
+        g.removeObject(forKey: "cachedSleepHoursToday")
+
+        // 4. Reset energy anchor to current day start so the system thinks it's a fresh day
+        let newAnchor = currentDayStart(for: Date.now)
+        g.set(newAnchor, forKey: "dailyEnergyAnchor_v1")
+        AppLogger.healthKit.debug("🔧 DEBUG: new anchor = \(newAnchor)")
+
+        // 5. Re-fetch from HealthKit and rebuild everything
+        await refreshStepsIfAuthorized()
+    }
+    #endif
 }

@@ -139,8 +139,8 @@ enum SnowflakeShapeRenderer {
         let breathePhase = sin(t * (0.25 + e.phaseOffset * 0.1) + e.phaseOffset * 3.7)
         let pulse = 1.0 + breathePhase * 0.015 * ampScale
         let dim = Double(min(size.width, size.height))
-        let effectiveSize = e.userSize ?? e.size
-        return Double(effectiveSize) * dim * sizeScale * pulse
+        let effectiveSize = Double(e.userSize ?? CGFloat(e.size))
+        return effectiveSize * dim * sizeScale * pulse
     }
 
     // MARK: - Pre-compute Positions

@@ -388,7 +388,7 @@ struct UserPreferencesRow: Decodable {
         wallpaperShortcutUses = try c.decodeIfPresent(Int.self, forKey: .wallpaperShortcutUses) ?? 0
         notifyOneMinBefore = try c.decodeIfPresent(Bool.self, forKey: .notifyOneMinBefore) ?? true
         notifyWhenTimerOver = try c.decodeIfPresent(Bool.self, forKey: .notifyWhenTimerOver) ?? true
-        notifyCanvasReminder = try c.decodeIfPresent(Bool.self, forKey: .notifyCanvasReminder) ?? true
+        notifyCanvasReminder = try c.decodeIfPresent(Bool.self, forKey: .notifyCanvasReminder) ?? false
         canvasReminderHour = try c.decodeIfPresent(Int.self, forKey: .canvasReminderHour) ?? 21
         canvasReminderMinute = try c.decodeIfPresent(Int.self, forKey: .canvasReminderMinute) ?? 0
         notifyDayResetWarning = try c.decodeIfPresent(Bool.self, forKey: .notifyDayResetWarning) ?? true

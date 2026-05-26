@@ -1,12 +1,13 @@
 #if DEBUG
 import SwiftUI
 
+@Observable
 @MainActor
-final class CoachMarkManager: ObservableObject {
-    @Published var currentStep: CoachMarkStep? = nil
-    @Published var isActive: Bool = false
+final class CoachMarkManager {
+    var currentStep: CoachMarkStep? = nil
+    var isActive: Bool = false
 
-    private var hasTicketGroups: () -> Bool = { false }
+    @ObservationIgnored private var hasTicketGroups: () -> Bool = { false }
 
     static let actionNotification = Notification.Name("CoachMarkAction")
 
@@ -45,7 +46,7 @@ final class CoachMarkManager: ObservableObject {
         switch step {
         case .colorBalance, .expandChevron, .categoriesRevealed,
              .tapPlusButton, .categoryExplain, .tapMind,
-             .spotlightFocusing, .spotlightReading, .tapAddToCanvas,
+             .spotlightFocusing, .tapAddToCanvas,
              .canvasTrace, .goToFeeds:
             return 0
         case .tapFeedsTab:

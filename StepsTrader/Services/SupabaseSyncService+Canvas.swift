@@ -27,7 +27,7 @@ extension SupabaseSyncService {
         pendingDayCanvas = payload
         dayCanvasSyncTask?.cancel()
         dayCanvasSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 sec debounce
+            try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             guard let latest = pendingDayCanvas else { return }
             await performDayCanvasSync(payload: latest)

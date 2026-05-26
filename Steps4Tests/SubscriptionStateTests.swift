@@ -78,7 +78,7 @@ final class SubscriptionStateTests: XCTestCase {
         let store = SubscriptionStore(defaults: defaults)
 
         XCTAssertEqual(store.state, .unknown)
-        XCTAssertFalse(store.isPro)
+        XCTAssertFalse(store.state.isPro)
     }
 
     @MainActor

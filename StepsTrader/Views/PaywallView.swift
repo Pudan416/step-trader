@@ -27,7 +27,7 @@ struct PaywallView: View {
             backgroundGradient
                 .ignoresSafeArea()
 
-            ScrollView(showsIndicators: false) {
+            ScrollView {
                 VStack(spacing: 0) {
                     hero
                         .padding(.top, 60)
@@ -44,6 +44,7 @@ struct PaywallView: View {
                     Spacer(minLength: 180)
                 }
             }
+            .scrollIndicators(.hidden)
 
             closeButton
                 .padding(.top, 8)
@@ -70,7 +71,7 @@ struct PaywallView: View {
         }
         .onChange(of: store.isPro) { _, isPro in
             if isPro && didPurchaseSucceed {
-                if authService.isAuthenticated {
+                if authService.hasAppleAccount {
                     dismiss()
                 } else {
                     showPostPurchaseLogin = true
@@ -223,6 +224,7 @@ struct PaywallView: View {
             return nil
         }()
 
+        // TODO: Migrate to .sensoryFeedback() modifiers
         return Button {
             #if canImport(UIKit)
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -319,6 +321,7 @@ struct PaywallView: View {
                 .foregroundStyle(.white.opacity(0.4))
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
+            // TODO: Migrate to .sensoryFeedback() modifiers
             Button {
                 store.clearLastError()
                 Task { await store.refresh() }
@@ -676,7 +679,18 @@ struct PostPurchaseLoginPrompt: View {
             Text(authService.error ?? String(localized: "Something went wrong"))
         }
         .onChange(of: authService.isAuthenticated) { _, isAuth in
-            if isAuth { dismiss() }
+            if isAuth && !authService.isAnonymous { dismiss() }
+        }
+        .onChange(of: authService.isAnonymous) { _, isAnon in
+            if !isAnon && authService.isAuthenticated { dismiss() }
         }
     }
+}
+
+#Preview {
+    let model = DIContainer.shared.makeAppModel()
+    PaywallView(
+        model: model,
+        store: model.subscriptionStore
+    )
 }

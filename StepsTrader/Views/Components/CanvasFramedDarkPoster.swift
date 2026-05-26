@@ -75,11 +75,11 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                 content
                     .frame(width: cW, height: cH)
                     .clipped()
-                    .overlay(
+                    .overlay {
                         Rectangle()
                             .strokeBorder(.white, lineWidth: bW)
                             .blendMode(.hardLight)
-                    )
+                    }
                     .position(x: cLeft + cW / 2, y: cTop + cH / 2)
 
                 // User name — top-left, 20px New York Semibold
@@ -99,8 +99,8 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                     .padding(.trailing, w * Self.statsRightR)
                     .padding(.top, h * Self.statsTopR)
 
-                // "NOWHERE" — overlapping bottom of canvas, 70px New York Black
-                Text("NOWHERE")
+                // Date — overlapping bottom of canvas, 70px New York Black
+                Text(formattedDate)
                     .font(.system(size: max(10, w * Self.nowhereSizeR), weight: .black, design: .serif))
                     .foregroundStyle(.white)
                     .lineLimit(1)
@@ -109,10 +109,9 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                     .padding(.leading, w * Self.nowhereLeftR)
                     .padding(.top, h * Self.nowhereTopR)
 
-                // Date — bottom-left, 12px New York Regular Italic
-                Text(formattedDate)
-                    .font(.system(size: max(5, w * Self.dateSizeR), weight: .regular, design: .serif))
-                    .italic()
+                // "NOWHERE" — bottom-left, 12px New York Black
+                Text("NOWHERE")
+                    .font(.system(size: max(5, w * Self.dateSizeR), weight: .black, design: .serif))
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -137,7 +136,7 @@ struct CanvasFramedDarkPoster<Content: View>: View {
             if (steps ?? 0) > 0 || (sleepHours ?? 0) > 0 {
                 let parts = [
                     steps.map { "\(formatCompactNumber($0)) steps" },
-                    sleepHours.map { String(format: "%.1f h. sleep", $0) }
+                    sleepHours.map { "\($0.formatted(.number.precision(.fractionLength(1)))) h. sleep" }
                 ].compactMap { $0 }
                 Text(parts.joined(separator: " / "))
                     .font(.system(size: fontSize, weight: .regular))
@@ -164,7 +163,7 @@ struct CanvasFramedDarkPoster<Content: View>: View {
 
     private func taglineView(fontSize: CGFloat) -> some View {
         VStack(alignment: .trailing, spacing: 1) {
-            Text("«Nowhere — Now Here» iOS app")
+            Text("«Nowhere» is an iOS app")
                 .font(.system(size: fontSize, weight: .regular))
                 .foregroundStyle(.white)
                 .lineLimit(1)
@@ -180,9 +179,27 @@ struct CanvasFramedDarkPoster<Content: View>: View {
 
     private var formattedDate: String {
         let cal = Calendar.current
-        let y = cal.component(.year, from: date)
+        let y = cal.component(.year, from: date) % 100
         let m = cal.component(.month, from: date)
         let d = cal.component(.day, from: date)
-        return String(format: "%04d/%02d/%02d", y, m, d)
+        return String(format: "%02d/%02d/%02d", d, m, y)
     }
+}
+
+#Preview {
+    CanvasFramedDarkPoster(
+        date: Date.now,
+        userName: "Kosta",
+        steps: 8432,
+        sleepHours: 7.5,
+        inkEarned: 72,
+        inkSpent: 15
+    ) {
+        LinearGradient(
+            colors: [.purple, .blue, .cyan],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    .frame(width: 300, height: 424)
 }

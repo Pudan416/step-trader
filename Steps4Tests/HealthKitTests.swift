@@ -52,6 +52,8 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
         observerHandler = nil
     }
 
+    func clearLastStepCount() {}
+
     /// Simulate a step observation update (for testing the callback path).
     func simulateStepUpdate(_ steps: Double) {
         observerHandler?(steps)
@@ -167,16 +169,18 @@ final class HealthStoreTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mock = ConfigurableHealthKitMock()
-        store = HealthStore(healthKitService: mock)
         defaults = UserDefaults.stepsTrader()
-        // Clear cached values
+        // Clear cached values before creating the store (init reads cache)
         defaults.removeObject(forKey: SharedKeys.cachedStepsToday)
         defaults.removeObject(forKey: SharedKeys.hasStepsData)
+        defaults.removeObject(forKey: "cachedSleepHoursToday")
+        store = HealthStore(healthKitService: mock)
     }
 
     override func tearDown() {
         defaults.removeObject(forKey: SharedKeys.cachedStepsToday)
         defaults.removeObject(forKey: SharedKeys.hasStepsData)
+        defaults.removeObject(forKey: "cachedSleepHoursToday")
         super.tearDown()
     }
 
@@ -187,6 +191,17 @@ final class HealthStoreTests: XCTestCase {
         await store.refreshStepsIfAuthorized()
 
         XCTAssertEqual(store.stepsToday, 5432)
+        XCTAssertTrue(store.hasStepsData)
+    }
+
+    /// Read-only HealthKit apps keep `.notDetermined` write status after the user allows reads.
+    /// HealthKitService must still run queries (regression: guard on `.notDetermined` returned 0 steps).
+    func testRefreshStepsWhenWriteStatusNotDetermined() async {
+        mock.authStatus = .notDetermined
+        mock.stepsToReturn = 9999
+        await store.refreshStepsIfAuthorized()
+
+        XCTAssertEqual(store.stepsToday, 9999)
         XCTAssertTrue(store.hasStepsData)
     }
 

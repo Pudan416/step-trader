@@ -19,8 +19,8 @@ struct GradientTintedAsset: View {
             .scaledToFit()
             .saturation(0)
             .brightness(-0.15)
-            .overlay(gradientView.blendMode(.color))
-            .overlay(gradientView.blendMode(.overlay))
+            .overlay { gradientView.blendMode(.color) }
+            .overlay { gradientView.blendMode(.overlay) }
             .mask(Image(assetName).resizable().scaledToFit())
     }
 
@@ -197,6 +197,81 @@ struct MindBlobPreview: View {
     }
 }
 
+// MARK: - Organic Blob Preview
+
+struct OrganicBlobPreview: View {
+    var seed: UInt64 = 42_091
+    let colors: [Color]
+
+    var body: some View {
+        Canvas { ctx, size in
+            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 8, dy: 8)
+            let center = CGPoint(x: rect.midX, y: rect.midY)
+            let baseR = min(rect.width, rect.height) / 2
+            let c1 = colors.first ?? .white
+            let c2 = colors.count > 1 ? colors[1] : c1
+            let isTwoColor = colors.count > 1
+
+            for layer in 0..<4 {
+                let layerSeed = seed &+ UInt64(layer) &* 7919
+                let layerT = Double(layer) * 2.3
+                let breathe = 1.0 + 0.05 * sin(layerT * 0.15)
+                let scale = 1.0 + Double(3 - layer) * 0.08
+                let layerR = baseR * breathe * scale
+                let layerOpacity = max(0.05, 0.60 * (1.0 - Double(layer) * 0.08))
+                let blurRadius = 8.0 * Double(layer + 1) / 4.0
+                let layerColor = layer % 2 == 0 ? c1 : c2
+
+                let layerRect = CGRect(
+                    x: center.x - layerR, y: center.y - layerR,
+                    width: layerR * 2, height: layerR * 2
+                )
+                let path = ProceduralShapeGenerator.organicBlobPath(
+                    seed: layerSeed, complexity: 0.5,
+                    symmetry: 1, time: layerT, in: layerRect
+                )
+
+                ctx.drawLayer { layerCtx in
+                    layerCtx.blendMode = .plusLighter
+                    layerCtx.opacity = layerOpacity
+
+                    let grad: Gradient
+                    if isTwoColor {
+                        grad = Gradient(colors: [
+                            layerColor.opacity(0.8),
+                            c2.opacity(0.4),
+                            c2.opacity(0),
+                        ])
+                    } else {
+                        grad = Gradient(colors: [
+                            c1.opacity(0.8),
+                            c1.opacity(0.3),
+                            c1.opacity(0),
+                        ])
+                    }
+
+                    layerCtx.fill(
+                        path,
+                        with: .radialGradient(grad, center: center, startRadius: 0, endRadius: layerR)
+                    )
+
+                    if blurRadius > 1 {
+                        layerCtx.addFilter(.blur(radius: blurRadius))
+                    }
+
+                    let strokeColor = isTwoColor ? c2 : c1
+                    layerCtx.stroke(
+                        path,
+                        with: .color(strokeColor.opacity(0.6)),
+                        style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
+                    )
+                }
+            }
+        }
+    }
+}
+
+
 // MARK: - Heart Ray Preview (filled tapered rays)
 
 struct HeartRayPreview: View {
@@ -315,7 +390,7 @@ struct SpotlightPreview: View {
                         )
                         .frame(width: 100, height: 100)
                         Text("\(colors.count)c")
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
                 }

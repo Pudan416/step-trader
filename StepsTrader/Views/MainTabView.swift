@@ -2,23 +2,9 @@ import SwiftUI
 
 // MARK: - Environment key for StepBalanceCard height
 
-private struct TopCardHeightKey: EnvironmentKey {
-    static let defaultValue: CGFloat = 0
-}
-
-private struct TabBarHeightKey: EnvironmentKey {
-    static let defaultValue: CGFloat = 80
-}
-
 extension EnvironmentValues {
-    var topCardHeight: CGFloat {
-        get { self[TopCardHeightKey.self] }
-        set { self[TopCardHeightKey.self] = newValue }
-    }
-    var tabBarHeight: CGFloat {
-        get { self[TabBarHeightKey.self] }
-        set { self[TabBarHeightKey.self] = newValue }
-    }
+    @Entry var topCardHeight: CGFloat = 0
+    @Entry var tabBarHeight: CGFloat = 80
 }
 
 struct MainTabView: View {
@@ -45,7 +31,7 @@ struct MainTabView: View {
     @ScaledMetric(relativeTo: .caption2) private var selectedTabIconSize: CGFloat = 26
 
     #if DEBUG
-    @EnvironmentObject private var coachMarkManager: CoachMarkManager
+    @Environment(CoachMarkManager.self) private var coachMarkManager
     @State private var coachAnchors: [CoachMarkAnchor] = []
     #endif
 
@@ -53,7 +39,7 @@ struct MainTabView: View {
         case canvas = 0
         case feeds = 1
         case me = 2
-        case notes = 3
+        case history = 3
         case settings = 4
 
         var icon: String {
@@ -61,7 +47,7 @@ struct MainTabView: View {
             case .feeds: return "square.grid.2x2"
             case .canvas: return "paintbrush"
             case .me: return "person.circle"
-            case .notes: return "book"
+            case .history: return "calendar"
             case .settings: return "gearshape"
             }
         }
@@ -71,18 +57,18 @@ struct MainTabView: View {
             case .feeds: return String(localized: "Feeds", comment: "Tab bar title")
             case .canvas: return String(localized: "Canvas", comment: "Tab bar title")
             case .me: return String(localized: "Now", comment: "Tab bar title")
-            case .notes: return String(localized: "Notes", comment: "Tab bar title")
+            case .history: return String(localized: "History", comment: "Tab bar title")
             case .settings: return String(localized: "Settings", comment: "Tab bar title")
             }
         }
-        
-        
+
+
         var accessibilityId: String {
             switch self {
             case .feeds: return "tab_feeds"
             case .canvas: return "tab_canvas"
             case .me: return "tab_me"
-            case .notes: return "tab_notes"
+            case .history: return "tab_history"
             case .settings: return "tab_settings"
             }
         }
@@ -130,7 +116,7 @@ struct MainTabView: View {
                                 category: category,
                                 outerWorldSteps: 0,
                                 onActivityConfirmed: { _, _, _, _ in },
-                                onActivityUndo: { _, _ in },
+                                onCardUndo: { _, _ in },
                                 onReroll: { _, _ in }
                             )
                         }
@@ -171,10 +157,10 @@ struct MainTabView: View {
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.me.rawValue)
 
-                // 3: Notes
-                ManualsPage(model: model)
+                // 3: History
+                HistoryView(model: model)
                     .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.notes.rawValue)
+                    .tag(Tab.history.rawValue)
                 
                 // 4: Settings
                 SettingsSheet(model: model, embeddedInTab: true)
@@ -206,6 +192,7 @@ struct MainTabView: View {
             .overlay {
                 if selection == Tab.canvas.rawValue || selection == Tab.feeds.rawValue {
                     TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
+                        .transaction { $0.animation = nil }
                 }
             }
             .background(Color.clear)
@@ -230,7 +217,7 @@ struct MainTabView: View {
                         if let variant { info["assetVariant"] = variant }
                         NotificationCenter.default.post(name: .canvasElementSpawnRequested, object: nil, userInfo: info)
                     },
-                    onActivityUndo: { optionId, cat in
+                    onCardUndo: { optionId, cat in
                         NotificationCenter.default.post(
                             name: .canvasElementRemoveRequested,
                             object: nil,
@@ -262,9 +249,9 @@ struct MainTabView: View {
                 showDetails: selection == Tab.canvas.rawValue,
                 stepsPoints: model.stepsPointsToday,
                 sleepPoints: model.sleepPointsToday,
-                bodyPoints: model.activityPointsToday,
-                mindPoints: model.creativityPointsToday,
-                heartPoints: model.joysCategoryPointsToday,
+                bodyPoints: model.bodyPointsToday,
+                mindPoints: model.mindPointsToday,
+                heartPoints: model.heartPointsToday,
                 baseEnergyToday: model.healthStore.baseEnergyToday,
                 onStepsTap: {
                     if selection == Tab.canvas.rawValue {
@@ -346,8 +333,14 @@ struct MainTabView: View {
             }
         }
         #endif
-        .onPreferenceChange(TopCardHeightPreferenceKey.self) { topCardHeight = $0 }
-        .onPreferenceChange(TabBarHeightPreferenceKey.self) { tabBarHeight = $0 }
+        .onPreferenceChange(TopCardHeightPreferenceKey.self) { value in
+            guard value != topCardHeight else { return }
+            topCardHeight = value
+        }
+        .onPreferenceChange(TabBarHeightPreferenceKey.self) { value in
+            guard value != tabBarHeight else { return }
+            tabBarHeight = value
+        }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in
             selection = Tab.feeds.rawValue
         }
@@ -377,6 +370,7 @@ struct MainTabView: View {
             Color.black.opacity(0.35)
                 .ignoresSafeArea()
                 .onTapGesture { showColorsHelp = false }
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -386,16 +380,16 @@ struct MainTabView: View {
                     Button { showColorsHelp = false } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title3)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
                 }
                 Text(String(localized: "Each of the five areas — steps, sleep, body, mind and heart — contributes up to 20 colors (100 colors total)."))
                     .font(.subheadline)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                 Text(String(localized: "Steps and sleep come from the Health app and are the same for everyone. Body, mind and heart are activities you add by tapping the + button at the bottom of the screen."))
                     .font(.subheadline)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
             }
             .padding(16)
             .frame(maxWidth: 300)
@@ -514,6 +508,13 @@ struct MainTabView: View {
         }
     }
     #endif
+}
+
+#Preview {
+    MainTabView(model: DIContainer.shared.makeAppModel())
+        #if DEBUG
+        .environment(CoachMarkManager())
+        #endif
 }
 
 // EnergyGradientBackground is now in Components/EnergyGradientBackground.swift

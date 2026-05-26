@@ -29,7 +29,7 @@ extension SupabaseSyncService {
         pendingDailyStats = payload
         dailyStatsSyncTask?.cancel()
         dailyStatsSyncTask = Task {
-            try? await Task.sleep(nanoseconds: statsDebounceNs)
+            try? await Task.sleep(for: statsDebounceDuration)
             guard !Task.isCancelled else { return }
             guard let latest = pendingDailyStats else { return }
             await performDailyStatsSync(payload: latest)
@@ -40,7 +40,7 @@ extension SupabaseSyncService {
     func syncDaySnapshot(dayKey: String, snapshot: PastDaySnapshot) {
         daySnapshotSyncTask?.cancel()
         daySnapshotSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 sec debounce
+            try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
             await performDaySnapshotSync(dayKey: dayKey, snapshot: snapshot)
         }
@@ -141,14 +141,16 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "content-type")
             request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "prefer")
             
+            // §5.5 — strip ephemeral moment IDs before they hit the wire.
+            // Moments are device-local by contract (see EphemeralMoment).
             let row = DaySnapshotRow(
                 userId: userId,
                 dayKey: dayKey,
                 inkEarned: snapshot.inkEarned,
                 inkSpent: snapshot.inkSpent,
-                bodyIds: snapshot.bodyIds,
-                mindIds: snapshot.mindIds,
-                heartIds: snapshot.heartIds,
+                bodyIds: EphemeralMoment.filteredOutOfSync(snapshot.bodyIds),
+                mindIds: EphemeralMoment.filteredOutOfSync(snapshot.mindIds),
+                heartIds: EphemeralMoment.filteredOutOfSync(snapshot.heartIds),
                 steps: snapshot.steps,
                 sleepHours: snapshot.sleepHours,
                 stepsTarget: snapshot.stepsTarget,
@@ -179,10 +181,10 @@ extension SupabaseSyncService {
         let token = auth.token
         let userId = auth.userId
         
-        let today = AppModel.dayKey(for: Date())
+        let today = AppModel.dayKey(for: Date.now)
         if let cached = cachedTodayStats,
            cached.dayKey == today,
-           Date().timeIntervalSince(cached.timestamp) < todayCacheTTL {
+           Date.now.timeIntervalSince(cached.timestamp) < todayCacheTTL {
             return cached.value
         }
         
@@ -218,7 +220,7 @@ extension SupabaseSyncService {
             AppLogger.network.debug("📡 Loaded today's stats from server: steps=\(row.stepsCount), balance=\(row.remainingBalance)")
             
             let value = (row.stepsCount, row.sleepHours, row.baseEnergy, row.bonusEnergy, row.remainingBalance)
-            cachedTodayStats = CachedTodayValue(dayKey: today, value: value, timestamp: Date())
+            cachedTodayStats = CachedTodayValue(dayKey: today, value: value, timestamp: Date.now)
             return value
         } catch {
             AppLogger.network.error("📡 Failed to load today's stats: \(error.localizedDescription)")
@@ -250,14 +252,18 @@ extension SupabaseSyncService {
                 pageSize: historicalPageSize
             )
             
+            // §5.5 — defensive filter on the receive side too. New writes
+            // never send moment IDs, but historical rows from before this fix
+            // can still contain `moment_*` strings; dropping them here avoids
+            // showing opaque IDs in MeView / HistoryView on a second device.
             var result: [String: PastDaySnapshot] = [:]
             for row in rows {
                 result[row.dayKey] = PastDaySnapshot(
                     inkEarned: row.inkEarned,
                     inkSpent: row.inkSpent,
-                    bodyIds: row.bodyIds,
-                    mindIds: row.mindIds,
-                    heartIds: row.heartIds,
+                    bodyIds: EphemeralMoment.filteredOutOfSync(row.bodyIds),
+                    mindIds: EphemeralMoment.filteredOutOfSync(row.mindIds),
+                    heartIds: EphemeralMoment.filteredOutOfSync(row.heartIds),
                     steps: row.steps,
                     sleepHours: row.sleepHours,
                     stepsTarget: row.stepsTarget,
@@ -292,7 +298,7 @@ extension SupabaseSyncService {
         var snapshots: [String: PastDaySnapshot] = [:]
         
         let g = UserDefaults.stepsTrader()
-        let now = Date()
+        let now = Date.now
         let lastFullSync = g.object(forKey: historicalLastFullSyncKey) as? Date ?? .distantPast
         let shouldFullSync = now.timeIntervalSince(lastFullSync) >= historicalRefreshTTL
         let lastDayKey = g.string(forKey: historicalLastDayKeyKey)
@@ -327,12 +333,13 @@ extension SupabaseSyncService {
             let stat = stats[dayKey]
             let sp = spent[dayKey]
             
+            // §5.5 — strip stale moment IDs from the historical aggregation.
             let snapshot = PastDaySnapshot(
                 inkEarned: stat?.baseEnergy ?? 0,
                 inkSpent: sp?.totalSpent ?? 0,
-                bodyIds: sel?.activityIds ?? [],
-                mindIds: sel?.restIds ?? [],
-                heartIds: sel?.joysIds ?? [],
+                bodyIds: EphemeralMoment.filteredOutOfSync(sel?.activityIds ?? []),
+                mindIds: EphemeralMoment.filteredOutOfSync(sel?.restIds ?? []),
+                heartIds: EphemeralMoment.filteredOutOfSync(sel?.joysIds ?? []),
                 steps: stat?.stepsCount ?? 0,
                 sleepHours: stat?.sleepHours ?? 0
             )

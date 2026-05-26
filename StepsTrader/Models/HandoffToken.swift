@@ -7,6 +7,6 @@ struct HandoffToken: Codable {
     let tokenId: String
     
     var isExpired: Bool {
-        Date().timeIntervalSince(createdAt) > AppConstants.Timing.handoffTokenExpiry
+        Date.now.timeIntervalSince(createdAt) > AppConstants.Timing.handoffTokenExpiry
     }
 }

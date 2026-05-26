@@ -79,6 +79,7 @@ struct DayResetTimePicker: View {
         let clamped = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60)
         guard allowedMinutes.contains(clamped) else { return }
         withAnimation(.snappy(duration: 0.15)) { selectedMinutes = clamped }
+        // TODO: Migrate to .sensoryFeedback()
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 }
@@ -179,6 +180,7 @@ struct SleepDurationStepper: View {
         HStack(spacing: 16) {
             stepButton(icon: "minus", enabled: hours > minHours) {
                 withAnimation(.snappy(duration: 0.15)) { hours = max(minHours, hours - step) }
+                // TODO: Migrate to .sensoryFeedback()
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             }
 
@@ -197,6 +199,7 @@ struct SleepDurationStepper: View {
 
             stepButton(icon: "plus", enabled: hours < maxHours) {
                 withAnimation(.snappy(duration: 0.15)) { hours = min(maxHours, hours + step) }
+                // TODO: Migrate to .sensoryFeedback()
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             }
         }
@@ -205,7 +208,7 @@ struct SleepDurationStepper: View {
     private var formattedHours: String {
         hours.truncatingRemainder(dividingBy: 1) == 0
             ? "\(Int(hours))"
-            : String(format: "%.1f", hours)
+            : hours.formatted(.number.precision(.fractionLength(1)))
     }
 
     private func stepButton(icon: String, enabled: Bool, action: @escaping () -> Void) -> some View {

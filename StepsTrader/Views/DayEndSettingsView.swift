@@ -24,12 +24,12 @@ struct DayEndSettingsView: View {
                                 Text(String(localized: "Back"))
                                     .font(.subheadline)
                             }
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                         }
                         Spacer()
                         Text(String(localized: "Day Reset", comment: "Navigation title"))
                             .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                         Spacer()
                         Color.clear.frame(width: 50, height: 1)
                     }
@@ -61,7 +61,7 @@ struct DayEndSettingsView: View {
 
                     Text(String(localized: "Your canvas and colors reset at this time each day."))
                         .font(.caption)
-                        .foregroundColor(theme.adaptiveSecondaryText)
+                        .foregroundStyle(theme.adaptiveSecondaryText)
                         .padding(.horizontal, 4)
                 }
                 .padding(.horizontal, 16)
@@ -73,6 +73,7 @@ struct DayEndSettingsView: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
         .onAppear { syncSelectedFromStorage() }
         .onChange(of: selectedMinutes) { _, newValue in
             let hour = (newValue / 60) % 24
@@ -101,4 +102,10 @@ struct DayEndSettingsView: View {
         model.updateDayEnd(hour: h, minute: m)
     }
 
+}
+
+#Preview {
+    NavigationStack {
+        DayEndSettingsView(model: DIContainer.shared.makeAppModel())
+    }
 }

@@ -29,9 +29,9 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         let model = makeModel()
         model.loadDailyEnergyState()
 
-        XCTAssertEqual(model.dailyActivitySelections, ["activity_pushups", "activity_walking"])
+        XCTAssertEqual(model.dailyBodySelections, ["activity_pushups", "activity_walking"])
         XCTAssertEqual(model.dailyRestSelections, ["creativity_reading"])
-        XCTAssertEqual(model.dailyJoysSelections, ["joys_family"])
+        XCTAssertEqual(model.dailyHeartSelections, ["joys_family"])
         XCTAssertEqual(model.baseEnergyToday, 65)
         XCTAssertNotNil(defaults.object(forKey: SharedKeys.dailyEnergyAnchor), "Anchor should be initialized, not reset state")
     }
@@ -59,9 +59,9 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         let model = makeModel()
         model.loadDailyEnergyState()
 
-        XCTAssertEqual(model.dailyActivitySelections, expectedBody)
+        XCTAssertEqual(model.dailyBodySelections, expectedBody)
         XCTAssertEqual(model.dailyRestSelections, expectedMind)
-        XCTAssertEqual(model.dailyJoysSelections, expectedHeart)
+        XCTAssertEqual(model.dailyHeartSelections, expectedHeart)
     }
 
     private func clearEnergyDefaults() {

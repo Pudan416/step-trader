@@ -41,7 +41,7 @@ struct CanvasDayDetailSheet: View {
                     } else {
                         Text(String(localized: "No data for this day."))
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.vertical, 40)
                     }
@@ -72,11 +72,11 @@ struct CanvasDayDetailSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption.weight(.semibold))
-                .foregroundColor(color)
+                .foregroundStyle(color)
             if ids.isEmpty {
                 Text("—")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             } else {
                 FlowLayout(spacing: 6) {
                     ForEach(ids, id: \.self) { id in
@@ -85,7 +85,7 @@ struct CanvasDayDetailSheet: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(Capsule().fill(color.opacity(0.15)))
-                            .foregroundColor(color)
+                            .foregroundStyle(color)
                     }
                 }
             }
@@ -96,14 +96,14 @@ struct CanvasDayDetailSheet: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.title2)
-                .foregroundColor(color)
+                .foregroundStyle(color)
                 .frame(width: 32)
             VStack(alignment: .leading, spacing: 2) {
                 Text(value)
                     .font(.headline.monospacedDigit())
                 Text(label)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
         }
@@ -148,4 +148,13 @@ struct FlowLayout: Layout {
         }
         return (CGSize(width: maxWidth, height: totalHeight), positions)
     }
+}
+
+#Preview {
+    CanvasDayDetailSheet(
+        model: DIContainer.shared.makeAppModel(),
+        dayKey: AppModel.dayKey(for: Date.now),
+        snapshot: nil,
+        onDismiss: {}
+    )
 }

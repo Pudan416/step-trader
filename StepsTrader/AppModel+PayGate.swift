@@ -23,7 +23,7 @@ extension AppModel {
         let g = UserDefaults.stepsTrader()
         if !showPayGate,
            let until = g.object(forKey: _payGateDismissedUntilKey) as? Date,
-           Date() < until
+           Date.now < until
         {
             AppLogger.shield.debug("🚫 PayGate suppressed after dismiss (\(String(format: "%.1f", until.timeIntervalSinceNow))s left), ignoring start for group \(groupId)")
             return
@@ -37,10 +37,10 @@ extension AppModel {
         
         payGateTargetGroupId = groupId
         showPayGate = true
-        g.set(Date(), forKey: SharedKeys.lastGroupPayGateOpen(groupId))
+        g.set(Date.now, forKey: SharedKeys.lastGroupPayGateOpen(groupId))
 
         // Create session
-        let session = PayGateSession(id: groupId, groupId: groupId, startedAt: Date())
+        let session = PayGateSession(id: groupId, groupId: groupId, startedAt: Date.now)
         payGateSessions[groupId] = session
         currentPayGateSessionId = groupId
         
@@ -91,11 +91,11 @@ extension AppModel {
 
         defaults.set(totalMinutes, forKey: budgetKey)
         defaults.set(totalMinutes, forKey: initialKey)
-        defaults.set(Date(), forKey: startedKey)
+        defaults.set(Date.now, forKey: startedKey)
 
         let dayEndH = defaults.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
         let dayEndM = defaults.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
-        let endOfDay = DayBoundary.nextBoundary(after: Date(), dayEndHour: dayEndH, dayEndMinute: dayEndM)
+        let endOfDay = DayBoundary.nextBoundary(after: Date.now, dayEndHour: dayEndH, dayEndMinute: dayEndM)
         defaults.set(endOfDay, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
 
         let monitoringStarted = startUsageBudgetMonitoring(groupId: groupId, minutes: totalMinutes)
@@ -136,11 +136,11 @@ extension AppModel {
         let iso = ISO8601DateFormatter()
 
         #if !canImport(DeviceActivity) || !canImport(FamilyControls)
-        logDefaults.set("[\(iso.string(from: Date()))] SKIP usageBudget_\(groupId) — DeviceActivity/FamilyControls not available", forKey: SharedKeys.lastStartMonitoringLog)
+        logDefaults.set("[\(iso.string(from: Date.now))] SKIP usageBudget_\(groupId) — DeviceActivity/FamilyControls not available", forKey: SharedKeys.lastStartMonitoringLog)
         return true
         #else
         guard let group = ticketGroups.first(where: { $0.id == groupId }) else {
-            logDefaults.set("[\(iso.string(from: Date()))] SKIP usageBudget_\(groupId) — group not found", forKey: SharedKeys.lastStartMonitoringLog)
+            logDefaults.set("[\(iso.string(from: Date.now))] SKIP usageBudget_\(groupId) — group not found", forKey: SharedKeys.lastStartMonitoringLog)
             return false
         }
 
@@ -199,18 +199,18 @@ extension AppModel {
         let schedDesc = "start=0:0:0 end=23:59:59"
         do {
             try center.startMonitoring(activityName, during: schedule, events: events)
-            let msg = "[\(iso.string(from: Date()))] OK usageBudget_\(groupId) \(minutes)m events=\(events.count) apps=\(group.selection.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"
+            let msg = "[\(iso.string(from: Date.now))] OK usageBudget_\(groupId) \(minutes)m events=\(events.count) apps=\(group.selection.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"
             logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
             return true
         } catch {
             center.stopMonitoring([activityName])
             do {
                 try center.startMonitoring(activityName, during: schedule, events: events)
-                let msg = "[\(iso.string(from: Date()))] OK (retry) usageBudget_\(groupId) \(minutes)m events=\(events.count) apps=\(group.selection.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"
+                let msg = "[\(iso.string(from: Date.now))] OK (retry) usageBudget_\(groupId) \(minutes)m events=\(events.count) apps=\(group.selection.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"
                 logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
                 return true
             } catch {
-                let msg = "[\(iso.string(from: Date()))] FAIL usageBudget_\(groupId) — \(error.localizedDescription) sched=[\(schedDesc)]"
+                let msg = "[\(iso.string(from: Date.now))] FAIL usageBudget_\(groupId) — \(error.localizedDescription) sched=[\(schedDesc)]"
                 logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
                 return false
             }
@@ -243,7 +243,7 @@ extension AppModel {
             // Wall-clock correction: the widget set the budget N minutes ago but couldn't
             // start DeviceActivity monitoring. Subtract elapsed time so the budget is accurate.
             if let started = defaults.object(forKey: SharedKeys.usageBudgetStartedKey(group.id)) as? Date {
-                let elapsedMinutes = Int(Date().timeIntervalSince(started) / 60)
+                let elapsedMinutes = Int(Date.now.timeIntervalSince(started) / 60)
                 if elapsedMinutes > 0 {
                     minutes = max(0, minutes - elapsedMinutes)
                     budgetInPrefs = max(0, budgetInPrefs - elapsedMinutes)
@@ -270,17 +270,36 @@ extension AppModel {
         for group in ticketGroups {
             let spendTrackingKey = SharedKeys.pendingSpendTrackingKey(group.id)
             let spendAmountKey = SharedKeys.pendingSpendAmountKey(group.id)
+            let spendWindowKey = SharedKeys.pendingSpendWindowKey(group.id)
+            let spendMinutesKey = SharedKeys.pendingSpendMinutesKey(group.id)
             guard defaults.bool(forKey: spendTrackingKey) else { continue }
             let amount = defaults.integer(forKey: spendAmountKey)
             guard amount > 0 else {
                 defaults.removeObject(forKey: spendTrackingKey)
                 defaults.removeObject(forKey: spendAmountKey)
+                defaults.removeObject(forKey: spendWindowKey)
+                defaults.removeObject(forKey: spendMinutesKey)
                 continue
             }
             AppLogger.shield.debug("📡 Syncing widget spend tracking: \(group.name) \(amount) colors")
             addSpentSteps(amount, for: "group_\(group.id)")
+
+            let window = defaults.string(forKey: spendWindowKey).flatMap { AccessWindow(rawValue: $0) }
+            let pendingMinutes = defaults.integer(forKey: spendMinutesKey)
+            logPaymentTransaction(
+                amount: amount,
+                target: "group_\(group.id)",
+                targetName: group.name,
+                window: window,
+                minutes: pendingMinutes > 0 ? pendingMinutes : nil,
+                balanceBefore: self.totalStepsBalance + amount,
+                balanceAfter: self.totalStepsBalance
+            )
+
             defaults.removeObject(forKey: spendTrackingKey)
             defaults.removeObject(forKey: spendAmountKey)
+            defaults.removeObject(forKey: spendWindowKey)
+            defaults.removeObject(forKey: spendMinutesKey)
         }
     }
 
@@ -331,7 +350,7 @@ extension AppModel {
             // after intervalDidEnd race, or widget unlock before app foregrounded).
             // Subtract elapsed wall-clock minutes so the budget reflects real time passed.
             if let started = defaults.object(forKey: SharedKeys.usageBudgetStartedKey(gid)) as? Date {
-                let elapsedMinutes = Int(Date().timeIntervalSince(started) / 60)
+                let elapsedMinutes = Int(Date.now.timeIntervalSince(started) / 60)
                 if elapsedMinutes > 0 {
                     remaining = max(0, remaining - elapsedMinutes)
                     defaults.set(remaining, forKey: SharedKeys.usageBudgetKey(gid))
@@ -371,7 +390,7 @@ extension AppModel {
         payGateSessions.removeAll()
         currentPayGateSessionId = nil
         let g = UserDefaults.stepsTrader()
-        let now = Date()
+        let now = Date.now
         if reason == .userDismiss {
             // Cooldown to prevent instant re-open loops when the user dismisses PayGate.
             g.set(now.addingTimeInterval(10), forKey: _payGateDismissedUntilKey)
@@ -390,18 +409,20 @@ extension AppModel {
         let target: String
         let targetName: String?
         let window: String?
+        let minutes: Int?
         let balanceBefore: Int
         let balanceAfter: Int
     }
-    
-    private func logPaymentTransaction(amount: Int, target: String, targetName: String?, window: AccessWindow?, balanceBefore: Int, balanceAfter: Int) {
+
+    private func logPaymentTransaction(amount: Int, target: String, targetName: String?, window: AccessWindow?, minutes: Int? = nil, balanceBefore: Int, balanceAfter: Int) {
         let transaction = PaymentTransaction(
             id: UUID().uuidString,
-            timestamp: Date(),
+            timestamp: Date.now,
             amount: amount,
             target: target,
             targetName: targetName,
             window: window?.rawValue,
+            minutes: minutes ?? window?.minutes,
             balanceBefore: balanceBefore,
             balanceAfter: balanceAfter
         )

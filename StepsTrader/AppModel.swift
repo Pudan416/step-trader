@@ -2,7 +2,6 @@ import Combine
 import Foundation
 import HealthKit
 import SwiftUI
-import UIKit
 import UserNotifications
 import WidgetKit
 #if canImport(ManagedSettings)
@@ -168,15 +167,20 @@ final class AppModel: ObservableObject {
     /// handlers gate on this so they don't double-fire during cold launch (the cold
     /// launch is covered by `bootstrap()` itself).
     @Published var didCompleteBootstrap: Bool = false
+    /// Deferred from bootstrap — HealthKit auth must wait until the scene is active.
+    var needsHealthKitAuthorization: Bool = false
     
-    @Published var dailyActivitySelections: [String] = []
+    @Published var dailyBodySelections: [String] = []
     @Published var dailyRestSelections: [String] = []
-    @Published var dailyJoysSelections: [String] = []
+    @Published var dailyHeartSelections: [String] = []
+    /// Ephemeral moments logged today. Labels are stored here; IDs also appear
+    /// in the corresponding daily*Selections array for energy accounting.
+    @Published var dailyMoments: [EphemeralMoment] = []
     /// Canvas tab: 4 slots (category + option each). Synced with daily *Selections.
     @Published var dailyCanvasSlots: [DayCanvasSlot] = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
-    @Published var preferredActivityOptions: [String] = []
+    @Published var preferredBodyOptions: [String] = []
     @Published var preferredRestOptions: [String] = []
-    @Published var preferredJoysOptions: [String] = []
+    @Published var preferredHeartOptions: [String] = []
     @Published var customEnergyOptions: [CustomEnergyOption] = []
     @Published var savedRoutines: [EnergyRoutine] = []
     
@@ -199,7 +203,7 @@ final class AppModel: ObservableObject {
     @Published var showQuickStatusPage = false
     /// Backing storage for workout suggestions (accessed via extension computed property).
     var _pendingWorkoutSuggestions: [DetectedWorkout] = []
-    /// Backing storage for unified activity suggestions.
+    /// Backing storage for unified workout suggestions.
     var _pendingActivitySuggestions: [ActivitySuggestion] = []
 
     // Handoff token handling
@@ -228,7 +232,7 @@ final class AppModel: ObservableObject {
         self.notificationService = notificationService
         self.budgetEngine = budgetEngine
         self.subscriptionStore = subscriptionStore
-        self.lastDayKey = Self.dayKey(for: Date())
+        self.lastDayKey = Self.dayKey(for: Date.now)
 
         // Initialize Stores
         self.healthStore = HealthStore(healthKitService: healthKitService)
@@ -240,7 +244,7 @@ final class AppModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
         
-        // Recalc colors total when steps or sleep update (so total = activity + creativity + joys)
+        // Recalc colors total when steps or sleep update (so total = body + mind + heart)
         Publishers.CombineLatest(healthStore.$stepsToday, healthStore.$dailySleepHours)
             .dropFirst()
             .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
@@ -282,10 +286,10 @@ final class AppModel: ObservableObject {
         // First call does the work; subsequent calls within 1s become no-ops (the body is
         // idempotent — once the day key is updated, re-running adds no value). 1s is short
         // enough to never miss a real day change (those happen at midnight, not in 1s bursts).
-        if let last = lastDayBoundaryCheck, Date().timeIntervalSince(last) < 1.0 { return }
-        lastDayBoundaryCheck = Date()
+        if let last = lastDayBoundaryCheck, Date.now.timeIntervalSince(last) < 1.0 { return }
+        lastDayBoundaryCheck = Date.now
 
-        let currentKey = Self.dayKey(for: Date())
+        let currentKey = Self.dayKey(for: Date.now)
         let dayChanged = currentKey != lastDayKey
         if dayChanged {
             lastDayKey = currentKey
@@ -298,6 +302,9 @@ final class AppModel: ObservableObject {
             clearAllUsageBudgets(reason: "dayBoundary")
         }
         if (didReset || dayChanged) && !isBootstrapping {
+            AppLogger.healthKit.info("👣 checkDayBoundary: day changed (didReset=\(didReset), dayChanged=\(dayChanged)), stepsToday=\(Int(self.stepsToday)) — stopping observer & clearing cache")
+            healthStore.stopObservingSteps()
+            healthStore.clearCachedStepCount()
             Task { await refreshStepsIfAuthorized() }
         }
         if dayChanged {
@@ -336,7 +343,7 @@ final class AppModel: ObservableObject {
 
     func scheduleDayBoundaryTimer() {
         dayBoundaryTimer?.invalidate()
-        let next = nextDayBoundary(after: Date())
+        let next = nextDayBoundary(after: Date.now)
         let interval = max(1, next.timeIntervalSinceNow)
         dayBoundaryTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -414,12 +421,12 @@ final class AppModel: ObservableObject {
     /// If the app is opened in the morning, the first fetch often returns partial
     /// or zero sleep. Re-fetch after a delay to pick up late-arriving samples.
     private func scheduleDelayedSleepRefetchIfMorning() {
-        let hour = Calendar.current.component(.hour, from: Date())
+        let hour = Calendar.current.component(.hour, from: Date.now)
         guard (5...11).contains(hour) else { return }
         
         sleepRefetchTask?.cancel()
         sleepRefetchTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 60 * 1_000_000_000)
+            try? await Task.sleep(for: .seconds(60))
             guard !Task.isCancelled else { return }
             AppLogger.healthKit.debug("🛌 Delayed sleep re-fetch (morning catchup)")
             await self?.refreshSleepIfAuthorized()
@@ -461,9 +468,9 @@ final class AppModel: ObservableObject {
         // This covers fresh installs, device switches, and UserDefaults data loss.
         // Wait for auth to finish initializing so we don't miss a valid keychain session.
         await AuthenticationService.shared.waitForInitialization()
-        let hasLocalSelections = !dailyActivitySelections.isEmpty
+        let hasLocalSelections = !dailyBodySelections.isEmpty
             || !dailyRestSelections.isEmpty
-            || !dailyJoysSelections.isEmpty
+            || !dailyHeartSelections.isEmpty
         let isAuthenticated = AuthenticationService.shared.isAuthenticated
         if isAuthenticated && !hasLocalSelections {
             AppLogger.app.debug("🔄 No local selections but authenticated — restoring from Supabase")
@@ -480,10 +487,13 @@ final class AppModel: ObservableObject {
         recalculateDailyEnergy()
         AppLogger.energy.debug("📊 AFTER recalculateDailyEnergy(1.7): base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
         
-        // 2. Request permissions if needed
+        // 2. Request non-HealthKit permissions during bootstrap.
+        // HealthKit authorization is deferred to the first scenePhase == .active
+        // transition because HKHealthStore.requestAuthorization hangs when the
+        // scene isn't fully presented yet (no key window to host the system sheet).
         if requestPermissions {
+            needsHealthKitAuthorization = true
             do {
-                try await healthStore.requestAuthorization()
                 try await blockingStore.requestAuthorization()
                 await requestNotificationPermission()
             } catch {
@@ -507,6 +517,12 @@ final class AppModel: ObservableObject {
             nm.scheduleDayResetWarning(dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
         }
 
+        // 3.9 Apply cached HealthKit values to budget/energy before async refresh.
+        if healthStore.hasStepsData {
+            budgetEngine.setBudget(minutes: budgetEngine.minutes(from: stepsToday))
+        }
+        recalculateDailyEnergy()
+
         isBootstrapping = false
         AppLogger.energy.debug("📊 BOOTSTRAP DONE (pre-refresh): base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
 
@@ -517,6 +533,12 @@ final class AppModel: ObservableObject {
         
         // 4.5 Snapshot notification authorization so permission badge is accurate on launch
         await refreshNotificationAuthorizationStatus()
+
+        // 4.6 Register for remote notifications if permission already granted
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        if settings.authorizationStatus == .authorized {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
         
         // 5. Schedule day boundary timer (was missing — only ran on foreground resume)
         scheduleDayBoundaryTimer()
@@ -531,6 +553,18 @@ final class AppModel: ObservableObject {
         // or already rolled today). Called after `didCompleteBootstrap = true`
         // so `isPro` resolution has settled.
         applyDailyRandomThemeIfNeeded()
+
+        // HealthKit authorization is deferred until the scene is fully active.
+        // A short delay gives the key window time to present so the system
+        // sheet isn't swallowed.
+        if needsHealthKitAuthorization {
+            needsHealthKitAuthorization = false
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(0.5))
+                guard let self else { return }
+                await self.ensureHealthAuthorizationAndRefresh()
+            }
+        }
 
         // Drain any offline sync requests that failed previously
         Task { await SupabaseSyncService.shared.drainRetryQueue() }

@@ -25,7 +25,7 @@ extension AppModel {
         // DeviceActivity ticks may lag (e.g. monitoring not yet started after
         // widget unlock, or monitor lost and restarted), so use wall-clock as
         // a lower bound on elapsed time.
-        let wallClockElapsed = Int(Date().timeIntervalSince(started) / 60)
+        let wallClockElapsed = Int(Date.now.timeIntervalSince(started) / 60)
         let wallClockRemaining = max(0, initial - wallClockElapsed)
         return min(stored, wallClockRemaining)
     }
@@ -33,7 +33,7 @@ extension AppModel {
     /// Seconds until the custom day boundary fires and all unused budgets are wiped.
     var secondsUntilDayReset: TimeInterval {
         let next = DayBoundary.nextBoundary(
-            after: Date(),
+            after: Date.now,
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute
         )

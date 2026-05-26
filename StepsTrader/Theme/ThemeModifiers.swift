@@ -2,24 +2,9 @@ import SwiftUI
 
 // MARK: - Theme Environment Keys
 
-private struct AppThemeKey: EnvironmentKey {
-    static let defaultValue: AppTheme = .night
-}
-
-private struct ResolvedAppThemeKey: EnvironmentKey {
-    static let defaultValue: ResolvedAppTheme = .night
-}
-
 extension EnvironmentValues {
-    var appTheme: AppTheme {
-        get { self[AppThemeKey.self] }
-        set { self[AppThemeKey.self] = newValue }
-    }
-
-    var resolvedAppTheme: ResolvedAppTheme {
-        get { self[ResolvedAppThemeKey.self] }
-        set { self[ResolvedAppThemeKey.self] = newValue }
-    }
+    @Entry var appTheme: AppTheme = .night
+    @Entry var resolvedAppTheme: ResolvedAppTheme = .night
 }
 
 // MARK: - Themed View Modifiers

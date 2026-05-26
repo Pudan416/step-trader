@@ -55,7 +55,7 @@ struct SettingsWidgetPage: View {
                                         .resizable()
                                         .scaledToFill()
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
-                                        .overlay(Color.black.opacity(0.3))
+                                        .overlay { Color.black.opacity(0.3) }
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
                                 } else {
                                     RoundedRectangle(cornerRadius: 8)
@@ -66,11 +66,11 @@ struct SettingsWidgetPage: View {
                                                 endPoint: .bottomTrailing
                                             )
                                         )
-                                        .overlay(
+                                        .overlay {
                                             Image(systemName: "photo")
                                                 .font(.system(size: 14, weight: .light))
                                                 .foregroundStyle(.white.opacity(0.5))
-                                        )
+                                        }
                                 }
                             }
                         }
@@ -109,6 +109,7 @@ struct SettingsWidgetPage: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
         .onChange(of: backgroundMode) {
             WidgetCenter.shared.reloadAllTimelines()
         }
@@ -136,6 +137,8 @@ struct SettingsWidgetPage: View {
 
     // MARK: - Background Card
 
+    // MARK: - Background Card
+
     private func bgCard<Preview: View>(
         title: String,
         isSelected: Bool,
@@ -146,6 +149,7 @@ struct SettingsWidgetPage: View {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 backgroundMode = value
             }
+            // TODO: Migrate to .sensoryFeedback()
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } label: {
             VStack(spacing: 8) {
@@ -153,13 +157,13 @@ struct SettingsWidgetPage: View {
                     .frame(height: 72)
                     .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(
+                    .overlay {
                         RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(
                                 isSelected ? AppColors.brandAccent : Color.clear,
                                 lineWidth: 2
                             )
-                    )
+                    }
 
                 Text(title)
                     .font(.caption.weight(isSelected ? .semibold : .regular))
@@ -167,5 +171,11 @@ struct SettingsWidgetPage: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+#Preview {
+    NavigationStack {
+        SettingsWidgetPage(model: DIContainer.shared.makeAppModel())
     }
 }

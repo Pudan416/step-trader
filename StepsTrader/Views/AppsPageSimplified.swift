@@ -241,6 +241,7 @@ struct AppsPageSimplified: View {
             )) {
                 Button(String(localized: "Delete"), role: .destructive) {
                     if let id = groupIdToDelete {
+                        // TODO: Migrate to .sensoryFeedback()
                         UINotificationFeedbackGenerator().notificationOccurred(.warning)
                         deleteAndCleanup(id)
                     }
@@ -418,6 +419,7 @@ struct AppsPageSimplified: View {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             model.blockingStore.ticketGroups.swapAt(fromIdx, toIdx)
         }
+        // TODO: Migrate to .sensoryFeedback()
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         model.blockingStore.persistTicketGroups()
     }
@@ -440,5 +442,9 @@ private struct FirstFeedAnchor: ViewModifier {
             content
         }
     }
+}
+
+#Preview {
+    AppsPageSimplified(model: DIContainer.shared.makeAppModel())
 }
 #endif

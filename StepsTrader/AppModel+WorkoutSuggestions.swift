@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Proactive Activity Suggestions (HealthKit + behavioral signals → Canvas)
+// MARK: - Proactive Workout Suggestions (HealthKit + behavioral signals → Canvas)
 extension AppModel {
 
     /// All pending suggestions from every source, filtered and deduped.
@@ -19,7 +19,7 @@ extension AppModel {
 
     /// Main refresh: gathers signals from all sources and builds the unified suggestion list.
     func refreshActivitySuggestions() async {
-        let alreadyAdded = Set(dailyActivitySelections + dailyRestSelections + dailyJoysSelections)
+        let alreadyAdded = Set(dailyBodySelections + dailyRestSelections + dailyHeartSelections)
         let dismissed = dismissedSuggestionIds
 
         var suggestions: [ActivitySuggestion] = []
@@ -107,7 +107,7 @@ extension AppModel {
         guard !dismissed.contains("low_screen_time") else { return false }
         guard !isDailyLimitReached(for: .mind) else { return false }
 
-        let hour = Calendar.current.component(.hour, from: Date())
+        let hour = Calendar.current.component(.hour, from: Date.now)
         guard hour >= 14 else { return false }
 
         // Only meaningful when user has blocked apps configured

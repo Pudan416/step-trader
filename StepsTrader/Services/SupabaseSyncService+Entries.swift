@@ -9,7 +9,7 @@ extension SupabaseSyncService {
         
         entriesSyncTask?.cancel()
         entriesSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             await performEntriesSync(entries: payload)
         }
@@ -34,7 +34,6 @@ extension SupabaseSyncService {
                     "option_id": entry.optionId,
                     "category": entry.category.rawValue,
                     "color_hex": entry.colorHex,
-                    "note": entry.text,
                     "created_at": iso8601String(entry.timestamp)
                 ]
                 if let variant = entry.assetVariant {
@@ -98,8 +97,7 @@ extension SupabaseSyncService {
                     optionId: row.optionId,
                     category: EnergyCategory(rawValue: row.category) ?? .body,
                     colorHex: row.colorHex,
-                    text: row.note,
-                    timestamp: formatter.date(from: row.createdAt) ?? Date(),
+                    timestamp: formatter.date(from: row.createdAt) ?? Date.now,
                     assetVariant: row.assetVariant
                 )
             }
@@ -115,7 +113,6 @@ private struct OptionEntryRow: Codable {
     let optionId: String
     let category: String
     let colorHex: String
-    let note: String
     let assetVariant: Int?
     let createdAt: String
     
@@ -124,7 +121,6 @@ private struct OptionEntryRow: Codable {
         case optionId = "option_id"
         case category
         case colorHex = "color_hex"
-        case note
         case assetVariant = "asset_variant"
         case createdAt = "created_at"
     }

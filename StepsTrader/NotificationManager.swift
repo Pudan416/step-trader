@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import UserNotifications
 
 // MARK: - Notification Manager
@@ -6,12 +7,16 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
     func requestPermission() async throws {
         let center = UNUserNotificationCenter.current()
         let granted = try await center.requestAuthorization(options: [.alert, .sound])
-        
+
         if !granted {
             throw NotificationError.permissionDenied
         }
-        
+
         AppLogger.notifications.debug("📲 Notification permissions granted")
+
+        await MainActor.run {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
     }
     
     func sendTimeExpiredNotification() {
@@ -230,16 +235,16 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
-                AppLogger.notifications.error("❌ Failed to send activity detected notification: \(error.localizedDescription)")
+                AppLogger.notifications.error("❌ Failed to send workout detected notification: \(error.localizedDescription)")
             } else {
-                AppLogger.notifications.debug("📤 Sent activity detected notification: \(title)")
+                AppLogger.notifications.debug("📤 Sent workout detected notification: \(title)")
             }
         }
     }
 
     func scheduleDailyCanvasReminder() {
         let defaults = UserDefaults.stepsTrader()
-        let enabled = defaults.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? true
+        let enabled = defaults.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? false
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: ["dailyCanvasReminder"])
         guard enabled else { return }

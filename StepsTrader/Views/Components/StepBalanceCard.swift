@@ -47,7 +47,7 @@ struct StepBalanceCard: View {
     private var accent: Color { AppColors.brandAccent }
     private var balanceYellow: Color { AppColors.brandAccent }
     
-    private static func formatTimeUntilReset(dayEndHour: Int, dayEndMinute: Int, now: Date = Date()) -> String {
+    private static func formatTimeUntilReset(dayEndHour: Int, dayEndMinute: Int, now: Date = Date.now) -> String {
         let calendar = Calendar.current
         var comps = DateComponents()
         comps.hour = dayEndHour
@@ -73,7 +73,7 @@ struct StepBalanceCard: View {
                 HStack(spacing: 4) {
                     Text("\(currentEnergy)")
                         .font(.title3.bold())
-                        .foregroundColor(AppAccentInk.primary)
+                        .foregroundStyle(AppAccentInk.primary)
                         .monospacedDigit()
                         .padding(.horizontal, 10)
                         .padding(.vertical, 3)
@@ -81,11 +81,11 @@ struct StepBalanceCard: View {
                     
                     Text("/")
                         .font(.footnote.weight(.medium))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     
                     Text("\(baseEnergyToday)")
                         .font(.footnote.weight(.semibold))
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                         .monospacedDigit()
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -93,11 +93,11 @@ struct StepBalanceCard: View {
                     
                     Text("/")
                         .font(.footnote.weight(.medium))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     
                     Text("\(maxEnergy)")
                         .font(.footnote.weight(.medium))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
                 
@@ -106,11 +106,11 @@ struct StepBalanceCard: View {
                 TimelineView(.periodic(from: .now, by: 60)) { timeline in
                     HStack(spacing: 3) {
                         Image(systemName: "clock.arrow.circlepath")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         Text(Self.formatTimeUntilReset(dayEndHour: dayEndHour, dayEndMinute: dayEndMinute, now: timeline.date))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundColor(.primary)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.primary)
                             .monospacedDigit()
                     }
                 }
@@ -162,7 +162,7 @@ struct StepBalanceCard: View {
                     } label: {
                         Image(systemName: "questionmark.circle")
                             .font(.system(size: 18))
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .minimumHitTarget()
                     }
                     .buttonStyle(.plain)
@@ -177,8 +177,8 @@ struct StepBalanceCard: View {
                         #endif
                     } label: {
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundColor(.secondary)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
                             .frame(minWidth: 80, minHeight: 32)
                             .contentShape(Rectangle())
                     }
@@ -281,10 +281,10 @@ private func metricChip(icon: String, label: String, value: Int, maxValue: Int, 
         HStack(spacing: 5) {
             Image(systemName: icon)
                 .font(.footnote)
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
             Text(label)
                 .font(.footnote.weight(.semibold))
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)

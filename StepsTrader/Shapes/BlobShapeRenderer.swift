@@ -46,9 +46,9 @@ enum BlobShapeRenderer {
         ampScale: Double
     ) -> Double {
         let dim = Double(min(size.width, size.height))
-        let effectiveSize = e.userSize ?? e.size
+        let effectiveSize = Double(e.userSize ?? CGFloat(e.size))
         let pulse = 1.0 + sin(t * (0.3 + e.pulseFrequency * 0.3) + e.phaseOffset) * 0.02 * ampScale
-        return Double(effectiveSize) * dim * sizeScale * pulse
+        return effectiveSize * dim * sizeScale * pulse
     }
 
     // MARK: - Single Element Drawing

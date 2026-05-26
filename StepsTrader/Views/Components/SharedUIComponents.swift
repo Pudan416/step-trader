@@ -7,7 +7,7 @@ struct ResistanceTag: View {
     var body: some View {
         Text(text)
             .font(.caption.weight(.medium))
-            .foregroundColor(theme.accentColor)
+            .foregroundStyle(theme.accentColor)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(
@@ -53,16 +53,31 @@ struct EmptyStateView: View {
         VStack(spacing: 8) {
             Text(message)
                 .font(.subheadline)
-                .foregroundColor(theme.textSecondary)
+                .foregroundStyle(theme.textSecondary)
             
             if let sub = subMessage {
                 Text(sub)
                     .font(.caption)
-                    .foregroundColor(theme.textSecondary.opacity(0.7))
+                    .foregroundStyle(theme.textSecondary.opacity(0.7))
                     .italic()
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
     }
+}
+
+#Preview {
+    VStack(spacing: 20) {
+        ResistanceTag(text: "Sample Tag", theme: .night)
+        PinkUnderline(width: 120, theme: .night)
+        ThemedDivider(theme: .night)
+        EmptyStateView(
+            message: "Nothing here yet",
+            theme: .night,
+            subMessage: "Try adding something"
+        )
+    }
+    .padding()
+    .background(Color.black)
 }

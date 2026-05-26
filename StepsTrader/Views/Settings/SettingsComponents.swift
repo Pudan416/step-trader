@@ -30,6 +30,31 @@ struct DetailHeader: View {
     }
 }
 
+// MARK: - Swipe back
+
+/// Swipe right to dismiss — same threshold as onboarding (`>60pt` horizontal).
+private struct DetailSwipeBackModifier: ViewModifier {
+    @Environment(\.dismiss) private var dismiss
+
+    func body(content: Content) -> some View {
+        content.simultaneousGesture(
+            DragGesture(minimumDistance: 40)
+                .onEnded { value in
+                    let dx = value.translation.width
+                    let dy = abs(value.translation.height)
+                    guard dx > 60, dx > dy else { return }
+                    dismiss()
+                }
+        )
+    }
+}
+
+extension View {
+    func detailSwipeBack() -> some View {
+        modifier(DetailSwipeBackModifier())
+    }
+}
+
 // MARK: - Hairline divider
 
 /// Thin 0.5pt divider between rows on the matte settings surface.
@@ -56,11 +81,11 @@ struct DetailInfoRow: View {
         HStack {
             Text(label)
                 .font(.subheadline)
-                .foregroundColor(theme.adaptivePrimaryText)
+                .foregroundStyle(theme.adaptivePrimaryText)
             Spacer()
             Text(value)
                 .font(.subheadline)
-                .foregroundColor(theme.adaptiveSecondaryText)
+                .foregroundStyle(theme.adaptiveSecondaryText)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)

@@ -10,6 +10,7 @@ private let _pastDaySnapshotsKey = "pastDaySnapshots_v1"
 private let _dailyCanvasSlotsKey = "dailyChoiceSlots_v1"
 private let _customEnergyOptionsKey = "customEnergyOptions_v1"
 private let _savedRoutinesKey = "savedEnergyRoutines_v1"
+private let _dailyMomentsKey = "dailyMoments_v1"
 
 // MARK: - Daily Energy Management
 extension AppModel {
@@ -23,9 +24,9 @@ extension AppModel {
     
     // MARK: - Daily energy system
     func loadEnergyPreferences() {
-        preferredActivityOptions = loadPreferredOptions(for: .body)
+        preferredBodyOptions = loadPreferredOptions(for: .body)
         preferredRestOptions = loadPreferredOptions(for: .mind)
-        preferredJoysOptions = loadPreferredOptions(for: .heart)
+        preferredHeartOptions = loadPreferredOptions(for: .heart)
     }
 
     func loadDailyEnergyState() {
@@ -34,24 +35,24 @@ extension AppModel {
         AppLogger.energy.debug("📥 loadDailyEnergyState: anchor raw=\(String(describing: rawAnchor)), as Date=\(String(describing: rawAnchor as? Date))")
         guard let anchor = rawAnchor as? Date else {
             AppLogger.energy.debug("📥 loadDailyEnergyState: NO anchor — seeding and loading persisted state")
-            g.set(currentDayStart(for: Date()), forKey: _dailyEnergyAnchorKey)
+            g.set(currentDayStart(for: Date.now), forKey: _dailyEnergyAnchorKey)
             dailySleepHours = g.double(forKey: _dailySleepHoursKey)
-            dailyActivitySelections = loadStringArray(forKey: dailySelectionsKey(for: .body))
+            dailyBodySelections = loadStringArray(forKey: dailySelectionsKey(for: .body))
             dailyRestSelections = loadStringArray(forKey: dailySelectionsKey(for: .mind))
-            dailyJoysSelections = loadStringArray(forKey: dailySelectionsKey(for: .heart))
+            dailyHeartSelections = loadStringArray(forKey: dailySelectionsKey(for: .heart))
             let storedBody = loadStringArray(forKey: preferredOptionsKey(for: .body))
             let storedMind = loadStringArray(forKey: preferredOptionsKey(for: .mind))
             let storedHeart = loadStringArray(forKey: preferredOptionsKey(for: .heart))
-            if !storedBody.isEmpty { preferredActivityOptions = storedBody }
+            if !storedBody.isEmpty { preferredBodyOptions = storedBody }
             if !storedMind.isEmpty { preferredRestOptions = storedMind }
-            if !storedHeart.isEmpty { preferredJoysOptions = storedHeart }
+            if !storedHeart.isEmpty { preferredHeartOptions = storedHeart }
             baseEnergyToday = g.integer(forKey: _baseEnergyTodayKey)
             spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
             loadDailyCanvasSlots()
             recoverSelectionsFromCanvasIfNeeded()
             return
         }
-        let sameDay = isSameCustomDay(anchor, Date())
+        let sameDay = isSameCustomDay(anchor, Date.now)
         AppLogger.energy.debug("📥 loadDailyEnergyState: anchor=\(anchor), isSameDay=\(sameDay), dayEndH=\(self.dayEndHour), dayEndM=\(self.dayEndMinute)")
         if !sameDay {
             AppLogger.energy.debug("📥 loadDailyEnergyState: different day — resetting")
@@ -60,20 +61,21 @@ extension AppModel {
         }
         dailySleepHours = g.double(forKey: _dailySleepHoursKey)
 
-        dailyActivitySelections = loadStringArray(forKey: dailySelectionsKey(for: .body))
+        dailyBodySelections = loadStringArray(forKey: dailySelectionsKey(for: .body))
         dailyRestSelections = loadStringArray(forKey: dailySelectionsKey(for: .mind))
-        dailyJoysSelections = loadStringArray(forKey: dailySelectionsKey(for: .heart))
+        dailyHeartSelections = loadStringArray(forKey: dailySelectionsKey(for: .heart))
         let storedBody = loadStringArray(forKey: preferredOptionsKey(for: .body))
         let storedMind = loadStringArray(forKey: preferredOptionsKey(for: .mind))
         let storedHeart = loadStringArray(forKey: preferredOptionsKey(for: .heart))
-        if !storedBody.isEmpty { preferredActivityOptions = storedBody }
+        if !storedBody.isEmpty { preferredBodyOptions = storedBody }
         if !storedMind.isEmpty { preferredRestOptions = storedMind }
-        if !storedHeart.isEmpty { preferredJoysOptions = storedHeart }
+        if !storedHeart.isEmpty { preferredHeartOptions = storedHeart }
 
         baseEnergyToday = g.integer(forKey: _baseEnergyTodayKey)
         spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
-        
-        AppLogger.energy.debug("📥 loadDailyEnergyState LOADED: body=\(self.dailyActivitySelections), mind=\(self.dailyRestSelections), heart=\(self.dailyJoysSelections), base=\(self.baseEnergyToday), spent=\(self.spentStepsToday)")
+        dailyMoments = Self.loadSavedMoments(from: g)
+
+        AppLogger.energy.debug("📥 loadDailyEnergyState LOADED: body=\(self.dailyBodySelections), mind=\(self.dailyRestSelections), heart=\(self.dailyHeartSelections), base=\(self.baseEnergyToday), spent=\(self.spentStepsToday)")
         
         loadDailyCanvasSlots()
         
@@ -145,6 +147,13 @@ extension AppModel {
 
     /// Resolve the user-facing title for any option ID (built-in or custom).
     func resolveOptionTitle(for optionId: String) -> String {
+        // Ephemeral moments: label stored in dailyMoments, not in the library.
+        // Moments are filtered at every sync boundary (see EphemeralMoment), so
+        // a `moment_*` ID arriving from server is treated as stale — fall back
+        // to the raw ID just in case, but expect this branch to be local-only.
+        if EphemeralMoment.isMomentId(optionId) {
+            return momentLabel(for: optionId) ?? optionId
+        }
         let lang = Locale.current.language.languageCode?.identifier ?? "en"
         return EnergyDefaults.options.first(where: { $0.id == optionId })?.title(for: lang)
             ?? customOptionTitle(for: optionId, lang: lang)
@@ -228,12 +237,12 @@ extension AppModel {
     /// If UserDefaults lost selection data (e.g. force-quit before flush), reconstruct
     /// from today's canvas JSON file which uses atomic file I/O and survives force-quits.
     private func recoverSelectionsFromCanvasIfNeeded() {
-        let allEmpty = dailyActivitySelections.isEmpty
+        let allEmpty = dailyBodySelections.isEmpty
             && dailyRestSelections.isEmpty
-            && dailyJoysSelections.isEmpty
+            && dailyHeartSelections.isEmpty
         guard allEmpty else { return }
         
-        let todayKey = Self.dayKey(for: Date())
+        let todayKey = Self.dayKey(for: Date.now)
         guard let canvas = CanvasStorageService.shared.loadCanvas(for: todayKey),
               !canvas.elements.isEmpty else { return }
         
@@ -250,9 +259,9 @@ extension AppModel {
             }
         }
         
-        dailyActivitySelections = body
+        dailyBodySelections = body
         dailyRestSelections = mind
-        dailyJoysSelections = heart
+        dailyHeartSelections = heart
         
         if baseEnergyToday == 0, canvas.inkEarned > 0 {
             baseEnergyToday = canvas.inkEarned
@@ -279,9 +288,9 @@ extension AppModel {
     }
     
     private func syncFromSlotsToSelections() {
-        dailyActivitySelections = dailyCanvasSlots.compactMap { $0.category == .body ? $0.optionId : nil }
+        dailyBodySelections = dailyCanvasSlots.compactMap { $0.category == .body ? $0.optionId : nil }
         dailyRestSelections = dailyCanvasSlots.compactMap { $0.category == .mind ? $0.optionId : nil }
-        dailyJoysSelections = dailyCanvasSlots.compactMap { $0.category == .heart ? $0.optionId : nil }
+        dailyHeartSelections = dailyCanvasSlots.compactMap { $0.category == .heart ? $0.optionId : nil }
     }
     
     func setDailyCanvasSlot(at index: Int, category: EnergyCategory?, optionId: String?) {
@@ -388,27 +397,29 @@ extension AppModel {
         let oldAnchor = g.object(forKey: _dailyEnergyAnchorKey) as? Date ?? .distantPast
         let dayKeyToSave = Self.dayKey(for: oldAnchor)
         let savedSpent = g.integer(forKey: SharedKeys.spentStepsToday)
-        let savedActivity = loadStringArray(forKey: dailySelectionsKey(for: .body))
-        let savedCreativity = loadStringArray(forKey: dailySelectionsKey(for: .mind))
-        let savedJoys = loadStringArray(forKey: dailySelectionsKey(for: .heart))
+        let savedBody = loadStringArray(forKey: dailySelectionsKey(for: .body))
+        let savedMind = loadStringArray(forKey: dailySelectionsKey(for: .mind))
+        let savedHeart = loadStringArray(forKey: dailySelectionsKey(for: .heart))
         let savedSleep = g.double(forKey: _dailySleepHoursKey)
         let cachedSteps = g.double(forKey: SharedKeys.cachedStepsToday)
         let savedSteps: Int = cachedSteps > 0 ? Int(cachedSteps) : Int(stepsToday)
         let savedStepsTarget = userStepsTarget
         let savedSleepTarget = userSleepTarget
         let savedBaseEnergy = g.integer(forKey: _baseEnergyTodayKey)
+        let savedMoments = Self.loadSavedMoments(from: g)
 
         let daySnapshot = buildPastDaySnapshot(
             savedSpent: savedSpent,
-            savedActivity: savedActivity,
-            savedCreativity: savedCreativity,
-            savedJoys: savedJoys,
+            savedBody: savedBody,
+            savedMind: savedMind,
+            savedHeart: savedHeart,
             savedSleep: savedSleep,
             cachedSteps: cachedSteps,
             savedSteps: savedSteps,
             savedStepsTarget: savedStepsTarget,
             savedSleepTarget: savedSleepTarget,
-            savedBaseEnergy: savedBaseEnergy
+            savedBaseEnergy: savedBaseEnergy,
+            savedMoments: savedMoments
         )
         savePastDaySnapshot(dayKey: dayKeyToSave, daySnapshot)
         
@@ -437,34 +448,38 @@ extension AppModel {
         dailySleepHours = 0
         stepsToday = 0
         healthStore.hasStepsData = false
+        healthStore.clearCachedStepCount()
         g.removeObject(forKey: SharedKeys.cachedStepsToday)
         g.set(false, forKey: SharedKeys.hasStepsData)
         g.removeObject(forKey: "cachedSleepHoursToday")
-        dailyActivitySelections = []
+        dailyBodySelections = []
         dailyRestSelections = []
-        dailyJoysSelections = []
+        dailyHeartSelections = []
+        dailyMoments = []
+        g.removeObject(forKey: _dailyMomentsKey)
         dailyCanvasSlots = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
         baseEnergyToday = 0
         spentStepsToday = 0
         stepsBalance = 0
         clearDismissedWorkouts()
         persistDailyEnergyState()
-        g.set(currentDayStart(for: Date()), forKey: _dailyEnergyAnchorKey)
+        g.set(currentDayStart(for: Date.now), forKey: _dailyEnergyAnchorKey)
     }
 
     /// Pure function: builds a PastDaySnapshot from explicit parameters,
     /// avoiding any dependency on mutable in-memory or UserDefaults state.
     private func buildPastDaySnapshot(
         savedSpent: Int,
-        savedActivity: [String],
-        savedCreativity: [String],
-        savedJoys: [String],
+        savedBody: [String],
+        savedMind: [String],
+        savedHeart: [String],
         savedSleep: Double,
         cachedSteps: Double,
         savedSteps: Int,
         savedStepsTarget: Double,
         savedSleepTarget: Double,
-        savedBaseEnergy: Int
+        savedBaseEnergy: Int,
+        savedMoments: [EphemeralMoment] = []
     ) -> PastDaySnapshot {
         let stepsForInk = cachedSteps > 0 ? cachedSteps : Double(savedSteps)
         let sleepPts = savedSleep > 0
@@ -474,22 +489,23 @@ extension AppModel {
             EnergyDefaults.maxBaseEnergy,
             pointsFromSteps(stepsForInk) +
             sleepPts +
-            pointsFromSelections(savedActivity.count) +
-            pointsFromSelections(savedCreativity.count) +
-            pointsFromSelections(savedJoys.count)
+            pointsFromSelections(savedBody.count) +
+            pointsFromSelections(savedMind.count) +
+            pointsFromSelections(savedHeart.count)
         )
         let inkEarned = computedInkEarned > 0 ? computedInkEarned : savedBaseEnergy
 
         return PastDaySnapshot(
             inkEarned: inkEarned,
             inkSpent: savedSpent,
-            bodyIds: savedActivity,
-            mindIds: savedCreativity,
-            heartIds: savedJoys,
+            bodyIds: savedBody,
+            mindIds: savedMind,
+            heartIds: savedHeart,
             steps: savedSteps,
             sleepHours: savedSleep,
             stepsTarget: savedStepsTarget,
-            sleepTargetHours: savedSleepTarget
+            sleepTargetHours: savedSleepTarget,
+            moments: savedMoments
         )
     }
 
@@ -497,11 +513,11 @@ extension AppModel {
     func resetDailyEnergyIfNeeded() -> Bool {
         let g = UserDefaults.stepsTrader()
         guard let anchor = g.object(forKey: _dailyEnergyAnchorKey) as? Date else {
-            AppLogger.energy.debug("⚠️ resetDailyEnergyIfNeeded: anchor missing — seeding, NOT resetting (body=\(self.dailyActivitySelections.count), mind=\(self.dailyRestSelections.count), heart=\(self.dailyJoysSelections.count))")
-            g.set(currentDayStart(for: Date()), forKey: _dailyEnergyAnchorKey)
+            AppLogger.energy.debug("⚠️ resetDailyEnergyIfNeeded: anchor missing — seeding, NOT resetting (body=\(self.dailyBodySelections.count), mind=\(self.dailyRestSelections.count), heart=\(self.dailyHeartSelections.count))")
+            g.set(currentDayStart(for: Date.now), forKey: _dailyEnergyAnchorKey)
             return false
         }
-        if !isSameCustomDay(anchor, Date()) {
+        if !isSameCustomDay(anchor, Date.now) {
             AppLogger.energy.debug("⚠️ resetDailyEnergyIfNeeded: day changed — resetting (anchor=\(anchor))")
             resetDailyEnergyState()
             return true
@@ -551,9 +567,9 @@ extension AppModel {
 
     private func preferredOptionsIds(for category: EnergyCategory) -> [String] {
         switch category {
-        case .body: return preferredActivityOptions
+        case .body: return preferredBodyOptions
         case .mind: return preferredRestOptions
-        case .heart: return preferredJoysOptions
+        case .heart: return preferredHeartOptions
         }
     }
     
@@ -618,9 +634,9 @@ extension AppModel {
     func preferredOptions(for category: EnergyCategory) -> [EnergyOption] {
         let ids: [String]
         switch category {
-        case .body: ids = preferredActivityOptions
+        case .body: ids = preferredBodyOptions
         case .mind: ids = preferredRestOptions
-        case .heart: ids = preferredJoysOptions
+        case .heart: ids = preferredHeartOptions
         }
         let all = allOptions(for: category)
         let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
@@ -632,9 +648,9 @@ extension AppModel {
         let unique = Array(NSOrderedSet(array: ids)) as? [String] ?? ids
         let trimmed = Array(unique.prefix(EnergyDefaults.maxSelectionsPerCategory))
         switch category {
-        case .body: preferredActivityOptions = trimmed
+        case .body: preferredBodyOptions = trimmed
         case .mind: preferredRestOptions = trimmed
-        case .heart: preferredJoysOptions = trimmed
+        case .heart: preferredHeartOptions = trimmed
         }
         let filteredDaily = dailySelections(for: category).filter { trimmed.contains($0) }
         setDailySelections(filteredDaily, category: category)
@@ -646,9 +662,9 @@ extension AppModel {
     func togglePreferredOption(optionId: String, category: EnergyCategory) {
         var selections: [String]
         switch category {
-        case .body: selections = preferredActivityOptions
+        case .body: selections = preferredBodyOptions
         case .mind: selections = preferredRestOptions
-        case .heart: selections = preferredJoysOptions
+        case .heart: selections = preferredHeartOptions
         }
         let wasSelected = selections.contains(optionId)
         if let idx = selections.firstIndex(of: optionId) {
@@ -674,9 +690,9 @@ extension AppModel {
 
     func isPreferredOptionSelected(_ optionId: String, category: EnergyCategory) -> Bool {
         switch category {
-        case .body: return preferredActivityOptions.contains(optionId)
+        case .body: return preferredBodyOptions.contains(optionId)
         case .mind: return preferredRestOptions.contains(optionId)
-        case .heart: return preferredJoysOptions.contains(optionId)
+        case .heart: return preferredHeartOptions.contains(optionId)
         }
     }
 
@@ -714,62 +730,121 @@ extension AppModel {
         dailySelections(for: category).contains(optionId)
     }
 
+    // MARK: - Ephemeral Moments
+
+    /// Decode persisted `dailyMoments` from UserDefaults, returning `[]` on
+    /// missing data or decode failure. Centralized so loaders and the
+    /// pre-reset snapshot path stay in sync.
+    static func loadSavedMoments(from defaults: UserDefaults) -> [EphemeralMoment] {
+        guard let data = defaults.data(forKey: _dailyMomentsKey),
+              let decoded = try? JSONDecoder().decode([EphemeralMoment].self, from: data)
+        else { return [] }
+        return decoded
+    }
+
+    /// Add a one-time moment for today.
+    /// The moment's ID is added to the appropriate category selection so the
+    /// energy economy is unaffected — moment counts like a regular activity.
+    @discardableResult
+    func addMoment(label: String, icon: String, category: EnergyCategory) -> EphemeralMoment? {
+        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            AppLogger.energy.debug("⚡️ addMoment: empty label, skipping")
+            return nil
+        }
+        guard dailySelections(for: category).count < EnergyDefaults.maxSelectionsPerCategory else {
+            AppLogger.energy.debug("⚡️ addMoment: category \(category.rawValue) is full, skipping")
+            return nil
+        }
+        let dayKey = AppModel.dayKey(for: Date.now)
+        let moment = EphemeralMoment(label: trimmed, icon: icon, category: category, dayKey: dayKey)
+        dailyMoments.append(moment)
+        // Register the ID in the category selection so it contributes energy
+        var selections = dailySelections(for: category)
+        selections.append(moment.id)
+        setDailySelections(selections, category: category)
+        syncFromSelectionsToSlots()
+        recalculateDailyEnergy()
+        persistDailyEnergyState()
+        AppLogger.energy.debug("✦ addMoment: '\(trimmed)' → \(category.rawValue) [\(moment.id)]")
+        return moment
+    }
+
+    /// Remove a moment logged today (undo support).
+    func removeMoment(id: String) {
+        guard let moment = dailyMoments.first(where: { $0.id == id }) else { return }
+        dailyMoments.removeAll { $0.id == id }
+        var selections = dailySelections(for: moment.category)
+        selections.removeAll { $0 == id }
+        setDailySelections(selections, category: moment.category)
+        syncFromSelectionsToSlots()
+        recalculateDailyEnergy()
+        persistDailyEnergyState()
+    }
+
+    /// Resolve a moment label for a given optionId (used by resolveOptionTitle).
+    func momentLabel(for optionId: String) -> String? {
+        dailyMoments.first(where: { $0.id == optionId })?.label
+    }
+
     func dailySelectionsCount(for category: EnergyCategory) -> Int {
         dailySelections(for: category).count
     }
 
-    /// Whether the per-category daily limit of 4 activities has been reached.
+    /// Whether the per-category daily limit of 4 cards has been reached.
     func isDailyLimitReached(for category: EnergyCategory) -> Bool {
         dailySelectionsCount(for: category) >= EnergyDefaults.maxSelectionsPerCategory
     }
 
     func dailySelections(for category: EnergyCategory) -> [String] {
         switch category {
-        case .body: return dailyActivitySelections
+        case .body: return dailyBodySelections
         case .mind: return dailyRestSelections
-        case .heart: return dailyJoysSelections
+        case .heart: return dailyHeartSelections
         }
     }
 
     private func setDailySelections(_ selections: [String], category: EnergyCategory) {
         switch category {
-        case .body: dailyActivitySelections = selections
+        case .body: dailyBodySelections = selections
         case .mind: dailyRestSelections = selections
-        case .heart: dailyJoysSelections = selections
+        case .heart: dailyHeartSelections = selections
         }
     }
 
     func persistDailyEnergyState() {
         let g = UserDefaults.stepsTrader()
         g.set(dailySleepHours, forKey: _dailySleepHoursKey)
-        saveStringArray(dailyActivitySelections, forKey: dailySelectionsKey(for: .body))
+        saveStringArray(dailyBodySelections, forKey: dailySelectionsKey(for: .body))
         saveStringArray(dailyRestSelections, forKey: dailySelectionsKey(for: .mind))
-        saveStringArray(dailyJoysSelections, forKey: dailySelectionsKey(for: .heart))
+        saveStringArray(dailyHeartSelections, forKey: dailySelectionsKey(for: .heart))
+        if let data = try? JSONEncoder().encode(dailyMoments) {
+            g.set(data, forKey: _dailyMomentsKey)
+        }
         g.set(baseEnergyToday, forKey: _baseEnergyTodayKey)
         g.set(spentStepsToday, forKey: SharedKeys.spentStepsToday)
-        g.set(currentDayStart(for: Date()), forKey: SharedKeys.stepsBalanceAnchor)
+        g.set(currentDayStart(for: Date.now), forKey: SharedKeys.stepsBalanceAnchor)
         persistDailyCanvasSlots()
         if g.object(forKey: _dailyEnergyAnchorKey) == nil {
-            g.set(currentDayStart(for: Date()), forKey: _dailyEnergyAnchorKey)
+            g.set(currentDayStart(for: Date.now), forKey: _dailyEnergyAnchorKey)
         }
-        g.synchronize()
         // Sync daily selections to Supabase (skip during bootstrap to avoid overwriting server data)
         guard !isBootstrapping else {
             AppLogger.energy.debug("🔄 persistDailyEnergyState: skipping sync during bootstrap")
             return
         }
         
-        let today = Self.dayKey(for: Date())
+        let today = Self.dayKey(for: Date.now)
         AppLogger.energy.debug("🔄 persistDailyEnergyState calling syncDailySelections for \(today)")
-        AppLogger.energy.debug("🔄   activities: \(self.dailyActivitySelections)")
-        AppLogger.energy.debug("🔄   creativity: \(self.dailyRestSelections)")
-        AppLogger.energy.debug("🔄   joys: \(self.dailyJoysSelections)")
+        AppLogger.energy.debug("🔄   body: \(self.dailyBodySelections)")
+        AppLogger.energy.debug("🔄   mind: \(self.dailyRestSelections)")
+        AppLogger.energy.debug("🔄   heart: \(self.dailyHeartSelections)")
         Task {
             await SupabaseSyncService.shared.syncDailySelections(
                 dayKey: today,
-                activityIds: dailyActivitySelections,
+                activityIds: dailyBodySelections,
                 recoveryIds: dailyRestSelections,
-                joysIds: dailyJoysSelections
+                joysIds: dailyHeartSelections
             )
         }
     }
@@ -792,8 +867,8 @@ extension AppModel {
 
     /// At least 6 hours since the custom day boundary — safe to assume the user slept.
     private var hasEnoughTimePassedForSleepAssumption: Bool {
-        let dayStart = currentDayStart(for: Date())
-        let hoursSinceDayStart = Date().timeIntervalSince(dayStart) / 3600
+        let dayStart = currentDayStart(for: Date.now)
+        let hoursSinceDayStart = Date.now.timeIntervalSince(dayStart) / 3600
         return hoursSinceDayStart >= 6
     }
 
@@ -801,19 +876,16 @@ extension AppModel {
         pointsFromSteps(stepsToday)
     }
 
-    /// Body: 4 chosen cards × 5 colors = 20 max.
-    var activityPointsToday: Int {
-        pointsFromSelections(dailyActivitySelections.count)
+    var bodyPointsToday: Int {
+        pointsFromSelections(dailyBodySelections.count)
     }
 
-    /// Mind: 4 chosen cards × 5 colors = 20 max.
-    var creativityPointsToday: Int {
+    var mindPointsToday: Int {
         pointsFromSelections(dailyRestSelections.count)
     }
 
-    /// Heart: 4 chosen cards × 5 colors = 20 max.
-    var joysCategoryPointsToday: Int {
-        pointsFromSelections(dailyJoysSelections.count)
+    var heartPointsToday: Int {
+        pointsFromSelections(dailyHeartSelections.count)
     }
 
     private var userSleepTarget: Double {
@@ -883,9 +955,10 @@ extension AppModel {
         let stepsForEnergy = stepsToday > 0 ? stepsToday : fallbackCachedSteps()
         let stepsPts = pointsFromSteps(stepsForEnergy)
         let sleepPts = sleepPointsToday
-        let total = stepsPts + sleepPts + activityPointsToday + creativityPointsToday + joysCategoryPointsToday
+        let total = stepsPts + sleepPts + bodyPointsToday + mindPointsToday + heartPointsToday
 
-        AppLogger.energy.debug("⚡️ recalculateDailyEnergy: steps=\(stepsPts) + sleep=\(sleepPts)\(self.isSleepAssumed ? " (assumed)" : "") + body=\(self.activityPointsToday) + mind=\(self.creativityPointsToday) + heart=\(self.joysCategoryPointsToday) = \(total)")
+        AppLogger.energy.info("👣 recalcEnergy: stepsToday=\(Int(self.stepsToday)), stepsForEnergy=\(Int(stepsForEnergy)), stepsPts=\(stepsPts)")
+        AppLogger.energy.debug("⚡️ recalculateDailyEnergy: steps=\(stepsPts) + sleep=\(sleepPts)\(self.isSleepAssumed ? " (assumed)" : "") + body=\(self.bodyPointsToday) + mind=\(self.mindPointsToday) + heart=\(self.heartPointsToday) = \(total)")
         
         let adjustedTotal = isRestDayOverrideEnabled ? max(total, 30) : total
         
@@ -899,7 +972,7 @@ extension AppModel {
             let udSpent = udG.integer(forKey: SharedKeys.spentStepsToday)
             if udSpent > 0 {
                 let anchor = udG.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date ?? .distantPast
-                if isSameCustomDay(anchor, Date()) {
+                if isSameCustomDay(anchor, Date.now) {
                     AppLogger.energy.error("⚠️ recalculateDailyEnergy: spentStepsToday=0 but UD has \(udSpent) (same day) — restoring from UD")
                     spentStepsToday = udSpent
                 }
@@ -912,7 +985,6 @@ extension AppModel {
         
         let g = UserDefaults.stepsTrader()
         g.set(baseEnergyToday, forKey: _baseEnergyTodayKey)
-        g.synchronize()
 
         writeWidgetSnapshot()
 
@@ -928,7 +1000,7 @@ extension AppModel {
         // Sync daily stats to Supabase (skip during bootstrap)
         guard !isBootstrapping else { return }
         
-        let today = Self.dayKey(for: Date())
+        let today = Self.dayKey(for: Date.now)
         Task {
             await SupabaseSyncService.shared.syncDailyStats(
                 dayKey: today,
@@ -956,22 +1028,22 @@ extension AppModel {
                 dayEndHour: dayEndHour,
                 dayEndMinute: dayEndMinute,
                 restDayOverride: isRestDayOverrideEnabled,
-                preferredBody: preferredActivityOptions,
+                preferredBody: preferredBodyOptions,
                 preferredMind: preferredRestOptions,
-                preferredHeart: preferredJoysOptions,
+                preferredHeart: preferredHeartOptions,
                 canvasSlots: dailyCanvasSlots,
                 hasWallpaperShortcut: hasWallpaperShortcut,
                 wallpaperShortcutUses: wallpaperShortcutUses,
                 notifyOneMinBefore: g.object(forKey: SharedKeys.notifyOneMinBefore) as? Bool ?? true,
                 notifyWhenTimerOver: g.object(forKey: SharedKeys.notifyWhenTimerOver) as? Bool ?? true,
-                notifyCanvasReminder: g.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? true,
+                notifyCanvasReminder: g.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? false,
                 canvasReminderHour: g.object(forKey: SharedKeys.canvasReminderHour) as? Int ?? 21,
                 canvasReminderMinute: g.object(forKey: SharedKeys.canvasReminderMinute) as? Int ?? 0,
                 notifyDayResetWarning: g.object(forKey: SharedKeys.notifyDayResetWarning) as? Bool ?? true,
                 dayResetWarningHours: g.object(forKey: SharedKeys.dayResetWarningHours) as? Int ?? 1,
                 hasMediumWidget: g.bool(forKey: SharedKeys.hasMediumWidget),
                 hasLargeWidget: g.bool(forKey: SharedKeys.hasLargeWidget),
-                lastOpenedAt: Date(),
+                lastOpenedAt: Date.now,
                 gradientStyle: std.string(forKey: SharedKeys.gradientStyle) ?? GradientStyle.radial.rawValue,
                 gradientPalette: std.string(forKey: SharedKeys.gradientPalette) ?? GradientPalette.warmSunset.rawValue,
                 userGradientStyle: std.string(forKey: SharedKeys.userGradientStyle) ?? GradientStyle.radial.rawValue,
@@ -994,10 +1066,10 @@ extension AppModel {
             earned: baseEnergyToday,
             stepsPoints: stepsPointsToday,
             sleepPoints: sleepPointsToday,
-            bodyPoints: activityPointsToday,
-            mindPoints: creativityPointsToday,
-            heartPoints: joysCategoryPointsToday,
-            timestamp: Date()
+            bodyPoints: bodyPointsToday,
+            mindPoints: mindPointsToday,
+            heartPoints: heartPointsToday,
+            timestamp: Date.now
         ))
     }
 
@@ -1011,9 +1083,9 @@ extension AppModel {
 
     /// Bulk-set all three category selections, recalculate, and persist.
     func applySelections(body: [String], mind: [String], heart: [String]) {
-        dailyActivitySelections = Array(body.prefix(EnergyDefaults.maxSelectionsPerCategory))
+        dailyBodySelections = Array(body.prefix(EnergyDefaults.maxSelectionsPerCategory))
         dailyRestSelections = Array(mind.prefix(EnergyDefaults.maxSelectionsPerCategory))
-        dailyJoysSelections = Array(heart.prefix(EnergyDefaults.maxSelectionsPerCategory))
+        dailyHeartSelections = Array(heart.prefix(EnergyDefaults.maxSelectionsPerCategory))
         syncFromSelectionsToSlots()
         recalculateDailyEnergy()
         persistDailyEnergyState()
@@ -1043,13 +1115,16 @@ extension AppModel {
     }
 
     /// Save current selections as a named routine.
+    /// Ephemeral moments are stripped — a routine is a reusable template and a
+    /// one-time moment ID would never resolve on a future day (and shouldn't
+    /// leave this device via the routine sync either).
     func saveCurrentAsRoutine(name: String) {
         let routine = EnergyRoutine(
             name: name,
-            bodyIds: dailyActivitySelections,
-            mindIds: dailyRestSelections,
-            heartIds: dailyJoysSelections,
-            lastUsed: Date()
+            bodyIds: EphemeralMoment.filteredOutOfSync(dailyBodySelections),
+            mindIds: EphemeralMoment.filteredOutOfSync(dailyRestSelections),
+            heartIds: EphemeralMoment.filteredOutOfSync(dailyHeartSelections),
+            lastUsed: Date.now
         )
         savedRoutines.append(routine)
         persistSavedRoutines()
@@ -1063,7 +1138,7 @@ extension AppModel {
         applySelections(body: validBody, mind: validMind, heart: validHeart)
 
         if let idx = savedRoutines.firstIndex(where: { $0.id == routine.id }) {
-            savedRoutines[idx].lastUsed = Date()
+            savedRoutines[idx].lastUsed = Date.now
             persistSavedRoutines()
         }
     }

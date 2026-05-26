@@ -73,33 +73,41 @@ struct SettingsSubscriptionPage: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
         .fullScreenCover(isPresented: $showPaywall) {
             PaywallView(model: model, store: store, source: .general)
         }
-        .alert(item: $showRestoreResult) { result in
-            switch result {
-            case .success:
-                return Alert(
-                    title: Text(String(localized: "Restored!")),
-                    message: Text(String(localized: "Your Pro subscription is now active.")),
-                    dismissButton: .default(Text("OK"))
-                )
-            case .nothingToRestore:
-                return Alert(
-                    title: Text(String(localized: "Nothing to restore")),
-                    message: Text(String(localized: "No active subscription was found on this Apple ID.")),
-                    dismissButton: .default(Text("OK"))
-                )
-            case .failed(let msg):
-                return Alert(
-                    title: Text(String(localized: "Restore failed")),
-                    message: Text(msg),
-                    dismissButton: .default(Text("OK"))
-                )
-            }
-        }
+        .alert(
+            restoreAlertTitle,
+            isPresented: Binding(
+                get: { showRestoreResult != nil },
+                set: { if !$0 { showRestoreResult = nil } }
+            ),
+            actions: { Button("OK") { showRestoreResult = nil } },
+            message: { Text(restoreAlertMessage) }
+        )
         .task {
             await store.refresh()
+        }
+    }
+
+    // MARK: - Alert Helpers
+
+    private var restoreAlertTitle: String {
+        switch showRestoreResult {
+        case .success: String(localized: "Restored!")
+        case .nothingToRestore: String(localized: "Nothing to restore")
+        case .failed: String(localized: "Restore failed")
+        case .none: ""
+        }
+    }
+
+    private var restoreAlertMessage: String {
+        switch showRestoreResult {
+        case .success: String(localized: "Your Pro subscription is now active.")
+        case .nothingToRestore: String(localized: "No active subscription was found on this Apple ID.")
+        case .failed(let msg): msg
+        case .none: ""
         }
     }
 
@@ -203,10 +211,10 @@ struct SettingsSubscriptionPage: View {
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.purple.opacity(0.12))
-                    .overlay(
+                    .overlay {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(Color.purple.opacity(0.4), lineWidth: 1)
-                    )
+                    }
             )
         }
         .buttonStyle(.plain)
@@ -217,9 +225,10 @@ struct SettingsSubscriptionPage: View {
     private var debugResetGrandfathering: some View {
         Button {
             UserDefaults.standard.set(false, forKey: SharedKeys.isGrandfathered)
-            UserDefaults.standard.set(Date(), forKey: SharedKeys.grandfatherEvaluatedAt)
+            UserDefaults.standard.set(Date.now, forKey: SharedKeys.grandfatherEvaluatedAt)
             UserDefaults.standard.set(false, forKey: SharedKeys.cachedHasProEntitlement)
             didResetGrandfathering = true
+            // TODO: Migrate to .sensoryFeedback()
             UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         } label: {
             HStack(spacing: 12) {
@@ -237,10 +246,10 @@ struct SettingsSubscriptionPage: View {
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.red.opacity(0.08))
-                    .overlay(
+                    .overlay {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                    )
+                    }
             )
         }
         .buttonStyle(.plain)
@@ -252,6 +261,7 @@ struct SettingsSubscriptionPage: View {
         Button {
             UserDefaults.standard.removeObject(forKey: SubscriptionGate.postOnboardingPaywallShownKey)
             didResetWelcomePaywall = true
+            // TODO: Migrate to .sensoryFeedback()
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } label: {
             HStack(spacing: 12) {
@@ -269,10 +279,10 @@ struct SettingsSubscriptionPage: View {
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.purple.opacity(0.08))
-                    .overlay(
+                    .overlay {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(Color.purple.opacity(0.3), lineWidth: 1)
-                    )
+                    }
             )
         }
         .buttonStyle(.plain)
@@ -410,5 +420,15 @@ struct SettingsSubscriptionPage: View {
         case .userCancelled, .pending:
             break
         }
+    }
+}
+
+#Preview {
+    let model = DIContainer.shared.makeAppModel()
+    NavigationStack {
+        SettingsSubscriptionPage(
+            model: model,
+            store: model.subscriptionStore
+        )
     }
 }

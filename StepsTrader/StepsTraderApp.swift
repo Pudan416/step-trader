@@ -1,18 +1,38 @@
 import SwiftUI
 import StoreKit
 import Combine
-import UIKit
 import UserNotifications
 import BackgroundTasks
 
+// MARK: - AppDelegate (Remote Notifications)
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
+        AppLogger.notifications.debug("📲 APNs token: \(hex)")
+        // Cache so sign-out / account-deletion can call removeDeviceToken with
+        // a concrete value. Stored in `.standard` (not the app group) because
+        // it's user-scoped, not extension-shared. See §5.2 in CODE_AUDIT.md.
+        UserDefaults.standard.set(hex, forKey: AuthenticationService.pushTokenStorageKey)
+        Task {
+            await SupabaseSyncService.shared.registerDeviceToken(hex)
+        }
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        AppLogger.notifications.error("📲 APNs registration failed: \(error.localizedDescription)")
+    }
+}
+
 @main
 struct StepsTraderApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model: AppModel
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var authService = AuthenticationService.shared
+    @StateObject private var announcementService = AnnouncementService.shared
     #if DEBUG
-    @StateObject private var coachMarkManager = CoachMarkManager()
+    @State private var coachMarkManager = CoachMarkManager()
     #endif
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.night.rawValue
     /// Single versioned int that replaces the old 4-flag onboarding state machine
@@ -103,6 +123,61 @@ struct StepsTraderApp: App {
         UITabBar.appearance().scrollEdgeAppearance = tabAppearance
     }
 
+    /// Run the in-app coach mark tour if the user opted into it on the last
+    /// onboarding slide (see `OnboardingStoriesView.finish(wantsTour:)`).
+    ///
+    /// Blocks until the tour completes (or returns immediately if no tour was
+    /// requested). The caller — the welcome-paywall `.task` — uses this as a
+    /// gate so the paywall never appears over an in-progress coach mark.
+    ///
+    /// Coach marks themselves are DEBUG-only (`CoachMarkManager` is wrapped
+    /// in `#if DEBUG`), so in release this method is a no-op.
+    @MainActor
+    private func runCoachMarksIfRequested() async {
+        #if DEBUG
+        let defaults = UserDefaults.standard
+        let wantsTour = defaults.bool(forKey: "shouldStartCoachMark")
+
+        // Start the tour if it was requested and not already running. We read
+        // & clear `shouldStartCoachMark` here (instead of in `onFinish`) so
+        // the start is sequenced inside the same task that gates the paywall.
+        if wantsTour && !coachMarkManager.isActive {
+            defaults.removeObject(forKey: "shouldStartCoachMark")
+            // Let the canvas render before the first coach mark anchors so
+            // overlay positions resolve against laid-out geometry.
+            try? await Task.sleep(for: .milliseconds(800))
+            if Task.isCancelled { return }
+            coachMarkManager.start()
+        }
+
+        // Wait for any in-progress tour to complete (covers both the fresh
+        // start above and the `.task` re-firing mid-tour after a view rebuild).
+        while coachMarkManager.isActive {
+            try? await Task.sleep(for: .milliseconds(300))
+            if Task.isCancelled { return }
+        }
+
+        // Breathing room between the last coach mark dismissing and whatever
+        // comes next (typically the welcome paywall sliding up).
+        if wantsTour {
+            try? await Task.sleep(for: .milliseconds(400))
+            if Task.isCancelled { return }
+        }
+        #endif
+    }
+
+    /// Decide whether to flip `showPostOnboardingPaywall` to `true`.
+    /// Called only after `runCoachMarksIfRequested()` has returned, so the
+    /// tour (if any) is guaranteed to be finished by this point.
+    @MainActor
+    private func presentPostOnboardingPaywallIfNeeded() async {
+        guard SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) else { return }
+        // Brief cosmetic delay so the welcome screen renders before the paywall.
+        try? await Task.sleep(for: .milliseconds(600))
+        if Task.isCancelled { return }
+        showPostOnboardingPaywall = true
+    }
+
     var body: some Scene {
         WindowGroup {
             GlassShimmerProvider {
@@ -131,30 +206,39 @@ struct StepsTraderApp: App {
                     // and the closure's deferred presentation.
                     .task {
                         guard !isUITest else { return }
-                        // Wait for subscription state to settle off transient
+
+                        // 1) Run the optional in-app coach mark tour FIRST.
+                        // The paywall must never appear while the tour is
+                        // active — it would slide up over the coach overlay
+                        // and break the flow. `runCoachMarksIfRequested` is a
+                        // no-op (returns immediately) when the user declined
+                        // the tour, so non-tour users don't pay any latency.
+                        await runCoachMarksIfRequested()
+                        if Task.isCancelled { return }
+
+                        // 2) Wait for subscription state to settle off transient
                         // states (`.unknown` and `.loadingFromCache`) so we
                         // don't accidentally show paywall to a grandfathered
                         // or freshly-restored user before RC bootstraps.
                         // 2s budget is plenty for cached/local resolution;
                         // if RC is offline we proceed anyway based on cached
                         // `isPro` (correct: cached==true → no paywall).
+                        // .task cancels when the view disappears — make sure
+                        // sleeps don't keep us "alive" past that point and
+                        // accidentally trigger the paywall on a stale view.
+                        // (§3.7)
                         for _ in 0..<10 {
                             switch model.subscriptionStore.state {
                             case .unknown, .loadingFromCache: break
                             default:
-                                if SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) {
-                                    try? await Task.sleep(nanoseconds: 600_000_000)
-                                    showPostOnboardingPaywall = true
-                                }
+                                await presentPostOnboardingPaywallIfNeeded()
                                 return
                             }
-                            try? await Task.sleep(nanoseconds: 200_000_000)
+                            try? await Task.sleep(for: .milliseconds(200))
+                            if Task.isCancelled { return }
                         }
                         // Fallback after timeout: respect cached isPro.
-                        if SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) {
-                            try? await Task.sleep(nanoseconds: 600_000_000)
-                            showPostOnboardingPaywall = true
-                        }
+                        await presentPostOnboardingPaywallIfNeeded()
                     }
 
                     // Handoff protection screen (disabled for Instagram flow and UI tests)
@@ -179,22 +263,16 @@ struct StepsTraderApp: App {
                             await model.refreshSleepIfAuthorized()
                         }
 
-                        // NOTE: Post-onboarding paywall is now triggered from
-                        // the `.task` on the `hasCompletedOnboarding` branch
-                        // above — that path always fires when the root flips,
-                        // even if the user kills the app immediately after
-                        // onboarding completes (the paywall marker is set on
-                        // dismiss, so a kill-before-dismiss still allows it to
-                        // appear on the next cold launch).
-
-                        #if DEBUG
-                        if UserDefaults.standard.bool(forKey: "shouldStartCoachMark") {
-                            UserDefaults.standard.removeObject(forKey: "shouldStartCoachMark")
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                                coachMarkManager.start()
-                            }
-                        }
-                        #endif
+                        // NOTE: Post-onboarding paywall AND the optional coach
+                        // mark tour are both triggered from the `.task` on the
+                        // `hasCompletedOnboarding` branch above — that path
+                        // always fires when the root flips, even if the user
+                        // kills the app immediately after onboarding completes
+                        // (the paywall marker is set on dismiss, so a kill-
+                        // before-dismiss still allows it to appear on the next
+                        // cold launch). The `.task` runs the tour first and
+                        // only then evaluates the paywall, so the welcome flow
+                        // is never interrupted mid-tour.
                     }
                     .transition(.opacity)
                     .zIndex(3)
@@ -217,7 +295,7 @@ struct StepsTraderApp: App {
             .tint(currentTheme.accentColor)
             .grayscale(0)
             #if DEBUG
-            .environmentObject(coachMarkManager)
+            .environment(coachMarkManager)
             #endif
             .alert(isPresented: $errorManager.showErrorAlert, error: errorManager.currentError) { _ in
                 Button("OK", role: .cancel) {
@@ -225,6 +303,19 @@ struct StepsTraderApp: App {
                 }
             } message: { error in
                 Text(error.recoverySuggestion ?? "")
+            }
+            .alert(
+                announcementService.activeAnnouncement?.title ?? "",
+                isPresented: Binding(
+                    get: { announcementService.activeAnnouncement != nil },
+                    set: { if !$0, let a = announcementService.activeAnnouncement { announcementService.dismiss(a) } }
+                )
+            ) {
+                Button("OK", role: .cancel) {
+                    if let a = announcementService.activeAnnouncement { announcementService.dismiss(a) }
+                }
+            } message: {
+                Text(announcementService.activeAnnouncement?.message ?? "")
             }
             .onAppear {
                 // STOPGAP: install legacy bar appearances after init() instead of during it.
@@ -251,6 +342,7 @@ struct StepsTraderApp: App {
                 } else {
                     Task { await model.bootstrap(requestPermissions: false) }
                 }
+                Task { await announcementService.fetchActiveAnnouncement() }
                 AppLogger.app.debug(
                     "🎭 StepsTraderApp appeared - showPayGate: \(model.userEconomyStore.showPayGate), showQuickStatusPage: \(model.showQuickStatusPage)"
                 )
@@ -317,7 +409,7 @@ struct StepsTraderApp: App {
                    let bundleId = userInfo["bundleId"] as? String {
                     let g = UserDefaults.stepsTrader()
                     if let until = g.object(forKey: SharedKeys.payGateDismissedUntil) as? Date,
-                       Date() < until
+                       Date.now < until
                     {
                         AppLogger.app.debug("🚫 PayGate notification suppressed after dismiss")
                         return
@@ -338,14 +430,14 @@ struct StepsTraderApp: App {
                    let bundleId = userInfo["bundleId"] as? String {
                     let g = UserDefaults.stepsTrader()
                     if let until = g.object(forKey: SharedKeys.payGateDismissedUntil) as? Date,
-                       Date() < until
+                       Date.now < until
                     {
                         AppLogger.app.debug("🚫 PayGate local notification suppressed after dismiss")
                         return
                     }
                     let lastOpen = g.object(forKey: SharedKeys.lastAppOpenedFromStepsTrader(bundleId)) as? Date
                     if let lastOpen {
-                        let elapsed = Date().timeIntervalSince(lastOpen)
+                        let elapsed = Date.now.timeIntervalSince(lastOpen)
                         if elapsed < 10 {
                                 AppLogger.app.debug("PayGate local ignored for \(bundleId) to avoid loop (\(elapsed, format: .fixed(precision: 1))s since last open)")
                             return
@@ -474,11 +566,11 @@ struct StepsTraderApp: App {
 
     private func isRecentPayGateOpen(groupId: String, userDefaults: UserDefaults) -> Bool {
         if let last = userDefaults.object(forKey: SharedKeys.lastPayGateAction) as? Date,
-           Date().timeIntervalSince(last) < 5 {
+           Date.now.timeIntervalSince(last) < 5 {
             return true
         }
         if let last = userDefaults.object(forKey: SharedKeys.lastGroupPayGateOpen(groupId)) as? Date,
-           Date().timeIntervalSince(last) < 5 {
+           Date.now.timeIntervalSince(last) < 5 {
             return true
         }
         return false
@@ -492,7 +584,8 @@ struct StepsTraderApp: App {
         // the prompt exactly once.
         guard appLaunchCount >= 3, !hasRequestedReview else { return }
         hasRequestedReview = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
             requestReview()
         }
     }

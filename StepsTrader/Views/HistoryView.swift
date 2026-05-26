@@ -10,7 +10,6 @@ import UIKit
 struct HistoryView: View {
     @ObservedObject var model: AppModel
     @Environment(\.appTheme) private var theme
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.topCardHeight) private var topCardHeight
 
     @State private var pastDays: [String: PastDaySnapshot] = [:]
@@ -56,9 +55,6 @@ struct HistoryView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                DetailHeader(title: String(localized: "History", comment: "HistoryView – page title"))
-                    .padding(.horizontal, 16)
-
                 content
             }
         }
@@ -86,7 +82,7 @@ struct HistoryView: View {
         if dayKeysSorted.isEmpty && hasLoaded {
             emptyState
         } else {
-            ScrollView(showsIndicators: false) {
+            ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24, pinnedViews: [.sectionHeaders]) {
                     counterRow
 
@@ -108,6 +104,7 @@ struct HistoryView: View {
                 }
                 .padding(.bottom, 16)
             }
+            .scrollIndicators(.hidden)
             .refreshable {
                 await reloadHistory()
             }
@@ -129,7 +126,7 @@ struct HistoryView: View {
         formatter.dateFormat = "LLLL"
         let monthName = formatter.string(from: monthDate)
         let yearComp = cal.component(.year, from: monthDate)
-        let currentYear = cal.component(.year, from: Date())
+        let currentYear = cal.component(.year, from: Date.now)
 
         return HStack(alignment: .firstTextBaseline) {
             Text(monthName)
@@ -217,7 +214,7 @@ struct HistoryView: View {
 
     private func reloadHistory() async {
         let local = model.loadPastDaySnapshots()
-        let today = AppModel.dayKey(for: Date())
+        let today = AppModel.dayKey(for: Date.now)
         await MainActor.run {
             pastDays = local
             var keys = Set(local.keys)
@@ -267,11 +264,11 @@ struct DayHistoryTile: View {
     @State private var isEmptyDay = false
 
     private var date: Date {
-        CachedFormatters.dayKey.date(from: dayKey) ?? Date()
+        CachedFormatters.dayKey.date(from: dayKey) ?? Date.now
     }
 
     private var isToday: Bool {
-        dayKey == AppModel.dayKey(for: Date())
+        dayKey == AppModel.dayKey(for: Date.now)
     }
 
     private var dayNumber: String {
@@ -304,7 +301,7 @@ struct DayHistoryTile: View {
             }
 
             Text(dayNumber)
-                .font(.system(size: 28, weight: .ultraLight, design: .rounded))
+                .font(.system(size: 28, weight: .black, design: .serif))
                 .foregroundStyle(Color.yellow)
                 .padding(8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)

@@ -80,21 +80,19 @@ struct CanvasFullBleedPoster<Content: View>: View {
                     .padding(.trailing, w * Self.statsRightR)
                     .padding(.top, h * Self.statsTopR)
 
-                // "NOWHERE" — bottom area, 96px New York Black
-                Text("NOWHERE")
+                // Date — bottom area, 96px New York Black, centered
+                Text(formattedDate)
                     .font(.system(size: max(10, w * Self.nowhereSizeR), weight: .black, design: .serif))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(.leading, w * Self.nowhereLeftR)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, h * Self.nowhereTopR)
 
-                // Date — bottom-left, 12px New York Regular Italic
-                Text(formattedDate)
-                    .font(.system(size: max(5, w * Self.dateSizeR), weight: .regular, design: .serif))
-                    .italic()
+                // "NOWHERE" — bottom-left, 12px New York Black
+                Text("NOWHERE")
+                    .font(.system(size: max(5, w * Self.dateSizeR), weight: .black, design: .serif))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
                     .lineLimit(1)
@@ -120,7 +118,7 @@ struct CanvasFullBleedPoster<Content: View>: View {
             if (steps ?? 0) > 0 || (sleepHours ?? 0) > 0 {
                 let parts = [
                     steps.map { "\(formatCompactNumber($0)) steps" },
-                    sleepHours.map { String(format: "%.1f h. sleep", $0) }
+                    sleepHours.map { "\($0.formatted(.number.precision(.fractionLength(1)))) h. sleep" }
                 ].compactMap { $0 }
                 Text(parts.joined(separator: " / "))
                     .font(.system(size: fontSize, weight: .regular))
@@ -149,7 +147,7 @@ struct CanvasFullBleedPoster<Content: View>: View {
 
     private func taglineView(fontSize: CGFloat) -> some View {
         VStack(alignment: .trailing, spacing: 1) {
-            Text("«Nowhere — Now Here» iOS app")
+            Text("«Nowhere» is an iOS app")
                 .font(.system(size: fontSize, weight: .regular))
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
@@ -167,9 +165,27 @@ struct CanvasFullBleedPoster<Content: View>: View {
 
     private var formattedDate: String {
         let cal = Calendar.current
-        let y = cal.component(.year, from: date)
+        let y = cal.component(.year, from: date) % 100
         let m = cal.component(.month, from: date)
         let d = cal.component(.day, from: date)
-        return String(format: "%04d/%02d/%02d", y, m, d)
+        return String(format: "%02d/%02d/%02d", d, m, y)
     }
+}
+
+#Preview {
+    CanvasFullBleedPoster(
+        date: Date.now,
+        userName: "Kosta",
+        steps: 8432,
+        sleepHours: 7.5,
+        inkEarned: 72,
+        inkSpent: 15
+    ) {
+        LinearGradient(
+            colors: [.purple, .blue, .cyan],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    .frame(width: 300, height: 424)
 }

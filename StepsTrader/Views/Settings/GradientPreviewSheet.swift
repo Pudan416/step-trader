@@ -61,13 +61,13 @@ struct GradientPreviewSheet: View {
                 HStack {
                     Text(config.style.displayName)
                         .font(.headline.weight(.semibold))
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                     Spacer()
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title2)
                             .symbolRenderingMode(.hierarchical)
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundStyle(.white.opacity(0.7))
                     }
                 }
                 .padding(.horizontal, 20)
@@ -101,17 +101,17 @@ struct GradientPreviewSheet: View {
                                 }
                                 .frame(height: 72)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
+                                .overlay {
                                     RoundedRectangle(cornerRadius: 8)
                                         .strokeBorder(
                                             selectedState == index ? Color.white : Color.white.opacity(0.15),
                                             lineWidth: selectedState == index ? 2 : 0.5
                                         )
-                                )
+                                }
 
                                 Text(state.label)
                                     .font(.system(size: 10, weight: selectedState == index ? .bold : .medium))
-                                    .foregroundColor(selectedState == index ? .white : .white.opacity(0.5))
+                                    .foregroundStyle(selectedState == index ? .white : .white.opacity(0.5))
                             }
                         }
                         .buttonStyle(.plain)
@@ -124,7 +124,7 @@ struct GradientPreviewSheet: View {
                 } label: {
                     Text(String(localized: "Apply", comment: "GradientPreview – apply gradient button"))
                         .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.black)
+                        .foregroundStyle(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Capsule().fill(AppColors.brandAccent))
@@ -137,4 +137,12 @@ struct GradientPreviewSheet: View {
         }
     }
 
+}
+
+#Preview {
+    GradientPreviewSheet(
+        config: GradientPreviewConfig(style: .radial),
+        onApply: {}
+    )
+    .presentationBackground(.clear)
 }

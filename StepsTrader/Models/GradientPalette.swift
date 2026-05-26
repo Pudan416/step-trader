@@ -11,20 +11,20 @@ enum GradientPalette: String, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .warmSunset: return "Sunset"
-        case .ocean:      return "Ocean"
-        case .aurora:     return "Aurora"
-        case .dusk:       return "Dusk"
-        case .dawn:       return "Dawn"
-        case .ember:      return "Ember"
-        case .horizon:    return "Horizon"
+        case .warmSunset: "Sunset"
+        case .ocean:      "Ocean"
+        case .aurora:     "Aurora"
+        case .dusk:       "Dusk"
+        case .dawn:       "Dawn"
+        case .ember:      "Ember"
+        case .horizon:    "Horizon"
         }
     }
 
     static func normalized(rawValue: String) -> GradientPalette {
         switch rawValue {
-        case "roseGarden": return .ocean
-        default:           return GradientPalette(rawValue: rawValue) ?? .warmSunset
+        case "roseGarden": .ocean
+        default:           GradientPalette(rawValue: rawValue) ?? .warmSunset
         }
     }
 }
@@ -36,15 +36,21 @@ enum GradientStyle: String, CaseIterable {
     case linearReversed
     case organic
     case mesh
+    case angular
 
     var displayName: String {
         switch self {
-        case .radial: return "Radial"
-        case .linear: return "Linear"
-        case .radialReversed: return "Radial Reversed"
-        case .linearReversed: return "Linear Reversed"
-        case .organic: return "Organic"
-        case .mesh: return "Mesh"
+        case .radial: "Radial"
+        case .linear: "Linear"
+        case .radialReversed: "Radial Reversed"
+        case .linearReversed: "Linear Reversed"
+        case .organic: "Organic"
+        case .mesh: "Mesh"
+        case .angular: "Angular"
         }
+    }
+
+    var isAnimated: Bool {
+        self == .mesh || self == .angular
     }
 }

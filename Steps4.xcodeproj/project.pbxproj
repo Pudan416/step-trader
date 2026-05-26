@@ -12,6 +12,7 @@
 		200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47A2F0C795D0018004E /* TargetResolver.swift */; };
 		200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A52F16DA3F0018004E /* AuthenticationService.swift */; };
 		200AC5A82F16DA570018004E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A72F16DA570018004E /* LoginView.swift */; };
+		200AC5B12F16DB100018004E /* AuthenticationService+CachedProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */; };
 		201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816112F33C8C10006B350 /* CustomActivityTests.swift */; };
 		201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816132F33C8CC0006B350 /* DayBoundaryTests.swift */; };
 		201816162F33C8D80006B350 /* CustomActivityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816152F33C8D80006B350 /* CustomActivityUITests.swift */; };
@@ -78,6 +79,7 @@
 		20AA24882F70BEE1002F2F2C /* AppUnlockSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */; };
 		20AA24892F70BEEA002F2F2C /* AccessWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47C2F0C825C0018004E /* AccessWindow.swift */; };
 		20AA248A2F70C00100000001 /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
+		20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */; };
 		20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */; };
 		20B0A3562E8C65E700D5EBE4 /* SharedKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */; };
 		20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */; };
@@ -124,6 +126,7 @@
 		20HV0001AAAA000100000001 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20HV0002AAAA000100000002 /* HistoryView.swift */; };
 		20HV0003AAAA000100000003 /* DayCanvasViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */; };
 		20HV0005AAAA000100000005 /* HistoryThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20HV0006AAAA000100000006 /* HistoryThumbnailCache.swift */; };
+		20IC0001AAAA000100000001 /* ShapeIconCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20IC0002AAAA000100000002 /* ShapeIconCache.swift */; };
 		20SG0001AAAA000100000001 /* SubscriptionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SG0002AAAA000100000002 /* SubscriptionGate.swift */; };
 		20SS02012F87000000000001 /* SupabaseSyncService+Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS01012F87000000000001 /* SupabaseSyncService+Analytics.swift */; };
 		20SS02022F87000000000002 /* SupabaseSyncService+Selections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS01022F87000000000002 /* SupabaseSyncService+Selections.swift */; };
@@ -134,6 +137,7 @@
 		20SS02072F87000000000007 /* SupabaseSyncService+Spent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS01072F87000000000007 /* SupabaseSyncService+Spent.swift */; };
 		20SS02082F87000000000008 /* SupabaseSyncService+Entries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS01082F87000000000008 /* SupabaseSyncService+Entries.swift */; };
 		20SS02092F87000000000009 /* SupabaseSyncService+Routines.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS01092F87000000000009 /* SupabaseSyncService+Routines.swift */; };
+		20SS020A2F8700000000000A /* SupabaseSyncService+DeviceToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20SS010A2F8700000000000A /* SupabaseSyncService+DeviceToken.swift */; };
 		2CBA49F88060F2EC9F69839A /* ThemeModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1146D29605946EC6B4301B /* ThemeModifiers.swift */; };
 		30A1D1B12F3C000100000003 /* DayEndSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */; };
 		30A1D1B32F3C000100000005 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */; };
@@ -143,6 +147,7 @@
 		30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0008300000000000CA08 /* CanvasStateManagers.swift */; };
 		30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA000A300000000000CA0A /* CanvasStorageService.swift */; };
 		30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EA00013001000000EA0001 /* EnergyGradientBackground.swift */; };
+		30EA00043001000000EA0004 /* EnergySignatureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EA00033001000000EA0003 /* EnergySignatureView.swift */; };
 		31E56CC97BFC4B2EB6CAA2A8 /* AppModel+PayGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E8B78AD65E54737AA7CA90F /* AppModel+PayGate.swift */; };
 		3B9C4E54AE20A00DECDAFDAF /* PastDaySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E648AABF4FC13465DF42C1 /* PastDaySnapshot.swift */; };
 		40IN00022FFF050000000002 /* ExportCanvasWallpaperIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40IN00012FFF050000000001 /* ExportCanvasWallpaperIntent.swift */; };
@@ -156,6 +161,8 @@
 		57E04F4FB048E115C40D98E7 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8648A4882378AF2E1E742F /* Color+Hex.swift */; };
 		5E9E43978D80841CEA8F84B8 /* ShapeStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = C669447E94C63E9A8EB39A0B /* ShapeStyles.swift */; };
 		5F0E443EA93FB23E1E618222 /* EnergyOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD224EC1A882989A8351AB57 /* EnergyOption.swift */; };
+		EPHM0001000000000000BF01 /* EphemeralMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = EPHM0002000000000000BF02 /* EphemeralMoment.swift */; };
+		MMSH0001000000000000BF01 /* MomentEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = MMSH0002000000000000BF02 /* MomentEntrySheet.swift */; };
 		605D42CA9EBF1B3A09237455 /* MetaballGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E94D8EA5C48F5875A51740 /* MetaballGenerator.swift */; };
 		60CO0001300000000060CO0001 /* CanvasOverlayStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0002300000000060CO0002 /* CanvasOverlayStyle.swift */; };
 		60CO0003300000000060CO0003 /* CanvasAnimationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0004300000000060CO0004 /* CanvasAnimationOverlay.swift */; };
@@ -164,6 +171,7 @@
 		60SP0001300000000060SP0001 /* ShaderParkShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 60SP0002300000000060SP0002 /* ShaderParkShader.metal */; };
 		60SP0003300000000060SP0003 /* MetalShaderParkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SP0004300000000060SP0004 /* MetalShaderParkRenderer.swift */; };
 		60SP0005300000000060SP0005 /* ShaderParkOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SP0006300000000060SP0006 /* ShaderParkOverlayView.swift */; };
+		62FCEE93619D57A0D6E82263 /* AnnouncementService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */; };
 		69624326AA0BD3D99B13FBCA /* GalleryNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51444749A1B225FCD6A4DCF /* GalleryNotifications.swift */; };
 		6B454ECDBA75497D1287A4E1 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7F473D8EA05B52428ABD08 /* AppColors.swift */; };
 		6D2A49FE92B422EDEAFE63BE /* CanvasColorPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C347368C4F416256BE0CF8 /* CanvasColorPalette.swift */; };
@@ -204,6 +212,8 @@
 		AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB004400440044AABB0040 /* SubscriptionStateTests.swift */; };
 		AC000001300400000000AC01 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000002300400000000AC02 /* AppConstants.swift */; };
 		AEF40DC05AB94589A68AB8CD /* BlobShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */; };
+		AEF40DC15AB945890B0B0B01 /* OrganicBlobShapeGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */; };
+		AEF40DC25AB945890B0B0B02 /* OrganicBlobShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */; };
 		B59E9C524161418AB1CE7C33 /* DeviceActivityMonitor.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BA2C944BDF2E4A9FAF9E3D81 /* AppModel+Payment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A0EFF57C944F958DDA1052 /* AppModel+Payment.swift */; };
 		BB000001BB000001BB000002 /* WidgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000001BB000001BB000001 /* WidgetTests.swift */; };
@@ -310,6 +320,7 @@
 		200AC48B2F1402CF0018004E /* ManagedSettingsUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettingsUI.framework; path = System/Library/Frameworks/ManagedSettingsUI.framework; sourceTree = SDKROOT; };
 		200AC5A52F16DA3F0018004E /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
 		200AC5A72F16DA570018004E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthenticationService+CachedProfile.swift"; sourceTree = "<group>"; };
 		201816112F33C8C10006B350 /* CustomActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityTests.swift; sourceTree = "<group>"; };
 		201816132F33C8CC0006B350 /* DayBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBoundaryTests.swift; sourceTree = "<group>"; };
 		201816152F33C8D80006B350 /* CustomActivityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityUITests.swift; sourceTree = "<group>"; };
@@ -372,6 +383,7 @@
 		20AA247F2F70BD6F002F2F2C /* ShieldRebuildHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldRebuildHelper.swift; sourceTree = "<group>"; };
 		20AA24842F70BDB1002F2F2C /* FamilyControls.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FamilyControls.framework; path = System/Library/Frameworks/FamilyControls.framework; sourceTree = SDKROOT; };
 		20AA24862F70BDC4002F2F2C /* UnlockWidgetExtensionRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UnlockWidgetExtensionRelease.entitlements; sourceTree = "<group>"; };
+		20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSessionRestoreTests.swift; sourceTree = "<group>"; };
 		20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StepsTrader.swift"; sourceTree = "<group>"; };
 		20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeys.swift; sourceTree = "<group>"; };
 		20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffManager.swift; sourceTree = "<group>"; };
@@ -413,6 +425,7 @@
 		20HV0002AAAA000100000002 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCanvasViewerView.swift; sourceTree = "<group>"; };
 		20HV0006AAAA000100000006 /* HistoryThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryThumbnailCache.swift; sourceTree = "<group>"; };
+		20IC0002AAAA000100000002 /* ShapeIconCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShapeIconCache.swift; sourceTree = "<group>"; };
 		20SG0002AAAA000100000002 /* SubscriptionGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionGate.swift; sourceTree = "<group>"; };
 		20SS01012F87000000000001 /* SupabaseSyncService+Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+Analytics.swift"; sourceTree = "<group>"; };
 		20SS01022F87000000000002 /* SupabaseSyncService+Selections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+Selections.swift"; sourceTree = "<group>"; };
@@ -423,6 +436,7 @@
 		20SS01072F87000000000007 /* SupabaseSyncService+Spent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+Spent.swift"; sourceTree = "<group>"; };
 		20SS01082F87000000000008 /* SupabaseSyncService+Entries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+Entries.swift"; sourceTree = "<group>"; };
 		20SS01092F87000000000009 /* SupabaseSyncService+Routines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+Routines.swift"; sourceTree = "<group>"; };
+		20SS010A2F8700000000000A /* SupabaseSyncService+DeviceToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseSyncService+DeviceToken.swift"; sourceTree = "<group>"; };
 		2E3143C1B5B277380C445D26 /* BudgetEngineProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BudgetEngineProtocol.swift; path = StepsTrader/Protocols/BudgetEngineProtocol.swift; sourceTree = SOURCE_ROOT; };
 		30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayEndSettingsView.swift; sourceTree = "<group>"; };
 		30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
@@ -432,6 +446,7 @@
 		30CA0008300000000000CA08 /* CanvasStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStateManagers.swift; sourceTree = "<group>"; };
 		30CA000A300000000000CA0A /* CanvasStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStorageService.swift; sourceTree = "<group>"; };
 		30EA00013001000000EA0001 /* EnergyGradientBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyGradientBackground.swift; sourceTree = "<group>"; };
+		30EA00033001000000EA0003 /* EnergySignatureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergySignatureView.swift; sourceTree = "<group>"; };
 		40IN00012FFF050000000001 /* ExportCanvasWallpaperIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCanvasWallpaperIntent.swift; sourceTree = "<group>"; };
 		40IN00032FFF050000000003 /* AppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcuts.swift; sourceTree = "<group>"; };
 		45F540E48318D3A7CEF51B99 /* ThemeTextStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ThemeTextStyles.swift; path = StepsTrader/Theme/ThemeTextStyles.swift; sourceTree = SOURCE_ROOT; };
@@ -443,6 +458,8 @@
 		50SM00053002000050SM0005 /* MetalSmudgeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalSmudgeRenderer.swift; sourceTree = "<group>"; };
 		50SM00063002000050SM0006 /* SmudgeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmudgeCanvasView.swift; sourceTree = "<group>"; };
 		524F432B8921ECFAF49A568E /* EnergyCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EnergyCategory.swift; path = StepsTrader/Models/EnergyCategory.swift; sourceTree = SOURCE_ROOT; };
+		EPHM0002000000000000BF02 /* EphemeralMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EphemeralMoment.swift; path = StepsTrader/Models/EphemeralMoment.swift; sourceTree = SOURCE_ROOT; };
+		MMSH0002000000000000BF02 /* MomentEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentEntrySheet.swift; sourceTree = "<group>"; };
 		554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeviceActivityMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5C664BEFA2BBECD3F1AB1266 /* FamilyControlsServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamilyControlsServiceProtocol.swift; path = StepsTrader/Protocols/FamilyControlsServiceProtocol.swift; sourceTree = SOURCE_ROOT; };
 		5F4C4CBBA3ED654713693D34 /* BodyShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BodyShapeGenerator.swift; path = StepsTrader/Shapes/BodyShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
@@ -474,6 +491,7 @@
 		80PS00013005000080PS0001 /* PosterStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PosterStyle.swift; sourceTree = "<group>"; };
 		80PV00013005000080PV0001 /* CanvasPosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPosterView.swift; sourceTree = "<group>"; };
 		8C8648A4882378AF2E1E742F /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Color+Hex.swift"; path = "StepsTrader/Extensions/Color+Hex.swift"; sourceTree = SOURCE_ROOT; };
+		9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementService.swift; sourceTree = "<group>"; };
 		A0B10001A0B10001A0B10010 /* OnboardingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingModels.swift; sourceTree = "<group>"; };
 		A0B10002A0B10002A0B10020 /* OnboardingFloaters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFloaters.swift; sourceTree = "<group>"; };
 		A0B10003A0B10003A0B10030 /* AppleSignInCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInCoordinator.swift; sourceTree = "<group>"; };
@@ -494,6 +512,8 @@
 		AC000002300400000000AC02 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
 		AF354BA8B84F3623DFC56E52 /* CanvasRenderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasRenderModels.swift; path = StepsTrader/Views/Canvas/CanvasRenderModels.swift; sourceTree = SOURCE_ROOT; };
 		B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BlobShapeRenderer.swift; path = StepsTrader/Shapes/BlobShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
+		B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OrganicBlobShapeGenerator.swift; path = StepsTrader/Shapes/OrganicBlobShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
+		B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OrganicBlobShapeRenderer.swift; path = StepsTrader/Shapes/OrganicBlobShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		BB000001BB000001BB000001 /* WidgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTests.swift; sourceTree = "<group>"; };
 		BB000001BBBB000100000002 /* CachedFormatters.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CachedFormatters.swift; sourceTree = "<group>"; };
 		BB000002BB000002BB000001 /* OnboardingFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowTests.swift; sourceTree = "<group>"; };
@@ -659,11 +679,14 @@
 				77E648AABF4FC13465DF42C1 /* PastDaySnapshot.swift */,
 				524F432B8921ECFAF49A568E /* EnergyCategory.swift */,
 				FD224EC1A882989A8351AB57 /* EnergyOption.swift */,
+				EPHM0002000000000000BF02 /* EphemeralMoment.swift */,
 				7A214D7EB007648A8206D56D /* EnergyDefaults.swift */,
 				49124F0393F299111D41A1B0 /* ActivitySuggestion.swift */,
 				DB2D4682957CC0830F537534 /* ShapeHelpers.swift */,
 				5F4C4CBBA3ED654713693D34 /* BodyShapeGenerator.swift */,
 				B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */,
+				B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */,
+				B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */,
 				C860AD1856984A189E6B70A9 /* SnowflakeShapeRenderer.swift */,
 				1C0D419D1FDF446F850FAE7E /* RayShapeRenderer.swift */,
 				A7B3E91D4C6F47E2A0D8F5B1 /* CircleShapeRenderer.swift */,
@@ -739,10 +762,12 @@
 			isa = PBXGroup;
 			children = (
 				200AC5A52F16DA3F0018004E /* AuthenticationService.swift */,
+				200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */,
 				2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */,
 				2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */,
 				201A0FBB2F2CDEE8001BB105 /* SupabaseSyncService.swift */,
 				70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */,
+				9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */,
 				2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */,
 				2061EB942F269CE6009FEC24 /* ProfileLocationManager.swift */,
 				30CA000A300000000000CA0A /* CanvasStorageService.swift */,
@@ -755,8 +780,10 @@
 				20SS01062F87000000000006 /* SupabaseSyncService+Preferences.swift */,
 				20SS01072F87000000000007 /* SupabaseSyncService+Spent.swift */,
 				20SS01082F87000000000008 /* SupabaseSyncService+Entries.swift */,
+				20SS010A2F8700000000000A /* SupabaseSyncService+DeviceToken.swift */,
 				20SS01092F87000000000009 /* SupabaseSyncService+Routines.swift */,
 				20HV0006AAAA000100000006 /* HistoryThumbnailCache.swift */,
+				20IC0002AAAA000100000002 /* ShapeIconCache.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -826,6 +853,7 @@
 				20F5A00F2FFF020000000000 /* StepBalanceCard.swift */,
 				20C7E6132F8BF2A200BD06AA /* CanvasShapePreview.swift */,
 				30EA00013001000000EA0001 /* EnergyGradientBackground.swift */,
+				30EA00033001000000EA0003 /* EnergySignatureView.swift */,
 				DD000001DDDD000100000002 /* PaperTicketView.swift */,
 				WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */,
 				2061EB922F269CE6009FEC24 /* ImagePicker.swift */,
@@ -873,6 +901,7 @@
 				20F5A0062FFF000100000006 /* AppsPageSimplified.swift */,
 				30CA0004300000000000CA04 /* GenerativeCanvasView.swift */,
 				30CA0006300000000000CA06 /* RadialHoldMenu.swift */,
+				MMSH0002000000000000BF02 /* MomentEntrySheet.swift */,
 				20HV0002AAAA000100000002 /* HistoryView.swift */,
 				20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */,
 			);
@@ -1015,6 +1044,7 @@
 				20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */,
 				201816112F33C8C10006B350 /* CustomActivityTests.swift */,
 				AA000003AAAA000300000002 /* HealthKitTests.swift */,
+				20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */,
 				AA000001AAAA000100000002 /* TariffDecodingTests.swift */,
 				AA000002AAAA000200000002 /* TicketGroupCostTests.swift */,
 				BB000001BB000001BB000001 /* WidgetTests.swift */,
@@ -1101,6 +1131,9 @@
 				20AA246B2F70BB3A002F2F2C /* PBXTargetDependency */,
 			);
 			name = Steps4;
+			packageProductDependencies = (
+				20B8843A2FAF9A920088AA6D /* RevenueCat */,
+			);
 			productName = Steps4;
 			productReference = 2089F0B42E71A18E00ABF5FA /* Nowhere.app */;
 			productType = "com.apple.product-type.application";
@@ -1365,6 +1398,7 @@
 				30A1D1B32F3C000100000005 /* NotificationSettingsView.swift in Sources */,
 				2089F0EB2E71AE3400ABF5FA /* BudgetEngine.swift in Sources */,
 				20AA24892F70BEEA002F2F2C /* AccessWindow.swift in Sources */,
+				62FCEE93619D57A0D6E82263 /* AnnouncementService.swift in Sources */,
 				2061EB8A2F269CC7009FEC24 /* NotificationDelegate.swift in Sources */,
 				2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */,
 				20AA24812F70BD6F002F2F2C /* ShieldRebuildHelper.swift in Sources */,
@@ -1374,8 +1408,10 @@
 				201DF6F92F377E57007D716B /* AppModel+TicketGroups.swift in Sources */,
 				20DR0001AAAA000100000001 /* AppModel+DailyRandomTheme.swift in Sources */,
 				200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */,
+				200AC5B12F16DB100018004E /* AuthenticationService+CachedProfile.swift in Sources */,
 				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
 				30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */,
+					30EA00043001000000EA0004 /* EnergySignatureView.swift in Sources */,
 				DD000001DDDD000100000001 /* PaperTicketView.swift in Sources */,
 				WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */,
 				DD000002DDDD000200000001 /* TicketTemplatePickerView.swift in Sources */,
@@ -1391,6 +1427,7 @@
 				20HV0001AAAA000100000001 /* HistoryView.swift in Sources */,
 				20HV0003AAAA000100000003 /* DayCanvasViewerView.swift in Sources */,
 				20HV0005AAAA000100000005 /* HistoryThumbnailCache.swift in Sources */,
+				20IC0001AAAA000100000001 /* ShapeIconCache.swift in Sources */,
 				20F5A0112FFF030000000002 /* Localization.swift in Sources */,
 				BB000001BBBB000100000001 /* CachedFormatters.swift in Sources */,
 				CC000001CCCC000100000001 /* FormattingHelpers.swift in Sources */,
@@ -1465,6 +1502,7 @@
 				20SS02062F87000000000006 /* SupabaseSyncService+Preferences.swift in Sources */,
 				20SS02072F87000000000007 /* SupabaseSyncService+Spent.swift in Sources */,
 				20SS02082F87000000000008 /* SupabaseSyncService+Entries.swift in Sources */,
+				20SS020A2F8700000000000A /* SupabaseSyncService+DeviceToken.swift in Sources */,
 				20SS02092F87000000000009 /* SupabaseSyncService+Routines.swift in Sources */,
 				6E084403B0B19A902D745C32 /* HealthKitServiceProtocol.swift in Sources */,
 				DDE443E5AA653BF8DD6BECED /* FamilyControlsServiceProtocol.swift in Sources */,
@@ -1474,6 +1512,8 @@
 				DCAF4095B8C209EC8B21F367 /* GradientPalette.swift in Sources */,
 				F6494E388E7886039A147EA3 /* HandoffToken.swift in Sources */,
 				5E9E43978D80841CEA8F84B8 /* ShapeStyles.swift in Sources */,
+				EPHM0001000000000000BF01 /* EphemeralMoment.swift in Sources */,
+				MMSH0001000000000000BF01 /* MomentEntrySheet.swift in Sources */,
 				C131435BA6E0DC0B711B9400 /* FamilyControlsCompat.swift in Sources */,
 				C4C44E3683F8DD55B092F759 /* AppTheme.swift in Sources */,
 				6B454ECDBA75497D1287A4E1 /* AppColors.swift in Sources */,
@@ -1490,6 +1530,8 @@
 				CE04470BB0E9E29B1C90454C /* ShapeHelpers.swift in Sources */,
 				CDE54053BCC1957C69F91053 /* BodyShapeGenerator.swift in Sources */,
 				AEF40DC05AB94589A68AB8CD /* BlobShapeRenderer.swift in Sources */,
+				AEF40DC15AB945890B0B0B01 /* OrganicBlobShapeGenerator.swift in Sources */,
+				AEF40DC25AB945890B0B0B02 /* OrganicBlobShapeRenderer.swift in Sources */,
 				8C9B956134A14413AB328FC1 /* SnowflakeShapeRenderer.swift in Sources */,
 				F088E9B4584240CB97547938 /* RayShapeRenderer.swift in Sources */,
 				D3A1C72F8E5B4A01B9F6E4C2 /* CircleShapeRenderer.swift in Sources */,
@@ -1516,6 +1558,7 @@
 				20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */,
 				201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */,
 				AA000003AAAA000300000001 /* HealthKitTests.swift in Sources */,
+				20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */,
 				AA000001AAAA000100000001 /* TariffDecodingTests.swift in Sources */,
 				AA000002AAAA000200000001 /* TicketGroupCostTests.swift in Sources */,
 				BB000001BB000001BB000002 /* WidgetTests.swift in Sources */,
@@ -1625,7 +1668,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.DeviceActivityMonitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1664,7 +1707,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1705,7 +1748,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1748,7 +1791,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1790,7 +1833,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1969,7 +2012,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Steps4;
 				PRODUCT_NAME = Nowhere;
@@ -2025,7 +2068,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Steps4;
 				PRODUCT_NAME = Nowhere;
@@ -2058,7 +2101,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
 				PRODUCT_NAME = Steps4Tests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2086,7 +2129,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
 				PRODUCT_NAME = Steps4Tests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2113,7 +2156,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
 				PRODUCT_NAME = Steps4UITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2140,7 +2183,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
 				PRODUCT_NAME = Steps4UITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2180,7 +2223,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.UnlockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -2223,7 +2266,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.UnlockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -2265,7 +2308,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.DeviceActivityMonitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

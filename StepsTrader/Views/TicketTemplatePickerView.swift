@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 // MARK: - Ticket Template Picker
 struct TicketTemplatePickerView: View {
@@ -65,7 +64,7 @@ struct TicketTemplatePickerView: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(String(localized: "Custom Apps", comment: "TemplatePicker – custom apps option title"))
                                     .font(.system(size: 15, weight: .regular, design: .rounded))
-                                    .foregroundColor(.primary)
+                                    .foregroundStyle(.primary)
                                 Text(String(localized: "Choose your own apps", comment: "TemplatePicker – custom apps subtitle"))
                                     .font(.system(size: 12, weight: .light, design: .rounded))
                                     .foregroundStyle(Color.primary.opacity(0.4))
@@ -163,4 +162,12 @@ struct TicketTemplatePickerView: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+#Preview {
+    TicketTemplatePickerView(
+        model: DIContainer.shared.makeAppModel(),
+        onTemplateSelected: { _ in },
+        onCustomSelected: {}
+    )
 }

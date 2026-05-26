@@ -39,7 +39,7 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
         let savedAnchor = (g.object(forKey: SharedKeys.todayAnchor) as? Date)
             ?? (UserDefaults.standard.object(forKey: SharedKeys.todayAnchor) as? Date)
         let resolvedAnchor = savedAnchor
-            ?? DayBoundary.currentDayStart(for: Date(), dayEndHour: dayEndHourValue, dayEndMinute: dayEndMinuteValue)
+            ?? DayBoundary.currentDayStart(for: Date.now, dayEndHour: dayEndHourValue, dayEndMinute: dayEndMinuteValue)
         
         self.dayEndHour = dayEndHourValue
         self.dayEndMinute = dayEndMinuteValue
@@ -58,12 +58,12 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     }
 
     func resetIfNeeded() {
-        let currentAnchor = currentDayAnchor(for: Date())
+        let currentAnchor = currentDayAnchor(for: Date.now)
         if currentAnchor != todayAnchor { resetForToday(currentAnchor) }
     }
 
     private func resetForToday(_ anchor: Date? = nil) {
-        todayAnchor = anchor ?? currentDayAnchor(for: Date())
+        todayAnchor = anchor ?? currentDayAnchor(for: Date.now)
         persist()
     }
 

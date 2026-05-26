@@ -20,7 +20,6 @@ struct OptionEntry: Identifiable, Codable, Equatable {
     let optionId: String
     let category: EnergyCategory
     var colorHex: String
-    var text: String
     var timestamp: Date
     var assetVariant: Int?
 }

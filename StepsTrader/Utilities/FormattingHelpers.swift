@@ -11,7 +11,7 @@ func formatGroupedNumber(_ value: Int) -> String {
 func formatCompactNumber(_ value: Int) -> String {
     if value >= 1000 {
         let k = Double(value) / 1000.0
-        return k.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(k))K" : String(format: "%.1fK", k)
+        return k.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(k))K" : "\(k.formatted(.number.precision(.fractionLength(1))))K"
     }
     return "\(value)"
 }

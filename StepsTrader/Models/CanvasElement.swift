@@ -26,7 +26,7 @@ struct CanvasElement: Identifiable, Codable {
     /// Re-rolled by `reroll(availableCount:)` (dice tap), so `var` not `let`.
     /// Renderer reads `userSize ?? size` — clearing `userSize` lets the new
     /// value take effect immediately.
-    var size: CGFloat              // normalized 0…1 relative to canvas
+    var size: Double               // normalized 0…1 relative to canvas
     var basePosition: CGPoint      // normalized (0…1, 0…1)
 
     // Animation parameters (randomized on creation; ranges come from `spawn` below)
@@ -35,9 +35,9 @@ struct CanvasElement: Identifiable, Codable {
     var phaseOffset: Double        // 0…2π — desynchronizes from other elements
     /// Re-rolled by `reroll` (see `phaseOffset`).
     var driftSpeed: Double         // 0.08…0.20 — how fast it moves
-    let driftAmplitude: CGFloat    // 0.01…0.03 — how far it drifts (normalized)
+    let driftAmplitude: Double     // 0.01…0.03 — how far it drifts (normalized)
     let pulseFrequency: Double     // body 0.08…0.20 Hz, mind/heart 0.30…0.80 Hz
-    let pulseAmplitude: CGFloat    // 0.01…0.03 — scale oscillation range
+    let pulseAmplitude: Double     // 0.01…0.03 — scale oscillation range
     let rotationSpeed: Double      // 3…10 deg/sec (rays only)
     let opacity: Double            // body 0.20…0.45, mind/heart 0.35…0.75
 
@@ -61,7 +61,7 @@ struct CanvasElement: Identifiable, Codable {
     /// User-overridden size from pinch gesture. Nil = use the random `size`.
     var userSize: CGFloat?
 
-    /// How many times this activity has been logged historically (drives shape complexity).
+    /// How many times this option has been logged historically (drives shape complexity).
     var activityCount: Int?
 
     // Timestamps
@@ -110,7 +110,7 @@ struct CanvasElement: Identifiable, Codable {
         self.frozenShapeType = frozenShapeType
     }
 
-    mutating func touchEdit(at date: Date = Date()) {
+    mutating func touchEdit(at date: Date = .now) {
         lastEditedAt = date
     }
 
@@ -156,10 +156,11 @@ struct CanvasElement: Identifiable, Codable {
         let resolvedShape = CanvasShapeType.resolved(for: category)
         frozenShapeType = resolvedShape
         let newSize: CGFloat = switch resolvedShape {
-        case .blob:      .random(in: 0.16...0.32)
-        case .snowflake: .random(in: 0.04...0.48)
-        case .rays:      .random(in: 0.20...0.28)
-        case .circle:    .random(in: 0.14...0.30)
+        case .blob:        .random(in: 0.16...0.32)
+        case .organicBlob: .random(in: 0.16...0.34)
+        case .snowflake:   .random(in: 0.04...0.48)
+        case .rays:        .random(in: 0.20...0.28)
+        case .circle, .spirograph: .random(in: 0.14...0.30)
         }
         size = newSize
         userSize = nil
@@ -169,7 +170,7 @@ struct CanvasElement: Identifiable, Codable {
         phaseOffset = Double.random(in: 0...(2 * .pi))
         driftSpeed = Double.random(in: 0.08...0.2)
 
-        lastEditedAt = Date()
+        lastEditedAt = .now
     }
 
     static func spawn(
@@ -186,8 +187,8 @@ struct CanvasElement: Identifiable, Codable {
         let shapeType = CanvasShapeType.resolved(for: category)
 
         let kind: ElementKind = switch shapeType {
-            case .blob, .snowflake, .circle: .circle
-            case .rays:                      .ray
+            case .blob, .organicBlob, .snowflake, .circle, .spirograph: .circle
+            case .rays:                                                  .ray
         }
 
         let position = findOpenPosition(existing: existingElements)
@@ -195,12 +196,13 @@ struct CanvasElement: Identifiable, Codable {
         let variant: Int = forcedVariant ?? 0
 
         let size: CGFloat = switch shapeType {
-        case .blob:      .random(in: 0.16...0.32)
-        case .snowflake: .random(in: 0.04...0.48)
-        case .rays:      .random(in: 0.20...0.28)
-        case .circle:    .random(in: 0.14...0.30)
+        case .blob:        .random(in: 0.16...0.32)
+        case .organicBlob: .random(in: 0.16...0.34)
+        case .snowflake:   .random(in: 0.04...0.48)
+        case .rays:        .random(in: 0.20...0.28)
+        case .circle, .spirograph: .random(in: 0.14...0.30)
         }
-        let isGrounded = shapeType == .blob || shapeType == .circle
+        let isGrounded = shapeType == .blob || shapeType == .circle || shapeType == .spirograph
         let pulseFreq = isGrounded
             ? Double.random(in: 0.08...0.2)
             : Double.random(in: 0.3...0.8)
@@ -228,7 +230,7 @@ struct CanvasElement: Identifiable, Codable {
             pulseAmplitude: CGFloat.random(in: 0.01...0.03),
             rotationSpeed: Double.random(in: 3...10),
             opacity: opacity,
-            createdAt: Date(),
+            createdAt: .now,
             assetVariant: variant,
             shapeSeed: seed,
             activityCount: activityCount,
