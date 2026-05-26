@@ -1,4 +1,0 @@
-/Users/kpudan/.cursor/projects/Users-kpudan-dev-xcode-Steps4/assets/ChatGPT_Image_Feb_23__2026_at_10_52_06_PM-14b32381-ba27-48ac-a074-c40c5f52f5b1.png
-  pixelHeight: 1024
-  pixelWidth: 1024
-overwrite /Users/kpudan/dev/xcode/Steps4/StepsTrader/Assets.xcassets/AppIcon.appiconset/Icon-iOS-Default-1024x1024@1x.png? (y/n [n]) 

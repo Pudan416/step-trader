@@ -36,7 +36,6 @@
 		2061EB8C2F269CD5009FEC24 /* PayGateBackgroundStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */; };
 		2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */; };
 		2061EB912F269CE6009FEC24 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB922F269CE6009FEC24 /* ImagePicker.swift */; };
-		2061EB932F269CE6009FEC24 /* ProfileLocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB942F269CE6009FEC24 /* ProfileLocationManager.swift */; };
 		2061EB972F269CF7009FEC24 /* ManualsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB982F269CF7009FEC24 /* ManualsPage.swift */; };
 		2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */; };
 		2061EBD02F269D30009FEC24 /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBD12F269D30009FEC24 /* GalleryView.swift */; };
@@ -342,7 +341,6 @@
 		2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayGateBackgroundStyle.swift; sourceTree = "<group>"; };
 		2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileEditorView.swift; sourceTree = "<group>"; };
 		2061EB922F269CE6009FEC24 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
-		2061EB942F269CE6009FEC24 /* ProfileLocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileLocationManager.swift; sourceTree = "<group>"; };
 		2061EB982F269CF7009FEC24 /* ManualsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualsPage.swift; sourceTree = "<group>"; };
 		2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSelectionComponents.swift; sourceTree = "<group>"; };
 		2061EBD12F269D30009FEC24 /* GalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
@@ -769,7 +767,6 @@
 				70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */,
 				9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */,
 				2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */,
-				2061EB942F269CE6009FEC24 /* ProfileLocationManager.swift */,
 				30CA000A300000000000CA0A /* CanvasStorageService.swift */,
 				20CC01082F86000000000008 /* SupabaseSyncDTOs.swift */,
 				20SS01012F87000000000001 /* SupabaseSyncService+Analytics.swift */,
@@ -1385,7 +1382,6 @@
 				70CM00023004000070CM0003 /* CoachMarkOverlay.swift in Sources */,
 				2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */,
 				2061EB912F269CE6009FEC24 /* ImagePicker.swift in Sources */,
-				2061EB932F269CE6009FEC24 /* ProfileLocationManager.swift in Sources */,
 				2061F00A2F2803AC009FEC24 /* AppModel+AppSelection.swift in Sources */,
 				20GC00022F86100000000002 /* GlassCardModifier.swift in Sources */,
 				2061EB972F269CF7009FEC24 /* ManualsPage.swift in Sources */,
