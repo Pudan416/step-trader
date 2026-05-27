@@ -20,7 +20,10 @@ import SwiftUI
 // so we can restore it cleanly when the toggle goes OFF.
 //
 // **Re-roll guard**: `applyDailyRandomThemeIfNeeded` is idempotent within a single
-// calendar day — it only rolls if `dailyRandomThemeLastRolledKey != todayDayKey`.
+// **custom** day — it only rolls if `dailyRandomThemeLastRolledKey != todayDayKey`.
+// `todayDayKey` is computed via `AppModel.dayKey(for:)` which respects the user's
+// configured `dayEndHour`/`dayEndMinute` (e.g. day ends at 4am, not midnight) —
+// so the gradient flips when the user's energy resets, NOT at calendar midnight.
 // Manual re-roll (`rerollDailyTheme`) bypasses the guard.
 extension AppModel {
 
@@ -90,7 +93,11 @@ extension AppModel {
             return
         }
 
-        let todayKey = CachedFormatters.dayKey.string(from: Date.now)
+        // Use the **custom-day** key (respects user's dayEndHour/Minute), not
+        // a raw calendar-midnight key. Otherwise the roll fires at 00:00 while
+        // the user's day is still going until e.g. 04:00, and they see the
+        // gradient flip out from under them mid-evening.
+        let todayKey = AppModel.dayKey(for: Date.now)
         let lastRolled = defaults.string(forKey: SharedKeys.dailyRandomThemeLastRolledKey) ?? ""
         guard lastRolled != todayKey else { return }
         rollDailyRandomTheme()
@@ -126,7 +133,8 @@ extension AppModel {
         }
 
         writeActiveTheme(styleRaw: newStyle.rawValue, paletteRaw: newPalette.rawValue)
-        let todayKey = CachedFormatters.dayKey.string(from: Date.now)
+        // Stamp with the custom-day key so the guard above can match.
+        let todayKey = AppModel.dayKey(for: Date.now)
         defaults.set(todayKey, forKey: SharedKeys.dailyRandomThemeLastRolledKey)
     }
 

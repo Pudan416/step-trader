@@ -321,8 +321,11 @@ final class AppModel: ObservableObject {
             Task { await refreshStepsIfAuthorized() }
         }
         if dayChanged {
-            // Calendar day flipped — give Pro users with Daily Random Theme
-            // a fresh palette + style for the new day.
+            // Custom day boundary flipped (respects `dayEndHour`/`dayEndMinute`) —
+            // give Pro users with Daily Random Theme a fresh palette + style for
+            // the new day. Note: `dayChanged` is computed via `AppModel.dayKey(for:)`
+            // which is custom-day-aware, so this fires at the user's reset time
+            // (e.g. 4am if dayEndHour=4), not at calendar midnight.
             applyDailyRandomThemeIfNeeded()
         }
     }

@@ -331,11 +331,9 @@ A dedicated SwiftUI pass was not re-run for this audit — `git log` shows commi
 - **Severity:** Low
 - **Что это значит на практике:** Если когда-нибудь решишь поменять общий «темп» анимаций приложения (например ускорить на 20% после A/B-теста) — придётся пробежать по 25+ файлам. Не блокирует ничего, но больно при глобальных правках.
 
-### 8.3 Inconsistent date-helper usage in views
-- **Location:** `StepsTrader/Views/DayCanvasViewerView.swift` (inline `endOfDay`), `DayBoundary.swift` (canonical)
-- **Action:** Delete local helper, route through `DayBoundary`.
-- **Severity:** Low
-- **Что это значит на практике:** Если случайно поменяешь date-логику в одном месте и забудешь в другом — даты будут расходиться по экранам, особенно вокруг полуночи и кастомного «конца дня».
+### 8.3 ✅ _RESOLVED 2026-05-26: inline `endOfDay` moved to `DayBoundary.endOfCalendarDay`_
+
+`DayCanvasViewerView.swift` больше не содержит локального date-хелпера. Логика «return 23:59:59 of the calendar day named by dayKey» перенесена в `DayBoundary.endOfCalendarDay(forDayKey:)` с явным комментарием что это display-only хелпер (не настоящий end-of-custom-day — для этого `nextBoundary(after:)`). Если в будущем найдём где ещё такие хелперы — кладём туда же.
 
 ---
 
@@ -360,11 +358,9 @@ Severity for the category overall: **High** (testability + change risk).
 
 **Что это значит на практике:** Чтобы добавить новый слайд в onboarding, новый блок в Me, или новую секцию в Gallery — нужно орудовать в файле на 1000+ строк. Высокий когнитивный барьер, выше шанс случайно что-то задеть. Тесты писать на такие монолиты практически невозможно. Если планируешь активно развивать какую-то из этих фич — рефактор окупится в первой же следующей итерации.
 
-### 9.3 `OnboardingPreview/Sources/OnboardingStoriesView.swift` is a symlink, not a duplicate
-- **Location:** symlink to canonical `StepsTrader/Views/OnboardingStoriesView.swift`
-- **Action:** Document the symlink in `README.md` or `Package.swift`.
-- **Severity:** Low
-- **Что это значит на практике:** Если новый разработчик «увидит дубликат» и попробует исправить — поломается preview-таргет. Документации сейчас нет, только git-история.
+### 9.3 ✅ _RESOLVED 2026-05-26: symlink documented in `README.md`_
+
+`README.md` теперь имеет явное упоминание `OnboardingPreview/`: что это локальный SPM-пакет, что `Sources/OnboardingStoriesView.swift` — symlink на canonical view в `StepsTrader/Views/`, и что «исправлять» симлинк не надо.
 
 ### 9.4 ✅ _RESOLVED 2026-05-26: 8 file-scope keys folded into `SharedKeys`_
 
@@ -400,12 +396,9 @@ Severity for the category overall: **High** (testability + change risk).
 
 6 маркетинговых .md файлов перенесены: BRANDBOOK, MARKETING_COMPETITOR_RESEARCH, ARTICLE_BLOG, POSITIONING_ANGLES_SKILL, TONE_OF_VOICE, MANUALS_TEXTS.
 
-### 9.11 Naming / organization observations
-- **Location:** Repo-wide
-- **What:** `Energy*` (model), `daily*` (temporal), `spent*` (deduction) — coherent vocabulary, under-documented.
-- **Action:** Add «Domain vocabulary» paragraph to `README.md` or `CLAUDE.md`.
-- **Severity:** Low
-- **Что это значит на практике:** Новому контрибьютору (или будущему тебе через полгода) нужно прочитать домен-логику чтобы понять разницу между Energy/daily/spent префиксами. Сейчас эти правила в голове только у тебя — записать однажды дёшево.
+### 9.11 ✅ _RESOLVED 2026-05-26: «Domain vocabulary» section added to `README.md`_
+
+В `README.md` теперь есть раздел «Domain vocabulary» который объясняет три префикса `Energy*` / `daily*` / `spent*`: что они значат, как связаны (earn from steps+sleep+selections, spend via PayGate), что custom day boundary определяет когда `daily*` ключи сбрасываются. Будущие контрибьюторы не будут гадать.
 
 ---
 

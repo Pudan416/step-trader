@@ -62,7 +62,30 @@ Steps4UITests/          UI tests
 admin-panel/            Next.js admin dashboard (Supabase-backed)
 tg-admin/               Cloudflare Worker Telegram admin bot
 supabase/               Database migrations
+OnboardingPreview/      Local SPM package — Xcode Previews for onboarding slides.
+                        `Sources/OnboardingStoriesView.swift` is a SYMLINK to
+                        `StepsTrader/Views/OnboardingStoriesView.swift` (single
+                        source of truth). Don't "fix" the symlink — the package
+                        target wouldn't compile without it.
 ```
+
+## Domain vocabulary
+
+Three prefixes recur across the codebase — once you know them the names self-document:
+
+- **`Energy*`** — model layer. `EnergyCategory` (body / mind / heart), `EnergyOption`
+  (a single activity card with id + title + icon), `EnergyRoutine` (a named template),
+  `EnergySignature` (visualisation type), etc.
+- **`daily*`** — state that's *anchored* to the user's custom day boundary
+  (`dayEndHour` / `dayEndMinute` in settings, not calendar midnight). E.g.
+  `dailyEnergyAnchor` (the persisted day-start timestamp), `dailyCanvasSlots`
+  (today's 4 canvas slots), `dailyMoments` (today's ephemeral one-off events).
+- **`spent*`** — balance deductions. `spentStepsToday` is base-energy used,
+  `appStepsSpentToday` is per-app/per-group cost dictionaries. The "Pay" /
+  "PayGate" flows write into these.
+
+Energy is *earned* from steps + sleep + selections, *spent* via PayGate to unlock
+blocked apps. The custom day boundary determines when all the `daily*` keys reset.
 
 ## Deep Links
 

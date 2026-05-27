@@ -32,7 +32,7 @@ struct DayCanvasViewerView: View {
 
     private var fixedTime: Date {
         if let modified = dayCanvas?.lastModified { return modified }
-        return Self.endOfDay(for: dayKey)
+        return DayBoundary.endOfCalendarDay(forDayKey: dayKey)
     }
 
     private var displayDate: Date {
@@ -324,12 +324,6 @@ struct DayCanvasViewerView: View {
         return renderer.uiImage
     }
 
-    // MARK: - Helpers
-
-    static func endOfDay(for dayKey: String) -> Date {
-        let date = CachedFormatters.dayKey.date(from: dayKey) ?? .now
-        return Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: date) ?? date
-    }
 }
 
 #Preview {
