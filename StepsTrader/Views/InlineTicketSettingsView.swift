@@ -9,6 +9,7 @@ struct InlineTicketSettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isUnlocking = false
     @State private var showEditSettings = false
+    @State private var unlockHapticTick = 0
 
     private let intervals: [AccessWindow] = [.minutes10, .minutes30, .hour1]
 
@@ -77,6 +78,7 @@ struct InlineTicketSettingsView: View {
             .buttonStyle(.plain)
         }
         .padding(.top, 8)
+        .sensoryFeedback(.impact(weight: .medium), trigger: unlockHapticTick)
     }
 
     private func rowButtonLabel(icon: String, title: String, showChevron: Bool, expanded: Bool, surface: Color, separator: Color) -> some View {
@@ -201,9 +203,7 @@ struct InlineTicketSettingsView: View {
 
         return Button {
             guard canAfford, !isUnlocking else { return }
-            // TODO: Migrate to .sensoryFeedback()
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
+            unlockHapticTick &+= 1
 
             Task {
                 isUnlocking = true

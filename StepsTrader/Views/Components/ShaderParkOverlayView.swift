@@ -71,7 +71,10 @@ struct ShaderParkOverlayView: UIViewRepresentable {
         view.contentScaleFactor  = min(UIScreen.main.scale, 1.25)
 
         let coord = context.coordinator
-        // TODO: Migrate to .sensoryFeedback()
+        // UIKit haptic is correct here: `.sensoryFeedback` is a SwiftUI view
+        // modifier and can't attach to UIView touch callbacks. The generator
+        // is captured by the closure below, allocated once per representable
+        // and reused. (CODE_AUDIT.md §4.1 — exempt by architecture)
         let touchHaptic = UIImpactFeedbackGenerator(style: .light)
         touchHaptic.prepare()
 

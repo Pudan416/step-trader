@@ -125,12 +125,19 @@ The project compiles in Swift 5 mode without strict concurrency. Everything belo
 
 ## 4. API modernity
 
-### 4.1 24 outstanding `// TODO: Migrate to .sensoryFeedback()` markers
-- **Location:** Across `CategoryDetailView.swift`, `PaywallView.swift`, `OnboardingStoriesView.swift`, `SettingsAppearancePage.swift` (x8), `SettingsSubscriptionPage.swift` (x2), `StepGoalDrumPicker.swift` (x3), `SleepGoalArcPicker.swift` (x3), and 9 more files.
-- **What:** UIKit `UIImpactFeedbackGenerator` / `UISelectionFeedbackGenerator` calls flagged for migration to SwiftUI's native `.sensoryFeedback` modifier.
-- **Action:** One bulk migration PR — convert all 24 in a single sweep, delete the TODOs.
-- **Severity:** High
-- **Что это значит на практике:** Хаптика работает (UIKit-вариант не сломан). Но иногда не уважает Accessibility-настройки юзера (Reduce Motion, отключение haptics в Settings → Sounds & Haptics), кросс-симулятор тестировать сложнее. Плюс 24 TODO-маркера размножаются в каждом code review.
+### 4.1 🟡 _PARTIALLY RESOLVED 2026-05-26: 14 of 16 files migrated to `.sensoryFeedback`_
+
+Закрыто 28 из 30 TODO-маркеров + ~40 imperative haptic-вызовов заменены на declarative `.sensoryFeedback` модификаторы. Паттерн в каждом файле один и тот же: `@State [name]HapticTick = 0` + `.sensoryFeedback(.impact(weight: .X), trigger: tick)` на body + `tick &+= 1` в обработчике.
+
+Затронуты: `WorkoutSuggestionBanner`, `PaywallView`, `SettingsSubscriptionPage`, `SettingsWidgetPage`, `InlineTicketSettingsView`, `AppsPageSimplified`, `PaperTicketView`, `StepGoalDrumPicker`, `SleepGoalArcPicker`, `SettingsAppearancePage` (10 сайтов), `OnboardingStoriesView` (14 call-сайтов через 5 helper-функций, теперь удалены).
+
+`SmudgeCanvasView` и `ShaderParkOverlayView` — TODO заменён на пояснение: это `UIViewRepresentable`, хаптика стреляет внутри UIView touch handlers, `.sensoryFeedback` (SwiftUI-модификатор) физически не дотягивается до этих callback'ов. UIKit-генератор здесь архитектурно корректен.
+
+**Осталось 2 файла** с enum-паттерном `private enum Haptics { static let light = UIImpactFeedbackGenerator(...) }` + множество call-сайтов внутри файла:
+- `StepsTrader/Views/CategoryDetailView.swift` (~10 call sites)
+- `StepsTrader/Views/GalleryView.swift` (~15 call sites)
+
+Эти два — самостоятельные мини-рефакторы каждый. Severity остаётся High до их закрытия.
 
 ### 4.2 ✅ _RESOLVED 2026-05-26 (commit `83b8475`): Vestigial `await` removed in post-login task_
 

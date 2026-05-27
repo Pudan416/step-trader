@@ -9,6 +9,7 @@ struct ActivitySuggestionBanner: View {
     @Environment(\.appTheme) private var theme
 
     @State private var isExpanded = false
+    @State private var acceptHapticTick = 0
 
     var body: some View {
         VStack(spacing: 8) {
@@ -65,6 +66,7 @@ struct ActivitySuggestionBanner: View {
             }
         }
         .padding(.top, 8)
+        .sensoryFeedback(.impact(weight: .light), trigger: acceptHapticTick)
     }
 
     private func suggestionCard(_ suggestion: ActivitySuggestion) -> some View {
@@ -93,8 +95,7 @@ struct ActivitySuggestionBanner: View {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                     onAccept(suggestion)
                 }
-                // TODO: Migrate to .sensoryFeedback()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                acceptHapticTick &+= 1
             } label: {
                 Text(String(localized: "Add"))
                     .font(.system(size: 13, weight: .semibold, design: .rounded))

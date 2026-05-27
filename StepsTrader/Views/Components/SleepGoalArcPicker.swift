@@ -37,6 +37,7 @@ struct DayResetTimePicker: View {
                 onDecrement: { stepMinute(forward: false) }
             )
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: selectedMinutes)
     }
 
     private func stepHour(forward: Bool) {
@@ -79,8 +80,7 @@ struct DayResetTimePicker: View {
         let clamped = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60)
         guard allowedMinutes.contains(clamped) else { return }
         withAnimation(.snappy(duration: 0.15)) { selectedMinutes = clamped }
-        // TODO: Migrate to .sensoryFeedback()
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        // Haptic fires via `.sensoryFeedback(_:trigger: selectedMinutes)` on body.
     }
 }
 
@@ -180,8 +180,6 @@ struct SleepDurationStepper: View {
         HStack(spacing: 16) {
             stepButton(icon: "minus", enabled: hours > minHours) {
                 withAnimation(.snappy(duration: 0.15)) { hours = max(minHours, hours - step) }
-                // TODO: Migrate to .sensoryFeedback()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
             }
 
             VStack(spacing: 1) {
@@ -199,10 +197,9 @@ struct SleepDurationStepper: View {
 
             stepButton(icon: "plus", enabled: hours < maxHours) {
                 withAnimation(.snappy(duration: 0.15)) { hours = min(maxHours, hours + step) }
-                // TODO: Migrate to .sensoryFeedback()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
             }
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: hours)
     }
 
     private var formattedHours: String {

@@ -89,6 +89,8 @@ struct SettingsSubscriptionPage: View {
         .task {
             await store.refresh()
         }
+        .sensoryFeedback(.impact(weight: .heavy), trigger: didResetGrandfathering)
+        .sensoryFeedback(.impact(weight: .light), trigger: didResetWelcomePaywall)
     }
 
     // MARK: - Alert Helpers
@@ -228,8 +230,6 @@ struct SettingsSubscriptionPage: View {
             UserDefaults.standard.set(Date.now, forKey: SharedKeys.grandfatherEvaluatedAt)
             UserDefaults.standard.set(false, forKey: SharedKeys.cachedHasProEntitlement)
             didResetGrandfathering = true
-            // TODO: Migrate to .sensoryFeedback()
-            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: didResetGrandfathering ? "checkmark.circle.fill" : "xmark.seal")
@@ -261,8 +261,6 @@ struct SettingsSubscriptionPage: View {
         Button {
             UserDefaults.standard.removeObject(forKey: SubscriptionGate.postOnboardingPaywallShownKey)
             didResetWelcomePaywall = true
-            // TODO: Migrate to .sensoryFeedback()
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: didResetWelcomePaywall ? "checkmark.circle.fill" : "arrow.counterclockwise.circle")

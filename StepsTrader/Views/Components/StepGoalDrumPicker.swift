@@ -76,6 +76,7 @@ private struct DrumDigitColumn: View {
     let theme: AppTheme
 
     @State private var dragOffset: CGFloat = 0
+    @State private var lightHapticTick = 0
     @GestureState private var isDragging = false
 
     var body: some View {
@@ -93,6 +94,7 @@ private struct DrumDigitColumn: View {
                 .gesture(dragGesture)
             chevronButton(direction: .down)
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
     }
 
     private var passiveColumn: some View {
@@ -135,8 +137,7 @@ private struct DrumDigitColumn: View {
         let canMove = isUp ? digit < 9 : digit > 0
         return Button {
             onChange(isUp ? digit + 1 : digit - 1)
-            // TODO: Migrate to .sensoryFeedback()
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            lightHapticTick &+= 1
         } label: {
             Image(systemName: isUp ? "chevron.up" : "chevron.down")
                 .font(.system(size: 10, weight: .bold))
@@ -156,12 +157,10 @@ private struct DrumDigitColumn: View {
                 let threshold: CGFloat = 15
                 if g.translation.height < -threshold, digit < 9 {
                     onChange(digit + 1)
-                    // TODO: Migrate to .sensoryFeedback()
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    lightHapticTick &+= 1
                 } else if g.translation.height > threshold, digit > 0 {
                     onChange(digit - 1)
-                    // TODO: Migrate to .sensoryFeedback()
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    lightHapticTick &+= 1
                 }
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) { dragOffset = 0 }
             }

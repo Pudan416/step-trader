@@ -20,6 +20,8 @@ struct PaperTicketView: View {
     @State private var resolvedTitle: String?
     @State private var liveBudget: Int = 0
     @State private var liveBudgetInitial: Int = 0
+    @State private var lightHapticTick = 0
+    @State private var mediumHapticTick = 0
 
     // MARK: - Thread-safe title cache
 
@@ -127,6 +129,8 @@ struct PaperTicketView: View {
                 refreshBudget()
             }
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
+        .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
     }
 
     private func refreshBudget() {
@@ -139,8 +143,7 @@ struct PaperTicketView: View {
         if let bundleId = group.templateApp,
            let scheme = TargetResolver.primaryAndFallbackSchemes(for: bundleId).first,
            let url = URL(string: scheme) {
-            // TODO: Migrate to .sensoryFeedback()
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            lightHapticTick &+= 1
             openURL(url)
         } else {
             onSettings()
@@ -169,8 +172,7 @@ struct PaperTicketView: View {
 
         return Button {
             guard canAfford, !isUnlocking else { return }
-            // TODO: Migrate to .sensoryFeedback()
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            mediumHapticTick &+= 1
             #if DEBUG
             CoachMarkManager.postAction(for: .tapUnlockPill)
             #endif

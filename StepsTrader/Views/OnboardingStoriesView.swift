@@ -42,6 +42,11 @@ struct OnboardingStoriesView: View {
 
     @State private var index: Int = 0
     @State private var showOnboardingPicker = false
+    @State private var lightHapticTick = 0
+    @State private var mediumHapticTick = 0
+    @State private var heavyHapticTick = 0
+    @State private var rigidHapticTick = 0
+    @State private var successHapticTick = 0
     @State private var floaters: [OnboardingFloater] = []
     @State private var didTriggerHealthRequest = false
     @State private var didTriggerNotificationRequest = false
@@ -343,6 +348,11 @@ struct OnboardingStoriesView: View {
             Button(String(localized: "yes, please")) { finish(wantsTour: true) }
             Button(String(localized: "no, thanks"), role: .cancel) { finish(wantsTour: false) }
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
+        .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
+        .sensoryFeedback(.impact(weight: .heavy), trigger: heavyHapticTick)
+        .sensoryFeedback(.impact(flexibility: .rigid), trigger: rigidHapticTick)
+        .sensoryFeedback(.success, trigger: successHapticTick)
     }
 
     // MARK: - Back Navigation
@@ -439,12 +449,12 @@ struct OnboardingStoriesView: View {
                     revealPhase = 2
                     nowhereSplit = 20
                 }
-                heavyHaptic()
+                heavyHapticTick &+= 1
                 
                 try? await Task.sleep(for: .milliseconds(1200))
                 guard !Task.isCancelled else { return }
                 withAnimation(.easeIn(duration: 0.5)) { revealPhase = 3 }
-                successHaptic()
+                successHapticTick &+= 1
             }
         case .welcome:
             welcomeNameVisible = false
@@ -483,7 +493,7 @@ struct OnboardingStoriesView: View {
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
                 withAnimation(.easeOut(duration: 0.6)) { resetBedtimeReady = true }
-                lightHaptic()
+                lightHapticTick &+= 1
             }
         case .balance:
             balancePhase = 0
@@ -497,7 +507,7 @@ struct OnboardingStoriesView: View {
                 try? await Task.sleep(for: .milliseconds(1200))
                 guard !Task.isCancelled else { return }
                 withAnimation(.easeInOut(duration: 1.0)) { balancePhase = 3 }
-                successHaptic()
+                successHapticTick &+= 1
             }
         case .bodyMindHeart:
             bodyMindHeartVisible = 0
@@ -506,7 +516,7 @@ struct OnboardingStoriesView: View {
                     try? await Task.sleep(for: .milliseconds(i * 600))
                     guard !Task.isCancelled else { return }
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { bodyMindHeartVisible = i }
-                    lightHaptic()
+                    lightHapticTick &+= 1
                 }
             }
         case .welcomeV8:
@@ -523,7 +533,7 @@ struct OnboardingStoriesView: View {
                     welcomeV8Phase = 2
                     welcomeV8Split = 20
                 }
-                heavyHaptic()
+                heavyHapticTick &+= 1
                 try? await Task.sleep(for: .milliseconds(800))
                 guard !Task.isCancelled else { return }
                 withAnimation(.easeOut(duration: 0.5)) { welcomeNameVisible = true }
@@ -531,39 +541,6 @@ struct OnboardingStoriesView: View {
         default:
             break
         }
-    }
-
-    // MARK: - Haptics
-    // TODO: Migrate to .sensoryFeedback() modifiers
-    
-    private func lightHaptic() {
-        #if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        #endif
-    }
-    
-    private func successHaptic() {
-        #if canImport(UIKit)
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
-        #endif
-    }
-    
-    private func mediumHaptic() {
-        #if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        #endif
-    }
-    
-    private func heavyHaptic() {
-        #if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-        #endif
-    }
-    
-    private func rigidHaptic() {
-        #if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
-        #endif
     }
 
     // MARK: - App Icon Helper
@@ -786,7 +763,7 @@ struct OnboardingStoriesView: View {
                             tappedOrbs.insert(i)
                             ringProgress = Double(tappedOrbs.count) / 5.0
                         }
-                        if tappedOrbs.count == 5 { successHaptic() } else { lightHaptic() }
+                        if tappedOrbs.count == 5 { successHapticTick &+= 1 } else { lightHapticTick &+= 1 }
                     } label: {
                         VStack(spacing: 4) {
                             Image(systemName: categories[i].icon)
@@ -911,7 +888,7 @@ struct OnboardingStoriesView: View {
                     
                     Button {
                         guard !isUnlocked, canAfford else {
-                            if !canAfford { rigidHaptic() }
+                            if !canAfford { rigidHapticTick &+= 1 }
                             return
                         }
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -919,7 +896,7 @@ struct OnboardingStoriesView: View {
                             demoColorPool -= tariff.cost
                             unlockedDemoApps.insert("instagram")
                         }
-                        mediumHaptic()
+                        mediumHapticTick &+= 1
                     } label: {
                         HStack {
                             Text(tariff.label)
@@ -1067,7 +1044,7 @@ struct OnboardingStoriesView: View {
                 Slider(value: $stepsTarget, in: 5_000...15_000, step: 500)
                     .tint(accent)
                     .padding(.horizontal, 40)
-                    .onChange(of: stepsTarget) { _, _ in lightHaptic() }
+                    .onChange(of: stepsTarget) { _, _ in lightHapticTick &+= 1 }
                 
                 HStack {
                     Text(String(localized: "5,000", comment: "Onboarding – steps slider minimum"))
@@ -1113,7 +1090,7 @@ struct OnboardingStoriesView: View {
                 Slider(value: $sleepTarget, in: 6...10, step: 0.5)
                     .tint(accent)
                     .padding(.horizontal, 40)
-                    .onChange(of: sleepTarget) { _, _ in lightHaptic() }
+                    .onChange(of: sleepTarget) { _, _ in lightHapticTick &+= 1 }
                 
                 HStack {
                     Text(String(localized: "6h", comment: "Onboarding – sleep slider minimum"))
@@ -1273,7 +1250,7 @@ struct OnboardingStoriesView: View {
             if !picked {
                 selectedFeedApp = nil
             } else {
-                successHaptic()
+                successHapticTick &+= 1
             }
         }) {
             AppSelectionSheet(
@@ -1380,7 +1357,7 @@ struct OnboardingStoriesView: View {
                     switch result {
                     case .success(let authorization):
                         auth.handleAuthorization(authorization)
-                        successHaptic()
+                        successHapticTick &+= 1
                         slideEffectTask?.cancel()
                         slideEffectTask = Task { @MainActor in
                             for _ in 0..<40 {
@@ -1888,7 +1865,7 @@ struct OnboardingStoriesView: View {
                 if !didTriggerHealthRequest {
                     didTriggerHealthRequest = true
                     onHealthSlide?()
-                    successHaptic()
+                    successHapticTick &+= 1
                 }
             case .requestNotifications:
                 if !didTriggerNotificationRequest || needsNotificationAfterFeed {
@@ -1917,7 +1894,7 @@ struct OnboardingStoriesView: View {
         if index < lastIndex {
             withAnimation(.easeInOut) { index += 1 }
         } else {
-            mediumHaptic()
+            mediumHapticTick &+= 1
             showTourPrompt = true
         }
     }

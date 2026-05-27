@@ -113,6 +113,7 @@ struct SettingsWidgetPage: View {
         .onChange(of: backgroundMode) {
             WidgetCenter.shared.reloadAllTimelines()
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: backgroundMode)
     }
 
     // MARK: - Wallpaper Status
@@ -149,8 +150,6 @@ struct SettingsWidgetPage: View {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 backgroundMode = value
             }
-            // TODO: Migrate to .sensoryFeedback()
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } label: {
             VStack(spacing: 8) {
                 preview()

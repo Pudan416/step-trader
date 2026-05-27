@@ -672,6 +672,12 @@
     "Couldn't load plans" : {
 
     },
+    "Couldn't start the timer" : {
+      "comment" : "PayGate failure – alert title"
+    },
+    "Couldn't start the timer. Your colors were refunded — please try again in a moment." : {
+      "comment" : "PayGate – DeviceActivity monitoring failure, after refund"
+    },
     "Create" : {
       "comment" : "CategoryDetail – create custom card button"
     },
@@ -1178,7 +1184,7 @@
       "comment" : "Canvas animation picker – no overlay\nTexture picker – no texture"
     },
     "OK" : {
-      "comment" : "ProfileEditor – alert dismiss button"
+      "comment" : "Generic alert dismiss button\nProfileEditor – alert dismiss button"
     },
     "One-time payment" : {
 

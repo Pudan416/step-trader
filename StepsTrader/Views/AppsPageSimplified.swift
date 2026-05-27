@@ -46,6 +46,8 @@ struct AppsPageSimplified: View {
     private var buttonTint: Color { AppColors.Night.textPrimary }
     @State private var showCustomNamePrompt = false
     @State private var customTicketName = ""
+    @State private var deleteHapticTick = 0
+    @State private var reorderHapticTick = 0
     @State private var showPickerAfterDismiss = false
     @State private var groupIdToDelete: String? = nil
     @State private var showPaywall = false
@@ -241,8 +243,7 @@ struct AppsPageSimplified: View {
             )) {
                 Button(String(localized: "Delete"), role: .destructive) {
                     if let id = groupIdToDelete {
-                        // TODO: Migrate to .sensoryFeedback()
-                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                        deleteHapticTick &+= 1
                         deleteAndCleanup(id)
                     }
                     groupIdToDelete = nil
@@ -259,6 +260,8 @@ struct AppsPageSimplified: View {
                 )
             }
         }
+        .sensoryFeedback(.warning, trigger: deleteHapticTick)
+        .sensoryFeedback(.impact(weight: .light), trigger: reorderHapticTick)
     }
 
     // MARK: - Ticket Stack
@@ -419,8 +422,7 @@ struct AppsPageSimplified: View {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             model.blockingStore.ticketGroups.swapAt(fromIdx, toIdx)
         }
-        // TODO: Migrate to .sensoryFeedback()
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        reorderHapticTick &+= 1
         model.blockingStore.persistTicketGroups()
     }
 

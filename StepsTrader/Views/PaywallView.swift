@@ -19,6 +19,7 @@ struct PaywallView: View {
     @State private var didPurchaseSucceed = false
     @State private var showPostPurchaseLogin = false
     @State private var appeared = false
+    @State private var lightHapticTick = 0
 
     private var authService: AuthenticationService { .shared }
 
@@ -81,6 +82,7 @@ struct PaywallView: View {
         .sheet(isPresented: $showPostPurchaseLogin, onDismiss: { dismiss() }) {
             PostPurchaseLoginPrompt(authService: authService)
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
     }
 
     // MARK: - Background
@@ -224,11 +226,8 @@ struct PaywallView: View {
             return nil
         }()
 
-        // TODO: Migrate to .sensoryFeedback() modifiers
         return Button {
-            #if canImport(UIKit)
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            #endif
+            lightHapticTick &+= 1
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 selectedPackageID = package.id
             }
@@ -321,13 +320,10 @@ struct PaywallView: View {
                 .foregroundStyle(.white.opacity(0.4))
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
-            // TODO: Migrate to .sensoryFeedback() modifiers
             Button {
                 store.clearLastError()
                 Task { await store.refresh() }
-                #if canImport(UIKit)
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                #endif
+                lightHapticTick &+= 1
             } label: {
                 Text(String(localized: "Retry"))
                     .font(.footnote.weight(.bold))

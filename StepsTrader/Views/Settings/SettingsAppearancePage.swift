@@ -14,6 +14,8 @@ struct SettingsAppearancePage: View {
     @Environment(\.appTheme) private var theme
     @State private var previewConfig: GradientPreviewConfig?
     @State private var showPaywall = false
+    @State private var lightHapticTick = 0
+    @State private var mediumHapticTick = 0
 
     private var selectedPalette: GradientPalette {
         GradientPalette.normalized(rawValue: gradientPaletteRaw)
@@ -63,8 +65,7 @@ struct SettingsAppearancePage: View {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         gradientStyleRaw = config.style.rawValue
                     }
-                    // TODO: Migrate to .sensoryFeedback()
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                        mediumHapticTick &+= 1
                     previewConfig = nil
                     model.syncUserPreferencesToSupabase()
                 }
@@ -78,6 +79,8 @@ struct SettingsAppearancePage: View {
                 source: .feature
             )
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
+        .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
     }
 
     // MARK: - Daily Random Theme
@@ -124,8 +127,7 @@ struct SettingsAppearancePage: View {
                     get: { dailyRandomThemeEnabled },
                     set: { newValue in
                         model.setDailyRandomTheme(enabled: newValue)
-                        // TODO: Migrate to .sensoryFeedback()
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                                lightHapticTick &+= 1
                     }
                 ))
                 .labelsHidden()
@@ -142,8 +144,7 @@ struct SettingsAppearancePage: View {
         .onTapGesture {
             if !model.isPro {
                 showPaywall = true
-                // TODO: Migrate to .sensoryFeedback()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                lightHapticTick &+= 1
             }
         }
         .accessibilityAddTraits(.isButton)
@@ -154,8 +155,7 @@ struct SettingsAppearancePage: View {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
                 model.rerollDailyTheme()
             }
-            // TODO: Migrate to .sensoryFeedback()
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        mediumHapticTick &+= 1
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "dice")
@@ -223,8 +223,7 @@ struct SettingsAppearancePage: View {
                         } else {
                             showPaywall = true
                         }
-                        // TODO: Migrate to .sensoryFeedback()
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                                lightHapticTick &+= 1
                     } label: {
                         paletteChip(scheme: scheme, isSelected: isSelected, isLocked: !isUnlocked)
                     }
@@ -303,8 +302,7 @@ struct SettingsAppearancePage: View {
                         } else {
                             showPaywall = true
                         }
-                        // TODO: Migrate to .sensoryFeedback()
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                                lightHapticTick &+= 1
                     } label: {
                         VStack(spacing: 6) {
                             ZStack {
@@ -442,13 +440,11 @@ struct SettingsAppearancePage: View {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 selectedRaw.wrappedValue = shape.rawValue
                             }
-                            // TODO: Migrate to .sensoryFeedback()
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                                        lightHapticTick &+= 1
                             model.syncUserPreferencesToSupabase()
                         } else {
                             showPaywall = true
-                            // TODO: Migrate to .sensoryFeedback()
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                                        lightHapticTick &+= 1
                         }
                     } label: {
                         compactShapeChip(shape: shape, isSelected: isSelected, isUnlocked: isUnlocked)
@@ -562,13 +558,11 @@ struct SettingsAppearancePage: View {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                     canvasTextureRaw = texture.rawValue
                 }
-                // TODO: Migrate to .sensoryFeedback()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                lightHapticTick &+= 1
                 model.syncUserPreferencesToSupabase()
             } else {
                 showPaywall = true
-                // TODO: Migrate to .sensoryFeedback()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                lightHapticTick &+= 1
             }
         } label: {
             VStack(spacing: 6) {
