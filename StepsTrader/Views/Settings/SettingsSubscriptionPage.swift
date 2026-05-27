@@ -89,8 +89,13 @@ struct SettingsSubscriptionPage: View {
         .task {
             await store.refresh()
         }
+        #if DEBUG
+        // Haptics for the debug-only reset buttons. Both `didReset*` flags live
+        // inside the `#if DEBUG` block below, so the modifiers must match —
+        // Release builds don't define them and would fail to compile otherwise.
         .sensoryFeedback(.impact(weight: .heavy), trigger: didResetGrandfathering)
         .sensoryFeedback(.impact(weight: .light), trigger: didResetWelcomePaywall)
+        #endif
     }
 
     // MARK: - Alert Helpers
