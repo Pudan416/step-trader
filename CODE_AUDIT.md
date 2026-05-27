@@ -53,13 +53,11 @@ The project compiles in Swift 5 mode without strict concurrency. Everything belo
 - **Severity:** Medium
 - **Что это значит на практике:** Юзер быстро вышел из аккаунта и зашёл снова (например, переключение тестового и реального) — старая фоновая задача синка может писать в Supabase под старым userID параллельно с новой. Затирание свежих данных. Сегодня редкое, при Swift 6 — будет ловиться компилятором.
 
-### 3.2 `UnsafeSendableBox` (`@unchecked Sendable`) bridges the auth-timeout race
-- **Location:** `StepsTrader/Services/HealthKitService.swift:29-32`, used 108-128
-- **What:** A class marked `@unchecked Sendable` wraps a mutable `Bool` so the manual 10-second timeout can flip a flag from a `Task.detached` and the original continuation can read it. The two writers are not synchronized.
-- **Why:** Bypasses the Sendability checker — textbook data race (two concurrent writes/reads with no lock). The timeout dance exists to work around a hang that the modern async HK overload doesn't have.
-- **Action:** Replace the box with `OSAllocatedUnfairLock<Bool>` *or* (preferred) delete the timeout wrapper entirely and call the async overload directly.
-- **Severity:** High
-- **Что это значит на практике:** При первом запросе разрешений HealthKit есть теоретическая гонка между таймаутом и непосредственно ответом системы — два потока пишут в общий флаг. Сейчас не падает (Swift 5 толерантен), но это data race по учебнику, Swift 6 откажется компилировать. Бонусом: вся эта обёртка и не нужна — современный async HK не виснет.
+### 3.2 ✅ _RESOLVED 2026-05-26: `UnsafeSendableBox` deleted, HK auth uses async overload directly_
+
+Был `@unchecked Sendable` бокс + ручной 10-секундный timeout + `Task.detached` — workaround для древнего бага в iOS, где async-overload `HKHealthStore.requestAuthorization` мог зависнуть. На современных iOS этого нет. Сейчас просто `try await store.requestAuthorization(toShare: [], read: readTypes)` — на 20 строк короче, data race surface исчез, Swift 6 strict-concurrency больше не имеет претензий. Заодно §4.4 закрыта (континуация HK auth убрана).
+
+`.authorizationTimeout` case в `HealthKitServiceError` оставлен в API на случай если timeout-обёртку придётся вернуть в будущем (тогда уже через `withTimeout` или `TaskGroup`, без @unchecked); ветка `catch` в `HealthStore.swift:32` стала недостижимой но не сломанной — defensive code.
 
 ### 3.3 ✅ _RESOLVED 2026-05-26 (commit `7a73f38`): UNUserNotificationCenter.add() переведён на async overload_
 
@@ -154,12 +152,9 @@ The project compiles in Swift 5 mode without strict concurrency. Everything belo
 - **Severity:** Medium
 - **Что это значит на практике:** При любом изменении step count или sleep — перерисовывается ВСЁ дерево вьюх, которые смотрят на AppModel (а это полприложения). Невидимая трата CPU и батареи. С `@Observable` SwiftUI перерисует только то, что реально зависит от изменённого значения. Связано с §7.4.
 
-### 4.4 `withCheckedThrowingContinuation` wraps HealthKit calls that have async overloads
-- **Location:** `StepsTrader/Services/HealthKitService.swift:108-128`
-- **What:** `HKHealthStore.requestAuthorization(toShare:read:)` has an async overload since iOS 15.4 — using continuation wrapper instead.
-- **Action:** Use the async overload; delete the timeout box (see §3.2).
-- **Severity:** Medium
-- **Что это значит на практике:** Связано с §3.2 — это та же находка с другой стороны. Решается одним фиксом.
+### 4.4 ✅ _RESOLVED — см. §3.2_
+
+Закрыта тем же коммитом. Континуация HK auth удалена, используется async overload.
 
 ### 4.5 ✅ _RESOLVED — см. §3.3_
 

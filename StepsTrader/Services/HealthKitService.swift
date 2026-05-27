@@ -26,11 +26,6 @@ enum HealthKitServiceError: LocalizedError {
     }
 }
 
-private final class UnsafeSendableBox: @unchecked Sendable {
-    var value: Bool
-    init(_ value: Bool) { self.value = value }
-}
-
 @preconcurrency
 final class HealthKitService: HealthKitServiceProtocol {
     private let store = HKHealthStore()
@@ -102,30 +97,12 @@ final class HealthKitService: HealthKitServiceProtocol {
         if status == .unnecessary {
             log.info("requestAuthorization skipped — read access already granted")
         } else {
-            // Use the completion-handler API and wrap in a continuation.
-            // The async overload silently hangs on some iOS versions.
-            let didFinish = UnsafeSendableBox(false)
-            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
-                store.requestAuthorization(toShare: [], read: readTypes) { success, error in
-                    guard !didFinish.value else { return }
-                    didFinish.value = true
-                    if let error {
-                        cont.resume(throwing: error)
-                    } else {
-                        cont.resume()
-                    }
-                }
-                // Timeout — release the continuation after 10s even if the
-                // completion handler never fires.
-                Task.detached {
-                    try? await Task.sleep(for: .seconds(10))
-                    if !didFinish.value {
-                        didFinish.value = true
-                        log.warning("requestAuthorization timed out after 10s")
-                        cont.resume(throwing: HealthKitServiceError.authorizationTimeout)
-                    }
-                }
-            }
+            // Use the async overload directly — the previous continuation +
+            // @unchecked-Sendable timeout dance was a workaround for an old
+            // iOS hang that doesn't reproduce on current targets, and it was
+            // a real data race waiting for Swift 6 strict-concurrency to bite.
+            // (CODE_AUDIT.md §3.2 / §4.4)
+            try await store.requestAuthorization(toShare: [], read: readTypes)
             log.info("requestAuthorization completed")
             logAuthorizationStatus(context: "requestAuthorization:post-request")
         }
