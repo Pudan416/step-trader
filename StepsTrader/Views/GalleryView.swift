@@ -120,24 +120,14 @@ struct GalleryView: View {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Haptics (hoisted, prepared once)
+    // MARK: - Haptics (§4.1 — declarative via .sensoryFeedback)
     // ═══════════════════════════════════════════════════════════
 
-    // TODO: Migrate to .sensoryFeedback() modifiers
-    /// Reusable feedback generators. Allocating `UIImpactFeedbackGenerator`
-    /// per-call is expensive and warms the Taptic engine each time; lazy
-    /// `static let` keeps a single instance alive for the lifetime of the
-    /// process. `prepare()` is called from `.onAppear` to keep latency low.
-    @MainActor
-    private enum Haptics {
-        static let light = UIImpactFeedbackGenerator(style: .light)
-        static let medium = UIImpactFeedbackGenerator(style: .medium)
-
-        static func prepareAll() {
-            light.prepare()
-            medium.prepare()
-        }
-    }
+    /// Bump the corresponding tick to fire the haptic. The `.sensoryFeedback`
+    /// modifier on `body` handles Taptic engine warm-up internally — no
+    /// `prepareAll()` plumbing needed anymore.
+    @State private var lightHapticTick = 0
+    @State private var mediumHapticTick = 0
 
     // ═══════════════════════════════════════════════════════════
     // MARK: - Body
@@ -260,7 +250,6 @@ struct GalleryView: View {
         .onAppear {
             model.checkDayBoundary()
             loadCanvas()
-            Haptics.prepareAll()
             let dayKey = AppModel.dayKey(for: Date.now)
             Task {
                 await SupabaseSyncService.shared.trackAnalyticsEvent(
@@ -369,6 +358,8 @@ struct GalleryView: View {
                 userCollapsedWide = false
             }
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
+        .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -525,8 +516,7 @@ struct GalleryView: View {
                 isManuallyExpanded = true
                 isWideCanvas = true
             }
-            Haptics.light.impactOccurred()
-            Haptics.light.prepare()
+            lightHapticTick &+= 1
         } label: {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 20, weight: .regular))
@@ -585,8 +575,7 @@ struct GalleryView: View {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                             model.applyRoutine(routine)
                         }
-                        Haptics.medium.impactOccurred()
-                        Haptics.medium.prepare()
+                        mediumHapticTick &+= 1
                     } label: {
                         Label(routine.name, systemImage: "arrow.counterclockwise")
                     }
@@ -673,8 +662,7 @@ struct GalleryView: View {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                             model.applyRoutine(routine)
                         }
-                        Haptics.medium.impactOccurred()
-                        Haptics.medium.prepare()
+                        mediumHapticTick &+= 1
                     } label: {
                         Text(routine.name)
                             .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -1023,8 +1011,7 @@ struct GalleryView: View {
                     userCollapsedWide = true
                     isWideCanvas = false
                 }
-                Haptics.light.impactOccurred()
-                Haptics.light.prepare()
+                lightHapticTick &+= 1
             } label: {
                 Image(systemName: "arrow.down.right.and.arrow.up.left")
                     .font(.system(size: 20, weight: .ultraLight))
@@ -1051,8 +1038,7 @@ struct GalleryView: View {
                         saveCanvasLocally()
                     }
                 }
-                Haptics.light.impactOccurred()
-                if editState.isEditMode { Haptics.prepareAll() } else { Haptics.light.prepare() }
+                lightHapticTick &+= 1
             } label: {
                 Image(systemName: editState.isEditMode ? "checkmark" : "hand.draw")
                     .font(.system(size: 22, weight: .ultraLight))
@@ -1102,8 +1088,7 @@ struct GalleryView: View {
                             Button {
                                 model.toggleDailySelection(optionId: element.optionId, category: element.category)
                                 removeElement(optionId: element.optionId, category: element.category)
-                                Haptics.medium.impactOccurred()
-                                Haptics.medium.prepare()
+                                mediumHapticTick &+= 1
                             } label: {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 12, weight: .bold))
@@ -1119,8 +1104,7 @@ struct GalleryView: View {
 
                             Button {
                                 rerollElement(optionId: element.optionId, category: element.category)
-                                Haptics.light.impactOccurred()
-                                Haptics.light.prepare()
+                                lightHapticTick &+= 1
                             } label: {
                                 Image(systemName: "dice")
                                     .font(.system(size: 14, weight: .medium))
@@ -1184,8 +1168,7 @@ struct GalleryView: View {
                         withAnimation(.spring(response: 0.2)) {
                             editState.activeElementId = (editState.activeElementId == hit.element.id) ? nil : hit.element.id
                         }
-                        Haptics.light.impactOccurred()
-                        Haptics.light.prepare()
+                        lightHapticTick &+= 1
                     } else {
                         withAnimation(.spring(response: 0.2)) { editState.activeElementId = nil }
                     }

@@ -125,19 +125,17 @@ The project compiles in Swift 5 mode without strict concurrency. Everything belo
 
 ## 4. API modernity
 
-### 4.1 🟡 _PARTIALLY RESOLVED 2026-05-26: 14 of 16 files migrated to `.sensoryFeedback`_
+### 4.1 ✅ _RESOLVED 2026-05-26: All 16 files migrated to `.sensoryFeedback`_
 
-Закрыто 28 из 30 TODO-маркеров + ~40 imperative haptic-вызовов заменены на declarative `.sensoryFeedback` модификаторы. Паттерн в каждом файле один и тот же: `@State [name]HapticTick = 0` + `.sensoryFeedback(.impact(weight: .X), trigger: tick)` на body + `tick &+= 1` в обработчике.
+Все 30 TODO-маркеров закрыты, ~60 imperative haptic-вызовов заменены на declarative `.sensoryFeedback` модификаторы. Паттерн в каждом файле один и тот же: `@State [name]HapticTick = 0` + `.sensoryFeedback(.impact(weight: .X), trigger: tick)` на body + `tick &+= 1` в обработчике.
 
-Затронуты: `WorkoutSuggestionBanner`, `PaywallView`, `SettingsSubscriptionPage`, `SettingsWidgetPage`, `InlineTicketSettingsView`, `AppsPageSimplified`, `PaperTicketView`, `StepGoalDrumPicker`, `SleepGoalArcPicker`, `SettingsAppearancePage` (10 сайтов), `OnboardingStoriesView` (14 call-сайтов через 5 helper-функций, теперь удалены).
+Затронуты (14 файлов с обычным паттерном): `WorkoutSuggestionBanner`, `PaywallView`, `SettingsSubscriptionPage`, `SettingsWidgetPage`, `InlineTicketSettingsView`, `AppsPageSimplified`, `PaperTicketView`, `StepGoalDrumPicker`, `SleepGoalArcPicker`, `SettingsAppearancePage` (10 сайтов), `OnboardingStoriesView` (14 call-сайтов через 5 helper-функций, теперь удалены).
+
+Финальные 2 файла с enum-Haptics паттерном (`private enum Haptics { static let light = UIImpactFeedbackGenerator(...) }` + `prepareAll()` + множество call-сайтов внутри файла) тоже закрыты:
+- `CategoryDetailView` — enum удалён (light/medium/success), 10 call-сайтов заменены, `Haptics.prepareAll()` из `.onAppear` убран.
+- `GalleryView` — enum удалён (light/medium), 16 call-сайтов заменены (включая один тройной кейс с условным `prepareAll`), 3 `.sensoryFeedback` модификатора на body.
 
 `SmudgeCanvasView` и `ShaderParkOverlayView` — TODO заменён на пояснение: это `UIViewRepresentable`, хаптика стреляет внутри UIView touch handlers, `.sensoryFeedback` (SwiftUI-модификатор) физически не дотягивается до этих callback'ов. UIKit-генератор здесь архитектурно корректен.
-
-**Осталось 2 файла** с enum-паттерном `private enum Haptics { static let light = UIImpactFeedbackGenerator(...) }` + множество call-сайтов внутри файла:
-- `StepsTrader/Views/CategoryDetailView.swift` (~10 call sites)
-- `StepsTrader/Views/GalleryView.swift` (~15 call sites)
-
-Эти два — самостоятельные мини-рефакторы каждый. Severity остаётся High до их закрытия.
 
 ### 4.2 ✅ _RESOLVED 2026-05-26 (commit `83b8475`): Vestigial `await` removed in post-login task_
 

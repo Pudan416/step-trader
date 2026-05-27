@@ -26,19 +26,11 @@ struct CategoryDetailView: View {
     @State private var sheetAnchors: [CoachMarkAnchor] = []
     #endif
 
-    // TODO: Migrate to .sensoryFeedback() modifiers
-    @MainActor
-    private enum Haptics {
-        static let light = UIImpactFeedbackGenerator(style: .light)
-        static let medium = UIImpactFeedbackGenerator(style: .medium)
-        static let success = UINotificationFeedbackGenerator()
-
-        static func prepareAll() {
-            light.prepare()
-            medium.prepare()
-            success.prepare()
-        }
-    }
+    // §4.1: declarative haptics via `.sensoryFeedback`. Bump the corresponding
+    // tick to fire — the modifier handles Taptic engine warm-up internally.
+    @State private var lightHapticTick = 0
+    @State private var mediumHapticTick = 0
+    @State private var successHapticTick = 0
 
     private var accent: Color { category?.color ?? .cyan }
 
@@ -81,8 +73,10 @@ struct CategoryDetailView: View {
         .presentationCornerRadius(28)
         .onAppear {
             refreshEntryColorCache()
-            Haptics.prepareAll()
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
+        .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
+        .sensoryFeedback(.success, trigger: successHapticTick)
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: editingOptionId)
         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: showAddCustom)
         .fullScreenCover(isPresented: $showPaywall) {
@@ -254,8 +248,7 @@ struct CategoryDetailView: View {
 
     /// Tap routing: collapse if expanded, expand if selected, add+expand if not.
     private func handleRowTap(option: EnergyOption, category: EnergyCategory) {
-        Haptics.light.impactOccurred()
-        Haptics.light.prepare()
+        lightHapticTick &+= 1
         #if DEBUG
         if option.id == "mind_focusing" {
             CoachMarkManager.postAction(for: .spotlightFocusing)
@@ -356,8 +349,7 @@ struct CategoryDetailView: View {
             onCardUndo?(optionId, category)
             editingOptionId = nil
         }
-        Haptics.medium.impactOccurred()
-        Haptics.medium.prepare()
+        mediumHapticTick &+= 1
     }
 
     private func deleteCustomOptionFlow(optionId: String) {
@@ -368,8 +360,7 @@ struct CategoryDetailView: View {
             }
             editingOptionId = nil
         }
-        Haptics.medium.impactOccurred()
-        Haptics.medium.prepare()
+        mediumHapticTick &+= 1
     }
 
     // MARK: - Add Custom Card
@@ -390,8 +381,7 @@ struct CategoryDetailView: View {
                 } else {
                     showPaywall = true
                 }
-                Haptics.light.impactOccurred()
-                Haptics.light.prepare()
+                lightHapticTick &+= 1
             } label: {
                 HStack(spacing: 14) {
                     Image(systemName: canCreate ? "plus" : "lock.fill")
@@ -456,8 +446,7 @@ struct CategoryDetailView: View {
                     } else {
                         customIcon = icons.first ?? "pencil"
                     }
-                    Haptics.light.impactOccurred()
-                    Haptics.light.prepare()
+                    lightHapticTick &+= 1
                 } label: {
                     Image(systemName: customIcon)
                         .font(.system(size: 13, weight: .semibold))
@@ -482,8 +471,7 @@ struct CategoryDetailView: View {
                     let isActive = icon == customIcon
                     Button {
                         customIcon = icon
-                        Haptics.light.impactOccurred()
-                        Haptics.light.prepare()
+                        lightHapticTick &+= 1
                     } label: {
                         Image(systemName: icon)
                             .font(.system(size: 13, weight: .medium))
@@ -670,8 +658,7 @@ struct CategoryDetailView: View {
         saveEntry(entry, for: option)
         entryColorCache[option.id] = Color(hex: color)
         saveLastUsedPreferences(optionId: option.id, colorHex: color)
-        Haptics.success.notificationOccurred(.success)
-        Haptics.success.prepare()
+        successHapticTick &+= 1
         #if DEBUG
         if option.id == "mind_focusing" {
             CoachMarkManager.postAction(for: .tapAddToCanvas)
@@ -695,8 +682,7 @@ struct CategoryDetailView: View {
         saveLastUsedPreferences(optionId: option.id, colorHex: editColorHex)
 
         withAnimation(.spring(response: 0.25)) { editingOptionId = nil }
-        Haptics.success.notificationOccurred(.success)
-        Haptics.success.prepare()
+        successHapticTick &+= 1
         dismiss()
     }
 
@@ -722,8 +708,7 @@ struct CategoryDetailView: View {
             customName = ""
             customIcon = "pencil"
         }
-        Haptics.success.notificationOccurred(.success)
-        Haptics.success.prepare()
+        successHapticTick &+= 1
         dismiss()
     }
 
