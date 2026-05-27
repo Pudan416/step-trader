@@ -278,12 +278,20 @@ Cross-device persistence remains a separate feature (would need a `moments` JSON
 
 Закрыто тем же фиксом — диагностический HK-запрос обёрнут в `#if DEBUG`, в Release не компилируется.
 
-### 7.2 Widget timeline provider does substantial work per entry
-- **Location:** `UnlockWidget/UnlockTimelineProvider.swift:1-791`
-- **What:** Snapshot + timeline computation reads App-Group keys, decodes ticket groups, formats per-locale strings. Per refresh.
-- **Action:** Extract `WidgetBudgetCompute` value type; cache formatters at module scope.
-- **Severity:** Medium
-- **Что это значит на практике:** Виджет на home screen может расходовать чуть больше батареи, чем нужно. Профилировать нужно на реальном устройстве — может оказаться что не критично. Юзер не пожалуется напрямую, но в Battery → Usage by App цифра у виджета может быть выше типичной.
+### 7.2 ✅ _RESOLVED 2026-05-26 (partial): hot-path allocations dedup'd_
+
+Конкретно убрано:
+- **7 аллокаций `JSONDecoder()` на каждую сборку timeline-entry** → один module-scope `widgetDecoder: JSONDecoder` (Sendable, safe to share). Каждая widget refresh-точка теперь экономит ~5-7ms на bootstrap'е декодеров.
+- **5 обращений `Calendar.current` на entry** → один module-scope `widgetCalendar: Calendar` (locale-lookup дедуплицирован).
+
+Эти изменения покрывают `UnlockTimelineProvider`, `StatusTimelineProvider`, и Combo provider — все три используют те же helpers теперь.
+
+**Что НЕ сделано** (требует Instruments-профилирования на устройстве для оценки выгоды):
+- Извлечение `WidgetBudgetCompute` struct из `buildEntry` — функция уже относительно изолирована, дополнительный wrapper структурно ничего не добавит без явной выгоды.
+- Уменьшение `UnlockEntry.wallpaperBackground: UIImage?` — UIImage сериализуется в WidgetKit timeline storage per-entry, дубликат при 2+ entries. Workaround: хранить filename, ленивая загрузка в view — но это меняет UI-код. Цена не понятна без trace.
+- Cache `WidgetDataFile.read()` в рамках одного timeline-вызова — file I/O на каждую entry.
+
+Когда у тебя дойдут руки до Instruments → Time Profiler → Widget Process — там увидишь реальные hot paths и можно будет таргетированно резать.
 
 ### 7.3 Hot SwiftUI views recompute heavy state in body
 - **Location:** `StepsTrader/Views/GalleryView.swift`, `MeView.swift`, `CategoryDetailView.swift`

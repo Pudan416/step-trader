@@ -2,6 +2,23 @@ import WidgetKit
 import SwiftUI
 import ImageIO
 
+// MARK: - Module-Scope Reusable Helpers
+//
+// §7.2: Widget timeline build is on the hot path — each entry historically
+// allocated a fresh `JSONDecoder()` for each of the 4-7 nested decodes and
+// touched `widgetCalendar` 3-5× per call. WidgetKit refreshes timelines
+// every 10-30 minutes per registered widget (+ snapshot/placeholder calls),
+// so these allocations add up. Hoisted to module scope as `let` constants —
+// both types are documented as `Sendable` and safe to share across threads.
+
+/// Single reusable JSON decoder for widget-storage payloads. Configuration
+/// matches the on-disk format written by the main app (no special keys / dates).
+private let widgetDecoder: JSONDecoder = JSONDecoder()
+
+/// Reusable calendar for "next reset / next date matching components" lookups.
+/// Locale-current — same answer as `widgetCalendar` but no per-call lookup.
+private let widgetCalendar: Calendar = .current
+
 // MARK: - Shared Widget Kind
 
 enum WidgetKind {
@@ -70,7 +87,7 @@ enum WidgetRefreshPolicy {
     static let nightInterval: TimeInterval = 60 * 60
 
     static func nextRefreshDate(from now: Date, hasActiveUnlock: Bool) -> Date {
-        let hour = Calendar.current.component(.hour, from: now)
+        let hour = widgetCalendar.component(.hour, from: now)
         let isNight = hour >= 23 || hour < 7
 
         let interval: TimeInterval
@@ -88,11 +105,11 @@ enum WidgetRefreshPolicy {
         var groupIds: [String] = []
         if let data = g.data(forKey: SharedKeys.ticketGroups)
                 ?? g.data(forKey: SharedKeys.legacyShieldGroups),
-           let decoded = try? JSONDecoder().decode([_MinGroupStub].self, from: data) {
+           let decoded = try? widgetDecoder.decode([_MinGroupStub].self, from: data) {
             groupIds.append(contentsOf: decoded.map(\.id))
         }
         if let liteData = g.data(forKey: SharedKeys.liteTicketConfig),
-           let lite = try? JSONDecoder().decode(_MinLiteConfig.self, from: liteData) {
+           let lite = try? widgetDecoder.decode(_MinLiteConfig.self, from: liteData) {
             groupIds.append(contentsOf: lite.groups.map(\.id))
         }
         return groupIds.contains { g.integer(forKey: SharedKeys.usageBudgetKey($0)) > 0 }
@@ -183,7 +200,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
 
         if let data = g.data(forKey: SharedKeys.ticketGroups)
                 ?? g.data(forKey: SharedKeys.legacyShieldGroups),
-           let decoded = try? JSONDecoder().decode([WidgetGroupStub].self, from: data) {
+           let decoded = try? widgetDecoder.decode([WidgetGroupStub].self, from: data) {
 
             snapshots = decoded
                 .filter { group in
@@ -313,7 +330,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
         var comps = DateComponents()
         comps.hour = hour
         comps.minute = minute
-        return Calendar.current.nextDate(
+        return widgetCalendar.nextDate(
             after: Date(),
             matching: comps,
             matchingPolicy: .nextTimePreservingSmallerComponents
@@ -347,12 +364,12 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
 
     private func loadActiveGroupIds(defaults: UserDefaults) -> Set<String>? {
         if let data = defaults.data(forKey: SharedKeys.liteTicketConfig),
-           let lite = try? JSONDecoder().decode(WidgetLiteTicketConfig.self, from: data) {
+           let lite = try? widgetDecoder.decode(WidgetLiteTicketConfig.self, from: data) {
             return Set(lite.groups.filter(\.active).map(\.id))
         }
 
         guard let legacyData = defaults.data(forKey: SharedKeys.liteShieldConfig),
-              let lite = try? JSONDecoder().decode(WidgetLiteTicketConfig.self, from: legacyData) else {
+              let lite = try? widgetDecoder.decode(WidgetLiteTicketConfig.self, from: legacyData) else {
             return nil
         }
         return Set(lite.groups.filter(\.active).map(\.id))
@@ -438,7 +455,7 @@ struct StatusTimelineProvider: TimelineProvider {
         var comps = DateComponents()
         comps.hour = hour
         comps.minute = minute
-        return Calendar.current.nextDate(
+        return widgetCalendar.nextDate(
             after: Date(),
             matching: comps,
             matchingPolicy: .nextTimePreservingSmallerComponents
@@ -494,7 +511,7 @@ struct StatusTimelineProvider: TimelineProvider {
             var comps = DateComponents()
             comps.hour = dayEndHour
             comps.minute = dayEndMinute
-            return Calendar.current.nextDate(after: Date(), matching: comps,
+            return widgetCalendar.nextDate(after: Date(), matching: comps,
                                              matchingPolicy: .nextTimePreservingSmallerComponents)
         }()
 
@@ -634,7 +651,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             var comps = DateComponents()
             comps.hour = dayEndHour
             comps.minute = dayEndMinute
-            return Calendar.current.nextDate(after: Date(), matching: comps,
+            return widgetCalendar.nextDate(after: Date(), matching: comps,
                                              matchingPolicy: .nextTimePreservingSmallerComponents)
         }()
 
@@ -675,7 +692,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
 
         guard let data = g.data(forKey: SharedKeys.ticketGroups)
                 ?? g.data(forKey: SharedKeys.legacyShieldGroups),
-              let decoded = try? JSONDecoder().decode([ComboGroupStub].self, from: data),
+              let decoded = try? widgetDecoder.decode([ComboGroupStub].self, from: data),
               let group = decoded.first(where: { $0.id == id }) else {
             return nil
         }
@@ -712,11 +729,11 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
 
     private func loadActiveGroupIds(defaults: UserDefaults) -> Set<String>? {
         if let data = defaults.data(forKey: SharedKeys.liteTicketConfig),
-           let lite = try? JSONDecoder().decode(ComboLiteConfig.self, from: data) {
+           let lite = try? widgetDecoder.decode(ComboLiteConfig.self, from: data) {
             return Set(lite.groups.filter(\.active).map(\.id))
         }
         if let data = defaults.data(forKey: SharedKeys.liteShieldConfig),
-           let lite = try? JSONDecoder().decode(ComboLiteConfig.self, from: data) {
+           let lite = try? widgetDecoder.decode(ComboLiteConfig.self, from: data) {
             return Set(lite.groups.filter(\.active).map(\.id))
         }
         return nil
@@ -738,7 +755,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
         var comps = DateComponents()
         comps.hour = hour
         comps.minute = minute
-        return Calendar.current.nextDate(
+        return widgetCalendar.nextDate(
             after: Date(),
             matching: comps,
             matchingPolicy: .nextTimePreservingSmallerComponents
