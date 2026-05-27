@@ -240,7 +240,10 @@ final class HealthKitService: HealthKitServiceProtocol {
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
         log.info("👣 fetchSteps QUERY: \(start) … \(end), lastStepCount=\(self.lastStepCount)")
 
-        // Diagnostic: log sample breakdown by source (runs in background, doesn't affect result)
+        // Diagnostic: log sample breakdown by source (runs in background, doesn't affect result).
+        // DEBUG-only — in Release this used to double HK query traffic per fetchSteps with no
+        // shipped feature relying on the breakdown. (CODE_AUDIT.md §3.7 / §7.1)
+        #if DEBUG
         let diagnosticStore = self.store
         Task.detached {
             let sampleQuery = HKSampleQuery(
@@ -263,6 +266,7 @@ final class HealthKitService: HealthKitServiceProtocol {
             }
             diagnosticStore.execute(sampleQuery)
         }
+        #endif
 
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: predicate, options: .cumulativeSum) { [weak self] _, stats, error in

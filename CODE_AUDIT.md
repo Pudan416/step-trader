@@ -89,13 +89,9 @@ The project compiles in Swift 5 mode without strict concurrency. Everything belo
 - **Severity:** Medium
 - **Что это значит на практике:** При выходе из аккаунта может на секунду мелькнуть step count предыдущего юзера в UI нового. Воспроизводится если sign-out жмёшь быстро в момент HK update.
 
-### 3.7 Diagnostic `Task.detached` in `fetchSteps` is fire-and-forget
-- **Location:** `StepsTrader/Services/HealthKitService.swift:243-265`
-- **What:** A debug-only sample-source breakdown query runs on every `fetchSteps` via `Task.detached` with no cancellation, no completion signal, and no `#if DEBUG` guard.
-- **Why:** Each call doubles the HealthKit query traffic; on a HK-heavy session the detached tasks pile up.
-- **Action:** Wrap in `#if DEBUG` or rate-limit to once per minute.
-- **Severity:** Medium
-- **Что это значит на практике:** Каждый раз когда HK observer стреляет (раз в несколько минут), идёт ВТОРОЙ HK запрос только для диагностического логирования. Удваивает HK-нагрузку в production-сборке без пользы. Расход батареи + риск упереться в лимиты Apple на HK queries.
+### 3.7 ✅ _RESOLVED 2026-05-26: Diagnostic block wrapped in `#if DEBUG`_
+
+Раньше каждый `fetchSteps` запускал второй HK-запрос (source breakdown logging) через `Task.detached` — в Release этот код фигачил без причины, удваивая HK-нагрузку. Сейчас обёрнут в `#if DEBUG` в `HealthKitService.swift:243-267`, в Release-сборке блок не компилируется вообще. Closes §7.1 заодно.
 
 ### 3.8 `DeviceActivityMonitor` extension callbacks call `ShieldRebuildHelper.rebuild()` on the system-chosen thread
 - **Location:** `DeviceActivityMonitor/DeviceActivityMonitorExtension.swift:148-160, 158-306`
@@ -317,11 +313,9 @@ Cross-device persistence remains a separate feature (would need a `moments` JSON
 
 ## 7. Performance
 
-### 7.1 Diagnostic detached query doubles HealthKit traffic per fetch
-- **Location:** `StepsTrader/Services/HealthKitService.swift:243-265`
-- **Action:** See §3.7. Wrap in `#if DEBUG` or rate-limit.
-- **Severity:** Medium
-- **Что это значит на практике:** То же что §3.7 — диагностический HK-запрос идёт в каждом проде fetch. Расход батареи у активных пользователей + риск упереться в Apple-лимиты HK-queries.
+### 7.1 ✅ _RESOLVED — см. §3.7_
+
+Закрыто тем же фиксом — диагностический HK-запрос обёрнут в `#if DEBUG`, в Release не компилируется.
 
 ### 7.2 Widget timeline provider does substantial work per entry
 - **Location:** `UnlockWidget/UnlockTimelineProvider.swift:1-791`
