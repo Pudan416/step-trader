@@ -34,6 +34,11 @@ final class HealthKitService: HealthKitServiceProtocol {
     @MainActor private var observerQuery: HKQuery?
     @MainActor private var isObserving = false
     @MainActor private var isRequestingAuthorization = false
+    /// In-flight initial-fetch Task spawned by `startObservingSteps`. Tracked so
+    /// `stopObservingSteps()` can cancel it — otherwise a late-arriving fetch
+    /// would write to `lastStepCount` and call `updateHandler` *after* the
+    /// caller logically stopped observing (e.g. mid-sign-out). (§3.6 / §3.9 / §5.3)
+    @MainActor private var initialFetchTask: Task<Void, Never>?
 
     private let _stepCountLock = NSLock()
     private var _lastStepCountBacking: Double = 0
@@ -373,30 +378,53 @@ final class HealthKitService: HealthKitServiceProtocol {
         // Note: authorizationStatus() returns WRITE status, not READ status.
         // For read-only apps, sharingDenied is expected and doesn't mean read is denied.
         // We should just try to observe and fetch data.
-        
-        Task { [weak self] in
+
+        // Cancel any prior fetch (defensive — guard !isObserving above should make this no-op).
+        initialFetchTask?.cancel()
+        initialFetchTask = Task { [weak self] in
             guard let self = self else { return }
             // Initial fetch so UI has fresh value before observer fires
             let dayStart = Date.startOfToday
             log.info("👣 startObservingSteps: initial fetch dayStart=\(dayStart)")
             if let steps = try? await self.fetchSteps(from: dayStart, to: Date.now) {
+                // Bail if stopObservingSteps() cancelled us while fetching. Otherwise
+                // we'd resurrect a previous user's step count after sign-out. (§5.3)
+                guard !Task.isCancelled else {
+                    log.info("👣 startObservingSteps: initial fetch cancelled mid-flight, discarding result")
+                    return
+                }
                 log.info("👣 startObservingSteps: initial fetch returned \(Int(steps)), pushing to UI")
                 self.lastStepCount = steps
-                await MainActor.run { updateHandler(steps) }
+                await MainActor.run {
+                    guard !Task.isCancelled else { return }
+                    updateHandler(steps)
+                }
             } else {
                 log.warning("👣 startObservingSteps: initial fetch FAILED, lastStepCount=\(self.lastStepCount)")
             }
+            // Same gate before installing the live observer — don't start
+            // observation if the caller already stopped. (§3.9)
+            guard !Task.isCancelled else { return }
             await self.beginObservation(updateHandler: updateHandler)
+            await MainActor.run { self.initialFetchTask = nil }
         }
     }
 
     @MainActor
     func stopObservingSteps() {
-        guard let query = observerQuery else { return }
+        // Order matters:
+        // 1. Flip isObserving FIRST so any in-flight observer re-fetch (§3.6)
+        //    sees the new state when it hops back to MainActor to push.
+        // 2. Cancel the initial-fetch Task (§3.9 / §5.3) so it can't push
+        //    lastStepCount + updateHandler after observerQuery is gone.
+        // 3. Stop + nil the actual HK query.
+        isObserving = false
+        initialFetchTask?.cancel()
+        initialFetchTask = nil
 
+        guard let query = observerQuery else { return }
         store.stop(query)
         observerQuery = nil
-        isObserving = false
         log.info("Step observation stopped")
     }
 
@@ -440,6 +468,14 @@ final class HealthKitService: HealthKitServiceProtocol {
                 log.info("👣 OBSERVER FIRED: re-fetching from \(refetchStart)")
                 do {
                     let steps = try await self.fetchSteps(from: refetchStart, to: Date.now)
+                    // If stopObservingSteps() flipped isObserving while we were
+                    // fetching, drop this update — pushing it would resurrect
+                    // last-cancelled UI state (e.g. after sign-out). (§3.6)
+                    let stillObserving = await MainActor.run { self.isObserving }
+                    guard stillObserving else {
+                        log.info("👣 OBSERVER re-fetch discarded — observation stopped mid-flight")
+                        return
+                    }
                     log.info("👣 OBSERVER re-fetch: \(Int(steps)) steps, pushing to UI")
                     self.lastStepCount = steps
                     await MainActor.run { updateHandler(steps) }
