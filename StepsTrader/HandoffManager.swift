@@ -1,6 +1,14 @@
 import Foundation
 import UIKit
 
+// §5.8: re-entrancy guard for attemptOpenScheme. Two simultaneous handoffs to
+// the same bundleId (rare but possible via fast Shortcuts automation) used to
+// race on the `lastAppOpenedFromStepsTrader` UserDefaults write — second open
+// would overwrite the first. Now skipped if already opening that bundleId.
+// File-scope `@MainActor` keeps the set safe; all callers are @MainActor.
+@MainActor
+private var _openingBundleIds: Set<String> = []
+
 // MARK: - Handoff Manager Extension for AppModel
 extension AppModel {
 
@@ -52,6 +60,13 @@ extension AppModel {
     }
 
     private func openTargetApp(bundleId: String) {
+        // §5.8: re-entrancy guard — drop if we're already mid-open for this bundleId.
+        guard !_openingBundleIds.contains(bundleId) else {
+            AppLogger.app.debug("🚀 Skipping duplicate open for \(bundleId) — already in flight")
+            return
+        }
+        _openingBundleIds.insert(bundleId)
+
         let userDefaults = UserDefaults.stepsTrader()
         let now = Date.now
         userDefaults.set(now, forKey: SharedKeys.lastAppOpenedFromStepsTrader(bundleId))
@@ -61,6 +76,7 @@ extension AppModel {
         let schemes = TargetResolver.primaryAndFallbackSchemes(for: bundleId)
         guard !schemes.isEmpty else {
             AppLogger.app.error("❌ No URL schemes found for \(bundleId), skipping handoff")
+            _openingBundleIds.remove(bundleId)
             return
         }
         attemptOpenScheme(schemes: schemes, index: 0, bundleId: bundleId)
@@ -70,6 +86,7 @@ extension AppModel {
     private func attemptOpenScheme(schemes: [String], index: Int, bundleId: String) {
         guard index < schemes.count else {
             AppLogger.app.error("❌ All URL schemes failed for \(bundleId)")
+            _openingBundleIds.remove(bundleId)
             return
         }
         guard let url = URL(string: schemes[index]) else {
@@ -79,6 +96,7 @@ extension AppModel {
         UIApplication.shared.open(url) { [weak self] success in
             if success {
                 AppLogger.app.debug("✅ Opened \(bundleId) via \(schemes[index])")
+                _openingBundleIds.remove(bundleId)
             } else {
                 AppLogger.app.debug("⚠️ Scheme \(schemes[index]) failed for \(bundleId), trying next")
                 Task { @MainActor in

@@ -196,9 +196,12 @@ final class HealthKitService: HealthKitServiceProtocol {
         let sorted = intervals.sorted { $0.start < $1.start }
         var merged: [(start: Date, end: Date)] = [sorted[0]]
         for interval in sorted.dropFirst() {
-            if interval.start <= merged[merged.count - 1].end {
+            // `merged` is seeded with one element and only grows, so the
+            // force-indexed last-element access via `[merged.count - 1]` is
+            // safe — but the `last` accessor reads cleaner and is refactor-safe.
+            if let last = merged.last, interval.start <= last.end {
                 // Overlapping or adjacent — extend the current merged interval
-                merged[merged.count - 1].end = max(merged[merged.count - 1].end, interval.end)
+                merged[merged.count - 1].end = max(last.end, interval.end)
             } else {
                 merged.append(interval)
             }

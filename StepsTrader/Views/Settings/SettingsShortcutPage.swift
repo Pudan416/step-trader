@@ -6,8 +6,7 @@ struct SettingsShortcutPage: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.appTheme) private var theme
 
-    // swiftlint:disable:next force_unwrapping
-    private let shortcutURL = URL(string: "https://www.icloud.com/shortcuts/e32b44858d5f4c829b35c9f8ad5f2756")!
+    private let shortcutURL = AppConstants.URLs.wallpaperShortcut
 
     private let steps: [(number: String, text: LocalizedStringKey)] = [
         ("1", "Tap the button below to add the wallpaper shortcut"),

@@ -27,11 +27,25 @@ struct OnboardingDemoView: View {
                 startText: "Let's go",
                 allowText: "Allow",
                 flowVersion: OnboardingSlides.flowVersion,
-                onHealthSlide: { print("[Demo] HealthKit requested (no-op)") },
-                onNotificationSlide: { print("[Demo] Notifications requested (no-op)") },
-                onFamilyControlsSlide: { print("[Demo] Family Controls requested (no-op)") },
+                onHealthSlide: {
+                    #if DEBUG
+                    print("[Demo] HealthKit requested (no-op)")
+                    #endif
+                },
+                onNotificationSlide: {
+                    #if DEBUG
+                    print("[Demo] Notifications requested (no-op)")
+                    #endif
+                },
+                onFamilyControlsSlide: {
+                    #if DEBUG
+                    print("[Demo] Family Controls requested (no-op)")
+                    #endif
+                },
                 onFinish: {
+                    #if DEBUG
                     print("[Demo] Onboarding finished — steps: \(Int(stepsTarget)), sleep: \(sleepTarget)h, bedtime: \(bedtimeMinutes)m, feed: \(selectedFeedApp ?? "none")")
+                    #endif
                     dismiss()
                 },
                 model: nil,

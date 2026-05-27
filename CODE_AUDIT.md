@@ -99,13 +99,9 @@ The project compiles in Swift 5 mode without strict concurrency. Everything belo
 
 Закрыто тем же коммитом что §3.6 и §5.3. После каждого `await` в initial-fetch Task'е стоит `guard !Task.isCancelled else { return }` — наблюдение не стартует если caller уже остановил teardown.
 
-### 3.10 `BlockingStore` post-debounce Task does not check cancellation
-- **Location:** `StepsTrader/Stores/BlockingStore.swift:68-76`
-- **What:** Selection-change debounce uses `Task.sleep` followed by self-mutation, with no `Task.isCancelled` check after the sleep.
-- **Why:** If the debounce is replaced by a newer selection change, the older Task still mutates `appSelection`.
-- **Action:** `guard !Task.isCancelled else { return }` after the sleep.
-- **Severity:** Medium
-- **Что это значит на практике:** Юзер быстро меняет выбор приложений для блокировки — старый debounce срабатывает после смены и перезаписывает новый выбор. Редкий race, но возможный (особенно если кто-то быстро тапает по галочкам).
+### 3.10 ✅ _RESOLVED (already fixed in swiftui-pro review prior to this audit)_
+
+`BlockingStore.swift:70` уже содержит `guard let self = self, !Task.isCancelled else { return }` после `Task.sleep`. Аудит-агент пропустил этот guard при первом сканировании — фикс был сделан в коммите `c5377a5` ранее.
 
 ### 3.11 `UIWindowScene.windows` accessed directly
 - **Location:** `StepsTrader/Views/Onboarding/AppleSignInCoordinator.swift`, `StepsTrader/Stores/SubscriptionStore.swift:323-330`
@@ -215,26 +211,17 @@ Cross-device persistence remains a separate feature (would need a `moments` JSON
 - **Severity:** Medium
 - **Что это значит на практике:** Первый запуск после ребута устройства, если Keychain ещё не разблокирован (узкое окно при загрузке) — юзер вылетит из аккаунта, хотя локальная сессия в UserDefaults сохранена. По логике должно бы откатиться к UserDefaults и не выкидывать. Редкое, но воспроизводимое.
 
-### 5.7 Deep-link `bundleId` is passed unvalidated to `TargetResolver`
-- **Location:** `StepsTrader/StepsTraderApp.swift:463-474`
-- **What:** `handleWidgetOpenApp` pulls `bundleId` from URL query, feeds to resolver without validation.
-- **Action:** Validate against reverse-DNS regex before lookup.
-- **Severity:** Low
-- **Что это значит на практике:** Низкорисково. Левый bundleId в URL вернёт пустой ответ. Но raw-строка попадает в логи — если в будущем включишь телеметрию, атакующий может намеренно слать паттерны.
+### 5.7 ✅ _RESOLVED 2026-05-26: bundleId now validated against reverse-DNS regex_
 
-### 5.8 `attemptOpenScheme` recursion uses `Task { @MainActor in ... }`
-- **Location:** `StepsTrader/HandoffManager.swift:79-89`
-- **What:** Recursive scheme fallback bounces through new Tasks. Two rapid handoff calls could race.
-- **Action:** Re-entrancy guard via `currentlyOpening` flag.
-- **Severity:** Low
-- **Что это значит на практике:** Два быстрых handoff-открытия подряд могут гонщиться. Один пользователь рукой не нажмёт за миллисекунду — но если автоматизация (Shortcuts, accessibility tools) дёргает быстро, возможно.
+`handleWidgetOpenApp` в `StepsTraderApp.swift:485-499` теперь сначала прогоняет `bundleId` через `^[a-zA-Z0-9](?:[a-zA-Z0-9\-]*\.)*[a-zA-Z0-9][a-zA-Z0-9\-]*$` перед передачей в `TargetResolver`. Только реально похожие на bundle-ID строки доходят до резолвера, остальное молча отбрасывается.
 
-### 5.9 `merged[merged.count - 1]` in sleep-merge logic
-- **Location:** `StepsTrader/Services/HealthKitService.swift:213-225`
-- **What:** Algorithm correctness OK, reads as fragile (could underflow in a future refactor).
-- **Action:** Replace with `last`/`inout` pattern.
-- **Severity:** Low
-- **Что это значит на практике:** Не баг — защита от будущего refactor'а. Стилистика.
+### 5.8 ✅ _RESOLVED 2026-05-26: re-entrancy guard added via `_openingBundleIds` Set_
+
+Файл-scope `@MainActor private var _openingBundleIds: Set<String>` в `HandoffManager.swift` отслеживает какие bundleId сейчас в процессе открытия. `openTargetApp` пропускает дубликат, `attemptOpenScheme` чистит Set на success / на финальном failure / на «нет схем». Два быстрых открытия одного приложения подряд через Shortcuts больше не гонщатся.
+
+### 5.9 ✅ _RESOLVED 2026-05-26: sleep-merge now reads `merged.last` first_
+
+Цикл merge в `HealthKitService.swift:194-207` теперь делает `if let last = merged.last, interval.start <= last.end { ... }` вместо force-indexed `merged[merged.count - 1].end` для чтения. Сама запись остаётся через индекс (Swift не позволяет mutate через `last`), но read через optional делает refactor-safe.
 
 ### 5.10 Recursive timer rescheduling silently stops on `self == nil`
 - **Location:** `StepsTrader/AppModel.swift:344-355`
@@ -388,12 +375,9 @@ Severity for the category overall: **High** (testability + change risk).
 
 `AppModel+DailyEnergy.swift` теперь использует только `SharedKeys.dailyEnergyAnchor` / `.dailySleepHours` / `.baseEnergyToday` / `.pastDaySnapshots` / `.dailyCanvasSlots` / `.customEnergyOptions` / `.savedRoutines` / `.dailyMoments`. Заодно `savedEnergyRoutines_v1` как raw-строка убран из `SupabaseSyncService.swift:576` и `Steps4Tests/EnergyRecalcTests.swift:214`. Single source of truth для всех 8 ключей теперь действительно single.
 
-### 9.5 Hardcoded URL with force-unwrap
-- **Location:** `StepsTrader/Views/Settings/SettingsShortcutPage.swift:10`
-- **What:** `URL(string: "https://www.icloud.com/shortcuts/…")!`
-- **Action:** Move to `AppConstants.URLs`.
-- **Severity:** Low
-- **Что это значит на практике:** Если кто-то опечатается при правке URL — приложение упадёт мгновенно при открытии экрана Shortcuts. Сегодня URL валиден, не падает. Но force-unwrap в production-коде это всегда оставленная мина.
+### 9.5 ✅ _RESOLVED 2026-05-26: URL moved to `AppConstants.URLs.wallpaperShortcut`_
+
+`SettingsShortcutPage` теперь ссылается на `AppConstants.URLs.wallpaperShortcut` (новый namespace в `Utilities/AppConstants.swift`). Force-unwrap по-прежнему есть, но в одном месте, рядом с другими константами. Если будут добавляться URL'ы — теперь есть куда их складывать.
 
 ### 9.6 `fatalError()` in unavailable inits — intentional
 - **Location:** `StepsTrader/Metal/MetalSmudgeRenderer.swift:144`, `MetalShaderParkRenderer.swift:52`
@@ -413,11 +397,9 @@ Severity for the category overall: **High** (testability + change risk).
 - **Severity:** Low
 - **Что это значит на практике:** Если решишь подстроить общий «вид» (opacity, JPEG quality, anim timing) — придётся искать grep'ом по всему проекту. Незаметно, пока не начнёшь массово править.
 
-### 9.9 Five `print()` calls outside `#if DEBUG`
-- **Location:** `OnboardingDemoView.swift` (4), `OnboardingPreview/Stubs.swift` (1, preview-only)
-- **Action:** Wrap `OnboardingDemoView` prints in `#if DEBUG`.
-- **Severity:** Low
-- **Что это значит на практике:** В Release-сборке у некоторых QA-флоу логи попадают в systemд (через NSLog). Не утечка данных, но шум. Stubs.swift трогать не надо — preview-only пакет.
+### 9.9 ✅ _RESOLVED 2026-05-26: OnboardingDemoView prints wrapped in `#if DEBUG`_
+
+Четыре `print()` в `OnboardingDemoView.swift` (callback'и `onHealthSlide`, `onNotificationSlide`, `onFamilyControlsSlide`, `onFinish`) теперь обёрнуты в `#if DEBUG`. В Release-сборке вылетают целиком. `OnboardingPreview/Stubs.swift` оставлен — это SPM preview-only.
 
 ### 9.10 ✅ _RESOLVED 2026-05-26 (commit `26feba7`): Marketing docs moved to `docs/marketing/`_
 

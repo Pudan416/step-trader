@@ -483,9 +483,15 @@ struct StepsTraderApp: App {
     }
 
     private func handleWidgetOpenApp(_ url: URL) {
+        // §5.7: validate `bundleId` against a strict reverse-DNS pattern before
+        // looking it up. Caps the input shape to what real bundle IDs look like
+        // (`com.example.app`, optionally with dots and hyphens) so unexpected
+        // strings can't reach logs or any future telemetry through this path.
+        let bundleIdPattern = #"^[a-zA-Z0-9](?:[a-zA-Z0-9\-]*\.)*[a-zA-Z0-9][a-zA-Z0-9\-]*$"#
         guard url.host == "openapp",
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let bundleId = components.queryItems?.first(where: { $0.name == "bundleId" })?.value,
+              bundleId.range(of: bundleIdPattern, options: .regularExpression) != nil,
               let scheme = TargetResolver.primaryAndFallbackSchemes(for: bundleId).first,
               let targetURL = URL(string: scheme)
         else { return }
