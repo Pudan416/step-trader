@@ -2,17 +2,10 @@ import Foundation
 import SwiftUI
 import WidgetKit
 
-// MARK: - Daily Energy Keys (file-scope to avoid @MainActor isolation on static lets)
-private let _dailyEnergyAnchorKey = "dailyEnergyAnchor_v1"
-private let _dailySleepHoursKey = "dailySleepHours_v1"
-private let _baseEnergyTodayKey = "baseEnergyToday_v1"
-private let _pastDaySnapshotsKey = "pastDaySnapshots_v1"
-private let _dailyCanvasSlotsKey = "dailyChoiceSlots_v1"
-private let _customEnergyOptionsKey = "customEnergyOptions_v1"
-private let _savedRoutinesKey = "savedEnergyRoutines_v1"
-private let _dailyMomentsKey = "dailyMoments_v1"
-
 // MARK: - Daily Energy Management
+// All persistence keys live in SharedKeys (non-isolated enum, safe to read from
+// any actor context). The previous file-scope `_xxxKey` constants were folded
+// into SharedKeys in CODE_AUDIT.md §9.4.
 extension AppModel {
     private func dailySelectionsKey(for category: EnergyCategory) -> String {
         "dailyEnergySelections_v1_\(category.rawValue)"
@@ -31,12 +24,12 @@ extension AppModel {
 
     func loadDailyEnergyState() {
         let g = UserDefaults.stepsTrader()
-        let rawAnchor = g.object(forKey: _dailyEnergyAnchorKey)
+        let rawAnchor = g.object(forKey: SharedKeys.dailyEnergyAnchor)
         AppLogger.energy.debug("📥 loadDailyEnergyState: anchor raw=\(String(describing: rawAnchor)), as Date=\(String(describing: rawAnchor as? Date))")
         guard let anchor = rawAnchor as? Date else {
             AppLogger.energy.debug("📥 loadDailyEnergyState: NO anchor — seeding and loading persisted state")
-            g.set(currentDayStart(for: Date.now), forKey: _dailyEnergyAnchorKey)
-            dailySleepHours = g.double(forKey: _dailySleepHoursKey)
+            g.set(currentDayStart(for: Date.now), forKey: SharedKeys.dailyEnergyAnchor)
+            dailySleepHours = g.double(forKey: SharedKeys.dailySleepHours)
             dailyBodySelections = loadStringArray(forKey: dailySelectionsKey(for: .body))
             dailyRestSelections = loadStringArray(forKey: dailySelectionsKey(for: .mind))
             dailyHeartSelections = loadStringArray(forKey: dailySelectionsKey(for: .heart))
@@ -46,7 +39,7 @@ extension AppModel {
             if !storedBody.isEmpty { preferredBodyOptions = storedBody }
             if !storedMind.isEmpty { preferredRestOptions = storedMind }
             if !storedHeart.isEmpty { preferredHeartOptions = storedHeart }
-            baseEnergyToday = g.integer(forKey: _baseEnergyTodayKey)
+            baseEnergyToday = g.integer(forKey: SharedKeys.baseEnergyToday)
             spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
             loadDailyCanvasSlots()
             recoverSelectionsFromCanvasIfNeeded()
@@ -59,7 +52,7 @@ extension AppModel {
             resetDailyEnergyState()
             return
         }
-        dailySleepHours = g.double(forKey: _dailySleepHoursKey)
+        dailySleepHours = g.double(forKey: SharedKeys.dailySleepHours)
 
         dailyBodySelections = loadStringArray(forKey: dailySelectionsKey(for: .body))
         dailyRestSelections = loadStringArray(forKey: dailySelectionsKey(for: .mind))
@@ -71,7 +64,7 @@ extension AppModel {
         if !storedMind.isEmpty { preferredRestOptions = storedMind }
         if !storedHeart.isEmpty { preferredHeartOptions = storedHeart }
 
-        baseEnergyToday = g.integer(forKey: _baseEnergyTodayKey)
+        baseEnergyToday = g.integer(forKey: SharedKeys.baseEnergyToday)
         spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
         dailyMoments = Self.loadSavedMoments(from: g)
 
@@ -91,7 +84,7 @@ extension AppModel {
         }
 
         let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: _customEnergyOptionsKey),
+        guard let data = g.data(forKey: SharedKeys.customEnergyOptions),
               let decoded = try? JSONDecoder().decode([CustomEnergyOption].self, from: data) else {
             customEnergyOptions = []
             return
@@ -103,7 +96,7 @@ extension AppModel {
         let g = UserDefaults.stepsTrader()
         do {
             let data = try JSONEncoder().encode(customEnergyOptions)
-            g.set(data, forKey: _customEnergyOptionsKey)
+            g.set(data, forKey: SharedKeys.customEnergyOptions)
         } catch {
             AppLogger.energy.error("Failed to encode customEnergyOptions: \(error.localizedDescription)")
             return
@@ -220,7 +213,7 @@ extension AppModel {
     
     private func loadDailyCanvasSlots() {
         let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: _dailyCanvasSlotsKey),
+        guard let data = g.data(forKey: SharedKeys.dailyCanvasSlots),
               let decoded = try? JSONDecoder().decode([DayCanvasSlot].self, from: data),
               decoded.count == 4 else {
             syncFromSelectionsToSlots()
@@ -321,7 +314,7 @@ extension AppModel {
         let g = UserDefaults.stepsTrader()
         do {
             let data = try JSONEncoder().encode(dailyCanvasSlots)
-            g.set(data, forKey: _dailyCanvasSlotsKey)
+            g.set(data, forKey: SharedKeys.dailyCanvasSlots)
         } catch {
             AppLogger.energy.error("Failed to encode dailyCanvasSlots: \(error.localizedDescription)")
         }
@@ -338,13 +331,13 @@ extension AppModel {
             decoded = loaded
         } else {
             let g = UserDefaults.stepsTrader()
-            if let data = g.data(forKey: _pastDaySnapshotsKey),
+            if let data = g.data(forKey: SharedKeys.pastDaySnapshots),
                let loaded = try? JSONDecoder().decode([String: PastDaySnapshot].self, from: data) {
                 decoded = loaded
                 if let fileData = try? JSONEncoder().encode(decoded) {
                     try? fileData.write(to: url, options: .atomic)
                 }
-                g.removeObject(forKey: _pastDaySnapshotsKey)
+                g.removeObject(forKey: SharedKeys.pastDaySnapshots)
             } else {
                 return [:]
             }
@@ -394,18 +387,18 @@ extension AppModel {
 
         // Capture ALL old-day values FIRST, before any state mutation.
         // This prevents reading stale/new-day values if checkDayBoundary already cleared some keys.
-        let oldAnchor = g.object(forKey: _dailyEnergyAnchorKey) as? Date ?? .distantPast
+        let oldAnchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date ?? .distantPast
         let dayKeyToSave = Self.dayKey(for: oldAnchor)
         let savedSpent = g.integer(forKey: SharedKeys.spentStepsToday)
         let savedBody = loadStringArray(forKey: dailySelectionsKey(for: .body))
         let savedMind = loadStringArray(forKey: dailySelectionsKey(for: .mind))
         let savedHeart = loadStringArray(forKey: dailySelectionsKey(for: .heart))
-        let savedSleep = g.double(forKey: _dailySleepHoursKey)
+        let savedSleep = g.double(forKey: SharedKeys.dailySleepHours)
         let cachedSteps = g.double(forKey: SharedKeys.cachedStepsToday)
         let savedSteps: Int = cachedSteps > 0 ? Int(cachedSteps) : Int(stepsToday)
         let savedStepsTarget = userStepsTarget
         let savedSleepTarget = userSleepTarget
-        let savedBaseEnergy = g.integer(forKey: _baseEnergyTodayKey)
+        let savedBaseEnergy = g.integer(forKey: SharedKeys.baseEnergyToday)
         let savedMoments = Self.loadSavedMoments(from: g)
 
         let daySnapshot = buildPastDaySnapshot(
@@ -456,14 +449,14 @@ extension AppModel {
         dailyRestSelections = []
         dailyHeartSelections = []
         dailyMoments = []
-        g.removeObject(forKey: _dailyMomentsKey)
+        g.removeObject(forKey: SharedKeys.dailyMoments)
         dailyCanvasSlots = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
         baseEnergyToday = 0
         spentStepsToday = 0
         stepsBalance = 0
         clearDismissedWorkouts()
         persistDailyEnergyState()
-        g.set(currentDayStart(for: Date.now), forKey: _dailyEnergyAnchorKey)
+        g.set(currentDayStart(for: Date.now), forKey: SharedKeys.dailyEnergyAnchor)
     }
 
     /// Pure function: builds a PastDaySnapshot from explicit parameters,
@@ -512,9 +505,9 @@ extension AppModel {
     @discardableResult
     func resetDailyEnergyIfNeeded() -> Bool {
         let g = UserDefaults.stepsTrader()
-        guard let anchor = g.object(forKey: _dailyEnergyAnchorKey) as? Date else {
+        guard let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date else {
             AppLogger.energy.debug("⚠️ resetDailyEnergyIfNeeded: anchor missing — seeding, NOT resetting (body=\(self.dailyBodySelections.count), mind=\(self.dailyRestSelections.count), heart=\(self.dailyHeartSelections.count))")
-            g.set(currentDayStart(for: Date.now), forKey: _dailyEnergyAnchorKey)
+            g.set(currentDayStart(for: Date.now), forKey: SharedKeys.dailyEnergyAnchor)
             return false
         }
         if !isSameCustomDay(anchor, Date.now) {
@@ -736,7 +729,7 @@ extension AppModel {
     /// missing data or decode failure. Centralized so loaders and the
     /// pre-reset snapshot path stay in sync.
     static func loadSavedMoments(from defaults: UserDefaults) -> [EphemeralMoment] {
-        guard let data = defaults.data(forKey: _dailyMomentsKey),
+        guard let data = defaults.data(forKey: SharedKeys.dailyMoments),
               let decoded = try? JSONDecoder().decode([EphemeralMoment].self, from: data)
         else { return [] }
         return decoded
@@ -814,19 +807,19 @@ extension AppModel {
 
     func persistDailyEnergyState() {
         let g = UserDefaults.stepsTrader()
-        g.set(dailySleepHours, forKey: _dailySleepHoursKey)
+        g.set(dailySleepHours, forKey: SharedKeys.dailySleepHours)
         saveStringArray(dailyBodySelections, forKey: dailySelectionsKey(for: .body))
         saveStringArray(dailyRestSelections, forKey: dailySelectionsKey(for: .mind))
         saveStringArray(dailyHeartSelections, forKey: dailySelectionsKey(for: .heart))
         if let data = try? JSONEncoder().encode(dailyMoments) {
-            g.set(data, forKey: _dailyMomentsKey)
+            g.set(data, forKey: SharedKeys.dailyMoments)
         }
-        g.set(baseEnergyToday, forKey: _baseEnergyTodayKey)
+        g.set(baseEnergyToday, forKey: SharedKeys.baseEnergyToday)
         g.set(spentStepsToday, forKey: SharedKeys.spentStepsToday)
         g.set(currentDayStart(for: Date.now), forKey: SharedKeys.stepsBalanceAnchor)
         persistDailyCanvasSlots()
-        if g.object(forKey: _dailyEnergyAnchorKey) == nil {
-            g.set(currentDayStart(for: Date.now), forKey: _dailyEnergyAnchorKey)
+        if g.object(forKey: SharedKeys.dailyEnergyAnchor) == nil {
+            g.set(currentDayStart(for: Date.now), forKey: SharedKeys.dailyEnergyAnchor)
         }
         // Sync daily selections to Supabase (skip during bootstrap to avoid overwriting server data)
         guard !isBootstrapping else {
@@ -984,7 +977,7 @@ extension AppModel {
         AppLogger.energy.debug("⚡️ stepsBalance: \(oldBalance) → \(self.stepsBalance) (base=\(self.baseEnergyToday), spent=\(self.spentStepsToday))")
         
         let g = UserDefaults.stepsTrader()
-        g.set(baseEnergyToday, forKey: _baseEnergyTodayKey)
+        g.set(baseEnergyToday, forKey: SharedKeys.baseEnergyToday)
 
         writeWidgetSnapshot()
 
@@ -1095,7 +1088,7 @@ extension AppModel {
 
     func loadSavedRoutines() {
         let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: _savedRoutinesKey),
+        guard let data = g.data(forKey: SharedKeys.savedRoutines),
               let decoded = try? JSONDecoder().decode([EnergyRoutine].self, from: data) else {
             savedRoutines = []
             return
@@ -1107,7 +1100,7 @@ extension AppModel {
         let g = UserDefaults.stepsTrader()
         do {
             let data = try JSONEncoder().encode(savedRoutines)
-            g.set(data, forKey: _savedRoutinesKey)
+            g.set(data, forKey: SharedKeys.savedRoutines)
         } catch {
             AppLogger.energy.error("Failed to encode savedRoutines: \(error.localizedDescription)")
         }

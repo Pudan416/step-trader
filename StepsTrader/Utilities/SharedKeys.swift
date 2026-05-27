@@ -116,6 +116,8 @@ enum SharedKeys {
     static let customEnergyOptions = "customEnergyOptions_v1"
     static let pastDaySnapshots = "pastDaySnapshots_v1"
     static let dailyCanvasSlots = "dailyChoiceSlots_v1"
+    static let savedRoutines = "savedEnergyRoutines_v1"
+    static let dailyMoments = "dailyMoments_v1"
     static let userStepsTarget = "userStepsTarget"
     static let userSleepTarget = "userSleepTarget"
 

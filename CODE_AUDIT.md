@@ -397,11 +397,9 @@ Severity for the category overall: **High** (testability + change risk).
 - **Severity:** Low
 - **Что это значит на практике:** Если новый разработчик «увидит дубликат» и попробует исправить — поломается preview-таргет. Документации сейчас нет, только git-история.
 
-### 9.4 Duplicated key constants in `AppModel+DailyEnergy.swift`
-- **Location:** `StepsTrader/AppModel+DailyEnergy.swift:5-13` vs `SharedKeys.swift:25-26, 42-45`
-- **Action:** Inline `SharedKeys.dailyEnergyAnchor` etc.; delete the duplicates.
-- **Severity:** Medium
-- **Что это значит на практике:** Если поменяешь key-string в SharedKeys и забудешь синхронизировать в локальных `_dailyEnergy...Key` — данные «потеряются» (приложение начнёт писать в один ключ, читать из другого). Тихий, не воспроизводимый при ревью баг.
+### 9.4 ✅ _RESOLVED 2026-05-26: 8 file-scope keys folded into `SharedKeys`_
+
+`AppModel+DailyEnergy.swift` теперь использует только `SharedKeys.dailyEnergyAnchor` / `.dailySleepHours` / `.baseEnergyToday` / `.pastDaySnapshots` / `.dailyCanvasSlots` / `.customEnergyOptions` / `.savedRoutines` / `.dailyMoments`. Заодно `savedEnergyRoutines_v1` как raw-строка убран из `SupabaseSyncService.swift:576` и `Steps4Tests/EnergyRecalcTests.swift:214`. Single source of truth для всех 8 ключей теперь действительно single.
 
 ### 9.5 Hardcoded URL with force-unwrap
 - **Location:** `StepsTrader/Views/Settings/SettingsShortcutPage.swift:10`

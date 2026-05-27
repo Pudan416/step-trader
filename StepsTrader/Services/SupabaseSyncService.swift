@@ -573,7 +573,7 @@ actor SupabaseSyncService {
                 model.savedRoutines = routines
                 let g = UserDefaults.stepsTrader()
                 if let data = try? JSONEncoder().encode(routines) {
-                    g.set(data, forKey: "savedEnergyRoutines_v1")
+                    g.set(data, forKey: SharedKeys.savedRoutines)
                 }
             }
             didRestore = true
