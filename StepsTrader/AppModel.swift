@@ -132,6 +132,11 @@ final class AppModel: ObservableObject {
         get { userEconomyStore.currentPayGateSessionId }
         set { userEconomyStore.currentPayGateSessionId = newValue }
     }
+    /// See `UserEconomyStore.payGateError`. (§5.1)
+    var payGateError: String? {
+        get { userEconomyStore.payGateError }
+        set { userEconomyStore.payGateError = newValue }
+    }
     var appStepsSpentToday: [String: Int] {
         get { userEconomyStore.appStepsSpentToday }
         set { userEconomyStore.appStepsSpentToday = newValue }

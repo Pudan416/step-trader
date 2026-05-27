@@ -176,13 +176,11 @@ The project compiles in Swift 5 mode without strict concurrency. Everything belo
 
 ## 5. Bugs / logic errors
 
-### 5.1 PayGate refund leaves the UI in a confused state when DeviceActivity monitoring fails
-- **Location:** `StepsTrader/AppModel+PayGate.swift:101-110`
-- **What:** When `startUsageBudgetMonitoring(...)` returns `false`, the code refunds, clears budget keys, and returns. PayGate sheet stays up, balance display matches pre-payment, no toast/error shown.
-- **Why:** From the user's perspective they just confirmed a purchase, watched the balance bounce back, got no feedback.
-- **Action:** Set a user-visible error, dismiss the sheet on failure, log the underlying reason. Optionally retry once.
-- **Severity:** High
-- **Что это значит на практике:** Юзер тыкает «купить минуты», списание colors прошло, balance мгновенно бамкнулся обратно вверх, paywall не закрылся, нет никаких объяснений. Тыкает ещё раз — та же ошибка. Скорее всего напишет в саппорт «не работает покупка», хотя реально упал DeviceActivity мониторинг, а покупка корректно откатилась. Прямой UX-баг, реально достижимый.
+### 5.1 ✅ _RESOLVED 2026-05-26: PayGate failure now surfaces an alert + dismisses the sheet_
+
+`AppModel+PayGate.swift` refund-ветка теперь делает три вещи: рефанд + clear keys (как и раньше), плюс выставляет `payGateError` (новое `@Published` на `UserEconomyStore`) и зовёт `dismissPayGate(reason: .programmatic)`. На уровне `StepsTraderApp.body` повешен `.alert` который слушает этот error и показывает «Couldn't start the timer. Your colors were refunded — please try again in a moment.» (с локализацией). После закрытия alert'а сообщение клирится. `openPayGate` тоже клирит stale-state перед открытием.
+
+Lifecycle: error выставляется ПЕРЕД dismiss → alert находится на корневом ZStack (а не внутри PayGateView) → виден после dismissal. Type-checker `body` пришлось разгружать — binding вынесен в `payGateErrorBinding` computed property (SwiftUI body уже был на пределе сложности).
 
 ### 5.2 App-Group `UserDefaults` compound mutations are not synchronized between app and DeviceActivity extension
 - **Location:** `StepsTrader/Stores/BlockingStore.swift:87-93`, `DeviceActivityMonitor/DeviceActivityMonitorExtension.swift:172-192, 263-294`

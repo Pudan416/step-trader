@@ -13,6 +13,8 @@ private let _payGateDismissedUntilKey = "payGateDismissedUntil_v1"
 extension AppModel {
     // MARK: - PayGate Opening
     func openPayGate(for groupId: String) {
+        // Clear any stale error from a previous failed attempt — fresh session = fresh slate.
+        payGateError = nil
         startPayGateSession(for: groupId)
     }
     
@@ -100,12 +102,21 @@ extension AppModel {
 
         let monitoringStarted = startUsageBudgetMonitoring(groupId: groupId, minutes: totalMinutes)
         if !monitoringStarted {
+            // DeviceActivity wouldn't start — refund the colors, clear the keys, and
+            // surface a user-visible error before dismissing. Otherwise the user just
+            // sees the balance bounce back with no explanation and assumes the
+            // purchase silently failed. (§5.1)
             AppLogger.shield.error("❌ Monitoring failed after payment — refunding \(cost) colors")
             refund(cost: cost)
             defaults.removeObject(forKey: budgetKey)
             defaults.removeObject(forKey: initialKey)
             defaults.removeObject(forKey: startedKey)
             defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+            payGateError = String(
+                localized: "Couldn't start the timer. Your colors were refunded — please try again in a moment.",
+                comment: "PayGate – DeviceActivity monitoring failure, after refund"
+            )
+            dismissPayGate(reason: .programmatic)
             return
         }
         

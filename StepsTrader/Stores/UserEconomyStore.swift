@@ -70,6 +70,11 @@ final class UserEconomyStore: ObservableObject {
     @Published var payGateTargetGroupId: String? = nil
     @Published var payGateSessions: [String: PayGateSession] = [:]
     @Published var currentPayGateSessionId: String? = nil
+    /// User-visible error message after a PayGate purchase fails (e.g. DeviceActivity
+    /// monitoring couldn't start). Set just before dismissing the sheet; an alert
+    /// listening on this state surfaces the reason instead of leaving the user
+    /// staring at a balance bounce. Cleared on next open / dismissal. (CODE_AUDIT.md §5.1)
+    @Published var payGateError: String? = nil
     
     // Stats
     @Published var appStepsSpentToday: [String: Int] = [:]

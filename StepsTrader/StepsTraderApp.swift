@@ -178,6 +178,15 @@ struct StepsTraderApp: App {
         showPostOnboardingPaywall = true
     }
 
+    /// Binding for the §5.1 PayGate-failure alert. Extracted so `body` stays
+    /// inside the SwiftUI type-checker's complexity budget.
+    private var payGateErrorBinding: Binding<Bool> {
+        Binding(
+            get: { model.payGateError != nil },
+            set: { isPresented in if !isPresented { model.payGateError = nil } }
+        )
+    }
+
     var body: some Scene {
         WindowGroup {
             GlassShimmerProvider {
@@ -278,6 +287,19 @@ struct StepsTraderApp: App {
                     .zIndex(3)
                 }
 
+            }
+            // §5.1: surface PayGate-side failures (DeviceActivity monitoring couldn't
+            // start after a successful purchase). Attached at the ZStack level so it
+            // stays visible after PayGateView dismisses itself.
+            .alert(
+                String(localized: "Couldn't start the timer", comment: "PayGate failure – alert title"),
+                isPresented: payGateErrorBinding
+            ) {
+                Button(String(localized: "OK", comment: "Generic alert dismiss button")) {
+                    model.payGateError = nil
+                }
+            } message: {
+                Text(model.payGateError ?? "")
             }
             .fullScreenCover(isPresented: $showPostOnboardingPaywall, onDismiss: {
                 // Whether they purchased or skipped, we mark this user as having
