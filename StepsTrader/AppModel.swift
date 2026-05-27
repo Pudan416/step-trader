@@ -32,6 +32,11 @@ final class AppModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var sleepRefetchTask: Task<Void, Never>?
+    /// In-flight `recalculateDailyEnergy` Task spawned from the steps/sleep
+    /// Combine sink (§3.5). Cancelled on next fire and on `deinit` so a stale
+    /// recompute can't write back over fresh state after a DI reset / test
+    /// teardown.
+    private var recalcTask: Task<Void, Never>?
 
     // Intentionally nonisolated: called from actor contexts (SupabaseSyncService, extensions).
     // UserDefaults is thread-safe for reads, so this is safe outside @MainActor.
@@ -249,12 +254,15 @@ final class AppModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
         
-        // Recalc colors total when steps or sleep update (so total = body + mind + heart)
+        // Recalc colors total when steps or sleep update (so total = body + mind + heart).
+        // §3.5: track the spawned Task so a rapid second fire cancels the first.
         Publishers.CombineLatest(healthStore.$stepsToday, healthStore.$dailySleepHours)
             .dropFirst()
             .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
             .sink { [weak self] _ in
-                Task { @MainActor in
+                self?.recalcTask?.cancel()
+                self?.recalcTask = Task { @MainActor [weak self] in
+                    guard !Task.isCancelled else { return }
                     self?.recalculateDailyEnergy()
                 }
             }
@@ -577,10 +585,12 @@ final class AppModel: ObservableObject {
     
     deinit {
         let timer = dayBoundaryTimer
-        let task = sleepRefetchTask
+        let sleepTask = sleepRefetchTask
+        let recalc = recalcTask
         MainActor.assumeIsolated {
             timer?.invalidate()
-            task?.cancel()
+            sleepTask?.cancel()
+            recalc?.cancel()
         }
     }
 }

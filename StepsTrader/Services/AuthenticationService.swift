@@ -111,6 +111,11 @@ class AuthenticationService: NSObject, ObservableObject {
     /// before the late-arriving sync writes back to a stale `AppModel`.
     /// (§3.1)
     private var postLoginSyncTask: Task<Void, Never>?
+
+    /// Handle to the in-flight sign-in flow itself (Apple → Supabase exchange,
+    /// profile fetch, optimistic UI update). Cancellation here ensures that a
+    /// sign-out racing with sign-in doesn't leave a partial-state user. (§3.1)
+    private var signInTask: Task<Void, Never>?
     
     override init() {
         super.init()
@@ -142,8 +147,10 @@ class AuthenticationService: NSObject, ObservableObject {
     // MARK: - Public Methods
     
     func signOut() {
-        // Cancel any in-flight post-login work first so it can't write back
-        // to AppModel after we've flipped the user-facing state. (§3.1)
+        // Cancel any in-flight sign-in OR post-login work first so it can't
+        // write back to AppModel after we've flipped the user-facing state. (§3.1)
+        signInTask?.cancel()
+        signInTask = nil
         postLoginSyncTask?.cancel()
         postLoginSyncTask = nil
 
@@ -253,8 +260,10 @@ class AuthenticationService: NSObject, ObservableObject {
             throw AuthError.supabaseError("No active session")
         }
 
-        // Cancel any in-flight post-login work — the user we'd be syncing for
-        // is about to stop existing. (§3.1)
+        // Cancel any in-flight sign-in / post-login work — the user we'd be
+        // syncing for is about to stop existing. (§3.1)
+        signInTask?.cancel()
+        signInTask = nil
         postLoginSyncTask?.cancel()
         postLoginSyncTask = nil
 
@@ -344,10 +353,19 @@ class AuthenticationService: NSObject, ObservableObject {
             AppLogger.auth.debug("🔐 handleAuthorization — Apple provided fullName: \(name)")
         }
         
-        Task { @MainActor in
+        // Replace any prior in-flight sign-in (e.g. user retried mid-flow) and
+        // track the new one so signOut/deleteAccount can cancel it. The outer
+        // Task inherits MainActor isolation from the enclosing @MainActor
+        // class — no explicit `@MainActor in` annotation needed. (§3.1)
+        signInTask?.cancel()
+        signInTask = Task {
             do {
                 AppLogger.auth.debug("🔐 supabaseSignInWithApple — starting token exchange")
                 let session = try await self.supabaseSignInWithApple(idToken: idTokenString, nonce: nonce)
+                guard !Task.isCancelled else {
+                    AppLogger.auth.debug("🔐 Sign-in cancelled after token exchange — discarding session")
+                    return
+                }
                 AppLogger.auth.debug("🔐 supabaseSignInWithApple — success, userId: \(session.user.id.prefix(8))…, expiresAt: \(session.expiresAt)")
 
                 self.storeSession(session)
@@ -369,10 +387,12 @@ class AuthenticationService: NSObject, ObservableObject {
                 do {
                     AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — fetching profile")
                     try await self.loadCurrentUserFromSupabase(session: session)
+                    guard !Task.isCancelled else { return }
                     AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — done, user: \(self.currentUser?.displayName ?? "nil")")
 
                     if let name = appleFullName {
                         await self.promoteAppleNameAsDefaultProfileNameIfNeeded(name, session: session)
+                        guard !Task.isCancelled else { return }
                     }
                 } catch {
                     if self.isSessionInvalidatingError(error) {
@@ -400,9 +420,6 @@ class AuthenticationService: NSObject, ObservableObject {
                     AppLogger.auth.debug("🔐 Post-login — linking RC userId: \(uid.prefix(8))…")
                     await SubscriptionStore.shared.logIn(supabaseUserID: uid)
                     guard !Task.isCancelled else { return }
-                    // postLoginSyncModel is a @MainActor `weak var` and this
-                    // closure inherits MainActor isolation from the surrounding
-                    // Task { @MainActor in ... } — no `await` needed.
                     if let appModel = self?.postLoginSyncModel {
                         AppLogger.auth.debug("🔐 Post-login — starting full Supabase sync")
                         await SupabaseSyncService.shared.performFullSync(model: appModel)

@@ -45,13 +45,9 @@ Items left after the hygiene pass:
 
 The project compiles in Swift 5 mode without strict concurrency. Everything below is **latent** — it'll surface when the project flips on `SWIFT_STRICT_CONCURRENCY=complete` or upgrades to Swift 6 language mode. Triage these in advance of that upgrade rather than treating them as live bugs.
 
-### 3.1 Post-login Task fans out from a `@MainActor`-isolated context without checking `Task.isCancelled` between awaits
-- **Location:** `StepsTrader/Services/AuthenticationService.swift:399-408`
-- **What:** A nested `Task { [weak self] in … }` is spawned from an already-`@MainActor` context; `Task.isCancelled` is checked once after `SubscriptionStore.shared.logIn(…)` but not between subsequent awaits.
-- **Why:** Cancellation only takes effect at the one checkpoint; a sign-out racing with sign-in can leave a stale full-sync running against the wrong user.
-- **Action:** Add `guard !Task.isCancelled else { return }` after each `await`, and drop the redundant outer `Task { @MainActor in … }` wrapper.
-- **Severity:** Medium
-- **Что это значит на практике:** Юзер быстро вышел из аккаунта и зашёл снова (например, переключение тестового и реального) — старая фоновая задача синка может писать в Supabase под старым userID параллельно с новой. Затирание свежих данных. Сегодня редкое, при Swift 6 — будет ловиться компилятором.
+### 3.1 ✅ _RESOLVED 2026-05-26: sign-in Task now tracked + cancellation-aware_
+
+Новое property `signInTask: Task<Void, Never>?` отслеживает внешний sign-in flow. `signOut()` и `deleteAccount()` теперь кенселят его наряду с `postLoginSyncTask`. Внутри Task'a — `guard !Task.isCancelled else { return }` после каждого `await` (token exchange, profile fetch, name promotion). Outer `@MainActor in` annotation убран — Task наследует MainActor от класса автоматически.
 
 ### 3.2 ✅ _RESOLVED 2026-05-26: `UnsafeSendableBox` deleted, HK auth uses async overload directly_
 
@@ -63,21 +59,16 @@ The project compiles in Swift 5 mode without strict concurrency. Everything belo
 
 Все 10 сайтов в `NotificationManager.swift` заменены на `try await ... .add(request)` обёрнутые в `Task { do { ... } catch { } }`. Внешний API методов остался sync (звонящие места не меняются). Под Swift 6 эта находка бы стрельнула на каждом сайте — теперь чисто.
 
-### 3.4 `SupabaseSyncService` is an actor but exposes a `nonisolated static let shared`
-- **Location:** `StepsTrader/Services/SupabaseSyncService.swift:6-8`
-- **What:** The actor singleton is exposed without `await` — normalizes "just call shared from anywhere," which on Swift 6 obscures whether call points are properly suspending.
-- **Why:** Callers occasionally forget the `await` and the compiler only catches that in strict mode.
-- **Action:** Keep the singleton but audit call sites once strict-concurrency lands. Convert truly thread-safe pure helpers (formatters, key builders) to `nonisolated`.
-- **Severity:** Medium
-- **Что это значит на практике:** Сейчас работает корректно (хотя выглядит «небезопасно»). Риск косвенный — звонящие забывают `await`, читают stale-данные. В Swift 6 компилятор подсветит каждое забытое место.
+### 3.4 ⏸ _DEFERRED: needs `SWIFT_STRICT_CONCURRENCY=complete` to find issues_
 
-### 3.5 Combine `sink` closures spawn untracked `Task` blocks
-- **Location:** `StepsTrader/AppModel.swift:251-255`, `StepsTrader/Stores/SubscriptionStore.swift:129-133`, plus several other sites
-- **What:** Each sink does `Task { @MainActor in self?.… }` without storing the Task handle, so the closure cannot be cancelled when the model is torn down or reconfigured.
-- **Why:** On `DIContainer` recreate prior tasks continue running with stale `[weak self]` captures.
-- **Action:** Promote these to stored `Task<Void, Never>?` properties or `Set<Task<Void, Never>>` and cancel them in `deinit` / on reconfigure.
-- **Severity:** Medium
-- **Что это значит на практике:** Если AppModel пересоздаётся (DIContainer reset, тесты, debug live-reload) — старые задачи продолжают жить и фигачить в призрак. В проде сейчас не критично, но тесты с пересозданием стейта будут флёкать.
+Без включённого strict-concurrency-mode компилятор молчит на этих звонящих местах. Делать audit «вручную» по grep'у — низкая отдача и легко пропустить случай. Логичный момент — когда будет отдельная сессия по флипу language mode на Swift 6, тогда компилятор сам подсветит все места которые надо `nonisolated` пометить. Severity остаётся Medium до того момента.
+
+### 3.5 ✅ _RESOLVED 2026-05-26: Combine sink Tasks now tracked + cancellable_
+
+- `AppModel.recalcTask: Task<Void, Never>?` — отслеживает recompute из CombineLatest sink. Каждый новый fire кенселит предыдущий. В `deinit` тоже кенселится через `MainActor.assumeIsolated`.
+- `SubscriptionStore.customerInfoStreamTask: Task<Void, Never>?` — отслеживает long-running listener на `Purchases.customerInfoStream`. Кенселится в новом `deinit` блоке наряду с `refreshTask`.
+
+Остальные sink'ы (`objectWillChange` forwarding) — синхронные, Task не спавнят, не требуют трекинга.
 
 ### 3.6 ✅ _RESOLVED 2026-05-26: HK observer re-fetch task now gates on `isObserving`_
 
@@ -87,13 +78,9 @@ The project compiles in Swift 5 mode without strict concurrency. Everything belo
 
 Раньше каждый `fetchSteps` запускал второй HK-запрос (source breakdown logging) через `Task.detached` — в Release этот код фигачил без причины, удваивая HK-нагрузку. Сейчас обёрнут в `#if DEBUG` в `HealthKitService.swift:243-267`, в Release-сборке блок не компилируется вообще. Closes §7.1 заодно.
 
-### 3.8 `DeviceActivityMonitor` extension callbacks call `ShieldRebuildHelper.rebuild()` on the system-chosen thread
-- **Location:** `DeviceActivityMonitor/DeviceActivityMonitorExtension.swift:148-160, 158-306`
-- **What:** Extension lifecycle methods call into `Shared/ShieldRebuildHelper.rebuild()` which touches `ManagedSettingsStore`. Not annotated as `Sendable`.
-- **Why:** Works today. Under strict concurrency, calling a non-`Sendable` API from an unknown actor context will warn.
-- **Action:** Make `ShieldRebuildHelper` a stateless enum with explicitly `Sendable`-friendly inputs/outputs, document the threading contract.
-- **Severity:** Medium
-- **Что это значит на практике:** Работает на Swift 5. При апгрейде на strict concurrency компилятор не сможет проверить thread-safety extension'а который живёт в отдельном процессе. Время явно пометить контракты.
+### 3.8 ✅ _RESOLVED 2026-05-26: threading contract documented on `ShieldRebuildHelper`_
+
+`ShieldRebuildHelper` уже был stateless enum с `NSLock`-guard'ом на cache — структурно правильно. Добавлен явный «Threading contract» header в файл: какие процессы вызывают (main app @MainActor, DeviceActivityMonitor background thread, widget extension), все inputs Sendable, output value types, cache защищён `NSLock`. Future-audit'ы не будут гадать.
 
 ### 3.9 ✅ _RESOLVED 2026-05-26: Initial-fetch Task tracked via `initialFetchTask`, cancelled in `stopObservingSteps()`_
 

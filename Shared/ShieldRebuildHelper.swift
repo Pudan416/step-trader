@@ -65,9 +65,33 @@ struct GroupTuple {
 /// DeviceActivityMonitor extension.  Reads ticket groups from the App Group
 /// UserDefaults, skips unlocked groups, unions the remaining selections, and
 /// applies the result to `ManagedSettingsStore(named: "shield")`.
+///
+/// ## Threading contract (§3.8)
+///
+/// `ShieldRebuildHelper` is intentionally a stateless enum (no instances),
+/// safe to call from ANY actor context including non-`@MainActor`:
+///
+/// - **Main app**: called from `@MainActor` after ticket-group / settings changes.
+/// - **DeviceActivityMonitor extension**: called from `intervalDidStart` /
+///   `eventDidReachThreshold` on a system-chosen background thread.
+/// - **UnlockWidget extension**: called from widget timeline provider on
+///   a `Sendable` background actor.
+///
+/// All inputs are `Sendable` (`Data`, `String`, `[String: Any]` via UserDefaults).
+/// All outputs are value types (`GroupTuple`, etc.). The decoded-selection
+/// cache below is the only mutable state — it is guarded by `NSLock` and is
+/// safe to read/write from any thread.
+///
+/// `ManagedSettingsStore(named:)` is thread-safe per Apple's documentation;
+/// the synchronous `rebuild()` call below is safe to invoke from extension
+/// callbacks without hopping to MainActor.
 enum ShieldRebuildHelper {
 
     // MARK: - Decoded Selection Cache
+    //
+    // §3.8: mutable state — accessed from multiple processes (main app +
+    // extensions) via shared static memory. Guarded by `cacheLock`. Cache
+    // hit avoids ~10ms NSKeyedUnarchiver work per call site.
     #if canImport(FamilyControls)
     private static let cacheLock = NSLock()
     private static var decodedSelectionCache: [String: FamilyActivitySelection] = [:]

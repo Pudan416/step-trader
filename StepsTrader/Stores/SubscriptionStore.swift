@@ -51,6 +51,12 @@ final class SubscriptionStore: ObservableObject {
     private let defaults: UserDefaults
     private var refreshTask: Task<Void, Never>?
 
+    /// Long-running listener for `Purchases.customerInfoStream`. Stored so the
+    /// store can stop listening on `deinit` — without this, a recreated store
+    /// (DI reset / test teardown) would leave the prior listener consuming
+    /// entitlement updates against a phantom instance. (§3.5)
+    private var customerInfoStreamTask: Task<Void, Never>?
+
     // MARK: - Bootstrap detection
 
     /// Heuristic: did the user exist before we shipped the subscription system?
@@ -126,8 +132,12 @@ final class SubscriptionStore: ObservableObject {
         defaults.set(Purchases.shared.appUserID, forKey: SharedKeys.rcAppUserID)
 
         // Listen for entitlement changes pushed by the SDK (e.g. renewal, expiry).
-        Task { @MainActor in
+        // §3.5: tracked so deinit can cancel — otherwise the loop runs forever
+        // against a stale `self` after DI reset / test teardown.
+        customerInfoStreamTask?.cancel()
+        customerInfoStreamTask = Task { @MainActor [weak self] in
             for await info in Purchases.shared.customerInfoStream {
+                guard let self = self, !Task.isCancelled else { return }
                 self.applyCustomerInfo(info)
             }
         }
@@ -462,6 +472,15 @@ final class SubscriptionStore: ObservableObject {
         ])
     }
     #endif
+
+    deinit {
+        let refresh = refreshTask
+        let stream = customerInfoStreamTask
+        MainActor.assumeIsolated {
+            refresh?.cancel()
+            stream?.cancel()
+        }
+    }
 }
 
 // MARK: - Package wrapper
