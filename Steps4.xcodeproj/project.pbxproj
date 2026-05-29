@@ -40,6 +40,8 @@
 		2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */; };
 		2061EBD02F269D30009FEC24 /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBD12F269D30009FEC24 /* GalleryView.swift */; };
 		2061EBF32F269D50009FEC24 /* MeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBF22F269D50009FEC24 /* MeView.swift */; };
+		AE00000100000000000000B1 /* MeAxisDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000100000000000000A1 /* MeAxisDetailView.swift */; };
+		AE00000200000000000000B2 /* MeViewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000200000000000000A2 /* MeViewSupport.swift */; };
 		2061ECE92F276FE8009FEC24 /* TimeAccessPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECE82F276FE8009FEC24 /* TimeAccessPickerSheet.swift */; };
 		2061ECEA2F277000009FEC24 /* StatusViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */; };
 		2061ECEC2F277000009FEC24 /* StatusViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECED2F277000009FEC24 /* StatusViewModels.swift */; };
@@ -345,6 +347,8 @@
 		2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSelectionComponents.swift; sourceTree = "<group>"; };
 		2061EBD12F269D30009FEC24 /* GalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
 		2061EBF22F269D50009FEC24 /* MeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeView.swift; sourceTree = "<group>"; };
+		AE00000100000000000000A1 /* MeAxisDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeAxisDetailView.swift; sourceTree = "<group>"; };
+		AE00000200000000000000A2 /* MeViewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeViewSupport.swift; sourceTree = "<group>"; };
 		2061ECE82F276FE8009FEC24 /* TimeAccessPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAccessPickerSheet.swift; sourceTree = "<group>"; };
 		2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViewHelpers.swift; sourceTree = "<group>"; };
 		2061ECED2F277000009FEC24 /* StatusViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViewModels.swift; sourceTree = "<group>"; };
@@ -880,6 +884,8 @@
 				DD000003DDDD000300000002 /* InlineTicketSettingsView.swift */,
 				DD000004DDDD000400000002 /* SettingsSheet.swift */,
 				2061EBF22F269D50009FEC24 /* MeView.swift */,
+				AE00000100000000000000A1 /* MeAxisDetailView.swift */,
+				AE00000200000000000000A2 /* MeViewSupport.swift */,
 				2061EB792F26593A009FEC24 /* CategoryDetailView.swift */,
 				200AC5A72F16DA570018004E /* LoginView.swift */,
 				2061EB7D2F269C99009FEC24 /* HandoffProtectionView.swift */,
@@ -1420,6 +1426,8 @@
 				30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */,
 				30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */,
 				2061EBF32F269D50009FEC24 /* MeView.swift in Sources */,
+				AE00000100000000000000B1 /* MeAxisDetailView.swift in Sources */,
+				AE00000200000000000000B2 /* MeViewSupport.swift in Sources */,
 				20HV0001AAAA000100000001 /* HistoryView.swift in Sources */,
 				20HV0003AAAA000100000003 /* DayCanvasViewerView.swift in Sources */,
 				20HV0005AAAA000100000005 /* HistoryThumbnailCache.swift in Sources */,
