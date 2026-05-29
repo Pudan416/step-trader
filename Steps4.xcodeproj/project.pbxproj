@@ -13,6 +13,9 @@
 		200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A52F16DA3F0018004E /* AuthenticationService.swift */; };
 		200AC5A82F16DA570018004E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A72F16DA570018004E /* LoginView.swift */; };
 		200AC5B12F16DB100018004E /* AuthenticationService+CachedProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */; };
+		20A05E010000000000000002 /* AppUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A05E010000000000000001 /* AppUser.swift */; };
+		20A05E020000000000000002 /* AuthSupportTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A05E020000000000000001 /* AuthSupportTypes.swift */; };
+		20A05E030000000000000002 /* AuthenticationService+SupabaseREST.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A05E030000000000000001 /* AuthenticationService+SupabaseREST.swift */; };
 		201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816112F33C8C10006B350 /* CustomActivityTests.swift */; };
 		201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816132F33C8CC0006B350 /* DayBoundaryTests.swift */; };
 		201816162F33C8D80006B350 /* CustomActivityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816152F33C8D80006B350 /* CustomActivityUITests.swift */; };
@@ -324,6 +327,9 @@
 		200AC5A52F16DA3F0018004E /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
 		200AC5A72F16DA570018004E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthenticationService+CachedProfile.swift"; sourceTree = "<group>"; };
+		20A05E010000000000000001 /* AppUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppUser.swift"; sourceTree = "<group>"; };
+		20A05E020000000000000001 /* AuthSupportTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthSupportTypes.swift"; sourceTree = "<group>"; };
+		20A05E030000000000000001 /* AuthenticationService+SupabaseREST.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthenticationService+SupabaseREST.swift"; sourceTree = "<group>"; };
 		201816112F33C8C10006B350 /* CustomActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityTests.swift; sourceTree = "<group>"; };
 		201816132F33C8CC0006B350 /* DayBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBoundaryTests.swift; sourceTree = "<group>"; };
 		201816152F33C8D80006B350 /* CustomActivityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityUITests.swift; sourceTree = "<group>"; };
@@ -772,6 +778,9 @@
 			children = (
 				200AC5A52F16DA3F0018004E /* AuthenticationService.swift */,
 				200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */,
+				20A05E010000000000000001 /* AppUser.swift */,
+				20A05E020000000000000001 /* AuthSupportTypes.swift */,
+				20A05E030000000000000001 /* AuthenticationService+SupabaseREST.swift */,
 				2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */,
 				2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */,
 				201A0FBB2F2CDEE8001BB105 /* SupabaseSyncService.swift */,
@@ -1421,6 +1430,9 @@
 				20DR0001AAAA000100000001 /* AppModel+DailyRandomTheme.swift in Sources */,
 				200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */,
 				200AC5B12F16DB100018004E /* AuthenticationService+CachedProfile.swift in Sources */,
+				20A05E010000000000000002 /* AppUser.swift in Sources */,
+				20A05E020000000000000002 /* AuthSupportTypes.swift in Sources */,
+				20A05E030000000000000002 /* AuthenticationService+SupabaseREST.swift in Sources */,
 				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
 				30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */,
 					30EA00043001000000EA0004 /* EnergySignatureView.swift in Sources */,
