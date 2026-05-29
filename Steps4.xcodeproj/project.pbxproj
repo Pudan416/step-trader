@@ -242,6 +242,7 @@
 		F088E9B4584240CB97547938 /* RayShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C0D419D1FDF446F850FAE7E /* RayShapeRenderer.swift */; };
 		F6494E388E7886039A147EA3 /* HandoffToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF6441CB730DE1DF44F4310 /* HandoffToken.swift */; };
 		T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */; };
+		AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */; };
 		T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */; };
 		T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
 		WK000001AAAA000100000001 /* AppModel+WorkoutSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */; };
@@ -540,6 +541,7 @@
 		E1F7434BB0F6950FD43B46FB /* GallerySubviews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GallerySubviews.swift; path = StepsTrader/Views/Gallery/GallerySubviews.swift; sourceTree = SOURCE_ROOT; };
 		FD224EC1A882989A8351AB57 /* EnergyOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EnergyOption.swift; path = StepsTrader/Models/EnergyOption.swift; sourceTree = SOURCE_ROOT; };
 		T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetEngineTests.swift; sourceTree = "<group>"; };
+		AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroupRMWConcurrencyTests.swift; sourceTree = "<group>"; };
 		T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergyLogicTests.swift; sourceTree = "<group>"; };
 		T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
 		WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WorkoutSuggestions.swift"; sourceTree = "<group>"; };
@@ -1063,6 +1065,7 @@
 				AABB002200220022AABB0020 /* PaymentTests.swift */,
 				AABB003300330033AABB0030 /* EnergyRecalcTests.swift */,
 				AABB004400440044AABB0040 /* SubscriptionStateTests.swift */,
+				AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */,
 			);
 			path = Steps4Tests;
 			sourceTree = "<group>";
@@ -1579,6 +1582,7 @@
 				AABB002200220022AABB0022 /* PaymentTests.swift in Sources */,
 				AABB003300330033AABB0033 /* EnergyRecalcTests.swift in Sources */,
 				AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */,
+				AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
