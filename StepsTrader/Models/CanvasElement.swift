@@ -167,8 +167,15 @@ struct CanvasElement: Identifiable, Codable {
 
         // Phase + drift speed — give the element a fresh "personality" so it
         // doesn't synchronise with its old motion after the dice tap.
-        phaseOffset = Double.random(in: 0...(2 * .pi))
-        driftSpeed = Double.random(in: 0.08...0.2)
+        // The snowflake derives its drift position from both (see
+        // SnowflakeShapeRenderer.rawDriftState, multiplied by the huge
+        // timeIntervalSinceReferenceDate clock), so re-rolling them would
+        // teleport it. Preserve them there — the dice should change only the
+        // shape, size, and color, not where the element sits.
+        if resolvedShape != .snowflake {
+            phaseOffset = Double.random(in: 0...(2 * .pi))
+            driftSpeed = Double.random(in: 0.08...0.2)
+        }
 
         lastEditedAt = .now
     }
