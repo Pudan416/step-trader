@@ -33,12 +33,14 @@ struct EnergySignatureView: View {
     private let rotationSpeed: Double = 1.0 * .pi / 180
 
     var body: some View {
-        // Capped at 30 fps — animations here are intentionally slow (1°/s
-        // rotation, ~11 s breath, ~23 s cone-breath), so there is no visual
-        // benefit to redrawing at the display's native rate (60 Hz, or 120 Hz
-        // on ProMotion). At 30 fps the GPU does ~4× less work on every blur
-        // layer and the per-axis spotlight image draws.
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { tl in
+        // Capped at 20 fps — animations here are intentionally slow (1°/s
+        // rotation, ~11 s breath, slow tip pulse), so there is no visual benefit
+        // to redrawing at the display's native rate (60 Hz, or 120 Hz on
+        // ProMotion). At 20 fps the GPU does far less work on every blur layer,
+        // and each frame is now a cheap image transform — the per-axis spotlight
+        // bitmaps are pre-rendered off the hot path (see `.task` below) rather
+        // than recomputed per frame.
+        TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { tl in
             let t = tl.date.timeIntervalSinceReferenceDate
             Canvas { ctx, size in
                 render(&ctx, size: size, t: t)
@@ -48,6 +50,14 @@ struct EnergySignatureView: View {
             .onTapGesture { location in
                 handleTap(at: location)
             }
+        }
+        // Pre-render the (time-invariant) spotlight bitmaps once, off the main
+        // thread. Until they land the rays simply don't draw — the grid, labels
+        // and centre still render immediately, so there's no main-thread hitch
+        // and no blank screen. Axis colours are fixed per id, so one warm suffices.
+        .task {
+            guard showSpotlights else { return }
+            await RayShapeRenderer.warmRadarSpotlights(axes.map { ($0.id, $0.color) })
         }
     }
 
@@ -163,8 +173,9 @@ struct EnergySignatureView: View {
         }
     }
 
-    // Spotlight bitmap cache lives in RayShapeRenderer.cachedSpotlight so it can be
-    // shared with MeView's full-screen background ray canvas.
+    // Spotlight bitmaps are pre-rendered off the hot path and cached permanently
+    // in RayShapeRenderer (keyed by axis id). See `body`'s `.task` warm-up and
+    // `RayShapeRenderer.warmRadarSpotlights`.
 
     // MARK: – Ray  (RayShapeRenderer spotlight, source at canvas centre, beam along axis.angle)
     //
@@ -184,16 +195,10 @@ struct EnergySignatureView: View {
         let phase   = Double(idx) * (2 * .pi / 5)
         let breathe = CGFloat(1.0 + 0.04 * sin(t * 0.55 + phase))
 
-        // Gradient colours: saturated axis colour at source → full colour → dark edges
-        let (r, g, b) = RayShapeRenderer.rgbComponents(axis.color)
-        // Wrap before narrowing to Float — see RayShapeRenderer.shaderTimeWrap.
-        let shaderTime = RayShapeRenderer.wrapShaderTime(t * 0.6 + phase * 0.4)
-        guard let cgImg = RayShapeRenderer.cachedSpotlight(
-            id: axis.id, time: shaderTime,
-            near: (min(1.0, r * 1.55), min(1.0, g * 1.55), min(1.0, b * 1.55)),  // boosted axis colour at source
-            mid:  (r, g, b),                            // axis colour through the beam
-            far:  (r * 0.35, g * 0.35, b * 0.35)       // dark at angular edges
-        ) else { return }
+        // The spotlight bitmap (saturated source → full colour → dark edges) is
+        // pre-rendered off the hot path and keyed by axis id. If it isn't warm
+        // yet, skip this ray for this frame — no synchronous pixel work here.
+        guard let cgImg = RayShapeRenderer.radarSpotlightIfReady(id: axis.id) else { return }
 
         let spotImg = Image(decorative: cgImg, scale: 1)
 

@@ -22,6 +22,22 @@ struct MeView: View {
     @State private var serverFetchTask: Task<Void, Never>?
     @State private var axisDetail: AxisDetailContext? = nil
 
+    // Radar model — derived from snapshots once per data load, NOT per body pass.
+    // The radar background, the tap overlay and the stats row all read these so
+    // the (non-trivial) week-summary + axes computation runs once, off the
+    // SwiftUI hot path.
+    @State private var radarSnaps: [PastDaySnapshot] = []
+    @State private var radarSummary = MeWeekSummary()
+    @State private var radarAxes: [EnergySignatureView.Axis] = []
+    // The radar canvas (in `.background`) and the tap circle (in `.overlay`) live
+    // in two separate GeometryReaders whose `safeAreaInsets.top` can differ by
+    // `topCardHeight` (the background sits before `.safeAreaInset`, the overlay
+    // after). Hand-computing `centerY` independently in each therefore drifts
+    // them apart vertically, so taps land at the wrong angle. The radar publishes
+    // its true centre in GLOBAL coords; the tap circle anchors to that exact
+    // point so the two can never diverge.
+    @State private var radarCenterGlobalY: CGFloat? = nil
+
     var body: some View {
         NavigationStack {
             mainScrollContent
@@ -33,6 +49,7 @@ struct MeView: View {
                         .allowsHitTesting(false)
                         .ignoresSafeArea()
                 }
+                .onPreferenceChange(RadarCenterKey.self) { radarCenterGlobalY = $0 }
                 .energyGradientBackground(model: model, showGrain: false)
                 .safeAreaInset(edge: .top, spacing: 0) {
                     Color.clear.frame(height: topCardHeight)
@@ -70,6 +87,15 @@ struct MeView: View {
     // Single source of truth for the Y position of the radar centre. Used by
     // both the visual background canvas and the invisible tap overlay so they
     // can never drift apart.
+    // Published by the radar canvas, consumed by the tap circle, so both share
+    // one source of truth for the centre (see `radarCenterGlobalY`).
+    private struct RadarCenterKey: PreferenceKey {
+        static let defaultValue: CGFloat? = nil
+        static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+            value = nextValue() ?? value
+        }
+    }
+
     private struct RadarLayout {
         let centerY: CGFloat
         /// Outer radius of the tap band, in screen-width units. Slightly smaller
@@ -120,25 +146,23 @@ struct MeView: View {
 
     @ViewBuilder
     private var radarBackground: some View {
-        let snaps = cachedDayKeys.compactMap { pastDays[$0] }
-        if !snaps.isEmpty {
-            let summary = computeWeekSummary(from: snaps)
-            let axes = EnergySignatureView.makeAxes(
-                from: snaps, avgSteps: summary.avgSteps, avgSleep: summary.avgSleep
-            )
+        if !radarAxes.isEmpty {
             GeometryReader { proxy in
                 let layout = radarLayout(in: proxy)
                 let W = proxy.size.width
                 let H = proxy.size.height
+                // Where the radar's drawing centre actually lands on screen.
+                let centerGlobalY = proxy.frame(in: .global).minY + layout.centerY
 
                 EnergySignatureView(
-                    axes: axes,
+                    axes: radarAxes,
                     canvasSize: W,
                     canvasHeight: H,
                     showSpotlights: true
                 )
                 .frame(width: W, height: H)
                 .position(x: W / 2, y: layout.centerY)
+                .preference(key: RadarCenterKey.self, value: centerGlobalY)
             }
         }
     }
@@ -153,23 +177,29 @@ struct MeView: View {
 
     @ViewBuilder
     private var radarTapOverlay: some View {
-        let snaps = cachedDayKeys.compactMap { pastDays[$0] }
-        if !snaps.isEmpty {
-            let summary = computeWeekSummary(from: snaps)
-            let axes = EnergySignatureView.makeAxes(
-                from: snaps, avgSteps: summary.avgSteps, avgSleep: summary.avgSleep
-            )
+        if !radarAxes.isEmpty {
+            let snaps = radarSnaps
+            let summary = radarSummary
+            let axes = radarAxes
             GeometryReader { proxy in
                 let layout = radarLayout(in: proxy)
                 let diameter = layout.tapOuterR * 2
+                // Anchor to the radar's published centre (global → this overlay's
+                // local space) so the tap circle sits exactly over the labels,
+                // regardless of any safe-area difference between the two readers.
+                let centerY: CGFloat = radarCenterGlobalY.map {
+                    $0 - proxy.frame(in: .global).minY
+                } ?? layout.centerY
 
                 Color.clear
                     .frame(width: diameter, height: diameter)
                     .contentShape(Circle())
-                    .position(x: proxy.size.width / 2, y: layout.centerY)
+                    // Tap gesture must be attached BEFORE `.position` — `.position`
+                    // stretches the view to fill the parent, which would make
+                    // `location` arrive in full-screen coords instead of this
+                    // circle's local space. Here `location` is local to the
+                    // diameter×diameter frame, so centre = (tapOuterR, tapOuterR).
                     .onTapGesture { location in
-                        // `location` is in the tap-zone view's local space —
-                        // origin = top-left of the circle's bounding square.
                         let dx = Double(location.x - layout.tapOuterR)
                         let dy = Double(location.y - layout.tapOuterR)
                         let dist = sqrt(dx * dx + dy * dy)
@@ -195,6 +225,7 @@ struct MeView: View {
                             }
                         }
                     }
+                    .position(x: proxy.size.width / 2, y: centerY)
             }
         }
     }
@@ -274,7 +305,7 @@ struct MeView: View {
     private var weekDayLabelSize: CGFloat { useTightMeLayout ? 8 : 9 }
 
     private var contentSection: some View {
-        let snaps = cachedDayKeys.compactMap { pastDays[$0] }
+        let snaps = radarSnaps
         let weekEarned = snaps.reduce(0) { $0 + $1.inkEarned }
         let weekSpent = snaps.reduce(0) { $0 + $1.inkSpent }
         let sectionSpacing: CGFloat = useTightMeLayout ? 20 : 28
@@ -609,6 +640,25 @@ struct MeView: View {
         return String(localized: "someone")
     }
 
+    /// Recomputes the cached radar model (snapshots → week summary → axes) from
+    /// the current `pastDays` / `cachedDayKeys`. Call this whenever the snapshot
+    /// set changes — NOT from `body` — so the per-frame render path only reads
+    /// the cached results.
+    private func rebuildRadarModel() {
+        let snaps = cachedDayKeys.compactMap { pastDays[$0] }
+        radarSnaps = snaps
+        guard !snaps.isEmpty else {
+            radarSummary = MeWeekSummary()
+            radarAxes = []
+            return
+        }
+        let summary = computeWeekSummary(from: snaps)
+        radarSummary = summary
+        radarAxes = EnergySignatureView.makeAxes(
+            from: snaps, avgSteps: summary.avgSteps, avgSleep: summary.avgSleep
+        )
+    }
+
     private func computeWeekSummary(from snapshots: [PastDaySnapshot]) -> MeWeekSummary {
         guard !snapshots.isEmpty else { return MeWeekSummary() }
         let count = snapshots.count
@@ -616,25 +666,14 @@ struct MeView: View {
         let totalSteps = snapshots.reduce(0) { $0 + $1.steps }
         let totalSleep = snapshots.reduce(0.0) { $0 + $1.sleepHours }
 
-        func topNames(for ids: [String]) -> [String] {
-            var counts: [String: Int] = [:]
-            for id in ids { counts[id, default: 0] += 1 }
-            return counts
-                .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
-                .prefix(3)
-                .map { model.resolveOptionTitle(for: $0.key) }
-        }
-
-        let allBody = snapshots.flatMap(\.bodyIds)
-        let allMind = snapshots.flatMap(\.mindIds)
-        let allHeart = snapshots.flatMap(\.heartIds)
-
+        // topBody/topMind/topHeart are intentionally left at their defaults: the
+        // only consumer (`activitiesSection`) isn't wired into the current layout,
+        // so computing them — flatMap over the week × `model.resolveOptionTitle`
+        // on every data load — was wasted work. The radar and AxisDetail need only
+        // the averages below.
         return MeWeekSummary(
             avgSteps: totalSteps / count,
-            avgSleep: totalSleep / Double(count),
-            topBody: topNames(for: allBody),
-            topMind: topNames(for: allMind),
-            topHeart: topNames(for: allHeart)
+            avgSleep: totalSleep / Double(count)
         )
     }
 
@@ -733,6 +772,7 @@ struct MeView: View {
         serverFetchTask?.cancel()
 
         pastDays = model.loadPastDaySnapshots()
+        rebuildRadarModel()
 
         loadTask = Task { @MainActor in
             let dayKeySet = Set(cachedDayKeys)
@@ -755,7 +795,10 @@ struct MeView: View {
                 pastDays[key] = snap
                 changed = true
             }
-            if changed { rebuildTopConsumers() }
+            if changed {
+                rebuildRadarModel()
+                rebuildTopConsumers()
+            }
         }
     }
 
