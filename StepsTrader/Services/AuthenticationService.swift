@@ -658,7 +658,10 @@ class AuthenticationService: NSObject, ObservableObject {
             }
         }
 
-        guard let data = SessionKeychain.loadSession() else { return nil }
+        // Prefer Keychain, but fall back to a retained legacy UserDefaults copy when
+        // the Keychain is unavailable (e.g. device still locked right after a reboot) so a
+        // failed/locked read doesn't sign out a user whose session survived in the migration shadow.
+        guard let data = SessionKeychain.loadSession() ?? UserDefaults.standard.data(forKey: userDefaultsKey) else { return nil }
         if let s = try? supabaseDecoder.decode(SupabaseSessionResponse.self, from: data) {
             return s
         }
