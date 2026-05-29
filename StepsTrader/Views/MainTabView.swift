@@ -56,7 +56,7 @@ struct MainTabView: View {
             switch self {
             case .feeds: return String(localized: "Feeds", comment: "Tab bar title")
             case .canvas: return String(localized: "Canvas", comment: "Tab bar title")
-            case .me: return String(localized: "Now", comment: "Tab bar title")
+            case .me: return String(localized: "Me", comment: "Tab bar title")
             case .history: return String(localized: "History", comment: "Tab bar title")
             case .settings: return String(localized: "Settings", comment: "Tab bar title")
             }

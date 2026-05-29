@@ -514,26 +514,6 @@
     "Body" : {
       "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nEnergyCategory display name\nStepBalanceCard – body chip label"
     },
-    "Body tracks movement and exercise. Pick up to 4 cards for %lld colors (%lld colors today)." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Body tracks movement and exercise. Pick up to 4 cards for %1$lld colors (%2$lld colors today)."
-          }
-        }
-      }
-    },
-    "Body tracks movement and exercise. Today I chose %@. That's %lld/%lld colors for my body." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Body tracks movement and exercise. Today I chose %1$@. That's %2$lld/%3$lld colors for my body."
-          }
-        }
-      }
-    },
     "Body: large, breathing shapes. Constant, grounded.\nMind: drifting circles — ideas that float and collide.\nHeart: beams of light that reach outward.\n\nNo metaphors. Just things that felt true." : {
       "comment" : "Note body: about_shapes"
     },
@@ -927,26 +907,6 @@
     "Heart" : {
       "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nEnergyCategory display name\nStepBalanceCard – heart chip label"
     },
-    "Heart tracks things that make you feel alive. Pick up to 4 cards for %lld colors (%lld colors today)." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Heart tracks things that make you feel alive. Pick up to 4 cards for %1$lld colors (%2$lld colors today)."
-          }
-        }
-      }
-    },
-    "Heart tracks what makes you feel alive. Today I chose %@. That's %lld/%lld colors for my heart." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Heart tracks what makes you feel alive. Today I chose %1$@. That's %2$lld/%3$lld colors for my heart."
-          }
-        }
-      }
-    },
     "HERE" : {
 
     },
@@ -1040,6 +1000,9 @@
     "Maybe later" : {
 
     },
+    "Me" : {
+      "comment" : "Tab bar title"
+    },
     "Medium" : {
       "comment" : "Texture picker – medium grain"
     },
@@ -1051,26 +1014,6 @@
     },
     "Mind" : {
       "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nEnergyCategory display name\nStepBalanceCard – mind chip label"
-    },
-    "Mind tracks rest and attention. Pick up to 4 cards for %lld colors (%lld colors today)." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Mind tracks rest and attention. Pick up to 4 cards for %1$lld colors (%2$lld colors today)."
-          }
-        }
-      }
-    },
-    "Mind tracks rest and attention. Today I chose %@. That's %lld/%lld colors for my mind." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Mind tracks rest and attention. Today I chose %1$@. That's %2$lld/%3$lld colors for my mind."
-          }
-        }
-      }
     },
     "Moment" : {
       "comment" : "RadialMenu – moment node label"
@@ -1164,9 +1107,6 @@
     },
     "Notifications" : {
       "comment" : "Navigation title\nPermission row – Notifications"
-    },
-    "Now" : {
-      "comment" : "Tab bar title"
     },
     "NOW" : {
 
