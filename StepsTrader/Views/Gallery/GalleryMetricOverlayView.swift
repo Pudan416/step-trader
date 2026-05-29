@@ -212,33 +212,6 @@ struct GalleryMetricOverlayView: View {
         }
     }
 
-    private func breakdownText(for category: EnergyCategory) -> String {
-        let maxPts = EnergyDefaults.maxSelectionsPerCategory * EnergyDefaults.selectionPoints
-        switch category {
-        case .body:
-            let extras = selectionTitles(for: .body)
-            let total = model.bodyPointsToday
-            if extras.isEmpty {
-                return String(localized: "Body tracks movement and exercise. Pick up to 4 cards for \(maxPts) colors (\(total) colors today).")
-            }
-            return String(localized: "Body tracks movement and exercise. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) colors for my body.")
-        case .mind:
-            let extras = selectionTitles(for: .mind)
-            let total = model.mindPointsToday
-            if extras.isEmpty {
-                return String(localized: "Mind tracks rest and attention. Pick up to 4 cards for \(maxPts) colors (\(total) colors today).")
-            }
-            return String(localized: "Mind tracks rest and attention. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) colors for my mind.")
-        case .heart:
-            let extras = selectionTitles(for: .heart)
-            let total = model.heartPointsToday
-            if extras.isEmpty {
-                return String(localized: "Heart tracks things that make you feel alive. Pick up to 4 cards for \(maxPts) colors (\(total) colors today).")
-            }
-            return String(localized: "Heart tracks what makes you feel alive. Today I chose \(extras.joined(separator: ", ")). That's \(total)/\(maxPts) colors for my heart.")
-        }
-    }
-
     private func selectionTitles(for category: EnergyCategory) -> [String] {
         let ids: [String]
         switch category {
