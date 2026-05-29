@@ -227,8 +227,15 @@ final class AppModel: ObservableObject {
     }
     
     private var dayBoundaryTimer: Timer?
-    private var lastDayKey: String
+    /// Internal (not `private`) so `reanchorForDayEndChange()` in
+    /// AppModel+BudgetTracking.swift can re-stamp it when the day-end setting
+    /// changes — keeping a re-anchor from being mistaken for a day rollover.
+    var lastDayKey: String
     private var lastDayBoundaryCheck: Date?
+    /// Debounces rapid day-end picker changes into a single atomic commit
+    /// (`commitDayEnd`). Owned by the model so it survives the settings view
+    /// being dismissed mid-debounce; cancelled in `deinit`.
+    var dayEndCommitTask: Task<Void, Never>?
 
     init(
         healthKitService: any HealthKitServiceProtocol,
@@ -590,10 +597,12 @@ final class AppModel: ObservableObject {
         let timer = dayBoundaryTimer
         let sleepTask = sleepRefetchTask
         let recalc = recalcTask
+        let dayEndCommit = dayEndCommitTask
         MainActor.assumeIsolated {
             timer?.invalidate()
             sleepTask?.cancel()
             recalc?.cancel()
+            dayEndCommit?.cancel()
         }
     }
 }

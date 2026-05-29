@@ -148,8 +148,9 @@ struct ProfileEditorView: View {
                     .onChange(of: bedtimeMinutes) { _, newValue in
                         let hour = (newValue / 60) % 24
                         let minute = newValue % 60
-                        dayEndHourSetting = hour
-                        dayEndMinuteSetting = minute
+                        // model.updateDayEnd is the single (debounced) writer of the
+                        // persisted boundary; writing dayEndHour/MinuteSetting here
+                        // too would race the re-anchor → false day rollover.
                         model.updateDayEnd(hour: hour, minute: minute)
                     }
                 } header: {
@@ -294,8 +295,7 @@ struct ProfileEditorView: View {
         bedtimeMinutes = snapped
         let h = (snapped / 60) % 24
         let m = snapped % 60
-        dayEndHourSetting = h
-        dayEndMinuteSetting = m
+        // model.updateDayEnd persists the snapped boundary itself (single writer).
         model.updateDayEnd(hour: h, minute: m)
     }
 
