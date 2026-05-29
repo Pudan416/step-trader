@@ -174,6 +174,7 @@
 		60SP0005300000000060SP0005 /* ShaderParkOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SP0006300000000060SP0006 /* ShaderParkOverlayView.swift */; };
 		62FCEE93619D57A0D6E82263 /* AnnouncementService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */; };
 		69624326AA0BD3D99B13FBCA /* GalleryNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51444749A1B225FCD6A4DCF /* GalleryNotifications.swift */; };
+		AE00000300000000000000B3 /* GalleryMetricOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000300000000000000A3 /* GalleryMetricOverlayView.swift */; };
 		6B454ECDBA75497D1287A4E1 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7F473D8EA05B52428ABD08 /* AppColors.swift */; };
 		6D2A49FE92B422EDEAFE63BE /* CanvasColorPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C347368C4F416256BE0CF8 /* CanvasColorPalette.swift */; };
 		6E084403B0B19A902D745C32 /* HealthKitServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0E4AEDA351917685252CC5 /* HealthKitServiceProtocol.swift */; };
@@ -499,6 +500,7 @@
 		A0B10003A0B10003A0B10030 /* AppleSignInCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInCoordinator.swift; sourceTree = "<group>"; };
 		A0B10004A0B10004A0B10040 /* OnboardingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCoordinator.swift; sourceTree = "<group>"; };
 		A51444749A1B225FCD6A4DCF /* GalleryNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GalleryNotifications.swift; path = StepsTrader/Views/Gallery/GalleryNotifications.swift; sourceTree = SOURCE_ROOT; };
+		AE00000300000000000000A3 /* GalleryMetricOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GalleryMetricOverlayView.swift; path = StepsTrader/Views/Gallery/GalleryMetricOverlayView.swift; sourceTree = SOURCE_ROOT; };
 		A5C740A8AB5D3805CDEA4A99 /* CanvasRenderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasRenderCache.swift; path = StepsTrader/Views/Canvas/CanvasRenderCache.swift; sourceTree = SOURCE_ROOT; };
 		A7B3E91D4C6F47E2A0D8F5B1 /* CircleShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CircleShapeRenderer.swift; path = StepsTrader/Shapes/CircleShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		A8A644F2816949A05C4C7FEE /* Tariff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Tariff.swift; path = StepsTrader/Models/Tariff.swift; sourceTree = SOURCE_ROOT; };
@@ -697,6 +699,7 @@
 				49E94D8EA5C48F5875A51740 /* MetaballGenerator.swift */,
 				DE4C408A95DD73B3A9D51628 /* WidgetSnapshot.swift */,
 				A51444749A1B225FCD6A4DCF /* GalleryNotifications.swift */,
+				AE00000300000000000000A3 /* GalleryMetricOverlayView.swift */,
 				E1F7434BB0F6950FD43B46FB /* GallerySubviews.swift */,
 				A5C740A8AB5D3805CDEA4A99 /* CanvasRenderCache.swift */,
 				AF354BA8B84F3623DFC56E52 /* CanvasRenderModels.swift */,
@@ -1544,6 +1547,7 @@
 				605D42CA9EBF1B3A09237455 /* MetaballGenerator.swift in Sources */,
 				8B384FBFB75371B21BDF1BC5 /* WidgetSnapshot.swift in Sources */,
 				69624326AA0BD3D99B13FBCA /* GalleryNotifications.swift in Sources */,
+				AE00000300000000000000B3 /* GalleryMetricOverlayView.swift in Sources */,
 				E5A8441DA8F639D18D64B0EA /* GallerySubviews.swift in Sources */,
 				4960407B879716E45433318C /* CanvasRenderCache.swift in Sources */,
 				BE254EC2A686412E10D5F41D /* CanvasRenderModels.swift in Sources */,
