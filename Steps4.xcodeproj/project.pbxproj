@@ -413,6 +413,8 @@
 		20DE0E602F2B62230016EEAE /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		20DE0E612F2B62230016EEAE /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		20DE0E622F2B62230016EEAE /* Secrets.xcconfig.template */ = {isa = PBXFileReference; lastKnownFileType = text; path = Secrets.xcconfig.template; sourceTree = "<group>"; };
+		AE00000400000000000000A4 /* Secrets-Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Secrets-Debug.xcconfig"; sourceTree = "<group>"; };
+		AE00000500000000000000A5 /* Secrets-Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Secrets-Release.xcconfig"; sourceTree = "<group>"; };
 		20DE0E642F2B78970016EEAE /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		20DR0002AAAA000100000002 /* AppModel+DailyRandomTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+DailyRandomTheme.swift"; sourceTree = "<group>"; };
 		20E3AE132F3F6C1B007CF1EC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -958,6 +960,8 @@
 				20DE0E602F2B62230016EEAE /* Release.xcconfig */,
 				20DE0E612F2B62230016EEAE /* Secrets.xcconfig */,
 				20DE0E622F2B62230016EEAE /* Secrets.xcconfig.template */,
+				AE00000400000000000000A4 /* Secrets-Debug.xcconfig */,
+				AE00000500000000000000A5 /* Secrets-Release.xcconfig */,
 			);
 			path = Config;
 			sourceTree = "<group>";

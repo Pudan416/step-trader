@@ -1,7 +1,7 @@
 // Release Configuration
-// Includes secrets from Secrets.xcconfig
+// Includes secrets via the per-config Release layer (§6.1).
 
-#include "Secrets.xcconfig"
+#include "Secrets-Release.xcconfig"
 
 // Release-specific settings can go here
 // Example: SWIFT_OPTIMIZATION_LEVEL = -O

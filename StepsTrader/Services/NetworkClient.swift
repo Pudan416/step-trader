@@ -143,6 +143,19 @@ struct SupabaseConfig {
         guard let urlString, let anonKey, let url = URL(string: urlString), !anonKey.isEmpty else {
             return nil
         }
+        #if !DEBUG
+        // §6.1 — Release builds must point at a production Supabase host over
+        // HTTPS. Guards against shipping a build that picked up an empty,
+        // staging, or otherwise mis-wired endpoint through the per-config
+        // xcconfig layers. Fails fast (config treated as missing) rather than
+        // silently talking to the wrong backend. The URL is not logged.
+        guard url.scheme == "https",
+              let host = url.host,
+              host.hasSuffix(".supabase.co") else {
+            AppLogger.network.error("SupabaseConfig: rejected non-production Supabase URL in Release build")
+            return nil
+        }
+        #endif
         return SupabaseConfig(baseURL: url, anonKey: anonKey)
     }()
 

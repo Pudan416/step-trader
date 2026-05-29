@@ -19,7 +19,7 @@ Top items to address, in priority order (✅ = already resolved):
 1. ✅ **[High] Dead service `ProfileLocationManager` (118 LOC) with zero references** — §9.1. Resolved in `f610933`.
 2. ✅ **[High] `UnsafeSendableBox` (`@unchecked Sendable`) bridging the HK auth-timeout pattern** — §3.2. Resolved 2026-05-26: box deleted, async overload used directly.
 3. ✅ **[High] PayGate monitoring failure refunds silently with no UI feedback** — §5.1. Resolved 2026-05-26: refund branch now surfaces an alert + dismisses the sheet.
-4. **[High] No Debug/Release Supabase URL split — single `Secrets.xcconfig` shared by both** — §6.1 — `Config/Debug.xcconfig`, `Config/Release.xcconfig`. **← OPEN**
+4. ✅ **[High] No Debug/Release Supabase URL split — single `Secrets.xcconfig` shared by both** — §6.1. Resolved 2026-05-29: per-config `Secrets-Debug.xcconfig` / `Secrets-Release.xcconfig` layers + Release host assertion in `SupabaseConfig`.
 5. ✅ **[High] "Migrate to .sensoryFeedback()" TODOs across the UI** — §4.1. Resolved 2026-05-26: all 16 files migrated, 0 TODOs remain.
 6. **[High] Oversized SwiftUI views (1951 / 1640 / 1119 LOC) couple state, network, and rendering** — §9.2 — `OnboardingStoriesView.swift`, `GalleryView.swift`, `MeView.swift`. **← OPEN**
 7. **[High] App-Group `UserDefaults` read-modify-write between app and DeviceActivity extension is unsynchronized** — §5.2 — `BlockingStore.swift:87-93` + `DeviceActivityMonitorExtension.swift:172-192`. **← OPEN**
@@ -224,12 +224,13 @@ Cross-device persistence remains a separate feature (would need a `moments` JSON
 
 ## 6. Security
 
-### 6.1 No Debug/Release split for Supabase credentials
-- **Location:** `Config/Debug.xcconfig`, `Config/Release.xcconfig` (both `#include "Secrets.xcconfig"`)
+### 6.1 No Debug/Release split for Supabase credentials ✅ RESOLVED (2026-05-29)
+- **Location:** `Config/Debug.xcconfig`, `Config/Release.xcconfig`
 - **What:** Single secrets file shared by both configurations. No environment isolation.
 - **Action:** Split into `Secrets-Debug.xcconfig` / `Secrets-Release.xcconfig`. Add runtime URL host assertion in Release.
 - **Severity:** High
-- **Что это значит на практике:** Если решишь сделать staging-Supabase (для безопасных тестов миграций или фич без риска убить prod-данные пользователей) — придётся переделывать всю конфигурацию. Сейчас все dev-эксперименты идут в prod-базу. Случайно повредишь schema в dev — пользователи увидят сломанное приложение.
+- **Resolution:** Introduced thin, committed per-config layers `Config/Secrets-Debug.xcconfig` and `Config/Secrets-Release.xcconfig`. `Debug.xcconfig`/`Release.xcconfig` now `#include` their respective layer; each layer `#include`s the shared gitignored `Secrets.xcconfig` (so the actual public client keys stay DRY and CI's `ci_post_clone.sh` is unchanged) and is the documented seam for per-environment overrides — e.g. dropping `SUPABASE_URL = …staging…` into the Debug layer points dev at staging without touching Release. Added a `#if !DEBUG` host assertion in `SupabaseConfig.cached` (`NetworkClient.swift`): Release builds reject any `SUPABASE_URL` that isn't HTTPS with a `*.supabase.co` host, failing fast (config treated as missing) instead of silently talking to a mis-wired endpoint. The URL value is never logged. Verified Debug + Release both build.
+- **Что это значит на практике:** Теперь, чтобы завести staging-Supabase, достаточно дописать одну строку `SUPABASE_URL` в `Secrets-Debug.xcconfig` — Release остаётся на prod, и host-assertion не даст случайно отправить релиз на чужой/пустой endpoint.
 
 ### 6.2 No hardcoded secrets in client code
 - **Location:** Repo-wide grep
@@ -412,7 +413,7 @@ Patterns worth applying repo-wide rather than one finding at a time:
 1. **Plan the Swift 6 strict-concurrency upgrade as a single focused PR.** Most of §3 is latent — `@unchecked Sendable` boxes, untracked `Task` handles, Combine sink → Task patterns. None is urgent in Swift 5 mode, but they'll cascade when the language mode flips. Make one branch that turns on strict concurrency, fix until clean, then merge.
 2. **Migrate `ObservableObject` + `@Published` → `@Observable` for stores and `AppModel`.** Unlocks finer-grained invalidation (mitigates the fan-out in §7.4), removes Combine sink fan-out (§3.5), prerequisite for `@Bindable`.
 3. **Centralize App-Group state behind a single actor in `Shared/`.** Multiple processes read/write the same `UserDefaults(suiteName:)`. A `Shared/AppGroupStore.swift` actor with typed accessors would (a) make the contract explicit, (b) be unit-testable, (c) hold `NSFileCoordinator` locking when that matters.
-4. **Split `Secrets.xcconfig` per build configuration (§6.1).** Table-stakes for CI signing keys and staging databases.
+4. ✅ **Split `Secrets.xcconfig` per build configuration (§6.1).** Done 2026-05-29 via per-config include layers + Release host assertion.
 5. **Bulk-migrate UIKit haptics → `.sensoryFeedback`.** 24 known sites (§4.1) in one PR.
 6. **Add `[weak self]` + `Task.isCancelled` checks as a code-review pattern.** Several findings (§3.5, §3.6, §3.9, §3.10, §5.3) trace to the same anti-pattern. A short style note prevents recurrences.
 7. **Document the threading contract on cross-process helpers.** `ShieldRebuildHelper`, `SharedKeys`, anything in `Shared/` should carry a header comment about which processes call them and from which actor.
@@ -450,7 +451,7 @@ Spot-check pattern: open Xcode, command-click the `path:line` reference — it s
 - **§5.1** — `StepsTrader/AppModel+PayGate.swift:101-110`. Confirmed refund branch with no UI feedback.
 - **§5.2** — `StepsTrader/Stores/BlockingStore.swift:87-93` + `DeviceActivityMonitorExtension.swift:172-192, 263-294`. No locking.
 - **§5.3** — `StepsTrader/Services/HealthKitService.swift:396-409`. Task not stored.
-- **§6.1** — `Config/Debug.xcconfig:4`, `Config/Release.xcconfig:4` both include same `Secrets.xcconfig`.
+- **§6.1** — RESOLVED 2026-05-29. `Debug.xcconfig`→`Secrets-Debug.xcconfig`, `Release.xcconfig`→`Secrets-Release.xcconfig`, both layering shared `Secrets.xcconfig`; Release host assertion in `NetworkClient.swift` `SupabaseConfig`.
 - **§9.1** — RESOLVED. Confirmed deletion in `f610933`.
 - **§9.2** — File sizes confirmed via `wc -l`.
 
