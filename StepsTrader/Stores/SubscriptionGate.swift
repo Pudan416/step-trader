@@ -15,7 +15,7 @@ enum SubscriptionGate {
     /// While the app is under review and payments are not active, grant Pro
     /// to every user so all features are available for free.  Flip to `false`
     /// once IAP is approved and ready to go live.
-    static let allFeaturesUnlocked = true
+    static let allFeaturesUnlocked = false
 
     // MARK: - Hard limits (Free tier)
 
@@ -25,19 +25,15 @@ enum SubscriptionGate {
     static let freeMaxBlockingGroups: Int = 2
 
     /// Number of past days unlocked in `HistoryView` for Free users.
-    /// Older days (8…90) render blurred behind a paywall.
+    /// Older days (8…∞) render blurred behind a paywall. History itself is
+    /// retained indefinitely for everyone — this only gates visibility, not storage.
     static let freeHistoryDayCount: Int = 7
 
     // MARK: - Allowed visual options for Free
 
-    /// Gradient palettes Free users can pick. Other palettes are locked
-    /// behind a paywall in `SettingsAppearancePage`.
-    /// `warmSunset` is the raw value for the "Sunset" palette (see `GradientPalette`).
-    static let freeGradientPaletteRaws: Set<String> = ["warmSunset", "ocean", "aurora"]
-
-    /// Gradient styles Free users can pick.
-    /// `circular` in product spec maps to `radial` in `GradientStyle`.
-    static let freeGradientStyleRaws: Set<String> = ["radial", "linear"]
+    // Gradient palettes, gradient styles and canvas textures are all free for
+    // everyone — see `isGradientPaletteAvailable` / `isGradientStyleAvailable` /
+    // `isCanvasTextureAvailable` below. (Previously a subset was gated behind Pro.)
 
     // MARK: - Feature flags
 
@@ -46,13 +42,13 @@ enum SubscriptionGate {
     /// remain visible and usable — only the "Add your own" button is locked.
     static let freeCanCreateCustomActivity: Bool = false
 
-    /// Free users cannot enable daily random theme (palette + style rolled per day,
-    /// app-wide background changes daily, choice persisted into per-day `DayCanvas`).
-    static let freeCanUseDailyRandomTheme: Bool = false
+    /// Daily random theme (palette + style rolled per day, app-wide background
+    /// changes daily, choice persisted into per-day `DayCanvas`) is free for everyone.
+    static let freeCanUseDailyRandomTheme: Bool = true
 
-    /// Free users cannot customize which shape type (blob/snowflake/rays) is
-    /// assigned to each energy category — they get the defaults.
-    static let freeCanCustomizeShapes: Bool = false
+    /// Assigning a custom shape type (circle/snowflake/rays/organic) to each energy
+    /// category is free for everyone.
+    static let freeCanCustomizeShapes: Bool = true
 
     // MARK: - Gate queries (use these from views/stores)
 
@@ -87,23 +83,19 @@ enum SubscriptionGate {
         return freeCanCustomizeShapes
     }
 
-    /// Is this gradient palette available to the user?
+    /// Is this gradient palette available to the user? Free for everyone.
     static func isGradientPaletteAvailable(isPro: Bool, paletteRaw: String) -> Bool {
-        if isPro { return true }
-        return freeGradientPaletteRaws.contains(paletteRaw)
+        return true
     }
 
-    /// Is this gradient style available to the user?
+    /// Is this gradient style available to the user? Free for everyone.
     static func isGradientStyleAvailable(isPro: Bool, styleRaw: String) -> Bool {
-        if isPro { return true }
-        return freeGradientStyleRaws.contains(styleRaw)
+        return true
     }
 
-    /// Free-tier texture options: "none" and "grain (small)".
+    /// Is this canvas texture available to the user? Free for everyone.
     static func isCanvasTextureAvailable(isPro: Bool, textureRaw: String) -> Bool {
-        if isPro { return true }
-        let texture = CanvasTexture.fromStored(textureRaw)
-        return !texture.isPro
+        return true
     }
 
     // NOTE: Sticker theme and PayGate background gates were removed —

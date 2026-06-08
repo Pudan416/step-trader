@@ -13,9 +13,6 @@
 		200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A52F16DA3F0018004E /* AuthenticationService.swift */; };
 		200AC5A82F16DA570018004E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A72F16DA570018004E /* LoginView.swift */; };
 		200AC5B12F16DB100018004E /* AuthenticationService+CachedProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */; };
-		20A05E010000000000000002 /* AppUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A05E010000000000000001 /* AppUser.swift */; };
-		20A05E020000000000000002 /* AuthSupportTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A05E020000000000000001 /* AuthSupportTypes.swift */; };
-		20A05E030000000000000002 /* AuthenticationService+SupabaseREST.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A05E030000000000000001 /* AuthenticationService+SupabaseREST.swift */; };
 		201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816112F33C8C10006B350 /* CustomActivityTests.swift */; };
 		201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816132F33C8CC0006B350 /* DayBoundaryTests.swift */; };
 		201816162F33C8D80006B350 /* CustomActivityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816152F33C8D80006B350 /* CustomActivityUITests.swift */; };
@@ -43,8 +40,6 @@
 		2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */; };
 		2061EBD02F269D30009FEC24 /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBD12F269D30009FEC24 /* GalleryView.swift */; };
 		2061EBF32F269D50009FEC24 /* MeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBF22F269D50009FEC24 /* MeView.swift */; };
-		AE00000100000000000000B1 /* MeAxisDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000100000000000000A1 /* MeAxisDetailView.swift */; };
-		AE00000200000000000000B2 /* MeViewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000200000000000000A2 /* MeViewSupport.swift */; };
 		2061ECE92F276FE8009FEC24 /* TimeAccessPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECE82F276FE8009FEC24 /* TimeAccessPickerSheet.swift */; };
 		2061ECEA2F277000009FEC24 /* StatusViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */; };
 		2061ECEC2F277000009FEC24 /* StatusViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECED2F277000009FEC24 /* StatusViewModels.swift */; };
@@ -67,6 +62,9 @@
 		209424CF2E85952D00904A0A /* AppModel+BudgetTracking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424D02E85952D00904A0A /* AppModel+BudgetTracking.swift */; };
 		209424D52E85952D00904A0D /* AppModel+HealthKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424D62E85952D00904A0D /* AppModel+HealthKit.swift */; };
 		209424D72E85952D00904A0E /* AppModel+AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424D82E85952D00904A0E /* AppModel+AppSettings.swift */; };
+		20A05E010000000000000002 /* AppUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A05E010000000000000001 /* AppUser.swift */; };
+		20A05E020000000000000002 /* AuthSupportTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A05E020000000000000001 /* AuthSupportTypes.swift */; };
+		20A05E030000000000000002 /* AuthenticationService+SupabaseREST.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A05E030000000000000001 /* AuthenticationService+SupabaseREST.swift */; };
 		20A8F0022F3D000100000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 20A8F0012F3D000100000001 /* PrivacyInfo.xcprivacy */; };
 		20AA245B2F70BB39002F2F2C /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20AA245A2F70BB39002F2F2C /* WidgetKit.framework */; };
 		20AA245D2F70BB39002F2F2C /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20AA245C2F70BB39002F2F2C /* SwiftUI.framework */; };
@@ -106,6 +104,7 @@
 		20CC02032F86000000000003 /* SettingsEnergyPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01032F86000000000003 /* SettingsEnergyPage.swift */; };
 		20CC02042F86000000000004 /* SettingsShortcutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01042F86000000000004 /* SettingsShortcutPage.swift */; };
 		20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01052F86000000000005 /* SettingsWidgetPage.swift */; };
+		20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FE17A12F90000000000001 /* FeatureTipSheet.swift */; };
 		20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01062F86000000000006 /* SettingsAboutPage.swift */; };
 		20CC02072F86000000000007 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01072F86000000000007 /* SettingsComponents.swift */; };
 		20CC02082F86000000000008 /* SupabaseSyncDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01082F86000000000008 /* SupabaseSyncDTOs.swift */; };
@@ -165,8 +164,6 @@
 		57E04F4FB048E115C40D98E7 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8648A4882378AF2E1E742F /* Color+Hex.swift */; };
 		5E9E43978D80841CEA8F84B8 /* ShapeStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = C669447E94C63E9A8EB39A0B /* ShapeStyles.swift */; };
 		5F0E443EA93FB23E1E618222 /* EnergyOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD224EC1A882989A8351AB57 /* EnergyOption.swift */; };
-		EPHM0001000000000000BF01 /* EphemeralMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = EPHM0002000000000000BF02 /* EphemeralMoment.swift */; };
-		MMSH0001000000000000BF01 /* MomentEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = MMSH0002000000000000BF02 /* MomentEntrySheet.swift */; };
 		605D42CA9EBF1B3A09237455 /* MetaballGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E94D8EA5C48F5875A51740 /* MetaballGenerator.swift */; };
 		60CO0001300000000060CO0001 /* CanvasOverlayStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0002300000000060CO0002 /* CanvasOverlayStyle.swift */; };
 		60CO0003300000000060CO0003 /* CanvasAnimationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0004300000000060CO0004 /* CanvasAnimationOverlay.swift */; };
@@ -177,7 +174,6 @@
 		60SP0005300000000060SP0005 /* ShaderParkOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SP0006300000000060SP0006 /* ShaderParkOverlayView.swift */; };
 		62FCEE93619D57A0D6E82263 /* AnnouncementService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */; };
 		69624326AA0BD3D99B13FBCA /* GalleryNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51444749A1B225FCD6A4DCF /* GalleryNotifications.swift */; };
-		AE00000300000000000000B3 /* GalleryMetricOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000300000000000000A3 /* GalleryMetricOverlayView.swift */; };
 		6B454ECDBA75497D1287A4E1 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7F473D8EA05B52428ABD08 /* AppColors.swift */; };
 		6D2A49FE92B422EDEAFE63BE /* CanvasColorPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C347368C4F416256BE0CF8 /* CanvasColorPalette.swift */; };
 		6E084403B0B19A902D745C32 /* HealthKitServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0E4AEDA351917685252CC5 /* HealthKitServiceProtocol.swift */; };
@@ -216,6 +212,10 @@
 		AABB003300330033AABB0033 /* EnergyRecalcTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB003300330033AABB0030 /* EnergyRecalcTests.swift */; };
 		AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB004400440044AABB0040 /* SubscriptionStateTests.swift */; };
 		AC000001300400000000AC01 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000002300400000000AC02 /* AppConstants.swift */; };
+		AE00000100000000000000B1 /* MeAxisDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000100000000000000A1 /* MeAxisDetailView.swift */; };
+		AE00000200000000000000B2 /* MeViewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000200000000000000A2 /* MeViewSupport.swift */; };
+		AE00000300000000000000B3 /* GalleryMetricOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000300000000000000A3 /* GalleryMetricOverlayView.swift */; };
+		AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */; };
 		AEF40DC05AB94589A68AB8CD /* BlobShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */; };
 		AEF40DC15AB945890B0B0B01 /* OrganicBlobShapeGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */; };
 		AEF40DC25AB945890B0B0B02 /* OrganicBlobShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */; };
@@ -241,11 +241,12 @@
 		DD000004DDDD000400000001 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000004DDDD000400000002 /* SettingsSheet.swift */; };
 		DDE443E5AA653BF8DD6BECED /* FamilyControlsServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C664BEFA2BBECD3F1AB1266 /* FamilyControlsServiceProtocol.swift */; };
 		E5A8441DA8F639D18D64B0EA /* GallerySubviews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F7434BB0F6950FD43B46FB /* GallerySubviews.swift */; };
+		EPHM0001000000000000BF01 /* EphemeralMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = EPHM0002000000000000BF02 /* EphemeralMoment.swift */; };
 		F06C48AEA2B2827EC7CE55C4 /* ThemeTextStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F540E48318D3A7CEF51B99 /* ThemeTextStyles.swift */; };
 		F088E9B4584240CB97547938 /* RayShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C0D419D1FDF446F850FAE7E /* RayShapeRenderer.swift */; };
 		F6494E388E7886039A147EA3 /* HandoffToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF6441CB730DE1DF44F4310 /* HandoffToken.swift */; };
+		MMSH0001000000000000BF01 /* MomentEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = MMSH0002000000000000BF02 /* MomentEntrySheet.swift */; };
 		T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */; };
-		AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */; };
 		T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */; };
 		T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
 		WK000001AAAA000100000001 /* AppModel+WorkoutSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */; };
@@ -327,9 +328,6 @@
 		200AC5A52F16DA3F0018004E /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
 		200AC5A72F16DA570018004E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthenticationService+CachedProfile.swift"; sourceTree = "<group>"; };
-		20A05E010000000000000001 /* AppUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppUser.swift"; sourceTree = "<group>"; };
-		20A05E020000000000000001 /* AuthSupportTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthSupportTypes.swift"; sourceTree = "<group>"; };
-		20A05E030000000000000001 /* AuthenticationService+SupabaseREST.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthenticationService+SupabaseREST.swift"; sourceTree = "<group>"; };
 		201816112F33C8C10006B350 /* CustomActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityTests.swift; sourceTree = "<group>"; };
 		201816132F33C8CC0006B350 /* DayBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBoundaryTests.swift; sourceTree = "<group>"; };
 		201816152F33C8D80006B350 /* CustomActivityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityUITests.swift; sourceTree = "<group>"; };
@@ -355,8 +353,6 @@
 		2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSelectionComponents.swift; sourceTree = "<group>"; };
 		2061EBD12F269D30009FEC24 /* GalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
 		2061EBF22F269D50009FEC24 /* MeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeView.swift; sourceTree = "<group>"; };
-		AE00000100000000000000A1 /* MeAxisDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeAxisDetailView.swift; sourceTree = "<group>"; };
-		AE00000200000000000000A2 /* MeViewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeViewSupport.swift; sourceTree = "<group>"; };
 		2061ECE82F276FE8009FEC24 /* TimeAccessPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAccessPickerSheet.swift; sourceTree = "<group>"; };
 		2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViewHelpers.swift; sourceTree = "<group>"; };
 		2061ECED2F277000009FEC24 /* StatusViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViewModels.swift; sourceTree = "<group>"; };
@@ -385,6 +381,9 @@
 		209424D02E85952D00904A0A /* AppModel+BudgetTracking.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+BudgetTracking.swift"; sourceTree = "<group>"; };
 		209424D62E85952D00904A0D /* AppModel+HealthKit.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+HealthKit.swift"; sourceTree = "<group>"; };
 		209424D82E85952D00904A0E /* AppModel+AppSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+AppSettings.swift"; sourceTree = "<group>"; };
+		20A05E010000000000000001 /* AppUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUser.swift; sourceTree = "<group>"; };
+		20A05E020000000000000001 /* AuthSupportTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSupportTypes.swift; sourceTree = "<group>"; };
+		20A05E030000000000000001 /* AuthenticationService+SupabaseREST.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthenticationService+SupabaseREST.swift"; sourceTree = "<group>"; };
 		20A8F0012F3D000100000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		20AA24592F70BB39002F2F2C /* UnlockWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = UnlockWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		20AA245A2F70BB39002F2F2C /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -411,6 +410,7 @@
 		20CC01032F86000000000003 /* SettingsEnergyPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsEnergyPage.swift; sourceTree = "<group>"; };
 		20CC01042F86000000000004 /* SettingsShortcutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsShortcutPage.swift; sourceTree = "<group>"; };
 		20CC01052F86000000000005 /* SettingsWidgetPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWidgetPage.swift; sourceTree = "<group>"; };
+		20FE17A12F90000000000001 /* FeatureTipSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipSheet.swift; sourceTree = "<group>"; };
 		20CC01062F86000000000006 /* SettingsAboutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutPage.swift; sourceTree = "<group>"; };
 		20CC01072F86000000000007 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		20CC01082F86000000000008 /* SupabaseSyncDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseSyncDTOs.swift; sourceTree = "<group>"; };
@@ -420,8 +420,6 @@
 		20DE0E602F2B62230016EEAE /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		20DE0E612F2B62230016EEAE /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		20DE0E622F2B62230016EEAE /* Secrets.xcconfig.template */ = {isa = PBXFileReference; lastKnownFileType = text; path = Secrets.xcconfig.template; sourceTree = "<group>"; };
-		AE00000400000000000000A4 /* Secrets-Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Secrets-Debug.xcconfig"; sourceTree = "<group>"; };
-		AE00000500000000000000A5 /* Secrets-Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Secrets-Release.xcconfig"; sourceTree = "<group>"; };
 		20DE0E642F2B78970016EEAE /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		20DR0002AAAA000100000002 /* AppModel+DailyRandomTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+DailyRandomTheme.swift"; sourceTree = "<group>"; };
 		20E3AE132F3F6C1B007CF1EC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -470,8 +468,6 @@
 		50SM00053002000050SM0005 /* MetalSmudgeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalSmudgeRenderer.swift; sourceTree = "<group>"; };
 		50SM00063002000050SM0006 /* SmudgeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmudgeCanvasView.swift; sourceTree = "<group>"; };
 		524F432B8921ECFAF49A568E /* EnergyCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EnergyCategory.swift; path = StepsTrader/Models/EnergyCategory.swift; sourceTree = SOURCE_ROOT; };
-		EPHM0002000000000000BF02 /* EphemeralMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EphemeralMoment.swift; path = StepsTrader/Models/EphemeralMoment.swift; sourceTree = SOURCE_ROOT; };
-		MMSH0002000000000000BF02 /* MomentEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentEntrySheet.swift; sourceTree = "<group>"; };
 		554EE3AD45734274B4585281 /* DeviceActivityMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeviceActivityMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5C664BEFA2BBECD3F1AB1266 /* FamilyControlsServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamilyControlsServiceProtocol.swift; path = StepsTrader/Protocols/FamilyControlsServiceProtocol.swift; sourceTree = SOURCE_ROOT; };
 		5F4C4CBBA3ED654713693D34 /* BodyShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BodyShapeGenerator.swift; path = StepsTrader/Shapes/BodyShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
@@ -509,7 +505,6 @@
 		A0B10003A0B10003A0B10030 /* AppleSignInCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInCoordinator.swift; sourceTree = "<group>"; };
 		A0B10004A0B10004A0B10040 /* OnboardingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCoordinator.swift; sourceTree = "<group>"; };
 		A51444749A1B225FCD6A4DCF /* GalleryNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GalleryNotifications.swift; path = StepsTrader/Views/Gallery/GalleryNotifications.swift; sourceTree = SOURCE_ROOT; };
-		AE00000300000000000000A3 /* GalleryMetricOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GalleryMetricOverlayView.swift; path = StepsTrader/Views/Gallery/GalleryMetricOverlayView.swift; sourceTree = SOURCE_ROOT; };
 		A5C740A8AB5D3805CDEA4A99 /* CanvasRenderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasRenderCache.swift; path = StepsTrader/Views/Canvas/CanvasRenderCache.swift; sourceTree = SOURCE_ROOT; };
 		A7B3E91D4C6F47E2A0D8F5B1 /* CircleShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CircleShapeRenderer.swift; path = StepsTrader/Shapes/CircleShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		A8A644F2816949A05C4C7FEE /* Tariff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Tariff.swift; path = StepsTrader/Models/Tariff.swift; sourceTree = SOURCE_ROOT; };
@@ -523,6 +518,12 @@
 		AABB003300330033AABB0030 /* EnergyRecalcTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyRecalcTests.swift; sourceTree = "<group>"; };
 		AABB004400440044AABB0040 /* SubscriptionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionStateTests.swift; sourceTree = "<group>"; };
 		AC000002300400000000AC02 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
+		AE00000100000000000000A1 /* MeAxisDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeAxisDetailView.swift; sourceTree = "<group>"; };
+		AE00000200000000000000A2 /* MeViewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeViewSupport.swift; sourceTree = "<group>"; };
+		AE00000300000000000000A3 /* GalleryMetricOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GalleryMetricOverlayView.swift; path = StepsTrader/Views/Gallery/GalleryMetricOverlayView.swift; sourceTree = SOURCE_ROOT; };
+		AE00000400000000000000A4 /* Secrets-Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Secrets-Debug.xcconfig"; sourceTree = "<group>"; };
+		AE00000500000000000000A5 /* Secrets-Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Secrets-Release.xcconfig"; sourceTree = "<group>"; };
+		AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroupRMWConcurrencyTests.swift; sourceTree = "<group>"; };
 		AF354BA8B84F3623DFC56E52 /* CanvasRenderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasRenderModels.swift; path = StepsTrader/Views/Canvas/CanvasRenderModels.swift; sourceTree = SOURCE_ROOT; };
 		B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BlobShapeRenderer.swift; path = StepsTrader/Shapes/BlobShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OrganicBlobShapeGenerator.swift; path = StepsTrader/Shapes/OrganicBlobShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
@@ -545,9 +546,10 @@
 		DD000004DDDD000400000002 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		DE4C408A95DD73B3A9D51628 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetSnapshot.swift; path = StepsTrader/Models/WidgetSnapshot.swift; sourceTree = SOURCE_ROOT; };
 		E1F7434BB0F6950FD43B46FB /* GallerySubviews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GallerySubviews.swift; path = StepsTrader/Views/Gallery/GallerySubviews.swift; sourceTree = SOURCE_ROOT; };
+		EPHM0002000000000000BF02 /* EphemeralMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EphemeralMoment.swift; path = StepsTrader/Models/EphemeralMoment.swift; sourceTree = SOURCE_ROOT; };
 		FD224EC1A882989A8351AB57 /* EnergyOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EnergyOption.swift; path = StepsTrader/Models/EnergyOption.swift; sourceTree = SOURCE_ROOT; };
+		MMSH0002000000000000BF02 /* MomentEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentEntrySheet.swift; sourceTree = "<group>"; };
 		T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetEngineTests.swift; sourceTree = "<group>"; };
-		AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroupRMWConcurrencyTests.swift; sourceTree = "<group>"; };
 		T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergyLogicTests.swift; sourceTree = "<group>"; };
 		T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
 		WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WorkoutSuggestions.swift"; sourceTree = "<group>"; };
@@ -893,6 +895,7 @@
 			children = (
 				209424BA2E8593DA00904A0A /* Components */,
 				70CM00003004000070CM0000 /* CoachMark */,
+				20FE17A02F90000000000000 /* FeatureTips */,
 				20CC03012F86000000000001 /* Settings */,
 				30CA000B300000000000CA0B /* Gallery */,
 				2061EBD12F269D30009FEC24 /* GalleryView.swift */,
@@ -946,6 +949,14 @@
 				20B884412FAF9B8C0088AA6D /* UserEconomyStore.swift */,
 			);
 			path = Stores;
+			sourceTree = "<group>";
+		};
+		20FE17A02F90000000000000 /* FeatureTips */ = {
+			isa = PBXGroup;
+			children = (
+				20FE17A12F90000000000001 /* FeatureTipSheet.swift */,
+			);
+			path = FeatureTips;
 			sourceTree = "<group>";
 		};
 		20CC03012F86000000000001 /* Settings */ = {
@@ -1435,7 +1446,7 @@
 				20A05E030000000000000002 /* AuthenticationService+SupabaseREST.swift in Sources */,
 				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
 				30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */,
-					30EA00043001000000EA0004 /* EnergySignatureView.swift in Sources */,
+				30EA00043001000000EA0004 /* EnergySignatureView.swift in Sources */,
 				DD000001DDDD000100000001 /* PaperTicketView.swift in Sources */,
 				WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */,
 				DD000002DDDD000200000001 /* TicketTemplatePickerView.swift in Sources */,
@@ -1508,6 +1519,7 @@
 				20CC02032F86000000000003 /* SettingsEnergyPage.swift in Sources */,
 				20CC02042F86000000000004 /* SettingsShortcutPage.swift in Sources */,
 				20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */,
+				20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */,
 				20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */,
 				20B884482FAF9BBB0088AA6D /* PaywallView.swift in Sources */,
 				20C7E6142F8BF2A200BD06AA /* CanvasShapePreview.swift in Sources */,
@@ -1675,7 +1687,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DeviceActivityMonitor/Info.plist;
@@ -1696,7 +1708,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.DeviceActivityMonitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1714,7 +1726,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShieldConfiguration/Info.plist;
@@ -1735,7 +1747,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1755,7 +1767,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShieldConfiguration/ShieldConfiguration.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShieldConfiguration/Info.plist;
@@ -1776,7 +1788,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1798,7 +1810,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShieldAction/Info.plist;
@@ -1819,7 +1831,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1840,7 +1852,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShieldAction/Info.plist;
@@ -1861,7 +1873,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -2010,7 +2022,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_ASSET_PATHS = "\"Steps4/Preview Content\" \"StepsTrader/Preview Content\"";
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				ENABLE_PREVIEWS = YES;
@@ -2040,7 +2052,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Steps4;
 				PRODUCT_NAME = Nowhere;
@@ -2066,7 +2078,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_ASSET_PATHS = "\"Steps4/Preview Content\" \"StepsTrader/Preview Content\"";
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				ENABLE_PREVIEWS = YES;
@@ -2096,7 +2108,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Steps4;
 				PRODUCT_NAME = Nowhere;
@@ -2117,7 +2129,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LIBRARY_SEARCH_PATHS = (
@@ -2129,7 +2141,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
 				PRODUCT_NAME = Steps4Tests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2145,7 +2157,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LIBRARY_SEARCH_PATHS = (
@@ -2157,7 +2169,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
 				PRODUCT_NAME = Steps4Tests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2172,7 +2184,7 @@
 			baseConfigurationReference = 20DE0E5F2F2B62230016EEAE /* Debug.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LIBRARY_SEARCH_PATHS = (
@@ -2184,7 +2196,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
 				PRODUCT_NAME = Steps4UITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2199,7 +2211,7 @@
 			baseConfigurationReference = 20DE0E602F2B62230016EEAE /* Release.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LIBRARY_SEARCH_PATHS = (
@@ -2211,7 +2223,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
 				PRODUCT_NAME = Steps4UITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2230,7 +2242,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = UnlockWidget/Info.plist;
@@ -2251,7 +2263,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.UnlockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -2273,7 +2285,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = UnlockWidget/Info.plist;
@@ -2294,7 +2306,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.UnlockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -2315,7 +2327,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DeviceActivityMonitor/Info.plist;
@@ -2336,7 +2348,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.DeviceActivityMonitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

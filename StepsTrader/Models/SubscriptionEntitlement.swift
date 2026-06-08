@@ -49,7 +49,11 @@ enum SubscriptionIDs {
     ///
     /// Example: if v1.5 (build 42) was the last pre-paywall build, set this to `43`.
     ///
-    /// Current build is 13; paywall ships in 14+. Users whose first install was
-    /// build 13 or earlier are grandfathered via receipt on reinstall.
-    static let grandfatherBeforeBuild: Int = 14
+    /// Set to 0: there was never a public free build (builds ≤13 shipped only to
+    /// TestFlight/review, never the App Store), so there are no legitimate
+    /// pre-paywall users to grandfather. Disabling receipt-based restore removes
+    /// the risk of a new production install self-grandfathering if a paywall build
+    /// ever ships with a build number below the threshold. TestFlight testers who
+    /// already used the app keep Pro via the local `isGrandfathered` flag.
+    static let grandfatherBeforeBuild: Int = 0
 }
