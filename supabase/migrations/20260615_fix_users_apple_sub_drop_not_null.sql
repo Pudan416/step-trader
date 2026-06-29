@@ -1,0 +1,18 @@
+-- Fix: App Store review 2.1(a) rejection — "error when attempting Sign in with Apple".
+--
+-- Root cause: public.users.apple_sub is NOT NULL + UNIQUE with no default, a
+-- leftover from an earlier schema where Apple's `sub` was the user key. The
+-- 20260523_anonymous_auth.sql migration rewrote handle_new_user() to insert
+-- only (id, email, is_anonymous) and never sets apple_sub. As a result EVERY
+-- new-user creation threw "null value in column apple_sub violates not-null
+-- constraint" → GoTrue returned `500: Database error saving new user`. This hit
+-- both anonymous signup on cold launch AND every first-time Sign in with Apple
+-- (a brand-new auth.users row). Existing users were unaffected (they already
+-- had apple_sub and authenticate via refresh_token), which is why it slipped
+-- through testing. The column is unused by the app.
+--
+-- Make apple_sub nullable so new-user inserts succeed. The UNIQUE constraint is
+-- kept intentionally: Postgres treats NULLs as distinct, so any number of new
+-- users with NULL apple_sub coexist, while the uniqueness guarantee is
+-- preserved for the existing Apple-linked rows.
+ALTER TABLE public.users ALTER COLUMN apple_sub DROP NOT NULL;
