@@ -124,9 +124,9 @@ extension ProceduralShapeGenerator {
         return colors
     }
 
-    /// Picks 3 distinct colors from one palette group for a spotlight element.
+    /// Picks 3 distinct colors from anywhere in the palette for a spotlight element.
     static func spotlightColors(seed: UInt64) -> (near: Color, mid: Color, far: Color) {
-        let (near, mid, far) = CanvasColorPalette.seededGroupTriple(seed: seed ^ 0xBEEF)
+        let (near, mid, far) = CanvasColorPalette.seededColorTriple(seed: seed ^ 0xBEEF)
         return (Color(hex: near), Color(hex: mid), Color(hex: far))
     }
 }

@@ -116,10 +116,13 @@ enum BlobShapeRenderer {
         let innerColor = color
         let outerColor = color2 ?? color
 
+        // Spread the hue transition across the whole rim with lerped midpoints
+        // so no single segment carries a hard color jump.
         let rimGrad = Gradient(stops: [
             .init(color: innerColor.opacity(0.18), location: 0),
             .init(color: innerColor.opacity(0.22), location: edgeLoc),
-            .init(color: outerColor.opacity(0.50), location: edgeLoc + (1.0 - edgeLoc) * 0.5),
+            .init(color: Color.lerp(innerColor, outerColor, t: 0.33).opacity(0.38), location: edgeLoc + (1.0 - edgeLoc) * 0.33),
+            .init(color: Color.lerp(innerColor, outerColor, t: 0.66).opacity(0.55), location: edgeLoc + (1.0 - edgeLoc) * 0.66),
             .init(color: outerColor.opacity(0.72), location: 1.0),
         ])
 
@@ -293,12 +296,14 @@ enum BlobShapeRenderer {
                     gradCenter = blob.center
                 }
 
-                let midLoc: Double = edgeLoc + (1.0 - edgeLoc) * 0.5
+                // Spread the hue transition across the whole rim with lerped
+                // midpoints so no single segment carries a hard color jump.
                 let s0: Gradient.Stop = .init(color: innerColor.opacity(0.18 * spawn), location: 0)
                 let s1: Gradient.Stop = .init(color: innerColor.opacity(0.22 * spawn), location: edgeLoc)
-                let s2: Gradient.Stop = .init(color: outerColor.opacity(0.50 * spawn), location: midLoc)
-                let s3: Gradient.Stop = .init(color: outerColor.opacity(0.72 * spawn), location: 1.0)
-                let rimGrad = Gradient(stops: [s0, s1, s2, s3])
+                let s2: Gradient.Stop = .init(color: Color.lerp(innerColor, outerColor, t: 0.33).opacity(0.38 * spawn), location: edgeLoc + (1.0 - edgeLoc) * 0.33)
+                let s3: Gradient.Stop = .init(color: Color.lerp(innerColor, outerColor, t: 0.66).opacity(0.55 * spawn), location: edgeLoc + (1.0 - edgeLoc) * 0.66)
+                let s4: Gradient.Stop = .init(color: outerColor.opacity(0.72 * spawn), location: 1.0)
+                let rimGrad = Gradient(stops: [s0, s1, s2, s3, s4])
 
                 let ellipse = CGRect(x: blob.center.x - r, y: blob.center.y - r, width: r * 2, height: r * 2)
                 ctx.fill(
