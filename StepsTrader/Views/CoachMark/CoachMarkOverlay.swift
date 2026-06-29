@@ -1,4 +1,3 @@
-#if DEBUG
 import SwiftUI
 
 struct CoachMarkOverlay: View {
@@ -378,4 +377,3 @@ struct CoachMarkSheetOverlay: View {
         }
     }
 }
-#endif
