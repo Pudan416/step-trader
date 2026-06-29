@@ -104,46 +104,46 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             }
         }
         
-        let title = String(format: NSLocalizedString("%@ is closed.", comment: "Shield title for blocked app"), appName)
-        
+        let title = String(format: NSLocalizedString("%@ is locked\nby Nowhere.", comment: "Shield title for blocked app"), appName)
+
         if wasPushRecentlySent() {
             return baseConfiguration(
                 title: title,
-                subtitle: NSLocalizedString("↑ i sent you a push.\ntap it to open Nowhere.", comment: "Shield subtitle after push sent"),
-                primaryButtonText: NSLocalizedString("send again", comment: "Shield primary button — resend push"),
+                subtitle: String(format: NSLocalizedString("\nNowhere sent you a push.\nTap it to unlock %@.", comment: "Shield subtitle after push sent"), appName),
+                primaryButtonText: NSLocalizedString("one more push", comment: "Shield primary button — resend push"),
                 secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
             )
         }
-        
+
         return baseConfiguration(
             title: title,
-            subtitle: NSLocalizedString("open Nowhere to spend colors.", comment: "Shield subtitle"),
-            primaryButtonText: NSLocalizedString("get a push", comment: "Shield primary button — request notification"),
+            subtitle: NSLocalizedString("\nSpend some colors\nto unlock it", comment: "Shield subtitle"),
+            primaryButtonText: NSLocalizedString("unlock with push", comment: "Shield primary button — request notification"),
             secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button — conscious opt-out")
         )
     }
-    
+
     override func configuration(shielding application: Application, in category: ActivityCategory) -> ShieldConfiguration {
         return configuration(shielding: application)
     }
     
     override func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
         let domain = webDomain.domain ?? NSLocalizedString("this site", comment: "Fallback name for unknown web domain")
-        let title = String(format: NSLocalizedString("%@ is closed.", comment: "Shield title for blocked domain"), domain)
-        
+        let title = String(format: NSLocalizedString("%@ is locked\nby Nowhere.", comment: "Shield title for blocked domain"), domain)
+
         if wasPushRecentlySent() {
             return baseConfiguration(
                 title: title,
-                subtitle: NSLocalizedString("↑ i sent you a push.\ntap it to open Nowhere.", comment: "Shield subtitle after push sent"),
-                primaryButtonText: NSLocalizedString("send again", comment: "Shield primary button — resend push"),
+                subtitle: String(format: NSLocalizedString("\nNowhere sent you a push.\nTap it to unlock %@.", comment: "Shield subtitle after push sent"), domain),
+                primaryButtonText: NSLocalizedString("one more push", comment: "Shield primary button — resend push"),
                 secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
             )
         }
-        
+
         return baseConfiguration(
             title: title,
-            subtitle: NSLocalizedString("open Nowhere to spend colors.", comment: "Shield subtitle"),
-            primaryButtonText: NSLocalizedString("get a push", comment: "Shield primary button — request notification"),
+            subtitle: NSLocalizedString("\nSpend some colors\nto unlock it", comment: "Shield subtitle"),
+            primaryButtonText: NSLocalizedString("unlock with push", comment: "Shield primary button — request notification"),
             secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button — conscious opt-out")
         )
     }
