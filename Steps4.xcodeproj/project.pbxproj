@@ -104,7 +104,6 @@
 		20CC02032F86000000000003 /* SettingsEnergyPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01032F86000000000003 /* SettingsEnergyPage.swift */; };
 		20CC02042F86000000000004 /* SettingsShortcutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01042F86000000000004 /* SettingsShortcutPage.swift */; };
 		20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01052F86000000000005 /* SettingsWidgetPage.swift */; };
-		20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FE17A12F90000000000001 /* FeatureTipSheet.swift */; };
 		20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01062F86000000000006 /* SettingsAboutPage.swift */; };
 		20CC02072F86000000000007 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01072F86000000000007 /* SettingsComponents.swift */; };
 		20CC02082F86000000000008 /* SupabaseSyncDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01082F86000000000008 /* SupabaseSyncDTOs.swift */; };
@@ -125,6 +124,7 @@
 		20F5A0112FFF030000000002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0122FFF030000000003 /* Localization.swift */; };
 		20F5A0162FFF030000000007 /* SeededRNG.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0172FFF030000000008 /* SeededRNG.swift */; };
 		20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20F6C0012F3E100100000001 /* Localizable.xcstrings */; };
+		20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FE17A12F90000000000001 /* FeatureTipSheet.swift */; };
 		20GC00022F86100000000002 /* GlassCardModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20GC00012F86100000000001 /* GlassCardModifier.swift */; };
 		20HV0001AAAA000100000001 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20HV0002AAAA000100000002 /* HistoryView.swift */; };
 		20HV0003AAAA000100000003 /* DayCanvasViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */; };
@@ -410,7 +410,6 @@
 		20CC01032F86000000000003 /* SettingsEnergyPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsEnergyPage.swift; sourceTree = "<group>"; };
 		20CC01042F86000000000004 /* SettingsShortcutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsShortcutPage.swift; sourceTree = "<group>"; };
 		20CC01052F86000000000005 /* SettingsWidgetPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWidgetPage.swift; sourceTree = "<group>"; };
-		20FE17A12F90000000000001 /* FeatureTipSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipSheet.swift; sourceTree = "<group>"; };
 		20CC01062F86000000000006 /* SettingsAboutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutPage.swift; sourceTree = "<group>"; };
 		20CC01072F86000000000007 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		20CC01082F86000000000008 /* SupabaseSyncDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseSyncDTOs.swift; sourceTree = "<group>"; };
@@ -431,6 +430,7 @@
 		20F5A0122FFF030000000003 /* Localization.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		20F5A0172FFF030000000008 /* SeededRNG.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SeededRNG.swift; sourceTree = "<group>"; };
 		20F6C0012F3E100100000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		20FE17A12F90000000000001 /* FeatureTipSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipSheet.swift; sourceTree = "<group>"; };
 		20GC00012F86100000000001 /* GlassCardModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCardModifier.swift; sourceTree = "<group>"; };
 		20HV0002AAAA000100000002 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCanvasViewerView.swift; sourceTree = "<group>"; };
@@ -951,14 +951,6 @@
 			path = Stores;
 			sourceTree = "<group>";
 		};
-		20FE17A02F90000000000000 /* FeatureTips */ = {
-			isa = PBXGroup;
-			children = (
-				20FE17A12F90000000000001 /* FeatureTipSheet.swift */,
-			);
-			path = FeatureTips;
-			sourceTree = "<group>";
-		};
 		20CC03012F86000000000001 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
@@ -1006,6 +998,14 @@
 			children = (
 			);
 			path = Fonts;
+			sourceTree = "<group>";
+		};
+		20FE17A02F90000000000000 /* FeatureTips */ = {
+			isa = PBXGroup;
+			children = (
+				20FE17A12F90000000000001 /* FeatureTipSheet.swift */,
+			);
+			path = FeatureTips;
 			sourceTree = "<group>";
 		};
 		30CA000B300000000000CA0B /* Gallery */ = {
@@ -1708,7 +1708,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.DeviceActivityMonitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1747,7 +1747,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1788,7 +1788,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1831,7 +1831,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1873,7 +1873,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -2052,7 +2052,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Steps4;
 				PRODUCT_NAME = Nowhere;
@@ -2108,7 +2108,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Steps4;
 				PRODUCT_NAME = Nowhere;
@@ -2141,7 +2141,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
 				PRODUCT_NAME = Steps4Tests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2169,7 +2169,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
 				PRODUCT_NAME = Steps4Tests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2196,7 +2196,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
 				PRODUCT_NAME = Steps4UITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2223,7 +2223,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
 				PRODUCT_NAME = Steps4UITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -2263,7 +2263,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.UnlockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -2306,7 +2306,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.UnlockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -2348,7 +2348,7 @@
 					"$(SRCROOT)/StepsTrader/Views/Gallery",
 					"$(SRCROOT)/StepsTrader/Views/Canvas",
 				);
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.DeviceActivityMonitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

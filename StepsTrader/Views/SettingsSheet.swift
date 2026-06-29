@@ -14,12 +14,24 @@ struct SettingsSheet: View {
     @ObservedObject var model: AppModel
     var onDone: (() -> Void)? = nil
     var embeddedInTab: Bool = false
+    /// Optional externally-owned deep-link route. The host (MainTabView) owns it
+    /// so a feature-tip CTA can push a sub-page even if this tab was never opened
+    /// before (lazy TabView content): the value is already set by the time this
+    /// view is first created, so `navigationDestination` pushes on appear.
+    var featureTipRouteBinding: Binding<FeatureTipSettingsPage?>? = nil
 
     @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
     @State private var showLogin = false
     @State private var showProfileEditor = false
+    /// Fallback route storage when no external binding is supplied (preview /
+    /// standalone usage). The tab instance uses `featureTipRouteBinding` instead.
+    @State private var localFeatureTipRoute: FeatureTipSettingsPage?
+
+    private var featureTipRoute: Binding<FeatureTipSettingsPage?> {
+        featureTipRouteBinding ?? $localFeatureTipRoute
+    }
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -100,6 +112,14 @@ struct SettingsSheet: View {
                 Color.clear.frame(height: embeddedInTab ? topCardHeight : 0)
             }
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(item: featureTipRoute) { page in
+                switch page {
+                case .wallpaper:
+                    SettingsShortcutPage(model: model)
+                case .widget:
+                    SettingsWidgetPage(model: model)
+                }
+            }
             .sheet(isPresented: $showLogin) {
                 LoginView(authService: authService)
             }
@@ -113,7 +133,8 @@ struct SettingsSheet: View {
             .fullScreenCover(isPresented: $replayOnboardingLive) {
                 OnboardingFlowView(
                     model: model,
-                    authService: authService
+                    authService: authService,
+                    showsDebugSkip: true
                 ) {
                     replayOnboardingLive = false
                 }
@@ -345,6 +366,8 @@ struct SettingsSheet: View {
     @State private var healthReset = false
     @State private var showOnboardingDemo = false
     @State private var replayOnboardingLive = false
+    @State private var debugFeatureTip: FeatureTip?
+    @State private var featureTipsReset = false
     @Environment(CoachMarkManager.self) private var coachMarkManager
 
     @State private var shieldActionLogs: [String] = []
@@ -516,6 +539,54 @@ struct SettingsSheet: View {
             )
         }
         .buttonStyle(MattePressStyle())
+
+        rowDivider
+
+        Button {
+            debugFeatureTip = .widgets
+        } label: {
+            diagButton(
+                icon: "square.stack.3d.up",
+                text: "Preview Widget Tip",
+                trailing: "eye"
+            )
+        }
+        .buttonStyle(MattePressStyle())
+
+        rowDivider
+
+        Button {
+            debugFeatureTip = .wallpaper
+        } label: {
+            diagButton(
+                icon: "photo.on.rectangle.angled",
+                text: "Preview Wallpaper Tip",
+                trailing: "eye"
+            )
+        }
+        .buttonStyle(MattePressStyle())
+
+        rowDivider
+
+        Button {
+            FeatureTip.resetAllSeenFlags()
+            featureTipsReset = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                featureTipsReset = false
+            }
+        } label: {
+            diagButton(
+                icon: "arrow.counterclockwise",
+                text: featureTipsReset ? "Feature tip flags cleared!" : "Reset Feature Tip Flags",
+                highlight: featureTipsReset,
+                trailing: "trash"
+            )
+        }
+        .buttonStyle(MattePressStyle())
+        .sheet(item: $debugFeatureTip) { tip in
+            FeatureTipSheet(tip: tip)
+        }
     }
 
     private func diagButton(icon: String, text: String, highlight: Bool = false, trailing: String? = nil) -> some View {

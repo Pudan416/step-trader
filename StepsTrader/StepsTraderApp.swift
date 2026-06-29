@@ -31,9 +31,7 @@ struct StepsTraderApp: App {
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var authService = AuthenticationService.shared
     @StateObject private var announcementService = AnnouncementService.shared
-    #if DEBUG
     @State private var coachMarkManager = CoachMarkManager()
-    #endif
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.night.rawValue
     /// Single versioned int that replaces the old 4-flag onboarding state machine
     /// (`hasSeenIntro_v3`, `hasSeenEnergySetup_v1`, `hasCompletedOnboarding_v1`,
@@ -48,6 +46,14 @@ struct StepsTraderApp: App {
     /// non-Pro users immediately after they complete onboarding. Dismissal
     /// (purchase OR cancel) marks it as shown so it never reappears.
     @State private var showPostOnboardingPaywall = false
+
+    /// Currently presented feature tip (wallpaper / widgets nudge), or `nil`.
+    /// Driven by `presentFeatureTipIfNeeded()` on scenePhase `.active`.
+    @State private var activeFeatureTip: FeatureTip?
+
+    /// At most one feature tip per process lifetime — repeated
+    /// background→foreground cycles must not stack tips in one session.
+    @State private var hasPresentedFeatureTipThisSession = false
 
     private var hasCompletedOnboarding: Bool {
         onboardingStateRaw >= OnboardingState.completed.rawValue
@@ -129,12 +135,8 @@ struct StepsTraderApp: App {
     /// Blocks until the tour completes (or returns immediately if no tour was
     /// requested). The caller — the welcome-paywall `.task` — uses this as a
     /// gate so the paywall never appears over an in-progress coach mark.
-    ///
-    /// Coach marks themselves are DEBUG-only (`CoachMarkManager` is wrapped
-    /// in `#if DEBUG`), so in release this method is a no-op.
     @MainActor
     private func runCoachMarksIfRequested() async {
-        #if DEBUG
         let defaults = UserDefaults.standard
         let wantsTour = defaults.bool(forKey: "shouldStartCoachMark")
 
@@ -163,7 +165,6 @@ struct StepsTraderApp: App {
             try? await Task.sleep(for: .milliseconds(400))
             if Task.isCancelled { return }
         }
-        #endif
     }
 
     /// Decide whether to flip `showPostOnboardingPaywall` to `true`.
@@ -313,12 +314,13 @@ struct StepsTraderApp: App {
                     source: .promotion
                 )
             }
+            .sheet(item: $activeFeatureTip) { tip in
+                FeatureTipSheet(tip: tip)
+            }
             .themed(currentTheme)
             .tint(currentTheme.accentColor)
             .grayscale(0)
-            #if DEBUG
             .environment(coachMarkManager)
-            #endif
             .alert(isPresented: $errorManager.showErrorAlert, error: errorManager.currentError) { _ in
                 Button("OK", role: .cancel) {
                     errorManager.dismiss()
@@ -394,7 +396,12 @@ struct StepsTraderApp: App {
                     model.applyDailyRandomThemeIfNeeded()
                     checkForHandoffToken()
                     checkForPayGateFlags()
-                    requestAppReviewIfNeeded()
+                    // We never show a feature tip in the same session as the
+                    // App Store review prompt.
+                    let didRequestReview = requestAppReviewIfNeeded()
+                    if !didRequestReview {
+                        presentFeatureTipIfNeeded()
+                    }
                 case .background:
                     UserDefaults(suiteName: SharedKeys.appGroupId)?.set(appThemeRaw, forKey: "appTheme")
                     model.handleAppDidEnterBackground()
@@ -604,17 +611,46 @@ struct StepsTraderApp: App {
         return false
     }
 
-    private func requestAppReviewIfNeeded() {
-        guard hasCompletedOnboarding, !isUITest else { return }
+    /// Returns `true` when the review prompt was scheduled this call, so the
+    /// caller can suppress other same-session prompts (feature tips).
+    @discardableResult
+    private func requestAppReviewIfNeeded() -> Bool {
+        guard hasCompletedOnboarding, !isUITest else { return false }
         // `appLaunchCount` is incremented exactly once per process launch in `init()`.
         // Use `>= 3` (not strict equality) plus a one-shot `hasRequestedReview` flag so
         // users coming from earlier buggy builds with inflated counts (10–30) still see
         // the prompt exactly once.
-        guard appLaunchCount >= 3, !hasRequestedReview else { return }
+        guard appLaunchCount >= 3, !hasRequestedReview else { return false }
         hasRequestedReview = true
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
             requestReview()
+        }
+        return true
+    }
+
+    /// Presents at most one eligible, not-yet-seen feature tip (wallpaper /
+    /// widgets) as a bottom sheet. Mirrors `requestAppReviewIfNeeded`'s gating:
+    /// launch-count threshold + per-tip one-shot flag. Tips are evaluated in
+    /// priority order and the first match wins, so a user with an inflated
+    /// launch count (old build) sees them across successive sessions rather than
+    /// all at once. The caller guarantees this never runs in the same session as
+    /// the App Store review prompt.
+    private func presentFeatureTipIfNeeded() {
+        guard hasCompletedOnboarding, !isUITest else { return }
+        guard !hasPresentedFeatureTipThisSession, activeFeatureTip == nil else { return }
+        for tip in FeatureTip.orderedByPriority where tip.isEligible(launchCount: appLaunchCount) {
+            hasPresentedFeatureTipThisSession = true
+            // Small delay so the sheet doesn't race the foregrounding refresh
+            // and any in-flight UI settle (matches the review prompt cadence).
+            // The one-shot flag is burned only when the sheet actually presents,
+            // so a tip can't be consumed invisibly.
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
+                tip.markSeen()
+                activeFeatureTip = tip
+            }
+            return
         }
     }
 
