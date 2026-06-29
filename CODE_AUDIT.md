@@ -1,443 +1,275 @@
 # Nowhere (StepsTrader) Code Audit
 
-Generated 2026-05-26. Scope: ~52,000 LOC across 219 Swift files + 3 Metal kernels across 7 targets (Steps4, DeviceActivityMonitor, ShieldConfiguration, ShieldAction, UnlockWidgetExtension, Steps4Tests, Steps4UITests). The local SPM package `OnboardingPreview` is included. `admin-panel/`, `tg-admin/`, `web/`, `build/`, `output/`, `tmp/`, `docs/`, and `Scripts/` are excluded.
+Regenerated **2026-06-01** (fresh whole-project pass via `ios-code-audit`). Scope: ~52,800 LOC across 225 Swift files + 3 Metal kernels across 7 targets (Steps4, DeviceActivityMonitor, ShieldConfiguration, ShieldAction, UnlockWidgetExtension, Steps4Tests, Steps4UITests) plus the local `OnboardingPreview` SPM package. `admin-panel/`, `tg-admin/`, `web/`, `build/`, `output/`, `tmp/`, `docs/`, and `Scripts/` are excluded.
 
-Findings cite `path/to/file.swift:LINE` so you can jump straight to them in Xcode. Each item has a recommended action and a one-line «Что это значит на практике» that translates the technical finding into user/developer impact in plain Russian.
+`OnboardingPreview/Sources/OnboardingStoriesView.swift` is a **symlink** to `StepsTrader/Views/OnboardingStoriesView.swift` — audited once, not double-counted.
 
-A clean Debug build of the `Steps4` scheme against iPhone 17 (iOS 26.1) initially produced one compiler warning — that warning was closed in the post-audit hygiene pass (§4.2). Project now builds with 0 warnings. The codebase compiles in Swift 5 mode without strict-concurrency enabled, so most concurrency findings below are latent — they'll begin to fire when the project upgrades to Swift 6 / `SWIFT_STRICT_CONCURRENCY=complete`. Treat them as preparatory work for that migration.
+**Section numbers are stable across audit runs by design** so external references ("fix §5.2", "is §9.2 done?") keep resolving to the same finding. This snapshot carries forward the numbering established in the 2026-05-26 audit (preserved in git at commit `a6f0a92`). Findings resolved in prior sessions are kept as one-line ✅ markers so their numbers don't shift; **open** and **newly-discovered** findings are written in full.
 
-There are **no Critical findings** in this audit. Several Agent-flagged "Critical" items were demoted during verification (see §12).
+A clean Debug build of the `Steps4` scheme (iOS Simulator) produced **one warning** — a CFBundleShortVersionString mismatch between an app extension (`1.1.2`) and the parent app (`1.2`), see §2. No code warnings. The project still compiles in Swift 5 mode without strict concurrency, so §3 items remain **latent** (they fire on the Swift 6 migration).
 
-**Per-section ✅ markers are authoritative for resolution status.** As of 2026-05-28 the only genuinely-open findings are §6.1, §9.2, §5.2 (High) plus assorted Medium/Low in §3–§9 — everything else is resolved. The prior PR-scoped audit was preserved at `CODE_AUDIT_PR_moment.md`.
+**There are no Critical findings.** Three agent-flagged "Critical" items were demoted during verification (see §12).
 
 ---
 
 ## 1. Executive summary
 
-Top items to address, in priority order (✅ = already resolved):
+Highest-impact items, in priority order (✅ = resolved in a prior session):
 
-1. ✅ **[High] Dead service `ProfileLocationManager` (118 LOC) with zero references** — §9.1. Resolved in `f610933`.
-2. ✅ **[High] `UnsafeSendableBox` (`@unchecked Sendable`) bridging the HK auth-timeout pattern** — §3.2. Resolved 2026-05-26: box deleted, async overload used directly.
-3. ✅ **[High] PayGate monitoring failure refunds silently with no UI feedback** — §5.1. Resolved 2026-05-26: refund branch now surfaces an alert + dismisses the sheet.
-4. ✅ **[High] No Debug/Release Supabase URL split — single `Secrets.xcconfig` shared by both** — §6.1. Resolved 2026-05-29: per-config `Secrets-Debug.xcconfig` / `Secrets-Release.xcconfig` layers + Release host assertion in `SupabaseConfig`.
-5. ✅ **[High] "Migrate to .sensoryFeedback()" TODOs across the UI** — §4.1. Resolved 2026-05-26: all 16 files migrated, 0 TODOs remain.
-6. **[High] Oversized SwiftUI views (1951 / 1640 / 1119 LOC) couple state, network, and rendering** — §9.2 — `OnboardingStoriesView.swift`, `GalleryView.swift`, `MeView.swift`. **← OPEN**
-7. **[High] App-Group `UserDefaults` read-modify-write between app and DeviceActivity extension is unsynchronized** — §5.2 — `BlockingStore.swift:87-93` + `DeviceActivityMonitorExtension.swift:172-192`. **← OPEN**
-8. ✅ **[High] `UNUserNotificationCenter.add(_:withCompletionHandler:)` async migration** — §3.3. Resolved in `7a73f38`.
-9. ✅ **[High] HealthKit observer/initial-fetch task not stored → `stopObservingSteps()` can't cancel in-flight fetch** — §5.3. Resolved 2026-05-26 (`8ccf125`): observer-task lifetimes tracked.
-10. ✅ **[Medium] One canonical compiler warning** — §4.2. Resolved in `83b8475`.
-
-> **Reconciled 2026-05-28.** Genuinely open: §6.1, §9.2, §5.2 (above) + §4.3, §7.3 (Medium) + Low/latent items. §5.6 resolved 2026-05-28; §5.4 demoted to latent (see those sections).
+1. ✅ **[Medium] Avatar migration deletes the UserDefaults copy even when the disk write fails** — §5.11. Resolved 2026-06-11.
+2. **[High] App-Group `UserDefaults` compound read-modify-write is unsynchronized across processes** — §5.2 — `BlockingStore.swift`, `DeviceActivityMonitorExtension.swift`, **+ new site** `AppModel+PayGate.swift:85-96`. **← OPEN.**
+3. ✅ **[Medium] Duplicate source-of-truth for the `payGateDismissedUntil_v1` key** — §5.12. Resolved 2026-06-11.
+4. **[High] Oversized SwiftUI views / files (1951 / 1398 / 1145 / 908 / 885 LOC) couple state, network, and rendering** — §9.2 — `OnboardingStoriesView`, `GalleryView`, `AppModel+DailyEnergy`, `MeView`, `CategoryDetailView`. **← OPEN.**
+5. **[Medium] `ObservableObject` + `@Published` still used where `@Observable` fits (iOS 17.5+ supports it)** — §4.3 — `AppModel` + every store/service. **← OPEN.**
+6. **[Medium] Hot SwiftUI views compute layout/sort/format in `body` without memoization** — §7.3 — `GalleryView`, `MeView`, `CategoryDetailView`. **← OPEN.**
+7. ✅ **[Low] Build-config: extension version string `1.1.2` ≠ app `1.2`** — §2. Resolved (all 14 `MARKETING_VERSION` entries = 1.2 as of 2026-06-11; build is warning-free).
+8. ✅ **[High] No Debug/Release Supabase URL split** — §6.1. Resolved 2026-05-29.
+9. ✅ **[High] PayGate monitoring-failure refund had no UI feedback** — §5.1. Resolved 2026-05-26.
+10. ✅ **[High] `loadStoredSession` ignored the UserDefaults shadow on early-boot Keychain lock** — §5.6. Resolved 2026-05-28.
 
 ---
 
 ## 2. Quick wins (≤30 min each)
 
-✅ All quick wins from the original list are resolved (verified 2026-05-28):
+- ✅ **Build-config version mismatch.** Resolved — all targets at `MARKETING_VERSION = 1.2`, clean build produces no warning (verified 2026-06-11).
+- **Asset-name typo `onboarding_figuer_1` (NEW).** See §9.14 — rename the asset + 3 string references.
+- ✅ **Duplicate key constant.** See §5.12 — resolved 2026-06-11.
+- **Centralize JPEG compression constants (NEW).** See §9.13 — three different magic qualities (0.75 / 0.8 / 0.85).
+- **`print()` in `OnboardingPreview/Sources/Stubs.swift:100` not `#if DEBUG`-gated.** See §9.15 — preview-only package, low impact.
 
-- ~~Consolidate the 8 private `_dailyEnergy…Key` constants into `SharedKeys`~~ — done (§9.4).
-- ~~Add `[weak self]` / `Task.isCancelled` to Combine `sink` tasks~~ — done (§3.5); the remaining `objectWillChange` forwarders are synchronous and already `[weak self]`-guarded (`AppModel.swift:253-281`).
-- ~~Wrap the 4 `print()` calls in `OnboardingDemoView.swift` behind `#if DEBUG`~~ — done (§9.9).
-
-(File deletions, gitignore, marketing doc move, warning fix were completed in the post-audit hygiene PR.)
+Prior quick-wins (SharedKeys consolidation, `[weak self]`/cancellation on sinks, DEBUG-gating onboarding prints) remain resolved.
 
 ---
 
 ## 3. Concurrency
 
-The project compiles in Swift 5 mode without strict concurrency. Everything below is **latent** — it'll surface when the project flips on `SWIFT_STRICT_CONCURRENCY=complete` or upgrades to Swift 6 language mode. Triage these in advance of that upgrade rather than treating them as live bugs.
+Still Swift 5 mode, strict concurrency off — everything here is **latent** until the Swift 6 / `SWIFT_STRICT_CONCURRENCY=complete` migration. §3.1–§3.10 were resolved in prior sessions (verified still in place this pass: `lastStepCount` is NSLock-guarded at `HealthKitService.swift:43-48`; `initialFetchTask` tracked + cancellation-gated at `HealthKitService.swift:385-413`; HK observer re-fetch gates on `isObserving`; Combine sink Tasks tracked).
 
-### 3.1 ✅ _RESOLVED 2026-05-26: sign-in Task now tracked + cancellation-aware_
-
-Новое property `signInTask: Task<Void, Never>?` отслеживает внешний sign-in flow. `signOut()` и `deleteAccount()` теперь кенселят его наряду с `postLoginSyncTask`. Внутри Task'a — `guard !Task.isCancelled else { return }` после каждого `await` (token exchange, profile fetch, name promotion). Outer `@MainActor in` annotation убран — Task наследует MainActor от класса автоматически.
-
-### 3.2 ✅ _RESOLVED 2026-05-26: `UnsafeSendableBox` deleted, HK auth uses async overload directly_
-
-Был `@unchecked Sendable` бокс + ручной 10-секундный timeout + `Task.detached` — workaround для древнего бага в iOS, где async-overload `HKHealthStore.requestAuthorization` мог зависнуть. На современных iOS этого нет. Сейчас просто `try await store.requestAuthorization(toShare: [], read: readTypes)` — на 20 строк короче, data race surface исчез, Swift 6 strict-concurrency больше не имеет претензий. Заодно §4.4 закрыта (континуация HK auth убрана).
-
-`.authorizationTimeout` case в `HealthKitServiceError` оставлен в API на случай если timeout-обёртку придётся вернуть в будущем (тогда уже через `withTimeout` или `TaskGroup`, без @unchecked); ветка `catch` в `HealthStore.swift:32` стала недостижимой но не сломанной — defensive code.
-
-### 3.3 ✅ _RESOLVED 2026-05-26 (commit `7a73f38`): UNUserNotificationCenter.add() переведён на async overload_
-
-Все 10 сайтов в `NotificationManager.swift` заменены на `try await ... .add(request)` обёрнутые в `Task { do { ... } catch { } }`. Внешний API методов остался sync (звонящие места не меняются). Под Swift 6 эта находка бы стрельнула на каждом сайте — теперь чисто.
-
-### 3.4 ⏸ _DEFERRED: needs `SWIFT_STRICT_CONCURRENCY=complete` to find issues_
-
-Без включённого strict-concurrency-mode компилятор молчит на этих звонящих местах. Делать audit «вручную» по grep'у — низкая отдача и легко пропустить случай. Логичный момент — когда будет отдельная сессия по флипу language mode на Swift 6, тогда компилятор сам подсветит все места которые надо `nonisolated` пометить. Severity остаётся Medium до того момента.
-
-### 3.5 ✅ _RESOLVED 2026-05-26: Combine sink Tasks now tracked + cancellable_
-
-- `AppModel.recalcTask: Task<Void, Never>?` — отслеживает recompute из CombineLatest sink. Каждый новый fire кенселит предыдущий. В `deinit` тоже кенселится через `MainActor.assumeIsolated`.
-- `SubscriptionStore.customerInfoStreamTask: Task<Void, Never>?` — отслеживает long-running listener на `Purchases.customerInfoStream`. Кенселится в новом `deinit` блоке наряду с `refreshTask`.
-
-Остальные sink'ы (`objectWillChange` forwarding) — синхронные, Task не спавнят, не требуют трекинга.
-
-### 3.6 ✅ _RESOLVED 2026-05-26: HK observer re-fetch task now gates on `isObserving`_
-
-Решено через cancellation-aware гейтинг: после `await fetchSteps(...)` в observer-обработчике делается `let stillObserving = await MainActor.run { self.isObserving }` — если за время fetch'а `stopObservingSteps()` уже сбросил флаг, результат отбрасывается и обновление UI не уходит. Связано с §3.9 и §5.3 — закрыты тем же коммитом.
-
-### 3.7 ✅ _RESOLVED 2026-05-26: Diagnostic block wrapped in `#if DEBUG`_
-
-Раньше каждый `fetchSteps` запускал второй HK-запрос (source breakdown logging) через `Task.detached` — в Release этот код фигачил без причины, удваивая HK-нагрузку. Сейчас обёрнут в `#if DEBUG` в `HealthKitService.swift:243-267`, в Release-сборке блок не компилируется вообще. Closes §7.1 заодно.
-
-### 3.8 ✅ _RESOLVED 2026-05-26: threading contract documented on `ShieldRebuildHelper`_
-
-`ShieldRebuildHelper` уже был stateless enum с `NSLock`-guard'ом на cache — структурно правильно. Добавлен явный «Threading contract» header в файл: какие процессы вызывают (main app @MainActor, DeviceActivityMonitor background thread, widget extension), все inputs Sendable, output value types, cache защищён `NSLock`. Future-audit'ы не будут гадать.
-
-### 3.9 ✅ _RESOLVED 2026-05-26: Initial-fetch Task tracked via `initialFetchTask`, cancelled in `stopObservingSteps()`_
-
-Закрыто тем же коммитом что §3.6 и §5.3. После каждого `await` в initial-fetch Task'е стоит `guard !Task.isCancelled else { return }` — наблюдение не стартует если caller уже остановил teardown.
-
-### 3.10 ✅ _RESOLVED (already fixed in swiftui-pro review prior to this audit)_
-
-`BlockingStore.swift:70` уже содержит `guard let self = self, !Task.isCancelled else { return }` после `Task.sleep`. Аудит-агент пропустил этот guard при первом сканировании — фикс был сделан в коммите `c5377a5` ранее.
+### 3.1 ✅ _RESOLVED — sign-in Task tracked + cancellation-aware._
+### 3.2 ✅ _RESOLVED — `UnsafeSendableBox` deleted, HK auth uses async overload._
+### 3.3 ✅ _RESOLVED — `UNUserNotificationCenter.add()` on async overload._
+### 3.4 ⏸ _DEFERRED — needs `SWIFT_STRICT_CONCURRENCY=complete` to surface caller sites._
+### 3.5 ✅ _RESOLVED — Combine sink Tasks tracked + cancellable._
+### 3.6 ✅ _RESOLVED — HK observer re-fetch gates on `isObserving`._
+### 3.7 ✅ _RESOLVED — diagnostic HK source breakdown wrapped in `#if DEBUG`._
+### 3.8 ✅ _RESOLVED — threading contract documented on `ShieldRebuildHelper`._
+### 3.9 ✅ _RESOLVED — initial-fetch Task tracked via `initialFetchTask`._
+### 3.10 ✅ _RESOLVED — `BlockingStore` Task.sleep guarded by `Task.isCancelled`._
 
 ### 3.11 `UIWindowScene.windows` accessed directly
-- **Location:** `StepsTrader/Views/Onboarding/AppleSignInCoordinator.swift`, `StepsTrader/Stores/SubscriptionStore.swift:323-330`
-- **What:** Code reaches for `scene.windows.first` to find a presentation anchor.
-- **Action:** Use `UIApplication.shared.connectedScenes` pattern.
+- **Location:** `StepsTrader/Views/Onboarding/AppleSignInCoordinator.swift:21-26`, `StepsTrader/Stores/SubscriptionStore.swift` (presentation-anchor lookup)
+- **What:** Code reaches for `scene.windows.first` / `flatMap(\.windows)` to find a presentation anchor.
+- **Why:** On iPad with two windows / Split View this can resolve the wrong scene (e.g. an Apple Sign-In sheet appearing in the inactive window).
+- **Action:** Centralize a single `connectedScenes`-based active-window helper and route both call sites through it.
 - **Severity:** Low
-- **Что это значит на практике:** Сегодня работает. На iPad с двумя окнами/Split View может найти не то окно (например, Apple Sign-In popup появится не в активной сцене). Никто пока не жаловался — но если в будущем поддержка iPad Split View будет важна, нужно править.
+- **На практике:** Сегодня работает; ломается только при поддержке iPad Split View с двумя окнами.
 
-### 3.12 `Timer.scheduledTimer` callback for the day-boundary check
-- **Location:** `StepsTrader/AppModel.swift:344-355`
-- **What:** Timer block hops to `Task { @MainActor [weak self] in … }`. Recursive re-schedule silently stops if `self` is nil between fires.
-- **Action:** Replace with `AsyncStream` + `Task.sleep(until:)` and explicit cancel in `deinit`.
+### 3.12 Recursive `Timer.scheduledTimer` reschedule can silently stop
+- **Location:** `StepsTrader/AppModel.swift:367-378`
+- **What:** The day-boundary timer fires `Task { @MainActor [weak self] in self?.checkDayBoundary(); self?.scheduleDayBoundaryTimer() }`; if `self` is nil between fires the recursive reschedule chain ends with no log.
+- **Why:** Unreachable in production (`AppModel` lives for the app's lifetime) but breaks in unit tests that recreate the model.
+- **Action:** Replace with an `AsyncStream` + `Task.sleep(until:)` scoped to model lifetime, cancelled in `deinit`.
 - **Severity:** Low
-- **Что это значит на практике:** В реальной жизни не воспроизведётся (AppModel живёт сколько живёт приложение). В юнит-тестах с пересозданием — таймер «теряется», переход дня не срабатывает для нового инстанса.
+
+### 3.13 Long-lived listener / debounce Tasks reassigned without confirming prior teardown (latent)
+- **Location:** `StepsTrader/Stores/SubscriptionStore.swift` (`customerInfoStreamTask`, `refreshTask`), `StepsTrader/Services/SupabaseSyncService.swift:24-33` (per-entity sync Tasks), `StepsTrader/Stores/BlockingStore.swift` (debounced save/rebuild Tasks)
+- **What:** Each new request does `task?.cancel(); task = Task { … }` — cancellation is requested but not awaited, so the prior Task can still be mid-flight when the new one starts.
+- **Why:** Under rapid re-entry a prior sync upload can overlap a new one (duplicate work, not loss). All are tracked + cancelled in `deinit`, so this is a fairness/duplication concern, not a leak.
+- **Action:** Where overlap matters (sync uploads), gate with an in-flight flag or serialize via a single actor/`TaskGroup`; otherwise document the cancel-don't-await contract.
+- **Severity:** Low (latent)
 
 ---
 
 ## 4. API modernity
 
-### 4.1 ✅ _RESOLVED 2026-05-26: All 16 files migrated to `.sensoryFeedback`_
+### 4.1 ✅ _RESOLVED — all 16 files migrated to `.sensoryFeedback`._
+### 4.2 ✅ _RESOLVED — vestigial `await` removed; 0 code warnings._
 
-Все 30 TODO-маркеров закрыты, ~60 imperative haptic-вызовов заменены на declarative `.sensoryFeedback` модификаторы. Паттерн в каждом файле один и тот же: `@State [name]HapticTick = 0` + `.sensoryFeedback(.impact(weight: .X), trigger: tick)` на body + `tick &+= 1` в обработчике.
-
-Затронуты (14 файлов с обычным паттерном): `WorkoutSuggestionBanner`, `PaywallView`, `SettingsSubscriptionPage`, `SettingsWidgetPage`, `InlineTicketSettingsView`, `AppsPageSimplified`, `PaperTicketView`, `StepGoalDrumPicker`, `SleepGoalArcPicker`, `SettingsAppearancePage` (10 сайтов), `OnboardingStoriesView` (14 call-сайтов через 5 helper-функций, теперь удалены).
-
-Финальные 2 файла с enum-Haptics паттерном (`private enum Haptics { static let light = UIImpactFeedbackGenerator(...) }` + `prepareAll()` + множество call-сайтов внутри файла) тоже закрыты:
-- `CategoryDetailView` — enum удалён (light/medium/success), 10 call-сайтов заменены, `Haptics.prepareAll()` из `.onAppear` убран.
-- `GalleryView` — enum удалён (light/medium), 16 call-сайтов заменены (включая один тройной кейс с условным `prepareAll`), 3 `.sensoryFeedback` модификатора на body.
-
-`SmudgeCanvasView` и `ShaderParkOverlayView` — TODO заменён на пояснение: это `UIViewRepresentable`, хаптика стреляет внутри UIView touch handlers, `.sensoryFeedback` (SwiftUI-модификатор) физически не дотягивается до этих callback'ов. UIKit-генератор здесь архитектурно корректен.
-
-### 4.2 ✅ _RESOLVED 2026-05-26 (commit `83b8475`): Vestigial `await` removed in post-login task_
-
-Был единственный compiler warning в clean Debug build — закрыт. Project builds with 0 warnings.
-
-### 4.3 `@Published` + `ObservableObject` still used where `@Observable` would do
-- **Location:** `StepsTrader/AppModel.swift:18-20`, every file in `StepsTrader/Stores/*.swift`, `AuthenticationService.swift:62-63`
-- **What:** Stores and services use `@MainActor final class … : ObservableObject` with `@Published`. Deployment target is iOS 17.5, so `@Observable` is supported.
-- **Why:** `@Observable` removes Combine dependency, gives finer-grained dirty tracking.
-- **Action:** Migrate incrementally — `AppModel` and stores are the biggest payoff.
+### 4.3 `@Published` + `ObservableObject` used where `@Observable` would do
+- **Location:** `StepsTrader/AppModel.swift:18-20`, every file in `StepsTrader/Stores/*.swift`, `AuthenticationService.swift`, plus `HealthStore`, `UserEconomyStore`, `BudgetEngine`, `AnnouncementService`, `FamilyControlsService`
+- **What:** Stores/services use `@MainActor final class … : ObservableObject` with `@Published`. Deployment target is iOS 17.5, so `@Observable` is available (already used in `Models/Note.swift`).
+- **Why:** `@Observable` gives per-property invalidation, drops the Combine dependency, and is a prerequisite for `@Bindable`. Today any step/sleep change re-renders every view observing `AppModel`.
+- **Action:** Migrate incrementally; `AppModel` and the stores are the biggest payoff. Linked to §7.3/§7.4.
 - **Severity:** Medium
-- **Что это значит на практике:** При любом изменении step count или sleep — перерисовывается ВСЁ дерево вьюх, которые смотрят на AppModel (а это полприложения). Невидимая трата CPU и батареи. С `@Observable` SwiftUI перерисует только то, что реально зависит от изменённого значения. Связано с §7.4.
+- **На практике:** При любом изменении step count перерисовывается всё дерево вьюх, смотрящих на `AppModel`. `@Observable` перерисует только реально зависящие.
 
-### 4.4 ✅ _RESOLVED — см. §3.2_
+### 4.4 ✅ _RESOLVED — see §3.2._
+### 4.5 ✅ _RESOLVED — see §3.3._
 
-Закрыта тем же коммитом. Континуация HK auth удалена, используется async overload.
-
-### 4.5 ✅ _RESOLVED — см. §3.3_
-
-Та же находка что §3.3, закрыта тем же коммитом.
-
-### 4.6 No `@available(iOS X, *)` guards below the deployment target found
-- **Location:** N/A
-- **What:** Codebase clean — все @available-гарды актуальны для iOS 17.5+.
-- **Action:** None.
-- **Severity:** Low
-- **Что это значит на практике:** Хорошие новости — нечего убирать. Информационный пункт.
+### 4.6 No stale `@available` guards below the deployment target
+- **Location:** N/A — clean.
+- **Severity:** Low (informational).
 
 ---
 
 ## 5. Bugs / logic errors
 
-### 5.1 ✅ _RESOLVED 2026-05-26: PayGate failure now surfaces an alert + dismisses the sheet_
+### 5.1 ✅ _RESOLVED — PayGate monitoring failure surfaces an alert + dismisses (`AppModel+PayGate.swift:104-119`)._
 
-`AppModel+PayGate.swift` refund-ветка теперь делает три вещи: рефанд + clear keys (как и раньше), плюс выставляет `payGateError` (новое `@Published` на `UserEconomyStore`) и зовёт `dismissPayGate(reason: .programmatic)`. На уровне `StepsTraderApp.body` повешен `.alert` который слушает этот error и показывает «Couldn't start the timer. Your colors were refunded — please try again in a moment.» (с локализацией). После закрытия alert'а сообщение клирится. `openPayGate` тоже клирит stale-state перед открытием.
-
-Lifecycle: error выставляется ПЕРЕД dismiss → alert находится на корневом ZStack (а не внутри PayGateView) → виден после dismissal. Type-checker `body` пришлось разгружать — binding вынесен в `payGateErrorBinding` computed property (SwiftUI body уже был на пределе сложности).
-
-### 5.2 App-Group `UserDefaults` compound mutations are not synchronized between app and DeviceActivity extension
-- **Location:** `StepsTrader/Stores/BlockingStore.swift:87-93`, `DeviceActivityMonitor/DeviceActivityMonitorExtension.swift:172-192, 263-294`
-- **What:** Individual `set`/`get` is atomic, but read-modify-write sequences (load → decode JSON → mutate → re-encode → set) have no cross-process coordination.
-- **Why:** When the extension fires concurrently with app mid-save, extension can resurrect stale state. Sticky.
-- **Action:** Move compound state to a `Shared/AppGroupStateStore` actor with `NSFileCoordinator` locking.
+### 5.2 App-Group `UserDefaults` compound mutations are unsynchronized across processes
+- **Location:** `StepsTrader/Stores/BlockingStore.swift` (group save path), `DeviceActivityMonitor/DeviceActivityMonitorExtension.swift` (budget/blocking state), **+ NEW site** `StepsTrader/AppModel+PayGate.swift:85-96` (usage-budget read-modify-write)
+- **What:** Individual `set`/`get` is atomic, but read-modify-write sequences (read `usageBudgetKey` → `existing + minutes` → write back; or load JSON → decode → mutate → re-encode → set) have no cross-process coordination. The PayGate site reads `defaults.integer(forKey: budgetKey)`, adds `minutes`, and writes the sum — if the DeviceActivity extension decrements the same budget between the read and write, that decrement is lost.
+- **Why:** When the extension fires (time budget exhausted) concurrently with the app mutating the same state, one process can resurrect/overwrite the other's value. State sticks until manually changed.
+- **Action:** Move compound App-Group state behind a single `Shared/AppGroupStateStore` with `NSFileCoordinator`-coordinated reads/writes (sync API so the extension can call it). Note: a bare `actor` doesn't compose here — the extension needs synchronous access and `NSFileCoordinator` coordinates files, not `UserDefaults`; design decision required first.
 - **Severity:** High
-- **Status:** OPEN — fix **deferred** to a dedicated session (touches the cross-process blocking path; needs careful design + a jetsam-safety check on coordinated writes inside the extension). **Reproduced 2026-05-29** via `Steps4Tests/AppGroupRMWConcurrencyTests`: 2 lock-step writers doing unsynchronized read-modify-write on `UserDefaults.stepsTrader()` lost **exactly 50% of updates** (stored 150 of 300), while the serialized control kept all 200 — confirming the logical defect is real (loss comes purely from unsynchronized concurrency, not the harness). The race assertion is parked behind `XCTSkipIf(true, …)`; removing that one line re-arms it as the regression guard for the fix.
-- **Caveat on scope:** the 50% figure is *not* a production loss rate — the test artificially widens the read→write window (250 µs) and runs writers in lock-step. In production the window is microseconds and the extension fires rarely, so real collision frequency is narrow; the proven point is that *when* a collision occurs an update is silently lost and the stale state sticks.
-- **Что это значит на практике:** Когда DeviceActivity extension стреляет (например, исчерпался time-budget) одновременно с пользователем в приложении (меняет настройки блокировки), может произойти что extension переписывает свежие настройки старой версией. Юзер видит: «я только что добавил приложение в группу — оно пропало». Узкое окно срабатывания, но залипает после — состояние не восстанавливается само.
+- **Status:** OPEN — deferred to a dedicated session. **Reproduced** 2026-05-29 via `Steps4Tests/AppGroupRMWConcurrencyTests`: two lock-step writers lost exactly 50% of updates vs the serialized control. The race assertion is parked behind `XCTSkipIf(true, …)`; removing that line re-arms it as the regression guard. (The 50% figure is an amplified test, not a production loss rate — the proven point is that *when* a collision occurs an update is silently lost.)
+- **На практике:** Если extension стреляет одновременно с пользователем в настройках блокировки / покупкой времени — свежая правка может быть затёрта старой. Узкое окно, но залипает.
 
-### 5.3 ✅ _RESOLVED 2026-05-26: HK initial fetch can no longer write past `stopObservingSteps()`_
+### 5.3 ✅ _RESOLVED — HK initial fetch can't write past `stopObservingSteps()`._
+### 5.4 ⬇️ _DEMOTED to Low/latent — `@MainActor` + synchronous recompute prevents the described tearing. Becomes real only if a recompute path is made `async` with an `await` between two boundary reads._
+### 5.5 ✅ _RESOLVED — Moment IDs stripped at every Supabase sync boundary._
+### 5.6 ✅ _RESOLVED — `loadStoredSession` falls back to the UserDefaults shadow (`AuthenticationService.swift:533-548` Keychain-first, UD fallback)._
+### 5.7 ✅ _RESOLVED — widget `bundleId` validated against reverse-DNS regex._
+### 5.8 ✅ _RESOLVED — re-entrancy guard via `_openingBundleIds` Set._
+### 5.9 ✅ _RESOLVED — sleep-merge reads `merged.last` first._
 
-Закрыто тем же коммитом что §3.6 и §3.9. UX-сценарий sign-out → sign-in больше не показывает step count предыдущего юзера на новом аккаунте.
+### 5.10 Recursive day-boundary timer reschedule stops on `self == nil`
+- See §3.12 (same site, `AppModel.swift:367-378`). **Severity:** Low.
 
-### 5.4 ⬇️ _DEMOTED 2026-05-28 to Low/latent: tearing can't reproduce under `@MainActor` + sync recompute_
-- **Location:** `StepsTrader/AppModel.swift:289-295` (`currentDayStart`/`isSameCustomDay`), `recalculateDailyEnergy` / `checkDayBoundary`.
-- **Original claim:** A settings write lands mid-recompute so part of the pass uses the old boundary, part the new one → canvas flicker.
-- **Why demoted (verified 2026-05-28):** `AppModel` is `@MainActor` and every recompute function (`checkDayBoundary`, `recalculateDailyEnergy`, `resetDailyEnergyIfNeeded`) is **synchronous** — no suspension point where a concurrent write could interleave. All three settings entry points (`DayEndSettingsView`, `SettingsEnergyPage`, `ProfileEditorView`) write `@AppStorage` (UserDefaults) **and** call `model.updateDayEnd` in the same `onChange` turn, so the in-memory `@Published` value and UserDefaults never diverge. Same category as the §12 demotions.
-- **When it would become real:** if any recompute path is ever made `async` with an `await` *between* two boundary reads. At that point snapshot `(dayEndHour, dayEndMinute)` once at the top. Until then, the band-aid would add parameter-threading across ~40 call sites for a race the actor model already prevents.
-- **Severity:** Medium → **Low (latent)**
-- **Что это значит на практике:** Сейчас не воспроизводится — `@MainActor` сериализует все чтения/записи границы, а recompute синхронный. Станет реальным только если recompute сделают `async` с `await` между чтениями границы.
+### 5.11 ✅ _RESOLVED 2026-06-11 — `removeObject` moved inside the successful-write path; failed migration keeps the UserDefaults copy for retry._
 
-### 5.5 _RESOLVED 2026-05-26: Moment IDs now filtered at every Supabase sync boundary._
+### 5.12 ✅ _RESOLVED 2026-06-11 — `_payGateDismissedUntilKey` deleted; both call sites use `SharedKeys.payGateDismissedUntil`._
 
-Original finding (now fixed): the local-only Moment feature was leaking `moment_<uuid>` IDs to `user_day_snapshots.body_ids/mind_ids/heart_ids` and `user_daily_selections.activity_ids/rest_ids/joys_ids`. The label was never sent, so a second device — or a fresh install restoring from server — would see opaque `moment_abc123` strings in `MeView` history.
-
-What changed:
-- `StepsTrader/Models/EphemeralMoment.swift` — centralized `idPrefix` constant and added `isMomentId(_:)` / `filteredOutOfSync(_:)` helpers.
-- `StepsTrader/AppModel+DailyEnergy.swift` — `resolveOptionTitle` uses helper; `saveCurrentAsRoutine` strips moment IDs.
-- `StepsTrader/Services/SupabaseSyncService+Stats.swift` — `performDaySnapshotSync` strips moment IDs; `loadDaySnapshotsFromServer` and `loadHistoricalSnapshots` strip on receive.
-- `StepsTrader/Services/SupabaseSyncService+Selections.swift` — `performDailySelectionsSync` strips moment IDs.
-
-Cross-device persistence remains a separate feature (would need a `moments` JSONB column on `user_day_snapshots`, restore + merge logic).
-
-- **Severity:** Medium → **Resolved**
-- **Что это значит на практике (для контекста):** До фикса юзер на втором устройстве видел в истории Me строку «moment_abc123» вместо своего лейбла («Wedding»). Теперь Moment-ID не уходят на сервер вообще — UI-копирайт «just for today, on this device» теперь правда.
-
-### 5.6 ✅ _RESOLVED 2026-05-28: `loadStoredSession` falls back to the UserDefaults shadow_
-- **Location:** `StepsTrader/Services/AuthenticationService.swift:649-668`
-- **What was wrong:** The one-time migration kept a UserDefaults copy on Keychain-save failure, but `loadStoredSession` read Keychain only — the shadow was never consulted.
-- **Fix (option A):** `SessionKeychain.loadSession() ?? UserDefaults.standard.data(forKey: userDefaultsKey)` — prefer Keychain, fall back to the retained shadow when it returns nil (e.g. Keychain locked at early boot). A successful migration removes the shadow, so the fallback is nil in steady state.
-- **Severity:** Medium → **Resolved**
-- **Что это значит на практике:** Первый запуск после ребута, если Keychain ещё не разблокирован — юзер больше не вылетает из аккаунта; сессия восстанавливается из UserDefaults-тени.
-
-### 5.7 ✅ _RESOLVED 2026-05-26: bundleId now validated against reverse-DNS regex_
-
-`handleWidgetOpenApp` в `StepsTraderApp.swift:485-499` теперь сначала прогоняет `bundleId` через `^[a-zA-Z0-9](?:[a-zA-Z0-9\-]*\.)*[a-zA-Z0-9][a-zA-Z0-9\-]*$` перед передачей в `TargetResolver`. Только реально похожие на bundle-ID строки доходят до резолвера, остальное молча отбрасывается.
-
-### 5.8 ✅ _RESOLVED 2026-05-26: re-entrancy guard added via `_openingBundleIds` Set_
-
-Файл-scope `@MainActor private var _openingBundleIds: Set<String>` в `HandoffManager.swift` отслеживает какие bundleId сейчас в процессе открытия. `openTargetApp` пропускает дубликат, `attemptOpenScheme` чистит Set на success / на финальном failure / на «нет схем». Два быстрых открытия одного приложения подряд через Shortcuts больше не гонщатся.
-
-### 5.9 ✅ _RESOLVED 2026-05-26: sleep-merge now reads `merged.last` first_
-
-Цикл merge в `HealthKitService.swift:194-207` теперь делает `if let last = merged.last, interval.start <= last.end { ... }` вместо force-indexed `merged[merged.count - 1].end` для чтения. Сама запись остаётся через индекс (Swift не позволяет mutate через `last`), но read через optional делает refactor-safe.
-
-### 5.10 Recursive timer rescheduling silently stops on `self == nil`
-- **Location:** `StepsTrader/AppModel.swift:344-355`
-- **What:** If `self?.scheduleDayBoundaryTimer()` fires when self deallocated, the chain ends with no log.
-- **Action:** Guard log or move to `AsyncStream` scoped to model lifetime.
+### 5.13 Offline retry queue doesn't prune expired entries before size-truncation
+- **Location:** `StepsTrader/Services/SupabaseSyncService.swift:164-180`
+- **What:** `enqueueForRetry` appends then truncates to `suffix(maxRetryQueueSize)` without first filtering `isExpired` (3-day TTL). Expired entries are only dropped later in `drainRetryQueue()`.
+- **Why:** A long offline period keeps stale-but-not-yet-drained entries occupying queue slots; eviction is purely by recency, so an expired entry can survive while a slightly older fresh one is dropped. Minor — the newest request is always retained (it's appended last).
+- **Action:** `queue = queue.filter { !$0.isExpired }` before the size check in `enqueueForRetry`.
 - **Severity:** Low
-- **Что это значит на практике:** Только в тестах. В проде AppModel живёт всю жизнь приложения — баг недостижим.
 
 ---
 
 ## 6. Security
 
-### 6.1 No Debug/Release split for Supabase credentials ✅ RESOLVED (2026-05-29)
-- **Location:** `Config/Debug.xcconfig`, `Config/Release.xcconfig`
-- **What:** Single secrets file shared by both configurations. No environment isolation.
-- **Action:** Split into `Secrets-Debug.xcconfig` / `Secrets-Release.xcconfig`. Add runtime URL host assertion in Release.
-- **Severity:** High
-- **Resolution:** Introduced thin, committed per-config layers `Config/Secrets-Debug.xcconfig` and `Config/Secrets-Release.xcconfig`. `Debug.xcconfig`/`Release.xcconfig` now `#include` their respective layer; each layer `#include`s the shared gitignored `Secrets.xcconfig` (so the actual public client keys stay DRY and CI's `ci_post_clone.sh` is unchanged) and is the documented seam for per-environment overrides — e.g. dropping `SUPABASE_URL = …staging…` into the Debug layer points dev at staging without touching Release. Added a `#if !DEBUG` host assertion in `SupabaseConfig.cached` (`NetworkClient.swift`): Release builds reject any `SUPABASE_URL` that isn't HTTPS with a `*.supabase.co` host, failing fast (config treated as missing) instead of silently talking to a mis-wired endpoint. The URL value is never logged. Verified Debug + Release both build.
-- **Что это значит на практике:** Теперь, чтобы завести staging-Supabase, достаточно дописать одну строку `SUPABASE_URL` в `Secrets-Debug.xcconfig` — Release остаётся на prod, и host-assertion не даст случайно отправить релиз на чужой/пустой endpoint.
-
+### 6.1 ✅ _RESOLVED 2026-05-29 — per-config `Secrets-Debug/Release.xcconfig` layers + Release host assertion in `NetworkClient.swift` (`SupabaseConfig` rejects non-HTTPS / non-`*.supabase.co` in `#if !DEBUG`)._
 ### 6.2 No hardcoded secrets in client code
-- **Location:** Repo-wide grep
-- **What:** All `Bearer …` use validated session tokens; Supabase anon key и RevenueCat key — публичные client-keys.
-- **Action:** Document the contract in `README.md`.
-- **Severity:** Low
-- **Что это значит на практике:** Хорошие новости — секретов в клиенте нет. «Всё чисто», а не «надо чинить». Просто отметить в доках чтобы будущий контрибьютор не положил случайно service-role key в Secrets.xcconfig.
-
+- **Location:** repo-wide grep. All `Bearer …` use validated session tokens; Supabase anon key + RevenueCat key are public client keys.
+- **Severity:** Low (informational — clean).
 ### 6.3 `supabase/functions/send-push/index.ts` is well-hardened
-- **Location:** `supabase/functions/send-push/index.ts:1-275`
-- **What:** Env-var validation, constant-time bearer compare, CORS closed, narrow APNs cleanup heuristic.
-- **Action:** None. Use as template for future Edge Functions.
-- **Severity:** Low
-- **Что это значит на практике:** Хорошие новости. Push-функция сделана аккуратно — поведение под нагрузкой и злоупотреблением предусмотрено.
-
-### 6.4 Handoff token is locally generated and locally verified — by design
-- **Location:** `StepsTrader/Models/HandoffToken.swift:1-13`
-- **What:** Local-only token, no privilege boundary crossed.
-- **Action:** Document trust model in header.
-- **Severity:** Low
-- **Что это значит на практике:** Хорошие новости. Параноить не нужно — токен живёт на одном устройстве, юзер если хочет «обмануть» — обманывает сам себя. Просто прописать в комментарии, чтобы будущий аудитор не пугался.
-
-### 6.5 Retry queue stores raw request bodies without integrity check
-- **Location:** `StepsTrader/Services/SupabaseSyncService.swift:164-179`
-- **What:** No CRC/HMAC on persisted requests; corrupted entry replays as malformed.
-- **Action:** Optional — add CRC to envelope.
-- **Severity:** Low
-- **Что это значит на практике:** Если локальный UserDefaults внезапно повредится (что почти не бывает) — следующий ретрай улетит мусором, сервер вернёт 4xx, запись удалится. Тихий graceful fail. Хочется ловить корректнее — нужен checksum, но это belt-and-suspenders.
-
-### 6.6 Print/log redaction
-- **Location:** `StepsTrader/Services/AuthenticationService.swift` throughout
-- **What:** Truncated user IDs, no raw tokens in logs.
-- **Action:** None.
-- **Severity:** Low
-- **Что это значит на практике:** Хорошие новости. Токены в логах не лежат, аккаунты пользователей не утекут через crash-репорты или OSLog-экспорт.
-
-### 6.7 Entitlements files were not opened
-- **Location:** `Steps4/Steps4.entitlements`, extension entitlements
-- **What:** Out of scope for this audit run.
-- **Action:** Verify App Group present on every target.
-- **Severity:** Low
-- **Что это значит на практике:** Не значит что entitlements плохие — значит что их аудит требует отдельной проверки (сверка с Apple Developer portal). Можно пробежать глазами за 10 минут.
+- Env-var validation, constant-time bearer compare, CORS closed, narrow APNs cleanup. **Severity:** Low (use as template).
+### 6.4 Handoff token is locally generated and locally verified — by design (`HandoffToken.swift`). **Severity:** Low.
+### 6.5 Retry queue stores raw request bodies without integrity check (`SupabaseSyncService.swift`). Optional CRC/HMAC. **Severity:** Low.
+### 6.6 Log redaction — truncated user IDs, no raw tokens in `AuthenticationService` logs. **Severity:** Low (clean).
+### 6.7 Entitlements XML not opened this run — verify App Group present on every target. **Severity:** Low (out of scope).
 
 ---
 
 ## 7. Performance
 
-### 7.1 ✅ _RESOLVED — см. §3.7_
+### 7.1 ✅ _RESOLVED — diagnostic HK query DEBUG-gated._
+### 7.2 ✅ _RESOLVED (partial) — widget JSONDecoder/Calendar hoisted to module scope; remaining items need Instruments._
 
-Закрыто тем же фиксом — диагностический HK-запрос обёрнут в `#if DEBUG`, в Release не компилируется.
-
-### 7.2 ✅ _RESOLVED 2026-05-26 (partial): hot-path allocations dedup'd_
-
-Конкретно убрано:
-- **7 аллокаций `JSONDecoder()` на каждую сборку timeline-entry** → один module-scope `widgetDecoder: JSONDecoder` (Sendable, safe to share). Каждая widget refresh-точка теперь экономит ~5-7ms на bootstrap'е декодеров.
-- **5 обращений `Calendar.current` на entry** → один module-scope `widgetCalendar: Calendar` (locale-lookup дедуплицирован).
-
-Эти изменения покрывают `UnlockTimelineProvider`, `StatusTimelineProvider`, и Combo provider — все три используют те же helpers теперь.
-
-**Что НЕ сделано** (требует Instruments-профилирования на устройстве для оценки выгоды):
-- Извлечение `WidgetBudgetCompute` struct из `buildEntry` — функция уже относительно изолирована, дополнительный wrapper структурно ничего не добавит без явной выгоды.
-- Уменьшение `UnlockEntry.wallpaperBackground: UIImage?` — UIImage сериализуется в WidgetKit timeline storage per-entry, дубликат при 2+ entries. Workaround: хранить filename, ленивая загрузка в view — но это меняет UI-код. Цена не понятна без trace.
-- Cache `WidgetDataFile.read()` в рамках одного timeline-вызова — file I/O на каждую entry.
-
-Когда у тебя дойдут руки до Instruments → Time Profiler → Widget Process — там увидишь реальные hot paths и можно будет таргетированно резать.
-
-### 7.3 Hot SwiftUI views recompute heavy state in body
+### 7.3 Hot SwiftUI views recompute heavy state in `body`
 - **Location:** `StepsTrader/Views/GalleryView.swift`, `MeView.swift`, `CategoryDetailView.swift`
-- **What:** Large `body` functions compute layout, sort, format, render in one pass without memoization.
-- **Action:** Profile with SwiftUI Instruments; extract leaf views with `Equatable`; precompute heavy state.
+- **What:** Large `body` functions compute layout, sort, format, and render in one pass without memoization or `Equatable` leaf views.
+- **Why:** Likely cause of scroll/animation lag on older devices (iPhone 11/SE) and full history days.
+- **Action:** Profile with SwiftUI Instruments; extract `Equatable` leaf views; precompute heavy state outside `body`. Compounds with §4.3 fan-out.
 - **Severity:** Medium
-- **Что это значит на практике:** Видел лаги в Gallery/Me/CategoryDetail при скролле или анимациях? Скорее всего отсюда. Особенно заметно на старых устройствах (iPhone 11, SE) или при заполненных днях с большой историей. Нужно профилирование Instruments чтобы подтвердить.
 
 ### 7.4 Combine + `@MainActor` recalc fan-out
-- **Location:** `StepsTrader/AppModel.swift:243-256`
-- **Action:** Linked to `@Observable` migration (§4.3).
-- **Severity:** Low
-- **Что это значит на практике:** То же что §4.3 — без миграции на @Observable невозможно улучшить. Связано.
+- **Location:** `StepsTrader/AppModel.swift` (CombineLatest recompute). Linked to §4.3 `@Observable` migration. **Severity:** Low.
 
-### 7.5 No fresh `CIContext` per-frame; Metal renderer uses static factory
-- **Location:** `StepsTrader/Metal/MetalSmudgeRenderer.swift:140-160`
-- **What:** Renderers constructed via static factory, reused properly.
-- **Action:** None.
-- **Severity:** Low
-- **Что это значит на практике:** Хорошие новости. Метал-рендер canvas сделан правильно — нет per-frame allocations, которые могли бы лагать canvas-анимации.
+### 7.5 Metal renderer reuses a static factory (no per-frame `CIContext`) — correct. **Severity:** Low (informational).
 
 ---
 
 ## 8. SwiftUI / UI
 
-A dedicated SwiftUI pass was not re-run for this audit — `git log` shows commit `c5377a5 refactor: apply swiftui-pro review fixes` landed recently on this branch.
-
 ### 8.1 Oversized view files — see §9.2 for the split proposal
-- **Location:** `OnboardingStoriesView.swift`, `GalleryView.swift`, `MeView.swift`, `CategoryDetailView.swift`
-- **Severity:** High
-- **Что это значит на практике:** см. §9.2 — те же файлы.
+- **Location:** `OnboardingStoriesView.swift`, `GalleryView.swift`, `MeView.swift`, `CategoryDetailView.swift`, `EnergyGradientBackground.swift`. **Severity:** High (tracked under §9.2).
 
 ### 8.2 Hardcoded animation durations scattered across files
-- **Location:** `OnboardingStoriesView.swift` (~25 occurrences), `GalleryView.swift` (7), и 7 других файлов
-- **What:** `.animation(.easeInOut(duration: 0.8), value: …)` с магическими числами.
-- **Action:** Create `Utilities/AnimationDurations.swift` with named constants.
+- **Location:** `OnboardingStoriesView.swift` (~25 occurrences), `GalleryView.swift` (~7), + others.
+- **What:** `.animation(.easeInOut(duration: 0.8), value:)` with magic numbers.
+- **Action:** Add `Utilities/AnimationDurations.swift` with named constants.
 - **Severity:** Low
-- **Что это значит на практике:** Если когда-нибудь решишь поменять общий «темп» анимаций приложения (например ускорить на 20% после A/B-теста) — придётся пробежать по 25+ файлам. Не блокирует ничего, но больно при глобальных правках.
 
-### 8.3 ✅ _RESOLVED 2026-05-26: inline `endOfDay` moved to `DayBoundary.endOfCalendarDay`_
-
-`DayCanvasViewerView.swift` больше не содержит локального date-хелпера. Логика «return 23:59:59 of the calendar day named by dayKey» перенесена в `DayBoundary.endOfCalendarDay(forDayKey:)` с явным комментарием что это display-only хелпер (не настоящий end-of-custom-day — для этого `nextBoundary(after:)`). Если в будущем найдём где ещё такие хелперы — кладём туда же.
+### 8.3 ✅ _RESOLVED — inline `endOfDay` moved to `DayBoundary.endOfCalendarDay`._
 
 ---
 
 ## 9. Dead code / duplication / refactor
 
-### 9.1 ✅ _RESOLVED 2026-05-26 (commit `f610933`): ProfileLocationManager.swift + root artifacts deleted_
+### 9.1 ✅ _RESOLVED — `ProfileLocationManager` + root artifacts deleted._
 
-118 LOC dead code + 2 случайно закоммиченных .txt файла удалены. Освобождено ~120 LOC и одна permission-API surface (CoreLocation).
+### 9.2 Oversized files (>500 LOC) — refactor candidates (sizes re-measured 2026-06-01)
+Category severity: **High** (testability + change risk).
 
-### 9.2 Oversized files (>500 LOC) — refactor candidates
-Severity for the category overall: **High** (testability + change risk).
+- **`StepsTrader/Views/OnboardingStoriesView.swift` (1951 LOC)** — extract per-slide views into `Views/Onboarding/Slides/`; isolate analytics + gesture/navigation.
+- **`StepsTrader/Views/GalleryView.swift` (1398 LOC)** — `CanvasToolbarState` / `CanvasEditState` view-models + loader manager + sub-views.
+- **`StepsTrader/AppModel+DailyEnergy.swift` (1145 LOC)** — split into `+Snapshots`, `+Recovery`, `+Routines` / `+CanvasSlots`.
+- **`StepsTrader/Views/MeView.swift` (908 LOC)** — extract `RadarLayout`, profile form, achievements.
+- **`StepsTrader/Views/CategoryDetailView.swift` (885 LOC)** — extract `ActivityGridView`, `UsageBreakdownView`, `UnlockSheetView`.
+- **`StepsTrader/Views/Components/EnergyGradientBackground.swift` (841 LOC)** — extract blob generation + opacity calc.
+- **`UnlockWidget/UnlockWidgetViews.swift` (808)** + **`UnlockWidget/UnlockTimelineProvider.swift` (808)** — extract per-size views + `WidgetBudgetCompute`.
+- **`StepsTrader/Services/AuthenticationService.swift` (805)** — already partially split (`+CachedProfile`, `+SupabaseREST`, `AuthSupportTypes`); further extract Apple-Sign-In + token management if touched.
+- **`StepsTrader/Views/PaywallView.swift` (692)**, **`SettingsAppearancePage.swift` (660)** — borderline; split if touched.
+- **Severity:** High
+- **На практике:** Чтобы добавить слайд/блок/секцию — нужно орудовать в файле на 1000+ строк. Тесты на такие монолиты почти невозможны.
 
-- **`StepsTrader/Views/OnboardingStoriesView.swift:1-1974`** — 31 `@State` vars, 10+ slide variants. Propose: extract per-slide views (`ColdOpenSlide`, `CanvasSleepSlide`, …) into `Views/Onboarding/Slides/`.
-- **`StepsTrader/Views/GalleryView.swift:1-1657`** — couples canvas loading, sync, toolbar, edit mode. Propose: `CanvasToolbarState`/`CanvasEditState` view-models; `CanvasLoaderManager`; sub-views.
-- **`StepsTrader/Services/AuthenticationService.swift:1-1307`** — 41 methods. Propose: split into `+PasswordReset`, `+Profile`, `+SessionManagement` extensions; extract `SupabaseAuthClient`.
-- **`StepsTrader/AppModel+DailyEnergy.swift:1-1146`** — split into `+CustomActivities`, `+Moments`, `+CanvasSlots`. Fold 8 file-scope keys into `SharedKeys` (§9.4).
-- **`StepsTrader/Views/MeView.swift:1-1119`** — extract `RadarLayout`, `RadarBackgroundRenderer`; `MeViewModel` for state.
-- **`StepsTrader/Views/CategoryDetailView.swift:1-900`** — extract `ActivityGridView`, `UsageBreakdownView`, `UnlockSheetView`.
-- **`UnlockWidget/UnlockWidgetViews.swift:1-808`** — extract `BudgetBar`, `AppGridItem`, `TicketGroupLabel`.
-- **`UnlockWidget/UnlockTimelineProvider.swift:1-791`** — extract `WidgetBudgetCompute`; module-scope formatters.
-- Smaller (`PaywallView`, `SettingsAppearancePage`, `StepsTraderApp`) — borderline, split if you touch them.
+### 9.3 ✅ _RESOLVED — `OnboardingPreview` symlink documented in README._
+### 9.4 ✅ _RESOLVED — 8 file-scope keys folded into `SharedKeys` (but see §5.12 for one missed site)._
+### 9.5 ✅ _RESOLVED — wallpaper-shortcut URL moved to `AppConstants.URLs`._
+### 9.6 `fatalError()` in unavailable Metal inits — intentional singleton-factory pattern. **Severity:** Low.
 
-**Что это значит на практике:** Чтобы добавить новый слайд в onboarding, новый блок в Me, или новую секцию в Gallery — нужно орудовать в файле на 1000+ строк. Высокий когнитивный барьер, выше шанс случайно что-то задеть. Тесты писать на такие монолиты практически невозможно. Если планируешь активно развивать какую-то из этих фич — рефактор окупится в первой же следующей итерации.
+### 9.7 TODO/FIXME markers
+- **Location:** repo-wide grep returns ~0 actionable `TODO`/`FIXME`/`HACK`/`#warning` in shipping code this pass (down from ~33 in the 2026-05-26 audit; sensoryFeedback bulk closed in §4.1).
+- **Action:** None outstanding. **Severity:** Low (informational).
 
-### 9.3 ✅ _RESOLVED 2026-05-26: symlink documented in `README.md`_
+### 9.8 Magic constants that should be named — see §9.13 for the JPEG-quality instance. **Severity:** Low.
+### 9.9 ✅ _RESOLVED — `OnboardingDemoView` prints DEBUG-gated._
+### 9.10 ✅ _RESOLVED — marketing docs moved to `docs/marketing/`._
+### 9.11 ✅ _RESOLVED — README "Domain vocabulary" section added._
 
-`README.md` теперь имеет явное упоминание `OnboardingPreview/`: что это локальный SPM-пакет, что `Sources/OnboardingStoriesView.swift` — symlink на canonical view в `StepsTrader/Views/`, и что «исправлять» симлинк не надо.
+### 9.12 Duplicate UserDefaults key constant — see §5.12
+- Cross-referenced as a dead/duplicated-code item: `_payGateDismissedUntilKey` should be deleted in favor of `SharedKeys.payGateDismissedUntil`. **Severity:** Medium.
 
-### 9.4 ✅ _RESOLVED 2026-05-26: 8 file-scope keys folded into `SharedKeys`_
-
-`AppModel+DailyEnergy.swift` теперь использует только `SharedKeys.dailyEnergyAnchor` / `.dailySleepHours` / `.baseEnergyToday` / `.pastDaySnapshots` / `.dailyCanvasSlots` / `.customEnergyOptions` / `.savedRoutines` / `.dailyMoments`. Заодно `savedEnergyRoutines_v1` как raw-строка убран из `SupabaseSyncService.swift:576` и `Steps4Tests/EnergyRecalcTests.swift:214`. Single source of truth для всех 8 ключей теперь действительно single.
-
-### 9.5 ✅ _RESOLVED 2026-05-26: URL moved to `AppConstants.URLs.wallpaperShortcut`_
-
-`SettingsShortcutPage` теперь ссылается на `AppConstants.URLs.wallpaperShortcut` (новый namespace в `Utilities/AppConstants.swift`). Force-unwrap по-прежнему есть, но в одном месте, рядом с другими константами. Если будут добавляться URL'ы — теперь есть куда их складывать.
-
-### 9.6 `fatalError()` in unavailable inits — intentional
-- **Location:** `StepsTrader/Metal/MetalSmudgeRenderer.swift:144`, `MetalShaderParkRenderer.swift:52`
-- **Action:** None.
+### 9.13 Inconsistent JPEG compression-quality magic constants
+- **Location:** `StepsTrader/Intents/ExportCanvasWallpaperIntent.swift:199` (0.85), `StepsTrader/Views/ProfileEditorView.swift:269` (0.75), `StepsTrader/Services/CanvasStorageService.swift:143` (0.8)
+- **What:** Three different `jpegData(compressionQuality:)` values across image-encode call sites with no shared constant.
+- **Why:** Tuning image quality/size means hunting magic numbers; easy to make encodings inconsistent.
+- **Action:** Add `enum ImageCompression { static let avatar = 0.75; static let canvas = 0.8; static let wallpaper = 0.85 }` and reference it.
 - **Severity:** Low
-- **Что это значит на практике:** Не баг, не надо трогать. Это паттерн для запрета no-arg init в singleton-фабриках. Информационный.
 
-### 9.7 Unresolved TODOs / FIXMEs
-- **Location:** ~33 TODO across the project. 24 — sensoryFeedback (§4.1).
-- **Action:** Close sensoryFeedback bulk; convert rest to GitHub issues.
-- **Severity:** Medium
-- **Что это значит на практике:** TODO накапливается. Часть устарела (сделано но маркер забыли убрать), часть актуальна. Не критично сейчас, но если их станет 100+ — поиск реально важных пунктов превращается в шум.
-
-### 9.8 Magic constants that should be named
-- **Location:** Spread across UI
-- **Action:** Extract constants that appear 3+ times.
+### 9.14 Misspelled asset name `onboarding_figuer_1` ("figuer" → "figure")
+- **Location:** `StepsTrader/Views/OnboardingStoriesView.swift:160-161`, `OnboardingPreview/Sources/Stubs.swift:197`, and the asset in `Assets.xcassets`.
+- **What:** Asset name and its string references are misspelled.
+- **Action:** Rename the asset to `onboarding_figure_1` and update all three references in lockstep.
 - **Severity:** Low
-- **Что это значит на практике:** Если решишь подстроить общий «вид» (opacity, JPEG quality, anim timing) — придётся искать grep'ом по всему проекту. Незаметно, пока не начнёшь массово править.
 
-### 9.9 ✅ _RESOLVED 2026-05-26: OnboardingDemoView prints wrapped in `#if DEBUG`_
-
-Четыре `print()` в `OnboardingDemoView.swift` (callback'и `onHealthSlide`, `onNotificationSlide`, `onFamilyControlsSlide`, `onFinish`) теперь обёрнуты в `#if DEBUG`. В Release-сборке вылетают целиком. `OnboardingPreview/Stubs.swift` оставлен — это SPM preview-only.
-
-### 9.10 ✅ _RESOLVED 2026-05-26 (commit `26feba7`): Marketing docs moved to `docs/marketing/`_
-
-6 маркетинговых .md файлов перенесены: BRANDBOOK, MARKETING_COMPETITOR_RESEARCH, ARTICLE_BLOG, POSITIONING_ANGLES_SKILL, TONE_OF_VOICE, MANUALS_TEXTS.
-
-### 9.11 ✅ _RESOLVED 2026-05-26: «Domain vocabulary» section added to `README.md`_
-
-В `README.md` теперь есть раздел «Domain vocabulary» который объясняет три префикса `Energy*` / `daily*` / `spent*`: что они значат, как связаны (earn from steps+sleep+selections, spend via PayGate), что custom day boundary определяет когда `daily*` ключи сбрасываются. Будущие контрибьюторы не будут гадать.
+### 9.15 `print()` not behind `#if DEBUG` in preview package
+- **Location:** `OnboardingPreview/Sources/Stubs.swift:100` (`print("[Analytics] …")`)
+- **What:** Unguarded `print` in the analytics stub.
+- **Why:** Low impact — `OnboardingPreview` is a preview-only SPM package, not shipped in the app target. All `DeviceActivityMonitor` prints are correctly DEBUG-gated.
+- **Action:** Wrap in `#if DEBUG` for consistency, or leave as preview-only.
+- **Severity:** Low
 
 ---
 
 ## 10. Cross-cutting recommendations
 
-Patterns worth applying repo-wide rather than one finding at a time:
-
-1. **Plan the Swift 6 strict-concurrency upgrade as a single focused PR.** Most of §3 is latent — `@unchecked Sendable` boxes, untracked `Task` handles, Combine sink → Task patterns. None is urgent in Swift 5 mode, but they'll cascade when the language mode flips. Make one branch that turns on strict concurrency, fix until clean, then merge.
-2. **Migrate `ObservableObject` + `@Published` → `@Observable` for stores and `AppModel`.** Unlocks finer-grained invalidation (mitigates the fan-out in §7.4), removes Combine sink fan-out (§3.5), prerequisite for `@Bindable`.
-3. **Centralize App-Group state behind a single actor in `Shared/`.** Multiple processes read/write the same `UserDefaults(suiteName:)`. A `Shared/AppGroupStore.swift` actor with typed accessors would (a) make the contract explicit, (b) be unit-testable, (c) hold `NSFileCoordinator` locking when that matters.
-4. ✅ **Split `Secrets.xcconfig` per build configuration (§6.1).** Done 2026-05-29 via per-config include layers + Release host assertion.
-5. **Bulk-migrate UIKit haptics → `.sensoryFeedback`.** 24 known sites (§4.1) in one PR.
-6. **Add `[weak self]` + `Task.isCancelled` checks as a code-review pattern.** Several findings (§3.5, §3.6, §3.9, §3.10, §5.3) trace to the same anti-pattern. A short style note prevents recurrences.
-7. **Document the threading contract on cross-process helpers.** `ShieldRebuildHelper`, `SharedKeys`, anything in `Shared/` should carry a header comment about which processes call them and from which actor.
+1. **Centralize App-Group state behind one coordinated store in `Shared/` (§5.2).** Multiple processes read/modify/write the same `UserDefaults(suiteName:)`. A typed `Shared/AppGroupStateStore` with `NSFileCoordinator` locking would make the contract explicit, testable, and race-safe. Highest-value open architectural item.
+2. **Audit every UserDefaults key access against `SharedKeys` (§5.12, §9.12).** One duplicate slipped through the §9.4 consolidation; a quick grep for raw `"…_v1"` literals would catch the rest. Cross-process keys especially must have exactly one declaration.
+3. **Migrate `ObservableObject` + `@Published` → `@Observable` (§4.3).** Unlocks finer-grained invalidation (mitigates §7.3/§7.4), removes Combine fan-out, prerequisite for `@Bindable`.
+4. **Plan the Swift 6 strict-concurrency upgrade as one focused PR.** §3 is almost entirely latent — turn on strict concurrency on a branch, fix until clean, merge.
+5. **Guard migration/cleanup paths so the source is only deleted after the destination write succeeds (§5.11).** The avatar bug is a one-off instance of a deletion-before-confirmed-write anti-pattern; grep for other `write(to:)` + unconditional `removeObject`/`removeItem` pairs.
+6. **Keep enforcing `[weak self]` + `Task.isCancelled` as a review pattern** — the resolved §3.5/§3.6/§3.9/§5.3 family all traced to its absence.
 
 ---
 
 ## 11. What was NOT audited
 
-- `admin-panel/` (Next.js + Supabase admin dashboard) — out of scope.
-- `tg-admin/` (Cloudflare Worker Telegram bot) — out of scope.
-- `web/` and the standalone marketing site — out of scope.
-- Build settings and Xcode project structure beyond shared schemes and the four `*.xcconfig` files.
-- Third-party dependency internals — `RevenueCat 5.72.0` and Supabase JS are black boxes.
-- `Steps4Tests/` and `Steps4UITests/` — light scan only.
+- `admin-panel/` (Next.js), `tg-admin/` (Cloudflare Worker), `web/` — out of scope.
+- Build settings / Xcode project structure beyond the shared scheme and `*.xcconfig` (one version-mismatch warning surfaced, §2).
+- Third-party dependency internals — RevenueCat 5.x, Supabase JS treated as black boxes.
+- `Steps4Tests/` / `Steps4UITests/` — light scan only.
 - Algorithmic correctness of Metal kernels — surface checks only.
-- Entitlements XML files — see §6.7.
-- StoreKit configuration — `.storekit` file structure not opened.
+- Entitlements XML — see §6.7.
+- StoreKit `.storekit` configuration — not opened.
 - Localization correctness — not assessed.
-- Instruments profiling — perf findings are potential, not verified by trace.
-- A separate SwiftUI-expert pass was not re-run (recent `c5377a5` already did one).
-- Shield extension targets got light coverage.
-- `supabase/migrations/` SQL not audited beyond the Edge Function in §6.3.
+- Instruments profiling — §7 perf items are potential, not trace-verified.
+- A dedicated SwiftUI-expert pass was not separately re-run (recent `c5377a5` did one).
+- `supabase/migrations/` SQL not audited beyond the §6.3 Edge Function.
 
 ---
 
@@ -445,27 +277,22 @@ Patterns worth applying repo-wide rather than one finding at a time:
 
 Spot-check pattern: open Xcode, command-click the `path:line` reference — it should land on the cited line.
 
-### High findings — verified file:line
+### Open / new findings — verified file:line this pass
 
-- **§3.2** — `StepsTrader/Services/HealthKitService.swift:29-32`. Confirmed `private final class UnsafeSendableBox: @unchecked Sendable`.
-- **§3.3** — RESOLVED. Confirmed all 10 sites converted in `7a73f38`.
-- **§4.1** — Repo-wide grep returns 24 matches; spot-verified 5.
-- **§5.1** — `StepsTrader/AppModel+PayGate.swift:101-110`. Confirmed refund branch with no UI feedback.
-- **§5.2** — `StepsTrader/Stores/BlockingStore.swift:87-93` + `DeviceActivityMonitorExtension.swift:172-192, 263-294`. No locking.
-- **§5.3** — `StepsTrader/Services/HealthKitService.swift:396-409`. Task not stored.
-- **§6.1** — RESOLVED 2026-05-29. `Debug.xcconfig`→`Secrets-Debug.xcconfig`, `Release.xcconfig`→`Secrets-Release.xcconfig`, both layering shared `Secrets.xcconfig`; Release host assertion in `NetworkClient.swift` `SupabaseConfig`.
-- **§9.1** — RESOLVED. Confirmed deletion in `f610933`.
-- **§9.2** — File sizes confirmed via `wc -l`.
+- **§5.2** — `AppModel+PayGate.swift:85-96` confirmed: `defaults.integer(forKey:)` → `existingBudget + minutes` → `defaults.set(...)` with no cross-process coordination. Plus `BlockingStore`/`DeviceActivityMonitorExtension` JSON RMW. Test harness `Steps4Tests/AppGroupRMWConcurrencyTests` reproduces 50% loss (parked behind `XCTSkipIf`).
+- **§5.11** — `AuthenticationService.swift:539-546` confirmed: `try legacyData.write(to:)` in a `do/catch` that only logs, followed by **unconditional** `UserDefaults.standard.removeObject(forKey: key)` at line 545.
+- **§5.12** — confirmed: `AppModel+PayGate.swift:10` declares `_payGateDismissedUntilKey = "payGateDismissedUntil_v1"`; `SharedKeys.swift:59` declares the same literal; grep shows both in active use.
+- **§5.13** — `SupabaseSyncService.swift:164-180` confirmed: `enqueueForRetry` appends + `suffix(maxRetryQueueSize)` with no `isExpired` filter.
+- **§9.2** — sizes re-measured via `wc -l` 2026-06-01 (1951 / 1398 / 1145 / 908 / 885 / 841 / 808 / 808 / 805 / 692 / 660).
+- **§9.13 / §9.14** — JPEG-quality literals and `figuer` references confirmed by grep at the cited lines.
+- **§6.1** — RESOLVED: `Config/Secrets-Debug.xcconfig` / `Secrets-Release.xcconfig` layers + Release host assertion in `NetworkClient.swift`.
 
-### Demotions from agent-flagged Critical
+### Demotions from agent-flagged Critical (this run)
 
-- **`handleAuthorization` missing `@MainActor`** (Agent A, Critical) — DROPPED. Class is `@MainActor`-isolated.
-- **`Timer.scheduledTimer` not on MainActor** (Agent A, Critical) — DEMOTED to Low (§3.12). Closure does hop to MainActor.
-- **HKObserverQuery races MainActor** (Agent A, Critical) — DEMOTED to Medium (§3.6). Handler does guard and dispatch correctly.
-- **HKSampleQuery continuation violation** (Agent A, Critical) — DROPPED. Idiomatic continuation pattern.
-- **DeviceActivityMonitor rebuild() background** (Agent A, Critical) — DEMOTED to Medium (§3.8). Standard extension pattern.
-- **Release ships dev URL** (Agent C, Critical) — DEMOTED to High (§6.1). No env split, but not "ships wrong URL".
-- **Handoff token forgery** (Agent C, High) — DEMOTED to Low (§6.4). Local-only trust boundary.
-- **DeviceActivityMonitor print()** (Agent B, Low) — DROPPED. Properly DEBUG-guarded.
+- **"Data race on `lastStepCount` in `fetchSteps` closure"** (Agent A, Critical) — **DROPPED.** `lastStepCount` is a computed property whose get/set both take `_stepCountLock` (`HealthKitService.swift:43-48`); the closure accesses go through the lock. The only residual is the latent Swift-6 off-actor `self` capture (covered by §3).
+- **"App-Group budget RMW = data loss"** (Agent C, Critical) — **DEMOTED to High**, folded into §5.2. Same root cause as the existing High finding; individual writes are atomic and the collision window is narrow.
+- **"Unchecked `prefix(4)` drops slots"** (Agent C, High) — **DROPPED.** `AppModel+DailyEnergy.swift:277-280` runs a `while slots.count < 4` fill loop immediately before `Array(slots.prefix(4))`, so the count is guaranteed ≥ 4 — defensive, not a bug.
+- **"`initialFetchTask = nil` is dead code on cancel"** (Agent C, High) — **DROPPED.** Line 412 runs on normal completion; external cancellation is handled by `initialFetchTask?.cancel()` at line 386 on re-entry. No leak.
+- **"Timer reschedule not on MainActor"** (Agent A, Critical) — **DEMOTED to Low** (§3.12). The closure hops to `@MainActor` via `Task`.
 
-If any finding doesn't reproduce when you visit the line, ping me with the specific reference and I'll re-investigate.
+If any finding doesn't reproduce when you visit the line, flag the specific reference and it'll be re-investigated.
