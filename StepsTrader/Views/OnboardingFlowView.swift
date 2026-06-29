@@ -6,6 +6,10 @@ import FamilyControls
 struct OnboardingFlowView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var authService: AuthenticationService
+    /// Shows the top-left "Skip onboarding" shortcut on every slide. Off by
+    /// default so the real first-run flow never exposes it (even in DEBUG
+    /// builds); the Settings → replay/demo entry point opts in.
+    var showsDebugSkip: Bool = false
     let onComplete: () -> Void
 
     @State private var onboardingPresented: Bool = true
@@ -18,14 +22,6 @@ struct OnboardingFlowView: View {
     /// Default to 23:00. If the user skips the bedtime slide, we still commit a sensible
     /// value (instead of midnight, which silently sliced the day at the wrong boundary).
     @State private var bedtimeMinutes: Int = 23 * 60
-
-    private var showsOnboardingDebugSkip: Bool {
-        #if DEBUG
-        true
-        #else
-        false
-        #endif
-    }
 
     var body: some View {
         ZStack {
@@ -55,7 +51,7 @@ struct OnboardingFlowView: View {
                 onboardingSelection: $onboardingSelection,
                 selectedFeedApp: $selectedFeedApp,
                 bedtimeMinutes: $bedtimeMinutes,
-                showsDebugSkipAll: showsOnboardingDebugSkip
+                showsDebugSkipAll: showsDebugSkip
             )
         }
         .transition(.opacity)

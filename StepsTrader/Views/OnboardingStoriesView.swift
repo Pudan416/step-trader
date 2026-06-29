@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -278,20 +279,7 @@ struct OnboardingStoriesView: View {
                 }
                 .animation(.easeInOut(duration: 0.3), value: showFeedHint)
                 .padding(.horizontal, 24)
-                .padding(.bottom, isInStoryPhase ? 8 : 40)
-
-                if isInStoryPhase {
-                    Button {
-                        trackSlideCompleted(action: "skipped_intro")
-                        withAnimation(.easeInOut) { index = firstSetupSlideIndex }
-                    } label: {
-                        Text(skipText)
-                            .font(.systemSerif(15, weight: .light, relativeTo: .subheadline))
-                            .foregroundStyle(.white.opacity(0.4))
-                    }
-                    .padding(.bottom, 16)
-                    .transition(.opacity)
-                }
+                .padding(.bottom, 40)
             }
             
             Image("grain (small)")
@@ -1317,6 +1305,9 @@ struct OnboardingStoriesView: View {
 
     @State private var appleSignInError: String?
     @State private var showAppleSignInError = false
+    /// Mirrors `authService.isLoading` into view state: `authService` is a plain
+    /// `var` (not observed), so without this the in-flight spinner never appears.
+    @State private var appleAuthInFlight = false
 
     @ViewBuilder
     private func appleLoginSlide(slide: OnboardingSlide) -> some View {
@@ -1356,22 +1347,10 @@ struct OnboardingStoriesView: View {
                 } onCompletion: { result in
                     switch result {
                     case .success(let authorization):
+                        // Kicks off the async Supabase token exchange. Advancing
+                        // the slide (and surfacing failures) is handled reactively
+                        // by the `onReceive` observers below — no timeout polling.
                         auth.handleAuthorization(authorization)
-                        successHapticTick &+= 1
-                        slideEffectTask?.cancel()
-                        slideEffectTask = Task { @MainActor in
-                            for _ in 0..<40 {
-                                try? await Task.sleep(for: .milliseconds(250))
-                                guard !Task.isCancelled else { return }
-                                if auth.hasAppleAccount {
-                                    try? await Task.sleep(for: .milliseconds(500))
-                                    guard !Task.isCancelled else { return }
-                                    trackSlideCompleted(action: "signed_in")
-                                    withAnimation(.easeInOut) { index += 1 }
-                                    return
-                                }
-                            }
-                        }
                     case .failure(let error):
                         let code = (error as NSError).code
                         if code == ASAuthorizationError.canceled.rawValue { return }
@@ -1389,7 +1368,7 @@ struct OnboardingStoriesView: View {
                 .padding(.horizontal, 40)
             }
 
-            if authService?.isLoading == true {
+            if appleAuthInFlight {
                 ProgressView()
                     .tint(.white)
                     .padding(.top, 16)
@@ -1403,6 +1382,61 @@ struct OnboardingStoriesView: View {
         } message: {
             Text(appleSignInError ?? "")
         }
+        // Advance when the backend sign-in actually lands (no timeout — works
+        // however long the Supabase exchange takes). `dropFirst()` skips the
+        // replayed current value so an already-signed-in replay doesn't auto-skip.
+        .onReceive(appleSignedInPublisher.dropFirst()) { signedIn in
+            guard signedIn, slides[safe: index]?.slideType == .appleLogin else { return }
+            successHapticTick &+= 1
+            slideEffectTask?.cancel()
+            slideEffectTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(750))
+                guard !Task.isCancelled else { return }
+                trackSlideCompleted(action: "signed_in")
+                withAnimation(.easeInOut) { index += 1 }
+            }
+        }
+        // Surface token-exchange failures (network, server) — previously only
+        // Apple-sheet failures reached this alert and backend errors died silently.
+        .onReceive(appleSignInErrorPublisher) { message in
+            guard slides[safe: index]?.slideType == .appleLogin else { return }
+            appleSignInError = message
+            showAppleSignInError = true
+        }
+        .onReceive(appleAuthLoadingPublisher) { appleAuthInFlight = $0 }
+    }
+
+    private var appleAuthLoadingPublisher: AnyPublisher<Bool, Never> {
+        guard let auth = authService else {
+            return Empty().eraseToAnyPublisher()
+        }
+        return auth.$isLoading.removeDuplicates().eraseToAnyPublisher()
+    }
+
+    /// `true` once a non-anonymous account is authenticated (mirrors
+    /// `AuthenticationService.hasAppleAccount`, but as a stream).
+    private var appleSignedInPublisher: AnyPublisher<Bool, Never> {
+        guard let auth = authService else {
+            return Empty().eraseToAnyPublisher()
+        }
+        return auth.$isAuthenticated
+            .combineLatest(auth.$isAnonymous)
+            .map { $0 && !$1 }
+            .removeDuplicates()
+            .eraseToAnyPublisher()
+    }
+
+    /// Auth errors set during/after `handleAuthorization` (missing nonce or
+    /// identity token, failed Supabase exchange). Skips the replayed current
+    /// value so a stale error doesn't alert on slide appear.
+    private var appleSignInErrorPublisher: AnyPublisher<String, Never> {
+        guard let auth = authService else {
+            return Empty().eraseToAnyPublisher()
+        }
+        return auth.$error
+            .dropFirst()
+            .compactMap { $0 }
+            .eraseToAnyPublisher()
     }
 
     // MARK: - Slide 13: Welcome
@@ -1815,17 +1849,6 @@ struct OnboardingStoriesView: View {
             Spacer()
             Spacer()
         }
-    }
-
-    // MARK: - Skip Intro
-
-    private var isInStoryPhase: Bool {
-        guard slides.indices.contains(index) else { return false }
-        return OnboardingPhase.phase(for: slides[index].slideType) == .story
-    }
-
-    private var firstSetupSlideIndex: Int {
-        slides.firstIndex { OnboardingPhase.phase(for: $0.slideType) == .setup } ?? 0
     }
 
     private var isFeedSlideWithoutSelection: Bool {
