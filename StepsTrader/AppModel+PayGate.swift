@@ -7,8 +7,6 @@ import FamilyControls
 import DeviceActivity
 #endif
 
-private let _payGateDismissedUntilKey = "payGateDismissedUntil_v1"
-
 // MARK: - PayGate Management
 extension AppModel {
     // MARK: - PayGate Opening
@@ -24,7 +22,7 @@ extension AppModel {
 
         let g = UserDefaults.stepsTrader()
         if !showPayGate,
-           let until = g.object(forKey: _payGateDismissedUntilKey) as? Date,
+           let until = g.object(forKey: SharedKeys.payGateDismissedUntil) as? Date,
            Date.now < until
         {
             AppLogger.shield.debug("🚫 PayGate suppressed after dismiss (\(String(format: "%.1f", until.timeIntervalSinceNow))s left), ignoring start for group \(groupId)")
@@ -404,7 +402,7 @@ extension AppModel {
         let now = Date.now
         if reason == .userDismiss {
             // Cooldown to prevent instant re-open loops when the user dismisses PayGate.
-            g.set(now.addingTimeInterval(10), forKey: _payGateDismissedUntilKey)
+            g.set(now.addingTimeInterval(10), forKey: SharedKeys.payGateDismissedUntil)
             g.set(now, forKey: SharedKeys.lastPayGateAction)
         }
         g.removeObject(forKey: SharedKeys.shouldShowPayGate)

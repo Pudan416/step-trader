@@ -320,8 +320,6 @@ extension AppModel {
         }
     }
     
-    private static let pastDaySnapshotsRetentionDays = 90
-
     func loadPastDaySnapshots() -> [String: PastDaySnapshot] {
         let url = PersistenceManager.pastDaySnapshotsFileURL
         var decoded: [String: PastDaySnapshot] = [:]
@@ -343,28 +341,18 @@ extension AppModel {
             }
         }
 
-        let pruned = Self.prunePastDaySnapshotsToRetention(decoded)
-        if pruned.count != decoded.count {
-            if let data = try? JSONEncoder().encode(pruned) {
-                try? data.write(to: url, options: .atomic)
-            }
-        }
-        return pruned
-    }
-
-    private static func prunePastDaySnapshotsToRetention(_ snapshots: [String: PastDaySnapshot]) -> [String: PastDaySnapshot] {
-        let keys = snapshots.keys.sorted()
-        guard keys.count > pastDaySnapshotsRetentionDays else { return snapshots }
-        let keep = Set(keys.suffix(pastDaySnapshotsRetentionDays))
-        return snapshots.filter { keep.contains($0.key) }
+        // History is retained indefinitely for everyone — no retention prune.
+        // Pro users see all days; Free users see only the last
+        // `SubscriptionGate.freeHistoryDayCount` days (older days are locked,
+        // not deleted). See `HistoryView.unlockedKeys`.
+        return decoded
     }
 
     private func savePastDaySnapshot(dayKey: String, _ snapshot: PastDaySnapshot) {
         var all = loadPastDaySnapshots()
         all[dayKey] = snapshot
-        let pruned = Self.prunePastDaySnapshotsToRetention(all)
         let url = PersistenceManager.pastDaySnapshotsFileURL
-        if let data = try? JSONEncoder().encode(pruned) {
+        if let data = try? JSONEncoder().encode(all) {
             try? data.write(to: url, options: .atomic)
         }
     }
@@ -375,9 +363,8 @@ extension AppModel {
         for (key, snap) in snapshots {
             if all[key] == nil { all[key] = snap }
         }
-        let pruned = Self.prunePastDaySnapshotsToRetention(all)
         let url = PersistenceManager.pastDaySnapshotsFileURL
-        if let data = try? JSONEncoder().encode(pruned) {
+        if let data = try? JSONEncoder().encode(all) {
             try? data.write(to: url, options: .atomic)
         }
     }

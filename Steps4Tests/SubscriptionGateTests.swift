@@ -43,51 +43,46 @@ final class SubscriptionGateTests: XCTestCase {
         XCTAssertFalse(SubscriptionGate.canCreateCustomActivity(isPro: false))
     }
 
-    // MARK: - Daily Random Theme
+    // MARK: - Daily Random Theme (free for everyone)
 
     func testCanUseDailyRandomTheme_proBypasses() {
         XCTAssertTrue(SubscriptionGate.canUseDailyRandomTheme(isPro: true))
     }
 
-    func testCanUseDailyRandomTheme_freeBlocked() {
-        XCTAssertFalse(SubscriptionGate.canUseDailyRandomTheme(isPro: false))
+    func testCanUseDailyRandomTheme_freeAllowed() {
+        XCTAssertTrue(SubscriptionGate.canUseDailyRandomTheme(isPro: false))
     }
 
-    // MARK: - Custom Shapes
+    // MARK: - Custom Shapes (free for everyone)
 
     func testCanCustomizeShapes_proBypasses() {
         XCTAssertTrue(SubscriptionGate.canCustomizeShapes(isPro: true))
     }
 
-    func testCanCustomizeShapes_freeBlocked() {
-        XCTAssertFalse(SubscriptionGate.canCustomizeShapes(isPro: false))
+    func testCanCustomizeShapes_freeAllowed() {
+        XCTAssertTrue(SubscriptionGate.canCustomizeShapes(isPro: false))
     }
 
-    // MARK: - Gradient Gates
+    // MARK: - Gradient Gates (all palettes/styles free for everyone)
 
     func testIsGradientPaletteAvailable_proAll() {
         XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: true, paletteRaw: "anything"))
     }
 
-    func testIsGradientPaletteAvailable_freeSunsetOceanAurora() {
-        XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "warmSunset"))
-        XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "ocean"))
-        XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "aurora"))
-        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "dusk"))
-        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "dawn"))
-        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "ember"))
-        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "horizon"))
-        XCTAssertFalse(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: "coolOcean"))
+    func testIsGradientPaletteAvailable_freeAll() {
+        for palette in ["warmSunset", "ocean", "aurora", "dusk", "dawn", "ember", "horizon", "coolOcean"] {
+            XCTAssertTrue(SubscriptionGate.isGradientPaletteAvailable(isPro: false, paletteRaw: palette))
+        }
     }
 
     func testIsGradientStyleAvailable_proAll() {
         XCTAssertTrue(SubscriptionGate.isGradientStyleAvailable(isPro: true, styleRaw: "anything"))
     }
 
-    func testIsGradientStyleAvailable_freeRadialAndLinear() {
-        XCTAssertTrue(SubscriptionGate.isGradientStyleAvailable(isPro: false, styleRaw: "radial"))
-        XCTAssertTrue(SubscriptionGate.isGradientStyleAvailable(isPro: false, styleRaw: "linear"))
-        XCTAssertFalse(SubscriptionGate.isGradientStyleAvailable(isPro: false, styleRaw: "angular"))
+    func testIsGradientStyleAvailable_freeAll() {
+        for style in ["radial", "linear", "angular"] {
+            XCTAssertTrue(SubscriptionGate.isGradientStyleAvailable(isPro: false, styleRaw: style))
+        }
     }
 
     // MARK: - Post-Onboarding Paywall

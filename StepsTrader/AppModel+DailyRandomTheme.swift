@@ -1,9 +1,9 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Daily Random Theme (Pro-only)
+// MARK: - Daily Random Theme
 //
-// Pro users can enable a "Daily Random Theme" mode where the app rolls a fresh
+// Users can enable a "Daily Random Theme" mode where the app rolls a fresh
 // `(GradientPalette, GradientStyle)` pair every calendar day. The chosen pair is:
 //
 //   1. Written into the **active** UserDefaults keys (`SharedKeys.gradientStyle`
@@ -78,17 +78,17 @@ extension AppModel {
     /// Idempotent within a calendar day. Call on app launch and on
     /// `scenePhase == .active`. No-ops if:
     ///   - Toggle is OFF, or
-    ///   - User is no longer Pro (in which case we also gracefully turn the toggle
-    ///     OFF and restore their user-preference theme), or
+    ///   - The daily-random gate is closed for this user (in which case we also
+    ///     gracefully turn the toggle OFF and restore their user-preference theme), or
     ///   - We've already rolled for today's calendar day.
     @MainActor
     func applyDailyRandomThemeIfNeeded() {
         let defaults = UserDefaults.standard
         guard defaults.bool(forKey: SharedKeys.dailyRandomThemeEnabled) else { return }
 
-        // Pro lapsed → graceful downgrade. Restore user preference and disable
+        // Gate closed → graceful downgrade. Restore user preference and disable
         // the toggle so chips become tappable again.
-        guard isPro else {
+        guard SubscriptionGate.canUseDailyRandomTheme(isPro: isPro) else {
             setDailyRandomTheme(enabled: false)
             return
         }

@@ -117,6 +117,11 @@ final class EnergyRecalcTests: XCTestCase {
         let model = makeModel()
         model.dailySleepHours = 0
         model.healthStore.hasSleepData = true
+        // The assumption gate requires ≥6h since the custom day boundary.
+        // Anchor the boundary ~12h in the past so the test passes at any
+        // wall-clock time (it used to fail when run between 00:00 and 06:00).
+        model.dayEndHour = (Calendar.current.component(.hour, from: .now) + 12) % 24
+        model.dayEndMinute = 0
 
         let pts = model.sleepPointsToday
         XCTAssertEqual(pts, EnergyDefaults.assumedSleepPoints)
