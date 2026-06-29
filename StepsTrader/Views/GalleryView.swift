@@ -47,6 +47,20 @@ struct GalleryView: View {
     @State private var showMomentPaywall = false
     /// Mirrors RadialHoldMenu fan state so the share button can hide when the fan is open.
     @State private var isFanOpen = false
+    /// Directed nudge above the + button that invites the user to fill the
+    /// day. It fires at most once per time-of-day window (morning / evening,
+    /// see `AddHintWindow`) and only while the canvas has fewer than two
+    /// elements — so a single one-tap suggestion (e.g. Resting) doesn't
+    /// silence it. Each appearance lingers briefly, then fades; the next
+    /// window re-arms it. Persisted per day so it survives view rebuilds.
+    @State private var showAddHint = false
+    @State private var addHintTask: Task<Void, Never>? = nil
+    /// Which window's copy is currently on the bubble (set when it appears).
+    @State private var activeHintWindow: AddHintWindow = .evening
+    /// Day key the `addHintShownWindowsRaw` set belongs to (reset on rollover).
+    @AppStorage("addHint_dayKey", store: UserDefaults.stepsTrader()) private var addHintDayKey: String = ""
+    /// Comma-joined `AddHintWindow.rawValue`s already shown today.
+    @AppStorage("addHint_shownWindows", store: UserDefaults.stepsTrader()) private var addHintShownWindowsRaw: String = ""
     @State private var isManuallyExpanded: Bool = false
     @State private var isNaturallyWide: Bool = false
     /// Tracks whether the user explicitly collapsed wide mode so we don't
@@ -113,6 +127,81 @@ struct GalleryView: View {
 
     /// Show routines/repeat/hint when canvas is empty
     private var showQuickStartArea: Bool { isCanvasEmpty }
+
+    /// How long a single nudge lingers before it fades on its own.
+    private static let addHintVisibleSeconds: Double = 8
+
+    /// The nudge keeps qualifying until the day has real substance: a lone
+    /// one-tap suggestion (Resting) leaves the canvas at one element, which is
+    /// still below the bar, so the nudge can return in its next window.
+    private var addHintQualifies: Bool { dayCanvas.elements.count < 2 }
+
+    /// (Re)evaluate whether the "fill your day" nudge should show. Called from
+    /// `.onAppear`, on foreground, and whenever a driving condition changes.
+    /// The hint shows only on a non-wide canvas with the fan closed, fewer than
+    /// two elements, and an unused time window for today — after a short settle
+    /// delay so it doesn't flash during canvas load. It then auto-dismisses.
+    private func refreshAddHint() {
+        addHintTask?.cancel()
+        guard addHintQualifies, !isFanOpen, !isWideCanvas else {
+            if showAddHint {
+                withAnimation(.easeOut(duration: 0.25)) { showAddHint = false }
+            }
+            return
+        }
+        if showAddHint {
+            // Already visible — the cancel above killed its fade countdown, so
+            // restart it; otherwise a benign onChange (e.g. first element added,
+            // still < 2) would leave the bubble on screen indefinitely.
+            addHintTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(Self.addHintVisibleSeconds))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.3)) { showAddHint = false }
+            }
+            return
+        }
+        let dayStart = model.currentDayStart(for: .now)
+        let dayEnd = DayBoundary.nextBoundary(
+            after: .now,
+            dayEndHour: model.dayEndHour,
+            dayEndMinute: model.dayEndMinute
+        )
+        let window = AddHintWindow.current(dayStart: dayStart, dayEnd: dayEnd)
+        guard !hasShownHintWindow(window) else { return }
+        addHintTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(1500))
+            guard !Task.isCancelled, addHintQualifies, !isFanOpen, !isWideCanvas else { return }
+            activeHintWindow = window
+            markHintWindowShown(window)
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { showAddHint = true }
+
+            // Discrete nudge: linger, then fade. The next window re-arms it.
+            try? await Task.sleep(for: .seconds(Self.addHintVisibleSeconds))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.3)) { showAddHint = false }
+        }
+    }
+
+    /// Clears today's shown-window record when the calendar day rolls over.
+    private func resetHintWindowsIfNewDay() {
+        let today = todayKey
+        if addHintDayKey != today {
+            addHintDayKey = today
+            addHintShownWindowsRaw = ""
+        }
+    }
+
+    private func hasShownHintWindow(_ window: AddHintWindow) -> Bool {
+        resetHintWindowsIfNewDay()
+        return addHintShownWindowsRaw.split(separator: ",").contains(Substring(window.rawValue))
+    }
+
+    private func markHintWindowShown(_ window: AddHintWindow) {
+        resetHintWindowsIfNewDay()
+        var shown = Set(addHintShownWindowsRaw.split(separator: ",").map(String.init))
+        shown.insert(window.rawValue)
+        addHintShownWindowsRaw = shown.sorted().joined(separator: ",")
+    }
 
     private var decayNorm: Double {
         guard dayCanvas.inkEarned > 0 else { return 0 }
@@ -250,6 +339,7 @@ struct GalleryView: View {
         .onAppear {
             model.checkDayBoundary()
             loadCanvas()
+            refreshAddHint()
             let dayKey = AppModel.dayKey(for: Date.now)
             Task {
                 await SupabaseSyncService.shared.trackAnalyticsEvent(
@@ -262,6 +352,9 @@ struct GalleryView: View {
         .onChange(of: canvasSyncState) {
             syncCanvasWithModel()
         }
+        .onChange(of: dayCanvas.elements.count) { refreshAddHint() }
+        .onChange(of: isFanOpen) { refreshAddHint() }
+        .onChange(of: isWideCanvas) { refreshAddHint() }
         .onChange(of: shapePrefs) {
             migrateShapePreferences()
         }
@@ -287,6 +380,9 @@ struct GalleryView: View {
                 pendingDeletedIds.removeAll()
                 loadCanvas()
             }
+            // Re-evaluate the nudge on foreground so a new time window (or a
+            // fresh day) can re-arm it without needing another canvas mutation.
+            refreshAddHint()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             if editState.isDraggingElement { handleEditDragEnd() }
@@ -413,8 +509,16 @@ struct GalleryView: View {
             }
 
             // Bottom section — always visible, sits above tab bar
-            VStack {
+            VStack(spacing: 0) {
                 Spacer(minLength: 0)
+                if showAddHint {
+                    addActivityHint
+                        .padding(.bottom, 14)
+                        .transition(
+                            .scale(scale: 0.85, anchor: .bottom)
+                            .combined(with: .opacity)
+                        )
+                }
                 bottomControlsBar
                     .padding(.bottom, bottomControlsPadding)
             }
@@ -455,11 +559,9 @@ struct GalleryView: View {
                         try? await Task.sleep(for: .milliseconds(180))
                         toolbar.pickerCategory = category
                     }
-                    #if DEBUG
                     if category == .mind {
                         CoachMarkManager.postAction(for: .tapMind)
                     }
-                    #endif
                 },
                 onMomentSelected: {
                     if SubscriptionGate.canAddMoment(isPro: model.isPro) {
@@ -469,15 +571,12 @@ struct GalleryView: View {
                     }
                 },
                 isFanOpen: $isFanOpen,
+                pulseHint: showAddHint,
                 onFanOpened: {
-                    #if DEBUG
                     CoachMarkManager.postAction(for: .tapPlusButton)
-                    #endif
                 }
             )
-            #if DEBUG
             .coachMarkAnchor(.tapPlusButton)
-            #endif
 
             Spacer()
 
@@ -637,6 +736,24 @@ struct GalleryView: View {
     // ═══════════════════════════════════════════════════════════
     // MARK: - Empty State
     // ═══════════════════════════════════════════════════════════
+
+    /// Directed nudge bubble that sits centered just above the + button while
+    /// the day is still sparse (< 2 elements). The copy is time-aware
+    /// (`activeHintWindow`) and the downward caret visually links it to the
+    /// `RadialHoldMenu` so the user understands where to tap.
+    private var addActivityHint: some View {
+        Text(activeHintWindow.prompt)
+            .font(.system(size: 14, weight: .medium, design: .rounded))
+            .foregroundStyle(labelColor)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            // Reserve room for the tail so the text stays centered in the body.
+            .padding(.bottom, BubbleWithTail.tailHeight)
+            .liquidGlassControl(in: BubbleWithTail())
+            .contrastingOnGlass()
+            .accessibilityElement(children: .combine)
+            .allowsHitTesting(false)
+    }
 
     private var emptyStateView: some View {
         VStack(spacing: 16) {
@@ -1347,34 +1464,31 @@ struct GalleryView: View {
                 )
             }
 
-            // 9:16 output (1080×1920) — fits Stories, Reels, and Posts
-            let outputW: CGFloat = 1080
-            let outputH: CGFloat = 1920
-            let posterW = outputW * 0.92
-            let posterH = posterW / style.nativeAspect
+            // Render the poster at the exact on-screen frame size, then upscale via
+            // `renderer.scale`. This keeps every element — including the canvas's
+            // absolute-point labels — at the same proportions shown on screen,
+            // just at share resolution. Inflating the layout instead would shrink
+            // the fixed-size labels relative to the canvas.
+            let frameSize = GenerativeCanvasView.framedCanvasSize
+            let targetWidth: CGFloat = 2160
 
-            let shareable = ZStack {
-                style.padColor
-
-                CanvasPosterView(
-                    style: style,
-                    date: Date.now,
-                    userName: userName,
-                    steps: Int(model.stepsToday),
-                    sleepHours: model.dailySleepHours,
-                    inkEarned: dayCanvas.inkEarned,
-                    inkSpent: dayCanvas.inkSpent
-                ) {
-                    canvasContent
-                }
-                .frame(width: posterW, height: posterH)
+            let shareable = CanvasPosterView(
+                style: style,
+                date: Date.now,
+                userName: userName,
+                steps: Int(model.stepsToday),
+                sleepHours: model.dailySleepHours,
+                inkEarned: dayCanvas.inkEarned,
+                inkSpent: dayCanvas.inkSpent
+            ) {
+                canvasContent
             }
-            .frame(width: outputW, height: outputH)
+            .frame(width: frameSize.width, height: frameSize.height)
 
             await Task.yield()
             let renderer = ImageRenderer(content: shareable)
-            renderer.scale = 1.0
-            renderer.proposedSize = .init(width: outputW, height: outputH)
+            renderer.scale = targetWidth / frameSize.width
+            renderer.proposedSize = .init(width: frameSize.width, height: frameSize.height)
             let image = renderer.uiImage
 
             toolbar.isExporting = false
@@ -1388,6 +1502,82 @@ struct GalleryView: View {
 }
 
 // MARK: - Share Sheet (UIActivityViewController wrapper)
+
+/// The two daily windows in which the empty-canvas nudge may appear. The split
+/// is anchored to the user's configured end-of-day, not the wall clock: the
+/// custom day (`dayStart` → `dayEnd`) is halved, so `morning` is its first half
+/// and `evening` its second. Both prompts are retrospective — they only ask
+/// about what's already happened, never about plans.
+private enum AddHintWindow: String {
+    case morning
+    case evening
+
+    /// - Parameters:
+    ///   - dayStart: start of the current custom day (`AppModel.currentDayStart`).
+    ///   - dayEnd: the next day boundary (`DayBoundary.nextBoundary`).
+    static func current(for date: Date = .now, dayStart: Date, dayEnd: Date) -> AddHintWindow {
+        let midpoint = dayStart.addingTimeInterval(dayEnd.timeIntervalSince(dayStart) / 2)
+        return date < midpoint ? .morning : .evening
+    }
+
+    var prompt: String {
+        switch self {
+        case .morning:
+            return String(localized: "What have you done so far?",
+                          comment: "Empty-canvas nudge, morning — retrospective")
+        case .evening:
+            return String(localized: "What did you do today?",
+                          comment: "Empty-canvas nudge, evening — retrospective")
+        }
+    }
+}
+
+/// Capsule body with an integrated downward tail, drawn as one continuous
+/// outline so the glass material reads as a single surface (no seam between
+/// the bubble and its caret). Used by the empty-canvas "add activity" hint.
+private struct BubbleWithTail: InsettableShape {
+    static let tailWidth: CGFloat = 16
+    static let tailHeight: CGFloat = 7
+
+    var insetAmount: CGFloat = 0
+
+    func inset(by amount: CGFloat) -> some InsettableShape {
+        var copy = self
+        copy.insetAmount += amount
+        return copy
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let r = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        let body = CGRect(x: r.minX, y: r.minY,
+                          width: r.width,
+                          height: max(0, r.height - Self.tailHeight))
+        let radius = min(body.height / 2, body.width / 2)
+        let halfTail = Self.tailWidth / 2
+
+        var path = Path()
+        // Top edge.
+        path.move(to: CGPoint(x: body.minX + radius, y: body.minY))
+        path.addLine(to: CGPoint(x: body.maxX - radius, y: body.minY))
+        // Right cap.
+        path.addArc(center: CGPoint(x: body.maxX - radius, y: body.minY + radius),
+                    radius: radius,
+                    startAngle: .degrees(-90), endAngle: .degrees(90),
+                    clockwise: false)
+        // Bottom edge → into the tail → out of the tail.
+        path.addLine(to: CGPoint(x: r.midX + halfTail, y: body.maxY))
+        path.addLine(to: CGPoint(x: r.midX, y: r.maxY))
+        path.addLine(to: CGPoint(x: r.midX - halfTail, y: body.maxY))
+        path.addLine(to: CGPoint(x: body.minX + radius, y: body.maxY))
+        // Left cap.
+        path.addArc(center: CGPoint(x: body.minX + radius, y: body.minY + radius),
+                    radius: radius,
+                    startAngle: .degrees(90), endAngle: .degrees(270),
+                    clockwise: false)
+        path.closeSubpath()
+        return path
+    }
+}
 
 // MARK: - Preview
 
