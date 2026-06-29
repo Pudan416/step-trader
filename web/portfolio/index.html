@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Konstantin Pudan — product builder</title>
+<meta name="description" content="Konstantin (Kosta) Pudan — a product builder with a creative communication background. Maker of Nowhere and Prompthub." />
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<style>
+  :root{
+    --bg:#0c0c0d;
+    --fg:#f4f3ef;
+    --muted:#8a8a86;
+    --line:rgba(255,255,255,.12);
+    --maxw:1040px;
+    --pad:clamp(20px,5vw,40px);
+    /* Two faces only — New York (serif) for display/quotes, SF Pro for UI */
+    --serif:"New York",ui-serif,Georgia,"Times New Roman",serif;
+    --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,"Segoe UI",Helvetica,Arial,sans-serif;
+    --sh1:0 1px 2px rgba(0,0,0,.5),0 1px 14px rgba(0,0,0,.45);
+    --sh2:0 2px 4px rgba(0,0,0,.35),0 2px 30px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--fg);font:400 18px/1.55 var(--ui);
+       -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding-inline:var(--pad)}
+
+  /* generative gradient background — new style + palette on every load */
+  .bg-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;display:block}
+  .bg-scrim{position:fixed;inset:0;z-index:0;pointer-events:none;background:rgba(8,8,10,.22)}
+  .grain{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.09;mix-blend-mode:overlay;
+         background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  header.hero, section, footer{position:relative;z-index:1}
+  /* soft dark backing so text stays legible over ANY gradient color */
+  header.hero::before, section::before, footer::before{
+    content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+    background:radial-gradient(82% 72% at 50% 50%, rgba(5,6,9,.5), rgba(5,6,9,0) 80%)}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:10;backdrop-filter:blur(12px);
+      background:color-mix(in srgb,var(--bg) 78%,transparent)}
+  .nav-inner{display:flex;align-items:center;justify-content:space-between;height:62px}
+  .logo{font-family:var(--serif);font-weight:700;letter-spacing:.1em;font-size:16px;text-transform:uppercase}
+  .nav-cta{font-size:14px;color:rgba(244,243,239,.8);padding:9px 16px;border:1px solid var(--line);border-radius:999px;
+           transition:background .15s,color .15s}
+  .nav-cta:hover{background:var(--fg);color:var(--bg)}
+
+  /* hero */
+  header.hero{padding:clamp(64px,11vh,120px) 0 clamp(30px,6vh,60px)}
+  .hero-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:clamp(28px,5vw,60px);align-items:center}
+  .kicker{color:rgba(244,243,239,.66);font-size:14px;letter-spacing:.16em;text-transform:lowercase;
+          margin-bottom:22px;text-shadow:var(--sh1)}
+  h1{font-family:var(--serif);font-size:clamp(34px,5.6vw,64px);line-height:1.06;font-weight:300;letter-spacing:-.015em;
+     text-shadow:var(--sh2)}
+  h1 .em{display:block;font-family:var(--serif);font-style:italic;font-weight:500;font-size:clamp(19px,2.8vw,29px);
+         color:rgba(244,243,239,.82);margin-top:12px}
+  .lead{font-family:var(--serif);font-weight:300;font-size:clamp(18px,2.3vw,24px);color:rgba(244,243,239,.92);
+        margin-top:26px;max-width:26ch;text-shadow:var(--sh1)}
+  .bio{margin-top:20px;max-width:54ch;color:rgba(244,243,239,.8);font-size:clamp(15.5px,1.7vw,17.5px);
+       line-height:1.62;text-shadow:var(--sh1)}
+  .portrait{width:100%;max-width:320px;margin-inline:auto;display:block;border-radius:20px;
+            border:1px solid var(--line)}
+
+  /* sections */
+  .block{padding:clamp(40px,7vh,78px) 0}
+  .eyebrow{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:rgba(244,243,239,.6);
+           margin-bottom:26px;text-shadow:var(--sh1)}
+
+  /* project grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:clamp(20px,3vw,32px)}
+  .card{display:block}
+  .card .cover{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:16px;display:block;
+               background:rgba(255,255,255,.04)}
+  .card .ph{display:flex;align-items:center;justify-content:center;gap:14px;flex-direction:column;
+            border:1px solid var(--line);text-align:center}
+  .card .ph .ph-name{font-family:var(--serif);font-weight:500;font-size:clamp(26px,4vw,38px);color:rgba(244,243,239,.92)}
+  .card .ph .ph-tag{font-size:13px;letter-spacing:.04em;color:rgba(244,243,239,.6);
+                    border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+  a.card .cover{transition:transform .25s ease,opacity .2s ease}
+  a.card:hover .cover{transform:translateY(-3px);opacity:.94}
+  .card .nm{font-family:var(--serif);font-weight:500;font-size:21px;margin-top:16px;text-shadow:var(--sh1)}
+  .card .nm .out{font-family:var(--ui);font-size:13px;color:rgba(244,243,239,.55);margin-left:8px}
+  .card .ds{color:rgba(244,243,239,.74);font-size:15px;margin-top:6px;line-height:1.45;text-shadow:var(--sh1)}
+
+  /* recognitions */
+  .rec{display:grid;grid-template-columns:minmax(110px,170px) 1fr;gap:clamp(12px,3vw,40px);
+       padding-block:18px;align-items:baseline}
+  .rec .k{font-family:var(--serif);font-weight:400;font-size:clamp(19px,2.1vw,24px);text-shadow:var(--sh1)}
+  .rec .v{color:rgba(244,243,239,.78);font-size:clamp(15px,1.7vw,16.5px);line-height:1.5;text-shadow:var(--sh1)}
+  .awards{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:7px 30px}
+  .awards li{color:rgba(244,243,239,.76);font-size:15px;text-shadow:var(--sh1)}
+  .awards b{color:var(--fg);font-weight:600}
+
+  /* socials */
+  .socials{display:flex;flex-wrap:wrap;gap:clamp(16px,3.4vw,34px);align-items:baseline}
+  .socials a{font-family:var(--serif);font-style:italic;font-weight:500;font-size:clamp(22px,2.8vw,32px);
+             color:rgba(244,243,239,.92);text-shadow:var(--sh2);transition:opacity .15s}
+  .socials a:hover{opacity:.65}
+  .socials a .soon{font-family:var(--ui);font-style:normal;font-size:11px;color:rgba(244,243,239,.45);vertical-align:super}
+
+  /* footer */
+  footer{padding:40px 0 56px;color:rgba(244,243,239,.7);font-size:14px;text-shadow:var(--sh1)}
+  .foot-inner{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .foot-inner a:hover{color:var(--fg)}
+
+  @media(max-width:760px){
+    .hero-grid{grid-template-columns:1fr}
+    .portrait{order:-1;max-width:240px}
+    .lead,.bio{max-width:none}
+  }
+  @media(max-width:560px){
+    .rec{grid-template-columns:1fr;gap:4px;padding-block:14px}
+  }
+</style>
+</head>
+<body id="top">
+
+<canvas class="bg-canvas" id="bgCanvas" aria-hidden="true"></canvas>
+<div class="bg-scrim" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<nav>
+  <div class="wrap nav-inner">
+    <a class="logo" href="#top">Konstantin</a>
+    <a class="nav-cta" href="mailto:kostill@gmail.com">say hi</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="kicker">product builder</p>
+      <h1>Hey, I'm Konstantin.<span class="em">Kosta works too.</span></h1>
+      <p class="lead">A product builder with a creative communication background.</p>
+      <p class="bio">I've spent years doing creative communication for IT. Somewhere in there, I realised
+        I want to make products that not only sound good but also have an idea behind them. My strong belief
+        is that when everyone can build anything with just a prompt, ideas and new angles are becoming
+        priceless. Any product has its voice, whether it was designed or not — so I'd rather pick it on purpose.</p>
+    </div>
+    <img class="portrait" src="assets/portrait.webp" alt="Illustrated portrait of Konstantin" />
+  </div>
+</header>
+
+<section class="block">
+  <div class="wrap">
+    <p class="eyebrow">Now</p>
+    <div class="grid">
+      <a class="card" href="https://nowhere.pudan.me" target="_blank" rel="noopener">
+        <img class="cover" src="assets/nowhere-canvas.png" alt="Nowhere — the canvas screen" />
+        <div class="nm">Nowhere<span class="out">↗</span></div>
+        <div class="ds">A digital wellness iOS app for noticing real life.</div>
+      </a>
+      <div class="card">
+        <div class="cover ph"><span class="ph-name">Prompthub</span><span class="ph-tag">100k DAU</span></div>
+        <div class="nm">Prompthub</div>
+        <div class="ds">A social platform for exchanging prompts for LLMs.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <p class="eyebrow">Past works</p>
+    <div class="grid">
+      <div class="card">
+        <img class="cover" src="assets/tretyakov.webp" alt="Humans and Neural Networks: Who is the Creator?" />
+        <div class="nm">Who is the Creator</div>
+        <div class="ds">A collaboration of tech and art institutions on AI and human foresight.</div>
+      </div>
+      <div class="card">
+        <img class="cover" src="assets/yandex-browser.webp" alt="I'm the Best — Yandex Browser year in review" />
+        <div class="nm">I'm the Best</div>
+        <div class="ds">A year-in-review rebuilt as a little hype-machine that cheered people on.</div>
+      </div>
+      <div class="card">
+        <img class="cover" src="assets/tours.webp" alt="Tours to Cultures" />
+        <div class="nm">Tours to Cultures</div>
+        <div class="ds">A journey that lets you hear world cultures as much as see them.</div>
+      </div>
+      <div class="card">
+        <img class="cover" src="assets/sound.webp" alt="Sounds Easy" />
+        <div class="nm">Sounds Easy</div>
+        <div class="ds">A voice-assistant skill that teaches children to pronounce sounds.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <p class="eyebrow">Recognitions</p>
+    <div class="rec">
+      <div class="k">Awards</div>
+      <div class="v">
+        <ul class="awards">
+          <li><b>Cannes Lions</b> — 2 Shortlists</li>
+          <li><b>Eurobest</b> — 1 Gold · 1 Shortlist</li>
+          <li><b>Epica</b> — 2 Silver · 2 Bronze · 1 Shortlist</li>
+          <li><b>One Show</b> — 5 Shortlists</li>
+          <li><b>Golden Drum</b> — 1 Silver · 2 Shortlists</li>
+          <li><b>ADC*R</b> — 2 Gold · 3 Bronze · 4 Shortlists</li>
+          <li><b>White Square</b> — 2 Gold · 2 Silver · 1 Shortlist</li>
+          <li><b>Red Apple</b> — 3 Gold · 4 Silver · 5 Bronze · 6 Shortlists</li>
+          <li><b>MIXX</b> — 1 Grand Prix · 3 Silver · 2 Bronze · 2 Shortlists</li>
+        </ul>
+      </div>
+    </div>
+    <div class="rec">
+      <div class="k">Jury</div>
+      <div class="v">ADC*R · White Square · MIXX · Phoenix Awards</div>
+    </div>
+    <div class="rec">
+      <div class="k">Tops</div>
+      <div class="v">20 creatives in Russia, 2020 / 2021</div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <p class="eyebrow">Say hi</p>
+    <div class="socials">
+      <a href="https://t.me/pudan416" target="_blank" rel="noopener">Telegram</a>
+      <a href="#" data-social="linkedin">LinkedIn<span class="soon">·</span></a>
+      <a href="#" data-social="twitter">Twitter<span class="soon">·</span></a>
+      <a href="https://github.com/pudan416" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-inner">
+    <div>© 2026 Konstantin Pudan</div>
+    <div><a href="mailto:kostill@gmail.com">kostill@gmail.com</a></div>
+  </div>
+</footer>
+
+<script>
+  // Generative gradient background — a web port of Nowhere's EnergyGradientRenderer.
+  // Random style + palette on every load. Override with ?style=mesh&palette=ember.
+  (function(){
+    var canvas = document.getElementById('bgCanvas');
+    if(!canvas || !canvas.getContext) return;
+    var ctx = canvas.getContext('2d');
+
+    var PALETTES = {
+      sunset: {bright:'#FFBF65', warm:'#FD8973', cool:'#003A6C', dark:'#002646'},
+      ocean:  {bright:'#7FDBDA', warm:'#3A9FBF', cool:'#1A4B6E', dark:'#0B1E33'},
+      aurora: {bright:'#C4B5FD', warm:'#7C6FBF', cool:'#1F6E5C', dark:'#0F1B2D'},
+      dusk:   {bright:'#EEDDC9', warm:'#C0AC98', cool:'#5E7282', dark:'#384856'},
+      dawn:   {bright:'#EBBFC8', warm:'#B87A92', cool:'#4A3568', dark:'#181430'},
+      ember:  {bright:'#F07838', warm:'#D04428', cool:'#2E1858', dark:'#0C0A22'}
+    };
+    var PALETTE_KEYS = Object.keys(PALETTES);
+    var STYLES = ['radial','linear','radialReversed','linearReversed','organic','mesh','angular'];
+
+    function hexRgb(h){ h=h.replace('#',''); return [parseInt(h.substr(0,2),16),parseInt(h.substr(2,2),16),parseInt(h.substr(4,2),16)]; }
+    function rgba(hex,a){ var c=hexRgb(hex); a=Math.max(0,Math.min(1,a)); return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')'; }
+    function clamp01(x){ return Math.max(0,Math.min(1,x)); }
+    function lerp(a,b,t){ return a+(b-a)*t; }
+    function smoothstep(x){ var t=clamp01(x); return t*t*(3-2*t); }
+    function mulberry32(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0; var t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+    function computeOpacities(Ss, Ls){
+      var goldShare=Ss*0.35, coralShare=0.30, navyShare=Math.max(Ls*0.20,0.08);
+      var goldLoc=goldShare, coralLoc=goldLoc+coralShare, navyLoc=coralLoc+navyShare;
+      return { gold:lerp(0.55,0.95,Ss), coral:lerp(0.55,0.85,Ss)*lerp(1.00,0.92,Ls),
+        navy:lerp(0.28,0.48,Ls), night:lerp(0.28,0.45,Ls), glow:lerp(0.30,0.60,Ss)*lerp(1.00,0.85,Ls),
+        goldLoc:goldLoc, coralLoc:coralLoc, navyLoc:navyLoc, stepsNorm:Ss, sleepNorm:Ls };
+    }
+
+    function organicBlobs(o, rnd, p){
+      var b=[], i; function nd(a,c){ return a+rnd()*(c-a); }
+      for(i=0;i<2;i++) b.push({x:nd(0,1),    y:nd(0,1),     r:nd(0.5,0.8),  color:p.dark,  op:o.night*nd(0.6,1.0)});
+      for(i=0;i<2;i++) b.push({x:nd(.05,.95),y:nd(.05,.95), r:nd(0.35,0.6), color:p.cool,  op:o.navy*nd(0.5,0.9)});
+      for(i=0;i<2;i++) b.push({x:nd(.1,.9),  y:nd(.1,.9),   r:nd(0.25,0.5), color:p.warm,  op:o.coral*nd(0.4,0.8)});
+      for(i=0;i<2;i++) b.push({x:nd(.15,.85),y:nd(.15,.85), r:nd(0.2,0.4),  color:p.bright, op:o.gold*nd(0.5,0.9)});
+      return b;
+    }
+
+    function meshBlobs(o, rnd, srnd, p){
+      var blobs=[], blendPool=['lighter','lighter','lighter','color-dodge','soft-light','screen'];
+      var cols=3, rows=4, sN=o.stepsNorm, lN=o.sleepNorm, pool=[p.bright,p.warm,p.cool,p.dark];
+      function nd(a,c){ return a+rnd()*(c-a); }
+      for(var row=0;row<rows;row++) for(var col=0;col<cols;col++){
+        var px=col/(cols-1)+nd(-0.14,0.14), py=row/(rows-1)+nd(-0.10,0.10);
+        var dist=Math.sqrt((px-0.5)*(px-0.5)+(py-0.5)*(py-0.5)), roll=rnd(), pick;
+        if(dist<0.22) pick=roll<0.65?0:1;
+        else if(dist<0.42) pick=roll<0.35?0:(roll<0.70?1:2);
+        else pick=roll<0.20?0:(roll<0.50?1:(roll<0.80?2:3));
+        var op = pick===0 ? (0.35+sN*0.60)*nd(0.65,1)
+               : pick===1 ? (0.35+sN*0.45+lN*0.10)*nd(0.65,1)
+               : pick===2 ? (0.25+lN*0.50+sN*0.05)*nd(0.65,1)
+               :            (0.20+lN*0.45)*nd(0.65,1);
+        blobs.push({x:px,y:py,r:nd(0.40,0.65),color:pool[pick],op:op,
+                    blend:blendPool[Math.floor(srnd()*blendPool.length)],skew:srnd()*1-0.5});
+      }
+      return blobs;
+    }
+
+    function draw(w,h,o,p,style,seed){
+      var cx=w*0.5, cy=h*0.5, dim=Math.min(w,h), maxReach=Math.max(w,h);
+      ctx.globalCompositeOperation='source-over';
+      ctx.fillStyle=p.dark; ctx.fillRect(0,0,w,h);
+      function mainStops(g){
+        g.addColorStop(0.00, rgba(p.bright,o.gold));
+        g.addColorStop(clamp01(o.goldLoc),  rgba(p.warm,o.coral));
+        g.addColorStop(clamp01(o.coralLoc), rgba(p.cool,o.navy));
+        g.addColorStop(clamp01(o.navyLoc),  rgba(p.dark,o.night));
+        g.addColorStop(1.00, rgba(p.dark,o.night));
+      }
+      if(style==='radial'){
+        var g=ctx.createRadialGradient(cx,cy,0,cx,cy,maxReach*0.85); mainStops(g);
+        ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+        var gr=dim*0.5, sg=ctx.createRadialGradient(cx,cy,0,cx,cy,gr);
+        sg.addColorStop(0, rgba(p.bright,o.glow*0.6)); sg.addColorStop(0.5, rgba(p.warm,o.glow*0.25)); sg.addColorStop(1, rgba(p.bright,0));
+        ctx.fillStyle=sg; ctx.fillRect(0,0,w,h);
+      } else if(style==='radialReversed'){
+        var g2=ctx.createRadialGradient(cx,cy,0,cx,cy,maxReach*0.85);
+        g2.addColorStop(0.00, rgba(p.dark,o.night));
+        g2.addColorStop(clamp01(1-o.navyLoc), rgba(p.cool,o.navy));
+        g2.addColorStop(clamp01(1-o.goldLoc), rgba(p.warm,o.coral));
+        g2.addColorStop(1.00, rgba(p.bright,o.gold));
+        ctx.fillStyle=g2; ctx.fillRect(0,0,w,h);
+        var rg=ctx.createRadialGradient(cx,cy,0,cx,cy,maxReach*0.85);
+        rg.addColorStop(0, rgba(p.bright,0)); rg.addColorStop(0.5, rgba(p.warm,o.glow*0.2)); rg.addColorStop(1, rgba(p.bright,o.glow*0.5));
+        ctx.fillStyle=rg; ctx.fillRect(0,0,w,h);
+      } else if(style==='linear'){
+        var gl=ctx.createLinearGradient(cx,0,cx,h);
+        gl.addColorStop(0.00, rgba(p.dark,o.night));
+        gl.addColorStop(clamp01(1-o.navyLoc),  rgba(p.dark,o.night));
+        gl.addColorStop(clamp01(1-o.coralLoc), rgba(p.cool,o.navy));
+        gl.addColorStop(clamp01(1-o.goldLoc),  rgba(p.warm,o.coral));
+        gl.addColorStop(1.00, rgba(p.bright,o.gold));
+        ctx.fillStyle=gl; ctx.fillRect(0,0,w,h);
+        var gh=h*0.4, sgl=ctx.createLinearGradient(cx,h,cx,h-gh);
+        sgl.addColorStop(0, rgba(p.bright,o.glow*0.6)); sgl.addColorStop(0.5, rgba(p.warm,o.glow*0.25)); sgl.addColorStop(1, rgba(p.bright,0));
+        ctx.fillStyle=sgl; ctx.fillRect(0,h-gh,w,gh);
+      } else if(style==='linearReversed'){
+        var glr=ctx.createLinearGradient(cx,0,cx,h); mainStops(glr);
+        ctx.fillStyle=glr; ctx.fillRect(0,0,w,h);
+        var gh2=h*0.4, sglr=ctx.createLinearGradient(cx,0,cx,gh2);
+        sglr.addColorStop(0, rgba(p.bright,o.glow*0.6)); sglr.addColorStop(0.5, rgba(p.warm,o.glow*0.25)); sglr.addColorStop(1, rgba(p.bright,0));
+        ctx.fillStyle=sglr; ctx.fillRect(0,0,w,gh2);
+      } else if(style==='organic'){
+        var blobs=organicBlobs(o, mulberry32(seed), p);
+        ctx.globalCompositeOperation='lighter';
+        blobs.forEach(function(b){
+          var bx=b.x*w, by=b.y*h, r=b.r*maxReach;
+          var bg=ctx.createRadialGradient(bx,by,0,bx,by,r);
+          bg.addColorStop(0, rgba(b.color,b.op)); bg.addColorStop(0.5, rgba(b.color,b.op*0.4)); bg.addColorStop(1, rgba(b.color,0));
+          ctx.fillStyle=bg; ctx.fillRect(bx-r,by-r,r*2,r*2);
+        });
+        ctx.globalCompositeOperation='source-over';
+      } else if(style==='mesh'){
+        var blobs2=meshBlobs(o, mulberry32(seed), mulberry32(seed^0x9E3779B9), p);
+        blobs2.forEach(function(b){
+          var bx=b.x*w, by=b.y*h, r=b.r*maxReach, stretchX=1.0+Math.abs(b.skew)*0.6;
+          ctx.save(); ctx.globalCompositeOperation=b.blend;
+          ctx.translate(bx,by); ctx.rotate(b.skew); ctx.scale(stretchX,1);
+          var bg2=ctx.createRadialGradient(0,0,0,0,0,r);
+          bg2.addColorStop(0, rgba(b.color,b.op)); bg2.addColorStop(0.3333, rgba(b.color,b.op*0.45));
+          bg2.addColorStop(0.6667, rgba(b.color,b.op*0.08)); bg2.addColorStop(1, rgba(b.color,0));
+          ctx.fillStyle=bg2; ctx.fillRect(-r,-r,r*2,r*2); ctx.restore();
+        });
+        ctx.globalCompositeOperation='source-over';
+      } else if(style==='angular'){
+        if(!ctx.createConicGradient){ var gf=ctx.createRadialGradient(cx,cy,0,cx,cy,maxReach*0.85); mainStops(gf); ctx.fillStyle=gf; ctx.fillRect(0,0,w,h); return; }
+        var ar=mulberry32(seed^0x55AA55AA), segCount=6+Math.floor(ar()*3), sN=o.stepsNorm, lN=o.sleepNorm, cols2=[], s;
+        for(s=0;s<segCount;s++){
+          if(Math.floor(ar()*2)===0) cols2.push(rgba(Math.floor(ar()*2)===0?p.bright:p.warm, 0.35+sN*0.60));
+          else                       cols2.push(rgba(Math.floor(ar()*2)===0?p.cool:p.dark,   0.25+lN*0.50));
+        }
+        cols2.push(cols2[0]);
+        var cg=ctx.createConicGradient(ar()*Math.PI*2, cx, cy);
+        for(var k=0;k<cols2.length;k++) cg.addColorStop(k/(cols2.length-1), cols2[k]);
+        ctx.fillStyle=cg; ctx.fillRect(0,0,w,h);
+        var glowStrength=0.25+sN*0.35+lN*0.15, maxR=maxReach*0.9;
+        var gg=ctx.createRadialGradient(cx,cy,0,cx,cy,maxR*0.65);
+        gg.addColorStop(0, rgba(p.bright,glowStrength)); gg.addColorStop(0.3333, rgba(p.warm,glowStrength*0.5));
+        gg.addColorStop(0.6667, rgba(p.cool,lN*0.25)); gg.addColorStop(1, rgba(p.bright,0));
+        ctx.globalCompositeOperation='lighter'; ctx.fillStyle=gg; ctx.fillRect(0,0,w,h);
+        ctx.globalCompositeOperation='source-over';
+      }
+    }
+
+    var params = new URLSearchParams(location.search);
+    var paletteKey = params.get('palette'); if(!PALETTES[paletteKey]) paletteKey = PALETTE_KEYS[Math.floor(Math.random()*PALETTE_KEYS.length)];
+    var styleKey   = params.get('style');   if(STYLES.indexOf(styleKey)<0) styleKey = STYLES[Math.floor(Math.random()*STYLES.length)];
+    var pal = PALETTES[paletteKey];
+    var seed = (Math.random()*0xFFFFFFFF)>>>0;
+    var opac = computeOpacities(smoothstep(lerp(0.55,1.0,Math.random())), smoothstep(lerp(0.50,1.0,Math.random())));
+    document.documentElement.setAttribute('data-bg', styleKey+' / '+paletteKey);
+
+    function render(){
+      var dpr=Math.min(window.devicePixelRatio||1, 2), W=window.innerWidth, H=window.innerHeight;
+      canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
+      canvas.style.width=W+'px'; canvas.style.height=H+'px';
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      draw(W,H,opac,pal,styleKey,seed);
+    }
+    render();
+    var rt; window.addEventListener('resize', function(){ clearTimeout(rt); rt=setTimeout(render,150); });
+  })();
+</script>
+
+</body>
+</html>

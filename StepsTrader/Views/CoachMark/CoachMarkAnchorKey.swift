@@ -1,4 +1,3 @@
-#if DEBUG
 import SwiftUI
 
 enum CoachMarkStep: Int, CaseIterable, Equatable {
@@ -89,6 +88,19 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
             return false
         }
     }
+
+    /// Steps that only make sense when the user has at least one blocking
+    /// group: the Feeds-tab leg of the tour (navigate there, explain the
+    /// ticket, unlock it). `CoachMarkManager` reroutes these to `.allSet`
+    /// when there are no groups (e.g. blocked-app setup skipped in onboarding).
+    var requiresTicketGroups: Bool {
+        switch self {
+        case .goToFeeds, .tapFeedsTab, .feedsExplain, .tapUnlockPill, .unlockSuccess:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 struct CoachMarkAnchor: Equatable {
@@ -115,4 +127,3 @@ extension View {
         )
     }
 }
-#endif

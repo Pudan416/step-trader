@@ -42,6 +42,17 @@ class AuthenticationService: NSObject, ObservableObject {
         }
         return nil
     }
+
+    /// Returns a valid (possibly refreshed) access token, refreshing via GoTrue if expired.
+    /// Use this instead of `accessToken` for any Supabase API call that can wait for a refresh.
+    func freshAccessToken() async -> String? {
+        guard let session = loadStoredSession() else { return nil }
+        guard let valid = try? await ensureValidSession(session) else { return session.accessToken }
+        if valid.accessToken != session.accessToken {
+            storeSession(valid)
+        }
+        return valid.accessToken
+    }
     
     // Auth data intentionally stored in .standard — not shared with extensions.
     // Avatar bytes live on disk (Documents dir) to avoid bloating UserDefaults.
@@ -484,14 +495,16 @@ class AuthenticationService: NSObject, ObservableObject {
         user.country = country
         setCurrentUserAndCache(user)
         
-        guard let session = loadStoredSession() else { return }
-        
+        guard let rawSession = loadStoredSession() else { return }
+        let session = (try? await ensureValidSession(rawSession)) ?? rawSession
+        if session.accessToken != rawSession.accessToken { storeSession(session) }
+
         if let data = avatarData, !data.isEmpty {
             _ = try await uploadAvatarToStorage(session: session, userId: user.id, imageData: data)
         } else if avatarData == nil {
             try? await deleteAvatarFromStorage(session: session, userId: user.id)
         }
-        
+
         try await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: country)
         try await loadCurrentUserFromSupabase(session: session)
     }
@@ -539,10 +552,12 @@ class AuthenticationService: NSObject, ObservableObject {
         if let legacyData = UserDefaults.standard.data(forKey: key) {
             do {
                 try legacyData.write(to: fileURL, options: .atomic)
+                // Only drop the legacy copy once the disk write succeeded —
+                // otherwise it stays as the source for the next migration attempt.
+                UserDefaults.standard.removeObject(forKey: key)
             } catch {
                 AppLogger.auth.error("Failed to migrate avatar to disk: \(error.localizedDescription)")
             }
-            UserDefaults.standard.removeObject(forKey: key)
             return legacyData
         }
         return nil

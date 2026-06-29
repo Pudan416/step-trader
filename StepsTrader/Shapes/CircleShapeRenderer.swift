@@ -147,12 +147,15 @@ enum CircleShapeRenderer {
                     gradCenter = center
                 }
 
+                // Spread the hue transition across the whole radius with explicit
+                // lerped midpoints so no single segment carries a hard color jump.
                 let grad = Gradient(stops: [
                     .init(color: innerColor.opacity(0.95 * om), location: 0),
-                    .init(color: innerColor.opacity(0.90 * om), location: 0.30),
-                    .init(color: outerColor.opacity(0.80 * om), location: 0.55),
-                    .init(color: outerColor.opacity(0.60 * om), location: 0.78),
-                    .init(color: outerColor.opacity(0.30 * om), location: 1.0),
+                    .init(color: Color.lerp(innerColor, outerColor, t: 0.2).opacity(0.92 * om), location: 0.22),
+                    .init(color: Color.lerp(innerColor, outerColor, t: 0.45).opacity(0.86 * om), location: 0.45),
+                    .init(color: Color.lerp(innerColor, outerColor, t: 0.7).opacity(0.70 * om), location: 0.68),
+                    .init(color: Color.lerp(innerColor, outerColor, t: 0.9).opacity(0.48 * om), location: 0.86),
+                    .init(color: outerColor.opacity(0.28 * om), location: 1.0),
                 ])
                 ctx.fill(
                     circlePath,

@@ -418,6 +418,9 @@
     "Add" : {
       "comment" : "ColorPalette – add button\nOptionEntry – save/add button"
     },
+    "Add a widget" : {
+      "comment" : "Feature tip title — home screen widget"
+    },
     "Add card" : {
       "comment" : "RadialMenu – VoiceOver label"
     },
@@ -853,9 +856,6 @@
     "Full" : {
       "comment" : "GradientPreview – preview mode showing all data"
     },
-    "Full 90-day history" : {
-
-    },
     "Full Bleed" : {
       "comment" : "Poster style name"
     },
@@ -961,6 +961,9 @@
     "keep it closed" : {
       "comment" : "PayGate dismiss button"
     },
+    "Keep today's energy canvas on your Home Screen. Long-press an empty area, tap +, search \"Nowhere\", and pick a widget size." : {
+      "comment" : "Feature tip body — widget setup steps"
+    },
     "Less screen. More now.\nSupport a tool that doesn't sell your attention." : {
 
     },
@@ -998,7 +1001,7 @@
 
     },
     "Maybe later" : {
-
+      "comment" : "Feature tip dismiss button"
     },
     "Me" : {
       "comment" : "Tab bar title"
@@ -1076,7 +1079,7 @@
       "comment" : "GradientPreview – preview mode empty state"
     },
     "No data for this day." : {
-      "comment" : "DayCanvasViewer – missing snapshot"
+      "comment" : "DayCanvasViewer – empty state"
     },
     "No feeds connected yet" : {
 
@@ -1140,6 +1143,9 @@
     },
     "Open Shortcuts → Automation → +" : {
 
+    },
+    "Open widget settings" : {
+      "comment" : "Feature tip primary button — widgets"
     },
     "Opens the app %@ after confirming access" : {
       "comment" : "Handoff – open button accessibility hint"
@@ -2317,6 +2323,9 @@
     "selected" : {
 
     },
+    "Set it up" : {
+      "comment" : "Feature tip primary button — wallpaper"
+    },
     "Set the action to the wallpaper shortcut" : {
 
     },
@@ -2328,6 +2337,9 @@
     },
     "Set up the wallpaper shortcut first" : {
 
+    },
+    "Set your canvas as wallpaper" : {
+      "comment" : "Feature tip title — wallpaper"
     },
     "Settings" : {
       "comment" : "Context menu action\nSettings page title\nTab bar title"
@@ -2572,9 +2584,6 @@
     "they're needed to unlock the apps." : {
 
     },
-    "This day was uncolored." : {
-      "comment" : "DayCanvasViewer – empty state"
-    },
     "This name will be displayed instead of my real name" : {
       "comment" : "ProfileEditor – nickname hint"
     },
@@ -2615,6 +2624,9 @@
 
     },
     "Unlimited app blocks" : {
+
+    },
+    "Unlimited history" : {
 
     },
     "Unlock for %@, costs %lld colors" : {
@@ -2703,6 +2715,12 @@
     "welcome to nowhere" : {
 
     },
+    "What did you do today?" : {
+      "comment" : "Empty-canvas nudge, evening — retrospective"
+    },
+    "What have you done so far?" : {
+      "comment" : "Empty-canvas nudge, morning — retrospective"
+    },
     "when does your day end?" : {
 
     },
@@ -2779,6 +2797,9 @@
     },
     "Your clock and widgets will overlay this canvas" : {
       "comment" : "Wide canvas – wallpaper prompt subtitle"
+    },
+    "Your daily canvas can live on your Lock Screen — refreshed automatically every time you close the app. Set it up once in a few taps." : {
+      "comment" : "Feature tip body — wallpaper setup"
     },
     "Your daily canvases will appear here." : {
       "comment" : "HistoryView – empty state subtitle"

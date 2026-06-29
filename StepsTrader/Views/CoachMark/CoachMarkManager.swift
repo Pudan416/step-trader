@@ -1,4 +1,3 @@
-#if DEBUG
 import SwiftUI
 
 @Observable
@@ -68,7 +67,10 @@ final class CoachMarkManager {
 
         var next = allSteps[nextIdx]
 
-        if (next == .feedsExplain || next == .tapUnlockPill || next == .unlockSuccess) && !hasTicketGroups() {
+        // No blocked-app group → the whole Feeds leg of the tour is pointless
+        // (the tab is empty and there is nothing to unlock). Jump straight to
+        // the closing step instead of marching the user to an empty tab.
+        if next.requiresTicketGroups && !hasTicketGroups() {
             next = .allSet
         }
 
@@ -114,4 +116,3 @@ final class CoachMarkManager {
         }
     }
 }
-#endif

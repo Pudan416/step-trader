@@ -160,9 +160,7 @@ struct PaperTicketView: View {
             }
             Spacer(minLength: 0)
         }
-        #if DEBUG
         .coachMarkAnchor(.tapUnlockPill)
-        #endif
     }
 
     private func unlockPill(interval: AccessWindow) -> some View {
@@ -173,9 +171,7 @@ struct PaperTicketView: View {
         return Button {
             guard canAfford, !isUnlocking else { return }
             mediumHapticTick &+= 1
-            #if DEBUG
             CoachMarkManager.postAction(for: .tapUnlockPill)
-            #endif
             Task {
                 isUnlocking = true
                 await model.handlePayGatePaymentForGroup(groupId: group.id, window: interval, costOverride: cost)

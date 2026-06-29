@@ -3,8 +3,9 @@ import UIKit
 
 // MARK: - History View
 /// Photos/Health-style grid of past day canvases. Groups by month with sticky
-/// headers. The newest 7 days are always unlocked; days 8…90 are blurred behind
-/// a Pro paywall (`PaywallView` with `source: .feature`). Tap an unlocked day
+/// headers. The newest 7 days are always unlocked; older days (8…∞) are blurred
+/// behind a Pro paywall (`PaywallView` with `source: .feature`) for Free users —
+/// Pro users see the full, unbounded history. Tap an unlocked day
 /// to open `DayCanvasViewerView` — a pixel-faithful render of the persisted
 /// canvas at its frozen lastModified time.
 struct HistoryView: View {

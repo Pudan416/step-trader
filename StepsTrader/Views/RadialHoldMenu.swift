@@ -15,6 +15,9 @@ struct RadialHoldMenu: View {
     /// no callback delay, no one-frame overlap. The parent always owns
     /// this state; use `.constant(false)` in previews/standalone usage.
     @Binding var isFanOpen: Bool
+    /// When true (and the fan is closed), the + button gently pulses to draw
+    /// attention — used as a first-run nudge while the canvas is empty.
+    var pulseHint: Bool = false
     var onFanOpened: (() -> Void)? = nil
 
     @State private var isHolding = false
@@ -30,6 +33,10 @@ struct RadialHoldMenu: View {
     // independent in the same view.
     @State private var lightHapticTick = 0
     @State private var mediumHapticTick = 0
+
+    /// Drives the repeating attention pulse on the + button while `pulseHint`
+    /// is active and the fan is closed.
+    @State private var pulsing = false
 
     private let nodes: [(category: EnergyCategory, angle: Double)] = [
         (.body,  135),  // upper-left
@@ -144,6 +151,7 @@ struct RadialHoldMenu: View {
             }
 
         let isActive = isFanOpen || isHolding
+        let showPulse = pulseHint && !isActive
 
         return Image(systemName: isActive ? "xmark" : "plus")
             .font(.system(size: 22, weight: .regular))
@@ -152,6 +160,29 @@ struct RadialHoldMenu: View {
             .rotationEffect(.degrees(isFanOpen ? 45 : 0))
             .frame(width: 56, height: 56)
             .liquidGlassControl(in: Circle())
+            .background(
+                // Expanding ring that radiates outward on each pulse beat.
+                Circle()
+                    .stroke(labelColor.opacity(showPulse && pulsing ? 0 : 0.35), lineWidth: 2)
+                    .scaleEffect(showPulse && pulsing ? 1.45 : 1.0)
+                    .opacity(showPulse ? 1 : 0)
+                    .animation(
+                        showPulse
+                            ? .easeOut(duration: 1.4).repeatForever(autoreverses: false)
+                            : .default,
+                        value: pulsing
+                    )
+            )
+            .scaleEffect(showPulse && pulsing ? 1.06 : 1.0)
+            .animation(
+                showPulse
+                    ? .easeInOut(duration: 1.4).repeatForever(autoreverses: true)
+                    : .spring(response: 0.3, dampingFraction: 0.7),
+                value: showPulse && pulsing
+            )
+            .onChange(of: showPulse, initial: true) { _, active in
+                pulsing = active
+            }
             .frame(width: 72, height: 72)
             .contentShape(Circle())
             .accessibilityIdentifier("radial_plus_button")

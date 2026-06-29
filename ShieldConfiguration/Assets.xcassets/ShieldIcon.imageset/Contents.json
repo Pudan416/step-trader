@@ -1,14 +1,17 @@
 {
   "images" : [
     {
+      "filename" : "ShieldIcon-80.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "ShieldIcon-160.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
+      "filename" : "ShieldIcon-240.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

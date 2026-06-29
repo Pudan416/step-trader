@@ -123,10 +123,10 @@ struct DayCanvasViewerView: View {
 
     private var emptyCanvasPlaceholder: some View {
         VStack(spacing: 12) {
-            Image(systemName: "scribble.variable")
+            Image(systemName: "calendar.badge.exclamationmark")
                 .font(.system(size: 44, weight: .ultraLight))
                 .foregroundStyle(theme.adaptiveMutedText)
-            Text(String(localized: "This day was uncolored.", comment: "DayCanvasViewer – empty state"))
+            Text(String(localized: "No data for this day.", comment: "DayCanvasViewer – empty state"))
                 .font(.systemSerif(20, weight: .semibold, relativeTo: .title3))
                 .foregroundStyle(theme.adaptiveMutedText)
                 .multilineTextAlignment(.center)
@@ -291,36 +291,31 @@ struct DayCanvasViewerView: View {
 
         let userName = AuthenticationService.shared.currentUser?.displayName
 
-        // 9:16 output (1080×1920) so the image fits Stories, Reels, and Posts
-        let outputW: CGFloat = 1080
-        let outputH: CGFloat = 1920
-        let posterAspect = posterStyle.nativeAspect
-        // Fit poster inside with horizontal margins
-        let posterW = outputW * 0.92
-        let posterH = posterW / posterAspect
+        // Render the poster at the exact on-screen frame size, then upscale via
+        // `renderer.scale`. This keeps every element — including the canvas's
+        // absolute-point labels — at the same proportions shown in the viewer,
+        // just at share resolution. Inflating the layout instead would shrink the
+        // fixed-size labels relative to the canvas.
+        let frameSize = GenerativeCanvasView.framedCanvasSize
+        let targetWidth: CGFloat = 2160
 
-        let shareable = ZStack {
-            posterStyle.padColor
-
-            CanvasPosterView(
-                style: posterStyle,
-                date: displayDate,
-                userName: userName,
-                steps: snapshot?.steps,
-                sleepHours: snapshot?.sleepHours,
-                inkEarned: snapshot?.inkEarned,
-                inkSpent: snapshot?.inkSpent
-            ) {
-                canvasContent(dc, isOffscreenRender: true)
-            }
-            .frame(width: posterW, height: posterH)
+        let shareable = CanvasPosterView(
+            style: posterStyle,
+            date: displayDate,
+            userName: userName,
+            steps: snapshot?.steps,
+            sleepHours: snapshot?.sleepHours,
+            inkEarned: snapshot?.inkEarned,
+            inkSpent: snapshot?.inkSpent
+        ) {
+            canvasContent(dc, isOffscreenRender: true)
         }
-        .frame(width: outputW, height: outputH)
+        .frame(width: frameSize.width, height: frameSize.height)
         .environment(\.appTheme, theme)
 
         let renderer = ImageRenderer(content: shareable)
-        renderer.scale = 1.0
-        renderer.proposedSize = .init(width: outputW, height: outputH)
+        renderer.scale = targetWidth / frameSize.width
+        renderer.proposedSize = .init(width: frameSize.width, height: frameSize.height)
         return renderer.uiImage
     }
 

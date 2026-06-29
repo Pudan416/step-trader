@@ -25,22 +25,4 @@ enum PosterStyle: String, CaseIterable, Codable, Identifiable {
         case .framedDark: "photo.artframe"
         }
     }
-
-    /// Background color used to pad the poster to 9:16 for social media.
-    var padColor: Color {
-        switch self {
-        case .museum:     Color(red: 0.969, green: 0.961, blue: 0.925)
-        case .fullBleed:  .black
-        case .framedDark: .black
-        }
-    }
-
-    /// The poster's native aspect ratio (width / height) from Figma sources.
-    var nativeAspect: Double {
-        switch self {
-        case .museum:     604.0 / 842.0
-        case .fullBleed:  595.0 / 842.0
-        case .framedDark: 595.0 / 842.0
-        }
-    }
 }

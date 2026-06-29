@@ -23,6 +23,8 @@ struct MainTabView: View {
     @State private var isWideCanvas: Bool = false
     @State private var uiTestPickerCategory: EnergyCategory? = nil
     @State private var showColorsHelp: Bool = false
+    /// Deep-link route for the Settings tab, driven by feature-tip CTAs.
+    @State private var settingsDeepLinkRoute: FeatureTipSettingsPage?
     @State private var tabBarHeight: CGFloat = 80
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
     // Figma menu tabs (475:64): icon ≈ 2× label height, label ≈ caption.
@@ -30,10 +32,8 @@ struct MainTabView: View {
     @ScaledMetric(relativeTo: .caption2) private var tabIconSize: CGFloat = 24
     @ScaledMetric(relativeTo: .caption2) private var selectedTabIconSize: CGFloat = 26
 
-    #if DEBUG
     @Environment(CoachMarkManager.self) private var coachMarkManager
     @State private var coachAnchors: [CoachMarkAnchor] = []
-    #endif
 
     private enum Tab: Int, CaseIterable {
         case canvas = 0
@@ -45,7 +45,7 @@ struct MainTabView: View {
         var icon: String {
             switch self {
             case .feeds: return "square.grid.2x2"
-            case .canvas: return "paintbrush"
+            case .canvas: return "scribble.variable"
             case .me: return "person.circle"
             case .history: return "calendar"
             case .settings: return "gearshape"
@@ -163,7 +163,7 @@ struct MainTabView: View {
                     .tag(Tab.history.rawValue)
                 
                 // 4: Settings
-                SettingsSheet(model: model, embeddedInTab: true)
+                SettingsSheet(model: model, embeddedInTab: true, featureTipRouteBinding: $settingsDeepLinkRoute)
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.settings.rawValue)
             }
@@ -172,6 +172,20 @@ struct MainTabView: View {
             .environment(\.topCardHeight, topCardHeight)
             .environment(\.tabBarHeight, tabBarHeight)
             .animation(.easeInOut(duration: 0.2), value: selection)
+            // Feature-tip CTA deep-link: switch to the Settings tab AND set the
+            // route that SettingsSheet pushes via navigationDestination. Owning
+            // the route here (not in SettingsSheet) means it survives the tab
+            // being lazily created on first visit. Posted by FeatureTipSheet.
+            .onReceive(NotificationCenter.default.publisher(for: .openFeatureTipSettings)) { note in
+                let page = (note.userInfo?["page"] as? String).flatMap(FeatureTipSettingsPage.init(rawValue:))
+                withAnimation { selection = Tab.settings.rawValue }
+                guard let page else { return }
+                // Defer the push slightly so the tab transition settles first.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(350))
+                    settingsDeepLinkRoute = page
+                }
+            }
             // Use overlay (not safeAreaInset) so page content extends fully
             // behind the bar — gives the Liquid Glass lens something to refract.
             // Each tab page should add `.safeAreaPadding(.bottom, tabBarHeight)`
@@ -303,7 +317,6 @@ struct MainTabView: View {
                 colorsHelpOverlay
             }
         }
-        #if DEBUG
         .onPreferenceChange(CoachMarkAnchorKey.self) { coachAnchors = $0 }
         .overlay {
             CoachMarkOverlay(manager: coachMarkManager, anchors: coachAnchors)
@@ -332,7 +345,6 @@ struct MainTabView: View {
                 coachMarkManager.completeAction(for: .tapFeedsTab)
             }
         }
-        #endif
         .onPreferenceChange(TopCardHeightPreferenceKey.self) { value in
             guard value != topCardHeight else { return }
             topCardHeight = value
@@ -468,6 +480,10 @@ struct MainTabView: View {
                                     weight: isSelected ? .semibold : .regular
                                 ))
                                 .symbolRenderingMode(.monochrome)
+                                // Pin every glyph to a fixed-height slot so symbols
+                                // with differing intrinsic heights (and the 24→26pt
+                                // selection bump) don't shift the label baseline.
+                                .frame(height: selectedTabIconSize, alignment: .center)
                             if tab == .settings && model.hasPermissionIssues {
                                 Circle()
                                     .fill(.orange)
@@ -488,14 +504,11 @@ struct MainTabView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier(tab.accessibilityId)
-                #if DEBUG
                 .modifier(FeedsTabCoachAnchor(tab: tab))
-                #endif
             }
         }
     }
 
-    #if DEBUG
     private struct FeedsTabCoachAnchor: ViewModifier {
         let tab: Tab
 
@@ -507,14 +520,11 @@ struct MainTabView: View {
             }
         }
     }
-    #endif
 }
 
 #Preview {
     MainTabView(model: DIContainer.shared.makeAppModel())
-        #if DEBUG
         .environment(CoachMarkManager())
-        #endif
 }
 
 // EnergyGradientBackground is now in Components/EnergyGradientBackground.swift
