@@ -29,8 +29,16 @@ struct SettingsAppearancePage: View {
         EnergyGradientRenderer.palette(for: selectedPalette)
     }
 
+    private var canUseDailyRandom: Bool {
+        SubscriptionGate.canUseDailyRandomTheme(isPro: model.isPro)
+    }
+
+    private var canCustomizeShapes: Bool {
+        SubscriptionGate.canCustomizeShapes(isPro: model.isPro)
+    }
+
     private var isDailyRandomActive: Bool {
-        dailyRandomThemeEnabled && model.isPro
+        dailyRandomThemeEnabled && canUseDailyRandom
     }
 
     var body: some View {
@@ -109,7 +117,7 @@ struct SettingsAppearancePage: View {
                     Text(String(localized: "Daily random theme"))
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(theme.adaptivePrimaryText)
-                    if !model.isPro {
+                    if !canUseDailyRandom {
                         proBadge
                     }
                 }
@@ -122,7 +130,7 @@ struct SettingsAppearancePage: View {
 
             Spacer(minLength: 0)
 
-            if model.isPro {
+            if canUseDailyRandom {
                 Toggle("", isOn: Binding(
                     get: { dailyRandomThemeEnabled },
                     set: { newValue in
@@ -142,7 +150,7 @@ struct SettingsAppearancePage: View {
         .padding(.vertical, 12)
         .contentShape(Rectangle())
         .onTapGesture {
-            if !model.isPro {
+            if !canUseDailyRandom {
                 showPaywall = true
                                 lightHapticTick &+= 1
             }
@@ -379,7 +387,7 @@ struct SettingsAppearancePage: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 sectionLabel(String(localized: "CANVAS SHAPES", comment: "Appearance section header"))
-                if !model.isPro { proBadge }
+                if !canCustomizeShapes { proBadge }
             }
             .padding(.horizontal, 16)
 
@@ -417,7 +425,7 @@ struct SettingsAppearancePage: View {
         defaultShape: CanvasShapeType
     ) -> some View {
         let selected = CanvasShapeType(rawValue: selectedRaw.wrappedValue) ?? defaultShape
-        let isUnlocked = model.isPro
+        let isUnlocked = canCustomizeShapes
 
         return HStack(spacing: 10) {
             HStack(spacing: 6) {
@@ -551,7 +559,10 @@ struct SettingsAppearancePage: View {
 
     private func textureChip(texture: CanvasTexture) -> some View {
         let isSelected = selectedTexture == texture
-        let isUnlocked = !texture.isPro || model.isPro
+        let isUnlocked = SubscriptionGate.isCanvasTextureAvailable(
+            isPro: model.isPro,
+            textureRaw: texture.rawValue
+        )
 
         return Button {
             if isUnlocked {

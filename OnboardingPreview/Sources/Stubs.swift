@@ -54,9 +54,12 @@ class AuthenticationService: NSObject, ObservableObject {
     
     @Published var currentUser: AppUser? = nil
     @Published var isAuthenticated: Bool = false
+    @Published var isAnonymous: Bool = false
     @Published var isLoading: Bool = false
     @Published var error: String? = nil
-    
+
+    var hasAppleAccount: Bool { isAuthenticated && !isAnonymous }
+
     func configureAppleRequest(_ request: Any) {}
     func handleAuthorization(_ authorization: Any) {
         isAuthenticated = true

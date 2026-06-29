@@ -169,7 +169,7 @@ struct PaywallView: View {
         VStack(alignment: .leading, spacing: 20) {
             benefitRow(icon: "infinity", text: String(localized: "Unlimited app blocks"))
             benefitRow(icon: "paintpalette", text: String(localized: "Custom activities & themes"))
-            benefitRow(icon: "calendar.badge.clock", text: String(localized: "Full 90-day history"))
+            benefitRow(icon: "calendar.badge.clock", text: String(localized: "Unlimited history"))
             benefitRow(icon: "heart.fill", text: String(localized: "Support indie development"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)

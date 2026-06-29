@@ -21,10 +21,8 @@ struct CategoryDetailView: View {
     @State private var customIcon: String = "pencil"
     @State private var showPaywall = false
 
-    #if DEBUG
     @Environment(CoachMarkManager.self) private var coachMarkManager
     @State private var sheetAnchors: [CoachMarkAnchor] = []
-    #endif
 
     // §4.1: declarative haptics via `.sensoryFeedback`. Bump the corresponding
     // tick to fire — the modifier handles Taptic engine warm-up internally.
@@ -86,12 +84,10 @@ struct CategoryDetailView: View {
                 source: .feature
             )
         }
-        #if DEBUG
         .onPreferenceChange(CoachMarkAnchorKey.self) { sheetAnchors = $0 }
         .overlay {
             CoachMarkSheetOverlay(manager: coachMarkManager, anchors: sheetAnchors)
         }
-        #endif
     }
 
     // MARK: - Hero Header
@@ -165,9 +161,7 @@ struct CategoryDetailView: View {
             ForEach(Array(allOptions.enumerated()), id: \.element.option.id) { index, item in
                 let isExpanded = editingOptionId == item.option.id
                 optionRow(option: item.option, category: category, isCustom: item.isCustom)
-                    #if DEBUG
                     .modifier(FocusingRowAnchor(optionId: item.option.id))
-                    #endif
 
                 if !isExpanded && index < allOptions.count - 1 {
                     let nextExpanded = editingOptionId == allOptions[index + 1].option.id
@@ -249,11 +243,9 @@ struct CategoryDetailView: View {
     /// Tap routing: collapse if expanded, expand if selected, add+expand if not.
     private func handleRowTap(option: EnergyOption, category: EnergyCategory) {
         lightHapticTick &+= 1
-        #if DEBUG
         if option.id == "mind_focusing" {
             CoachMarkManager.postAction(for: .spotlightFocusing)
         }
-        #endif
 
         let isSelected = model.isDailySelected(option.id, category: category)
 
@@ -316,11 +308,9 @@ struct CategoryDetailView: View {
 
                 if isSelected {
                     Button {
-                        #if DEBUG
                         if option.id == "mind_focusing" {
                             CoachMarkManager.postAction(for: .tapAddToCanvas)
                         }
-                        #endif
                         commitEntry(option: option, category: category, isCustom: isCustom)
                     } label: {
                         Text(String(localized: "Save", comment: "CategoryDetail – primary save action"))
@@ -331,9 +321,7 @@ struct CategoryDetailView: View {
                             .background(Capsule().fill(activeColor))
                     }
                     .buttonStyle(.plain)
-                    #if DEBUG
                     .modifier(AddToCanvasAnchor(optionId: option.id, isSelected: isSelected))
-                    #endif
                 }
             }
         }
@@ -659,11 +647,9 @@ struct CategoryDetailView: View {
         entryColorCache[option.id] = Color(hex: color)
         saveLastUsedPreferences(optionId: option.id, colorHex: color)
         successHapticTick &+= 1
-        #if DEBUG
         if option.id == "mind_focusing" {
             CoachMarkManager.postAction(for: .tapAddToCanvas)
         }
-        #endif
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             editColorHex = color
             editingOptionId = option.id
@@ -835,9 +821,8 @@ private struct CategoryDetailCapsuleChrome: ViewModifier {
     }
 }
 
-// MARK: - Coach Mark Anchors (DEBUG)
+// MARK: - Coach Mark Anchors
 
-#if DEBUG
 private struct FocusingRowAnchor: ViewModifier {
     let optionId: String
     func body(content: Content) -> some View {
@@ -860,7 +845,6 @@ private struct AddToCanvasAnchor: ViewModifier {
         }
     }
 }
-#endif
 
 #Preview("Body") {
     CategoryDetailView(
@@ -868,9 +852,7 @@ private struct AddToCanvasAnchor: ViewModifier {
         category: .body,
         outerWorldSteps: 0
     )
-    #if DEBUG
     .environment(CoachMarkManager())
-    #endif
 }
 
 #Preview("Mind") {
@@ -879,7 +861,5 @@ private struct AddToCanvasAnchor: ViewModifier {
         category: .mind,
         outerWorldSteps: 0
     )
-    #if DEBUG
     .environment(CoachMarkManager())
-    #endif
 }

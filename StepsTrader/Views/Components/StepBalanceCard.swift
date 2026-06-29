@@ -172,9 +172,7 @@ struct StepBalanceCard: View {
                         withAnimation(.spring(response: 0.3)) {
                             isExpanded.toggle()
                         }
-                        #if DEBUG
                         CoachMarkManager.postAction(for: .expandChevron)
-                        #endif
                     } label: {
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.caption.weight(.semibold))
@@ -184,9 +182,7 @@ struct StepBalanceCard: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(isExpanded ? String(localized: "Collapse categories", comment: "StepBalanceCard – toggle categories VoiceOver label") : String(localized: "Expand categories", comment: "StepBalanceCard – toggle categories VoiceOver label"))
-                    #if DEBUG
                     .coachMarkAnchor(.expandChevron)
-                    #endif
                 }
                 .frame(minHeight: 30)
             }
@@ -244,17 +240,13 @@ struct StepBalanceCard: View {
                     insertion: .move(edge: .top).combined(with: .opacity),
                     removal: .opacity
                 ))
-                #if DEBUG
                 .coachMarkAnchor(.categoriesRevealed)
-                #endif
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .modifier(StepBalanceCardBackgroundModifier())
-        #if DEBUG
         .coachMarkAnchor(.colorBalance)
-        #endif
         .animation(.spring(response: 0.3), value: showDetails)
         .animation(.spring(response: 0.3), value: isExpanded)
     }
