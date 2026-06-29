@@ -7,12 +7,12 @@ import os.log
 /// Manages persistence of DayCanvas data and snapshot images.
 /// - Live canvas: JSON file per day key
 /// - Snapshots: PNG images rendered on day-end
-/// - Auto-prunes history older than 90 days
+/// - History is retained indefinitely (no retention prune). Access is gated in
+///   the UI: Pro sees all days, Free sees only the most recent ones.
 final class CanvasStorageService {
     static let shared = CanvasStorageService()
 
     private let fileManager = FileManager.default
-    private let retentionDays = 90
 
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "StepsTrader", category: "CanvasStorage")
 
@@ -190,20 +190,6 @@ final class CanvasStorageService {
                 return String(name.dropFirst("canvas_".count))
             }
             .sorted(by: >)
-    }
-
-    // MARK: - Pruning
-
-    func pruneOldCanvases() {
-        let calendar = Calendar.current
-        guard let cutoffDate = calendar.date(byAdding: .day, value: -retentionDays, to: Date.now) else { return }
-
-        for dayKey in availableDayKeys() {
-            guard let date = CachedFormatters.dayKey.date(from: dayKey), date < cutoffDate else { continue }
-            deleteCanvas(for: dayKey)
-            let snapshotUrl = snapshotURL(for: dayKey)
-            try? fileManager.removeItem(at: snapshotUrl)
-        }
     }
 
     // MARK: - Private

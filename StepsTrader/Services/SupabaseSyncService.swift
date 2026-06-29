@@ -251,7 +251,7 @@ actor SupabaseSyncService {
     /// Waits for auth initialization and returns token + userId, or nil if unauthenticated.
     func authenticatedContext() async -> AuthContext? {
         await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.accessToken,
+        guard let token = await AuthenticationService.shared.freshAccessToken(),
               let userId = await AuthenticationService.shared.currentUser?.id else {
             return nil
         }
