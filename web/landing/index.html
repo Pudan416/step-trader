@@ -54,78 +54,135 @@
   .nav-link:hover{color:var(--fg)}
 
   /* hero */
-  header.hero{padding:clamp(72px,15vh,150px) 0 clamp(28px,6vh,60px);text-align:center}
+  header.hero{padding:clamp(56px,12vh,120px) 0 clamp(28px,6vh,60px)}
   .kicker{color:rgba(244,243,239,.66);font-size:14px;letter-spacing:.16em;text-transform:lowercase;
           margin-bottom:26px}
-  h1{font-family:var(--serif);font-size:clamp(32px,5.4vw,60px);line-height:1.1;font-weight:500;
-     letter-spacing:-.01em;max-width:30ch;margin:0 auto}
+  .hero-grid{display:grid;grid-template-columns:1.15fr .85fr;align-items:center;gap:clamp(24px,5vw,56px)}
+  .hero-copy{text-align:left}
+  h1{font-family:var(--serif);font-size:clamp(32px,4.6vw,54px);line-height:1.1;font-weight:500;
+     letter-spacing:-.01em;max-width:16ch;margin:0}
   h1 .em{display:block;font-style:italic;font-weight:500;color:rgba(244,243,239,.82)}
-  .hero-sub{max-width:36ch;margin:24px auto 0;color:rgba(244,243,239,.8);
+  .hero-sub{max-width:36ch;margin:24px 0 0;color:rgba(244,243,239,.8);
             font-size:clamp(16px,2.1vw,20px);line-height:1.5}
-  .cta-row{margin-top:36px;display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap}
+  .cta-row{margin-top:36px;display:flex;gap:16px;align-items:center;justify-content:flex-start;flex-wrap:wrap}
   .hero .appstore-badge img{height:54px}
+  .hero-media{display:flex;justify-content:center;align-items:center}
+  .hero-media img{width:100%;max-width:280px;transform:rotate(7deg);
+                  filter:drop-shadow(0 40px 70px rgba(0,0,0,.5))}
+  @media(max-width:760px){
+    .hero-grid{grid-template-columns:1fr;text-align:center}
+    .hero-copy{text-align:center}
+    h1{margin:0 auto}
+    .hero-sub{margin-inline:auto}
+    .cta-row{justify-content:center}
+    .hero-media{margin-top:8px}
+    .hero-media img{max-width:200px;transform:rotate(5deg)}
+  }
+
+  /* card block — shared contained-block language used across sections */
+  .block-card{border:1px solid var(--line);border-radius:22px;
+              background:color-mix(in srgb, var(--fg) 4%, transparent)}
 
   /* stat block */
-  .stat{padding:clamp(40px,9vh,110px) 0;text-align:center}
-  .stat .wrap{max-width:680px}
-  .stat-item + .stat-item{margin-top:clamp(40px,7vh,72px)}
-  .stat-big{font-family:var(--serif);font-size:clamp(60px,12vw,120px);line-height:.95;font-weight:600;
-            letter-spacing:-.02em;white-space:nowrap}
-  .stat-cap{margin-top:10px;font-size:clamp(16px,2vw,21px);color:rgba(244,243,239,.88)}
-  .stat-claim{font-family:var(--serif);font-size:clamp(32px,5.2vw,58px);line-height:1.08;font-weight:500;
-              letter-spacing:-.01em;max-width:20ch;margin:0 auto}
-  .stat-src{max-width:34ch;margin:14px auto 0;font-size:12.5px;letter-spacing:.02em;line-height:1.5;
-            color:rgba(244,243,239,.55)}
-  .stat-flip{font-family:var(--serif);font-style:italic;font-size:clamp(22px,3.2vw,32px);
-             margin-top:clamp(40px,7vh,72px);color:var(--fg)}
+  .stat{padding:clamp(36px,8vh,96px) 0;text-align:center}
+  .stat .wrap{max-width:560px}
+  .stat-card{padding:clamp(32px,6vw,56px) clamp(20px,5vw,40px)}
+
+  /* progress ring — 13 of 24 hours, fills in on scroll reveal */
+  .ring-wrap{position:relative;width:clamp(136px,24vw,180px);height:clamp(136px,24vw,180px);margin:0 auto 20px}
+  .ring{width:100%;height:100%;transform:rotate(-90deg)}
+  .ring-track{fill:none;stroke:rgba(244,243,239,.14);stroke-width:7}
+  .ring-fill{fill:none;stroke:var(--fg);stroke-width:7;stroke-linecap:round;
+             stroke-dasharray:326.7;stroke-dashoffset:149.8}
+  .reveal-js .stat .ring-fill{stroke-dashoffset:326.7;
+             transition:stroke-dashoffset 1.3s cubic-bezier(.2,.7,.2,1) .2s}
+  .reveal-js .stat.in .ring-fill{stroke-dashoffset:149.8}
+  .ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring-num{font-family:var(--serif);font-size:clamp(28px,4.6vw,40px);font-weight:600;letter-spacing:-.01em;line-height:1}
+  .ring-sub{margin-top:4px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(244,243,239,.5)}
+
+  .stat-cap{max-width:26ch;margin-inline:auto;font-size:clamp(17px,2.1vw,21px);color:rgba(244,243,239,.9)}
+  .stat-src{margin-top:8px;font-size:12.5px;letter-spacing:.02em;color:rgba(244,243,239,.5)}
+  .stat-src-link{border-bottom:1px solid rgba(244,243,239,.28);transition:color .2s ease,border-color .2s ease}
+  .stat-src-link:hover{color:var(--fg);border-color:var(--fg)}
+  .stat-claim{font-family:var(--serif);font-size:clamp(23px,3.4vw,32px);line-height:1.2;font-weight:500;
+              letter-spacing:-.01em;max-width:22ch;margin:clamp(32px,5vh,48px) auto 0}
+  .stat-flip{font-family:var(--serif);font-style:italic;font-size:clamp(17px,2.2vw,21px);line-height:1.35;
+             max-width:24ch;margin:14px auto 0;color:rgba(244,243,239,.82)}
+  @media(prefers-reduced-motion:reduce){
+    .ring-fill{transition:none}
+  }
 
   /* why section */
   .why{padding:clamp(44px,10vh,120px) 0;text-align:center}
-  .why .wrap{max-width:640px}
-  .why-title{font-family:var(--serif);font-size:clamp(28px,4.6vw,46px);font-weight:500;line-height:1.14;
-             letter-spacing:-.01em;max-width:20ch;margin:0 auto}
-  .why-lead{font-family:var(--serif);font-style:italic;font-size:clamp(19px,2.6vw,26px);
-            margin:22px auto 0;color:rgba(244,243,239,.9);max-width:32ch}
-  .why-body{margin:22px auto 0;max-width:58ch;font-size:clamp(16px,1.9vw,18px);line-height:1.62;
+  .why .wrap{max-width:960px}
+  .why-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:clamp(28px,6vw,64px);
+            text-align:left;align-items:start}
+  .why-title{font-family:var(--serif);font-size:clamp(28px,4.6vw,42px);font-weight:500;line-height:1.14;
+             letter-spacing:-.01em;max-width:16ch;margin:0}
+  .why-lead{font-family:var(--serif);font-style:italic;font-size:clamp(19px,2.6vw,24px);
+            margin:20px 0 0;color:rgba(244,243,239,.9);max-width:26ch}
+  .why-body{margin:0 0 0;max-width:52ch;font-size:clamp(15px,1.7vw,17px);line-height:1.6;
             color:rgba(244,243,239,.78)}
+  .why-body + .why-body{margin-top:16px}
   .why-body em{font-style:italic;color:rgba(244,243,239,.96)}
-  .why-turn{font-family:var(--serif);font-style:italic;font-size:clamp(20px,2.8vw,28px);
-            margin-top:30px;color:var(--fg)}
-  .why-cred{margin-top:clamp(36px,6vh,60px);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
-            color:rgba(244,243,239,.5)}
-  .why-cred span{display:block;margin-bottom:8px;color:rgba(244,243,239,.4)}
+  .why-turn{font-family:var(--serif);font-style:italic;font-size:clamp(19px,2.4vw,24px);
+            margin-top:20px;color:var(--fg)}
 
-  /* feature rows */
-  .shots{padding:clamp(52px,10vh,104px) 0 clamp(20px,5vh,60px)}
-  .shots-head{text-align:center;margin-bottom:clamp(32px,6vh,64px)}
-  .shots-title{font-family:var(--serif);font-size:clamp(28px,5vw,52px);font-weight:500;
-               letter-spacing:-.01em;line-height:1.06;margin-top:14px}
+  /* credibility card — trust block + citations, inside the why section */
+  .cred-card{margin-top:clamp(24px,4vh,36px);padding:clamp(18px,3vw,26px)}
+  .cred-title{font-family:var(--serif);font-size:clamp(15px,1.8vw,17px);font-weight:600;color:var(--fg)}
+  .cred-list{margin-top:12px;display:flex;flex-direction:column;gap:8px;list-style:none}
+  .cred-list li{position:relative;padding-left:16px;font-size:13.5px;line-height:1.5;color:rgba(244,243,239,.68)}
+  .cred-list li::before{content:"";position:absolute;left:0;top:.55em;width:5px;height:5px;
+                        border-radius:50%;background:rgba(244,243,239,.4)}
+  .cred-refs{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);
+             padding-left:16px;display:flex;flex-direction:column;gap:6px}
+  .cred-refs li{font-size:11.5px;line-height:1.5;color:rgba(244,243,239,.42)}
+  .cred-refs em{font-style:italic;color:rgba(244,243,239,.55)}
+  @media(max-width:760px){
+    .why-grid{grid-template-columns:1fr;text-align:center}
+    .why-title,.why-lead{margin-inline:auto}
+    .why-body{margin-inline:auto}
+    .cred-list li,.cred-refs li{text-align:left}
+  }
+
+  /* app screens — block grid (was a horizontal carousel) */
+  .shots{padding:clamp(36px,6vh,64px) 0 clamp(28px,5vh,60px)}
+  .shots-head{text-align:center;margin-bottom:clamp(24px,4vh,40px)}
+  .shots-title{font-family:var(--serif);font-size:clamp(24px,4vw,40px);font-weight:500;
+               letter-spacing:-.01em;line-height:1.06}
   .shots-title .em{font-style:italic;font-weight:500;color:rgba(244,243,239,.76)}
 
-  .features{max-width:var(--maxw);margin:0 auto;padding-inline:var(--pad);
-            display:flex;flex-direction:column;gap:clamp(28px,5vh,72px)}
-  .feature{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:clamp(24px,6vw,90px)}
-  .feature:nth-child(even) .feature-media{order:2}
-  .feature-media{perspective:1800px}
-  .feature-media img{display:block;width:100%;max-width:300px;height:auto;margin:0 auto;
-                     transform:rotateY(17deg) rotateX(3deg) rotate(-1deg);
-                     transition:transform .55s cubic-bezier(.2,.7,.2,1)}
-  .feature:nth-child(even) .feature-media img{transform:rotateY(-17deg) rotateX(3deg) rotate(1deg)}
-  .feature-media img:hover,
-  .feature:nth-child(even) .feature-media img:hover{transform:rotateY(0) rotateX(0) rotate(0)}
-  .feature-label{display:inline-block;border:1px solid var(--line);border-radius:999px;
-                 padding:7px 15px;font-size:13px;letter-spacing:.04em;color:rgba(244,243,239,.82)}
-  .feature-title{font-family:var(--serif);font-size:clamp(30px,4.6vw,52px);font-weight:500;
-                 line-height:1.04;letter-spacing:-.01em;margin-top:18px}
-  .feature-text{margin-top:16px;max-width:42ch;color:rgba(244,243,239,.74);
-                font-size:clamp(16px,2vw,19px);line-height:1.5}
+  .shots-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:clamp(16px,2.4vw,24px)}
+
+  /* flip cards — big screenshot on front, explanation on the back */
+  .shot-card{perspective:1400px;cursor:pointer;outline:none}
+  .shot-card-inner{position:relative;width:100%;height:clamp(360px,44vw,440px);
+                   transform-style:preserve-3d;transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+  .shot-card:hover .shot-card-inner,
+  .shot-card:focus-visible .shot-card-inner,
+  .shot-card.is-flipped .shot-card-inner{transform:rotateY(180deg)}
+  .shot-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+             border-radius:22px;padding:clamp(16px,2.4vw,22px);display:flex;flex-direction:column;overflow:hidden}
+  .shot-front{align-items:center;justify-content:flex-end}
+  .shot-front img{width:100%;height:100%;object-fit:contain;object-position:bottom center}
+  .shot-label{position:absolute;top:16px;left:16px;z-index:1;display:inline-block;
+              border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--bg) 55%,transparent);
+              backdrop-filter:blur(6px);padding:5px 12px;font-size:12px;letter-spacing:.04em;color:rgba(244,243,239,.82)}
+  .shot-back{transform:rotateY(180deg);align-items:center;justify-content:center;text-align:center}
+  .shot-title{font-family:var(--serif);font-size:clamp(20px,2.6vw,25px);font-weight:500;
+              line-height:1.14;letter-spacing:-.005em}
+  .shot-text{margin-top:12px;font-size:clamp(14px,1.6vw,16px);line-height:1.55;color:rgba(244,243,239,.76);max-width:30ch}
+  @media(hover:none){
+    .shot-card-inner{transition-duration:.5s}
+  }
 
   /* scroll reveal — only hides once JS is active, so a no-JS page still shows everything */
   .reveal-js .reveal{opacity:0;transform:translateY(30px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
   .reveal-js .reveal.in{opacity:1;transform:none}
   @media(prefers-reduced-motion:reduce){
     .reveal-js .reveal{opacity:1;transform:none;transition:none}
-    .feature-media img,.feature-media img:hover{transition:none}
   }
 
   /* maker's note */
@@ -148,13 +205,6 @@
   .foot-links{display:flex;gap:22px;flex-wrap:wrap}
   .foot-links a:hover{color:var(--fg)}
 
-  @media(max-width:760px){
-    .feature{grid-template-columns:1fr;gap:26px;text-align:center}
-    .feature:nth-child(even) .feature-media{order:0}
-    .feature-media img,
-    .feature:nth-child(even) .feature-media img{transform:none;max-width:230px}
-    .feature-text{margin-inline:auto}
-  }
 </style>
 </head>
 <body id="top">
@@ -174,100 +224,146 @@
 </nav>
 
 <header class="hero">
-  <div class="wrap">
-    <h1>Screen time is not a problem.<span class="em">Missing real life is.</span></h1>
-    <p class="hero-sub">Nowhere is built for people who love being online and just want to make sure real life keeps up.</p>
-    <div class="cta-row">
-      <a class="appstore-badge" href="https://apps.apple.com/app/nowhere-screen-time-control/id6753218397" target="_blank" rel="noopener" data-appstore aria-label="Download Nowhere on the App Store"><img src="assets/appstore-badge.svg" alt="Download on the App Store" /></a>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <h1>Screen time is not a problem.<span class="em">Missing real life is.</span></h1>
+      <p class="hero-sub">Nowhere is built for people who love being online and just want to make sure real life keeps up.</p>
+      <div class="cta-row">
+        <a class="appstore-badge" href="https://apps.apple.com/app/nowhere-screen-time-control/id6753218397" target="_blank" rel="noopener" data-appstore aria-label="Download Nowhere on the App Store"><img src="assets/appstore-badge.svg" alt="Download on the App Store" /></a>
+      </div>
+    </div>
+    <div class="hero-media" aria-hidden="true">
+      <img src="assets/Mockup_canvas.png" alt="" />
     </div>
   </div>
 </header>
 
 <section class="stat reveal">
   <div class="wrap">
-    <div class="stat-item">
-      <p class="stat-big">6h 38m</p>
-      <p class="stat-cap">online, every day</p>
-      <p class="stat-src">DataReportal · Digital 2025</p>
+    <div class="stat-card block-card">
+      <div class="ring-wrap" aria-hidden="true">
+        <svg class="ring" viewBox="0 0 120 120">
+          <circle class="ring-track" cx="60" cy="60" r="52"/>
+          <circle class="ring-fill" cx="60" cy="60" r="52"/>
+        </svg>
+        <div class="ring-label">
+          <span class="ring-num">13h</span>
+          <span class="ring-sub">of 24</span>
+        </div>
+      </div>
+      <p class="stat-cap">That's how long remote workers spend online — every day.</p>
+      <p class="stat-src"><a class="stat-src-link" href="https://www.allaboutvision.com/conditions/computer-vision-syndrome/have-screens-changed-vision/" target="_blank" rel="noopener">Survey by All About Vision, reported by The Hill</a></p>
+      <p class="stat-claim">But your brain only remembers what you actually notice.</p>
+      <p class="stat-flip">Nowhere helps you notice more of it.</p>
     </div>
-    <div class="stat-item">
-      <p class="stat-claim">most of the rest won't be remembered.</p>
-      <p class="stat-src">because your brain only forms memories when you're actually noticing.</p>
+  </div>
+</section>
+
+<section class="shots reveal" id="screens">
+  <div class="wrap">
+    <div class="shots-head">
+      <h2 class="shots-title">how <span class="em">Nowhere</span> works</h2>
     </div>
-    <p class="stat-flip">Nowhere is for the parts worth remembering.</p>
+    <div class="shots-grid">
+      <div class="shot-card" tabindex="0" role="button" aria-label="Canvas — your day, in color">
+        <div class="shot-card-inner">
+          <div class="shot-face shot-front block-card">
+            <span class="shot-label">Canvas</span>
+            <img src="assets/canvas.webp" alt="The Nowhere canvas showing the day's colors" />
+          </div>
+          <div class="shot-face shot-back block-card">
+            <h3 class="shot-title">your day, in color</h3>
+            <p class="shot-text">a generative canvas of your day — steps, sleep, and three small choices for body, mind, and heart turn into color.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="shot-card" tabindex="0" role="button" aria-label="My Feeds — set the price">
+        <div class="shot-card-inner">
+          <div class="shot-face shot-front block-card">
+            <span class="shot-label">My Feeds</span>
+            <img src="assets/apps.webp" alt="My Feeds list with per-app tariffs" />
+          </div>
+          <div class="shot-face shot-back block-card">
+            <h3 class="shot-title">set the price</h3>
+            <p class="shot-text">pick the apps that cost you, and set what time on each one is worth in colors.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="shot-card" tabindex="0" role="button" aria-label="PayGate — spend to open">
+        <div class="shot-card-inner">
+          <div class="shot-face shot-front block-card">
+            <span class="shot-label">PayGate</span>
+            <img src="assets/paygate.webp" alt="A locked app asking you to spend colors to unlock" />
+          </div>
+          <div class="shot-face shot-back block-card">
+            <h3 class="shot-title">spend to open</h3>
+            <p class="shot-text">a soft gate, not a hard block — open your feed with the colors you earned.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="shot-card" tabindex="0" role="button" aria-label="Widgets — always in reach">
+        <div class="shot-card-inner">
+          <div class="shot-face shot-front block-card">
+            <span class="shot-label">Widgets</span>
+            <img src="assets/widgets.webp" alt="Home screen widgets for balance and unlocking feeds" />
+          </div>
+          <div class="shot-face shot-back block-card">
+            <h3 class="shot-title">always in reach</h3>
+            <p class="shot-text">your color balance on the home screen — earn and spend without opening the app.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="shot-card" tabindex="0" role="button" aria-label="Archive — every day you've made">
+        <div class="shot-card-inner">
+          <div class="shot-face shot-front block-card">
+            <span class="shot-label">Archive</span>
+            <img src="assets/archive.webp" alt="History archive of past daily canvases" />
+          </div>
+          <div class="shot-face shot-back block-card">
+            <h3 class="shot-title">every day you've made</h3>
+            <p class="shot-text">every day you earned, kept as a canvas to look back on.</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
 <section class="why reveal">
-  <div class="wrap">
-    <h2 class="why-title">Why does life start feeling like it's passing by?</h2>
-    <p class="why-lead">You're not online too much. You're just not noticing enough in between.</p>
-    <p class="why-body">Research shows the brain only encodes vivid, lasting memories during moments of genuine attention — when something catches your eye, moves you, or makes you pause. Routine moments on autopilot, including passive scrolling, largely don't make it in. This is why whole weeks can disappear without a single thing you can point to and say: <em>that was good.</em></p>
-    <p class="why-body">Nowhere gives you one small prompt before you go online. Not a limit. Not a lecture. Just a moment to look up — and let something real in first.</p>
-    <p class="why-turn">That's the part that stays with you.</p>
-    <p class="why-cred"><span>Backed by research from</span>Harvard · Stanford · UC Berkeley</p>
-  </div>
-</section>
-
-<section class="shots" id="screens">
-  <div class="shots-head wrap">
-    <h2 class="shots-title">the app, <span class="em">screen by screen</span></h2>
-  </div>
-  <div class="features">
-    <article class="feature reveal">
-      <div class="feature-media"><img src="assets/canvas.webp" alt="The Nowhere canvas showing the day's colors" /></div>
-      <div class="feature-copy">
-        <span class="feature-label">Canvas</span>
-        <h3 class="feature-title">your day, in color</h3>
-        <p class="feature-text">a generative canvas of your day — steps, sleep, and three small choices for body, mind, and heart turn into color.</p>
+  <div class="wrap why-grid">
+    <div class="why-col">
+      <h2 class="why-title">Why does life start feeling like it's passing by?</h2>
+      <p class="why-lead">You're not online too much. You're just not noticing enough in between.</p>
+    </div>
+    <div class="why-col">
+      <p class="why-body">Research shows the brain only encodes vivid, lasting memories during moments of genuine attention — when something catches your eye, moves you, or makes you pause. Routine moments on autopilot, including passive scrolling, largely don't make it in. This is why whole weeks can disappear without a single thing you can point to and say: <em>that was good.</em></p>
+      <p class="why-body">Nowhere gives you one small prompt before you go online. Not a limit. Not a lecture. Just a moment to look up — and let something real in first.</p>
+      <p class="why-turn">That's the part that stays with you.</p>
+      <div class="cred-card block-card">
+        <p class="cred-title">Grounded in memory research</p>
+        <ul class="cred-list">
+          <li>Vivid, lasting memories form during moments of genuine attention — not passive autopilot.</li>
+          <li>A brief, deliberate pause before a habitual action can measurably change behavior.</li>
+          <li>Studied at cognitive science labs, including Harvard, Stanford, and UC Berkeley.</li>
+        </ul>
+        <ol class="cred-refs">
+          <li>Craik, F. I. M., & Lockhart, R. S. (1972). <em>Levels of processing: A framework for memory research.</em> Journal of Verbal Learning and Verbal Behavior.</li>
+          <li>Chun, M. M., & Turk-Browne, N. B. (2007). <em>Interactions between attention and memory.</em> Current Opinion in Neurobiology.</li>
+        </ol>
       </div>
-    </article>
-
-    <article class="feature reveal">
-      <div class="feature-media"><img src="assets/apps.webp" alt="My Feeds list with per-app tariffs" /></div>
-      <div class="feature-copy">
-        <span class="feature-label">My Feeds</span>
-        <h3 class="feature-title">set the price</h3>
-        <p class="feature-text">pick the apps that cost you, and set what time on each one is worth in colors.</p>
-      </div>
-    </article>
-
-    <article class="feature reveal">
-      <div class="feature-media"><img src="assets/paygate.webp" alt="A locked app asking you to spend colors to unlock" /></div>
-      <div class="feature-copy">
-        <span class="feature-label">PayGate</span>
-        <h3 class="feature-title">spend to open</h3>
-        <p class="feature-text">a soft gate, not a hard block — open your feed with the colors you earned.</p>
-      </div>
-    </article>
-
-    <article class="feature reveal">
-      <div class="feature-media"><img src="assets/widgets.webp" alt="Home screen widgets for balance and unlocking feeds" /></div>
-      <div class="feature-copy">
-        <span class="feature-label">Widgets</span>
-        <h3 class="feature-title">always in reach</h3>
-        <p class="feature-text">your color balance on the home screen — earn and spend without opening the app.</p>
-      </div>
-    </article>
-
-    <article class="feature reveal">
-      <div class="feature-media"><img src="assets/archive.webp" alt="History archive of past daily canvases" /></div>
-      <div class="feature-copy">
-        <span class="feature-label">Archive</span>
-        <h3 class="feature-title">every day you've made</h3>
-        <p class="feature-text">every day you earned, kept as a canvas to look back on.</p>
-      </div>
-    </article>
+    </div>
   </div>
 </section>
 
 <section class="note reveal" id="maker">
   <div class="wrap">
     <p class="kicker">from the maker</p>
-    <p>Hey — I'm Kosta. I built Nowhere solo — one person, seven months, no prior dev background. No investors, no team, no compromises on the vision.</p>
-    <p>It started with a personal observation: every day was unique, but at the end I couldn't tell you what made it mine. So I built the thing I needed — still the only tool I've found that doesn't treat screens as the enemy.</p>
+    <p>Hey — I'm Kosta. I built Nowhere solo, from a simple observation: every day was unique, but at the end I couldn't tell you what made it mine.</p>
     <p class="lead">Nowhere isn't about less screen time. It's about noticing your day holds more than screens.</p>
-    <p>350 installs. Still building.</p>
     <p class="sign-off">— Kosta</p>
     <a class="portfolio" href="https://pudan.me" target="_blank" rel="noopener">see what else I build → pudan.me</a>
   </div>
@@ -523,6 +619,17 @@
     window.addEventListener('resize', check);
     window.addEventListener('load', check);
     check();
+  })();
+
+  // screen cards — tap/click to flip (hover already flips on desktop via CSS)
+  (function(){
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.shot-card'));
+    cards.forEach(function(card){
+      card.addEventListener('click', function(){ card.classList.toggle('is-flipped'); });
+      card.addEventListener('keydown', function(e){
+        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); card.classList.toggle('is-flipped'); }
+      });
+    });
   })();
 </script>
 
