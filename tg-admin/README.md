@@ -7,7 +7,7 @@ Cloudflare Worker-based Telegram bot for managing Nowhere users.
 ### 🎛️ Interactive UI
 - **Inline keyboard buttons** for quick navigation
 - **User list** with one-tap access to profiles
-- **Quick actions** (grant energy, ban/unban) via buttons
+- **Quick actions** (ban/unban, assign random nickname) via buttons
 
 ### 💬 Natural Language (LLM)
 - Ask questions in plain English/Russian
@@ -20,8 +20,8 @@ Cloudflare Worker-based Telegram bot for managing Nowhere users.
 |---------|-------------|
 | `/menu` | Main menu with buttons |
 | `/stats` | Global statistics |
-| `/user <id>` | User profile + shields + energy |
-| `/grant <id> <amount> [reason]` | Add energy to user |
+| `/user <id>` | User profile + shields |
+| `/setnick <id> <nickname>` | Set a user's nickname |
 | `/ban <id> [reason]` | Ban user |
 | `/unban <id>` | Unban user |
 | `/diag` | Diagnostics |
@@ -31,10 +31,10 @@ Cloudflare Worker-based Telegram bot for managing Nowhere users.
 - **📊 Stats** — Global statistics
 - **👥 Users** — Recent users list
 - **🔍 Find User** — Search by ID
-- **⚡ Grant Energy** — Grant energy prompt
 - **🛡️ Shields** — Shields overview
 - **🔧 Diagnostics** — System status
 - **💬 Ask AI** — Natural language help
+- **🎲 Random Name** — Assign a random nickname (per-user)
 
 ## Setup
 

@@ -82,6 +82,7 @@
 		20AA24892F70BEEA002F2F2C /* AccessWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47C2F0C825C0018004E /* AccessWindow.swift */; };
 		20AA248A2F70C00100000001 /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
 		20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */; };
+		20RTRY012F5000010018004E /* RetryQueueClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20RTRY022F5000010018004E /* RetryQueueClassificationTests.swift */; };
 		20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */; };
 		20B0A3562E8C65E700D5EBE4 /* SharedKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */; };
 		20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */; };
@@ -393,6 +394,7 @@
 		20AA24842F70BDB1002F2F2C /* FamilyControls.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FamilyControls.framework; path = System/Library/Frameworks/FamilyControls.framework; sourceTree = SDKROOT; };
 		20AA24862F70BDC4002F2F2C /* UnlockWidgetExtensionRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UnlockWidgetExtensionRelease.entitlements; sourceTree = "<group>"; };
 		20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSessionRestoreTests.swift; sourceTree = "<group>"; };
+		20RTRY022F5000010018004E /* RetryQueueClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetryQueueClassificationTests.swift; sourceTree = "<group>"; };
 		20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StepsTrader.swift"; sourceTree = "<group>"; };
 		20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeys.swift; sourceTree = "<group>"; };
 		20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffManager.swift; sourceTree = "<group>"; };
@@ -1077,6 +1079,7 @@
 				201816112F33C8C10006B350 /* CustomActivityTests.swift */,
 				AA000003AAAA000300000002 /* HealthKitTests.swift */,
 				20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */,
+				20RTRY022F5000010018004E /* RetryQueueClassificationTests.swift */,
 				AA000001AAAA000100000002 /* TariffDecodingTests.swift */,
 				AA000002AAAA000200000002 /* TicketGroupCostTests.swift */,
 				BB000001BB000001BB000001 /* WidgetTests.swift */,
@@ -1598,6 +1601,7 @@
 				201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */,
 				AA000003AAAA000300000001 /* HealthKitTests.swift in Sources */,
 				20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */,
+				20RTRY012F5000010018004E /* RetryQueueClassificationTests.swift in Sources */,
 				AA000001AAAA000100000001 /* TariffDecodingTests.swift in Sources */,
 				AA000002AAAA000200000001 /* TicketGroupCostTests.swift in Sources */,
 				BB000001BB000001BB000002 /* WidgetTests.swift in Sources */,
