@@ -110,6 +110,7 @@ TestResults/
 
 # Secrets configuration (contains API keys)
 Config/Secrets.xcconfig
+Config/Secrets-Dev.xcconfig
 
 # Documentation build
 docs/
