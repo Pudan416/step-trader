@@ -80,6 +80,10 @@ struct StepsTraderApp: App {
         let rcKey = Bundle.main.object(forInfoDictionaryKey: "REVENUECAT_API_KEY") as? String ?? ""
         SubscriptionStore.shared.configure(apiKey: rcKey)
 
+        // Register the MetricKit subscriber early so diagnostics aggregated since
+        // the last run (crashes/hangs/exceptions) are delivered and reported.
+        DiagnosticsManager.shared.start()
+
         // Install notification delegate as early as possible so taps that *launch* the app
         // are routed through our handler (onAppear can be too late).
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
