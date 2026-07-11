@@ -253,6 +253,17 @@ actor SupabaseSyncService {
                     remaining.append(entry)
                 } else if response.statusCode >= 400 {
                     AppLogger.network.debug("📡 Dropping non-retryable queued sync (HTTP \(response.statusCode))")
+                    // Telemetry: a permanently-failed sync is otherwise invisible
+                    // (the user just silently stops syncing). Emit the endpoint
+                    // path only (no query string) to avoid leaking identifiers.
+                    trackAnalyticsEvent(
+                        name: "sync_failed",
+                        properties: [
+                            "endpoint": url.path,
+                            "method": entry.method,
+                            "status": String(response.statusCode)
+                        ]
+                    )
                 }
             } catch {
                 remaining.append(entry)
