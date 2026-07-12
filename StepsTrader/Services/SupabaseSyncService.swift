@@ -157,10 +157,24 @@ actor SupabaseSyncService {
         
         var isExpired: Bool { Date.now.timeIntervalSince(createdAt) > 86_400 * 3 } // 3 days TTL
     }
-    
+
     private static let retryQueueKey = "supabaseSyncRetryQueue_v1"
     private static let maxRetryQueueSize = 50
-    
+
+    /// HTTP status codes worth retrying later. A permanent client error (400,
+    /// 401, 403, 404, 409, 422, …) means replaying the same body will keep
+    /// failing, so it is dropped rather than re-queued for the 3-day TTL.
+    /// Mirrors `NetworkClient.RetryPolicy.default.retryableStatusCodes`.
+    /// `internal` (not `private`) so the classification is unit-testable.
+    static let retryableStatusCodes: Set<Int> = [408, 429, 500, 502, 503, 504]
+
+    /// Whether a queued sync that came back with `status` should stay in the
+    /// offline retry queue. Transient failures are retried; permanent 4xx are
+    /// dropped so a doomed request doesn't replay on every launch for 3 days.
+    nonisolated static func retryQueueShouldKeep(afterStatus status: Int) -> Bool {
+        retryableStatusCodes.contains(status)
+    }
+
     func enqueueForRetry(_ request: URLRequest) {
         guard let url = request.url?.absoluteString else { return }
         let entry = PendingSyncRequest(
@@ -170,7 +184,10 @@ actor SupabaseSyncService {
             preferHeader: request.value(forHTTPHeaderField: "prefer"),
             createdAt: Date.now
         )
-        var queue = loadRetryQueue()
+        // Prune expired entries *before* the size check (§5.13): otherwise a
+        // stale-but-not-yet-drained entry can occupy a slot and evict a fresher
+        // one purely by recency. The newest entry is always appended last.
+        var queue = loadRetryQueue().filter { !$0.isExpired }
         queue.append(entry)
         if queue.count > Self.maxRetryQueueSize {
             queue = Array(queue.suffix(Self.maxRetryQueueSize))
@@ -229,8 +246,24 @@ actor SupabaseSyncService {
             
             do {
                 let (_, response) = try await network.data(for: request)
-                if response.statusCode >= 400 {
+                // Keep only transient failures. A permanent 4xx (bad body,
+                // conflict, auth) will never succeed on replay, so dropping it
+                // stops a doomed request from retrying on every launch for 3 days.
+                if Self.retryQueueShouldKeep(afterStatus: response.statusCode) {
                     remaining.append(entry)
+                } else if response.statusCode >= 400 {
+                    AppLogger.network.debug("📡 Dropping non-retryable queued sync (HTTP \(response.statusCode))")
+                    // Telemetry: a permanently-failed sync is otherwise invisible
+                    // (the user just silently stops syncing). Emit the endpoint
+                    // path only (no query string) to avoid leaking identifiers.
+                    trackAnalyticsEvent(
+                        name: "sync_failed",
+                        properties: [
+                            "endpoint": url.path,
+                            "method": entry.method,
+                            "status": String(response.statusCode)
+                        ]
+                    )
                 }
             } catch {
                 remaining.append(entry)
