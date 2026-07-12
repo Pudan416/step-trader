@@ -28,8 +28,8 @@ export default async function UsersPage({
       listPublicUsers({ limit: PAGE_SIZE, offset, search: search || undefined }),
       countShields(),
     ]);
-  } catch (e: any) {
-    error = String(e?.message ?? e);
+  } catch (e: unknown) {
+    error = e instanceof Error ? e.message : String(e);
   }
 
   const totalPages = Math.max(1, Math.ceil(users.total / PAGE_SIZE));

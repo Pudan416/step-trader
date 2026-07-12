@@ -27,8 +27,8 @@ export default async function DashboardPage() {
       countAuthUsers(),
       countShields(),
     ]);
-  } catch (e: any) {
-    error = String(e?.message ?? e);
+  } catch (e: unknown) {
+    error = e instanceof Error ? e.message : String(e);
   }
 
   return (

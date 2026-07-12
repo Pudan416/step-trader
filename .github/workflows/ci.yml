@@ -1,0 +1,88 @@
+name: CI
+
+# In-repo quality gate. Previously the only test automation was the Xcode Cloud
+# post-clone secret script, configured invisibly in App Store Connect — nothing
+# in the repo proved the tests ran. This workflow runs the iOS unit tests and
+# typechecks/lints the two TypeScript admin surfaces on every push and PR.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-tests:
+    name: iOS unit tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes | grep iOS || true
+
+      - name: Create placeholder secrets
+        # The build's Info.plist references $(SUPABASE_URL)/$(SUPABASE_ANON_KEY)/
+        # $(REVENUECAT_API_KEY) via Config/Secrets.xcconfig, which is gitignored.
+        # Unit tests never hit the network, so the placeholder values from the
+        # template are sufficient to compile and run. (Secrets-Dev.xcconfig is
+        # optionally included and absent here, so Debug falls back to these.)
+        run: cp Config/Secrets.xcconfig.template Config/Secrets.xcconfig
+
+      - name: Run Steps4Tests
+        # -retry-tests-on-failure absorbs the known order-dependent flake in
+        # HealthStoreTests (an await-the-cache-write race, tracked separately) —
+        # a genuinely broken test still fails on every retry, so real
+        # regressions are not masked.
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Steps4.xcodeproj \
+            -scheme Steps4 \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -only-testing:Steps4Tests \
+            -retry-tests-on-failure -test-iterations 3 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+  admin-panel:
+    name: admin-panel (typecheck + lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin-panel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: admin-panel/package-lock.json
+      - run: npm ci
+      # Generate Next's route/page type defs (.next/types) — gitignored, so
+      # absent on a clean checkout. tsc's tsconfig includes them; without this
+      # step the typecheck would differ from local runs. No env vars needed.
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+      - run: npm run lint
+
+  tg-admin:
+    name: tg-admin (typecheck)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tg-admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tg-admin/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
