@@ -45,6 +45,8 @@
 		2061ECEC2F277000009FEC24 /* StatusViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECED2F277000009FEC24 /* StatusViewModels.swift */; };
 		2061ECF82F277010009FEC24 /* PayGateSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECF92F277010009FEC24 /* PayGateSession.swift */; };
 		2061ECFE2F277010009FEC25 /* StepsTrader/Services/PersistenceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECFF2F277010009FEC25 /* StepsTrader/Services/PersistenceManager.swift */; };
+		20DIAG012F5000010018004E /* StepsTrader/Services/DiagnosticsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DIAG022F5000010018004E /* StepsTrader/Services/DiagnosticsManager.swift */; };
+		20DIAG032F5000010018004E /* DiagnosticsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DIAG042F5000010018004E /* DiagnosticsManagerTests.swift */; };
 		2061ED002F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ED012F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift */; };
 		2061ED052F277020009FEC24 /* CanvasImageCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ED042F277020009FEC24 /* CanvasImageCatalog.swift */; };
 		2061F00A2F2803AC009FEC24 /* AppModel+AppSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061F0092F2803AC009FEC24 /* AppModel+AppSelection.swift */; };
@@ -360,6 +362,8 @@
 		2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUnlockSettings.swift; sourceTree = "<group>"; };
 		2061ECF92F277010009FEC24 /* PayGateSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayGateSession.swift; sourceTree = "<group>"; };
 		2061ECFF2F277010009FEC25 /* StepsTrader/Services/PersistenceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepsTrader/Services/PersistenceManager.swift; sourceTree = SOURCE_ROOT; };
+		20DIAG022F5000010018004E /* StepsTrader/Services/DiagnosticsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepsTrader/Services/DiagnosticsManager.swift; sourceTree = SOURCE_ROOT; };
+		20DIAG042F5000010018004E /* DiagnosticsManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsManagerTests.swift; sourceTree = "<group>"; };
 		2061ED012F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepsTrader/Services/ErrorManager.swift; sourceTree = SOURCE_ROOT; };
 		2061ED042F277020009FEC24 /* CanvasImageCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasImageCatalog.swift; sourceTree = "<group>"; };
 		2061F0092F2803AC009FEC24 /* AppModel+AppSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+AppSelection.swift"; sourceTree = "<group>"; };
@@ -767,6 +771,7 @@
 				2061ECED2F277000009FEC24 /* StatusViewModels.swift */,
 				2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */,
 				2061ECFF2F277010009FEC25 /* StepsTrader/Services/PersistenceManager.swift */,
+				20DIAG022F5000010018004E /* StepsTrader/Services/DiagnosticsManager.swift */,
 				20B8843C2FAF9B540088AA6D /* SubscriptionEntitlement.swift */,
 				2061ED012F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift */,
 				2061ECF92F277010009FEC24 /* PayGateSession.swift */,
@@ -1080,6 +1085,7 @@
 				AA000003AAAA000300000002 /* HealthKitTests.swift */,
 				20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */,
 				20RTRY022F5000010018004E /* RetryQueueClassificationTests.swift */,
+				20DIAG042F5000010018004E /* DiagnosticsManagerTests.swift */,
 				AA000001AAAA000100000002 /* TariffDecodingTests.swift */,
 				AA000002AAAA000200000002 /* TicketGroupCostTests.swift */,
 				BB000001BB000001BB000001 /* WidgetTests.swift */,
@@ -1482,6 +1488,7 @@
 				2061ECEA2F277000009FEC24 /* StatusViewHelpers.swift in Sources */,
 				2061ECEC2F277000009FEC24 /* StatusViewModels.swift in Sources */,
 				2061ECFE2F277010009FEC25 /* StepsTrader/Services/PersistenceManager.swift in Sources */,
+				20DIAG012F5000010018004E /* StepsTrader/Services/DiagnosticsManager.swift in Sources */,
 				2061ED002F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift in Sources */,
 				2061ECF82F277010009FEC24 /* PayGateSession.swift in Sources */,
 				20B884432FAF9B8C0088AA6D /* UserEconomyStore.swift in Sources */,
@@ -1602,6 +1609,7 @@
 				AA000003AAAA000300000001 /* HealthKitTests.swift in Sources */,
 				20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */,
 				20RTRY012F5000010018004E /* RetryQueueClassificationTests.swift in Sources */,
+				20DIAG032F5000010018004E /* DiagnosticsManagerTests.swift in Sources */,
 				AA000001AAAA000100000001 /* TariffDecodingTests.swift in Sources */,
 				AA000002AAAA000200000001 /* TicketGroupCostTests.swift in Sources */,
 				BB000001BB000001BB000002 /* WidgetTests.swift in Sources */,

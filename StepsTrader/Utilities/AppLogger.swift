@@ -40,7 +40,10 @@ enum AppLogger {
     
     /// Debug-only logging (stripped in release)
     static let debug = Logger(subsystem: subsystem, category: "Debug")
-    
+
+    /// MetricKit crash / hang / exception diagnostics
+    static let diagnostics = Logger(subsystem: subsystem, category: "Diagnostics")
+
     // MARK: - Private
     
     private static let subsystem = Bundle.main.bundleIdentifier ?? "com.personalproject.StepsTrader"
