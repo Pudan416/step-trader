@@ -4,6 +4,21 @@ Whole-system review: iOS app + extensions, Supabase (migrations, RLS, edge funct
 
 Severity scale: **release-blocking** (fix before public launch) / **medium** / **minor**. Each finding carries a confidence level.
 
+> **Correction (2026-07-11, after live-DB verification).** Issue #2 below was
+> written from the *repo migration* and turned out to be inaccurate against
+> production: `20260216b_add_energy_aggregation_rpcs.sql` was **never applied**,
+> so `sum_energy_delta` / `count_energy_ledger` and the `energy_ledger` table
+> **do not exist** in the live project — there is no RPC bypass to fix.
+> Verification instead surfaced the *real* release-blocker: a `"Public
+> leaderboard read"` RLS policy on `public.users` (`SELECT TO anon USING (true)`)
+> that exposed all ~522 users' email/nickname/country/ban records to anyone with
+> the shipped anon key. That policy has been **dropped** (verified: `anon` now
+> reads 0 rows). This also made the schema drift in issue #1 concrete: the
+> repo's migrations and the DB's applied history were nearly disjoint — see the
+> committed `00000000000000_baseline_schema.sql` and the `20260711_*` fixes.
+> Treat the leaderboard-policy finding as the true #2; the text below is left
+> as-written for provenance.
+
 ---
 
 ## Executive summary
@@ -13,7 +28,7 @@ Nowhere is in better shape than most solo-built products of this scope: a cohere
 ## Top 5 structural issues
 
 1. **DB schema source of truth is the live Supabase project, not the repo.** `supabase/migrations/` holds only incremental patches; `users`, `shields`, `daily_selections`, `daily_stats`, `custom_activities`, `saved_routines`, `option_entries` and their RLS policies have no CREATE statements in git. Already caused the `apple_sub NOT NULL` incident (`20260615_fix_users_apple_sub_drop_not_null.sql`). *Release-blocking for public launch. Confidence: high.*
-2. **RLS bypass in aggregation RPCs.** `20260216b_add_energy_aggregation_rpcs.sql` defines `sum_energy_delta(p_user_id)` / `count_energy_ledger(p_user_id)` as `SECURITY DEFINER` with EXECUTE granted to `authenticated` — any signed-in user (including anonymous, which the app creates on cold launch) can pass any UUID and read another user's ledger totals, or `NULL` for the global sum. Fix: revoke from `authenticated`, keep `service_role`. Nothing in the shipped app, admin-panel, or tg-admin calls these functions, so the revoke has zero user impact. *Release-blocking (trivial fix, real bypass). Confidence: high for the migration as written; verify deployed grants against the live DB.*
+2. **RLS bypass in aggregation RPCs.** *(⚠️ Superseded — see the correction callout above; these functions don't exist in prod. The real #2 was the anon `"Public leaderboard read"` policy, now fixed.)* `20260216b_add_energy_aggregation_rpcs.sql` defines `sum_energy_delta(p_user_id)` / `count_energy_ledger(p_user_id)` as `SECURITY DEFINER` with EXECUTE granted to `authenticated` — any signed-in user (including anonymous, which the app creates on cold launch) can pass any UUID and read another user's ledger totals, or `NULL` for the global sum. Fix: revoke from `authenticated`, keep `service_role`. Nothing in the shipped app, admin-panel, or tg-admin calls these functions, so the revoke has zero user impact. *Release-blocking (trivial fix, real bypass). Confidence: high for the migration as written; verify deployed grants against the live DB.*
 3. **Cross-process App Group state has no write coordination** (CODE_AUDIT §5.2, open). App + DeviceActivityMonitor + ShieldAction + widget read-modify-write the same `UserDefaults(suiteName:)`; race reproduced by `Steps4Tests/AppGroupRMWConcurrencyTests.swift`. Sits under the paid enforcement loop — a lost budget decrement is a correctness bug in the product's core promise. *Medium today (narrow window), rises with scale. Confidence: high.*
 4. **Sync is unversioned last-write-wins with heuristic restore.** `SupabaseSyncService` pushes per-table upserts with no `updated_at` conditioning; `restoreFromServer` applies server data "if non-empty"; the offline retry queue replays up-to-3-day-old request bodies verbatim over newer data, and re-queues *all* ≥400 responses (a permanent 400 retries for 3 days). *Medium. Confidence: high on mechanism, medium on user-visible frequency.*
 5. **No quality gate in CI, and no staging environment.** No test-running workflow in the repo (only `ci_scripts/ci_post_clone.sh` for Xcode Cloud secret injection; whether tests run is configured invisibly in App Store Connect). `admin-panel/` and `tg-admin/` have zero tests and no lint gate. `Config/Secrets-Debug.xcconfig` and `Secrets-Release.xcconfig` both `#include` the *same* `Secrets.xcconfig`, so debug builds almost certainly talk to production Supabase. *Medium. Confidence: high on repo contents; medium on Xcode Cloud config.*
