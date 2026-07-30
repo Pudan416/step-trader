@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nowhere — chat onboarding prototype v2</title>
+<style>
+  :root{
+    --bg:#222831; --bg2:#30303A; --text:#F2F2F2;
+    --gold:#FFD369; --goldAlt:#FFBF65; --coral:#FD8973;
+    --navy:#003A6C; --night:#002646;
+    --stroke:rgba(255,255,255,.12);
+    --warm:0.12;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:#0d0f13;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+    color:var(--text);
+    display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;
+  }
+  .stage{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .caption{font-size:12px;color:rgba(255,255,255,.35);letter-spacing:.02em}
+
+  .phone{position:relative;width:390px;height:800px;border-radius:52px;background:#000;padding:12px;
+    box-shadow:0 40px 90px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.04);}
+  .screen{position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;
+    background:
+      radial-gradient(130% 60% at 50% 4%,
+        rgba(255,190,110,calc(.18 + var(--warm)*.55)) 0%,
+        rgba(253,137,115,.25) 34%,
+        transparent 62%),
+      linear-gradient(180deg,
+        #E8974E 0%,
+        #DE7C58 15%,
+        #A85F6C 34%,
+        #6B5580 50%,
+        #3A5480 66%,
+        #133F6E 84%,
+        #002646 100%);
+    transition:background 1.2s ease;display:flex;flex-direction:column;}
+  .screen::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.28;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/></svg>");}
+  .notch{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:120px;height:30px;background:#000;border-radius:16px;z-index:6}
+
+  .topbar{position:relative;z-index:5;padding:52px 22px 10px;display:flex;align-items:center;gap:12px;
+    background:linear-gradient(180deg,rgba(25,12,6,.5),rgba(25,12,6,.16) 62%,transparent);}
+  .avatar{width:38px;height:38px;border-radius:50%;flex:none;
+    background:radial-gradient(circle at 35% 30%,var(--gold),var(--coral) 70%,var(--navy));
+    box-shadow:0 0 0 1px rgba(255,255,255,.15);}
+  .who{display:flex;flex-direction:column;line-height:1.15}
+  .who b{font-size:15px;font-weight:600}.who span{font-size:11px;color:rgba(255,255,255,.5)}
+  .prog{margin-left:auto;display:flex;gap:3px}
+  .prog i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.2);transition:.4s}
+  .prog i.on{background:var(--gold)}
+
+  .chat{position:relative;z-index:4;flex:1;overflow-y:auto;padding:12px 18px 6px;
+    display:flex;flex-direction:column;gap:9px;scroll-behavior:smooth;}
+  .chat::-webkit-scrollbar{width:0}
+  .row{display:flex;max-width:100%;animation:pop .32s cubic-bezier(.2,.8,.2,1) both}
+  .row.left{justify-content:flex-start}.row.right{justify-content:flex-end}
+  @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+
+  .bubble{max-width:82%;padding:11px 15px;border-radius:20px;font-size:15px;line-height:1.44;backdrop-filter:blur(8px)}
+  .left .bubble{background:rgba(255,255,255,.10);border:1px solid var(--stroke);border-bottom-left-radius:7px;color:#F4F1EA}
+  .right .bubble{background:linear-gradient(180deg,var(--gold),var(--goldAlt));color:#1b1b1b;font-weight:500;border-bottom-right-radius:7px}
+  .bubble.serif{font-family:inherit;font-weight:400;font-size:15px;letter-spacing:0}
+  .bubble.small{font-size:12.5px;color:rgba(255,255,255,.6);font-style:italic;background:none;border:none;backdrop-filter:none;padding:2px 6px}
+
+  .typing{display:flex;gap:4px;padding:14px 16px}
+  .typing i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.55);animation:blink 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+
+  .reveal{font-family:inherit;font-size:30px;letter-spacing:.14em;font-weight:500;color:#fff;display:flex;justify-content:center;padding:6px 0 2px}
+  .reveal .gap{display:inline-block;width:0;overflow:hidden;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+  .reveal.split .gap{width:16px}.reveal.split .hz{color:var(--gold)}
+
+  /* cards */
+  .card{background:rgba(0,0,0,.28);border:1px solid var(--stroke);border-radius:20px;padding:16px;backdrop-filter:blur(10px);max-width:86%}
+
+  /* stakes card */
+  .stakes{text-align:center;padding:10px 6px 6px}
+  .stakes .yr{font-family:inherit;font-size:60px;font-weight:300;color:var(--gold);line-height:1;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+  .stakes .lb{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-top:8px}
+  .stakes .bar{height:6px;border-radius:3px;margin-top:14px;background:linear-gradient(90deg,var(--coral),var(--navy));opacity:.7}
+
+  /* image placeholder box */
+  .imgbox{max-width:82%;border:1.5px dashed rgba(255,255,255,.28);border-radius:16px;overflow:hidden;background:rgba(255,255,255,.03)}
+  .imgbox .ph{aspect-ratio:5/3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:rgba(255,255,255,.45);padding:14px;text-align:center}
+  .imgbox .ph .ic{font-size:26px;opacity:.7}
+  .imgbox .ph b{font-size:12px;color:rgba(255,255,255,.7);font-weight:600;letter-spacing:.02em}
+  .imgbox .ph span{font-size:11px;line-height:1.35}
+
+  .ringwrap{display:flex;flex-direction:column;align-items:center;gap:12px}
+  .ring{position:relative;width:150px;height:150px}.ring svg{transform:rotate(-90deg)}
+  .ring .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .num b{font-size:34px;font-weight:300;font-variant-numeric:tabular-nums}
+  .ring .num span{font-size:11px;color:rgba(255,255,255,.55);letter-spacing:.08em;text-transform:uppercase}
+  .orbs{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .orb{width:52px;height:52px;border-radius:50%;border:1px solid var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:rgba(255,255,255,.06);cursor:pointer;transition:.25s;color:#fff;font-size:18px;user-select:none}
+  .orb small{font-size:8px;letter-spacing:.03em;opacity:.7}
+  .orb.done{transform:scale(1.06)}.orb.tapped{box-shadow:0 0 14px -2px currentColor}
+  /* base row (steps + sleep auto) */
+  .base{display:flex;align-items:center;gap:7px;font-size:12px;color:rgba(255,255,255,.6);opacity:.35;transition:opacity .6s ease;flex-wrap:wrap;justify-content:center}
+  .base.lit{opacity:1}
+  .base .ch{background:rgba(255,255,255,.07);border:1px solid var(--stroke);padding:4px 9px;border-radius:20px}
+  .base .plus{opacity:.5}
+  .base .eq{color:var(--gold);font-weight:600;margin-left:2px}
+  .marklabel{font-size:12px;color:rgba(255,255,255,.55);opacity:0;transition:opacity .6s ease;text-align:center;margin-top:2px}
+  .marklabel.show{opacity:1}
+  .moments{display:flex;flex-direction:column;gap:7px;width:100%}
+  .moment{display:flex;align-items:center;gap:9px;padding:9px 13px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid var(--stroke);color:#eee;font-size:13px;cursor:pointer;transition:.2s;text-align:left;animation:pop .3s both}
+  .moment:hover{background:rgba(255,255,255,.11)}
+  .moment.on{background:rgba(255,211,105,.14);border-color:rgba(255,211,105,.5)}
+  .moment.on::after{content:"✓";margin-left:auto;color:var(--gold);font-weight:700}
+
+  .pool{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:12px;font-size:14px}
+  .pool b{font-size:20px;color:var(--gold);font-variant-numeric:tabular-nums}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold)}
+  .applock{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .appicon{width:50px;height:50px;border-radius:13px;background:linear-gradient(135deg,#c13584,#f56040,#fccc63);opacity:.4;transition:.4s;position:relative;flex:none}
+  .appicon.open{opacity:1}.appicon::after{content:"🔒";position:absolute;right:-4px;bottom:-4px;font-size:14px}
+  .appicon.open::after{content:"🔓"}
+  .applock .st{font-size:13px;color:rgba(255,255,255,.7)}
+  .tariffs{display:flex;flex-direction:column;gap:8px}
+  .tariff{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-radius:13px;background:rgba(255,255,255,.06);border:1px solid var(--stroke);cursor:pointer;font-size:14px;transition:.2s}
+  .tariff:hover{background:rgba(255,255,255,.11)}.tariff.dim{opacity:.35;pointer-events:none}
+  .tariff .cost{color:var(--gold);font-weight:600}
+
+  .appgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .feed{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:rgba(255,255,255,.7)}
+  .feed .fi{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;background:rgba(255,255,255,.08);border:1px solid var(--stroke);transition:.2s;position:relative}
+  .feed.sel .fi{box-shadow:0 0 0 2px var(--gold);background:rgba(255,211,105,.15)}
+  .feed.sel .fi::after{content:"✓";position:absolute;top:-5px;right:-5px;width:16px;height:16px;font-size:10px;background:var(--gold);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center}
+
+  .dock{position:relative;z-index:5;padding:10px 16px 20px;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;min-height:64px;align-content:flex-end}
+  .chip{padding:10px 16px;border-radius:22px;border:1px solid rgba(255,211,105,.5);background:rgba(255,211,105,.10);color:var(--gold);font-size:14px;font-weight:500;cursor:pointer;transition:.18s;animation:pop .3s both}
+  .chip:hover{background:rgba(255,211,105,.2)}
+  .chip.solid{background:linear-gradient(180deg,var(--gold),var(--goldAlt));color:#1b1b1b;border-color:transparent}
+  .chip.ghost{color:rgba(255,255,255,.55);border-color:var(--stroke);background:transparent;font-weight:400}
+  .btn-primary{width:100%;padding:15px;border-radius:16px;border:none;background:linear-gradient(180deg,var(--gold),var(--goldAlt));color:#1b1b1b;font-size:16px;font-weight:600;cursor:pointer}
+
+  .restart{margin-top:2px;background:none;border:1px solid var(--stroke);color:rgba(255,255,255,.5);padding:8px 16px;border-radius:20px;font-size:12px;cursor:pointer}
+  .restart:hover{color:#fff}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="topbar">
+        <div class="avatar"></div>
+        <div class="who"><b>nowhere</b><span>kosta · online</span></div>
+        <div class="prog" id="prog"></div>
+      </div>
+      <div class="chat" id="chat"></div>
+      <div class="dock" id="dock"></div>
+    </div>
+  </div>
+  <div class="caption">prototype v2 · chat onboarding · tap the highlighted replies</div>
+  <button class="restart" onclick="run()">↺ replay</button>
+</div>
+
+<script>
+const chat=document.getElementById('chat');
+const dock=document.getElementById('dock');
+const progEl=document.getElementById('prog');
+const screen=document.querySelector('.screen');
+
+const PHASES=5;for(let i=0;i<PHASES;i++)progEl.innerHTML+='<i></i>';
+const dots=[...progEl.children];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const scroll=()=>chat.scrollTop=chat.scrollHeight;
+function setProgress(p){screen.style.setProperty('--warm',(0.10+p*0.5).toFixed(3));
+  const lit=Math.round(p*PHASES);dots.forEach((d,i)=>d.classList.toggle('on',i<lit));}
+const clearDock=()=>dock.innerHTML='';
+
+async function bot(html,{serif=false,small=false,delay=null}={}){
+  const t=document.createElement('div');t.className='row left';
+  t.innerHTML='<div class="bubble typing"><i></i><i></i><i></i></div>';
+  chat.appendChild(t);scroll();
+  await sleep(delay ?? Math.min(1600,600+html.length*15));
+  t.remove();
+  const r=document.createElement('div');r.className='row left';
+  r.innerHTML=`<div class="bubble ${serif?'serif':''} ${small?'small':''}">${html}</div>`;
+  chat.appendChild(r);scroll();await sleep(280);
+}
+function user(text){const r=document.createElement('div');r.className='row right';
+  r.innerHTML=`<div class="bubble">${text}</div>`;chat.appendChild(r);scroll();}
+
+function choose(options){return new Promise(res=>{clearDock();
+  options.forEach(o=>{const b=document.createElement('button');b.className='chip '+(o.kind||'');
+    b.textContent=o.label;
+    b.onclick=()=>{clearDock();if(o.reply!==null)user(o.reply ?? o.label);res(o);};
+    dock.appendChild(b);});});}
+function action(label){return new Promise(res=>{clearDock();
+  const b=document.createElement('button');b.className='btn-primary';b.textContent=label;
+  b.onclick=()=>{clearDock();res();};dock.appendChild(b);});}
+
+function mountCard(build){return new Promise(res=>{
+  const r=document.createElement('div');r.className='row left';
+  const c=document.createElement('div');c.className='bubble card';
+  r.appendChild(c);chat.appendChild(r);scroll();build(c,res);});}
+
+/* image placeholder box (non-interactive) */
+async function imageBox(icon,title,desc){
+  await sleep(500);
+  const r=document.createElement('div');r.className='row left';
+  r.innerHTML=`<div class="imgbox"><div class="ph">
+    <div class="ic">${icon}</div><b>${title}</b><span>${desc}</span></div></div>`;
+  chat.appendChild(r);scroll();await sleep(400);
+}
+
+/* stakes card (auto-continues) */
+async function stakesCard(years){
+  const r=document.createElement('div');r.className='row left';
+  const c=document.createElement('div');c.className='bubble card';
+  c.innerHTML=`<div class="stakes"><div class="yr">0</div><div class="lb">years · awake, but not there</div><div class="bar"></div></div>`;
+  r.appendChild(c);chat.appendChild(r);scroll();
+  const el=c.querySelector('.yr');let n=0;
+  await sleep(300);
+  const iv=setInterval(()=>{n++;el.textContent='~'+n;if(n>=years)clearInterval(iv);},70);
+  await sleep(years*70+700);
+}
+
+function ringCard(){return mountCard((c,done)=>{
+  const R=66,C=2*Math.PI*R;
+  const s=[{e:'🚶',n:'steps',col:'#FFD369'},{e:'🌙',n:'sleep',col:'#4a6fa5'},
+    {e:'🏃',n:'body',col:'#7bd88f'},{e:'🧠',n:'mind',col:'#6db3f2'},{e:'❤️',n:'heart',col:'#ff8fab'}];
+  c.innerHTML=`<div class="ringwrap"><div class="ring">
+    <svg width="150" height="150"><circle cx="75" cy="75" r="${R}" stroke="rgba(255,255,255,.12)" stroke-width="9" fill="none"/>
+    <circle id="rp" cx="75" cy="75" r="${R}" stroke="url(#g)" stroke-width="9" fill="none" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"/>
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFD369"/><stop offset="1" stop-color="#FD8973"/></linearGradient></defs></svg>
+    <div class="num"><b id="rn">0</b><span>colors</span></div></div><div class="orbs"></div></div>`;
+  const orbs=c.querySelector('.orbs'),rp=c.querySelector('#rp'),rn=c.querySelector('#rn');
+  let count=0,tapped=0;
+  s.forEach(x=>{const o=document.createElement('div');o.className='orb';
+    o.innerHTML=`<span>${x.e}</span><small>${x.n}</small>`;
+    o.onclick=()=>{if(o.classList.contains('tapped'))return;
+      o.classList.add('tapped','done');o.style.color=x.col;o.style.background=x.col+'22';
+      count+=20;tapped++;rn.textContent=count;rp.style.transition='stroke-dashoffset .5s ease';
+      rp.style.strokeDashoffset=C*(1-count/100);if(tapped===5)setTimeout(done,650);};
+    orbs.appendChild(o);});});}
+
+function spendCard(){return mountCard((c,done)=>{
+  c.innerHTML=`<div class="pool"><span class="dot"></span><b id="pv">100</b><span>colors</span></div>
+    <div class="applock"><div class="appicon" id="ai"></div><div class="st" id="st">Instagram is closed.</div></div>
+    <div class="tariffs">
+      <div class="tariff" data-c="4"><span>10 min</span><span class="cost">4 colors</span></div>
+      <div class="tariff" data-c="10"><span>30 min</span><span class="cost">10 colors</span></div>
+      <div class="tariff" data-c="20"><span>1 hour</span><span class="cost">20 colors</span></div></div>`;
+  const pv=c.querySelector('#pv'),ai=c.querySelector('#ai'),st=c.querySelector('#st');
+  c.querySelectorAll('.tariff').forEach(t=>{t.onclick=()=>{const cost=+t.dataset.c;
+    pv.textContent=100-cost;ai.classList.add('open');
+    st.textContent=`Open ${t.firstElementChild.textContent} · −${cost}. That's the deal.`;
+    c.querySelectorAll('.tariff').forEach(x=>x.classList.add('dim'));setTimeout(done,900);};});});}
+
+function feedCard(){return mountCard((c,done)=>{
+  const feeds=[['📷','instagram'],['🎵','tiktok'],['▶️','youtube'],['✖️','x'],
+    ['👽','reddit'],['📘','facebook'],['👻','snap'],['✈️','telegram']];
+  c.innerHTML='<div class="appgrid"></div>';
+  const g=c.querySelector('.appgrid');let sel=null;
+  feeds.forEach(([e,n])=>{const f=document.createElement('div');f.className='feed';
+    f.innerHTML=`<div class="fi">${e}</div>${n}`;
+    f.onclick=()=>{if(sel)sel.classList.remove('sel');f.classList.add('sel');sel=f;clearDock();
+      const cap=n.charAt(0).toUpperCase()+n.slice(1);
+      const b=document.createElement('button');b.className='btn-primary';b.textContent=`Close ${cap}`;
+      b.onclick=()=>{clearDock();user(`Close ${cap}`);done(n);};dock.appendChild(b);};
+    g.appendChild(f);});
+  clearDock();const sk=document.createElement('button');sk.className='chip ghost';sk.textContent='Not now';
+  sk.onclick=()=>{clearDock();user('Not now');done(null);};dock.appendChild(sk);});}
+
+/* ======================= CONVERSATION v2 ======================= */
+let running=false;
+async function run(){
+  if(running)return;running=true;
+  chat.innerHTML='';clearDock();setProgress(0);
+
+  /* --- ACT 1 · WHY IT MATTERS --- */
+  await bot("Hey — I'm Kosta. I made Nowhere.");
+  await bot("I was living the same day on repeat — wake, work, scroll, sleep. I stopped being able to tell them apart. And the thing quietly eating them was right here in my hand.",{serif:true});
+  setProgress(.08);
+  await bot("So — honestly. How many hours a day is your phone for you?");
+  const st=await choose([
+    {label:"2–3",years:5},{label:"4–5",years:9},{label:"6+",years:13},
+    {label:"Don't make me count 😳",reply:"Don't make me count 😳",years:9,kind:"ghost"}
+  ]);
+  if((st.reply||st.label).toLowerCase().includes('count')) await bot("Ha, fair. I'll guess around 5. 🙂");
+  await stakesCard(st.years);
+  await bot("That's not time you'll feel pass. You're awake for it — just not really there.",{serif:true});
+  await bot("I'm not saying it to shame you. I did the exact same — that's how I even noticed.");
+  await bot("I felt stuck in");
+  await revealNowhere();
+  await bot("I can't give those years back. But the ones ahead? You can actually be there for them — notice them, keep them. That's the whole reason this exists.",{serif:true});
+  await bot("Want to see how?");
+  await choose([{label:"Show me",kind:"solid"}]);
+  setProgress(.30);
+
+  /* --- ACT 2 · HOW IT WORKS --- */
+  await bot("Every day becomes a canvas. Your steps and sleep paint the background — the small things you notice add the color.",{serif:true});
+  await bot("A full, lived day is 100 colors. Tap each source 👇");
+  await ringCard();
+  await bot("The canvas is proof you were here today. That's the point — a day you'll actually remember.",{small:true});
+  await bot("But the apps that pull you away? Opening them spends those colors. Try it 👇");
+  await spendCard();
+  await bot("That's Nowhere. Earn color by living, spend it to scroll, and every morning you start clean.",{serif:true});
+  await choose([{label:"I'm in",kind:"solid"},{label:"Ok, set me up",kind:"ghost"}]);
+  setProgress(.50);
+
+  /* --- ACT 3 · TUNE IT TO YOU --- */
+  await bot("Let's make it yours. On a normal day, how much do you move?");
+  const mv=await choose([
+    {label:"Barely 🛋️",reply:"Barely 🛋️"},{label:"Average"},
+    {label:"Pretty active"},{label:"No clue 🤷",reply:"No clue 🤷",kind:"ghost"}
+  ]);
+  const mvKey=(mv.reply||mv.label).toLowerCase();
+  await bot(
+    mvKey.includes('barely')?"Got it — starting gentle at 5k. Every step still colors the canvas.":
+    mvKey.includes('average')?"Nice, 8k it is. A solid daily canvas.":
+    mvKey.includes('active')?"Love it — 10k. Your canvas is going to glow. ✨":
+    "All good, I'll set 8k — a normal-ish day. Change it anytime. 🙂");
+  setProgress(.62);
+
+  await bot("And sleep — what's a good night for you?");
+  const sl=await choose([
+    {label:"6h"},{label:"7h"},{label:"8h"},{label:"What is sleep 🥲",reply:"What is sleep 🥲",kind:"ghost"}
+  ]);
+  const slKey=(sl.reply||sl.label).toLowerCase();
+  await bot(
+    slKey.includes('sleep')?"Oof, I feel that. 😌 I'll set 7 — and we'll work on it together.":
+    slKey.startsWith('6')?"Noted. I'll quietly root for a little more.":
+    slKey.startsWith('7')?"7 it is. The dark behind your canvas gets a bit deeper.":
+    "8 — the dream. Literally. 🌙",{serif:false});
+  setProgress(.72);
+
+  await bot("To make the canvas real, I read your steps &amp; sleep from Apple Health. It never leaves your phone.");
+  await imageBox("🍎","Apple Health — permission","The next screen is Apple's. Flip everything on so the canvas can breathe.");
+  await choose([{label:"Connect Health",kind:"solid"},{label:"Later",kind:"ghost"}]);
+  await bot("Connected. Your canvas starts filling in the background. ✓",{small:true});
+  setProgress(.80);
+
+  await bot("Now — where does your day usually disappear? Pick one app to close.",{serif:true});
+  await imageBox("🛡️","Screen Time — Allow","iOS asks to allow Screen Time next. That's what lets me hold the door on an app. Tap Continue → Allow.");
+  const feed=await feedCard();
+  await bot(feed?`${feed.charAt(0).toUpperCase()+feed.slice(1)} is closed. I'll hand it back when you've earned the color.`
+               :"No worries — you can close one anytime from the Feeds tab.");
+  setProgress(.88);
+
+  await bot("Want a nudge when you've earned enough color to spend?");
+  await imageBox("🔔","Notifications — Allow","Just one screen from iOS. Tap Allow so I can tell you when a feed's ready.");
+  const nt=await choose([{label:"Yes, nudge me",kind:"solid"},{label:"No thanks",kind:"ghost"}]);
+  await bot(nt.label.toLowerCase().includes('yes')?"Done. I'll only ping you when it's worth it. 🤙":"Cool, staying quiet.",{small:true});
+  setProgress(.94);
+
+  await bot("Last thing — keep your canvas across devices, or stay anonymous for now?");
+  const id=await choose([{label:" Sign in with Apple",kind:"solid"},{label:"Stay anonymous",kind:"ghost"}]);
+  await bot(id.label.toLowerCase().includes('anonymous')?"All good, you can sign in later from settings.":"Signed in. Welcome back to yourself. ✓",{small:true});
+  setProgress(1);
+
+  /* --- ACT 4 · WELCOME --- */
+  await bot("That's it. Welcome to Nowhere.",{serif:true});
+  await bot("You're here. Let's make today one you'll remember.",{serif:true});
+  await action("Let's go →");
+  await bot("→ opens the canvas. (end of prototype)",{small:true});
+  running=false;
+}
+
+async function revealNowhere(){
+  const r=document.createElement('div');r.className='row left';
+  r.innerHTML=`<div class="bubble" style="padding:14px 20px"><div class="reveal" id="rev"><span>NOW</span><span class="gap"> </span><span class="hz">HERE</span></div></div>`;
+  chat.appendChild(r);scroll();
+  const rev=r.querySelector('#rev');rev.querySelector('.hz').style.color='#fff';
+  await sleep(900);rev.classList.add('split');await sleep(1000);
+}
+
+run();
+</script>
+</body>
+</html>
