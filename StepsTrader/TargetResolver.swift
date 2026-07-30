@@ -18,7 +18,10 @@ enum TargetResolver {
         /// re-opening a blocked app: iOS routes them to the exact app that owns the
         /// domain, so a third-party app squatting a custom scheme (e.g. `x://`) can't
         /// intercept them. Empty = no known Universal Link, custom schemes only.
-        let universalLinks: [String] = []
+        ///
+        /// `var`, not `let`: a `let` with an inline default is dropped from the
+        /// memberwise initializer, so entries passing `universalLinks:` wouldn't compile.
+        var universalLinks: [String] = []
     }
 
     private static let registry: [AppTarget] = [
