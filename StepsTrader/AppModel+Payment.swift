@@ -137,8 +137,11 @@ extension AppModel {
         
         AppLogger.energy.debug("📥 loadSpentStepsBalance RESULT: spent=\(self.spentStepsToday), base=\(todaysBaseEnergy), balance=\(self.stepsBalance)")
         
-        self.serverGrantedSteps = g.integer(forKey: "serverGrantedSteps_v1")
-        
+        // Legacy: "serverGrantedSteps_v1" backed an energy-grant feature that was
+        // never wired end-to-end (no server writer, disconnected from the balance
+        // math). Purge any stale key so nothing reads it. (§M5)
+        g.removeObject(forKey: "serverGrantedSteps_v1")
+
         clearBonusBreakdown()
     }
 
@@ -181,22 +184,16 @@ extension AppModel {
         }
     }
     
+    /// Spend that exceeds today's base energy dips into the (debug-only) bonus
+    /// pool. There's no partial bonus accounting — any overflow clears the whole
+    /// bonus breakdown. Only reachable in DEBUG builds where `bonusSteps` can be
+    /// non-zero; in production `totalStepsBalance == stepsBalance`, so `pay`
+    /// never calls this with a positive cost. (§M5: dropped the dead
+    /// serverGrantedSteps bookkeeping this used to carry.)
     @MainActor
     func consumeBonusSteps(_ cost: Int) {
         guard cost > 0 else { return }
-        
-        let before = self.serverGrantedSteps
-        self.serverGrantedSteps = max(0, self.serverGrantedSteps - min(self.serverGrantedSteps, cost))
-        #if DEBUG
-        AppLogger.payment.debug("consumeBonusSteps: \(cost), serverGrantedSteps: \(before) → \(self.serverGrantedSteps)")
-        #endif
         clearBonusBreakdown()
-        
-        // Force immediate persistence
-        let g = UserDefaults.stepsTrader()
-        g.set(self.serverGrantedSteps, forKey: "serverGrantedSteps_v1")
-        
-        // Force UI update
         objectWillChange.send()
     }
     

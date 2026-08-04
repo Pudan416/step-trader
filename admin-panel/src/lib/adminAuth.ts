@@ -5,6 +5,23 @@ import { supabaseAdmin } from "./supabaseAdmin";
 const COOKIE_NAME = "admin_session_v1";
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
+// Per-process random salt used as the HMAC key when digesting passwords for
+// comparison. It only needs to be identical for the two digests computed within
+// a single login, so a value generated once at module load is sufficient. Using
+// a random key also prevents precomputation against the digests.
+const COMPARE_SALT = crypto.randomUUID();
+
+// Constant-time comparison of two equal-length strings. Callers must only pass
+// fixed-length inputs (e.g. digests) so length itself never leaks information.
+function constantTimeEquals(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 async function hmacSign(payload: string, secret: string): Promise<string> {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -98,12 +115,16 @@ export async function loginWithPassword(password: string, clientIp?: string) {
   }
 
   const expected = getAdminPassword();
-  if (password.length !== expected.length) return { ok: false as const };
-  let mismatch = 0;
-  for (let i = 0; i < expected.length; i++) {
-    mismatch |= password.charCodeAt(i) ^ expected.charCodeAt(i);
+  // Digest both passwords to fixed-length values before comparing. Because the
+  // digests are always the same length, comparison time does not depend on the
+  // submitted password's length — there is no length/timing oracle.
+  const [passwordDigest, expectedDigest] = await Promise.all([
+    hmacSign(password, COMPARE_SALT),
+    hmacSign(expected, COMPARE_SALT),
+  ]);
+  if (!constantTimeEquals(passwordDigest, expectedDigest)) {
+    return { ok: false as const };
   }
-  if (mismatch !== 0) return { ok: false as const };
 
   const token = await createSessionToken(expected);
   const c = await cookies();

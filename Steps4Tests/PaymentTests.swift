@@ -25,14 +25,13 @@ final class PaymentTests: XCTestCase {
         model.spentStepsToday = 0
         model.stepsBalance = 50
         model.bonusSteps = 20
-        model.serverGrantedSteps = 20
 
         let success = model.pay(cost: 60)
 
         XCTAssertTrue(success)
         XCTAssertEqual(model.spentStepsToday, 50, "All base consumed first")
         XCTAssertEqual(model.stepsBalance, 0, "Base fully drained")
-        XCTAssertEqual(model.serverGrantedSteps, 10, "Remainder taken from server bonus")
+        XCTAssertEqual(model.bonusSteps, 0, "Overflow clears the whole bonus pool")
     }
 
     func testPay_fullBaseNoBonus() {
@@ -40,7 +39,6 @@ final class PaymentTests: XCTestCase {
         model.baseEnergyToday = 80
         model.spentStepsToday = 0
         model.stepsBalance = 80
-        model.serverGrantedSteps = 0
 
         let success = model.pay(cost: 30)
 
@@ -54,7 +52,6 @@ final class PaymentTests: XCTestCase {
         model.baseEnergyToday = 10
         model.spentStepsToday = 0
         model.stepsBalance = 10
-        model.serverGrantedSteps = 0
 
         let success = model.pay(cost: 20)
 
@@ -181,22 +178,35 @@ final class PaymentTests: XCTestCase {
 
     // MARK: - consumeBonusSteps
 
-    func testConsumeBonusSteps_drainsServerGranted() {
+    // `consumeBonusSteps` is all-or-nothing: there is no partial bonus
+    // accounting, so any positive overflow clears the entire pool. (§M5 dropped
+    // the proportional `serverGrantedSteps` bookkeeping this used to carry.)
+
+    func testConsumeBonusSteps_partialCostClearsWholePool() {
         let model = makeModel()
-        model.serverGrantedSteps = 30
+        model.bonusSteps = 30
 
         model.consumeBonusSteps(12)
 
-        XCTAssertEqual(model.serverGrantedSteps, 18)
+        XCTAssertEqual(model.bonusSteps, 0, "No partial accounting — the pool is cleared")
     }
 
-    func testConsumeBonusSteps_clampsToZero() {
+    func testConsumeBonusSteps_overConsumptionClampsToZero() {
         let model = makeModel()
-        model.serverGrantedSteps = 5
+        model.bonusSteps = 5
 
         model.consumeBonusSteps(100)
 
-        XCTAssertEqual(model.serverGrantedSteps, 0)
+        XCTAssertEqual(model.bonusSteps, 0, "Never goes negative")
+    }
+
+    func testConsumeBonusSteps_zeroCostIsNoOp() {
+        let model = makeModel()
+        model.bonusSteps = 30
+
+        model.consumeBonusSteps(0)
+
+        XCTAssertEqual(model.bonusSteps, 30, "Guard leaves the pool untouched")
     }
 
     // MARK: - Helpers

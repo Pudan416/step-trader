@@ -12,10 +12,13 @@ enum SubscriptionGate {
 
     // MARK: - Kill-switch
 
-    /// While the app is under review and payments are not active, grant Pro
-    /// to every user so all features are available for free.  Flip to `false`
-    /// once IAP is approved and ready to go live.
-    static let allFeaturesUnlocked = false
+    /// Grants Pro to every user so all features are available for free, and
+    /// suppresses every paywall entry point (post-onboarding welcome paywall,
+    /// feature gates, the Settings → Membership row).
+    ///
+    /// Currently `true`: the app ships free for all. Flip to `false` to
+    /// re-enable the paywall and the Free/Pro gate matrix below.
+    static let allFeaturesUnlocked = true
 
     // MARK: - Hard limits (Free tier)
 

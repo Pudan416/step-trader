@@ -422,6 +422,10 @@ actor SupabaseSyncService {
                             steps: Int(snapshot.stepsToday),
                             sleepHours: snapshot.dailySleepHours,
                             baseEnergy: snapshot.baseEnergyToday,
+                            // Always 0: `bonusSteps` (SharedKeys "debugStepsBonus_v1")
+                            // is a DEBUG-only pool, never populated in production, so
+                            // the server bonus_energy column is intentionally unused
+                            // rather than a dropped value. (§M6)
                             bonusEnergy: 0,
                             remainingBalance: snapshot.totalStepsBalance
                         )
@@ -533,36 +537,37 @@ actor SupabaseSyncService {
         if let prefs = await loadUserPreferencesFromServer() {
             await MainActor.run {
                 let g = UserDefaults.stepsTrader()
-                let std = UserDefaults.standard
-                g.set(prefs.stepsTarget, forKey: SharedKeys.userStepsTarget)
-                g.set(prefs.sleepTarget, forKey: SharedKeys.userSleepTarget)
+                // Scalar preferences (across .standard / app-group / theme-mirror
+                // domains) route through one tested authority — see PreferencesStore.
+                PreferencesStore.applyScalars(
+                    PreferencesStore.Scalars(
+                        stepsTarget: prefs.stepsTarget,
+                        sleepTarget: prefs.sleepTarget,
+                        restDayOverride: prefs.restDayOverride,
+                        hasWallpaperShortcut: prefs.hasWallpaperShortcut,
+                        wallpaperShortcutUses: prefs.wallpaperShortcutUses,
+                        notifyOneMinBefore: prefs.notifyOneMinBefore,
+                        notifyWhenTimerOver: prefs.notifyWhenTimerOver,
+                        notifyCanvasReminder: prefs.notifyCanvasReminder,
+                        canvasReminderHour: prefs.canvasReminderHour,
+                        canvasReminderMinute: prefs.canvasReminderMinute,
+                        notifyDayResetWarning: prefs.notifyDayResetWarning,
+                        dayResetWarningHours: prefs.dayResetWarningHours,
+                        canvasOverlayStyle: prefs.canvasOverlayStyle,
+                        gradientStyle: prefs.gradientStyle,
+                        gradientPalette: prefs.gradientPalette,
+                        userGradientStyle: prefs.userGradientStyle,
+                        userGradientPalette: prefs.userGradientPalette,
+                        dailyRandomThemeEnabled: prefs.dailyRandomThemeEnabled,
+                        bodyCanvasShape: prefs.bodyCanvasShape,
+                        mindCanvasShape: prefs.mindCanvasShape,
+                        heartCanvasShape: prefs.heartCanvasShape
+                    )
+                )
+                // Day boundary is dual-written: the app-group key (read by
+                // extensions) plus the @Published model props (drive the UI).
                 g.set(prefs.dayEndHour, forKey: SharedKeys.dayEndHour)
                 g.set(prefs.dayEndMinute, forKey: SharedKeys.dayEndMinute)
-                g.set(prefs.restDayOverride, forKey: SharedKeys.restDayOverrideEnabled)
-                g.set(prefs.hasWallpaperShortcut, forKey: "hasWallpaperShortcut")
-                g.set(prefs.wallpaperShortcutUses, forKey: "wallpaperShortcutUses")
-                g.set(prefs.notifyOneMinBefore, forKey: SharedKeys.notifyOneMinBefore)
-                g.set(prefs.notifyWhenTimerOver, forKey: SharedKeys.notifyWhenTimerOver)
-                g.set(prefs.notifyCanvasReminder, forKey: SharedKeys.notifyCanvasReminder)
-                g.set(prefs.canvasReminderHour, forKey: SharedKeys.canvasReminderHour)
-                g.set(prefs.canvasReminderMinute, forKey: SharedKeys.canvasReminderMinute)
-                g.set(prefs.notifyDayResetWarning, forKey: SharedKeys.notifyDayResetWarning)
-                g.set(prefs.dayResetWarningHours, forKey: SharedKeys.dayResetWarningHours)
-                // Appearance: theme + overlay
-                std.set(prefs.gradientStyle, forKey: SharedKeys.gradientStyle)
-                std.set(prefs.gradientPalette, forKey: SharedKeys.gradientPalette)
-                std.set(prefs.userGradientStyle, forKey: SharedKeys.userGradientStyle)
-                std.set(prefs.userGradientPalette, forKey: SharedKeys.userGradientPalette)
-                std.set(prefs.dailyRandomThemeEnabled, forKey: SharedKeys.dailyRandomThemeEnabled)
-                g.set(prefs.canvasOverlayStyle, forKey: SharedKeys.canvasOverlayStyle)
-                std.set(prefs.bodyCanvasShape, forKey: SharedKeys.bodyCanvasShape)
-                std.set(prefs.mindCanvasShape, forKey: SharedKeys.mindCanvasShape)
-                std.set(prefs.heartCanvasShape, forKey: SharedKeys.heartCanvasShape)
-                // Mirror theme to app group for widget/extension
-                if let group = UserDefaults(suiteName: SharedKeys.appGroupId) {
-                    group.set(prefs.gradientStyle, forKey: SharedKeys.gradientStyle)
-                    group.set(prefs.gradientPalette, forKey: SharedKeys.gradientPalette)
-                }
                 model.dayEndHour = prefs.dayEndHour
                 model.dayEndMinute = prefs.dayEndMinute
                 model.preferredBodyOptions = prefs.preferredBody
@@ -593,9 +598,27 @@ actor SupabaseSyncService {
             AppLogger.network.debug("📡 Merged \(serverSnapshots.count) day snapshots from server")
         }
 
-        // Restore option entries (journal notes/colors) for today
+        // Restore option entries (journal notes/colors) for today.
+        // These are persisted locally as individual UserDefaults keys
+        // ("option_entry_<optionId>_<dayKey>") read back by CategoryDetailView.
+        // Fetching without writing them back silently dropped the data on
+        // reinstall/device-switch; mirror the fetched rows into that store so
+        // today's entries actually survive a restore.
         let today = AppModel.dayKey(for: Date.now)
         if let entries = await loadOptionEntriesFromServer(dayKey: today), !entries.isEmpty {
+            await MainActor.run {
+                let g = UserDefaults.stepsTrader()
+                let encoder = JSONEncoder()
+                for entry in entries {
+                    // Don't clobber a locally-edited entry the user changed this
+                    // session — only fill in ones we don't already have.
+                    let key = "option_entry_\(entry.id)"
+                    guard g.data(forKey: key) == nil else { continue }
+                    if let data = try? encoder.encode(entry) {
+                        g.set(data, forKey: key)
+                    }
+                }
+            }
             AppLogger.network.debug("📡 Restored \(entries.count) option entries for today")
             didRestore = true
         }

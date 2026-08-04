@@ -291,8 +291,15 @@ final class HealthStoreTests: XCTestCase {
         store.startObservingSteps()
         mock.simulateStepUpdate(12345)
 
-        // Give the MainActor task a moment to process
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        // The observer hops to the MainActor via a detached Task, so the update
+        // isn't visible synchronously. Poll until it lands instead of sleeping a
+        // fixed 100ms — that guess was the order-dependent CI flake (it resolves
+        // on the first iteration normally, and only waits longer under load).
+        var attempts = 0
+        while store.stepsToday != 12345 && attempts < 200 {
+            try? await Task.sleep(nanoseconds: 5_000_000) // 5ms
+            attempts += 1
+        }
 
         XCTAssertEqual(store.stepsToday, 12345)
         XCTAssertTrue(store.hasStepsData)

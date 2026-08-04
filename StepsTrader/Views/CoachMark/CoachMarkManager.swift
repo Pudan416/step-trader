@@ -41,6 +41,16 @@ final class CoachMarkManager {
         finish()
     }
 
+    /// Tour copy for `step`. Steps whose wording assumes a connected app get a
+    /// no-apps variant, so a user who skipped blocked-app setup in onboarding
+    /// is never told about unlocking something they never connected.
+    func tooltip(for step: CoachMarkStep) -> String {
+        if let alt = step.tooltipWithoutTicketGroups, !hasTicketGroups() {
+            return alt
+        }
+        return step.tooltip
+    }
+
     func tabRawValue(for step: CoachMarkStep) -> Int? {
         switch step {
         case .colorBalance, .expandChevron, .categoriesRevealed,

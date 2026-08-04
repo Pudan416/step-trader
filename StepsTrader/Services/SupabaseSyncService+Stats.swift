@@ -99,7 +99,12 @@ extension SupabaseSyncService {
                 sleepHours: sleepHours,
                 baseEnergy: baseEnergy,
                 bonusEnergy: bonusEnergy,
-                remainingBalance: remainingBalance
+                remainingBalance: remainingBalance,
+                // §C3: stamped at row-construction time. For a retry-queue replay
+                // the body is frozen here, so this reflects when the write was
+                // first attempted — exactly what lets the server reject it if a
+                // fresher row has since landed.
+                updatedAt: iso8601String(Date.now)
             )
             
             request.httpBody = try JSONEncoder().encode(row)

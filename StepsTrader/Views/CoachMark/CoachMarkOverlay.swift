@@ -83,7 +83,7 @@ struct CoachMarkOverlay: View {
                 .onTapGesture { }
 
             VStack(spacing: 20) {
-                Text(step.tooltip)
+                Text(manager.tooltip(for: step))
                     .font(.systemSerif(17, weight: .light, relativeTo: .body))
                     .italic()
                     .foregroundStyle(.white.opacity(0.85))
@@ -132,7 +132,7 @@ struct CoachMarkOverlay: View {
 
     private func tooltipCardContent(step: CoachMarkStep) -> some View {
         VStack(spacing: 14) {
-            Text(step.tooltip)
+            Text(manager.tooltip(for: step))
                 .font(.systemSerif(16, weight: .light, relativeTo: .body))
                 .italic()
                 .foregroundStyle(.white.opacity(0.9))
@@ -311,7 +311,7 @@ struct CoachMarkSheetOverlay: View {
 
     private func sheetTooltipContent(step: CoachMarkStep) -> some View {
         VStack(spacing: 12) {
-            Text(step.tooltip)
+            Text(manager.tooltip(for: step))
                 .font(.systemSerif(15, weight: .light, relativeTo: .body))
                 .italic()
                 .foregroundStyle(.white.opacity(0.9))

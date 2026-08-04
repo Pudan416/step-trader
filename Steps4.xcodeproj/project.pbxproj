@@ -94,6 +94,7 @@
 		20B8843B2FAF9A920088AA6D /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 20B8843A2FAF9A920088AA6D /* RevenueCat */; };
 		20B8843D2FAF9B540088AA6D /* SubscriptionEntitlement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8843C2FAF9B540088AA6D /* SubscriptionEntitlement.swift */; };
 		20B884432FAF9B8C0088AA6D /* UserEconomyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B884412FAF9B8C0088AA6D /* UserEconomyStore.swift */; };
+		PREF5702570057005700B001 /* PreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = PREF5702570057005700F001 /* PreferencesStore.swift */; };
 		20B884442FAF9B8C0088AA6D /* BlockingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8843E2FAF9B8C0088AA6D /* BlockingStore.swift */; };
 		20B884452FAF9B8C0088AA6D /* SubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B884402FAF9B8C0088AA6D /* SubscriptionStore.swift */; };
 		20B884462FAF9B8C0088AA6D /* HealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8843F2FAF9B8C0088AA6D /* HealthStore.swift */; };
@@ -250,6 +251,8 @@
 		F6494E388E7886039A147EA3 /* HandoffToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF6441CB730DE1DF44F4310 /* HandoffToken.swift */; };
 		MMSH0001000000000000BF01 /* MomentEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = MMSH0002000000000000BF02 /* MomentEntrySheet.swift */; };
 		T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */; };
+		PREF5702570057005700B002 /* PreferencesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PREF5702570057005700F002 /* PreferencesStoreTests.swift */; };
+		CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */; };
 		T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */; };
 		T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
 		WK000001AAAA000100000001 /* AppModel+WorkoutSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */; };
@@ -407,6 +410,7 @@
 		20B8843F2FAF9B8C0088AA6D /* HealthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthStore.swift; sourceTree = "<group>"; };
 		20B884402FAF9B8C0088AA6D /* SubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionStore.swift; sourceTree = "<group>"; };
 		20B884412FAF9B8C0088AA6D /* UserEconomyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserEconomyStore.swift; sourceTree = "<group>"; };
+		PREF5702570057005700F001 /* PreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStore.swift; sourceTree = "<group>"; };
 		20B884472FAF9BBB0088AA6D /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		20B884492FAF9BD30088AA6D /* SettingsSubscriptionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSubscriptionPage.swift; sourceTree = "<group>"; };
 		20B8844E2FAF9CD90088AA6D /* Configuration.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Configuration.storekit; sourceTree = "<group>"; };
@@ -556,6 +560,8 @@
 		FD224EC1A882989A8351AB57 /* EnergyOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EnergyOption.swift; path = StepsTrader/Models/EnergyOption.swift; sourceTree = SOURCE_ROOT; };
 		MMSH0002000000000000BF02 /* MomentEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentEntrySheet.swift; sourceTree = "<group>"; };
 		T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetEngineTests.swift; sourceTree = "<group>"; };
+		PREF5702570057005700F002 /* PreferencesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStoreTests.swift; sourceTree = "<group>"; };
+		CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMarkTourTests.swift; sourceTree = "<group>"; };
 		T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergyLogicTests.swift; sourceTree = "<group>"; };
 		T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
 		WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WorkoutSuggestions.swift"; sourceTree = "<group>"; };
@@ -954,6 +960,7 @@
 				20B884402FAF9B8C0088AA6D /* SubscriptionStore.swift */,
 				20SG0002AAAA000100000002 /* SubscriptionGate.swift */,
 				20B884412FAF9B8C0088AA6D /* UserEconomyStore.swift */,
+				PREF5702570057005700F001 /* PreferencesStore.swift */,
 			);
 			path = Stores;
 			sourceTree = "<group>";
@@ -1078,6 +1085,8 @@
 			children = (
 				AA000001AA000001AA000003 /* TestHelpers */,
 				T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */,
+				PREF5702570057005700F002 /* PreferencesStoreTests.swift */,
+				CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */,
 				T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */,
 				201816132F33C8CC0006B350 /* DayBoundaryTests.swift */,
 				20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */,
@@ -1492,6 +1501,7 @@
 				2061ED002F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift in Sources */,
 				2061ECF82F277010009FEC24 /* PayGateSession.swift in Sources */,
 				20B884432FAF9B8C0088AA6D /* UserEconomyStore.swift in Sources */,
+				PREF5702570057005700B001 /* PreferencesStore.swift in Sources */,
 				20B884442FAF9B8C0088AA6D /* BlockingStore.swift in Sources */,
 				20B884452FAF9B8C0088AA6D /* SubscriptionStore.swift in Sources */,
 				20SG0001AAAA000100000001 /* SubscriptionGate.swift in Sources */,
@@ -1603,6 +1613,8 @@
 				AA000001AA000001AA000002 /* SharedMocks.swift in Sources */,
 				201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */,
 				T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */,
+				PREF5702570057005700B002 /* PreferencesStoreTests.swift in Sources */,
+				CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */,
 				T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */,
 				20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */,
 				201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */,

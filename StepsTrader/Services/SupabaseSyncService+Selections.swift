@@ -200,7 +200,8 @@ extension SupabaseSyncService {
                 dayKey: dayKey,
                 activityIds: EphemeralMoment.filteredOutOfSync(activityIds),
                 restIds: EphemeralMoment.filteredOutOfSync(recoveryIds),
-                joysIds: EphemeralMoment.filteredOutOfSync(joysIds)
+                joysIds: EphemeralMoment.filteredOutOfSync(joysIds),
+                updatedAt: iso8601String(Date.now) // §C3 stale-write guard
             )
             
             let bodyData = try JSONEncoder().encode(row)

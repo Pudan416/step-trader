@@ -126,3 +126,10 @@ skills-lock.json
 node_modules/
 .env
 .env.local
+
+# Build/runtime junk that should never be committed
+# iOS runtime diagnostic dumps (xcresult bundles, auto-fix notes, error summaries)
+.ios-runtime-logs/
+# Scratch/generated PDF pipeline artefacts (test fixtures, one-page summaries)
+tmp/
+output/

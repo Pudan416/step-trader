@@ -113,10 +113,6 @@ final class AppModel: ObservableObject {
         get { userEconomyStore.bonusSteps }
         set { userEconomyStore.bonusSteps = newValue }
     }
-    var serverGrantedSteps: Int {
-        get { userEconomyStore.serverGrantedSteps }
-        set { userEconomyStore.serverGrantedSteps = newValue }
-    }
     var totalStepsBalance: Int {
         get { userEconomyStore.totalStepsBalance }
         set { userEconomyStore.totalStepsBalance = newValue }
@@ -487,20 +483,38 @@ final class AppModel: ObservableObject {
         loadSpentStepsBalance()
         AppLogger.energy.debug("📊 AFTER loadSpentStepsBalance: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
 
-        // 1.6 If authenticated but local selections are empty, attempt to restore from Supabase.
-        // This covers fresh installs, device switches, and UserDefaults data loss.
-        // Wait for auth to finish initializing so we don't miss a valid keychain session.
+        // 1.6 On a genuine fresh install / data loss, restore from Supabase.
+        //
+        // §C2: this must NOT key off "today's selections are empty" — those reset
+        // at every day boundary, so that signal is also true every morning, which
+        // made a full server restore fire daily and unconditionally overwrite ~30
+        // local preference keys (reverting any setting whose push hadn't yet
+        // landed). Gate instead on a persisted per-install flag.
+        //
+        // The flag is absent on a true fresh install AND after a UserDefaults wipe
+        // (it's stored in the same suite as the data), so both correctly restore.
+        // For an existing user upgrading into this build the flag is also absent,
+        // but they already hold local state — seed the flag WITHOUT restoring so
+        // the upgrade itself doesn't trigger one clobbering restore.
         await AuthenticationService.shared.waitForInitialization()
-        let hasLocalSelections = !dailyBodySelections.isEmpty
-            || !dailyRestSelections.isEmpty
-            || !dailyHeartSelections.isEmpty
         let isAuthenticated = AuthenticationService.shared.isAuthenticated
-        if isAuthenticated && !hasLocalSelections {
-            AppLogger.app.debug("🔄 No local selections but authenticated — restoring from Supabase")
-            let didRestore = await SupabaseSyncService.shared.restoreFromServer(model: self)
-            if didRestore {
-                AppLogger.app.debug("✅ Restored selections from Supabase")
+        let g = UserDefaults.stepsTrader()
+        let hasCompletedInitialRestore = g.bool(forKey: SharedKeys.hasCompletedInitialRestore)
+        if isAuthenticated && !hasCompletedInitialRestore {
+            let hasPriorLocalState = g.object(forKey: SharedKeys.dailyEnergyAnchor) != nil
+                || !customEnergyOptions.isEmpty
+                || !ticketGroups.isEmpty
+            if hasPriorLocalState {
+                // Existing install predating this flag — mark restored, don't clobber.
+                AppLogger.app.debug("🔄 Existing install detected — seeding initial-restore flag without restoring")
+            } else {
+                AppLogger.app.debug("🔄 Fresh install (authenticated) — restoring from Supabase")
+                let didRestore = await SupabaseSyncService.shared.restoreFromServer(model: self)
+                if didRestore {
+                    AppLogger.app.debug("✅ Restored from Supabase")
+                }
             }
+            g.set(true, forKey: SharedKeys.hasCompletedInitialRestore)
         }
         
         // 1.7 Recalculate EXP from loaded selections immediately so baseEnergyToday
