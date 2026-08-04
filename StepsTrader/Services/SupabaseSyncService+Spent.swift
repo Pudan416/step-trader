@@ -78,7 +78,8 @@ extension SupabaseSyncService {
                 userId: userId,
                 dayKey: dayKey,
                 totalSpent: totalSpent,
-                spentByApp: spentByApp
+                spentByApp: spentByApp,
+                updatedAt: iso8601String(Date.now) // §C3 stale-write guard
             )
             
             request.httpBody = try JSONEncoder().encode(row)

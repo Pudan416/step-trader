@@ -147,6 +147,11 @@ enum SharedKeys {
     static let supabaseHistoryPageSize = "supabaseHistoryPageSize_v1"
     static let supabaseHistoryRefreshTTLSeconds = "supabaseHistoryRefreshTTLSeconds_v1"
     static let analyticsEventsQueue = "analyticsEventsQueue_v1"
+    /// Set once the initial fresh-install restore-from-server has been attempted
+    /// on this install. Gates `restoreFromServer` at bootstrap so a full server
+    /// restore only fires on a genuine fresh install / data loss — NOT every
+    /// morning when today's daily selections have simply reset to empty (§C2).
+    static let hasCompletedInitialRestore = "hasCompletedInitialRestore_v1"
 
     // MARK: - Steps data
     static let hasStepsData = "hasStepsData_v1"

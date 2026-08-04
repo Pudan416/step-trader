@@ -42,6 +42,10 @@ struct DailySelectionsRow: Codable {
     let activityIds: [String]
     let restIds: [String]
     let joysIds: [String]
+    /// Version stamp (§C3): sent on upsert so the server's stale-write guard can
+    /// reject a replayed body older than the stored row. Optional so decoding a
+    /// read (or a row from before the column existed) never fails.
+    let updatedAt: String?
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -49,6 +53,7 @@ struct DailySelectionsRow: Codable {
         case activityIds = "activity_ids"
         case restIds = "recovery_ids"
         case joysIds = "joys_ids"
+        case updatedAt = "updated_at"
     }
 
     init(from decoder: Decoder) throws {
@@ -58,14 +63,16 @@ struct DailySelectionsRow: Codable {
         activityIds = try container.decodeIfPresent([String].self, forKey: .activityIds) ?? []
         restIds = try container.decodeIfPresent([String].self, forKey: .restIds) ?? []
         joysIds = try container.decodeIfPresent([String].self, forKey: .joysIds) ?? []
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
     }
 
-    init(userId: String, dayKey: String, activityIds: [String], restIds: [String], joysIds: [String]) {
+    init(userId: String, dayKey: String, activityIds: [String], restIds: [String], joysIds: [String], updatedAt: String? = nil) {
         self.userId = userId
         self.dayKey = dayKey
         self.activityIds = activityIds
         self.restIds = restIds
         self.joysIds = joysIds
+        self.updatedAt = updatedAt
     }
 }
 
@@ -77,7 +84,9 @@ struct DailyStatsRow: Codable {
     let baseEnergy: Int
     let bonusEnergy: Int
     let remainingBalance: Int
-    
+    /// Version stamp (§C3) — see DailySelectionsRow.updatedAt.
+    let updatedAt: String?
+
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case dayKey = "day_key"
@@ -86,8 +95,9 @@ struct DailyStatsRow: Codable {
         case baseEnergy = "base_energy"
         case bonusEnergy = "bonus_energy"
         case remainingBalance = "remaining_balance"
+        case updatedAt = "updated_at"
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         userId = try container.decode(String.self, forKey: .userId)
@@ -104,9 +114,10 @@ struct DailyStatsRow: Codable {
         baseEnergy = try container.decodeIfPresent(Int.self, forKey: .baseEnergy) ?? 0
         bonusEnergy = try container.decodeIfPresent(Int.self, forKey: .bonusEnergy) ?? 0
         remainingBalance = try container.decodeIfPresent(Int.self, forKey: .remainingBalance) ?? 0
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
     }
-    
-    init(userId: String, dayKey: String, stepsCount: Int, sleepHours: Double, baseEnergy: Int, bonusEnergy: Int, remainingBalance: Int) {
+
+    init(userId: String, dayKey: String, stepsCount: Int, sleepHours: Double, baseEnergy: Int, bonusEnergy: Int, remainingBalance: Int, updatedAt: String? = nil) {
         self.userId = userId
         self.dayKey = dayKey
         self.stepsCount = stepsCount
@@ -114,6 +125,7 @@ struct DailyStatsRow: Codable {
         self.baseEnergy = baseEnergy
         self.bonusEnergy = bonusEnergy
         self.remainingBalance = remainingBalance
+        self.updatedAt = updatedAt
     }
 }
 
@@ -122,27 +134,32 @@ struct DailySpentRow: Codable {
     let dayKey: String
     let totalSpent: Int
     let spentByApp: [String: Int]
-    
+    /// Version stamp (§C3) — see DailySelectionsRow.updatedAt.
+    let updatedAt: String?
+
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case dayKey = "day_key"
         case totalSpent = "total_spent"
         case spentByApp = "spent_by_app"
+        case updatedAt = "updated_at"
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         userId = try container.decode(String.self, forKey: .userId)
         dayKey = try container.decode(String.self, forKey: .dayKey)
         totalSpent = try container.decodeIfPresent(Int.self, forKey: .totalSpent) ?? 0
         spentByApp = try container.decodeIfPresent([String: Int].self, forKey: .spentByApp) ?? [:]
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
     }
-    
-    init(userId: String, dayKey: String, totalSpent: Int, spentByApp: [String: Int]) {
+
+    init(userId: String, dayKey: String, totalSpent: Int, spentByApp: [String: Int], updatedAt: String? = nil) {
         self.userId = userId
         self.dayKey = dayKey
         self.totalSpent = totalSpent
         self.spentByApp = spentByApp
+        self.updatedAt = updatedAt
     }
 }
 

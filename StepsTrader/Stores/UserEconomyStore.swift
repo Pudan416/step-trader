@@ -31,7 +31,6 @@ final class UserEconomyStore: ObservableObject {
     @Published var bonusSteps: Int = 0 {
         didSet { updateTotalStepsBalance() }
     }
-    @Published var serverGrantedSteps: Int = 0
     @Published var totalStepsBalance: Int = 0
     
     @Published var spentSteps: Int = 0 {
