@@ -35,10 +35,10 @@ jobs:
         run: cp Config/Secrets.xcconfig.template Config/Secrets.xcconfig
 
       - name: Run Steps4Tests
-        # -retry-tests-on-failure absorbs the known order-dependent flake in
-        # HealthStoreTests (an await-the-cache-write race, tracked separately) —
-        # a genuinely broken test still fails on every retry, so real
-        # regressions are not masked.
+        # The HealthStoreTests observer flake (a fixed-sleep wait on a MainActor
+        # hop) was fixed by polling deterministically, so the global
+        # -retry-tests-on-failure crutch is gone — a flaky test now fails the
+        # gate instead of being silently absorbed.
         run: |
           set -o pipefail
           xcodebuild test \
@@ -47,7 +47,6 @@ jobs:
             -configuration Debug \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -only-testing:Steps4Tests \
-            -retry-tests-on-failure -test-iterations 3 \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
   admin-panel:
