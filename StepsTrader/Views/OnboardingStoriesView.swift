@@ -58,6 +58,10 @@ struct OnboardingStoriesView: View {
     
     // Analytics
     @State private var slideAppearedAt: Date = Date.now
+    /// Set the moment the flow reaches its terminal `finish(...)`. Guards the
+    /// `onboarding_abandoned` event so a normal completion (which also tears the
+    /// view down and fires `.onDisappear`) is never counted as a drop-off.
+    @State private var didComplete = false
     
     // Cold open
     @State private var coldOpenVisible: Int = 0
@@ -275,9 +279,20 @@ struct OnboardingStoriesView: View {
                                     }
                             }
                         }
+
+                        if isFeedSlideWithoutSelection {
+                            Button(action: skipFeedSelection) {
+                                Text(skipText)
+                                    .font(.systemSerif(14, weight: .light, relativeTo: .subheadline))
+                                    .foregroundStyle(.white.opacity(0.35))
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .transition(.opacity)
+                        }
                     }
                 }
                 .animation(.easeInOut(duration: 0.3), value: showFeedHint)
+                .animation(.easeInOut(duration: 0.3), value: isFeedSlideWithoutSelection)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 40)
             }
@@ -329,6 +344,13 @@ struct OnboardingStoriesView: View {
             triggerSlideEntryEffects()
             showFeedHint = false
         }
+        .onDisappear {
+            // Fires on every teardown of the flow. If we didn't reach `finish(...)`,
+            // the user quit mid-flow — record the last slide they reached so the
+            // team can see WHERE onboarding is being abandoned.
+            guard !didComplete else { return }
+            trackOnboardingAbandoned()
+        }
         .alert(
             String(localized: "do you want me to show you around?"),
             isPresented: $showTourPrompt
@@ -362,7 +384,32 @@ struct OnboardingStoriesView: View {
                 properties: [
                     "slide_index": String(index),
                     "slide_name": slideName,
+                    "slide_id": slideName,
                     "flow_version": flowVersion
+                ],
+                // Dedupe per slide index so returning to a slide via back-nav
+                // doesn't inflate the viewed count for that step.
+                dedupeKey: "onb_view_\(index)"
+            )
+        }
+    }
+
+    /// Emitted when the flow goes away without reaching `finish(...)` — i.e. the
+    /// user abandoned onboarding. `slide_index` is the last slide they saw, so the
+    /// team can pinpoint the drop-off step. Matches the terminal
+    /// `onboarding_completed` event's `flow` key for a clean funnel pairing.
+    private func trackOnboardingAbandoned() {
+        guard !slides.isEmpty else { return }
+        let lastIndex = min(max(index, 0), slides.count - 1)
+        let slideName = String(describing: slides[lastIndex].slideType)
+        Task {
+            await SupabaseSyncService.shared.trackAnalyticsEvent(
+                name: "onboarding_abandoned",
+                properties: [
+                    "slide_index": String(lastIndex),
+                    "slide_id": slideName,
+                    "slide_name": slideName,
+                    "flow": flowVersion
                 ]
             )
         }
@@ -1795,7 +1842,7 @@ struct OnboardingStoriesView: View {
                 .padding(.bottom, 32)
 
             VStack(spacing: 12) {
-                ForEach(Array(slide.lines.enumerated()), id: \.offset) { _, line in
+                ForEach(Array(notificationLines(for: slide).enumerated()), id: \.offset) { _, line in
                     onboardingLineText(line, size: 18, relativeTo: .body)
                 }
             }
@@ -1804,6 +1851,20 @@ struct OnboardingStoriesView: View {
             Spacer()
             Spacer()
         }
+    }
+
+    /// The authored lines pitch notifications as the way to unlock blocked apps.
+    /// That reason doesn't exist for someone who skipped the feed slide, so give
+    /// them the reason that does apply: the nudge when colors are ready.
+    private func notificationLines(for slide: OnboardingSlide) -> [String] {
+        let hasApps = !onboardingSelection.applicationTokens.isEmpty
+            || !onboardingSelection.categoryTokens.isEmpty
+        guard !hasApps else { return slide.lines }
+        return [
+            String(localized: "also, allow notifications."),
+            String(localized: "they're how i nudge you when your colors are ready."),
+            String(localized: "you can control them in settings later.")
+        ]
     }
 
     // MARK: - v8 Slide: Welcome (slide 13)
@@ -1922,7 +1983,23 @@ struct OnboardingStoriesView: View {
         }
     }
     
+    /// Leaves the feed-selection slide without picking an app. No selection means
+    /// nothing to unlock later, so we skip the `needsNotificationAfterFeed` flag
+    /// that `next()` would otherwise set.
+    private func skipFeedSelection() {
+        withAnimation(.easeInOut(duration: 0.3)) { showFeedHint = false }
+        trackSlideCompleted(action: "skip")
+
+        let lastIndex = slides.count - 1
+        if index < lastIndex {
+            withAnimation(.easeInOut) { index += 1 }
+        }
+    }
+
     private func finish(wantsTour: Bool) {
+        // Mark completion BEFORE the view tears down so `.onDisappear` doesn't
+        // misfire `onboarding_abandoned` on a successful finish.
+        didComplete = true
         UserDefaults.standard.set(wantsTour, forKey: "shouldStartCoachMark")
         withAnimation(.easeInOut) {
             isPresented = false

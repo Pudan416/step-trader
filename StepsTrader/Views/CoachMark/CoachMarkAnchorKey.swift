@@ -61,6 +61,18 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
         }
     }
 
+    /// Replacement copy for users with no blocking group. `nil` means the
+    /// default `tooltip` already reads fine without one. Resolved through
+    /// `CoachMarkManager.tooltip(for:)`, which knows whether groups exist.
+    var tooltipWithoutTicketGroups: String? {
+        switch self {
+        case .allSet:
+            return "that's it. when you want to spend colors, connect an app in feeds"
+        default:
+            return nil
+        }
+    }
+
     var requiresSpotlight: Bool {
         switch self {
         case .categoryExplain, .canvasTrace, .goToFeeds, .allSet:
