@@ -43,22 +43,27 @@ digits), not as a color direction. Do not build a light screen.
 ## 3. Assumption that needs confirming first
 
 The spec says apps appear individually; the underlying model unlocks by
-**group**. These have to be reconciled, and the free tier makes it sharp:
-`SubscriptionGate.freeMaxBlockingGroups` is **2**.
-
-If each app in the flat list became its own group, a free user would hit the
-paywall on their third app. That is a pricing change smuggled in through a
-layout change, and it is not what this rework is for.
+**group**. These have to be reconciled.
 
 **Working assumption:** the list flattens apps out of their groups for display.
 Tapping an app opens the unlock sheet, and buying a window activates the monitor
 for the group that app belongs to. The sheet states plainly which other apps the
-window also opens. Groups remain the unit of unlocking, the free limit is
-untouched, and nobody is surprised by an app quietly unblocking.
+window also opens.
 
-**Confirm this before building the list.** If the intent was genuinely
-one-app-one-group, the free tier has to be repriced and that is a separate
-decision.
+The alternative — each app becoming its own group — reads more naturally from
+the list, and it is the reading the design implies. It has two costs. Every
+concurrently open window is another `DeviceActivityCenter` activity against the
+cap of twenty, which a per-app model reaches far sooner than a per-group one.
+And `SubscriptionGate.freeMaxBlockingGroups` is 2, so a per-app model would
+paywall at the third app *if the paywall were ever switched back on*.
+
+It is not on today: `SubscriptionGate.allFeaturesUnlocked` is `true`, which makes
+`isPro` unconditionally true and every gate dormant. The app ships free. The
+constants remain as a kill-switch — the file documents flipping it back — so a
+per-app model is a decision that quietly reprices the product should that happen.
+Not a blocker, but worth knowing before choosing.
+
+**Confirm the reading before building the list.**
 
 ---
 

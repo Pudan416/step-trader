@@ -97,10 +97,18 @@ renders past days grouped by month and opens `DayCanvasViewerView`, described in
 its own source as a pixel-faithful render of the persisted canvas. The work is
 re-laying it out as a horizontal scroll and hosting it inside Me.
 
-**The Pro gate must survive the move.** Today the newest
-`SubscriptionGate.freeHistoryDayCount` days are always unlocked and older ones
-are blurred behind a Pro badge; Pro users get unbounded history. It is easy to
-lose this in a re-layout and quietly hand every free user their whole archive.
+**The Pro gate is dormant, not gone — keep its code path.** `HistoryView` gates
+history at `SubscriptionGate.freeHistoryDayCount` (7 days), blurring older tiles
+behind a Pro badge. That gate does not currently fire:
+`SubscriptionGate.allFeaturesUnlocked` is `true`, making `isPro` unconditionally
+true, so everyone sees unbounded history and the app ships free.
+
+The constant is a documented kill-switch, meant to be flipped back. So the
+re-layout must carry the gating logic across rather than delete it as dead code
+— it looks unreachable and is not permanently so. Verify by flipping
+`allFeaturesUnlocked` to `false` locally and confirming the blur and badge still
+appear in the new calendar, then flip it back.
+
 `HistoryView` also has a `debugForceUnlock` path — keep it debug-only.
 
 ---
@@ -180,7 +188,7 @@ particular is shaped around the old breakdown. `MeLifecycleModifier` and
 - [ ] The apps block shows exact color spend per app from `appStepsSpentByDay`
 - [ ] No screen reports minutes spent per app
 - [ ] The calendar scrolls horizontally into the past and opens a day's poster on tap
-- [ ] **A free account sees exactly the same number of unlocked days as before the move**, and older days stay blurred behind the Pro badge
+- [ ] **With `SubscriptionGate.allFeaturesUnlocked` temporarily set to `false`, the calendar still blurs days older than `freeHistoryDayCount` and shows the Pro badge** — the gate is dormant, not dead, and must survive the re-layout
 - [ ] `README.md` describes three tabs and does not mention a Notes tab
 
 ---

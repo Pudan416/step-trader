@@ -87,9 +87,13 @@ opens `DayCanvasViewerView`, described in its own source as a pixel-faithful
 render of the persisted canvas. The work is re-laying it out as a horizontal
 scroll and moving it into Me — not rebuilding it.
 
-**The Pro gate on history must survive the move.** `HistoryView` locks older
-tiles behind Pro today. Folding the view into Me must not quietly hand free
-users their full history.
+**The Pro gate on history is dormant, and must survive the move anyway.**
+`HistoryView` blurs tiles older than `SubscriptionGate.freeHistoryDayCount`
+behind a Pro badge. That gate does not fire today —
+`SubscriptionGate.allFeaturesUnlocked` is `true`, `isPro` is unconditionally
+true, and the app ships free. The constant is a documented kill-switch meant to
+be flipped back, so the re-layout must carry the logic across rather than
+discard it as unreachable.
 
 ---
 
@@ -152,5 +156,5 @@ would mean writing category-based code twice.
 - [ ] The connected apps block shows exact color spend per app, sourced from `appStepsSpentByDay`
 - [ ] No screen reports minutes spent per app
 - [ ] The calendar scrolls horizontally into the past and opens a day's poster on tap
-- [ ] A free user sees exactly the same amount of history as before the move
+- [ ] With `allFeaturesUnlocked` temporarily `false`, the calendar still blurs days beyond `freeHistoryDayCount` behind the Pro badge
 - [ ] `README.md` no longer describes a Notes tab or a five-tab structure
