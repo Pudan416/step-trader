@@ -215,6 +215,8 @@
 		AABB002200220022AABB0022 /* PaymentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB002200220022AABB0020 /* PaymentTests.swift */; };
 		AABB003300330033AABB0033 /* EnergyRecalcTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB003300330033AABB0030 /* EnergyRecalcTests.swift */; };
 		AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB004400440044AABB0040 /* SubscriptionStateTests.swift */; };
+		DA0001000100010001000011 /* HappeningMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0001000100010001000010 /* HappeningMigrationTests.swift */; };
+		DA0002000200020002000021 /* canvas_legacy_categorised.json in Resources */ = {isa = PBXBuildFile; fileRef = DA0002000200020002000020 /* canvas_legacy_categorised.json */; };
 		AC000001300400000000AC01 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000002300400000000AC02 /* AppConstants.swift */; };
 		AE00000100000000000000B1 /* MeAxisDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000100000000000000A1 /* MeAxisDetailView.swift */; };
 		AE00000200000000000000B2 /* MeViewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000200000000000000A2 /* MeViewSupport.swift */; };
@@ -527,6 +529,8 @@
 		AABB002200220022AABB0020 /* PaymentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTests.swift; sourceTree = "<group>"; };
 		AABB003300330033AABB0030 /* EnergyRecalcTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyRecalcTests.swift; sourceTree = "<group>"; };
 		AABB004400440044AABB0040 /* SubscriptionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionStateTests.swift; sourceTree = "<group>"; };
+		DA0001000100010001000010 /* HappeningMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningMigrationTests.swift; sourceTree = "<group>"; };
+		DA0002000200020002000020 /* canvas_legacy_categorised.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/canvas_legacy_categorised.json; sourceTree = "<group>"; };
 		AC000002300400000000AC02 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
 		AE00000100000000000000A1 /* MeAxisDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeAxisDetailView.swift; sourceTree = "<group>"; };
 		AE00000200000000000000A2 /* MeViewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeViewSupport.swift; sourceTree = "<group>"; };
@@ -1104,6 +1108,8 @@
 				AABB003300330033AABB0030 /* EnergyRecalcTests.swift */,
 				AABB004400440044AABB0040 /* SubscriptionStateTests.swift */,
 				AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */,
+				DA0001000100010001000010 /* HappeningMigrationTests.swift */,
+				DA0002000200020002000020 /* canvas_legacy_categorised.json */,
 			);
 			path = Steps4Tests;
 			sourceTree = "<group>";
@@ -1362,6 +1368,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DA0002000200020002000021 /* canvas_legacy_categorised.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1631,6 +1638,7 @@
 				AABB003300330033AABB0033 /* EnergyRecalcTests.swift in Sources */,
 				AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */,
 				AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */,
+				DA0001000100010001000011 /* HappeningMigrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
