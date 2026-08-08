@@ -2405,9 +2405,11 @@ WHERE happening_ids IS NULL;
 
 ```
 
-**Status: applied to production 2026-08-08** — the file is committed as
-`supabase/migrations/20260808_happenings_relax_categories.sql`. The PK swap the
-brief asked for is deliberately not in it; see Step 2.
+**Status: written and committed, NOT applied.** The file is
+`supabase/migrations/20260808_happenings_relax_categories.sql`. Applying it needs
+the user — the Supabase MCP `apply_migration` tool is blocked by the auto-mode
+classifier for production writes. The PK swap the brief asked for is deliberately
+not in it; see Step 2.
 
 - [ ] **Step 2: Add the additions table (replaces the brief's PK swap)**
 
