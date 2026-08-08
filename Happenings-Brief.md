@@ -1,8 +1,8 @@
-# Implementation brief — canvas pieces
+# Implementation brief — canvas happenings
 
 Self-contained brief for reworking Nowhere's activity-logging mechanic. Written
 to be handed to an implementer cold, with no access to the conversation that
-produced it. The design rationale lives in `CanvasPieces-Spec.md`; this document
+produced it. The design rationale lives in `Happenings-Spec.md`; this document
 is the execution surface.
 
 ---
@@ -49,7 +49,7 @@ notes — but it does not exist in anyone's head.
 
 Tap the `+`. A palette opens showing ten things as overlapping organic blobs with
 labels set on them. Tap one — it lands on the canvas immediately as a generative
-shape. A separate `+` node in the palette takes free text and creates a new piece
+shape. A separate `+` node in the palette takes free text and creates a new happening
 on the spot, which also lands on the canvas in the same action.
 
 No categories anywhere in the flow.
@@ -80,10 +80,10 @@ compile fix.
 Collapse three near-identical types into one.
 
 Delete `EnergyCategory`, `CustomEnergyOption`, `EphemeralMoment`.
-Reshape `EnergyOption` into `Piece`. Remove `category` from `OptionEntry`.
+Reshape `EnergyOption` into `Happening`. Remove `category` from `OptionEntry`.
 
 ```swift
-struct Piece: Identifiable, Codable, Equatable {
+struct Happening: Identifiable, Codable, Equatable {
     let id: String
     var title: String
     let isBuiltIn: Bool
@@ -105,7 +105,7 @@ Read · Laughed · Made something · Time outside · Did nothing on purpose
 
 Copy goes in `Localizable.xcstrings` under `option.title.<id>`, matching the
 existing convention. Any option id that exists in a user's history but is no
-longer built-in is reconstituted as a `Piece` with `isBuiltIn: false` on first
+longer built-in is reconstituted as a `Happening` with `isBuiltIn: false` on first
 launch, so nobody's past days lose their labels.
 
 ---
@@ -115,7 +115,7 @@ launch, so nobody's past days lose their labels.
 ### Ordering
 
 Rank by `useCount`, ties broken by more recent `lastUsedAt`, take the top ten.
-Built-in and user pieces rank together with no visual distinction.
+Built-in and user happenings rank together with no visual distinction.
 
 **The order is computed once per day and frozen.** Do not re-sort after each tap
 — buttons that move under the thumb destroy muscle memory. Cache the computed
@@ -125,7 +125,7 @@ order against `dayKey` and recompute only when `dayKey` changes.
 calendar midnight. `AppModel+DailyRandomTheme` already does exactly this; reuse
 that pattern rather than writing a second one.
 
-A piece created mid-day is appended to the end of the frozen order and shown in
+A happening created mid-day is appended to the end of the frozen order and shown in
 addition to the ten, so the palette can hold eleven on the day of creation. It
 takes its ranked position, and the list returns to ten, the next day. Nothing
 already on screen moves.
@@ -138,7 +138,7 @@ category-independent, no changes needed. A distinct `+` node opens free text.
 
 ### Free text
 
-Submitting text creates a `Piece` with `isBuiltIn: false`, `useCount: 1`,
+Submitting text creates a `Happening` with `isBuiltIn: false`, `useCount: 1`,
 `lastUsedAt: now` and spawns its canvas element in the same action. No confirm
 step, no category, no icon picker.
 
@@ -184,14 +184,14 @@ Three single-value keys become one multi-select over
 Categories supplied 60 of the 100 daily points, 20 each. Replacement:
 
 ```
-pieces = min(additions × 10, 60)
-day    = steps(20) + sleep(20) + pieces(60) = 100
+happenings = min(additions × 10, 60)
+day    = steps(20) + sleep(20) + happenings(60) = 100
 ```
 
 The 100 ceiling is deliberately unchanged — onboarding has a slide built on it.
 
 In `AppModel+DailyEnergy`: delete `bodyPointsToday`, `mindPointsToday`,
-`heartPointsToday`; add `piecePointsToday`.
+`heartPointsToday`; add `happeningPointsToday`.
 
 Additions past the sixth still land on the canvas and still increment
 `useCount`. They stop earning. Do not block them.
@@ -227,7 +227,7 @@ frozenShapeType = try c.decodeIfPresent(CanvasShapeType.self, forKey: .frozenSha
 is not part of the domain model and must not leak into it.
 
 `PastDaySnapshot` keeps decoding `bodyPoints` / `mindPoints` / `heartPoints` for
-historical rows and stops writing them. New rows write `piecePoints`.
+historical rows and stops writing them. New rows write `happeningPoints`.
 
 ### Supabase
 
@@ -281,8 +281,8 @@ temporarily describe a model the app no longer has. That is known and accepted.
 | `CategoryDetailView` | Delete — replaced by the palette |
 | `EnergyCategory+Helpers` | Delete |
 | `MomentEntrySheet`, `EphemeralMoment` | Delete |
-| `MeView` breakdown (`summary.topHeart` etc., ~line 548) | Replace with three color sources: steps / sleep / additions |
-| `EnergyRoutine` | `bodyIds` / `mindIds` / `heartIds` → flat `pieceIds` |
+| `MeView` breakdown (`summary.topHeart` etc., ~line 548) | Replace with the three entities: sleep / steps / happenings. That screen's full rework is `Me-Spec.md` and depends on this work |
+| `EnergyRoutine` | `bodyIds` / `mindIds` / `heartIds` → flat `happeningIds` |
 | `ActivitySuggestion` | Drop `category`; remove `suggestedCategory` from workouts |
 | `GalleryNotifications` | Remove `case category(EnergyCategory)` from the route enum |
 | `PreferencesStore` | Three shape fields → one set |
@@ -329,16 +329,16 @@ by this brief — do not let it expand into a refactor.
 Rewrite `DailyEnergyLogicTests` and `EnergyRecalcTests` — both assert the old
 five-part 100-point formula.
 
-- [ ] Adding a piece takes one tap from the canvas
-- [ ] `piecePointsToday` caps at 60 regardless of addition count
-- [ ] A day of 2 pieces + full steps + full sleep totals 60, not 100
+- [ ] Adding a happening takes one tap from the canvas
+- [ ] `happeningPointsToday` caps at 60 regardless of addition count
+- [ ] A day of 2 happenings + full steps + full sleep totals 60, not 100
 - [ ] Palette order is stable across repeated opens within one `dayKey`
 - [ ] Palette order re-ranks after `dayKey` rolls over, at the user's configured day end
 - [ ] A mid-day creation appears without reordering anything on screen
 - [ ] `allowedCanvasShapes` cannot be emptied through the UI
 - [ ] A non-Pro user with Organic saved never spawns an Organic element, and the preference survives a Pro round-trip
 - [ ] **A `DayCanvas` fixture captured in the old format — with `category`, without `frozenShapeType` — decodes to the same `frozenShapeType` as before the change.** Use a real captured fixture, not a synthesized one. This is the guard on the only failure mode that is invisible in review.
-- [ ] The same piece added twice in one day produces two `user_option_entries` rows
+- [ ] The same happening added twice in one day produces two `user_option_entries` rows
 - [ ] A sync round-trip against nullable `category` decodes without falling back to `.body`
 - [ ] Project builds with zero references to `EnergyCategory` outside the migration path
 

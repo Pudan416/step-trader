@@ -4,7 +4,7 @@ Self-contained brief for reworking Nowhere's Feeds tab. Written to be handed to
 an implementer cold. Design rationale lives in `Feeds-Spec.md`; this is the
 execution surface.
 
-Read `CanvasPieces-Brief.md` §1 for shared project context and the build command.
+Read `Happenings-Brief.md` §1 for shared project context and the build command.
 The two reworks are independent and can proceed in either order.
 
 ---

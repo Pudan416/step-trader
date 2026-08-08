@@ -1,4 +1,4 @@
-# Canvas pieces — replacing body/mind/heart
+# Canvas happenings — replacing body/mind/heart
 
 **Date:** 2026-08-08
 **Status:** Draft, awaiting review
@@ -11,7 +11,7 @@
 The redesign started as a view-layer rebuild driven by two complaints: the app
 looks unpolished, and its five-tab structure buries the actions people use most.
 Answering the second complaint surfaced a deeper one — the body / mind / heart
-split is itself the thing making adding a piece slow. You cannot pick an
+split is itself the thing making adding a happening slow. You cannot pick an
 activity without first picking which of three dimensions it belongs to, and that
 classification means nothing to the person doing it.
 
@@ -24,7 +24,7 @@ The redesign is a stack of three specs. This one was inserted ahead of them:
 
 | Spec | Covers | Status |
 |------|--------|--------|
-| **0. Canvas pieces** | This document — kill categories, add the palette | Draft |
+| **0. Canvas happenings** | This document — kill categories, add the palette | Draft |
 | A. Foundation + shell | Design tokens, component set, navigation and IA | Not started |
 | B. Core loop surfaces | Canvas home, Feeds and PayGate | Not started |
 | C. Everything else | Now, Notes, Settings, widget, shield, onboarding narrative | Not started |
@@ -43,7 +43,7 @@ on the canvas.
 
 After: tap the `+`, a palette opens showing ten things as organic blob shapes,
 tap one, it lands on the canvas immediately. A separate `+` node in the palette
-takes free text and creates a new piece on the spot.
+takes free text and creates a new happening on the spot.
 
 The reference for the palette's look is a metaball cluster — overlapping
 gradient blobs with labels set directly on them. `MetaballGenerator` and
@@ -56,10 +56,10 @@ gradient blobs with labels set directly on them. `MetaballGenerator` and
 Three near-identical types collapse into one.
 
 Removed: `EnergyCategory`, `CustomEnergyOption`, `EphemeralMoment`.
-Reshaped: `EnergyOption` becomes `Piece`; `OptionEntry` loses `category`.
+Reshaped: `EnergyOption` becomes `Happening`; `OptionEntry` loses `category`.
 
 ```swift
-struct Piece: Identifiable, Codable, Equatable {
+struct Happening: Identifiable, Codable, Equatable {
     let id: String
     var title: String
     let isBuiltIn: Bool
@@ -71,7 +71,7 @@ struct Piece: Identifiable, Codable, Equatable {
 `useCount` and `lastUsedAt` are what drive palette ordering, so they are part of
 the model rather than derived at read time.
 
-### Built-in pieces
+### Built-in happenings
 
 There are 31 built-in options today (body 11, mind 10, heart 10). The palette
 shows ten, so the built-in set is cut to ten — chosen for everyday specificity
@@ -79,7 +79,7 @@ over category coverage.
 
 Proposed set, to be confirmed during implementation:
 
-| # | Piece |
+| # | Happening |
 |---|-------|
 | 1 | Walk |
 | 2 | Workout |
@@ -97,7 +97,7 @@ convention built-ins already use.
 
 Cutting built-ins does not orphan user data: existing `OptionEntry` rows
 reference option ids, and any id no longer in the built-in set is reconstituted
-as a `Piece` with `isBuiltIn: false` on first migration pass.
+as a `Happening` with `isBuiltIn: false` on first migration pass.
 
 ---
 
@@ -113,7 +113,7 @@ forming.
 
 - Score is `useCount`, ties broken by more recent `lastUsedAt`.
 - Top ten are shown.
-- Built-in and user pieces are ranked together, with no visual distinction.
+- Built-in and user happenings are ranked together, with no visual distinction.
 - The computed order is cached against `dayKey` and only recomputed when
   `dayKey` changes.
 
@@ -121,9 +121,9 @@ forming.
 calendar midnight. This is the same mechanism `AppModel+DailyRandomTheme`
 already uses, and it should reuse that pattern rather than invent a second one.
 
-A piece created mid-day is appended to the end of the frozen order and shown in
+A happening created mid-day is appended to the end of the frozen order and shown in
 addition to the ten, so the palette may hold up to eleven entries on the day a
-piece is created. It takes its ranked position — and the list returns to ten —
+happening is created. It takes its ranked position — and the list returns to ten —
 the next day. Nothing already on screen moves.
 
 ### Layout
@@ -136,7 +136,7 @@ category-independent.
 
 ### Free text entry
 
-Entering text creates a `Piece` with `isBuiltIn: false`, `useCount: 1`,
+Entering text creates a `Happening` with `isBuiltIn: false`, `useCount: 1`,
 `lastUsedAt: now`, and spawns its canvas element in the same action. There is no
 separate confirm step and no category to assign.
 
@@ -183,15 +183,15 @@ Three single-value keys (`bodyCanvasShape`, `mindCanvasShape`,
 Categories supplied 60 of the 100 daily points — 20 each. The replacement:
 
 ```
-pieces = min(additions × 10, 60)
-day    = steps(20) + sleep(20) + pieces(60) = 100
+happenings = min(additions × 10, 60)
+day    = steps(20) + sleep(20) + happenings(60) = 100
 ```
 
 The 100 ceiling is unchanged, which matters because onboarding has a slide
 built on it.
 
 Removed from `AppModel+DailyEnergy`: `bodyPointsToday`, `mindPointsToday`,
-`heartPointsToday`. Added: `piecePointsToday`.
+`heartPointsToday`. Added: `happeningPointsToday`.
 
 Additions past the sixth still appear on the canvas and still count toward
 `useCount`. They just stop earning.
@@ -229,7 +229,7 @@ frozenShapeType = try c.decodeIfPresent(CanvasShapeType.self, forKey: .frozenSha
 not part of the domain model.
 
 `PastDaySnapshot` keeps decoding `bodyPoints` / `mindPoints` / `heartPoints` for
-historical rows but stops writing them. New rows write `piecePoints`.
+historical rows but stops writing them. New rows write `happeningPoints`.
 
 ---
 
@@ -270,16 +270,16 @@ morning and again at night).
 local `OptionEntry` already carries its own `id`, so the client side is
 unchanged.
 
-The alternative — one addition per piece per day — caps a day at ten additions,
-makes the 60-point ceiling reachable only by using six distinct pieces, and
+The alternative — one addition per happening per day — caps a day at ten additions,
+makes the 60-point ceiling reachable only by using six distinct happenings, and
 quietly punishes people whose days repeat. Rejected.
 
 ## Fallout
 
 | Area | Resolution |
 |------|-----------|
-| `MeView` dimension breakdown | Replaced by three color sources: steps / sleep / additions. Mirrors the new 100-point formula honestly instead of pretending to be analytics |
-| `EnergyRoutine` | `bodyIds`/`mindIds`/`heartIds` collapse to a flat `pieceIds` |
+| `MeView` dimension breakdown | Replaced by the three entities — sleep / steps / happenings — mirroring the new 100-point formula instead of pretending to be analytics. The full rework of that screen is `Me-Spec.md`, which depends on this spec |
+| `EnergyRoutine` | `bodyIds`/`mindIds`/`heartIds` collapse to a flat `happeningIds` |
 | `ActivitySuggestion` | Drops `category`; `suggestedCategory` on workouts is removed |
 | `RadialHoldMenu` | Deleted. Replaced by the palette |
 | `CategoryDetailView` | Deleted. Replaced by the palette |
@@ -307,7 +307,7 @@ and hardcoding the demo spawn's shape — with no narrative or copy changes.
 
 - `DailyEnergyLogicTests` and `EnergyRecalcTests` both assert the five-part
   100-point formula and must be rewritten for the three-part one.
-- New: `piecePointsToday` caps at 60 regardless of addition count.
+- New: `happeningPointsToday` caps at 60 regardless of addition count.
 - New: palette ordering is stable within a `dayKey` and re-ranks across one.
 - New: a mid-day addition appears in the palette without reordering it.
 - New (regression): a `DayCanvas` fixture saved in the old format, with a
@@ -317,7 +317,7 @@ and hardcoding the demo spawn's shape — with no narrative or copy changes.
 - `allowedCanvasShapes` cannot be emptied.
 - Non-Pro user with Organic in `allowedCanvasShapes` never spawns an Organic
   element, and the preference survives.
-- New: the same piece added twice in one day produces two `user_option_entries`
+- New: the same happening added twice in one day produces two `user_option_entries`
   rows rather than an upsert collision.
 - New: a sync round-trip against a schema where `category` is null decodes
   without falling back to `.body`.
