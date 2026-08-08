@@ -21,7 +21,7 @@ App Group `group.personal-project.StepsTrader`.
 Build:
 
 ```bash
-xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 16' -configuration Debug build
+xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug build
 ```
 
 FamilyControls and DeviceActivity need a physical device; canvas and palette work
