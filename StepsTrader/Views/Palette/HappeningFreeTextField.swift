@@ -25,7 +25,11 @@ struct HappeningFreeTextField: View {
         .foregroundStyle(.black.opacity(0.8))
         .multilineTextAlignment(.center)
         .textInputAutocapitalization(.sentences)
-        .autocorrectionDisabled(false)
+        // A happening is whatever the user calls it. Autocorrect against the
+        // active keyboard language rewrites unfamiliar words outright — typing
+        // "Sauna" on a Russian keyboard produced "Выгоды" — and the label is
+        // then wrong forever. A typo is the lesser failure.
+        .autocorrectionDisabled(true)
         .submitLabel(.done)
         .focused($isFocused)
         .onAppear { isFocused = true }

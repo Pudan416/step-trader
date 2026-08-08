@@ -139,13 +139,16 @@ struct HappeningPaletteView: View {
                 .lineLimit(3)
                 .frame(width: blob.radius * 1.5)
         }
+        // contentShape must be applied to the sized frame, BEFORE .position():
+        // .position() expands the view to fill the parent, so a shape applied
+        // after it covers the whole cluster and the topmost node eats every tap.
         .frame(width: diameter, height: diameter)
-        .position(blob.center)
         .contentShape(Circle())
         .onTapGesture {
             onPick(happening)
             dismiss()
         }
+        .position(blob.center)
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(happening.localizedTitle())
@@ -176,9 +179,9 @@ struct HappeningPaletteView: View {
             }
         }
         .frame(width: diameter, height: diameter)
-        .position(blob.center)
         .contentShape(Circle())
         .onTapGesture { isTypingNew = true }
+        .position(blob.center)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(Text("Add a happening", comment: "Palette free-text node"))
     }
