@@ -38,10 +38,15 @@ the PayGate, warm and deliberate, but it is Nowhere's own screen and has nothing
 to do with the system shield.
 
 **The timer.** Choosing a window opens a timer screen: a soft radial arc that
-depletes as time passes, remaining time in large monospaced digits, and beneath
-it the list of apps this window covers. Tapping an app in that list launches it.
+depletes as the window is spent, remaining time in large monospaced digits, and
+beneath it the list of apps this window covers. Tapping an app in that list
+launches it, through the schemes already registered in `TargetResolver`.
 
-There is no pause control. A window, once bought, runs.
+There is no pause control. The screen shows time and launches apps, nothing else.
+
+The screen uses the app's night theme. The reference image for this screen is
+light, but it was supplied as an illustration of how time is *displayed* — the
+depleting arc and the large monospaced digits — not as a color direction.
 
 ---
 
@@ -79,21 +84,57 @@ So the timer exists twice: as the full screen inside Nowhere, and as a Live
 Activity outside it. The full screen is where the design lives; the Live Activity
 is where it is actually useful.
 
-### DeviceActivity monitors are capped
+### DeviceActivity monitors are capped at twenty
 
 Each group registers its own monitor, `usageBudget_<groupId>`, in
-`DeviceActivityCenter`. The framework caps how many activities can be monitored
-at once — around twenty, and the current code does not handle exceeding it.
+`DeviceActivityCenter`. **Twenty** activities is the documented ceiling for an
+app and its extensions combined; beyond it `startMonitoring` throws
+`DeviceActivityCenter.MonitoringError.excessiveActivities`. Two neighbouring
+limits matter as well: a selection holds at most **50 application tokens**, and
+a schedule's interval cannot be shorter than **15 minutes**.
 
-Today this never surfaced because groups are few and deliberate. A flat list
-invites adding apps one at a time, and each one added as its own group is
-another monitor.
+The current code catches the throw and stops the monitor, but surfaces nothing
+to the user. That is acceptable today because groups are few and deliberate.
 
-**This must be measured on a physical device before the list ships.** If the cap
-is real at twenty, the list needs either a stated maximum or a strategy for
-sharing one monitor across concurrently unlocked entries. Until measured, treat
-the flat list's scale as unknown, and add explicit handling for the
-`excessiveActivities` failure rather than letting `startMonitoring` fail silently.
+The ceiling counts **concurrently monitored windows**, not rows in the list, so
+keeping groups visible means a user has to hold twenty windows open at once to
+reach it. That is unlikely but not impossible, and it must fail legibly rather
+than leaving an app silently unblocked. Add real handling for
+`excessiveActivities` with a user-facing message.
+
+---
+
+## The window is spent, not elapsed
+
+This is the single most important thing to understand before building the timer,
+and it is easy to miss because the code reads like a schedule.
+
+The `DeviceActivitySchedule` spans a full day, `0:00:00`–`23:59:59`. It exists
+only to satisfy the framework's 15-minute minimum. The actual window is measured
+by `DeviceActivityEvent` thresholds in **minutes of app usage**:
+
+```swift
+threshold: DateComponents(minute: m)
+```
+
+So "10 minutes" means ten minutes of actually looking at the app. Put the phone
+down and the window stops draining. This is deliberate and it stays.
+
+Two consequences the design has to absorb:
+
+**A wall-clock countdown would be a lie.** Digits melting away while the phone
+lies face-down would misreport what the user has left.
+
+**The real signal arrives once a minute.** `usageBudgetTick_<groupId>_<m>` events
+already fire per minute of usage. The honest indicator therefore steps a minute
+at a time. It does not flow. Do not interpolate between ticks to make it look
+smooth — the arc would run ahead of the truth and then jump backwards when the
+next tick lands.
+
+Note also that a 60-minute window currently registers around 64 events (59
+per-minute ticks, up to four widget milestones, one completion). The documented
+cap is on activities, not events, so this is legal — but it is heavy, and worth
+revisiting if the tick events prove unreliable.
 
 ---
 
@@ -107,38 +148,45 @@ Required:
 
 - `NSSupportsLiveActivities` in `Steps4/Info.plist`
 - An `ActivityAttributes` type carrying the entry's name, its icon identity, and
-  the window's end date
+  the remaining usage minutes
 - Live Activity views added to the existing widget extension
-- Start on unlock, from the app, in the PayGate flow
+- Start on unlock, from the app, in the PayGate flow. Live Activities may only be
+  *started* while the app is in the foreground, which the unlock flow satisfies
 - End on expiry and on early close
 
-**Render the countdown with `Text(timerInterval:countsDown:)`.** Live Activities
-cannot be updated once per second — the system throttles updates hard. Passing
-the interval lets the system animate the countdown itself with no updates at
-all. An implementation that pushes per-second updates will appear to work in
-development and then stall on a real device.
+**Do not use `Text(timerInterval:countsDown:)`.** It is the usual answer for
+Live Activity countdowns and it is wrong here: it counts wall-clock time, and
+this window is spent by usage. The Live Activity has to be updated on each
+per-minute tick instead.
+
+### Unresolved: can the monitor extension update the Live Activity?
+
+The ticks arrive in the `DeviceActivityMonitor` extension. The app is not
+running at that moment — the user is inside Instagram. So the update has to come
+from the extension.
+
+**Whether `Activity.update` works from a `DeviceActivityMonitor` extension is not
+established.** Apple documents that Live Activities can be updated from the
+background, but not that this specific extension may do it, and there are
+developer reports of `Activity.activities` arriving empty inside a widget
+extension — with the fix being to move the update into the app, which is not
+available to us here.
+
+**Resolve this with a spike on a physical device before building the screen.**
+It is a yes/no that decides the shape of the feature, and it cannot be settled
+by reading.
+
+If the answer is no, the fallback is a Live Activity that shows the window's
+size and a `staleDate`, refreshing only when the app next runs — degraded, but
+honest about what it knows. Do not ship a Live Activity that silently displays a
+stale number as if it were live.
+
+Frequency is a second risk: iOS throttles frequent updates against an
+undocumented budget. Sixty updates across an hour-long window is within reach of
+that. `NSSupportsLiveActivitiesFrequentUpdates` exists for this case and should
+be set, and the spike should confirm updates still land late in a long window.
 
 Deployment target is iOS 18, comfortably above ActivityKit's 16.1 requirement.
-
----
-
-## Open question: the timer screen is light
-
-The reference for the timer is cream-backgrounded with a warm orange arc and
-black digits. The app ships a single **night** theme — `#222831` background,
-near-white text — and `design.json` lists `night` as the only supported theme.
-
-Dropping a light screen into a dark app is a deliberate choice or a mistake, and
-which one it is has not been decided. Two coherent readings:
-
-1. The timer is intentionally a bright interruption — the one screen that
-   doesn't belong to the app's night, marking that you have left the canvas and
-   entered borrowed time.
-2. The reference is a style study and the timer should be restyled onto the
-   night theme, with the warm arc reading against a dark background.
-
-This needs an answer before the screen is built. It also affects the Live
-Activity, which should match whatever the full screen does.
 
 ---
 
@@ -179,11 +227,21 @@ not how blocking works.
 - [ ] A group shows as a clustered icon with its name, and can still be created manually
 - [ ] Locked entries carry a lock badge, identical across singles and groups
 - [ ] Tapping a locked entry offers 10 / 30 / 60 minutes at 4 / 10 / 20 colors
-- [ ] Buying a window opens the timer screen
+- [ ] Buying a window opens the timer screen, in the night theme
 - [ ] The timer lists the window's apps, and tapping one launches it
+- [ ] The timer does not move while the covered apps are unused — verified by
+      leaving the phone idle with a window open and confirming nothing drains
+- [ ] The arc steps on tick boundaries and never runs backwards
 - [ ] A Live Activity appears on unlock and shows remaining time in the Dynamic Island
-- [ ] The Live Activity counts down without per-second updates
 - [ ] The Live Activity ends on expiry and on early close
-- [ ] Exceeding the DeviceActivity cap surfaces a real error instead of failing silently
-- [ ] **Measured on a physical device:** the number of concurrent monitors before
-      `startMonitoring` refuses, recorded in this document
+- [ ] Exceeding the DeviceActivity cap surfaces a user-facing error rather than
+      leaving an app silently unblocked
+
+### Spike, before the timer is built
+
+- [ ] **On a physical device:** determine whether `Activity.update` succeeds from
+      inside the `DeviceActivityMonitor` extension. Record the answer here.
+      If it fails, the Live Activity degrades to the `staleDate` fallback and
+      that must be reflected in this spec before implementation starts.
+- [ ] Confirm per-minute updates still land in the final minutes of a 60-minute
+      window, with `NSSupportsLiveActivitiesFrequentUpdates` set
