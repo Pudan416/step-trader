@@ -233,6 +233,47 @@ historical rows but stops writing them. New rows write `piecePoints`.
 
 ---
 
+## Supabase
+
+Categories are not only local. Three places in the schema hold them, all
+`NOT NULL`, so the client cannot simply stop writing them:
+
+| Table | Column |
+|-------|--------|
+| `user_custom_activities` | `category text NOT NULL` |
+| `user_option_entries` | `category text NOT NULL` |
+| `user_preferences` | `body_canvas_shape` / `mind_canvas_shape` / `heart_canvas_shape`, each `text NOT NULL` |
+
+Old app versions stay in the field during rollout and keep writing these
+columns, so nothing can be dropped in this change. The sequence is:
+
+1. **Now:** migration relaxes all five columns to nullable. New clients stop
+   writing them; old clients keep working unchanged.
+2. **Now:** add `allowed_canvas_shapes text[]` to `user_preferences`, backfilled
+   from the union of the three existing shape columns.
+3. **Later, separate change:** once telemetry shows no old clients writing,
+   drop the five columns.
+
+`SupabaseSyncService+Entries` and `SupabaseSyncService+Selections` both encode
+and decode `category` and need the field removed from their row structs.
+
+### Repeat additions and the entries primary key
+
+`user_option_entries` is keyed `PRIMARY KEY (user_id, day_key, option_id)` —
+one row per option per day. That was correct when a category selection was a
+one-shot choice. It is wrong now: the economy counts additions, and a palette
+of everyday things invites logging the same one twice (called mom in the
+morning and again at night).
+
+**Decision:** repeat additions are allowed. The primary key becomes a surrogate
+`id uuid`, with `(user_id, day_key, option_id)` demoted to a plain index. The
+local `OptionEntry` already carries its own `id`, so the client side is
+unchanged.
+
+The alternative — one addition per piece per day — caps a day at ten additions,
+makes the 60-point ceiling reachable only by using six distinct pieces, and
+quietly punishes people whose days repeat. Rejected.
+
 ## Fallout
 
 | Area | Resolution |
@@ -276,6 +317,10 @@ and hardcoding the demo spawn's shape — with no narrative or copy changes.
 - `allowedCanvasShapes` cannot be emptied.
 - Non-Pro user with Organic in `allowedCanvasShapes` never spawns an Organic
   element, and the preference survives.
+- New: the same piece added twice in one day produces two `user_option_entries`
+  rows rather than an upsert collision.
+- New: a sync round-trip against a schema where `category` is null decodes
+  without falling back to `.body`.
 
 ---
 
