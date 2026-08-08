@@ -17,74 +17,67 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         super.tearDown()
     }
 
-    func testLoadDailyEnergyState_MissingAnchor_DoesNotResetSelectionsOrBaseEnergy() throws {
-        // Given persisted daily state exists but anchor key is missing.
-        saveStringArray(["activity_pushups", "activity_walking"], key: SharedKeys.dailySelectionsKey("body"))
-        saveStringArray(["creativity_reading"], key: SharedKeys.dailySelectionsKey("mind"))
-        saveStringArray(["joys_family"], key: SharedKeys.dailySelectionsKey("heart"))
+    /// A missing anchor key must seed the anchor, not wipe the day. The old
+    /// version of this guarded the three category arrays; the state it protects
+    /// is now `todayAdditions`, but the regression is the same one.
+    func testLoadDailyEnergyState_MissingAnchor_DoesNotResetAdditionsOrBaseEnergy() throws {
+        let today = AppModel.dayKey(for: .now)
+        let additions = [
+            OptionEntry(id: "a", dayKey: today, optionId: "happening_walk",
+                        colorHex: "#CC5050", timestamp: .now, assetVariant: nil),
+            OptionEntry(id: "b", dayKey: today, optionId: "happening_read",
+                        colorHex: "#6098CC", timestamp: .now, assetVariant: nil),
+        ]
+        defaults.set(try JSONEncoder().encode(additions), forKey: SharedKeys.todayAdditions)
         defaults.set(65, forKey: SharedKeys.baseEnergyToday)
-        defaults.set(2, forKey: "energyMigrationVersion_v1")
         defaults.removeObject(forKey: SharedKeys.dailyEnergyAnchor)
 
         let model = makeModel()
         model.loadDailyEnergyState()
 
-        XCTAssertEqual(model.dailyBodySelections, ["activity_pushups", "activity_walking"])
-        XCTAssertEqual(model.dailyRestSelections, ["creativity_reading"])
-        XCTAssertEqual(model.dailyHeartSelections, ["joys_family"])
+        XCTAssertEqual(model.todayAdditions.map(\.id), ["a", "b"])
         XCTAssertEqual(model.baseEnergyToday, 65)
-        XCTAssertNotNil(defaults.object(forKey: SharedKeys.dailyEnergyAnchor), "Anchor should be initialized, not reset state")
+        XCTAssertNotNil(
+            defaults.object(forKey: SharedKeys.dailyEnergyAnchor),
+            "Anchor should be initialized, not reset state"
+        )
     }
 
-    func testLoadDailyEnergyState_SlotsDoNotOverridePersistedSelections() throws {
-        // Given persisted selections are broader than 4 slots.
-        let expectedBody = ["activity_pushups", "activity_walking"]
-        let expectedMind = ["creativity_reading", "creativity_journaling"]
-        let expectedHeart = ["joys_friends", "joys_music"]
-        saveStringArray(expectedBody, key: SharedKeys.dailySelectionsKey("body"))
-        saveStringArray(expectedMind, key: SharedKeys.dailySelectionsKey("mind"))
-        saveStringArray(expectedHeart, key: SharedKeys.dailySelectionsKey("heart"))
-        defaults.set(2, forKey: "energyMigrationVersion_v1")
-        defaults.set(Date(), forKey: SharedKeys.dailyEnergyAnchor)
+    /// The canvas is the backstop when the additions key is missing — a user
+    /// upgrading mid-day must not see their day emptied.
+    func testLoadDailyEnergyState_RecoversAdditionsFromSavedCanvas() throws {
+        let today = AppModel.dayKey(for: .now)
+        defaults.removeObject(forKey: SharedKeys.todayAdditions)
+        defaults.set(Date.now, forKey: SharedKeys.dailyEnergyAnchor)
 
-        // Persist 4 slots with only a subset (legacy/truncated UI projection).
-        let subsetSlots: [DayCanvasSlot] = [
-            DayCanvasSlot(category: .body, optionId: "activity_pushups"),
-            DayCanvasSlot(category: .body, optionId: "activity_walking"),
-            DayCanvasSlot(category: .mind, optionId: "creativity_reading"),
-            DayCanvasSlot(category: nil, optionId: nil),
+        var canvas = DayCanvas(dayKey: today)
+        canvas.elements = [
+            CanvasElement.spawn(
+                optionId: "happening_walk", color: "#CC5050", label: "Walk",
+                existingElements: [], dayKey: today
+            )
         ]
-        defaults.set(try JSONEncoder().encode(subsetSlots), forKey: SharedKeys.dailyCanvasSlots)
+        _ = CanvasStorageService.shared.saveCanvas(canvas)
+        defer { CanvasStorageService.shared.deleteCanvas(for: today) }
 
         let model = makeModel()
         model.loadDailyEnergyState()
 
-        XCTAssertEqual(model.dailyBodySelections, expectedBody)
-        XCTAssertEqual(model.dailyRestSelections, expectedMind)
-        XCTAssertEqual(model.dailyHeartSelections, expectedHeart)
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk"])
     }
 
     private func clearEnergyDefaults() {
         let keys = [
-            "dailyEnergyAnchor_v1",
-            "dailySleepHours_v1",
-            "baseEnergyToday_v1",
+            SharedKeys.dailyEnergyAnchor,
+            SharedKeys.dailySleepHours,
+            SharedKeys.baseEnergyToday,
+            SharedKeys.todayAdditions,
+            SharedKeys.happeningCatalog,
             "dailyEnergySelections_v1_body",
             "dailyEnergySelections_v1_mind",
             "dailyEnergySelections_v1_heart",
-            "preferredEnergyOptions_v1_body",
-            "preferredEnergyOptions_v1_mind",
-            "preferredEnergyOptions_v1_heart",
-            "dailyChoiceSlots_v1",
-            "energyMigrationVersion_v1",
         ]
         keys.forEach { defaults.removeObject(forKey: $0) }
-    }
-
-    private func saveStringArray(_ value: [String], key: String) {
-        if let data = try? JSONEncoder().encode(value) {
-            defaults.set(data, forKey: key)
-        }
     }
 
     private func makeModel() -> AppModel {

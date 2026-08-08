@@ -3,6 +3,31 @@ import XCTest
 
 @MainActor
 final class HappeningAdditionsTests: XCTestCase {
+
+    /// The legacy selection keys are written by several cases here and read by
+    /// the migration path, so they have to be cleared around every one of them.
+    private static let legacyKeys = [
+        "dailyEnergySelections_v1_body",
+        "dailyEnergySelections_v1_mind",
+        "dailyEnergySelections_v1_heart",
+    ]
+
+    override func setUp() {
+        super.setUp()
+        clearLegacyKeys()
+    }
+
+    override func tearDown() {
+        clearLegacyKeys()
+        super.tearDown()
+    }
+
+    private func clearLegacyKeys() {
+        let defaults = UserDefaults.stepsTrader()
+        Self.legacyKeys.forEach { defaults.removeObject(forKey: $0) }
+        defaults.removeObject(forKey: SharedKeys.todayAdditions)
+    }
+
     func testEnergyRoutineRoundTripsFlatHappeningIds() throws {
         let original = EnergyRoutine(name: "Morning", happeningIds: ["happening_walk", "happening_coffee"])
         let data = try JSONEncoder().encode(original)
@@ -111,12 +136,17 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertEqual(restored.todayAdditions.map(\.id), ["today"])
     }
 
-    func testLoadMigratesLegacyCategorySelectionsWhenAdditionsKeyIsAbsent() {
+    /// The old build persisted selections as JSON-encoded Data, not as a native
+    /// array — its `saveStringArray` went through `JSONEncoder`. Writing them
+    /// the native way here would make this test pass while the production path
+    /// silently read nothing, which is exactly the failure mode this migration
+    /// exists to prevent.
+    func testLoadMigratesLegacyCategorySelectionsWhenAdditionsKeyIsAbsent() throws {
         let defaults = UserDefaults.stepsTrader()
         defaults.removeObject(forKey: SharedKeys.todayAdditions)
-        defaults.set(["body_walking"], forKey: "dailyEnergySelections_v1_body")
-        defaults.set(["mind_learning"], forKey: "dailyEnergySelections_v1_mind")
-        defaults.set(["heart_joy"], forKey: "dailyEnergySelections_v1_heart")
+        try setLegacySelections(["body_walking"], category: "body", in: defaults)
+        try setLegacySelections(["mind_learning"], category: "mind", in: defaults)
+        try setLegacySelections(["heart_joy"], category: "heart", in: defaults)
         defaults.set(Date.now, forKey: SharedKeys.dailyEnergyAnchor)
 
         let model = makeModel(clearAdditions: false)
@@ -127,6 +157,30 @@ final class HappeningAdditionsTests: XCTestCase {
             ["body_walking", "mind_learning", "heart_joy"]
         )
         XCTAssertNotNil(defaults.data(forKey: SharedKeys.todayAdditions))
+    }
+
+    /// Some values may have been written as a native array by other code paths.
+    /// Tolerated, so neither shape is lost.
+    func testLoadMigratesLegacySelectionsStoredAsNativeArray() {
+        let defaults = UserDefaults.stepsTrader()
+        defaults.removeObject(forKey: SharedKeys.todayAdditions)
+        defaults.set(["body_walking"], forKey: "dailyEnergySelections_v1_body")
+        defaults.set(Date.now, forKey: SharedKeys.dailyEnergyAnchor)
+
+        let model = makeModel(clearAdditions: false)
+        model.loadDailyEnergyState()
+
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["body_walking"])
+    }
+
+    /// Exactly how the pre-migration build wrote them.
+    private func setLegacySelections(
+        _ ids: [String], category: String, in defaults: UserDefaults
+    ) throws {
+        defaults.set(
+            try JSONEncoder().encode(ids),
+            forKey: "dailyEnergySelections_v1_\(category)"
+        )
     }
 
     private func makeModel(clearAdditions: Bool = true) -> AppModel {

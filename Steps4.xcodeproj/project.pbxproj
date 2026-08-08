@@ -13,9 +13,7 @@
 		200AC5A62F16DA3F0018004E /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A52F16DA3F0018004E /* AuthenticationService.swift */; };
 		200AC5A82F16DA570018004E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5A72F16DA570018004E /* LoginView.swift */; };
 		200AC5B12F16DB100018004E /* AuthenticationService+CachedProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */; };
-		201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816112F33C8C10006B350 /* CustomActivityTests.swift */; };
 		201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816132F33C8CC0006B350 /* DayBoundaryTests.swift */; };
-		201816162F33C8D80006B350 /* CustomActivityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201816152F33C8D80006B350 /* CustomActivityUITests.swift */; };
 		201A0FBC2F2CDEE8001BB105 /* SupabaseSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201A0FBB2F2CDEE8001BB105 /* SupabaseSyncService.swift */; };
 		201DF6D72F377E28007D716B /* LiteTicketConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201DF6D62F377E28007D716B /* LiteTicketConfig.swift */; };
 		201DF6F92F377E57007D716B /* AppModel+TicketGroups.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201DF6F82F377E57007D716B /* AppModel+TicketGroups.swift */; };
@@ -345,9 +343,7 @@
 		200AC5A52F16DA3F0018004E /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
 		200AC5A72F16DA570018004E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		200AC5B02F16DB100018004E /* AuthenticationService+CachedProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthenticationService+CachedProfile.swift"; sourceTree = "<group>"; };
-		201816112F33C8C10006B350 /* CustomActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityTests.swift; sourceTree = "<group>"; };
 		201816132F33C8CC0006B350 /* DayBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBoundaryTests.swift; sourceTree = "<group>"; };
-		201816152F33C8D80006B350 /* CustomActivityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomActivityUITests.swift; sourceTree = "<group>"; };
 		201A0FBB2F2CDEE8001BB105 /* SupabaseSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseSyncService.swift; sourceTree = "<group>"; };
 		201DF6D62F377E28007D716B /* LiteTicketConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteTicketConfig.swift; sourceTree = "<group>"; };
 		201DF6D82F377E3B007D716B /* TicketGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketGroup.swift; sourceTree = "<group>"; };
@@ -1113,7 +1109,6 @@
 				T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */,
 				201816132F33C8CC0006B350 /* DayBoundaryTests.swift */,
 				20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */,
-				201816112F33C8C10006B350 /* CustomActivityTests.swift */,
 				AA000003AAAA000300000002 /* HealthKitTests.swift */,
 				20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */,
 				20RTRY022F5000010018004E /* RetryQueueClassificationTests.swift */,
@@ -1143,7 +1138,6 @@
 			isa = PBXGroup;
 			children = (
 				T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
-				201816152F33C8D80006B350 /* CustomActivityUITests.swift */,
 			);
 			path = Steps4UITests;
 			sourceTree = "<group>";
@@ -1662,7 +1656,6 @@
 				CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */,
 				T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */,
 				20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */,
-				201816122F33C8C10006B350 /* CustomActivityTests.swift in Sources */,
 				AA000003AAAA000300000001 /* HealthKitTests.swift in Sources */,
 				20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */,
 				20RTRY012F5000010018004E /* RetryQueueClassificationTests.swift in Sources */,
@@ -1691,7 +1684,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */,
-				201816162F33C8D80006B350 /* CustomActivityUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

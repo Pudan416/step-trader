@@ -110,9 +110,25 @@ extension AppModel {
         }
     }
 
+    /// Reads a legacy per-category selection array.
+    ///
+    /// The old build persisted these as **JSON-encoded `Data`** (its private
+    /// `saveStringArray` did `JSONEncoder().encode` then `set(data:)`), so
+    /// `stringArray(forKey:)` returns nil for every real user's stored value.
+    /// Both shapes are accepted here: `Data` is what is actually on disk, and
+    /// the native array form costs one line to tolerate.
+    private func legacySelectionIds(_ defaults: UserDefaults, category: String) -> [String] {
+        let key = "dailyEnergySelections_v1_\(category)"
+        if let data = defaults.data(forKey: key),
+           let decoded = try? JSONDecoder().decode([String].self, from: data) {
+            return decoded
+        }
+        return defaults.stringArray(forKey: key) ?? []
+    }
+
     private func migrateLegacySelections(from defaults: UserDefaults) {
-        let legacyIds = ["body", "mind", "heart"].flatMap { raw in
-            defaults.stringArray(forKey: "dailyEnergySelections_v1_\(raw)") ?? []
+        let legacyIds = ["body", "mind", "heart"].flatMap {
+            legacySelectionIds(defaults, category: $0)
         }
         let todayKey = Self.dayKey(for: .now)
         todayAdditions = legacyIds.map { optionId in
