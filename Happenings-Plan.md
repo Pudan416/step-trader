@@ -2436,11 +2436,14 @@ WHERE happening_ids IS NULL;
 
 ```
 
-**Status: written and committed, NOT applied.** The file is
-`supabase/migrations/20260808_happenings_relax_categories.sql`. Applying it needs
-the user — the Supabase MCP `apply_migration` tool is blocked by the auto-mode
-classifier for production writes. The PK swap the brief asked for is deliberately
-not in it; see Step 2.
+**Status: applied to production 2026-08-08** as migration `20260808164401`.
+File: `supabase/migrations/20260808164401_happenings_relax_categories.sql`.
+
+Verified after applying: all five columns nullable; `allowed_canvas_shapes`
+backfilled on 242/242 rows with zero empties and zero hidden legacy shapes;
+`happening_ids` backfilled on 4094/4094 rows.
+
+The PK swap the brief asked for is deliberately not in it; see Step 2.
 
 - [ ] **Step 2: Add the additions table (replaces the brief's PK swap)**
 
@@ -2480,9 +2483,13 @@ CREATE POLICY "Users can manage own additions"
 `id` has no database default: the client generates it (`OptionEntry.id` already
 exists), so an upsert on `id` is idempotent across retries of the same addition.
 
-Applying it needs the user — the Supabase MCP `apply_migration` tool is blocked
-by the auto-mode classifier for production writes. Commit the file, say so, and
-let them run it.
+**Status: applied to production 2026-08-08** as migration `20260808164438`.
+File: `supabase/migrations/20260808164438_happening_additions.sql`.
+
+Verified after applying: RLS on, one policy, `PRIMARY KEY (id)`, and **zero**
+unique constraints — so duplicate `(user_id, day_key, option_id)` rows are
+allowed, which is the point. `user_option_entries` still has
+`PRIMARY KEY (user_id, day_key, option_id)`, so deployed clients keep upserting.
 
 - [ ] **Step 3: Point the entries sync at the new table**
 
