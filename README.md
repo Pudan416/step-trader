@@ -110,7 +110,7 @@ Move to `.xcconfig` (Debug/Release) or use CI secrets before shipping.
 FamilyControls/DeviceActivity require a **physical device** (entitlements + system limitations).
 
 ```bash
-xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 16' -configuration Debug build
+xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug build
 ```
 
 ## Admin Tools
