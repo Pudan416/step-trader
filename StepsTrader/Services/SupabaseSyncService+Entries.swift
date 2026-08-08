@@ -63,6 +63,10 @@ extension SupabaseSyncService {
         }
     }
 
+    func performEntriesSyncForFullSync(_ entries: [OptionEntry]) async {
+        await performEntriesSync(entries: entries)
+    }
+
     /// Syncs one client-identified addition. Upserting by `id` makes retries
     /// idempotent while still allowing the same happening multiple times.
     func syncOptionEntry(_ entry: OptionEntry) async {

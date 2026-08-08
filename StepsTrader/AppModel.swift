@@ -176,20 +176,11 @@ final class AppModel: ObservableObject {
     /// Deferred from bootstrap — HealthKit auth must wait until the scene is active.
     var needsHealthKitAuthorization: Bool = false
     
-    @Published var dailyBodySelections: [String] = []
-    @Published var dailyRestSelections: [String] = []
-    @Published var dailyHeartSelections: [String] = []
     /// Every happening added today, in insertion order. Repeats are separate
     /// entries because both the canvas and economy count additions.
     @Published var todayAdditions: [OptionEntry] = []
     let happeningStore = HappeningStore()
     let paletteOrderCache = HappeningPaletteOrderCache()
-    /// Canvas tab: 4 slots (category + option each). Synced with daily *Selections.
-    @Published var dailyCanvasSlots: [DayCanvasSlot] = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
-    @Published var preferredBodyOptions: [String] = []
-    @Published var preferredRestOptions: [String] = []
-    @Published var preferredHeartOptions: [String] = []
-    @Published var customEnergyOptions: [CustomEnergyOption] = []
     @Published var savedRoutines: [EnergyRoutine] = []
     
     /// Single source of truth: UserEconomyStore.spentSteps (persisted as SharedKeys.spentStepsToday).
@@ -483,11 +474,9 @@ final class AppModel: ObservableObject {
         loadDayPassGrants()
         
         // 1.5 Restore daily energy state and spent balance so colors counts persist across restarts
-        loadEnergyPreferences()
         loadDailyEnergyState()
         AppLogger.energy.debug("📊 AFTER loadDailyEnergyState: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
 
-        loadCustomEnergyOptions()
         loadSavedRoutines()
         loadSpentStepsBalance()
         AppLogger.energy.debug("📊 AFTER loadSpentStepsBalance: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
@@ -511,7 +500,7 @@ final class AppModel: ObservableObject {
         let hasCompletedInitialRestore = g.bool(forKey: SharedKeys.hasCompletedInitialRestore)
         if isAuthenticated && !hasCompletedInitialRestore {
             let hasPriorLocalState = g.object(forKey: SharedKeys.dailyEnergyAnchor) != nil
-                || !customEnergyOptions.isEmpty
+                || !todayAdditions.isEmpty
                 || !ticketGroups.isEmpty
             if hasPriorLocalState {
                 // Existing install predating this flag — mark restored, don't clobber.

@@ -464,6 +464,8 @@ struct GalleryView: View {
                         suggestions: model._pendingActivitySuggestions,
                         onAccept: { suggestion in
                             model.acceptActivitySuggestion(suggestion)
+                            let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
+                            addAndSpawnHappening(optionId: suggestion.optionId, color: color)
                         },
                         onDismiss: { suggestion in
                             model.dismissActivitySuggestion(suggestion)

@@ -218,9 +218,7 @@ struct MainTabView: View {
                 showDetails: selection == Tab.canvas.rawValue,
                 stepsPoints: model.stepsPointsToday,
                 sleepPoints: model.sleepPointsToday,
-                bodyPoints: model.bodyPointsToday,
-                mindPoints: model.mindPointsToday,
-                heartPoints: model.heartPointsToday,
+                happeningPoints: model.happeningPointsToday,
                 baseEnergyToday: model.healthStore.baseEnergyToday,
                 onStepsTap: {
                     if selection == Tab.canvas.rawValue {
@@ -233,20 +231,6 @@ struct MainTabView: View {
                     }
                 },
                 onMoveTap: {
-                    if selection == Tab.canvas.rawValue {
-                        metricOverlay = .happenings
-                    } else {
-                        showHappeningPalette = true
-                    }
-                },
-                onRebootTap: {
-                    if selection == Tab.canvas.rawValue {
-                        metricOverlay = .happenings
-                    } else {
-                        showHappeningPalette = true
-                    }
-                },
-                onJoyTap: {
                     if selection == Tab.canvas.rawValue {
                         metricOverlay = .happenings
                     } else {

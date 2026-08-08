@@ -9,20 +9,16 @@ struct StepBalanceCard: View {
     let dayEndMinute: Int
     let showDetails: Bool
     
-    // Category points
+    // Daily economy points
     let stepsPoints: Int
     let sleepPoints: Int
-    let bodyPoints: Int
-    let mindPoints: Int
-    let heartPoints: Int
+    let happeningPoints: Int
     let baseEnergyToday: Int
     
     // Navigation handlers
     var onStepsTap: (() -> Void)? = nil
     var onSleepTap: (() -> Void)? = nil
     var onMoveTap: (() -> Void)? = nil
-    var onRebootTap: (() -> Void)? = nil
-    var onJoyTap: (() -> Void)? = nil
     var onColorsHelpTap: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
@@ -209,32 +205,14 @@ struct StepBalanceCard: View {
                         )
                     }
                     
-                    HStack(spacing: 8) {
-                        metricChip(
-                            icon: "figure.walk",
-                            label: String(localized: "Body", comment: "StepBalanceCard – body chip label"),
-                            value: bodyPoints,
-                            maxValue: 20,
-                            accessibilityId: "chip_body",
-                            onTap: { onMoveTap?() }
-                        )
-                        metricChip(
-                            icon: "brain.head.profile",
-                            label: String(localized: "Mind", comment: "StepBalanceCard – mind chip label"),
-                            value: mindPoints,
-                            maxValue: 20,
-                            accessibilityId: "chip_mind",
-                            onTap: { onRebootTap?() }
-                        )
-                        metricChip(
-                            icon: "heart.fill",
-                            label: String(localized: "Heart", comment: "StepBalanceCard – heart chip label"),
-                            value: heartPoints,
-                            maxValue: 20,
-                            accessibilityId: "chip_heart",
-                            onTap: { onJoyTap?() }
-                        )
-                    }
+                    metricChip(
+                        icon: "sparkles",
+                        label: String(localized: "Happenings", comment: "StepBalanceCard – happenings chip label"),
+                        value: happeningPoints,
+                        maxValue: HappeningDefaults.happeningsMaxPoints,
+                        accessibilityId: "chip_happenings",
+                        onTap: { onMoveTap?() }
+                    )
                 }
                 .transition(.asymmetric(
                     insertion: .move(edge: .top).combined(with: .opacity),
@@ -313,9 +291,7 @@ private func metricChip(icon: String, label: String, value: Int, maxValue: Int, 
             showDetails: true,
             stepsPoints: 14,
             sleepPoints: 16,
-            bodyPoints: 20,
-            mindPoints: 15,
-            heartPoints: 10,
+            happeningPoints: 45,
             baseEnergyToday: 75
         )
         
@@ -329,9 +305,7 @@ private func metricChip(icon: String, label: String, value: Int, maxValue: Int, 
             showDetails: false,
             stepsPoints: 10,
             sleepPoints: 8,
-            bodyPoints: 20,
-            mindPoints: 15,
-            heartPoints: 10,
+            happeningPoints: 45,
             baseEnergyToday: 40
         )
     }
