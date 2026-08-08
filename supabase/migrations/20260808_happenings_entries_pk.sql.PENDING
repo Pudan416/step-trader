@@ -1,0 +1,48 @@
+-- BLOCKED — do not apply. Renamed to .PENDING so it cannot run by accident.
+--
+-- WHAT THIS WAS MEANT TO DO
+--
+-- Happenings-Brief.md §9 ("Repeat additions") asks for:
+--
+--     ALTER TABLE public.user_option_entries DROP CONSTRAINT user_option_entries_pkey;
+--     ALTER TABLE public.user_option_entries ADD COLUMN id uuid NOT NULL DEFAULT gen_random_uuid();
+--     ALTER TABLE public.user_option_entries ADD PRIMARY KEY (id);
+--     CREATE INDEX user_option_entries_user_day_option_idx
+--         ON public.user_option_entries (user_id, day_key, option_id);
+--
+-- so that the same happening logged twice in one day produces two rows.
+--
+-- WHY IT CANNOT SHIP AS WRITTEN
+--
+-- `PRIMARY KEY (user_id, day_key, option_id)` is the ONLY unique constraint on
+-- this table (verified against production 2026-08-08). Every deployed client
+-- upserts against it:
+--
+--     SupabaseSyncService+Entries.swift:27
+--     on_conflict = "user_id,day_key,option_id"
+--
+-- PostgREST turns that into `ON CONFLICT (user_id, day_key, option_id)`, and
+-- Postgres requires a unique index for ON CONFLICT to resolve. Demoting the
+-- constraint to a plain index makes every one of those upserts fail with
+-- 42P10 ("no unique or exclusion constraint matching the ON CONFLICT
+-- specification") — for all clients in the field, not just old ones.
+--
+-- Making the replacement index UNIQUE instead would keep old clients working
+-- but forbid the duplicate rows this whole change exists to allow. The two
+-- requirements are mutually exclusive on one table.
+--
+-- THE FIX: expand / contract, via a new table
+--
+-- 1. Add `user_happening_additions` (surrogate `id uuid` PK, no uniqueness on
+--    user_id/day_key/option_id). New clients write here.
+-- 2. Leave `user_option_entries` and its composite PK exactly as they are.
+--    Old clients keep upserting into it, unbroken.
+-- 3. Once telemetry shows no old clients writing, drop `user_option_entries`
+--    along with the five relaxed category columns, in one later change.
+--
+-- This matches the rollout principle the brief already states for the category
+-- columns — nothing is dropped while old versions are still in the field. The
+-- brief simply did not notice that demoting the PK is a breaking change in
+-- non-breaking clothing.
+--
+-- Needs a decision before it becomes a real migration.
