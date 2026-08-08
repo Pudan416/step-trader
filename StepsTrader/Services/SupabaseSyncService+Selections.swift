@@ -5,16 +5,7 @@ import os.log
 extension SupabaseSyncService {
     
     // MARK: - Public Sync Methods
-    
-    /// Sync custom activities to Supabase
-    func syncCustomActivities(_ activities: [CustomEnergyOption]) {
-        customActivitiesSyncTask?.cancel()
-        customActivitiesSyncTask = Task {
-            try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled else { return }
-            await self.performCustomActivitiesSync(activities)
-        }
-    }
+
     
     /// Sync daily selections for a given day
     func syncDailySelections(dayKey: String, activityIds: [String], recoveryIds: [String], joysIds: [String]) {
@@ -51,101 +42,7 @@ extension SupabaseSyncService {
     }
     
     // MARK: - Perform Sync Implementations
-    
-    func performCustomActivitiesSync(_ activities: [CustomEnergyOption]) async {
-        guard let auth = await authenticatedContext() else {
-            AppLogger.network.debug("📡 Custom activities sync skipped: no auth")
-            return
-        }
-        let token = auth.token
-        let userId = auth.userId
-        
-        let hash = activities.hashValue
-        guard hash != lastSyncedCustomActivitiesHash else {
-            AppLogger.network.debug("📡 Custom activities unchanged, skipping sync")
-            return
-        }
-        
-        do {
-            let cfg = try SupabaseConfig.load()
-            
-            if activities.isEmpty {
-                let deleteURL = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
-                guard var deleteComps = URLComponents(url: deleteURL, resolvingAgainstBaseURL: false) else { return }
-                deleteComps.queryItems = [URLQueryItem(name: "user_id", value: "eq.\(userId)")]
-                
-                guard let url = deleteComps.url else { return }
-                var request = URLRequest(url: url)
-                request.httpMethod = "DELETE"
-                request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-                request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
-                
-                let (_, response) = try await network.data(for: request)
-                if response.statusCode < 400 {
-                    lastSyncedCustomActivitiesHash = hash
-                    AppLogger.network.debug("📡 Custom activities cleared on server")
-                } else {
-                    AppLogger.network.error("📡 Custom activities clear failed")
-                }
-                return
-            }
-            
-            let insertURL = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
-            guard var insertComps = URLComponents(url: insertURL, resolvingAgainstBaseURL: false) else { return }
-            insertComps.queryItems = [URLQueryItem(name: "on_conflict", value: "id")]
-            
-            guard let finalInsertURL = insertComps.url else { return }
-            var request = URLRequest(url: finalInsertURL)
-            request.httpMethod = "POST"
-            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
-            request.setValue("application/json", forHTTPHeaderField: "content-type")
-            request.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "prefer")
-            
-            let rows = activities.map { activity in
-                CustomActivityRow(
-                    id: activity.id,
-                    userId: userId,
-                    titleEn: activity.titleEn,
-                    titleRu: nil,
-                    category: activity.category.rawValue,
-                    icon: activity.icon
-                )
-            }
-            
-            request.httpBody = try JSONEncoder().encode(rows)
-            
-            let (_, response) = try await network.data(for: request)
-            guard response.statusCode < 400 else {
-                AppLogger.network.error("📡 Custom activities upsert failed")
-                return
-            }
-            
-            let deleteURL = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
-            guard var deleteComps = URLComponents(url: deleteURL, resolvingAgainstBaseURL: false) else { return }
-            let idList = activities.map { $0.id }.joined(separator: ",")
-            deleteComps.queryItems = [
-                URLQueryItem(name: "user_id", value: "eq.\(userId)"),
-                URLQueryItem(name: "id", value: "not.in.(\(idList))")
-            ]
-            
-            guard let deleteFinalURL = deleteComps.url else { return }
-            var deleteRequest = URLRequest(url: deleteFinalURL)
-            deleteRequest.httpMethod = "DELETE"
-            deleteRequest.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-            deleteRequest.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
-            
-            let (_, deleteResponse) = try await network.data(for: deleteRequest)
-            if deleteResponse.statusCode < 400 {
-                lastSyncedCustomActivitiesHash = hash
-                AppLogger.network.debug("📡 Custom activities synced: \(activities.count) items")
-            } else {
-                AppLogger.network.error("📡 Custom activities delete-missing failed")
-            }
-        } catch {
-            AppLogger.network.error("📡 Custom activities sync error: \(error.localizedDescription)")
-        }
-    }
+
     
     func performDailySelectionsSync(payload: DailySelectionsPayload) async {
         if payload == lastSentDailySelections { return }
@@ -194,7 +91,7 @@ extension SupabaseSyncService {
             request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "prefer")
             
             // §5.5 — moment IDs are device-local; strip before the upsert hits
-            // user_daily_selections. See EphemeralMoment for the contract.
+            // user_daily_selections. Moments were device-local and are now gone.
             let row = DailySelectionsRow(
                 userId: userId,
                 dayKey: dayKey,
@@ -224,52 +121,7 @@ extension SupabaseSyncService {
     }
     
     // MARK: - Restore from Server
-    
-    /// Load custom activities from Supabase (for restoring on new device)
-    func loadCustomActivitiesFromServer() async -> [CustomEnergyOption]? {
-        guard let auth = await authenticatedContext() else { return nil }
-        let token = auth.token
-        let userId = auth.userId
-        
-        do {
-            let cfg = try SupabaseConfig.load()
-            let url = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
-            guard var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
-            comps.queryItems = [
-                URLQueryItem(name: "user_id", value: "eq.\(userId)"),
-                URLQueryItem(name: "select", value: "*")
-            ]
-            
-            guard let finalURL = comps.url else { return nil }
-            
-            var request = URLRequest(url: finalURL)
-            request.httpMethod = "GET"
-            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
-            request.setValue("application/json", forHTTPHeaderField: "accept")
-            
-            let (data, response) = try await network.data(for: request)
-            guard response.statusCode < 400 else { return nil }
-            
-            let decoder = JSONDecoder()
-            let rows = try decoder.decode([CustomActivityRow].self, from: data)
-            
-            AppLogger.network.debug("📡 Loaded \(rows.count) custom activities from server")
-            
-            return rows.compactMap { row -> CustomEnergyOption? in
-                guard let category = EnergyCategory(rawValue: row.category) else { return nil }
-                return CustomEnergyOption(
-                    id: row.id,
-                    titleEn: row.titleEn,
-                    category: category,
-                    icon: row.icon ?? "pencil"
-                )
-            }
-        } catch {
-            AppLogger.network.error("📡 Failed to load custom activities: \(error.localizedDescription)")
-            return nil
-        }
-    }
+
     
     /// Load today's daily selections from Supabase
     func loadTodaySelectionsFromServer() async -> (body: [String], mind: [String], heart: [String])? {

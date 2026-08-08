@@ -147,7 +147,8 @@ extension SupabaseSyncService {
             request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "prefer")
             
             // §5.5 — strip ephemeral moment IDs before they hit the wire.
-            // Moments are device-local by contract (see EphemeralMoment).
+            // Moments were device-local by contract; the type is gone and free-text
+            // happenings replaced it, so nothing is filtered here any more.
             let row = DaySnapshotRow(
                 userId: userId,
                 dayKey: dayKey,

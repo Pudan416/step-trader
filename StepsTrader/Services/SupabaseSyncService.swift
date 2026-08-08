@@ -21,7 +21,6 @@ actor SupabaseSyncService {
     
     // MARK: - Debounce Timers
     
-    var customActivitiesSyncTask: Task<Void, Never>?
     var dailySelectionsSyncTask: Task<Void, Never>?
     var dailyStatsSyncTask: Task<Void, Never>?
     var dailySpentSyncTask: Task<Void, Never>?
@@ -102,10 +101,6 @@ actor SupabaseSyncService {
         let dayEndHour: Int
         let dayEndMinute: Int
         let restDayOverride: Bool
-        let preferredBody: [String]
-        let preferredMind: [String]
-        let preferredHeart: [String]
-        let canvasSlots: [DayCanvasSlot]
         let hasWallpaperShortcut: Bool
         let wallpaperShortcutUses: Int
         let notifyOneMinBefore: Bool
@@ -430,10 +425,6 @@ actor SupabaseSyncService {
                         dayEndHour: snapshot.dayEndHour,
                         dayEndMinute: snapshot.dayEndMinute,
                         restDayOverride: snapshot.restDayOverride,
-                        preferredBody: [],
-                        preferredMind: [],
-                        preferredHeart: [],
-                        canvasSlots: [],
                         hasWallpaperShortcut: g.bool(forKey: "hasWallpaperShortcut"),
                         wallpaperShortcutUses: g.integer(forKey: "wallpaperShortcutUses"),
                         notifyOneMinBefore: g.object(forKey: SharedKeys.notifyOneMinBefore) as? Bool ?? true,

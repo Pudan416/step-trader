@@ -11,10 +11,6 @@ extension SupabaseSyncService {
         dayEndHour: Int,
         dayEndMinute: Int,
         restDayOverride: Bool,
-        preferredBody: [String],
-        preferredMind: [String],
-        preferredHeart: [String],
-        canvasSlots: [DayCanvasSlot],
         hasWallpaperShortcut: Bool,
         wallpaperShortcutUses: Int,
         notifyOneMinBefore: Bool = true,
@@ -41,10 +37,6 @@ extension SupabaseSyncService {
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute,
             restDayOverride: restDayOverride,
-            preferredBody: preferredBody,
-            preferredMind: preferredMind,
-            preferredHeart: preferredHeart,
-            canvasSlots: canvasSlots,
             hasWallpaperShortcut: hasWallpaperShortcut,
             wallpaperShortcutUses: wallpaperShortcutUses,
             notifyOneMinBefore: notifyOneMinBefore,
@@ -160,9 +152,6 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "content-type")
             request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "prefer")
             
-            let slotsData = (try? JSONEncoder().encode(payload.canvasSlots)) ?? Data("[]".utf8)
-            let slotsJson = try JSONSerialization.jsonObject(with: slotsData)
-            
             var row: [String: Any] = [
                 "user_id": userId,
                 "steps_target": payload.stepsTarget,
@@ -170,10 +159,6 @@ extension SupabaseSyncService {
                 "day_end_hour": payload.dayEndHour,
                 "day_end_minute": payload.dayEndMinute,
                 "rest_day_override": payload.restDayOverride,
-                "preferred_body": payload.preferredBody,
-                "preferred_mind": payload.preferredMind,
-                "preferred_heart": payload.preferredHeart,
-                "gallery_slots": slotsJson,
                 "has_wallpaper_shortcut": payload.hasWallpaperShortcut,
                 "wallpaper_shortcut_uses": payload.wallpaperShortcutUses,
                 "notify_one_min_before": payload.notifyOneMinBefore,
@@ -221,8 +206,6 @@ extension SupabaseSyncService {
         stepsTarget: Double, sleepTarget: Double,
         dayEndHour: Int, dayEndMinute: Int,
         restDayOverride: Bool,
-        preferredBody: [String], preferredMind: [String], preferredHeart: [String],
-        canvasSlots: [DayCanvasSlot],
         hasWallpaperShortcut: Bool, wallpaperShortcutUses: Int,
         notifyOneMinBefore: Bool, notifyWhenTimerOver: Bool,
         notifyCanvasReminder: Bool, canvasReminderHour: Int, canvasReminderMinute: Int,
@@ -267,12 +250,6 @@ extension SupabaseSyncService {
                 return nil
             }
             
-            var canvasSlots: [DayCanvasSlot] = []
-            if let rawSlots = row.canvasSlots?.value {
-                let slotsData = try JSONSerialization.data(withJSONObject: rawSlots)
-                canvasSlots = (try? JSONDecoder().decode([DayCanvasSlot].self, from: slotsData)) ?? []
-            }
-            
             AppLogger.network.debug("📡 Loaded user preferences from server")
             return (
                 stepsTarget: row.stepsTarget,
@@ -280,10 +257,6 @@ extension SupabaseSyncService {
                 dayEndHour: row.dayEndHour,
                 dayEndMinute: row.dayEndMinute,
                 restDayOverride: row.restDayOverride,
-                preferredBody: row.preferredBody,
-                preferredMind: row.preferredMind,
-                preferredHeart: row.preferredHeart,
-                canvasSlots: canvasSlots,
                 hasWallpaperShortcut: row.hasWallpaperShortcut,
                 wallpaperShortcutUses: row.wallpaperShortcutUses,
                 notifyOneMinBefore: row.notifyOneMinBefore,

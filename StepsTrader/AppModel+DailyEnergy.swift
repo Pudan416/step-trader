@@ -168,9 +168,7 @@ extension AppModel {
         if let happening = happeningStore.happening(id: optionId) {
             return happening.localizedTitle()
         }
-        let lang = Locale.current.language.languageCode?.identifier ?? "en"
-        return EnergyDefaults.options.first(where: { $0.id == optionId })?.title(for: lang)
-            ?? optionId
+        return EnergyDefaults.legacyTitle(for: optionId) ?? optionId
     }
 
     func loadPastDaySnapshots() -> [String: PastDaySnapshot] {
@@ -517,10 +515,6 @@ extension AppModel {
                 dayEndHour: dayEndHour,
                 dayEndMinute: dayEndMinute,
                 restDayOverride: isRestDayOverrideEnabled,
-                preferredBody: [],
-                preferredMind: [],
-                preferredHeart: [],
-                canvasSlots: [],
                 hasWallpaperShortcut: hasWallpaperShortcut,
                 wallpaperShortcutUses: wallpaperShortcutUses,
                 notifyOneMinBefore: g.object(forKey: SharedKeys.notifyOneMinBefore) as? Bool ?? true,

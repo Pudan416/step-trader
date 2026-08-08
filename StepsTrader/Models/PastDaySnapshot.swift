@@ -84,11 +84,8 @@ struct PastDaySnapshot: Codable, Equatable {
             let rest = (try container.decodeIfPresent([String].self, forKey: .restIds)) ?? []
             var merged = creativity + recovery
             if !rest.isEmpty {
-                let miscategorized = rest.filter { id in
-                    if let opt = EnergyDefaults.options.first(where: { $0.id == id }) {
-                        return opt.category != .mind
-                    }
-                    return id.hasPrefix("body_") || id.hasPrefix("heart_")
+                let miscategorized = rest.filter {
+                    $0.hasPrefix("body_") || $0.hasPrefix("heart_")
                 }
                 if !miscategorized.isEmpty {
                     AppLogger.app.debug("⚠️ Legacy restIds includes non-mind options: \(miscategorized.joined(separator: ", "))")
@@ -120,9 +117,4 @@ struct PastDaySnapshot: Codable, Equatable {
         try container.encode(stepsTarget, forKey: .stepsTarget)
         try container.encode(sleepTargetHours, forKey: .sleepTargetHours)
     }
-}
-
-struct DayCanvasSlot: Codable, Equatable {
-    var category: EnergyCategory?
-    var optionId: String?
 }

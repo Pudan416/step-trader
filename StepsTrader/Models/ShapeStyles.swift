@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Visual shape types available for canvas elements.
 /// Each shape bundles its own rendering style and movement behavior.
-/// Pro users can assign any shape type to any energy category.
+/// The set a new element may take is user-configured — see `allowedByUser`.
 enum CanvasShapeType: String, CaseIterable, Codable, Identifiable {
     case circle      // dense gradient circles, overlapping, no deformation
     case snowflake   // symmetric rectmorph outline, Lissajous drift, morphing trail ghosts
@@ -38,30 +38,6 @@ enum CanvasShapeType: String, CaseIterable, Codable, Identifiable {
         case .blob:        "drop.fill"
         case .spirograph:  "circle.fill"
         }
-    }
-
-    static func defaultShape(for category: EnergyCategory) -> CanvasShapeType {
-        switch category {
-        case .body:  .circle
-        case .mind:  .snowflake
-        case .heart: .rays
-        }
-    }
-
-    /// Reads the user's shape preference for a category, falling back to defaults.
-    /// Migrates legacy `.blob` selections to `.circle`.
-    static func resolved(for category: EnergyCategory) -> CanvasShapeType {
-        let key: String = switch category {
-        case .body:  SharedKeys.bodyCanvasShape
-        case .mind:  SharedKeys.mindCanvasShape
-        case .heart: SharedKeys.heartCanvasShape
-        }
-        guard let raw = UserDefaults.standard.string(forKey: key),
-              let shape = CanvasShapeType(rawValue: raw) else {
-            return defaultShape(for: category)
-        }
-        if shape == .blob || shape == .spirograph { return .circle }
-        return shape
     }
 
     // MARK: - User-configured shape set
