@@ -100,10 +100,16 @@ enum SharedKeys {
     static let canvasOverlayStyle = "canvasOverlayStyle_v1"
     static let canvasTexture = "canvasTexture_v1"
 
-    /// Per-category shape type overrides (Pro). Values are `CanvasShapeType` raw strings.
+    /// Legacy per-category shape overrides. Read-only from here on: they seed
+    /// `allowedCanvasShapes` once, and `PreferencesStore` keeps writing them
+    /// during rollout because older builds on the same App Group still read them.
     static let bodyCanvasShape = "bodyCanvasShape_v1"
     static let mindCanvasShape = "mindCanvasShape_v1"
     static let heartCanvasShape = "heartCanvasShape_v1"
+
+    /// The shapes a new canvas element may take, as `CanvasShapeType` raw
+    /// strings. Replaces the three keys above. Never empty.
+    static let allowedCanvasShapes = "allowedCanvasShapes_v1"
 
     // MARK: - Happenings
 

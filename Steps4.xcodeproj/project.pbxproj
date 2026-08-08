@@ -223,6 +223,7 @@
 		DA0005000500050005000051 /* HappeningModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0005000500050005000050 /* HappeningModelTests.swift */; };
 		DA0007000700070007000071 /* HappeningStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0007000700070007000070 /* HappeningStoreTests.swift */; };
 		DA0009000900090009000091 /* HappeningPaletteOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0009000900090009000090 /* HappeningPaletteOrderTests.swift */; };
+		DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */; };
 		DA0002000200020002000021 /* canvas_legacy_categorised.json in Resources */ = {isa = PBXBuildFile; fileRef = DA0002000200020002000020 /* canvas_legacy_categorised.json */; };
 		AC000001300400000000AC01 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000002300400000000AC02 /* AppConstants.swift */; };
 		AE00000100000000000000B1 /* MeAxisDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000100000000000000A1 /* MeAxisDetailView.swift */; };
@@ -544,6 +545,7 @@
 		DA0005000500050005000050 /* HappeningModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningModelTests.swift; sourceTree = "<group>"; };
 		DA0007000700070007000070 /* HappeningStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningStoreTests.swift; sourceTree = "<group>"; };
 		DA0009000900090009000090 /* HappeningPaletteOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteOrderTests.swift; sourceTree = "<group>"; };
+		DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllowedCanvasShapesTests.swift; sourceTree = "<group>"; };
 		DA0002000200020002000020 /* canvas_legacy_categorised.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/canvas_legacy_categorised.json; sourceTree = "<group>"; };
 		AC000002300400000000AC02 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
 		AE00000100000000000000A1 /* MeAxisDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeAxisDetailView.swift; sourceTree = "<group>"; };
@@ -1130,6 +1132,7 @@
 				DA0005000500050005000050 /* HappeningModelTests.swift */,
 				DA0007000700070007000070 /* HappeningStoreTests.swift */,
 				DA0009000900090009000090 /* HappeningPaletteOrderTests.swift */,
+				DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */,
 				DA0002000200020002000020 /* canvas_legacy_categorised.json */,
 			);
 			path = Steps4Tests;
@@ -1667,6 +1670,7 @@
 				DA0005000500050005000051 /* HappeningModelTests.swift in Sources */,
 				DA0007000700070007000071 /* HappeningStoreTests.swift in Sources */,
 				DA0009000900090009000091 /* HappeningPaletteOrderTests.swift in Sources */,
+				DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -40,9 +40,15 @@ enum PreferencesStore {
         var userGradientStyle: String
         var userGradientPalette: String
         var dailyRandomThemeEnabled: Bool
+        /// Legacy per-category shapes. Still restored during rollout because
+        /// older builds sharing this App Group read them, and because they are
+        /// what seeds `allowedCanvasShapes` on a device that has never had it.
         var bodyCanvasShape: String
         var mindCanvasShape: String
         var heartCanvasShape: String
+        /// The shape set that replaces the three above. Empty means the device
+        /// has no server-side value yet; seeding from the legacy keys handles it.
+        var allowedCanvasShapes: [String] = []
     }
 
     // Keys stored as bare string literals elsewhere in the codebase (not yet in
@@ -87,6 +93,12 @@ enum PreferencesStore {
         standard.set(s.bodyCanvasShape, forKey: SharedKeys.bodyCanvasShape)
         standard.set(s.mindCanvasShape, forKey: SharedKeys.mindCanvasShape)
         standard.set(s.heartCanvasShape, forKey: SharedKeys.heartCanvasShape)
+        // Only write when the server actually had a value. Writing an empty
+        // array would look like a deliberate empty set and defeat the seeding
+        // path in `CanvasShapeType.allowedByUser`.
+        if !s.allowedCanvasShapes.isEmpty {
+            standard.set(s.allowedCanvasShapes, forKey: SharedKeys.allowedCanvasShapes)
+        }
 
         // Mirror the active theme into the app group so widgets/extensions match.
         appGroupMirror?.set(s.gradientStyle, forKey: SharedKeys.gradientStyle)

@@ -54,7 +54,8 @@ final class PreferencesStoreTests: XCTestCase {
             dailyRandomThemeEnabled: true,
             bodyCanvasShape: "test-body",
             mindCanvasShape: "test-mind",
-            heartCanvasShape: "test-heart"
+            heartCanvasShape: "test-heart",
+            allowedCanvasShapes: ["circle", "rays"]
         )
     }
 
@@ -88,10 +89,28 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(standard.string(forKey: SharedKeys.bodyCanvasShape), "test-body")
         XCTAssertEqual(standard.string(forKey: SharedKeys.mindCanvasShape), "test-mind")
         XCTAssertEqual(standard.string(forKey: SharedKeys.heartCanvasShape), "test-heart")
+        XCTAssertEqual(
+            standard.stringArray(forKey: SharedKeys.allowedCanvasShapes), ["circle", "rays"]
+        )
 
         // Theme mirror for widgets/extensions.
         XCTAssertEqual(mirror.string(forKey: SharedKeys.gradientStyle), "test-grad-style")
         XCTAssertEqual(mirror.string(forKey: SharedKeys.gradientPalette), "test-grad-palette")
+    }
+
+    /// An absent server-side value must not look like a deliberate empty set —
+    /// writing `[]` would defeat the seeding path in `allowedByUser`.
+    func testApplyScalarsSkipsEmptyAllowedCanvasShapes() {
+        standard.set(["snowflake"], forKey: SharedKeys.allowedCanvasShapes)
+
+        var s = sampleScalars()
+        s.allowedCanvasShapes = []
+        PreferencesStore.applyScalars(s, group: group, standard: standard, appGroupMirror: mirror)
+
+        XCTAssertEqual(
+            standard.stringArray(forKey: SharedKeys.allowedCanvasShapes), ["snowflake"],
+            "An empty restore must leave the local set alone"
+        )
     }
 
     /// The appearance keys must NOT be written to the app-group suite (only the
@@ -104,6 +123,7 @@ final class PreferencesStoreTests: XCTestCase {
         // Appearance keys are not in the app-group suite (except the 2 mirrored).
         XCTAssertNil(group.string(forKey: SharedKeys.userGradientStyle))
         XCTAssertNil(group.string(forKey: SharedKeys.bodyCanvasShape))
+        XCTAssertNil(group.stringArray(forKey: SharedKeys.allowedCanvasShapes))
         // App-group-only keys are not in standard.
         XCTAssertNil(standard.string(forKey: SharedKeys.canvasOverlayStyle))
         XCTAssertEqual(standard.double(forKey: SharedKeys.userStepsTarget), 0)

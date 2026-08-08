@@ -6,9 +6,10 @@ struct SettingsAppearancePage: View {
     @AppStorage(SharedKeys.gradientPalette) private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
     @AppStorage(SharedKeys.dailyRandomThemeEnabled) private var dailyRandomThemeEnabled: Bool = false
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
-    @AppStorage(SharedKeys.bodyCanvasShape) private var bodyShapeRaw: String = CanvasShapeType.circle.rawValue
-    @AppStorage(SharedKeys.mindCanvasShape) private var mindShapeRaw: String = CanvasShapeType.snowflake.rawValue
-    @AppStorage(SharedKeys.heartCanvasShape) private var heartShapeRaw: String = CanvasShapeType.rays.rawValue
+    /// Mirrors `SharedKeys.allowedCanvasShapes` only to trigger redraws —
+    /// `CanvasShapeType.allowedByUser` stays the single source of truth, since
+    /// it also seeds from the legacy keys and applies the Pro gate.
+    @State private var allowedShapes: Set<CanvasShapeType> = []
 
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.appTheme) private var theme
@@ -392,72 +393,31 @@ struct SettingsAppearancePage: View {
             .padding(.horizontal, 16)
 
             VStack(spacing: 0) {
-                compactShapeRow(
-                    categoryName: String(localized: "Body", comment: "Canvas shape category"),
-                    categoryIcon: "figure.walk",
-                    selectedRaw: $bodyShapeRaw,
-                    defaultShape: .blob
-                )
-                DetailDivider()
-                compactShapeRow(
-                    categoryName: String(localized: "Mind", comment: "Canvas shape category"),
-                    categoryIcon: "brain.head.profile",
-                    selectedRaw: $mindShapeRaw,
-                    defaultShape: .snowflake
-                )
-                DetailDivider()
-                compactShapeRow(
-                    categoryName: String(localized: "Heart", comment: "Canvas shape category"),
-                    categoryIcon: "heart.fill",
-                    selectedRaw: $heartShapeRaw,
-                    defaultShape: .rays
-                )
+                shapeMultiSelectRow
             }
             .padding(.horizontal, 16)
             .glassCard()
         }
+        .onAppear { allowedShapes = Set(CanvasShapeType.allowedByUser) }
     }
 
-    private func compactShapeRow(
-        categoryName: String,
-        categoryIcon: String,
-        selectedRaw: Binding<String>,
-        defaultShape: CanvasShapeType
-    ) -> some View {
-        let selected = CanvasShapeType(rawValue: selectedRaw.wrappedValue) ?? defaultShape
+    /// One multi-select over `selectableCases`, replacing the three
+    /// single-select per-category rows. Shape choice is no longer derived from
+    /// a category, so there is nothing left to key the rows on.
+    private var shapeMultiSelectRow: some View {
         let isUnlocked = canCustomizeShapes
 
         return HStack(spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: categoryIcon)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.adaptiveSecondaryText)
-                Text(categoryName)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(theme.adaptivePrimaryText)
-            }
-            .frame(width: 72, alignment: .leading)
+            Text("Shapes", comment: "Canvas shapes multi-select row label")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(theme.adaptivePrimaryText)
+                .frame(width: 72, alignment: .leading)
 
             Spacer(minLength: 0)
 
             HStack(spacing: 6) {
                 ForEach(CanvasShapeType.selectableCases) { shape in
-                    let isSelected = selected == shape
-                    Button {
-                        if isUnlocked {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                selectedRaw.wrappedValue = shape.rawValue
-                            }
-                                                        lightHapticTick &+= 1
-                            model.syncUserPreferencesToSupabase()
-                        } else {
-                            showPaywall = true
-                                                        lightHapticTick &+= 1
-                        }
-                    } label: {
-                        compactShapeChip(shape: shape, isSelected: isSelected, isUnlocked: isUnlocked)
-                    }
-                    .buttonStyle(.plain)
+                    shapeChipButton(shape: shape, isUnlocked: isUnlocked)
                 }
             }
 
@@ -469,6 +429,34 @@ struct SettingsAppearancePage: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    private func shapeChipButton(shape: CanvasShapeType, isUnlocked: Bool) -> some View {
+        let isSelected = allowedShapes.contains(shape)
+        // The set may never be empty. Disable the last selected chip rather
+        // than letting the tap fail silently — a dead tap reads as a bug.
+        let isLastSelected = isSelected && allowedShapes.count == 1
+
+        return Button {
+            guard isUnlocked else {
+                showPaywall = true
+                lightHapticTick &+= 1
+                return
+            }
+            var next = allowedShapes
+            if isSelected { next.remove(shape) } else { next.insert(shape) }
+            guard CanvasShapeType.setAllowed(next) else { return }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                allowedShapes = next
+            }
+            lightHapticTick &+= 1
+            model.syncUserPreferencesToSupabase()
+        } label: {
+            compactShapeChip(shape: shape, isSelected: isSelected, isUnlocked: isUnlocked)
+        }
+        .buttonStyle(.plain)
+        .disabled(isUnlocked && isLastSelected)
+        .opacity(isUnlocked && isLastSelected ? 0.75 : 1)
     }
 
     private func compactShapeChip(shape: CanvasShapeType, isSelected: Bool, isUnlocked: Bool) -> some View {
