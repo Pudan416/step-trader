@@ -87,12 +87,8 @@ struct AxisDetailView: View {
             stepsDetail
         case "sleep":
             sleepDetail
-        case "body":
-            activityDetail(ids: context.snaps.flatMap(\.bodyIds), label: "body")
-        case "mind":
-            activityDetail(ids: context.snaps.flatMap(\.mindIds), label: "mind")
-        case "heart":
-            activityDetail(ids: context.snaps.flatMap(\.heartIds), label: "heart")
+        case "happenings":
+            activityDetail(ids: context.snaps.flatMap(\.happeningIds), label: "happenings")
         default:
             EmptyView()
         }

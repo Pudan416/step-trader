@@ -268,19 +268,20 @@ struct DaySnapshotRow: Codable {
     let dayKey: String
     let inkEarned: Int
     let inkSpent: Int
-    let bodyIds: [String]
-    let mindIds: [String]
-    let heartIds: [String]
+    /// Flat list of everything logged that day. Replaces the three category
+    /// columns, which are read-only from here on.
+    let happeningIds: [String]
     let steps: Int
     let sleepHours: Double
     let stepsTarget: Double
     let sleepTargetHours: Double
-    
+
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case dayKey = "day_key"
         case inkEarned = "experience_earned"
         case inkSpent = "experience_spent"
+        case happeningIds = "happening_ids"
         case bodyIds = "body_ids"
         case mindIds = "mind_ids"
         case heartIds = "heart_ids"
@@ -289,36 +290,58 @@ struct DaySnapshotRow: Codable {
         case stepsTarget = "steps_target"
         case sleepTargetHours = "sleep_target_hours"
     }
-    
+
     init(userId: String, dayKey: String, inkEarned: Int, inkSpent: Int,
-         bodyIds: [String], mindIds: [String], heartIds: [String],
+         happeningIds: [String],
          steps: Int, sleepHours: Double, stepsTarget: Double, sleepTargetHours: Double) {
         self.userId = userId
         self.dayKey = dayKey
         self.inkEarned = inkEarned
         self.inkSpent = inkSpent
-        self.bodyIds = bodyIds
-        self.mindIds = mindIds
-        self.heartIds = heartIds
+        self.happeningIds = happeningIds
         self.steps = steps
         self.sleepHours = sleepHours
         self.stepsTarget = stepsTarget
         self.sleepTargetHours = sleepTargetHours
     }
-    
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         userId = try c.decode(String.self, forKey: .userId)
         dayKey = try c.decode(String.self, forKey: .dayKey)
         inkEarned = try c.decodeIfPresent(Int.self, forKey: .inkEarned) ?? 0
         inkSpent = try c.decodeIfPresent(Int.self, forKey: .inkSpent) ?? 0
-        bodyIds = try c.decodeIfPresent([String].self, forKey: .bodyIds) ?? []
-        mindIds = try c.decodeIfPresent([String].self, forKey: .mindIds) ?? []
-        heartIds = try c.decodeIfPresent([String].self, forKey: .heartIds) ?? []
+
+        // Rows written by clients still in the field carry only the three
+        // category columns; concatenate them in the order they were shown.
+        if let flat = try c.decodeIfPresent([String].self, forKey: .happeningIds), !flat.isEmpty {
+            happeningIds = flat
+        } else {
+            happeningIds = (try c.decodeIfPresent([String].self, forKey: .bodyIds) ?? [])
+                + (try c.decodeIfPresent([String].self, forKey: .mindIds) ?? [])
+                + (try c.decodeIfPresent([String].self, forKey: .heartIds) ?? [])
+        }
+
         steps = try c.decodeIfPresent(Int.self, forKey: .steps) ?? 0
         sleepHours = try c.decodeIfPresent(Double.self, forKey: .sleepHours) ?? 0
         stepsTarget = try c.decodeIfPresent(Double.self, forKey: .stepsTarget) ?? EnergyDefaults.stepsTarget
         sleepTargetHours = try c.decodeIfPresent(Double.self, forKey: .sleepTargetHours) ?? EnergyDefaults.sleepTargetHours
+    }
+
+    /// Writes `happening_ids` only. The three category columns are deliberately
+    /// omitted so a client still in the field keeps its own values — writing
+    /// everything into `body_ids` would corrupt what it renders.
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(userId, forKey: .userId)
+        try c.encode(dayKey, forKey: .dayKey)
+        try c.encode(inkEarned, forKey: .inkEarned)
+        try c.encode(inkSpent, forKey: .inkSpent)
+        try c.encode(happeningIds, forKey: .happeningIds)
+        try c.encode(steps, forKey: .steps)
+        try c.encode(sleepHours, forKey: .sleepHours)
+        try c.encode(stepsTarget, forKey: .stepsTarget)
+        try c.encode(sleepTargetHours, forKey: .sleepTargetHours)
     }
 }
 

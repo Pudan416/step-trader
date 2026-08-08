@@ -139,9 +139,7 @@ final class DailyEnergyLogicTests: XCTestCase {
         let original = PastDaySnapshot(
             inkEarned: 75,
             inkSpent: 30,
-            bodyIds: ["body_walking"],
-            mindIds: ["mind_focusing"],
-            heartIds: ["heart_joy"],
+            happeningIds: ["happening_walk", "happening_read"],
             steps: 8_000,
             sleepHours: 7.5,
             stepsTarget: 9_000,
@@ -149,15 +147,49 @@ final class DailyEnergyLogicTests: XCTestCase {
         )
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(PastDaySnapshot.self, from: data)
-        XCTAssertEqual(decoded.inkEarned, 75)
-        XCTAssertEqual(decoded.inkSpent, 30)
-        XCTAssertEqual(decoded.bodyIds, ["body_walking"])
-        XCTAssertEqual(decoded.mindIds, ["mind_focusing"])
-        XCTAssertEqual(decoded.heartIds, ["heart_joy"])
-        XCTAssertEqual(decoded.steps, 8_000)
-        XCTAssertEqual(decoded.sleepHours, 7.5)
-        XCTAssertEqual(decoded.stepsTarget, 9_000)
-        XCTAssertEqual(decoded.sleepTargetHours, 7.0)
+        XCTAssertEqual(decoded, original)
+
+        // The three category keys must not be written back.
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertNil(json["bodyIds"])
+        XCTAssertNil(json["mindIds"])
+        XCTAssertNil(json["heartIds"])
+    }
+
+    /// Snapshots saved before the flattening carry three arrays; they must
+    /// concatenate in the order the app used to show them.
+    func testPastDaySnapshotDecodesCategoryArrays() throws {
+        let legacy = """
+        {
+          "inkEarned": 40, "inkSpent": 0,
+          "bodyIds": ["body_walking"],
+          "mindIds": ["mind_focusing"],
+          "heartIds": ["heart_joy"],
+          "steps": 100, "sleepHours": 1
+        }
+        """
+        let decoded = try JSONDecoder().decode(
+            PastDaySnapshot.self, from: try XCTUnwrap(legacy.data(using: .utf8))
+        )
+        XCTAssertEqual(decoded.happeningIds, ["body_walking", "mind_focusing", "heart_joy"])
+    }
+
+    /// The generation before that used activity/creativity/recovery/rest/joys.
+    func testPastDaySnapshotDecodesPreRenameArrays() throws {
+        let ancient = """
+        {
+          "controlGained": 20, "controlSpent": 5,
+          "activityIds": ["a"],
+          "creativityIds": ["c"], "recoveryIds": ["r"], "restIds": ["s"],
+          "joysIds": ["j"]
+        }
+        """
+        let decoded = try JSONDecoder().decode(
+            PastDaySnapshot.self, from: try XCTUnwrap(ancient.data(using: .utf8))
+        )
+        XCTAssertEqual(decoded.happeningIds, ["a", "c", "r", "s", "j"])
+        XCTAssertEqual(decoded.inkEarned, 20)
+        XCTAssertEqual(decoded.inkSpent, 5)
     }
 
     func testPastDaySnapshotLegacyDecodeUsesDefaultTargets() throws {
@@ -165,9 +197,7 @@ final class DailyEnergyLogicTests: XCTestCase {
         {
           "inkEarned": 55,
           "inkSpent": 10,
-          "bodyIds": ["body_walking"],
-          "mindIds": ["mind_focusing"],
-          "heartIds": ["heart_joy"],
+          "happeningIds": ["happening_walk"],
           "steps": 6000,
           "sleepHours": 6.5
         }
@@ -184,9 +214,7 @@ final class DailyEnergyLogicTests: XCTestCase {
         let snapshot = PastDaySnapshot(
             inkEarned: 0,
             inkSpent: 0,
-            bodyIds: [],
-            mindIds: [],
-            heartIds: [],
+            happeningIds: [],
             steps: 6_000,
             sleepHours: 6.0,
             stepsTarget: 8_000,

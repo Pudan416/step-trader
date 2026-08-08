@@ -62,9 +62,11 @@ struct CanvasDayDetailSheet: View {
 
     private func canvasSection(_ s: PastDaySnapshot) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            canvasRow(title: String(localized: "Body", comment: "Energy category"), ids: s.bodyIds, color: theme.bodyColor)
-            canvasRow(title: String(localized: "Mind", comment: "Energy category"), ids: s.mindIds, color: theme.mindColor)
-            canvasRow(title: String(localized: "Heart", comment: "Energy category"), ids: s.heartIds, color: theme.heartColor)
+            canvasRow(
+                title: String(localized: "Happenings", comment: "Past-day breakdown row"),
+                ids: s.happeningIds,
+                color: theme.bodyColor
+            )
         }
     }
 

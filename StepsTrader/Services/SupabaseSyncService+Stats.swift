@@ -154,9 +154,7 @@ extension SupabaseSyncService {
                 dayKey: dayKey,
                 inkEarned: snapshot.inkEarned,
                 inkSpent: snapshot.inkSpent,
-                bodyIds: snapshot.bodyIds,
-                mindIds: snapshot.mindIds,
-                heartIds: snapshot.heartIds,
+                happeningIds: snapshot.happeningIds,
                 steps: snapshot.steps,
                 sleepHours: snapshot.sleepHours,
                 stepsTarget: snapshot.stepsTarget,
@@ -267,9 +265,7 @@ extension SupabaseSyncService {
                 result[row.dayKey] = PastDaySnapshot(
                     inkEarned: row.inkEarned,
                     inkSpent: row.inkSpent,
-                    bodyIds: row.bodyIds,
-                    mindIds: row.mindIds,
-                    heartIds: row.heartIds,
+                    happeningIds: row.happeningIds,
                     steps: row.steps,
                     sleepHours: row.sleepHours,
                     stepsTarget: row.stepsTarget,
@@ -343,9 +339,9 @@ extension SupabaseSyncService {
             let snapshot = PastDaySnapshot(
                 inkEarned: stat?.baseEnergy ?? 0,
                 inkSpent: sp?.totalSpent ?? 0,
-                bodyIds: sel?.activityIds ?? [],
-                mindIds: sel?.restIds ?? [],
-                heartIds: sel?.joysIds ?? [],
+                happeningIds: (sel?.activityIds ?? [])
+                    + (sel?.restIds ?? [])
+                    + (sel?.joysIds ?? []),
                 steps: stat?.stepsCount ?? 0,
                 sleepHours: stat?.sleepHours ?? 0
             )

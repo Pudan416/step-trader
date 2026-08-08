@@ -2,8 +2,9 @@ import SwiftUI
 
 // MARK: - Energy Signature
 //
-// Five spotlight rays emanating from the centre — one per energy dimension.
-// Each ray's length  = that dimension's weekly average score (0–20 pts).
+// One spotlight ray per entity, emanating from the centre.
+// Each ray's length  = that entity's weekly average, as a fraction of its own
+// ceiling (steps 20, sleep 20, happenings 60).
 // Each ray's colour  = the axis colour, with a white-hot gradient at the source.
 // Grid rings at 5 / 10 / 15 / 20 provide an absolute visual reference.
 // The entire star (rays + labels) slowly rotates clockwise at ~1°/sec.
@@ -12,7 +13,10 @@ struct EnergySignatureView: View {
 
     struct Axis: Identifiable {
         let id: String
-        let score: Double    // 0..20
+        let score: Double
+        /// This axis's own ceiling. Steps and sleep are worth 20 each,
+        /// happenings 60, so a shared maximum would mis-scale the arms.
+        let maxScore: Double
         let color: Color
         let label: String
         let angle: Double    // radians, screen coords (Y-down), base position
@@ -89,19 +93,19 @@ struct EnergySignatureView: View {
 
     // MARK: – Geometry
 
-    private let maxScore: Double = 20
-
-    private func frac(_ score: Double) -> Double { max(0, min(1, score / maxScore)) }
+    private func frac(_ axis: Axis) -> Double {
+        max(0, min(1, axis.score / max(1, axis.maxScore)))
+    }
 
     private func tipPt(_ axis: Axis, cx: Double, cy: Double, outerR: Double) -> CGPoint {
-        let r = outerR * frac(axis.score)
+        let r = outerR * frac(axis)
         return CGPoint(x: cx + cos(axis.angle) * r, y: cy + sin(axis.angle) * r)
     }
 
     // MARK: – Render
 
     private func render(_ ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        guard axes.count == 5 else { return }
+        guard !axes.isEmpty else { return }
         let cx = size.width  / 2
         let cy = size.height / 2
         // Outer ring at 70% of half-size — leaves room for labels + glow bleed
@@ -110,7 +114,7 @@ struct EnergySignatureView: View {
         // Build rotated axes — angle offset increases at rotationSpeed rad/s
         let rotOff = t * rotationSpeed
         let rotAxes = axes.map { ax in
-            Axis(id: ax.id, score: ax.score, color: ax.color,
+            Axis(id: ax.id, score: ax.score, maxScore: ax.maxScore, color: ax.color,
                  label: ax.label, angle: ax.angle + rotOff)
         }
 
@@ -157,20 +161,10 @@ struct EnergySignatureView: View {
                                    y: cy + sin(axis.angle) * outerR))
             ctx.stroke(p, with: .color(.white.opacity(0.08)), lineWidth: 0.5)
         }
-        // Ring score labels on the first (Steps) sector divider — also rotates
-        let labelAxis = rotAxes[0]
-        let ringLabels = ["5", "10", "15", "20"]
-        for (i, lbl) in ringLabels.enumerated() {
-            let r  = outerR * Double(i + 1) / 4.0 + 4
-            let pt = CGPoint(x: cx + cos(labelAxis.angle) * r,
-                             y: cy + sin(labelAxis.angle) * r)
-            ctx.draw(
-                Text(lbl)
-                    .font(.system(size: 7.5, weight: .light))
-                    .foregroundStyle(Color.white.opacity(0.28)),
-                at: pt
-            )
-        }
+        // The rings used to be labelled 5/10/15/20 back when every axis was
+        // scored out of 20. Steps and sleep are still out of 20 but happenings
+        // is out of 60, so a single set of numbers would be wrong on two arms
+        // out of three. The rings stay as a relative reference; the numbers go.
     }
 
     // Spotlight bitmaps are pre-rendered off the hot path and cached permanently
@@ -189,7 +183,7 @@ struct EnergySignatureView: View {
         cx: Double, cy: Double, outerR: Double,
         t: Double
     ) {
-        let f = frac(axis.score)
+        let f = frac(axis)
         guard f > 0.02 else { return }
 
         let phase   = Double(idx) * (2 * .pi / 5)
@@ -257,7 +251,7 @@ struct EnergySignatureView: View {
 
     private func drawCenter(_ ctx: inout GraphicsContext,
                              cx: Double, cy: Double, outerR: Double, t: Double) {
-        let avgF  = axes.reduce(0) { $0 + frac($1.score) } / Double(axes.count)
+        let avgF  = axes.reduce(0) { $0 + frac($1) } / Double(axes.count)
         let baseR = CGFloat(outerR * 0.07 * (0.3 + 0.7 * avgF))
         let pulse = CGFloat(1.0 + 0.07 * sin(t * 0.45))
         let r     = baseR * pulse
@@ -277,11 +271,11 @@ struct EnergySignatureView: View {
         }
 
         // Tight core — weighted-average axis colour, no white
-        let totalW = max(0.001, axes.reduce(0.0) { $0 + frac($1.score) })
+        let totalW = max(0.001, axes.reduce(0.0) { $0 + frac($1) })
         var rSum = 0.0, gSum = 0.0, bSum = 0.0
         for axis in axes {
             let (ar, ag, ab) = RayShapeRenderer.rgbComponents(axis.color)
-            let wt = frac(axis.score) / totalW
+            let wt = frac(axis) / totalW
             rSum += Double(ar) * wt
             gSum += Double(ag) * wt
             bSum += Double(ab) * wt
@@ -329,7 +323,7 @@ struct EnergySignatureView: View {
         let font = Font.system(size: 13, weight: .semibold)
 
         for axis in rotAxes {
-            let f  = frac(axis.score)
+            let f  = frac(axis)
             let r  = max(minLR, min(maxLR, outerR * f - 20))
             let pt = CGPoint(x: cx + cos(axis.angle) * r,
                              y: cy + sin(axis.angle) * r)
@@ -356,16 +350,16 @@ extension EnergySignatureView {
 
     static let stepsColor = Color(red: 1.0,  green: 0.83, blue: 0.41)
     static let sleepColor = Color(red: 0.32, green: 0.42, blue: 0.82)
-    static let bodyColor  = AppColors.Night.body
-    static let heartColor = AppColors.Night.heart
-    static let mindColor  = AppColors.Night.mind
+    static let happeningsColor = AppColors.Night.body
 
     // Pentagon with Mind at bottom (screen Y-down coords)
-    static let stepsAngle: Double = -54  * .pi / 180  // upper-right
-    static let sleepAngle: Double = -126 * .pi / 180  // upper-left
-    static let bodyAngle:  Double =  162 * .pi / 180  // lower-left
-    static let heartAngle: Double =   18 * .pi / 180  // lower-right
-    static let mindAngle:  Double =   90 * .pi / 180  // bottom
+    // Three entities, evenly split. Was five axes at 72° while the day was
+    // steps + sleep + body + mind + heart; the day is now
+    // steps(20) + sleep(20) + happenings(60), so the radar has three arms.
+    // A full redesign of this screen is Me-Spec.md — this only makes it true.
+    static let stepsAngle: Double      = -90  * .pi / 180  // top
+    static let sleepAngle: Double      =  150 * .pi / 180  // lower-left
+    static let happeningsAngle: Double =   30 * .pi / 180  // lower-right
 }
 
 // MARK: - Factory
@@ -383,29 +377,33 @@ extension EnergySignatureView {
 
         let stepsScore = min(20.0, Double(avgSteps) / max(1,   snap0.stepsTarget)       * 20)
         let sleepScore = min(20.0, avgSleep          / max(0.1, snap0.sleepTargetHours)  * 20)
-        let bodyScore  = min(20.0, Double(snaps.flatMap(\.bodyIds).count)  / days * 5)
-        let heartScore = min(20.0, Double(snaps.flatMap(\.heartIds).count) / days * 5)
-        let mindScore  = min(20.0, Double(snaps.flatMap(\.mindIds).count)  / days * 5)
+        // Happenings are worth 60 of the 100, so the axis is scored against
+        // its own ceiling rather than the 20 the category axes used.
+        let perDayAdditions = Double(snaps.flatMap(\.happeningIds).count) / days
+        let happeningsScore = min(
+            Double(HappeningDefaults.happeningsMaxPoints),
+            perDayAdditions * Double(HappeningDefaults.pointsPerAddition)
+        )
 
-        return makeAxes(steps: stepsScore, sleep: sleepScore,
-                        body: bodyScore, heart: heartScore, mind: mindScore)
+        return makeAxes(steps: stepsScore, sleep: sleepScore, happenings: happeningsScore)
     }
 
-    static func makeAxes(
-        steps: Double, sleep: Double,
-        body: Double, heart: Double, mind: Double
-    ) -> [Axis] {
+    static func makeAxes(steps: Double, sleep: Double, happenings: Double) -> [Axis] {
         [
-            Axis(id: "steps", score: steps, color: stepsColor, label: "Steps", angle: stepsAngle),
-            Axis(id: "sleep", score: sleep, color: sleepColor, label: "Sleep", angle: sleepAngle),
-            Axis(id: "body",  score: body,  color: bodyColor,  label: "Body",  angle: bodyAngle),
-            Axis(id: "heart", score: heart, color: heartColor, label: "Heart", angle: heartAngle),
-            Axis(id: "mind",  score: mind,  color: mindColor,  label: "Mind",  angle: mindAngle),
+            Axis(id: "steps", score: steps,
+                 maxScore: Double(EnergyDefaults.stepsMaxPoints),
+                 color: stepsColor, label: "Steps", angle: stepsAngle),
+            Axis(id: "sleep", score: sleep,
+                 maxScore: Double(EnergyDefaults.sleepMaxPoints),
+                 color: sleepColor, label: "Sleep", angle: sleepAngle),
+            Axis(id: "happenings", score: happenings,
+                 maxScore: Double(HappeningDefaults.happeningsMaxPoints),
+                 color: happeningsColor, label: "Happenings", angle: happeningsAngle),
         ]
     }
 
     static func zeroAxes() -> [Axis] {
-        makeAxes(steps: 0, sleep: 0, body: 0, heart: 0, mind: 0)
+        makeAxes(steps: 0, sleep: 0, happenings: 0)
     }
 }
 
@@ -415,27 +413,27 @@ extension EnergySignatureView {
     ZStack {
         Color(red: 0.13, green: 0.16, blue: 0.19).ignoresSafeArea()
         EnergySignatureView(
-            axes: EnergySignatureView.makeAxes(steps: 16, sleep: 15, body: 12, heart: 10, mind: 18),
+            axes: EnergySignatureView.makeAxes(steps: 16, sleep: 15, happenings: 40),
             canvasSize: 300
         )
     }
 }
 
-#Preview("Steps + Body heavy") {
+#Preview("Steps heavy, few happenings") {
     ZStack {
         Color(red: 0.13, green: 0.16, blue: 0.19).ignoresSafeArea()
         EnergySignatureView(
-            axes: EnergySignatureView.makeAxes(steps: 20, sleep: 14, body: 18, heart: 6, mind: 4),
+            axes: EnergySignatureView.makeAxes(steps: 20, sleep: 14, happenings: 10),
             canvasSize: 300
         )
     }
 }
 
-#Preview("Mind week") {
+#Preview("Full day") {
     ZStack {
         Color(red: 0.13, green: 0.16, blue: 0.19).ignoresSafeArea()
         EnergySignatureView(
-            axes: EnergySignatureView.makeAxes(steps: 8, sleep: 12, body: 4, heart: 14, mind: 20),
+            axes: EnergySignatureView.makeAxes(steps: 20, sleep: 20, happenings: 60),
             canvasSize: 300
         )
     }

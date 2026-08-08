@@ -314,9 +314,7 @@ extension AppModel {
         return PastDaySnapshot(
             inkEarned: inkEarned,
             inkSpent: savedSpent,
-            bodyIds: savedHappeningIds,
-            mindIds: [],
-            heartIds: [],
+            happeningIds: savedHappeningIds,
             steps: savedSteps,
             sleepHours: savedSleep,
             stepsTarget: savedStepsTarget,
