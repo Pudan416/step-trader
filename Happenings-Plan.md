@@ -148,6 +148,37 @@ Files: `StepsTrader/Shapes/MetaballGenerator.swift`, `StepsTrader/Shapes/Organic
 
 ---
 
+## Task grouping — revised 2026-08-08
+
+The original 13 tasks assumed each one could end green. That is false from Task 5
+onward: removing `EnergyCategory` from `AppModel` breaks `GalleryView`, `MeView`,
+`ActivitySuggestion` and the onboarding until every one of them is fixed. The
+compiler defines one red→green window there, no matter how the work is sliced.
+
+Regrouped into three phases:
+
+| Phase | Tasks | Build |
+|---|---|---|
+| **Done** | 1, 2, 3 | green after each |
+| **A — additive** | 4, 7, 8 | green after each |
+| **B — the cutover** | 5, 6, 9, 10, 11, 12 | red until the end |
+| **C — verification** | 13 | green |
+
+Two changes this forces, both improvements:
+
+- **6 and 7 merge.** Task 6 needs `CanvasShapeType.allowedByUser`, which Task 7
+  creates; the original plan worked around it with a temporary shim. Doing 7
+  first in Phase A removes the shim entirely.
+- **Task 8's interface changes.** The palette originally took an `AppModel` and
+  called `model.paletteOrder()`, which dragged it into the cutover window. It
+  takes `[Happening]` plus callbacks instead — additive, testable without a
+  model, and it lands in Phase A. See Task 8's Interfaces block.
+
+Within Phase B, commit step by step as usual; just do not expect a green build
+until Task 12 lands.
+
+---
+
 ## Task 1: Capture the migration fixture and guard it
 
 The brief's §12 working agreement: write this test first, from a real fixture, before deleting anything. At this point the code still compiles unchanged, so the test characterises **current** behaviour and will keep failing loudly if any later task drifts it.
