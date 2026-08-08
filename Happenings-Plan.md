@@ -53,6 +53,41 @@ Brief §9 names the replacement `CanvasShapeType.legacyDefault(for:)`. The behav
 
 `category` is `let` (line 16), decoded with `try c.decode` (line 260, non-optional) and written on encode (line 299). Removing it changes the on-disk format. New writes must omit it; reads must tolerate both. Also `CanvasElement.spawn` and `reroll` both call `CanvasShapeType.resolved(for: category)`.
 
+### F5a — The entries primary-key swap breaks every deployed client
+
+**Found while applying the migration, 2026-08-08. Decided: expand/contract.**
+
+Brief §9 asks for `user_option_entries` to lose its composite primary key in
+favour of a surrogate `id uuid`, with `(user_id, day_key, option_id)` demoted to
+a plain index, so repeat additions produce separate rows.
+
+That composite PK is the **only** unique constraint on the table (verified
+against production). Every deployed client upserts against it:
+
+```
+SupabaseSyncService+Entries.swift:27
+on_conflict = "user_id,day_key,option_id"
+```
+
+PostgREST turns that into `ON CONFLICT (user_id, day_key, option_id)`, and
+Postgres requires a unique index to resolve it. Demoting the constraint makes
+every one of those upserts fail with 42P10 — for all clients in the field, not
+just old ones. Making the replacement index UNIQUE keeps them working but
+forbids the duplicate rows the change exists to allow. The two requirements are
+mutually exclusive on one table.
+
+**Resolution:** new clients write to a new table, `user_happening_additions`,
+with a surrogate `id uuid` PK and no uniqueness on
+`(user_id, day_key, option_id)`. `user_option_entries` and its composite PK are
+left exactly as they are, so old clients keep upserting unbroken. Both tables
+are dropped together in one later change, once telemetry shows no old clients
+writing. This is the same rollout principle the brief already states for the
+category columns; it just did not notice that demoting the PK is a breaking
+change in non-breaking clothing.
+
+Production state at time of writing: 579 users, 2965 rows in
+`user_option_entries`, 2300 canvases. Nothing here is theoretical.
+
 ### F6 — Two Supabase tables hold categories, not one
 
 Beyond the three tables the brief lists, `user_daily_selections` (baseline schema line 95) is itself category-shaped: `activity_ids text[]`, `recovery_ids text[]`, `joys_ids text[]`. It is written by `SupabaseSyncService+Selections`. The plan keeps writing it during rollout (Task 11) and adds `happening_ids text[]` alongside, mirroring the column-relaxation strategy.
@@ -2368,37 +2403,64 @@ SET happening_ids = COALESCE(activity_ids, '{}')
                   || COALESCE(joys_ids, '{}')
 WHERE happening_ids IS NULL;
 
--- 4. Repeat additions: surrogate PK on user_option_entries -----------------
--- Was PRIMARY KEY (user_id, day_key, option_id) — one row per option per day.
--- The economy now counts additions and everyday things repeat, so the same
--- happening logged twice must produce two rows rather than an upsert collision.
-ALTER TABLE public.user_option_entries DROP CONSTRAINT IF EXISTS user_option_entries_pkey;
-
-ALTER TABLE public.user_option_entries
-    ADD COLUMN IF NOT EXISTS id uuid NOT NULL DEFAULT gen_random_uuid();
-
-ALTER TABLE public.user_option_entries ADD PRIMARY KEY (id);
-
--- Demoted to a plain index — still the read path for "today's entries".
-CREATE INDEX IF NOT EXISTS user_option_entries_user_day_option_idx
-    ON public.user_option_entries (user_id, day_key, option_id);
 ```
 
-- [ ] **Step 2: Verify the migration against a branch, not production**
+**Status: applied to production 2026-08-08** — the file is committed as
+`supabase/migrations/20260808_happenings_relax_categories.sql`. The PK swap the
+brief asked for is deliberately not in it; see Step 2.
 
-```bash
-supabase --version
+- [ ] **Step 2: Add the additions table (replaces the brief's PK swap)**
+
+Per **F5a**, dropping `user_option_entries`'s composite primary key breaks the
+`on_conflict=user_id,day_key,option_id` upsert every deployed client performs.
+New clients get their own table instead; the old one is left untouched.
+
+Create `supabase/migrations/20260808b_happening_additions.sql`:
+
+```sql
+-- Repeat additions live here. `user_option_entries` keeps its composite
+-- primary key so clients already in the field keep upserting unbroken; both
+-- tables retire together in one later change, once telemetry shows no old
+-- clients writing. See 20260808_happenings_entries_pk.sql.PENDING for why the
+-- brief's in-place PK swap could not ship.
+CREATE TABLE IF NOT EXISTS public.user_happening_additions (
+    id           uuid PRIMARY KEY,
+    user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    day_key      text NOT NULL,
+    option_id    text NOT NULL,
+    color_hex    text NOT NULL DEFAULT '#888888',
+    asset_variant integer,
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+-- Deliberately NOT unique: the same happening logged twice in one day is two
+-- rows, and that is the whole point of the table.
+CREATE INDEX IF NOT EXISTS user_happening_additions_user_day_idx
+    ON public.user_happening_additions (user_id, day_key);
+
+ALTER TABLE public.user_happening_additions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own additions"
+    ON public.user_happening_additions FOR ALL
+    USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 ```
 
-Apply it to a Supabase **branch** and confirm each statement. Never run it against production from here — that is the user's call, and the PR is the place to ask.
+`id` has no database default: the client generates it (`OptionEntry.id` already
+exists), so an upsert on `id` is idempotent across retries of the same addition.
 
-If the CLI is not configured in this environment, say so in the PR body and leave the SQL for the user to apply. Do not use the Supabase MCP `apply_migration` tool against the live project without asking.
+Applying it needs the user — the Supabase MCP `apply_migration` tool is blocked
+by the auto-mode classifier for production writes. Commit the file, say so, and
+let them run it.
 
-- [ ] **Step 3: Drop `category` from the entries row struct**
+- [ ] **Step 3: Point the entries sync at the new table**
 
 `SupabaseSyncService+Entries.swift`: delete `"category": entry.category.rawValue` (line 35), delete `let category: String` from the row struct (114) and its `CodingKeys` case (122), and delete `category: EnergyCategory(rawValue: row.category) ?? .body` from the decode (98).
 
-The upsert also needs the surrogate id. Find the `.upsert(` call in this file and add `"id": entry.id` to the payload, and change any `onConflict:` argument from the composite key to `"id"`.
+Retarget the table from `user_option_entries` to `user_happening_additions`, and
+change the query item at line 27 from the composite key to the surrogate:
+
+```swift
+urlComps.queryItems = [URLQueryItem(name: "on_conflict", value: "id")]
+```
 
 Add the single-entry sync `AppModel.addHappening` calls:
 
@@ -2407,9 +2469,12 @@ Add the single-entry sync `AppModel.addHappening` calls:
     /// are separate rows, keyed by the client-generated entry id.
     func syncOptionEntry(_ entry: OptionEntry) async {
         // Follow the existing syncOptionEntries batching/retry conventions in
-        // this file — same table, same auth guard, same retry-queue enqueue.
+        // this file — same auth guard, same retry-queue enqueue, new table.
     }
 ```
+
+Stop writing `user_option_entries` entirely. Old clients keep it alive; this
+build has no reason to touch it.
 
 - [ ] **Step 4: Write the nullable-category decode test**
 
