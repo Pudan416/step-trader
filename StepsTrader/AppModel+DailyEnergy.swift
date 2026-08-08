@@ -523,9 +523,7 @@ extension AppModel {
                 userGradientPalette: std.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
                 dailyRandomThemeEnabled: std.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
                 canvasOverlayStyle: g.string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue,
-                bodyCanvasShape: std.string(forKey: SharedKeys.bodyCanvasShape) ?? CanvasShapeType.circle.rawValue,
-                mindCanvasShape: std.string(forKey: SharedKeys.mindCanvasShape) ?? CanvasShapeType.snowflake.rawValue,
-                heartCanvasShape: std.string(forKey: SharedKeys.heartCanvasShape) ?? CanvasShapeType.rays.rawValue
+                allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue)
             )
         }
     }
@@ -592,9 +590,7 @@ extension AppModel {
     func saveCurrentAsRoutine(name: String) {
         let routine = EnergyRoutine(
             name: name,
-            bodyIds: todayAdditions.map(\.optionId),
-            mindIds: [],
-            heartIds: [],
+            happeningIds: todayAdditions.map(\.optionId),
             lastUsed: Date.now
         )
         savedRoutines.append(routine)
@@ -604,7 +600,7 @@ extension AppModel {
     /// Apply a saved routine's selections to today.
     func applyRoutine(_ routine: EnergyRoutine) {
         let known = Set(happeningStore.all.map(\.id))
-        for id in (routine.bodyIds + routine.mindIds + routine.heartIds) where known.contains(id) {
+        for id in routine.happeningIds where known.contains(id) {
             _ = addHappening(
                 id: id,
                 colorHex: CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex

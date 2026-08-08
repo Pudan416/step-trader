@@ -34,9 +34,7 @@ struct SettingsAppearancePage: View {
         SubscriptionGate.canUseDailyRandomTheme(isPro: model.isPro)
     }
 
-    private var canCustomizeShapes: Bool {
-        SubscriptionGate.canCustomizeShapes(isPro: model.isPro)
-    }
+    private var canCustomizeShapes: Bool { true }
 
     private var isDailyRandomActive: Bool {
         dailyRandomThemeEnabled && canUseDailyRandom
@@ -388,7 +386,6 @@ struct SettingsAppearancePage: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 sectionLabel(String(localized: "CANVAS SHAPES", comment: "Appearance section header"))
-                if !canCustomizeShapes { proBadge }
             }
             .padding(.horizontal, 16)
 
@@ -405,8 +402,6 @@ struct SettingsAppearancePage: View {
     /// single-select per-category rows. Shape choice is no longer derived from
     /// a category, so there is nothing left to key the rows on.
     private var shapeMultiSelectRow: some View {
-        let isUnlocked = canCustomizeShapes
-
         return HStack(spacing: 10) {
             Text("Shapes", comment: "Canvas shapes multi-select row label")
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -417,15 +412,10 @@ struct SettingsAppearancePage: View {
 
             HStack(spacing: 6) {
                 ForEach(CanvasShapeType.selectableCases) { shape in
-                    shapeChipButton(shape: shape, isUnlocked: isUnlocked)
+                    shapeChipButton(shape: shape, isUnlocked: true)
                 }
             }
 
-            if !isUnlocked {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(AppColors.brandAccent)
-            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

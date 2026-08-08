@@ -240,13 +240,6 @@ final class AppModel: ObservableObject {
         self.subscriptionStore = subscriptionStore
         self.lastDayKey = Self.dayKey(for: Date.now)
 
-        // Organic is Pro and is filtered at spawn time, so `CanvasShapeType`
-        // needs the entitlement without taking a StoreKit dependency.
-        // Captures the store, not self — this runs before `self` is available.
-        CanvasShapeType.isProProvider = { [weak subscriptionStore] in
-            subscriptionStore?.isPro ?? false
-        }
-
         // Initialize Stores
         self.healthStore = HealthStore(healthKitService: healthKitService)
         self.blockingStore = BlockingStore(familyControlsService: familyControlsService)

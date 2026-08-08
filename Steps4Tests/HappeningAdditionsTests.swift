@@ -3,6 +3,24 @@ import XCTest
 
 @MainActor
 final class HappeningAdditionsTests: XCTestCase {
+    func testEnergyRoutineRoundTripsFlatHappeningIds() throws {
+        let original = EnergyRoutine(name: "Morning", happeningIds: ["happening_walk", "happening_coffee"])
+        let data = try JSONEncoder().encode(original)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(json["happeningIds"] as? [String], original.happeningIds)
+        XCTAssertNil(json["bodyIds"])
+        XCTAssertEqual(try JSONDecoder().decode(EnergyRoutine.self, from: data), original)
+    }
+
+    func testEnergyRoutineDecodesLegacyCategoryArrays() throws {
+        let data = try XCTUnwrap("""
+        {"id":"legacy","name":"Old","bodyIds":["a"],"mindIds":["b"],"heartIds":["c"]}
+        """.data(using: .utf8))
+
+        let routine = try JSONDecoder().decode(EnergyRoutine.self, from: data)
+        XCTAssertEqual(routine.happeningIds, ["a", "b", "c"])
+    }
     func testRepeatAdditionsHaveIndependentEntryIds() {
         let first = OptionEntry(
             id: "entry-1",

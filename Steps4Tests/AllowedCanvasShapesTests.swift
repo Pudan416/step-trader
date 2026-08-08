@@ -3,9 +3,7 @@ import XCTest
 
 /// The three per-category shape keys collapse into one user-configured set.
 ///
-/// Organic stays Pro, but is filtered at *spawn* time rather than removed from
-/// storage — so a lapsed subscriber's saved preference survives and reactivates
-/// on resubscribe.
+/// Every selectable shape is available because Nowhere is fully free.
 final class AllowedCanvasShapesTests: XCTestCase {
 
     private let keys = [
@@ -18,12 +16,10 @@ final class AllowedCanvasShapesTests: XCTestCase {
     override func setUp() {
         super.setUp()
         keys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
-        CanvasShapeType.isProProvider = { true }
     }
 
     override func tearDown() {
         keys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
-        CanvasShapeType.resetProProviderForTesting()
         super.tearDown()
     }
 
@@ -96,50 +92,25 @@ final class AllowedCanvasShapesTests: XCTestCase {
         XCTAssertEqual(Set(CanvasShapeType.allowedByUser), Set(CanvasShapeType.selectableCases))
     }
 
-    // MARK: - Pro gating
-
-    func testNonProNeverSpawnsOrganicButKeepsThePreference() {
+    func testOrganicIsAlwaysAvailable() {
         XCTAssertTrue(CanvasShapeType.setAllowed([.organicBlob, .circle]))
-
-        CanvasShapeType.isProProvider = { false }
-        XCTAssertEqual(
-            Set(CanvasShapeType.allowedByUser), [.circle],
-            "Organic is filtered at spawn time"
-        )
-        XCTAssertEqual(
-            Set(UserDefaults.standard.stringArray(forKey: SharedKeys.allowedCanvasShapes) ?? []),
-            [CanvasShapeType.organicBlob.rawValue, CanvasShapeType.circle.rawValue],
-            "But the saved preference survives"
-        )
-
-        CanvasShapeType.isProProvider = { true }
         XCTAssertEqual(
             Set(CanvasShapeType.allowedByUser), [.organicBlob, .circle],
-            "And reactivates on resubscribe"
+            "Organic must not depend on subscription state"
         )
     }
 
-    func testNonProWithOnlyOrganicSavedStillGetsAShape() {
+    func testOrganicCanBeTheOnlySavedShape() {
         XCTAssertTrue(CanvasShapeType.setAllowed([.organicBlob]))
-        CanvasShapeType.isProProvider = { false }
-
-        let allowed = CanvasShapeType.allowedByUser
-        XCTAssertFalse(allowed.isEmpty, "Spawn must always have something to pick")
-        XCTAssertFalse(allowed.contains(.organicBlob))
+        XCTAssertEqual(CanvasShapeType.allowedByUser, [.organicBlob])
     }
 
     /// `spawn` calls `allowedByUser.randomElement()`, so an empty return would
-    /// crash or silently fall back. Cover every gate/storage combination.
+    /// crash or silently fall back. Cover every storage combination.
     func testAllowedByUserIsNeverEmpty() {
-        for isPro in [true, false] {
-            CanvasShapeType.isProProvider = { isPro }
-            for stored in [[], ["organicBlob"], ["blob"], ["garbage"], ["circle", "rays"]] {
-                UserDefaults.standard.set(stored, forKey: SharedKeys.allowedCanvasShapes)
-                XCTAssertFalse(
-                    CanvasShapeType.allowedByUser.isEmpty,
-                    "empty for isPro=\(isPro) stored=\(stored)"
-                )
-            }
+        for stored in [[], ["organicBlob"], ["blob"], ["garbage"], ["circle", "rays"]] {
+            UserDefaults.standard.set(stored, forKey: SharedKeys.allowedCanvasShapes)
+            XCTAssertFalse(CanvasShapeType.allowedByUser.isEmpty, "empty for stored=\(stored)")
         }
     }
 }

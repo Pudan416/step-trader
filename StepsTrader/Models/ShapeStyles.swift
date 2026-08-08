@@ -7,7 +7,7 @@ enum CanvasShapeType: String, CaseIterable, Codable, Identifiable {
     case circle      // dense gradient circles, overlapping, no deformation
     case snowflake   // symmetric rectmorph outline, Lissajous drift, morphing trail ghosts
     case rays        // Metal spotlight cones, edge-anchored, sweep oscillation
-    case organicBlob // multi-layer organic contour morph + breathe — Pro only
+    case organicBlob // multi-layer organic contour morph + breathe
     case blob        // (hidden) legacy noise-deformed closed path — kept for legacy data
     case spirograph  // (hidden) legacy hypotrochoid curves — kept for legacy data
 
@@ -69,23 +69,10 @@ enum CanvasShapeType: String, CaseIterable, Codable, Identifiable {
     // The three per-category keys collapse into one multi-select. Shape choice
     // stops being derived from a category and becomes a set the user picks from.
 
-    /// Whether the current user has Pro. Injected so this type stays free of a
-    /// StoreKit dependency and tests can drive the gate without a session.
-    /// Wired to the subscription state at launch; defaults to non-Pro, which is
-    /// the safe direction — it only ever filters Organic out.
-    nonisolated(unsafe) static var isProProvider: () -> Bool = { false }
-
-    /// Restores the production default. Test teardown only.
-    static func resetProProviderForTesting() {
-        isProProvider = { false }
-    }
-
     /// The shapes a new element may take.
     ///
     /// Seeds itself from the three legacy per-category keys on first read, so a
-    /// user's current preferences carry over. Organic stays Pro and is filtered
-    /// **here**, at spawn time, rather than being removed from storage — that is
-    /// what lets a lapsed subscriber's preference survive and reactivate.
+    /// user's current preferences carry over.
     ///
     /// Never returns empty: `CanvasElement.spawn` picks from this with
     /// `randomElement()`.
@@ -97,21 +84,11 @@ enum CanvasShapeType: String, CaseIterable, Codable, Identifiable {
             stored = seedFromLegacyKeys()
         }
 
-        let isPro = isProProvider()
-        var usable = Set(stored).filter { selectableCases.contains($0) }
-        if !isPro { usable.remove(.organicBlob) }
-
-        // The fallback has to respect the gate too: a non-Pro user whose only
-        // saved shape is Organic filters down to nothing, and returning the
-        // ungated default set would hand them the shape we just removed.
-        guard !usable.isEmpty else { return gatedSelectableCases(isPro: isPro) }
+        let usable = Set(stored).filter { selectableCases.contains($0) }
+        guard !usable.isEmpty else { return selectableCases }
 
         // Picker order, so the set reads the same everywhere it is shown.
         return selectableCases.filter(usable.contains)
-    }
-
-    private static func gatedSelectableCases(isPro: Bool) -> [CanvasShapeType] {
-        isPro ? selectableCases : selectableCases.filter { $0 != .organicBlob }
     }
 
     /// Writes the user's selection. Rejects a set that is empty once hidden
@@ -138,8 +115,6 @@ enum CanvasShapeType: String, CaseIterable, Codable, Identifiable {
 
         let seeded = selectableCases.filter(Set(legacy).contains)
         guard !seeded.isEmpty else { return selectableCases }
-        // Seeding writes the user's real preference, ungated — the Pro filter
-        // is applied on read so a lapsed subscriber's Organic survives here.
         UserDefaults.standard.set(seeded.map(\.rawValue), forKey: SharedKeys.allowedCanvasShapes)
         return seeded
     }

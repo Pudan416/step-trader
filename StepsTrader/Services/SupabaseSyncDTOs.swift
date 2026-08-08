@@ -354,6 +354,7 @@ struct UserPreferencesRow: Decodable {
     let bodyCanvasShape: String
     let mindCanvasShape: String
     let heartCanvasShape: String
+    let allowedCanvasShapes: [String]
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -387,6 +388,7 @@ struct UserPreferencesRow: Decodable {
         case bodyCanvasShape = "body_canvas_shape"
         case mindCanvasShape = "mind_canvas_shape"
         case heartCanvasShape = "heart_canvas_shape"
+        case allowedCanvasShapes = "allowed_canvas_shapes"
     }
     
     init(from decoder: Decoder) throws {
@@ -422,6 +424,7 @@ struct UserPreferencesRow: Decodable {
         bodyCanvasShape = try c.decodeIfPresent(String.self, forKey: .bodyCanvasShape) ?? CanvasShapeType.circle.rawValue
         mindCanvasShape = try c.decodeIfPresent(String.self, forKey: .mindCanvasShape) ?? CanvasShapeType.snowflake.rawValue
         heartCanvasShape = try c.decodeIfPresent(String.self, forKey: .heartCanvasShape) ?? CanvasShapeType.rays.rawValue
+        allowedCanvasShapes = try c.decodeIfPresent([String].self, forKey: .allowedCanvasShapes) ?? []
     }
 }
 

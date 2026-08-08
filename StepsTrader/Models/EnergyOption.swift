@@ -51,17 +51,40 @@ struct CustomEnergyOption: Identifiable, Codable, Equatable, Hashable {
 struct EnergyRoutine: Identifiable, Codable, Equatable, Hashable {
     let id: String
     var name: String
-    var bodyIds: [String]
-    var mindIds: [String]
-    var heartIds: [String]
+    var happeningIds: [String]
     var lastUsed: Date?
 
-    init(id: String = UUID().uuidString, name: String, bodyIds: [String], mindIds: [String], heartIds: [String], lastUsed: Date? = nil) {
+    init(id: String = UUID().uuidString, name: String, happeningIds: [String], lastUsed: Date? = nil) {
         self.id = id
         self.name = name
-        self.bodyIds = bodyIds
-        self.mindIds = mindIds
-        self.heartIds = heartIds
+        self.happeningIds = happeningIds
         self.lastUsed = lastUsed
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, happeningIds, lastUsed
+        case bodyIds, mindIds, heartIds
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        if let flat = try c.decodeIfPresent([String].self, forKey: .happeningIds) {
+            happeningIds = flat
+        } else {
+            happeningIds = (try c.decodeIfPresent([String].self, forKey: .bodyIds) ?? [])
+                + (try c.decodeIfPresent([String].self, forKey: .mindIds) ?? [])
+                + (try c.decodeIfPresent([String].self, forKey: .heartIds) ?? [])
+        }
+        lastUsed = try c.decodeIfPresent(Date.self, forKey: .lastUsed)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(happeningIds, forKey: .happeningIds)
+        try c.encodeIfPresent(lastUsed, forKey: .lastUsed)
     }
 }
