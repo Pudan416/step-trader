@@ -153,6 +153,9 @@
 		DA0003000300030003000031 /* Happening.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000030 /* Happening.swift */; };
 		DA0004000400040004000041 /* HappeningDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0004000400040004000040 /* HappeningDefaults.swift */; };
 		DA0008000800080008000081 /* HappeningPaletteOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0008000800080008000080 /* HappeningPaletteOrder.swift */; };
+		DA000B000B000B000B0000B1 /* HappeningBlobLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000B000B000B000B0000B0 /* HappeningBlobLayout.swift */; };
+		DA000E000E000E000E0000E1 /* HappeningPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */; };
+		DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */; };
 		30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0004300000000000CA04 /* GenerativeCanvasView.swift */; };
 		30CA0005300000000000CA05 /* RadialHoldMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0006300000000000CA06 /* RadialHoldMenu.swift */; };
 		30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0008300000000000CA08 /* CanvasStateManagers.swift */; };
@@ -224,6 +227,7 @@
 		DA0007000700070007000071 /* HappeningStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0007000700070007000070 /* HappeningStoreTests.swift */; };
 		DA0009000900090009000091 /* HappeningPaletteOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0009000900090009000090 /* HappeningPaletteOrderTests.swift */; };
 		DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */; };
+		DA000C000C000C000C0000C1 /* HappeningBlobLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000C000C000C000C0000C0 /* HappeningBlobLayoutTests.swift */; };
 		DA0002000200020002000021 /* canvas_legacy_categorised.json in Resources */ = {isa = PBXBuildFile; fileRef = DA0002000200020002000020 /* canvas_legacy_categorised.json */; };
 		AC000001300400000000AC01 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000002300400000000AC02 /* AppConstants.swift */; };
 		AE00000100000000000000B1 /* MeAxisDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000100000000000000A1 /* MeAxisDetailView.swift */; };
@@ -475,6 +479,9 @@
 		DA0003000300030003000030 /* Happening.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Happening.swift; sourceTree = "<group>"; };
 		DA0004000400040004000040 /* HappeningDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningDefaults.swift; sourceTree = "<group>"; };
 		DA0008000800080008000080 /* HappeningPaletteOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteOrder.swift; sourceTree = "<group>"; };
+		DA000B000B000B000B0000B0 /* HappeningBlobLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningBlobLayout.swift; sourceTree = "<group>"; };
+		DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteView.swift; sourceTree = "<group>"; };
+		DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFreeTextField.swift; sourceTree = "<group>"; };
 		30CA0004300000000000CA04 /* GenerativeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeCanvasView.swift; sourceTree = "<group>"; };
 		30CA0006300000000000CA06 /* RadialHoldMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadialHoldMenu.swift; sourceTree = "<group>"; };
 		30CA0008300000000000CA08 /* CanvasStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStateManagers.swift; sourceTree = "<group>"; };
@@ -546,6 +553,7 @@
 		DA0007000700070007000070 /* HappeningStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningStoreTests.swift; sourceTree = "<group>"; };
 		DA0009000900090009000090 /* HappeningPaletteOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteOrderTests.swift; sourceTree = "<group>"; };
 		DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllowedCanvasShapesTests.swift; sourceTree = "<group>"; };
+		DA000C000C000C000C0000C0 /* HappeningBlobLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningBlobLayoutTests.swift; sourceTree = "<group>"; };
 		DA0002000200020002000020 /* canvas_legacy_categorised.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/canvas_legacy_categorised.json; sourceTree = "<group>"; };
 		AC000002300400000000AC02 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
 		AE00000100000000000000A1 /* MeAxisDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeAxisDetailView.swift; sourceTree = "<group>"; };
@@ -942,6 +950,7 @@
 				AE00000100000000000000A1 /* MeAxisDetailView.swift */,
 				AE00000200000000000000A2 /* MeViewSupport.swift */,
 				2061EB792F26593A009FEC24 /* CategoryDetailView.swift */,
+				DA000D000D000D000D0000D0 /* Palette */,
 				200AC5A72F16DA570018004E /* LoginView.swift */,
 				2061EB7D2F269C99009FEC24 /* HandoffProtectionView.swift */,
 				2061EB7E2F269C99009FEC24 /* MainTabView.swift */,
@@ -1133,6 +1142,7 @@
 				DA0007000700070007000070 /* HappeningStoreTests.swift */,
 				DA0009000900090009000090 /* HappeningPaletteOrderTests.swift */,
 				DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */,
+				DA000C000C000C000C0000C0 /* HappeningBlobLayoutTests.swift */,
 				DA0002000200020002000020 /* canvas_legacy_categorised.json */,
 			);
 			path = Steps4Tests;
@@ -1145,6 +1155,16 @@
 				201816152F33C8D80006B350 /* CustomActivityUITests.swift */,
 			);
 			path = Steps4UITests;
+			sourceTree = "<group>";
+		};
+		DA000D000D000D000D0000D0 /* Palette */ = {
+			isa = PBXGroup;
+			children = (
+				DA000B000B000B000B0000B0 /* HappeningBlobLayout.swift */,
+				DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */,
+				DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */,
+			);
+			path = Palette;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1506,6 +1526,9 @@
 				DA0003000300030003000031 /* Happening.swift in Sources */,
 				DA0004000400040004000041 /* HappeningDefaults.swift in Sources */,
 				DA0008000800080008000081 /* HappeningPaletteOrder.swift in Sources */,
+				DA000B000B000B000B0000B1 /* HappeningBlobLayout.swift in Sources */,
+				DA000E000E000E000E0000E1 /* HappeningPaletteView.swift in Sources */,
+				DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */,
 				30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */,
 				30CA0005300000000000CA05 /* RadialHoldMenu.swift in Sources */,
 				30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */,
@@ -1671,6 +1694,7 @@
 				DA0007000700070007000071 /* HappeningStoreTests.swift in Sources */,
 				DA0009000900090009000091 /* HappeningPaletteOrderTests.swift in Sources */,
 				DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */,
+				DA000C000C000C000C0000C1 /* HappeningBlobLayoutTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
