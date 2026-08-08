@@ -105,6 +105,12 @@ enum SharedKeys {
     static let mindCanvasShape = "mindCanvasShape_v1"
     static let heartCanvasShape = "heartCanvasShape_v1"
 
+    // MARK: - Happenings
+
+    /// JSON-encoded `[Happening]` — the ten built-ins plus everything the user
+    /// created or carried over from the old 31-option set.
+    static let happeningCatalog = "happeningCatalog_v1"
+
     // MARK: - Widget
     static let widgetBackgroundMode = "widgetBackgroundMode_v1"
     static let hasMediumWidget = "hasMediumWidget_v1"

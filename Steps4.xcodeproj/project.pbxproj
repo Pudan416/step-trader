@@ -95,6 +95,7 @@
 		20B8843D2FAF9B540088AA6D /* SubscriptionEntitlement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8843C2FAF9B540088AA6D /* SubscriptionEntitlement.swift */; };
 		20B884432FAF9B8C0088AA6D /* UserEconomyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B884412FAF9B8C0088AA6D /* UserEconomyStore.swift */; };
 		PREF5702570057005700B001 /* PreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = PREF5702570057005700F001 /* PreferencesStore.swift */; };
+		DA0006000600060006000061 /* HappeningStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0006000600060006000060 /* HappeningStore.swift */; };
 		20B884442FAF9B8C0088AA6D /* BlockingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8843E2FAF9B8C0088AA6D /* BlockingStore.swift */; };
 		20B884452FAF9B8C0088AA6D /* SubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B884402FAF9B8C0088AA6D /* SubscriptionStore.swift */; };
 		20B884462FAF9B8C0088AA6D /* HealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8843F2FAF9B8C0088AA6D /* HealthStore.swift */; };
@@ -219,6 +220,7 @@
 		AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB004400440044AABB0040 /* SubscriptionStateTests.swift */; };
 		DA0001000100010001000011 /* HappeningMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0001000100010001000010 /* HappeningMigrationTests.swift */; };
 		DA0005000500050005000051 /* HappeningModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0005000500050005000050 /* HappeningModelTests.swift */; };
+		DA0007000700070007000071 /* HappeningStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0007000700070007000070 /* HappeningStoreTests.swift */; };
 		DA0002000200020002000021 /* canvas_legacy_categorised.json in Resources */ = {isa = PBXBuildFile; fileRef = DA0002000200020002000020 /* canvas_legacy_categorised.json */; };
 		AC000001300400000000AC01 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000002300400000000AC02 /* AppConstants.swift */; };
 		AE00000100000000000000B1 /* MeAxisDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000100000000000000A1 /* MeAxisDetailView.swift */; };
@@ -416,6 +418,7 @@
 		20B884402FAF9B8C0088AA6D /* SubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionStore.swift; sourceTree = "<group>"; };
 		20B884412FAF9B8C0088AA6D /* UserEconomyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserEconomyStore.swift; sourceTree = "<group>"; };
 		PREF5702570057005700F001 /* PreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStore.swift; sourceTree = "<group>"; };
+		DA0006000600060006000060 /* HappeningStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningStore.swift; sourceTree = "<group>"; };
 		20B884472FAF9BBB0088AA6D /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		20B884492FAF9BD30088AA6D /* SettingsSubscriptionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSubscriptionPage.swift; sourceTree = "<group>"; };
 		20B8844E2FAF9CD90088AA6D /* Configuration.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Configuration.storekit; sourceTree = "<group>"; };
@@ -536,6 +539,7 @@
 		AABB004400440044AABB0040 /* SubscriptionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionStateTests.swift; sourceTree = "<group>"; };
 		DA0001000100010001000010 /* HappeningMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningMigrationTests.swift; sourceTree = "<group>"; };
 		DA0005000500050005000050 /* HappeningModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningModelTests.swift; sourceTree = "<group>"; };
+		DA0007000700070007000070 /* HappeningStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningStoreTests.swift; sourceTree = "<group>"; };
 		DA0002000200020002000020 /* canvas_legacy_categorised.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/canvas_legacy_categorised.json; sourceTree = "<group>"; };
 		AC000002300400000000AC02 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
 		AE00000100000000000000A1 /* MeAxisDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeAxisDetailView.swift; sourceTree = "<group>"; };
@@ -973,6 +977,7 @@
 				20SG0002AAAA000100000002 /* SubscriptionGate.swift */,
 				20B884412FAF9B8C0088AA6D /* UserEconomyStore.swift */,
 				PREF5702570057005700F001 /* PreferencesStore.swift */,
+				DA0006000600060006000060 /* HappeningStore.swift */,
 			);
 			path = Stores;
 			sourceTree = "<group>";
@@ -1118,6 +1123,7 @@
 				AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */,
 				DA0001000100010001000010 /* HappeningMigrationTests.swift */,
 				DA0005000500050005000050 /* HappeningModelTests.swift */,
+				DA0007000700070007000070 /* HappeningStoreTests.swift */,
 				DA0002000200020002000020 /* canvas_legacy_categorised.json */,
 			);
 			path = Steps4Tests;
@@ -1520,6 +1526,7 @@
 				2061ECF82F277010009FEC24 /* PayGateSession.swift in Sources */,
 				20B884432FAF9B8C0088AA6D /* UserEconomyStore.swift in Sources */,
 				PREF5702570057005700B001 /* PreferencesStore.swift in Sources */,
+				DA0006000600060006000061 /* HappeningStore.swift in Sources */,
 				20B884442FAF9B8C0088AA6D /* BlockingStore.swift in Sources */,
 				20B884452FAF9B8C0088AA6D /* SubscriptionStore.swift in Sources */,
 				20SG0001AAAA000100000001 /* SubscriptionGate.swift in Sources */,
@@ -1651,6 +1658,7 @@
 				AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */,
 				DA0001000100010001000011 /* HappeningMigrationTests.swift in Sources */,
 				DA0005000500050005000051 /* HappeningModelTests.swift in Sources */,
+				DA0007000700070007000071 /* HappeningStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
