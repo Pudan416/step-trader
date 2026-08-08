@@ -153,9 +153,9 @@ extension SupabaseSyncService {
                 dayKey: dayKey,
                 inkEarned: snapshot.inkEarned,
                 inkSpent: snapshot.inkSpent,
-                bodyIds: EphemeralMoment.filteredOutOfSync(snapshot.bodyIds),
-                mindIds: EphemeralMoment.filteredOutOfSync(snapshot.mindIds),
-                heartIds: EphemeralMoment.filteredOutOfSync(snapshot.heartIds),
+                bodyIds: snapshot.bodyIds,
+                mindIds: snapshot.mindIds,
+                heartIds: snapshot.heartIds,
                 steps: snapshot.steps,
                 sleepHours: snapshot.sleepHours,
                 stepsTarget: snapshot.stepsTarget,
@@ -266,9 +266,9 @@ extension SupabaseSyncService {
                 result[row.dayKey] = PastDaySnapshot(
                     inkEarned: row.inkEarned,
                     inkSpent: row.inkSpent,
-                    bodyIds: EphemeralMoment.filteredOutOfSync(row.bodyIds),
-                    mindIds: EphemeralMoment.filteredOutOfSync(row.mindIds),
-                    heartIds: EphemeralMoment.filteredOutOfSync(row.heartIds),
+                    bodyIds: row.bodyIds,
+                    mindIds: row.mindIds,
+                    heartIds: row.heartIds,
                     steps: row.steps,
                     sleepHours: row.sleepHours,
                     stepsTarget: row.stepsTarget,
@@ -342,9 +342,9 @@ extension SupabaseSyncService {
             let snapshot = PastDaySnapshot(
                 inkEarned: stat?.baseEnergy ?? 0,
                 inkSpent: sp?.totalSpent ?? 0,
-                bodyIds: EphemeralMoment.filteredOutOfSync(sel?.activityIds ?? []),
-                mindIds: EphemeralMoment.filteredOutOfSync(sel?.restIds ?? []),
-                heartIds: EphemeralMoment.filteredOutOfSync(sel?.joysIds ?? []),
+                bodyIds: sel?.activityIds ?? [],
+                mindIds: sel?.restIds ?? [],
+                heartIds: sel?.joysIds ?? [],
                 steps: stat?.stepsCount ?? 0,
                 sleepHours: stat?.sleepHours ?? 0
             )

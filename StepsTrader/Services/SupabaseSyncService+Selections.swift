@@ -198,9 +198,9 @@ extension SupabaseSyncService {
             let row = DailySelectionsRow(
                 userId: userId,
                 dayKey: dayKey,
-                activityIds: EphemeralMoment.filteredOutOfSync(activityIds),
-                restIds: EphemeralMoment.filteredOutOfSync(recoveryIds),
-                joysIds: EphemeralMoment.filteredOutOfSync(joysIds),
+                activityIds: activityIds,
+                restIds: recoveryIds,
+                joysIds: joysIds,
                 updatedAt: iso8601String(Date.now) // §C3 stale-write guard
             )
             

@@ -17,11 +17,10 @@ struct MainTabView: View {
     // Bumped per delivery so repeat-same-bundleId notifications still re-fire `.task(id:)`.
     @State private var ticketDeliveryToken = UUID()
     var theme: AppTheme = .night
-    @State private var selectedCategory: EnergyCategory? = nil
+    @State private var showHappeningPalette = false
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
     @State private var isWideCanvas: Bool = false
-    @State private var uiTestPickerCategory: EnergyCategory? = nil
     @State private var showColorsHelp: Bool = false
     /// Deep-link route for the Settings tab, driven by feature-tip CTAs.
     @State private var settingsDeepLinkRoute: FeatureTipSettingsPage?
@@ -96,35 +95,9 @@ struct MainTabView: View {
             TabView(selection: $selection) {
                 // 0: My Canvas (default) — canvas goes full-bleed behind card
                 Group {
-                    if isUITest {
-                        ZStack {
-                            Color.clear.ignoresSafeArea()
-                            VStack(spacing: 16) {
-                                Spacer()
-                                ForEach(EnergyCategory.allCases) { cat in
-                                    Button(cat.rawValue) {
-                                        uiTestPickerCategory = cat
-                                    }
-                                    .accessibilityIdentifier("uitest_open_\(cat.rawValue)")
-                                }
-                                .padding(.bottom, 40)
-                            }
-                        }
-                        .sheet(item: $uiTestPickerCategory) { category in
-                            CategoryDetailView(
-                                model: model,
-                                category: category,
-                                outerWorldSteps: 0,
-                                onActivityConfirmed: { _, _, _, _ in },
-                                onCardUndo: { _, _ in },
-                                onReroll: { _, _ in }
-                            )
-                        }
-                    } else {
-                        NavigationStack {
-                            GalleryView(model: model, metricOverlay: $metricOverlay, isWideCanvas: $isWideCanvas)
-                                .toolbarBackground(.hidden, for: .navigationBar)
-                        }
+                    NavigationStack {
+                        GalleryView(model: model, metricOverlay: $metricOverlay, isWideCanvas: $isWideCanvas)
+                            .toolbarBackground(.hidden, for: .navigationBar)
                     }
                 }
                 .safeAreaInset(edge: .top, spacing: 0) {
@@ -213,42 +186,24 @@ struct MainTabView: View {
             .onAppear {
                 model.recalculateDailyEnergy()
             }
-            .sheet(item: $selectedCategory) { category in
-                // Picker is opened from outside the Canvas tab (StepBalanceCard
-                // pills). `GalleryView` owns the canvas state, so we delegate via
-                // notifications it subscribes to. Switching to the Canvas tab will
-                // show the spawned/rerolled/removed elements.
-                CategoryDetailView(
-                    model: model,
-                    category: category,
-                    outerWorldSteps: 0,
-                    onActivityConfirmed: { optionId, cat, color, variant in
-                        var info: [String: Any] = [
-                            "optionId": optionId,
-                            "category": cat.rawValue,
-                            "color": color
-                        ]
-                        if let variant { info["assetVariant"] = variant }
-                        NotificationCenter.default.post(name: .canvasElementSpawnRequested, object: nil, userInfo: info)
+            .sheet(isPresented: $showHappeningPalette) {
+                HappeningPaletteView(
+                    happenings: model.paletteOrder(),
+                    onPick: { happening in
+                        postHappeningSpawn(happening.id)
+                        showHappeningPalette = false
                     },
-                    onCardUndo: { optionId, cat in
-                        NotificationCenter.default.post(
-                            name: .canvasElementRemoveRequested,
-                            object: nil,
-                            userInfo: ["optionId": optionId, "category": cat.rawValue]
+                    onCreate: { title in
+                        let happening = model.happeningStore.create(title: title)
+                        model.paletteOrderCache.append(
+                            id: happening.id,
+                            dayKey: AppModel.dayKey(for: .now)
                         )
+                        postHappeningSpawn(happening.id)
+                        showHappeningPalette = false
                     },
-                    onReroll: { optionId, cat in
-                        NotificationCenter.default.post(
-                            name: .canvasElementRerollRequested,
-                            object: nil,
-                            userInfo: ["optionId": optionId, "category": cat.rawValue]
-                        )
-                    }
+                    dayKey: AppModel.dayKey(for: .now)
                 )
-                .onAppear {
-                    AppLogger.ui.debug("🟢 MainTabView: Showing CategoryDetailView for category: \(category.rawValue)")
-                }
             }
         }
         .overlay(alignment: .top) {
@@ -279,23 +234,23 @@ struct MainTabView: View {
                 },
                 onMoveTap: {
                     if selection == Tab.canvas.rawValue {
-                        metricOverlay = .category(.body)
+                        metricOverlay = .happenings
                     } else {
-                        selectedCategory = .body
+                        showHappeningPalette = true
                     }
                 },
                 onRebootTap: {
                     if selection == Tab.canvas.rawValue {
-                        metricOverlay = .category(.mind)
+                        metricOverlay = .happenings
                     } else {
-                        selectedCategory = .mind
+                        showHappeningPalette = true
                     }
                 },
                 onJoyTap: {
                     if selection == Tab.canvas.rawValue {
-                        metricOverlay = .category(.heart)
+                        metricOverlay = .happenings
                     } else {
-                        selectedCategory = .heart
+                        showHappeningPalette = true
                     }
                 },
                 onColorsHelpTap: { showColorsHelp = true }
@@ -375,6 +330,15 @@ struct MainTabView: View {
                 ticketDeliveryToken = UUID()
             }
         }
+    }
+
+    private func postHappeningSpawn(_ optionId: String) {
+        let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
+        NotificationCenter.default.post(
+            name: .canvasElementSpawnRequested,
+            object: nil,
+            userInfo: ["optionId": optionId, "color": color]
+        )
     }
 
     private var colorsHelpOverlay: some View {
@@ -588,4 +552,3 @@ private struct LiquidGlassControlModifier<S: InsettableShape>: ViewModifier {
         }
     }
 }
-

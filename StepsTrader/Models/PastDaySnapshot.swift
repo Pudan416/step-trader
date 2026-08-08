@@ -10,10 +10,6 @@ struct PastDaySnapshot: Codable, Equatable {
     var sleepHours: Double
     var stepsTarget: Double
     var sleepTargetHours: Double
-    /// Ephemeral one-time moments logged for this day.
-    /// Their IDs also appear in bodyIds/mindIds/heartIds for energy accounting.
-    /// Labels are local-only — not synced to Supabase yet.
-    var moments: [EphemeralMoment]
 
     enum CodingKeys: String, CodingKey {
         case inkEarned
@@ -46,8 +42,7 @@ struct PastDaySnapshot: Codable, Equatable {
         steps: Int = 0,
         sleepHours: Double = 0,
         stepsTarget: Double = EnergyDefaults.stepsTarget,
-        sleepTargetHours: Double = EnergyDefaults.sleepTargetHours,
-        moments: [EphemeralMoment] = []
+        sleepTargetHours: Double = EnergyDefaults.sleepTargetHours
     ) {
         self.inkEarned = inkEarned
         self.inkSpent = inkSpent
@@ -58,7 +53,6 @@ struct PastDaySnapshot: Codable, Equatable {
         self.sleepHours = sleepHours
         self.stepsTarget = stepsTarget
         self.sleepTargetHours = sleepTargetHours
-        self.moments = moments
     }
 
     init(from decoder: Decoder) throws {
@@ -112,7 +106,6 @@ struct PastDaySnapshot: Codable, Equatable {
         sleepHours = try container.decodeIfPresent(Double.self, forKey: .sleepHours) ?? 0
         stepsTarget = try container.decodeIfPresent(Double.self, forKey: .stepsTarget) ?? EnergyDefaults.stepsTarget
         sleepTargetHours = try container.decodeIfPresent(Double.self, forKey: .sleepTargetHours) ?? EnergyDefaults.sleepTargetHours
-        moments = try container.decodeIfPresent([EphemeralMoment].self, forKey: .moments) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -126,7 +119,6 @@ struct PastDaySnapshot: Codable, Equatable {
         try container.encode(sleepHours, forKey: .sleepHours)
         try container.encode(stepsTarget, forKey: .stepsTarget)
         try container.encode(sleepTargetHours, forKey: .sleepTargetHours)
-        try container.encode(moments, forKey: .moments)
     }
 }
 

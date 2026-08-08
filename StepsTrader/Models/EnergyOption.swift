@@ -14,16 +14,6 @@ struct EnergyOption: Identifiable, Codable, Equatable {
     }
 }
 
-struct OptionEntry: Identifiable, Codable, Equatable {
-    let id: String
-    let dayKey: String
-    let optionId: String
-    let category: EnergyCategory
-    var colorHex: String
-    var timestamp: Date
-    var assetVariant: Int?
-}
-
 struct CustomEnergyOption: Identifiable, Codable, Equatable, Hashable {
     let id: String
     var titleEn: String

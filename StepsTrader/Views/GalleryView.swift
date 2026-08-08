@@ -12,9 +12,6 @@ struct GalleryView: View {
     @AppStorage("gallery_steps_color", store: UserDefaults.stepsTrader()) private var stepsColorHex: String = "#FED415"
     @AppStorage(SharedKeys.gradientStyle) private var currentGradientStyle: String = GradientStyle.radial.rawValue
     @AppStorage(SharedKeys.gradientPalette) private var currentGradientPalette: String = GradientPalette.warmSunset.rawValue
-    @AppStorage(SharedKeys.bodyCanvasShape) private var bodyShapeRaw: String = CanvasShapeType.circle.rawValue
-    @AppStorage(SharedKeys.mindCanvasShape) private var mindShapeRaw: String = CanvasShapeType.snowflake.rawValue
-    @AppStorage(SharedKeys.heartCanvasShape) private var heartShapeRaw: String = CanvasShapeType.rays.rawValue
     /// Last day key whose remote bootstrap finished. When `== todayKey`, an empty
     /// canvas (post-fetch with no remote data) is treated as a real "nothing yet"
     /// state instead of re-firing the remote round-trip on every appear.
@@ -41,12 +38,7 @@ struct GalleryView: View {
     /// canvas-edit fields hoisted to a separate Observable manager.
     @State private var editState = CanvasEditState()
     @Binding var isWideCanvas: Bool
-    /// Controls the MomentEntrySheet presentation.
-    @State private var showMomentEntry = false
-    /// Shown when a free user taps the Moment node.
-    @State private var showMomentPaywall = false
-    /// Mirrors RadialHoldMenu fan state so the share button can hide when the fan is open.
-    @State private var isFanOpen = false
+    @State private var showHappeningPalette = false
     /// Directed nudge above the + button that invites the user to fill the
     /// day. It fires at most once per time-of-day window (morning / evening,
     /// see `AddHintWindow`) and only while the canvas has fewer than two
@@ -97,9 +89,7 @@ struct GalleryView: View {
         let baseEnergy: Int
         let spentSteps: Int
         let isBootstrapping: Bool
-        let bodySelections: [String]
-        let mindSelections: [String]
-        let heartSelections: [String]
+        let additionIds: [String]
         let gradientStyle: String
         let gradientPalette: String
     }
@@ -111,17 +101,11 @@ struct GalleryView: View {
             baseEnergy: model.baseEnergyToday,
             spentSteps: model.spentStepsToday,
             isBootstrapping: model.isBootstrapping,
-            bodySelections: model.dailyBodySelections,
-            mindSelections: model.dailyRestSelections,
-            heartSelections: model.dailyHeartSelections,
+            additionIds: model.todayAdditions.map(\.id),
             gradientStyle: currentGradientStyle,
             gradientPalette: currentGradientPalette
         )
     }
-
-    /// Combined shape prefs — drives `.onChange` to migrate frozenShapeType
-    /// on current-day elements when the user changes shape in settings.
-    private var shapePrefs: [String] { [bodyShapeRaw, mindShapeRaw, heartShapeRaw] }
 
     private var isCanvasEmpty: Bool { dayCanvas.elements.isEmpty }
 
@@ -143,7 +127,7 @@ struct GalleryView: View {
     /// delay so it doesn't flash during canvas load. It then auto-dismisses.
     private func refreshAddHint() {
         addHintTask?.cancel()
-        guard addHintQualifies, !isFanOpen, !isWideCanvas else {
+        guard addHintQualifies, !showHappeningPalette, !isWideCanvas else {
             if showAddHint {
                 withAnimation(.easeOut(duration: 0.25)) { showAddHint = false }
             }
@@ -170,7 +154,7 @@ struct GalleryView: View {
         guard !hasShownHintWindow(window) else { return }
         addHintTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(1500))
-            guard !Task.isCancelled, addHintQualifies, !isFanOpen, !isWideCanvas else { return }
+            guard !Task.isCancelled, addHintQualifies, !showHappeningPalette, !isWideCanvas else { return }
             activeHintWindow = window
             markHintWindowShown(window)
             withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { showAddHint = true }
@@ -353,11 +337,8 @@ struct GalleryView: View {
             syncCanvasWithModel()
         }
         .onChange(of: dayCanvas.elements.count) { refreshAddHint() }
-        .onChange(of: isFanOpen) { refreshAddHint() }
+        .onChange(of: showHappeningPalette) { refreshAddHint() }
         .onChange(of: isWideCanvas) { refreshAddHint() }
-        .onChange(of: shapePrefs) {
-            migrateShapePreferences()
-        }
         .onChange(of: scenePhase) {
             if scenePhase == .background {
                 if editState.isDraggingElement { handleEditDragEnd() }
@@ -394,52 +375,41 @@ struct GalleryView: View {
         .onReceive(NotificationCenter.default.publisher(for: .canvasElementSpawnRequested)) { note in
             guard let info = note.userInfo,
                   let optionId = info["optionId"] as? String,
-                  let raw = info["category"] as? String,
-                  let category = EnergyCategory(rawValue: raw),
                   let color = info["color"] as? String else { return }
-            let variant = info["assetVariant"] as? Int
-            spawnElement(optionId: optionId, category: category, color: color, assetVariant: variant)
+            addAndSpawnHappening(optionId: optionId, color: color)
         }
         .onReceive(NotificationCenter.default.publisher(for: .canvasElementRemoveRequested)) { note in
             guard let info = note.userInfo,
-                  let optionId = info["optionId"] as? String,
-                  let raw = info["category"] as? String,
-                  let category = EnergyCategory(rawValue: raw) else { return }
-            removeElement(optionId: optionId, category: category)
+                  let elementId = info["elementId"] as? UUID else { return }
+            removeElement(id: elementId)
         }
         .onReceive(NotificationCenter.default.publisher(for: .canvasElementRerollRequested)) { note in
             guard let info = note.userInfo,
-                  let optionId = info["optionId"] as? String,
-                  let raw = info["category"] as? String,
-                  let category = EnergyCategory(rawValue: raw) else { return }
-            rerollElement(optionId: optionId, category: category)
-        }
-        .sheet(item: $toolbar.pickerCategory) { category in
-            CategoryDetailView(
-                model: model,
-                category: category,
-                outerWorldSteps: 0,
-                onActivityConfirmed: { optionId, cat, hexColor, variant in
-                    spawnElement(optionId: optionId, category: cat, color: hexColor, assetVariant: variant)
-                },
-                onCardUndo: { optionId, cat in
-                    removeElement(optionId: optionId, category: cat)
-                },
-                onReroll: { optionId, cat in
-                    rerollElement(optionId: optionId, category: cat)
-                }
-            )
+                  let elementId = info["elementId"] as? UUID else { return }
+            rerollElement(id: elementId)
         }
         .sheet(isPresented: $toolbar.showShareSheet, onDismiss: { toolbar.shareImage = nil }) {
             if let image = toolbar.shareImage {
                 CanvasShareSheet(items: [image])
             }
         }
-        .sheet(isPresented: $showMomentEntry, onDismiss: { isFanOpen = false }) {
-            MomentEntrySheet(model: model)
-        }
-        .fullScreenCover(isPresented: $showMomentPaywall, onDismiss: { isFanOpen = false }) {
-            PaywallView(model: model, store: model.subscriptionStore, source: .feature)
+        .sheet(isPresented: $showHappeningPalette) {
+            HappeningPaletteView(
+                happenings: model.paletteOrder(),
+                onPick: { happening in
+                    let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
+                    addAndSpawnHappening(optionId: happening.id, color: color)
+                    showHappeningPalette = false
+                },
+                onCreate: { title in
+                    let happening = model.happeningStore.create(title: title)
+                    model.paletteOrderCache.append(id: happening.id, dayKey: todayKey)
+                    let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
+                    addAndSpawnHappening(optionId: happening.id, color: color)
+                    showHappeningPalette = false
+                },
+                dayKey: todayKey
+            )
         }
         .onChange(of: toolbar.showShareSheet) { _, isPresented in
             if !isPresented { toolbar.shareImage = nil }
@@ -552,30 +522,20 @@ struct GalleryView: View {
 
             Spacer()
 
-            RadialHoldMenu(
-                labelColor: buttonColor,
-                onCategorySelected: { category in
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(180))
-                        toolbar.pickerCategory = category
-                    }
-                    if category == .mind {
-                        CoachMarkManager.postAction(for: .tapMind)
-                    }
-                },
-                onMomentSelected: {
-                    if SubscriptionGate.canAddMoment(isPro: model.isPro) {
-                        showMomentEntry = true
-                    } else {
-                        showMomentPaywall = true
-                    }
-                },
-                isFanOpen: $isFanOpen,
-                pulseHint: showAddHint,
-                onFanOpened: {
-                    CoachMarkManager.postAction(for: .tapPlusButton)
-                }
-            )
+            Button {
+                CoachMarkManager.postAction(for: .tapPlusButton)
+                showHappeningPalette = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(buttonColor)
+                    .frame(width: 56, height: 56)
+                    .liquidGlassControl(in: Circle())
+                    .frame(width: 72, height: 72)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Add happening", comment: "Canvas add button"))
             .coachMarkAnchor(.tapPlusButton)
 
             Spacer()
@@ -589,7 +549,7 @@ struct GalleryView: View {
             // remove the entire view and reserve the slot with a clear frame
             // of the same size to keep the HStack layout stable.
             ZStack {
-                if !isFanOpen {
+                if !showHappeningPalette {
                     shareButton
                         .transition(reduceMotion
                                     ? .opacity
@@ -600,7 +560,7 @@ struct GalleryView: View {
             .animation(reduceMotion
                        ? .easeInOut(duration: 0.15)
                        : .spring(response: 0.25, dampingFraction: 0.85),
-                       value: isFanOpen)
+                       value: showHappeningPalette)
         }
     }
 
@@ -906,60 +866,6 @@ struct GalleryView: View {
         guard activeDayKey == dayCanvas.dayKey else { return }
         var didChange = false
 
-        // 1. Reconcile canvas elements ↔ daily selections.
-        //    Remove any element whose optionId is no longer in the model's selections
-        //    (e.g. option deleted, preference changed, Supabase restore mismatch).
-        //    SKIP during bootstrap: selections haven't loaded from UserDefaults yet,
-        //    so activeIds would be empty and wipe the entire canvas. Once bootstrap
-        //    finishes (isBootstrapping → false), objectWillChange fires and we
-        //    reconcile with the real selections.
-        if !model.isBootstrapping {
-            let activeIds: Set<String> = Set(
-                model.dailyBodySelections
-                + model.dailyRestSelections
-                + model.dailyHeartSelections
-            )
-            // Defensive guard: if selections are transiently empty during launch/restore,
-            // don't wipe a non-empty persisted canvas.
-            if activeIds.isEmpty && !dayCanvas.elements.isEmpty {
-                return
-            }
-            let before = dayCanvas.elements.count
-            dayCanvas.elements.removeAll { !activeIds.contains($0.optionId) }
-            if dayCanvas.elements.count != before {
-                didChange = true
-            }
-        }
-
-        // 1b. Spawn canvas elements for selections that don't have one yet
-        //     (covers Routines and Supabase restore).
-        if !model.isBootstrapping {
-            let existingIds = Set(dayCanvas.elements.map(\.optionId))
-            let allSelections: [(String, EnergyCategory)] =
-                model.dailyBodySelections.map { ($0, .body) }
-                + model.dailyRestSelections.map { ($0, .mind) }
-                + model.dailyHeartSelections.map { ($0, .heart) }
-
-            for (optionId, cat) in allSelections where !existingIds.contains(optionId) {
-                let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
-                let color2 = CanvasColorPalette.randomSecondColor(excluding: color)
-                let label = model.resolveOptionTitle(for: optionId)
-                let forcedVariant: Int? = nil
-                let element = CanvasElement.spawn(
-                    optionId: optionId,
-                    category: cat,
-                    color: color,
-                    color2: color2,
-                    label: label,
-                    existingElements: dayCanvas.elements,
-                    forcedVariant: forcedVariant,
-                    dayKey: dayCanvas.dayKey
-                )
-                dayCanvas.elements.append(element)
-                didChange = true
-            }
-        }
-
         // 2. Update canvas metrics from model (sleep, steps, energy)
         let newSleep = model.sleepPointsToday
         let newSteps = model.stepsPointsToday
@@ -1019,39 +925,32 @@ struct GalleryView: View {
         )
     }
 
-    private func spawnElement(optionId: String, category: EnergyCategory, color: String, assetVariant: Int? = nil) {
-        if let index = dayCanvas.elements.firstIndex(where: { $0.optionId == optionId && $0.category == category }) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                dayCanvas.elements[index].hexColor = color
-                dayCanvas.elements[index].hexColor2 = CanvasColorPalette.randomSecondColor(excluding: color)
-                dayCanvas.elements[index].lastEditedAt = Date.now
-            }
-        } else {
-            let color2 = CanvasColorPalette.randomSecondColor(excluding: color)
-            let label = model.resolveOptionTitle(for: optionId)
-            var element = CanvasElement.spawn(
-                optionId: optionId,
-                category: category,
-                color: color,
-                color2: color2,
-                label: label,
-                existingElements: dayCanvas.elements,
-                dayKey: dayCanvas.dayKey
-            )
-            element.lastEditedAt = Date.now
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                dayCanvas.elements.append(element)
-            }
+    private func addAndSpawnHappening(optionId: String, color: String) {
+        let entry = model.addHappening(id: optionId, colorHex: color)
+        let color2 = CanvasColorPalette.randomSecondColor(excluding: color)
+        var element = CanvasElement.spawn(
+            id: UUID(uuidString: entry.id) ?? UUID(),
+            optionId: optionId,
+            color: color,
+            color2: color2,
+            label: model.resolveOptionTitle(for: optionId),
+            existingElements: dayCanvas.elements,
+            dayKey: dayCanvas.dayKey
+        )
+        element.lastEditedAt = Date.now
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            dayCanvas.elements.append(element)
         }
         dayCanvas.lastModified = Date.now
         localMutationCounter &+= 1
         saveCanvasLocally()
     }
 
-    private func removeElement(optionId: String, category: EnergyCategory) {
-        guard let index = dayCanvas.elements.lastIndex(where: { $0.optionId == optionId && $0.category == category }) else { return }
+    private func removeElement(id: UUID) {
+        guard let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
         var updated = dayCanvas
         let removed = updated.elements.remove(at: index)
+        model.removeAddition(entryId: removed.id.uuidString)
         pendingDeletedIds.insert(removed.id)
         updated.lastModified = Date.now
         dayCanvas = updated
@@ -1059,8 +958,8 @@ struct GalleryView: View {
         saveCanvasLocally()
     }
 
-    private func rerollElement(optionId: String, category: EnergyCategory) {
-        guard let index = dayCanvas.elements.firstIndex(where: { $0.optionId == optionId && $0.category == category }) else { return }
+    private func rerollElement(id: UUID) {
+        guard let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
         let currentColor = dayCanvas.elements[index].hexColor
         let palette = CanvasColorPalette.paletteHex.filter { $0 != currentColor }
         let newColor = palette.randomElement() ?? CanvasColorPalette.paletteHex.randomElement() ?? currentColor
@@ -1074,30 +973,6 @@ struct GalleryView: View {
         dayCanvas.lastModified = Date.now
         localMutationCounter &+= 1
         saveCanvasLocally()
-    }
-
-    /// When the user changes a category's shape in Settings, update all
-    /// current-day elements in that category so they render with the new shape.
-    /// Without this, elements whose `frozenShapeType` was set at spawn time
-    /// would stay locked on the old shape forever.
-    private func migrateShapePreferences() {
-        guard canvasLoaded, activeDayKey == dayCanvas.dayKey else { return }
-        var didChange = false
-        for i in dayCanvas.elements.indices {
-            let resolved = CanvasShapeType.resolved(for: dayCanvas.elements[i].category)
-            if dayCanvas.elements[i].frozenShapeType != resolved {
-                dayCanvas.elements[i].frozenShapeType = resolved
-                let newKind: ElementKind = (resolved == .rays) ? .ray : .circle
-                dayCanvas.elements[i].kind = newKind
-                dayCanvas.elements[i].lastEditedAt = Date.now
-                didChange = true
-            }
-        }
-        if didChange {
-            dayCanvas.lastModified = Date.now
-            localMutationCounter &+= 1
-            saveCanvasLocally()
-        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1203,8 +1078,7 @@ struct GalleryView: View {
                     VStack {
                         HStack {
                             Button {
-                                model.toggleDailySelection(optionId: element.optionId, category: element.category)
-                                removeElement(optionId: element.optionId, category: element.category)
+                                removeElement(id: element.id)
                                 mediumHapticTick &+= 1
                             } label: {
                                 Image(systemName: "xmark")
@@ -1220,7 +1094,7 @@ struct GalleryView: View {
                             Spacer()
 
                             Button {
-                                rerollElement(optionId: element.optionId, category: element.category)
+                                rerollElement(id: element.id)
                                 lightHapticTick &+= 1
                             } label: {
                                 Image(systemName: "dice")

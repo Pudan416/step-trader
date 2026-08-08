@@ -48,3 +48,23 @@ struct Happening: Identifiable, Codable, Equatable {
         lastUsedAt = date
     }
 }
+
+/// One concrete addition to a day. Multiple entries may share an `optionId`:
+/// identity belongs to the addition, not to the happening being added.
+struct OptionEntry: Identifiable, Codable, Equatable {
+    let id: String
+    let dayKey: String
+    let optionId: String
+    var colorHex: String
+    var timestamp: Date
+    var assetVariant: Int?
+}
+
+enum HappeningEconomy {
+    static func points(forAdditionCount count: Int) -> Int {
+        min(
+            max(0, count) * HappeningDefaults.pointsPerAddition,
+            HappeningDefaults.happeningsMaxPoints
+        )
+    }
+}

@@ -1771,10 +1771,14 @@ struct OnboardingStoriesView: View {
         ]
         let refDate = Date(timeIntervalSinceReferenceDate: 1000)
         return specs.enumerated().map { (i, spec) in
-            CanvasElement(
+            let frozenShape: CanvasShapeType = switch spec.cat {
+            case .body: .circle
+            case .mind: .snowflake
+            case .heart: .rays
+            }
+            return CanvasElement(
                 id: UUID(),
                 kind: spec.kind,
-                category: spec.cat,
                 optionId: spec.optionId,
                 label: spec.optionId,
                 hexColor: palette[i % palette.count],
@@ -1790,7 +1794,8 @@ struct OnboardingStoriesView: View {
                 createdAt: refDate,
                 assetVariant: spec.variant,
                 shapeSeed: UInt64(i * 7919 + 42),
-                activityCount: Int.random(in: 5...25)
+                activityCount: Int.random(in: 5...25),
+                frozenShapeType: frozenShape
             )
         }
     }()

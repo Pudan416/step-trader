@@ -61,12 +61,7 @@ struct GalleryMetricOverlayView: View {
         switch kind {
         case .steps: return String(localized: "Steps")
         case .sleep: return String(localized: "Sleep")
-        case .category(let c):
-            switch c {
-            case .body: return String(localized: "Body", comment: "Energy category")
-            case .mind: return String(localized: "Mind", comment: "Energy category")
-            case .heart: return String(localized: "Heart", comment: "Energy category")
-            }
+        case .happenings: return String(localized: "Happenings", comment: "Daily happenings metric")
         }
     }
 
@@ -77,31 +72,17 @@ struct GalleryMetricOverlayView: View {
             stepsOverlayBody
         case .sleep:
             sleepOverlayBody
-        case .category(let c):
-            categoryOverlayBody(for: c)
+        case .happenings:
+            happeningsOverlayBody
         }
     }
 
-    private func categoryAccentColor(_ category: EnergyCategory) -> Color {
-        switch category {
-        case .body:  return .orange
-        case .mind:  return .purple
-        case .heart: return .pink
-        }
-    }
-
-    private func categoryOverlayBody(for category: EnergyCategory) -> some View {
-        let maxPts = EnergyDefaults.maxSelectionsPerCategory * EnergyDefaults.selectionPoints
-        let total: Int = {
-            switch category {
-            case .body: return model.bodyPointsToday
-            case .mind: return model.mindPointsToday
-            case .heart: return model.heartPointsToday
-            }
-        }()
-        let titles = selectionTitles(for: category)
-        let progress = maxPts > 0 ? Double(total) / Double(maxPts) : 0
-        let accent = categoryAccentColor(category)
+    private var happeningsOverlayBody: some View {
+        let maxPts = HappeningDefaults.happeningsMaxPoints
+        let total = model.happeningPointsToday
+        let titles = model.todayAdditions.map { model.resolveOptionTitle(for: $0.optionId) }
+        let progress = Double(total) / Double(maxPts)
+        let accent = AppColors.brandAccent
 
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -130,7 +111,7 @@ struct GalleryMetricOverlayView: View {
             .frame(height: 8)
 
             if titles.isEmpty {
-                Text(String(localized: "No activities selected yet", comment: "Category overlay – empty hint"))
+                Text(String(localized: "No happenings yet", comment: "Happenings overlay – empty hint"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -212,18 +193,4 @@ struct GalleryMetricOverlayView: View {
         }
     }
 
-    private func selectionTitles(for category: EnergyCategory) -> [String] {
-        let ids: [String]
-        switch category {
-        case .body: ids = model.dailyBodySelections
-        case .mind: ids = model.dailyRestSelections
-        case .heart: ids = model.dailyHeartSelections
-        }
-        let lang = Locale.current.language.languageCode?.identifier ?? "en"
-        return ids.map { id in
-            EnergyDefaults.options.first(where: { $0.id == id })?.title(for: lang)
-                ?? model.customOptionTitle(for: id, lang: lang)
-                ?? id
-        }
-    }
 }

@@ -133,6 +133,7 @@ enum SharedKeys {
     // MARK: - Selections / canvas
     static let appSelection = "appSelection_v1"
     static let appSelectionSavedDate = "appSelectionSavedDate"
+    static let todayAdditions = "todayAdditions_v1"
     static let customEnergyOptions = "customEnergyOptions_v1"
     static let pastDaySnapshots = "pastDaySnapshots_v1"
     static let dailyCanvasSlots = "dailyChoiceSlots_v1"

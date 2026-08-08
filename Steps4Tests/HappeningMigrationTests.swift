@@ -101,4 +101,22 @@ final class HappeningMigrationTests: XCTestCase {
             )
         }
     }
+
+    func testNewSpawnHasNoCategoryAndFreezesAnAllowedShape() throws {
+        let element = CanvasElement.spawn(
+            optionId: "happening_walk",
+            color: "#AABBCC",
+            label: "Walk",
+            existingElements: [],
+            allowedShapeTypes: [.circle],
+            dayKey: "2026-08-08"
+        )
+
+        XCTAssertEqual(element.frozenShapeType, .circle)
+
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(element)) as? [String: Any]
+        )
+        XCTAssertNil(object["category"], "New elements must not persist a category")
+    }
 }

@@ -7,6 +7,59 @@ import WidgetKit
 // any actor context). The previous file-scope `_xxxKey` constants were folded
 // into SharedKeys in CODE_AUDIT.md §9.4.
 extension AppModel {
+    var happeningPointsToday: Int {
+        HappeningEconomy.points(forAdditionCount: todayAdditions.count)
+    }
+
+    /// Adds one concrete occurrence. There is intentionally no deduplication
+    /// by happening id and no cap on what reaches the canvas.
+    @discardableResult
+    func addHappening(
+        id: String,
+        colorHex: String,
+        at date: Date = .now
+    ) -> OptionEntry {
+        let entry = OptionEntry(
+            id: UUID().uuidString,
+            dayKey: Self.dayKey(for: date),
+            optionId: id,
+            colorHex: colorHex,
+            timestamp: date,
+            assetVariant: nil
+        )
+        todayAdditions.append(entry)
+        happeningStore.recordUse(id: id, at: date)
+        recalculateDailyEnergy()
+        persistTodayAdditions()
+        Task { await SupabaseSyncService.shared.syncOptionEntry(entry) }
+        return entry
+    }
+
+    func removeAddition(entryId: String) {
+        guard let index = todayAdditions.firstIndex(where: { $0.id == entryId }) else { return }
+        todayAdditions.remove(at: index)
+        recalculateDailyEnergy()
+        persistTodayAdditions()
+    }
+
+    func paletteOrder() -> [Happening] {
+        paletteOrderCache.order(
+            for: Self.dayKey(for: .now),
+            happenings: happeningStore.all
+        ).compactMap { happeningStore.happening(id: $0) }
+    }
+
+    private func persistTodayAdditions() {
+        do {
+            UserDefaults.stepsTrader().set(
+                try JSONEncoder().encode(todayAdditions),
+                forKey: SharedKeys.todayAdditions
+            )
+        } catch {
+            AppLogger.energy.error("Failed to encode today additions: \(error.localizedDescription)")
+        }
+    }
+
     private func dailySelectionsKey(for category: EnergyCategory) -> String {
         "dailyEnergySelections_v1_\(category.rawValue)"
     }
@@ -24,6 +77,8 @@ extension AppModel {
 
     func loadDailyEnergyState() {
         let g = UserDefaults.stepsTrader()
+        happeningStore.load()
+        loadTodayAdditions(from: g)
         let rawAnchor = g.object(forKey: SharedKeys.dailyEnergyAnchor)
         AppLogger.energy.debug("📥 loadDailyEnergyState: anchor raw=\(String(describing: rawAnchor)), as Date=\(String(describing: rawAnchor as? Date))")
         guard let anchor = rawAnchor as? Date else {
@@ -66,13 +121,50 @@ extension AppModel {
 
         baseEnergyToday = g.integer(forKey: SharedKeys.baseEnergyToday)
         spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
-        dailyMoments = Self.loadSavedMoments(from: g)
 
         AppLogger.energy.debug("📥 loadDailyEnergyState LOADED: body=\(self.dailyBodySelections), mind=\(self.dailyRestSelections), heart=\(self.dailyHeartSelections), base=\(self.baseEnergyToday), spent=\(self.spentStepsToday)")
         
         loadDailyCanvasSlots()
         
         recoverSelectionsFromCanvasIfNeeded()
+    }
+
+    private func loadTodayAdditions(from defaults: UserDefaults) {
+        guard let data = defaults.data(forKey: SharedKeys.todayAdditions) else {
+            migrateLegacySelections(from: defaults)
+            return
+        }
+        do {
+            let decoded = try JSONDecoder().decode([OptionEntry].self, from: data)
+            let todayKey = Self.dayKey(for: .now)
+            todayAdditions = decoded.filter { $0.dayKey == todayKey }
+            if todayAdditions.count != decoded.count {
+                persistTodayAdditions()
+            }
+        } catch {
+            AppLogger.energy.error("Failed to decode today additions: \(error.localizedDescription)")
+            todayAdditions = []
+        }
+    }
+
+    private func migrateLegacySelections(from defaults: UserDefaults) {
+        let legacyIds = ["body", "mind", "heart"].flatMap { raw in
+            defaults.stringArray(forKey: "dailyEnergySelections_v1_\(raw)") ?? []
+        }
+        let todayKey = Self.dayKey(for: .now)
+        todayAdditions = legacyIds.map { optionId in
+            OptionEntry(
+                id: UUID().uuidString,
+                dayKey: todayKey,
+                optionId: optionId,
+                colorHex: CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex,
+                timestamp: .now,
+                assetVariant: nil
+            )
+        }
+        guard !todayAdditions.isEmpty else { return }
+        persistTodayAdditions()
+        AppLogger.energy.info("Migrated \(self.todayAdditions.count) legacy selections to happenings")
     }
     
     func loadCustomEnergyOptions() {
@@ -140,12 +232,8 @@ extension AppModel {
 
     /// Resolve the user-facing title for any option ID (built-in or custom).
     func resolveOptionTitle(for optionId: String) -> String {
-        // Ephemeral moments: label stored in dailyMoments, not in the library.
-        // Moments are filtered at every sync boundary (see EphemeralMoment), so
-        // a `moment_*` ID arriving from server is treated as stale — fall back
-        // to the raw ID just in case, but expect this branch to be local-only.
-        if EphemeralMoment.isMomentId(optionId) {
-            return momentLabel(for: optionId) ?? optionId
+        if let happening = happeningStore.happening(id: optionId) {
+            return happening.localizedTitle()
         }
         let lang = Locale.current.language.languageCode?.identifier ?? "en"
         return EnergyDefaults.options.first(where: { $0.id == optionId })?.title(for: lang)
@@ -227,43 +315,35 @@ extension AppModel {
         // Slots are kept as a UI projection and can legitimately be a subset.
     }
     
-    /// If UserDefaults lost selection data (e.g. force-quit before flush), reconstruct
+    /// If UserDefaults lost addition data (e.g. force-quit before flush), reconstruct
     /// from today's canvas JSON file which uses atomic file I/O and survives force-quits.
     private func recoverSelectionsFromCanvasIfNeeded() {
-        let allEmpty = dailyBodySelections.isEmpty
-            && dailyRestSelections.isEmpty
-            && dailyHeartSelections.isEmpty
-        guard allEmpty else { return }
+        guard todayAdditions.isEmpty else { return }
         
         let todayKey = Self.dayKey(for: Date.now)
         guard let canvas = CanvasStorageService.shared.loadCanvas(for: todayKey),
               !canvas.elements.isEmpty else { return }
         
-        AppLogger.energy.debug("🔧 recoverSelectionsFromCanvas: UserDefaults selections empty but canvas has \(canvas.elements.count) elements — recovering")
-        
-        var body: [String] = []
-        var mind: [String] = []
-        var heart: [String] = []
-        for el in canvas.elements {
-            switch el.category {
-            case .body:  if !body.contains(el.optionId) { body.append(el.optionId) }
-            case .mind:  if !mind.contains(el.optionId) { mind.append(el.optionId) }
-            case .heart: if !heart.contains(el.optionId) { heart.append(el.optionId) }
-            }
+        AppLogger.energy.debug("🔧 recoverAdditionsFromCanvas: defaults empty but canvas has \(canvas.elements.count) elements — recovering")
+
+        todayAdditions = canvas.elements.map { element in
+            OptionEntry(
+                id: element.id.uuidString,
+                dayKey: todayKey,
+                optionId: element.optionId,
+                colorHex: element.hexColor,
+                timestamp: element.createdAt,
+                assetVariant: element.assetVariant
+            )
         }
-        
-        dailyBodySelections = body
-        dailyRestSelections = mind
-        dailyHeartSelections = heart
         
         if baseEnergyToday == 0, canvas.inkEarned > 0 {
             baseEnergyToday = canvas.inkEarned
         }
         
-        syncFromSelectionsToSlots()
         persistDailyEnergyState()
-        
-        AppLogger.energy.debug("🔧 Recovered: body=\(body), mind=\(mind), heart=\(heart), base=\(self.baseEnergyToday)")
+
+        AppLogger.energy.debug("🔧 Recovered \(self.todayAdditions.count) additions, base=\(self.baseEnergyToday)")
     }
     
     private func syncFromSelectionsToSlots() {
@@ -386,7 +466,6 @@ extension AppModel {
         let savedStepsTarget = userStepsTarget
         let savedSleepTarget = userSleepTarget
         let savedBaseEnergy = g.integer(forKey: SharedKeys.baseEnergyToday)
-        let savedMoments = Self.loadSavedMoments(from: g)
 
         let daySnapshot = buildPastDaySnapshot(
             savedSpent: savedSpent,
@@ -398,8 +477,7 @@ extension AppModel {
             savedSteps: savedSteps,
             savedStepsTarget: savedStepsTarget,
             savedSleepTarget: savedSleepTarget,
-            savedBaseEnergy: savedBaseEnergy,
-            savedMoments: savedMoments
+            savedBaseEnergy: savedBaseEnergy
         )
         savePastDaySnapshot(dayKey: dayKeyToSave, daySnapshot)
         
@@ -435,8 +513,8 @@ extension AppModel {
         dailyBodySelections = []
         dailyRestSelections = []
         dailyHeartSelections = []
-        dailyMoments = []
-        g.removeObject(forKey: SharedKeys.dailyMoments)
+        todayAdditions = []
+        g.removeObject(forKey: SharedKeys.todayAdditions)
         dailyCanvasSlots = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
         baseEnergyToday = 0
         spentStepsToday = 0
@@ -458,8 +536,7 @@ extension AppModel {
         savedSteps: Int,
         savedStepsTarget: Double,
         savedSleepTarget: Double,
-        savedBaseEnergy: Int,
-        savedMoments: [EphemeralMoment] = []
+        savedBaseEnergy: Int
     ) -> PastDaySnapshot {
         let stepsForInk = cachedSteps > 0 ? cachedSteps : Double(savedSteps)
         let sleepPts = savedSleep > 0
@@ -484,8 +561,7 @@ extension AppModel {
             steps: savedSteps,
             sleepHours: savedSleep,
             stepsTarget: savedStepsTarget,
-            sleepTargetHours: savedSleepTarget,
-            moments: savedMoments
+            sleepTargetHours: savedSleepTarget
         )
     }
 
@@ -710,63 +786,6 @@ extension AppModel {
         dailySelections(for: category).contains(optionId)
     }
 
-    // MARK: - Ephemeral Moments
-
-    /// Decode persisted `dailyMoments` from UserDefaults, returning `[]` on
-    /// missing data or decode failure. Centralized so loaders and the
-    /// pre-reset snapshot path stay in sync.
-    static func loadSavedMoments(from defaults: UserDefaults) -> [EphemeralMoment] {
-        guard let data = defaults.data(forKey: SharedKeys.dailyMoments),
-              let decoded = try? JSONDecoder().decode([EphemeralMoment].self, from: data)
-        else { return [] }
-        return decoded
-    }
-
-    /// Add a one-time moment for today.
-    /// The moment's ID is added to the appropriate category selection so the
-    /// energy economy is unaffected — moment counts like a regular activity.
-    @discardableResult
-    func addMoment(label: String, icon: String, category: EnergyCategory) -> EphemeralMoment? {
-        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            AppLogger.energy.debug("⚡️ addMoment: empty label, skipping")
-            return nil
-        }
-        guard dailySelections(for: category).count < EnergyDefaults.maxSelectionsPerCategory else {
-            AppLogger.energy.debug("⚡️ addMoment: category \(category.rawValue) is full, skipping")
-            return nil
-        }
-        let dayKey = AppModel.dayKey(for: Date.now)
-        let moment = EphemeralMoment(label: trimmed, icon: icon, category: category, dayKey: dayKey)
-        dailyMoments.append(moment)
-        // Register the ID in the category selection so it contributes energy
-        var selections = dailySelections(for: category)
-        selections.append(moment.id)
-        setDailySelections(selections, category: category)
-        syncFromSelectionsToSlots()
-        recalculateDailyEnergy()
-        persistDailyEnergyState()
-        AppLogger.energy.debug("✦ addMoment: '\(trimmed)' → \(category.rawValue) [\(moment.id)]")
-        return moment
-    }
-
-    /// Remove a moment logged today (undo support).
-    func removeMoment(id: String) {
-        guard let moment = dailyMoments.first(where: { $0.id == id }) else { return }
-        dailyMoments.removeAll { $0.id == id }
-        var selections = dailySelections(for: moment.category)
-        selections.removeAll { $0 == id }
-        setDailySelections(selections, category: moment.category)
-        syncFromSelectionsToSlots()
-        recalculateDailyEnergy()
-        persistDailyEnergyState()
-    }
-
-    /// Resolve a moment label for a given optionId (used by resolveOptionTitle).
-    func momentLabel(for optionId: String) -> String? {
-        dailyMoments.first(where: { $0.id == optionId })?.label
-    }
-
     func dailySelectionsCount(for category: EnergyCategory) -> Int {
         dailySelections(for: category).count
     }
@@ -794,13 +813,11 @@ extension AppModel {
 
     func persistDailyEnergyState() {
         let g = UserDefaults.stepsTrader()
+        persistTodayAdditions()
         g.set(dailySleepHours, forKey: SharedKeys.dailySleepHours)
         saveStringArray(dailyBodySelections, forKey: dailySelectionsKey(for: .body))
         saveStringArray(dailyRestSelections, forKey: dailySelectionsKey(for: .mind))
         saveStringArray(dailyHeartSelections, forKey: dailySelectionsKey(for: .heart))
-        if let data = try? JSONEncoder().encode(dailyMoments) {
-            g.set(data, forKey: SharedKeys.dailyMoments)
-        }
         g.set(baseEnergyToday, forKey: SharedKeys.baseEnergyToday)
         g.set(spentStepsToday, forKey: SharedKeys.spentStepsToday)
         g.set(currentDayStart(for: Date.now), forKey: SharedKeys.stepsBalanceAnchor)
@@ -931,14 +948,14 @@ extension AppModel {
 
     @MainActor
     func recalculateDailyEnergy() {
-        // Total = steps(20) + sleep(20) + body(20) + mind(20) + heart(20) = 100 max
+        // Total = steps(20) + sleep(20) + happenings(60) = 100 max
         let stepsForEnergy = stepsToday > 0 ? stepsToday : fallbackCachedSteps()
         let stepsPts = pointsFromSteps(stepsForEnergy)
         let sleepPts = sleepPointsToday
-        let total = stepsPts + sleepPts + bodyPointsToday + mindPointsToday + heartPointsToday
+        let total = stepsPts + sleepPts + happeningPointsToday
 
         AppLogger.energy.info("👣 recalcEnergy: stepsToday=\(Int(self.stepsToday)), stepsForEnergy=\(Int(stepsForEnergy)), stepsPts=\(stepsPts)")
-        AppLogger.energy.debug("⚡️ recalculateDailyEnergy: steps=\(stepsPts) + sleep=\(sleepPts)\(self.isSleepAssumed ? " (assumed)" : "") + body=\(self.bodyPointsToday) + mind=\(self.mindPointsToday) + heart=\(self.heartPointsToday) = \(total)")
+        AppLogger.energy.debug("⚡️ recalculateDailyEnergy: steps=\(stepsPts) + sleep=\(sleepPts)\(self.isSleepAssumed ? " (assumed)" : "") + happenings=\(self.happeningPointsToday) (\(self.todayAdditions.count) additions) = \(total)")
         
         let adjustedTotal = isRestDayOverrideEnabled ? max(total, 30) : total
         
@@ -1095,15 +1112,12 @@ extension AppModel {
     }
 
     /// Save current selections as a named routine.
-    /// Ephemeral moments are stripped — a routine is a reusable template and a
-    /// one-time moment ID would never resolve on a future day (and shouldn't
-    /// leave this device via the routine sync either).
     func saveCurrentAsRoutine(name: String) {
         let routine = EnergyRoutine(
             name: name,
-            bodyIds: EphemeralMoment.filteredOutOfSync(dailyBodySelections),
-            mindIds: EphemeralMoment.filteredOutOfSync(dailyRestSelections),
-            heartIds: EphemeralMoment.filteredOutOfSync(dailyHeartSelections),
+            bodyIds: dailyBodySelections,
+            mindIds: dailyRestSelections,
+            heartIds: dailyHeartSelections,
             lastUsed: Date.now
         )
         savedRoutines.append(routine)
