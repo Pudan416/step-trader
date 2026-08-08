@@ -22,13 +22,16 @@ The metaphor is charming and it is in the way.
 
 ## 2. Target behaviour
 
-**One scrolling list.** Each app appears as its own icon with its name. Anything
-currently blocked carries a lock badge.
+**One scrolling list, one row per group.** A single-app group (which includes
+every template-created group — see §3) renders as that app's icon with its
+name. A multi-app group renders as a cluster of overlapping icons with the
+group's name. Anything currently blocked carries a lock badge, identical for
+both.
 
-**Tap a locked app** → a sheet offering three windows: 10, 30 and 60 minutes at
-4, 10 and 20 colors. Both intervals and prices are unchanged. The sheet should
-read like the PayGate — warm, deliberate — but it is Nowhere's own screen, not
-the system shield.
+**Tap a locked row** → a sheet offering three windows: 10, 30 and 60 minutes at
+4, 10 and 20 colors, for that group. Both intervals and prices are unchanged.
+The sheet should read like the PayGate — warm, deliberate — but it is Nowhere's
+own screen, not the system shield.
 
 **Buy a window** → the timer screen. A radial arc that depletes as the window is
 spent, remaining time in large monospaced digits, and beneath it the list of apps
@@ -40,30 +43,40 @@ digits), not as a color direction. Do not build a light screen.
 
 ---
 
-## 3. Assumption that needs confirming first
+## 3. How groups render in the flat list
 
 The spec says apps appear individually; the underlying model unlocks by
-**group**. These have to be reconciled.
+**group**. Resolved as follows.
 
-**Working assumption:** the list flattens apps out of their groups for display.
-Tapping an app opens the unlock sheet, and buying a window activates the monitor
-for the group that app belongs to. The sheet states plainly which other apps the
-window also opens.
+**Template-created groups are always exactly one app.**
+`TargetResolver.singleAppPresetValidationMessage` enforces this at creation
+time — a template preset with more than one app in its selection is rejected
+with a validation error. For these, "the app" and "the group" are the same
+thing, so there is nothing to reconcile: the list shows the app's icon, and
+tapping it is tapping the group.
 
-The alternative — each app becoming its own group — reads more naturally from
-the list, and it is the reading the design implies. It has two costs. Every
-concurrently open window is another `DeviceActivityCenter` activity against the
-cap of twenty, which a per-app model reaches far sooner than a per-group one.
-And `SubscriptionGate.freeMaxBlockingGroups` is 2, so a per-app model would
-paywall at the third app *if the paywall were ever switched back on*.
+**Custom groups can hold more than one app** — created through
+`FamilyActivityPicker` directly, with no such restriction. This is the case
+that needed a decision.
 
-It is not on today: `SubscriptionGate.allFeaturesUnlocked` is `true`, which makes
-`isPro` unconditionally true and every gate dormant. The app ships free. The
-constants remain as a kill-switch — the file documents flipping it back — so a
-per-app model is a decision that quietly reprices the product should that happen.
-Not a blocker, but worth knowing before choosing.
+**Decision:** a custom group with two or more apps renders as a single cluster
+row — overlapping icons, the group's name, one lock badge, per `Feeds-Spec.md`.
+It is not split into per-app rows. Tapping the cluster opens the unlock sheet for
+the whole group, and buying a window unlocks all of it at once — this is
+existing, expected behaviour carried over unchanged, not a new surprise. A
+custom group with exactly one app renders the same as a template group: a plain
+icon.
 
-**Confirm the reading before building the list.**
+So the rule is simple: **one row per `TicketGroup`**, always. The list is not
+flattening apps out of groups — it is re-skinning the group list, rendering
+each group as either a plain icon (one app) or a cluster (several), instead of
+as a ticket.
+
+This also resolves the `DeviceActivityCenter` cap concern from an earlier draft
+of this brief: since no new groups are created by this rework and one monitor
+still equals one group exactly as today, the number of concurrently open
+windows does not change either. See §4 for the cap itself, which is unrelated
+to this decision.
 
 ---
 
@@ -218,12 +231,12 @@ not how blocking works.
 
 ## 8. Acceptance criteria
 
-- [ ] Feeds is a single scrolling list; no ticket stack remains
+- [ ] Feeds is a single scrolling list, one row per `TicketGroup`; no ticket stack remains
 - [ ] A registry app shows its bundled asset; a non-registry app shows a system `Label`
-- [ ] Locked entries carry a lock badge
-- [ ] Tapping a locked entry offers 10 / 30 / 60 minutes at 4 / 10 / 20 colors
-- [ ] The sheet names the other apps a window will also open
-- [ ] A free user can still reach exactly the same set of apps as before this change
+- [ ] A single-app group (including every template group) renders as a plain icon
+- [ ] A multi-app custom group renders as a cluster with the group's name
+- [ ] Locked entries carry a lock badge, identical for plain and cluster rows
+- [ ] Tapping a locked entry offers 10 / 30 / 60 minutes at 4 / 10 / 20 colors, for that group
 - [ ] Buying a window opens the timer screen, in the night theme
 - [ ] The timer lists the window's apps, and tapping one launches it
 - [ ] **The timer does not move while the covered apps are unused** — verified by
