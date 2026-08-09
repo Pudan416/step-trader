@@ -68,21 +68,29 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
 
     func testDayEndReanchorMovesAdditionAndCanvasWithoutReopeningHappening() async throws {
         let now = Date.now
-        let pair = try XCTUnwrap(dayEndPairWithDifferentKeys(at: now))
-        defaults.set(pair.oldHour, forKey: SharedKeys.dayEndHour)
-        defaults.set(0, forKey: SharedKeys.dayEndMinute)
-        UserDefaults.standard.set(pair.oldHour, forKey: SharedKeys.dayEndHour)
-        UserDefaults.standard.set(0, forKey: SharedKeys.dayEndMinute)
+        guard let pair = dayEndPairWithDifferentKeys(at: now) else {
+            throw XCTSkip(
+                """
+                No two day ends give different keys at \(now). Only true in the \
+                final minute before midnight, when every boundary of the day has \
+                already passed and there is none left to move across.
+                """
+            )
+        }
+        defaults.set(pair.old.hour, forKey: SharedKeys.dayEndHour)
+        defaults.set(pair.old.minute, forKey: SharedKeys.dayEndMinute)
+        UserDefaults.standard.set(pair.old.hour, forKey: SharedKeys.dayEndHour)
+        UserDefaults.standard.set(pair.old.minute, forKey: SharedKeys.dayEndMinute)
 
         let oldKey = DayBoundary.dayKey(
             for: now,
-            dayEndHour: pair.oldHour,
-            dayEndMinute: 0
+            dayEndHour: pair.old.hour,
+            dayEndMinute: pair.old.minute
         )
         let newKey = DayBoundary.dayKey(
             for: now,
-            dayEndHour: pair.newHour,
-            dayEndMinute: 0
+            dayEndHour: pair.new.hour,
+            dayEndMinute: pair.new.minute
         )
         // `CanvasStorageService` writes into the app's real container, which the
         // test host shares — so running the app by hand on this simulator leaves
@@ -110,8 +118,8 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         defaults.set(
             DayBoundary.currentDayStart(
                 for: now,
-                dayEndHour: pair.oldHour,
-                dayEndMinute: 0
+                dayEndHour: pair.old.hour,
+                dayEndMinute: pair.old.minute
             ),
             forKey: SharedKeys.dailyEnergyAnchor
         )
@@ -150,7 +158,7 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         ]
         XCTAssertTrue(CanvasStorageService.shared.saveCanvas(canvas))
 
-        model.updateDayEnd(hour: pair.newHour, minute: 0)
+        model.updateDayEnd(hour: pair.new.hour, minute: pair.new.minute)
         try await Task.sleep(for: .milliseconds(500))
 
         XCTAssertEqual(model.todayAdditions.map(\.dayKey), [newKey])
@@ -184,23 +192,41 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         keys.forEach { defaults.removeObject(forKey: $0) }
     }
 
+    private struct DayEnd {
+        let hour: Int
+        let minute: Int
+    }
+
+    /// Two day ends that put `date` in different days — the reanchor this test
+    /// exercises needs a boundary it can actually move across.
+    ///
+    /// Minutes are part of the search, not just hours. `dayKey` names the
+    /// calendar date the day *started* on, so two day ends differ only when one
+    /// of their boundaries has already passed today and the other has not. Once
+    /// 23:00 is behind us every whole hour has passed and an hours-only search
+    /// comes back empty — which is what failed this test at 23:44, on the
+    /// unwrap rather than on anything it was asserting.
+    ///
+    /// Single pass: hold the first candidate, return the first one that keys
+    /// differently. Deterministic, and 1440 boundary computations rather than
+    /// the square of that.
     private func dayEndPairWithDifferentKeys(
         at date: Date
-    ) -> (oldHour: Int, newHour: Int)? {
-        for oldHour in 0..<24 {
-            let oldKey = DayBoundary.dayKey(
-                for: date,
-                dayEndHour: oldHour,
-                dayEndMinute: 0
-            )
-            for newHour in 0..<24 where newHour != oldHour {
-                if DayBoundary.dayKey(
+    ) -> (old: DayEnd, new: DayEnd)? {
+        var first: (end: DayEnd, key: String)?
+        for hour in 0..<24 {
+            for minute in 0..<60 {
+                let end = DayEnd(hour: hour, minute: minute)
+                let key = DayBoundary.dayKey(
                     for: date,
-                    dayEndHour: newHour,
-                    dayEndMinute: 0
-                ) != oldKey {
-                    return (oldHour, newHour)
+                    dayEndHour: hour,
+                    dayEndMinute: minute
+                )
+                guard let anchor = first else {
+                    first = (end, key)
+                    continue
                 }
+                if key != anchor.key { return (anchor.end, end) }
             }
         }
         return nil
