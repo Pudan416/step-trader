@@ -14,6 +14,8 @@ struct UnlockWidgetBundle: WidgetBundle {
         StatusWidget()
         GroupsWidget()
         ComboWidget()
+        // Spike scaffolding — removed with the rest of the harness. See `Feeds-Spike.md`.
+        SpikeLiveActivity()
     }
 }
 

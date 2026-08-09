@@ -455,6 +455,12 @@ final class BlockingStore: ObservableObject {
             }
         }
 
+        // Spike scaffolding — removed with the rest of the harness. See `Feeds-Spike.md`.
+        lines.append("")
+        lines.append("-- Feeds Live Activity Spike --")
+        lines.append("  verdict: \(defaults.string(forKey: SpikeProbe.lastResultKey) ?? "(not run yet)")")
+        lines.append("  activityId: \(defaults.string(forKey: SpikeProbe.activityIdKey) ?? "(none)")")
+
         lines.append("")
         lines.append("=== END ===")
         return lines.joined(separator: "\n")

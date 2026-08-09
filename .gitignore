@@ -133,3 +133,8 @@ node_modules/
 # Scratch/generated PDF pipeline artefacts (test fixtures, one-page summaries)
 tmp/
 output/
+
+# Local agent workspaces
+.superpowers/
+.worktrees/
+.claude/worktrees/

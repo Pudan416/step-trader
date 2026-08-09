@@ -78,10 +78,18 @@ registers two DeviceActivity activities.
 | Name | Schedule | Events | Triggers |
 |------|----------|--------|----------|
 | `spikeProbe` | now+2min → now+20min, no repeat | none | `intervalDidStart`, with zero app usage |
-| `spikeUsage` | 0:00:00 → 23:59:59, repeating | one, `threshold: DateComponents(minute: 1)` | `eventDidReachThreshold`, after one real minute |
+| `spikeUsage` | now+1min → now+26min, no repeat | one, `threshold: DateComponents(minute: 1)` | `eventDidReachThreshold`, after one real minute |
 
 `spikeProbe` answers in about three minutes and needs nobody to look at a phone.
-`spikeUsage` is the production path exactly.
+
+**`spikeUsage` deviates from production in one way, deliberately.** Production uses the
+full-day `0:00:00`–`23:59:59` schedule, but thresholds count usage from the *interval's*
+start — so against a full-day interval, a 1-minute threshold measures against however
+much the app has already been used today. It would fire the instant monitoring began, or
+sit permanently past its threshold and never fire at all. Either way the probe reports
+nothing trustworthy. A fresh short interval measures from a known zero. The callback under
+test, `eventDidReachThreshold` in the same extension process, is identical; only the
+interval differs.
 
 The two are the same process under the same entitlement, so a yes on `spikeProbe`
 makes a yes on `spikeUsage` very likely — but "very likely" is not the bar the spec
@@ -103,6 +111,19 @@ Everything goes through the extension's existing `appendMonitorLog` into
 behind a copy button (`StepsTrader/Stores/BlockingStore.swift:441`). No new UI.
 
 ---
+
+## Settled during the build
+
+**ActivityKit links into the monitor extension.** `DeviceActivityMonitor.appex` builds
+with `import ActivityKit` and `otool -L` shows
+`/System/Library/Frameworks/ActivityKit.framework/ActivityKit` in the binary alongside
+DeviceActivity and ManagedSettings. So the question is purely a runtime one — nothing in
+the toolchain refuses an app extension of this type access to the framework.
+
+**`Activity.update` does not throw.** The iOS 16.2+ signature is `async`, non-throwing, so
+a refusal is silent — there is no error to catch and log. The probe therefore re-reads
+`Activity.activities` after the await and compares `updateCount` against what it wrote.
+That comparison, not a thrown error, is what separates "accepted" from "ignored".
 
 ## Two things that could produce a false answer
 
@@ -132,16 +153,32 @@ Neither works in the simulator.
 3. Lock the phone and leave it for three minutes.
 4. Look at the Lock Screen. Did `lastUpdatedBy` change to `monitor:intervalDidStart`?
 
-**Run B — production path, ~2 minutes of real usage.**
+**Run B — production callback, ~3 minutes.**
 
 1. Tap the spike button again.
-2. Open one of the apps in the group and stay in it for a full minute — the threshold
+2. Wait one minute. `spikeUsage`'s interval has not started yet, and usage before it
+   starts does not count.
+3. Open one of the apps in the group and stay in it for a full minute — the threshold
    counts screen time, so putting the phone down pauses it.
-3. Check the Dynamic Island or Lock Screen for `monitor:eventDidReachThreshold`.
+4. Check the Dynamic Island or Lock Screen for `monitor:eventDidReachThreshold`.
 
-**Either way:** back in Nowhere, copy the shield diagnostics and hand them over. The
-log lines carry the parts the Lock Screen cannot show — the activities count and the
-verbatim error.
+The collapsed Dynamic Island shows a single character: `M` once the monitor has written
+the state, `A` while it is still whatever the app published.
+
+**Either way:** back in Nowhere, open DEBUG settings. The verdict shows inline under the
+spike button, and "Copy Shield Diagnostics" now carries it too. The logs hold what the
+Lock Screen cannot show — how many activities the extension saw, whether the id matched,
+and how long the update took.
+
+Verdicts and what they mean:
+
+| Verdict | Reading |
+|---------|---------|
+| `update-accepted` | Yes. The extension can drive the Live Activity; §6 needs no fallback. |
+| `update-ignored` | Seen and addressed, silently dropped. The `staleDate` fallback applies. |
+| `no-activities-visible` | The documented empty-`activities` failure. Fallback applies. |
+| `update-timed-out` | Inconclusive — the process likely died mid-await. Re-run before concluding. |
+| `id-mismatch` | Harness fault, not an answer. A stale activity id; re-run. |
 
 ## Recording the result
 

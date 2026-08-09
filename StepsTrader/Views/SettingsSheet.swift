@@ -373,8 +373,44 @@ struct SettingsSheet: View {
     @State private var shieldActionLogs: [String] = []
     @State private var showShieldActionLogs = false
 
+    // Spike scaffolding — removed with the rest of the harness. See `Feeds-Spike.md`.
+    @State private var spikeStatus: String?
+
     @ViewBuilder
     private var shieldDiagnosticsRows: some View {
+        Button {
+            Task { @MainActor in
+                spikeStatus = "Arming…"
+                let outcome = await SpikeProbeLauncher.start(groups: model.blockingStore.ticketGroups)
+                spikeStatus = outcome.message
+            }
+        } label: {
+            diagButton(
+                icon: "bolt.badge.clock",
+                text: "Run Feeds Live Activity Spike",
+                trailing: "play.circle"
+            )
+        }
+        .buttonStyle(MattePressStyle())
+
+        if let spikeStatus {
+            Text(spikeStatus)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+        }
+
+        if let verdict = UserDefaults.stepsTrader().string(forKey: SpikeProbe.lastResultKey) {
+            Text(verdict)
+                .font(.system(.caption2, design: .monospaced))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+                .textSelection(.enabled)
+        }
+
+        rowDivider
+
         Button {
             let text = model.blockingStore.dumpShieldDiagnostics()
             UIPasteboard.general.string = text

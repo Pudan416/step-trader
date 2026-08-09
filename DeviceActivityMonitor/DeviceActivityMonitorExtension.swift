@@ -11,6 +11,9 @@ import ManagedSettings
 #if canImport(UserNotifications)
 import UserNotifications
 #endif
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
 
 // MARK: - Logging Infrastructure
 
@@ -110,6 +113,11 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         MonitorLogger.info("intervalDidStart: \(activity.rawValue)")
         appendMonitorLog("intervalDidStart: \(activity.rawValue)")
         
+        if activity == DeviceActivityName(SpikeProbe.probeActivityName) {
+            runSpikeProbe(trigger: .intervalDidStart)
+            return
+        }
+
         if activity == DeviceActivityName("minuteMode") {
             startPendingWidgetBudgets()
             setupBlockForMinuteMode()
@@ -150,7 +158,12 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     ) {
         MonitorLogger.info("eventDidReachThreshold: \(event.rawValue) for activity \(activity.rawValue)")
         appendMonitorLog("eventDidReachThreshold: \(event.rawValue) for activity \(activity.rawValue)")
-        
+
+        if event.rawValue == SpikeProbe.usageEventName {
+            runSpikeProbe(trigger: .eventDidReachThreshold)
+            return
+        }
+
         handleMinuteEvent(event)
     }
     
@@ -489,6 +502,91 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     private func reloadWidgets() {
         WidgetCenter.shared.reloadAllTimelines()
     }
-    
 
+
+}
+
+// MARK: - Spike: can this extension reach ActivityKit?
+//
+// Disposable scaffolding for the question `Feeds-Spec.md` blocks the Feeds timer on.
+// Delete this section, its two call sites in `intervalDidStart` and
+// `eventDidReachThreshold`, and `Shared/SpikeLiveActivityAttributes.swift` together.
+// See `Feeds-Spike.md`.
+
+extension DeviceActivityMonitorExtension {
+    #if canImport(ActivityKit)
+    fileprivate func runSpikeProbe(trigger: SpikeTrigger) {
+        let startedAt = Date()
+        let defaults = SharedKeys.appGroupDefaults()
+
+        // Step 1 — the documented failure mode: does this process see anything at all?
+        let activities = Activity<SpikeLiveActivityAttributes>.activities
+        let wantedId = defaults.string(forKey: SpikeProbe.activityIdKey)
+        let match = activities.first { $0.id == wantedId }
+
+        appendMonitorLog(
+            "spike[\(trigger.rawValue)] visible=\(activities.count) wanted=\(wantedId ?? "nil") matched=\(match != nil)"
+        )
+
+        // Distinguish "saw nothing" from "saw something else". Only the first is the
+        // empty-`activities` failure the spec warns about; the second is a stale id.
+        guard let activity = match else {
+            let verdict = activities.isEmpty ? "no-activities-visible" : "id-mismatch"
+            recordSpikeResult(verdict, trigger: trigger, startedAt: startedAt, defaults: defaults)
+            return
+        }
+
+        // Step 2 — attempt the update. Note `update` is async and does not throw, so a
+        // refusal is silent: the only honest evidence is re-reading the state afterwards.
+        let nextCount = activity.content.state.updateCount + 1
+        let nextRemaining = max(0, activity.content.state.remainingMinutes - 1)
+        let state = SpikeLiveActivityAttributes.ContentState(
+            remainingMinutes: nextRemaining,
+            updateCount: nextCount,
+            lastUpdatedBy: trigger.rawValue
+        )
+
+        // The extension process is torn down shortly after this callback returns, so the
+        // await is bounded. A teardown must read as a timeout, never as a refusal —
+        // those have different fixes and collapsing them would waste the spike.
+        let semaphore = DispatchSemaphore(value: 0)
+        Task {
+            await activity.update(ActivityContent(state: state, staleDate: nil))
+            semaphore.signal()
+        }
+
+        guard semaphore.wait(timeout: .now() + SpikeProbe.updateTimeout) == .success else {
+            recordSpikeResult("update-timed-out", trigger: trigger, startedAt: startedAt, defaults: defaults)
+            return
+        }
+
+        // Step 3 — re-read. If the accepted state carries our count, the update landed.
+        let after = Activity<SpikeLiveActivityAttributes>.activities.first { $0.id == activity.id }
+        let observed = after?.content.state.updateCount
+        let verdict = observed == nextCount ? "update-accepted" : "update-ignored(observed=\(observed.map(String.init) ?? "gone"))"
+
+        defaults.set(nextRemaining, forKey: SpikeProbe.remainingMinutesKey)
+        recordSpikeResult(verdict, trigger: trigger, startedAt: startedAt, defaults: defaults)
+    }
+
+    private func recordSpikeResult(
+        _ verdict: String,
+        trigger: SpikeTrigger,
+        startedAt: Date,
+        defaults: UserDefaults
+    ) {
+        let elapsed = String(format: "%.2f", Date().timeIntervalSince(startedAt))
+        let line = "spike[\(trigger.rawValue)] RESULT=\(verdict) elapsed=\(elapsed)s"
+        appendMonitorLog(line)
+        MonitorLogger.info(line)
+        // Kept separately from monitorLogs, which is capped at 30 entries and can roll
+        // over before the user gets back to the app.
+        defaults.set(line, forKey: SpikeProbe.lastResultKey)
+        defaults.synchronize()
+    }
+    #else
+    fileprivate func runSpikeProbe(trigger: SpikeTrigger) {
+        appendMonitorLog("spike[\(trigger.rawValue)] RESULT=activitykit-unavailable")
+    }
+    #endif
 }
