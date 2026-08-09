@@ -12,39 +12,31 @@ struct HappeningPaletteView: View {
     let dayKey: String
 
     @Environment(\.dismiss) private var dismiss
+    @State private var presentation: HappeningLiquidPresentationState
 
-    /// Relative luminance (WCAG), 0 = black, 1 = white.
-    static func relativeLuminance(ofHex hex: String) -> Double {
-        var raw = hex.trimmingCharacters(in: .whitespaces)
-        if raw.hasPrefix("#") { raw.removeFirst() }
-        guard raw.count == 6, let value = UInt32(raw, radix: 16) else { return 1 }
-
-        func linear(_ channel: Double) -> Double {
-            channel <= 0.03928 ? channel / 12.92 : pow((channel + 0.055) / 1.055, 2.4)
-        }
-        let red = linear(Double((value >> 16) & 0xFF) / 255)
-        let green = linear(Double((value >> 8) & 0xFF) / 255)
-        let blue = linear(Double(value & 0xFF) / 255)
-        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
-    }
-
-    static func labelColor(onHex hex: String) -> Color {
-        relativeLuminance(ofHex: hex) < 0.22
-            ? .white.opacity(0.92)
-            : .black.opacity(0.8)
+    init(
+        happenings: [Happening],
+        onPick: @escaping (Happening) -> Void,
+        onCreate: @escaping (String) -> Void,
+        dayKey: String
+    ) {
+        self.happenings = happenings
+        self.onPick = onPick
+        self.onCreate = onCreate
+        self.dayKey = dayKey
+        _presentation = State(
+            initialValue: HappeningLiquidPresentationState(happenings: happenings)
+        )
     }
 
     var body: some View {
         GeometryReader { proxy in
-            let layout = HappeningLiquidLayout.layout(
-                count: happenings.count,
-                in: proxy.size,
-                safeInsets: proxy.safeAreaInsets
-            )
+            let layout = presentation.layout(in: proxy.size, safeInsets: proxy.safeAreaInsets)
 
             ZStack(alignment: .topLeading) {
                 HappeningLiquidField(
                     happenings: happenings,
+                    presentation: $presentation,
                     dayKey: dayKey,
                     onPick: { happening, _ in onPick(happening) }
                 )

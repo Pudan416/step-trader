@@ -139,6 +139,75 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
         XCTAssertNil(state.selectedID)
         XCTAssertTrue(state.beginRemoval(id: "happening_read"))
     }
+
+    func testCancelRemovalRollsBackEveryBusyPhaseAndUnlocksControls() {
+        for terminalPhase in [RemovalPhase.pressing, .sinking, .reflowing] {
+            var state = HappeningLiquidTransitionState()
+            XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
+            if terminalPhase == .sinking || terminalPhase == .reflowing {
+                XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
+            }
+            if terminalPhase == .reflowing {
+                XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .reflowing))
+            }
+
+            state.cancelRemoval()
+
+            XCTAssertEqual(state.phase, .idle, "cancel from \(terminalPhase)")
+            XCTAssertNil(state.selectedID, "cancel from \(terminalPhase)")
+            XCTAssertTrue(
+                state.beginRemoval(id: "happening_read"),
+                "controls should unlock after cancelling \(terminalPhase)"
+            )
+        }
+    }
+}
+
+final class HappeningLiquidPresentationStateTests: XCTestCase {
+
+    private let size = CGSize(width: 402, height: 874)
+    private let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
+
+    func testOnPickParentUpdateDuringReflowDoesNotResurrectSessionRemoval() throws {
+        let initial = Array(HappeningDefaults.builtIns.prefix(3))
+        let removed = initial[0]
+        let survivor = initial[1]
+        var state = HappeningLiquidPresentationState(happenings: initial)
+
+        var parentRefresh = initial
+        parentRefresh[1].useCount = 7
+        state.receiveParent(parentRefresh, whileTransitioning: true)
+        XCTAssertTrue(state.remove(id: removed.id))
+        state.finishTransition()
+
+        XCTAssertFalse(state.presentedHappenings.contains { $0.id == removed.id })
+        XCTAssertEqual(
+            try XCTUnwrap(state.presentedHappenings.first { $0.id == survivor.id }).useCount,
+            7,
+            "parent metadata should still merge into surviving session items"
+        )
+    }
+
+    func testSharedPresentationCountDrivesDockThroughTenNineEight() {
+        var state = HappeningLiquidPresentationState(
+            happenings: Array(HappeningDefaults.builtIns.prefix(10))
+        )
+
+        let ten = state.layout(in: size, safeInsets: safeInsets)
+        XCTAssertEqual(state.presentedCount, 10)
+
+        XCTAssertTrue(state.remove(id: state.presentedHappenings[0].id))
+        let nine = state.layout(in: size, safeInsets: safeInsets)
+        XCTAssertEqual(state.presentedCount, 9)
+
+        XCTAssertTrue(state.remove(id: state.presentedHappenings[0].id))
+        let eight = state.layout(in: size, safeInsets: safeInsets)
+        XCTAssertEqual(state.presentedCount, 8)
+
+        XCTAssertNotEqual(ten.dockAnchor, nine.dockAnchor)
+        XCTAssertNotEqual(nine.dockAnchor, eight.dockAnchor)
+    }
+
 }
 
 /// Label contrast is unrelated to the replaced blob geometry, so it remains
@@ -146,49 +215,73 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
 final class HappeningPaletteLabelContrastTests: XCTestCase {
 
     func testLuminanceEndpoints() {
-        XCTAssertEqual(HappeningPaletteView.relativeLuminance(ofHex: "#000000"), 0, accuracy: 0.001)
-        XCTAssertEqual(HappeningPaletteView.relativeLuminance(ofHex: "#FFFFFF"), 1, accuracy: 0.001)
+        XCTAssertEqual(HappeningLiquidLabelTreatment.relativeLuminance(ofHex: "#000000"), 0, accuracy: 0.001)
+        XCTAssertEqual(HappeningLiquidLabelTreatment.relativeLuminance(ofHex: "#FFFFFF"), 1, accuracy: 0.001)
     }
 
     func testLuminanceToleratesMissingHashAndWhitespace() {
         XCTAssertEqual(
-            HappeningPaletteView.relativeLuminance(ofHex: " FFFFFF "),
-            HappeningPaletteView.relativeLuminance(ofHex: "#FFFFFF"),
+            HappeningLiquidLabelTreatment.relativeLuminance(ofHex: " FFFFFF "),
+            HappeningLiquidLabelTreatment.relativeLuminance(ofHex: "#FFFFFF"),
             accuracy: 0.001
         )
     }
 
-    func testMalformedHexFallsBackToLightSoTextStaysDark() {
-        XCTAssertEqual(HappeningPaletteView.relativeLuminance(ofHex: "nope"), 1, accuracy: 0.001)
-        XCTAssertEqual(HappeningPaletteView.labelColor(onHex: "nope"), .black.opacity(0.8))
+    func testTreatmentUsesProductionWeightedTwoColorBlend() {
+        let treatment = HappeningLiquidLabelTreatment(
+            primaryHex: "#CC5050",
+            accentHex: "#E098A0"
+        )
+
+        XCTAssertEqual(treatment.red, 0.821960784, accuracy: 0.000_000_1)
+        XCTAssertEqual(treatment.green, 0.392784314, accuracy: 0.000_000_1)
+        XCTAssertEqual(treatment.blue, 0.401568627, accuracy: 0.000_000_1)
+        XCTAssertEqual(treatment.backingLuminance, 0.237553298, accuracy: 0.000_000_1)
     }
 
-    func testDeepJewelTonesGetLightLabels() {
-        for hex in ["#0E3A6E", "#1E2E78", "#6E1A2E", "#3A1660", "#5C1648", "#0E4A4E"] {
-            XCTAssertEqual(
-                HappeningPaletteView.labelColor(onHex: hex), .white.opacity(0.92),
-                "\(hex) is too dark for dark text"
+    func testEveryRenderedWarmBlendHasFourPointFiveContrastOnItsOpaqueLens() {
+        for slot in 0..<HappeningLiquidField.warmPaletteIndices.count {
+            let treatment = HappeningLiquidField.labelTreatment(forSlot: slot)
+            let textLuminance = treatment.foreground == .black ? 0.0 : 1.0
+            let ratio = (max(treatment.backingLuminance, textLuminance) + 0.05)
+                / (min(treatment.backingLuminance, textLuminance) + 0.05)
+
+            XCTAssertGreaterThanOrEqual(
+                ratio,
+                4.5,
+                "slot \(slot) has insufficient rendered label contrast (\(ratio))"
             )
         }
     }
 
-    func testLightTonesKeepDarkLabels() {
-        for hex in ["#E8B060", "#E098A0", "#D8C078", "#E89070"] {
-            XCTAssertEqual(
-                HappeningPaletteView.labelColor(onHex: hex), .black.opacity(0.8),
-                "\(hex) should keep the reference's dark label"
+    func testTextBoundsAreInsideTheGuaranteedOpaqueEllipseForEveryLayout() {
+        let size = CGSize(width: 402, height: 874)
+        let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
+
+        for count in 1...10 {
+            let layout = HappeningLiquidLayout.layout(
+                count: count,
+                in: size,
+                safeInsets: safeInsets
             )
+            for labelFrame in layout.labelFrames {
+                let textSize = HappeningLiquidLabelTreatment.inscribedTextSize(
+                    in: labelFrame.size
+                )
+                let normalizedCornerDistance = pow(textSize.width / labelFrame.width, 2)
+                    + pow(textSize.height / labelFrame.height, 2)
+
+                XCTAssertLessThanOrEqual(
+                    normalizedCornerDistance,
+                    1,
+                    "count \(count) text corners escape the opaque label lens"
+                )
+            }
         }
     }
 
-    func testEveryPaletteColorGetsAReadableLabel() {
-        for hex in CanvasColorPalette.paletteHex {
-            let luminance = HappeningPaletteView.relativeLuminance(ofHex: hex)
-            let isLight = HappeningPaletteView.labelColor(onHex: hex) == .black.opacity(0.8)
-            let textLuminance = isLight ? 0.0 : 1.0
-            let ratio = (max(luminance, textLuminance) + 0.05)
-                      / (min(luminance, textLuminance) + 0.05)
-            XCTAssertGreaterThan(ratio, 3.0, "\(hex) has poor label contrast (\(ratio))")
-        }
+    func testSemanticLabelTypographyUsesTwoLinesAtAccessibilitySizes() {
+        XCTAssertEqual(HappeningLiquidLabelTypography.maximumLines(for: .large), 3)
+        XCTAssertEqual(HappeningLiquidLabelTypography.maximumLines(for: .accessibility1), 2)
     }
 }

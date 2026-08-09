@@ -36,60 +36,212 @@ struct HappeningLiquidTransitionState: Equatable {
         selectedID = nil
         return true
     }
+
+    mutating func cancelRemoval() {
+        phase = .idle
+        selectedID = nil
+    }
+}
+
+/// Session presentation state shared by the field and its surrounding controls.
+/// Parent updates refresh metadata, while ids consumed in this mounted session
+/// stay consumed even if `onPick` synchronously republishes its old array.
+struct HappeningLiquidPresentationState: Equatable {
+    private(set) var slotHappenings: [Happening]
+    private(set) var presentedHappenings: [Happening]
+
+    private var sessionRemovedIDs: Set<String> = []
+    private var pendingParentHappenings: [Happening]?
+
+    init(happenings: [Happening]) {
+        let initial = Array(happenings.prefix(10))
+        slotHappenings = initial
+        presentedHappenings = initial
+    }
+
+    var presentedCount: Int {
+        presentedHappenings.count
+    }
+
+    func layout(in size: CGSize, safeInsets: EdgeInsets) -> HappeningLiquidLayout.Layout {
+        HappeningLiquidLayout.layout(
+            count: presentedCount,
+            in: size,
+            safeInsets: safeInsets
+        )
+    }
+
+    mutating func remove(id: String) -> Bool {
+        guard presentedHappenings.contains(where: { $0.id == id }) else { return false }
+        sessionRemovedIDs.insert(id)
+        presentedHappenings.removeAll { $0.id == id }
+        return true
+    }
+
+    mutating func receiveParent(_ happenings: [Happening], whileTransitioning: Bool) {
+        if whileTransitioning {
+            pendingParentHappenings = happenings
+        } else {
+            mergeParent(happenings)
+        }
+    }
+
+    mutating func finishTransition() {
+        guard let pendingParentHappenings else { return }
+        self.pendingParentHappenings = nil
+        mergeParent(pendingParentHappenings)
+    }
+
+    mutating func reset(with happenings: [Happening]) {
+        let initial = Array(happenings.prefix(10))
+        slotHappenings = initial
+        presentedHappenings = initial
+        sessionRemovedIDs.removeAll()
+        pendingParentHappenings = nil
+    }
+
+    private mutating func mergeParent(_ happenings: [Happening]) {
+        let removedIDs = sessionRemovedIDs
+        let eligible = Array(
+            happenings
+                .filter { !removedIDs.contains($0.id) }
+                .prefix(10)
+        )
+        let replacements = Dictionary(uniqueKeysWithValues: happenings.map { ($0.id, $0) })
+
+        slotHappenings = slotHappenings.map { replacements[$0.id] ?? $0 }
+        var slotIDs = Set(slotHappenings.map(\.id))
+        for happening in eligible where slotIDs.insert(happening.id).inserted {
+            slotHappenings.append(happening)
+        }
+        presentedHappenings = eligible
+    }
+}
+
+struct HappeningLiquidLabelTreatment: Equatable {
+    enum Foreground: Equatable {
+        case black
+        case white
+    }
+
+    static let primaryWeight = 0.72
+    static let accentWeight = 0.28
+
+    let red: Double
+    let green: Double
+    let blue: Double
+    let backingLuminance: Double
+    let foreground: Foreground
+
+    init(primaryHex: String, accentHex: String) {
+        let primary = Self.rgb(ofHex: primaryHex)
+        let accent = Self.rgb(ofHex: accentHex)
+        red = Self.primaryWeight * primary.red + Self.accentWeight * accent.red
+        green = Self.primaryWeight * primary.green + Self.accentWeight * accent.green
+        blue = Self.primaryWeight * primary.blue + Self.accentWeight * accent.blue
+        backingLuminance = Self.relativeLuminance(red: red, green: green, blue: blue)
+
+        let blackContrast = (backingLuminance + 0.05) / 0.05
+        let whiteContrast = 1.05 / (backingLuminance + 0.05)
+        foreground = blackContrast >= whiteContrast ? .black : .white
+    }
+
+    var backingColor: Color {
+        Color(.sRGB, red: red, green: green, blue: blue, opacity: 1)
+    }
+
+    var foregroundColor: Color {
+        foreground == .black ? .black : .white
+    }
+
+    static func inscribedTextSize(in labelSize: CGSize) -> CGSize {
+        CGSize(width: labelSize.width * 0.70, height: labelSize.height * 0.70)
+    }
+
+    static func relativeLuminance(ofHex hex: String) -> Double {
+        let color = rgb(ofHex: hex)
+        return relativeLuminance(red: color.red, green: color.green, blue: color.blue)
+    }
+
+    private static func rgb(ofHex hex: String) -> (red: Double, green: Double, blue: Double) {
+        var raw = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.hasPrefix("#") { raw.removeFirst() }
+        guard raw.count == 6, let value = UInt32(raw, radix: 16) else {
+            return (1, 1, 1)
+        }
+        return (
+            Double((value >> 16) & 0xFF) / 255,
+            Double((value >> 8) & 0xFF) / 255,
+            Double(value & 0xFF) / 255
+        )
+    }
+
+    private static func relativeLuminance(red: Double, green: Double, blue: Double) -> Double {
+        func linear(_ channel: Double) -> Double {
+            channel <= 0.03928
+                ? channel / 12.92
+                : pow((channel + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+    }
+}
+
+enum HappeningLiquidLabelTypography {
+    static let font = Font.system(.footnote, design: .rounded, weight: .semibold)
+
+    static func maximumLines(for dynamicTypeSize: DynamicTypeSize) -> Int {
+        dynamicTypeSize.isAccessibilitySize ? 2 : 3
+    }
 }
 
 /// Native, transparent renderer for the palette's Living island.
 ///
-/// The view owns only presentation state. Domain state changes at breakthrough
-/// through `onPick`; the field then remains mounted while its surviving sources
-/// reflow to the next deterministic layout.
+/// Domain state changes at breakthrough through `onPick`; the field and parent
+/// share session presentation state while surviving sources reflow to the next
+/// deterministic layout.
 struct HappeningLiquidField: View {
     let happenings: [Happening]
     let dayKey: String
     let onPick: (Happening, CGPoint) -> Void
 
+    @Binding var presentation: HappeningLiquidPresentationState
+
     private let reduceMotionOverride: Bool?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var slotHappenings: [Happening]
-    @State private var presentedHappenings: [Happening]
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @State private var transition = HappeningLiquidTransitionState()
     @State private var selectedScale: CGFloat = 1
     @State private var sinkProgress: CGFloat = 0
     @State private var sinkPoint: CGPoint = .zero
     @State private var feedbackTick = 0
-    @State private var pendingParentHappenings: [Happening]?
     @State private var removalTask: Task<Void, Never>?
 
     private static let pressDuration = 0.12
     private static let sinkDuration = 0.19
     private static let reflowDuration = 0.38
     private static let reducedRemovalDuration = 0.15
-    private static let warmPaletteIndices = [0, 1, 3, 5, 8, 9, 10, 11, 6, 7]
+    static let warmPaletteIndices = [0, 1, 3, 5, 8, 9, 10, 11, 6, 7]
 
     init(
         happenings: [Happening],
+        presentation: Binding<HappeningLiquidPresentationState>,
         dayKey: String,
         reduceMotionOverride: Bool? = nil,
         onPick: @escaping (Happening, CGPoint) -> Void
     ) {
-        let initial = Array(happenings.prefix(10))
         self.happenings = happenings
+        _presentation = presentation
         self.dayKey = dayKey
         self.reduceMotionOverride = reduceMotionOverride
         self.onPick = onPick
-        _slotHappenings = State(initialValue: initial)
-        _presentedHappenings = State(initialValue: initial)
     }
 
     var body: some View {
         GeometryReader { proxy in
-            let layout = HappeningLiquidLayout.layout(
-                count: presentedHappenings.count,
-                in: proxy.size,
-                safeInsets: proxy.safeAreaInsets
-            )
+            let layout = presentation.layout(in: proxy.size, safeInsets: proxy.safeAreaInsets)
             let styles = slotStyles
 
             ZStack(alignment: .topLeading) {
@@ -98,7 +250,7 @@ struct HappeningLiquidField: View {
                     styles: styles
                 )
 
-                ForEach(Array(presentedHappenings.enumerated()), id: \.element.id) { index, happening in
+                ForEach(Array(presentation.presentedHappenings.enumerated()), id: \.element.id) { index, happening in
                     if index < layout.sources.count, index < layout.labelFrames.count {
                         labelButton(
                             happening: happening,
@@ -117,12 +269,12 @@ struct HappeningLiquidField: View {
             receiveParentHappenings(next)
         }
         .onDisappear {
-            removalTask?.cancel()
+            cancelRemoval()
         }
     }
 
     private var slotStyles: [HappeningLiquidSlotStyle] {
-        slotHappenings.enumerated().map { index, happening in
+        presentation.slotHappenings.enumerated().map { index, happening in
             Self.makeStyle(for: happening, index: index, dayKey: dayKey)
         }
     }
@@ -135,7 +287,7 @@ struct HappeningLiquidField: View {
         for happening: Happening,
         in styles: [HappeningLiquidSlotStyle]
     ) -> HappeningLiquidSlotStyle {
-        guard let index = slotHappenings.firstIndex(where: { $0.id == happening.id }),
+        guard let index = presentation.slotHappenings.firstIndex(where: { $0.id == happening.id }),
               index < styles.count else {
             return Self.makeStyle(for: happening, index: 0, dayKey: dayKey)
         }
@@ -146,10 +298,12 @@ struct HappeningLiquidField: View {
         for layout: HappeningLiquidLayout.Layout
     ) -> HappeningLiquidSourceVector {
         let visibleIndices = Dictionary(
-            uniqueKeysWithValues: presentedHappenings.enumerated().map { ($0.element.id, $0.offset) }
+            uniqueKeysWithValues: presentation.presentedHappenings.enumerated().map {
+                ($0.element.id, $0.offset)
+            }
         )
 
-        let sources = slotHappenings.map { happening -> HappeningLiquidRenderSource in
+        let sources = presentation.slotHappenings.map { happening -> HappeningLiquidRenderSource in
             guard let visibleIndex = visibleIndices[happening.id],
                   visibleIndex < layout.sources.count else {
                 return HappeningLiquidRenderSource(
@@ -226,26 +380,32 @@ struct HappeningLiquidField: View {
         } else {
             scale = 1
         }
-        let usesDarkText = style.sampledLuminance >= 0.18
+        let textSize = HappeningLiquidLabelTreatment.inscribedTextSize(in: frame.size)
 
         return Button {
             beginRemoval(happening, source: source)
         } label: {
-            Text(happening.localizedTitle())
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(
-                    usesDarkText ? Color.black.opacity(0.84) : Color.white.opacity(0.94)
-                )
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
-                .minimumScaleFactor(0.78)
-                .frame(width: frame.width, height: frame.height)
-                .contentShape(Rectangle())
-                .shadow(
-                    color: usesDarkText ? .white.opacity(0.10) : .black.opacity(0.18),
-                    radius: 1,
-                    y: 1
-                )
+            ZStack {
+                Ellipse()
+                    .fill(style.labelTreatment.backingColor)
+                    .overlay {
+                        Ellipse().stroke(.white.opacity(0.14), lineWidth: 0.5)
+                    }
+
+                Text(happening.localizedTitle())
+                    .font(HappeningLiquidLabelTypography.font)
+                    .foregroundStyle(style.labelTreatment.foregroundColor)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(
+                        HappeningLiquidLabelTypography.maximumLines(for: dynamicTypeSize)
+                    )
+                    .minimumScaleFactor(0.78)
+                    // This rectangle is inscribed in the opaque ellipse, so
+                    // every rendered glyph has a known contrast backing.
+                    .frame(width: textSize.width, height: textSize.height)
+            }
+            .frame(width: frame.width, height: frame.height)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .frame(width: frame.width, height: frame.height)
@@ -318,8 +478,8 @@ struct HappeningLiquidField: View {
         feedbackTick += 1
         onPick(happening, sinkPoint)
 
-        let removeFromPresentation = {
-            presentedHappenings.removeAll { $0.id == happening.id }
+        let removeFromPresentation: () -> Void = {
+            _ = presentation.remove(id: happening.id)
         }
         if animatedReflow {
             withAnimation(.spring(duration: Self.reflowDuration, bounce: 0.20)) {
@@ -336,42 +496,40 @@ struct HappeningLiquidField: View {
         }
 
         guard transition.finishRemoval(id: happening.id) else { return }
+        removalTask = nil
         selectedScale = 1
         sinkProgress = 0
-        applyPendingParentHappenings()
+        presentation.finishTransition()
     }
 
     private func receiveParentHappenings(_ next: [Happening]) {
-        let limited = Array(next.prefix(10))
-        guard transition.phase == .idle else {
-            pendingParentHappenings = limited
-            return
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            presentation.receiveParent(next, whileTransitioning: transition.phase != .idle)
         }
-        synchronizePresentation(with: limited)
     }
 
-    private func applyPendingParentHappenings() {
-        guard let pendingParentHappenings else { return }
-        self.pendingParentHappenings = nil
-        synchronizePresentation(with: pendingParentHappenings)
+    private func cancelRemoval() {
+        removalTask?.cancel()
+        removalTask = nil
+
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            transition.cancelRemoval()
+            selectedScale = 1
+            sinkProgress = 0
+            presentation.finishTransition()
+        }
     }
 
-    private func synchronizePresentation(with next: [Happening]) {
-        let nextIDs = next.map(\.id)
-        let presentedIDs = presentedHappenings.map(\.id)
-
-        if nextIDs == presentedIDs {
-            let replacements = Dictionary(uniqueKeysWithValues: next.map { ($0.id, $0) })
-            slotHappenings = slotHappenings.map { replacements[$0.id] ?? $0 }
-            presentedHappenings = next
-        } else {
-            var transaction = Transaction(animation: nil)
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                slotHappenings = next
-                presentedHappenings = next
-            }
-        }
+    static func labelTreatment(forSlot index: Int) -> HappeningLiquidLabelTreatment {
+        let hexes = paletteHexes(forSlot: index)
+        return HappeningLiquidLabelTreatment(
+            primaryHex: hexes.primary,
+            accentHex: hexes.accent
+        )
     }
 
     private static func makeStyle(
@@ -385,26 +543,38 @@ struct HappeningLiquidField: View {
             return HappeningLiquidSlotStyle(
                 primary: Color(hex: fallback),
                 accent: Color(hex: fallback),
-                sampledLuminance: HappeningPaletteView.relativeLuminance(ofHex: fallback),
+                labelTreatment: HappeningLiquidLabelTreatment(
+                    primaryHex: fallback,
+                    accentHex: fallback
+                ),
                 highlightOffset: .zero
             )
         }
 
-        let primaryIndex = warmPaletteIndices[index % warmPaletteIndices.count] % palette.count
-        let accentIndex = warmPaletteIndices[(index + 3) % warmPaletteIndices.count] % palette.count
-        let primaryHex = palette[primaryIndex]
-        let accentHex = palette[accentIndex]
+        let hexes = paletteHexes(forSlot: index)
         let seed = CanvasElement.makeSeed(optionId: happening.id, dayKey: dayKey, index: index)
         let unitX = CGFloat(seed & 0xFFFF) / CGFloat(UInt16.max) - 0.5
         let unitY = CGFloat((seed >> 16) & 0xFFFF) / CGFloat(UInt16.max) - 0.5
 
         return HappeningLiquidSlotStyle(
-            primary: Color(hex: primaryHex),
-            accent: Color(hex: accentHex),
-            sampledLuminance: 0.72 * HappeningPaletteView.relativeLuminance(ofHex: primaryHex)
-                + 0.28 * HappeningPaletteView.relativeLuminance(ofHex: accentHex),
+            primary: Color(hex: hexes.primary),
+            accent: Color(hex: hexes.accent),
+            labelTreatment: labelTreatment(forSlot: index),
             highlightOffset: CGSize(width: unitX * 0.42, height: unitY * 0.34)
         )
+    }
+
+    private static func paletteHexes(forSlot index: Int) -> (primary: String, accent: String) {
+        let palette = CanvasColorPalette.paletteHex
+        let fallback = AppColors.goldFallbackHex
+        guard !palette.isEmpty else { return (fallback, fallback) }
+
+        let normalizedIndex = max(0, index)
+        let primaryIndex = warmPaletteIndices[normalizedIndex % warmPaletteIndices.count]
+            % palette.count
+        let accentIndex = warmPaletteIndices[(normalizedIndex + 3) % warmPaletteIndices.count]
+            % palette.count
+        return (palette[primaryIndex], palette[accentIndex])
     }
 
     private static func interpolate(
@@ -422,7 +592,7 @@ struct HappeningLiquidField: View {
 private struct HappeningLiquidSlotStyle {
     let primary: Color
     let accent: Color
-    let sampledLuminance: Double
+    let labelTreatment: HappeningLiquidLabelTreatment
     /// Unit-space offset, scaled by the source radius during drawing.
     let highlightOffset: CGSize
 }
@@ -636,8 +806,11 @@ private struct HappeningLiquidSourceVector: VectorArithmetic {
 private struct HappeningLiquidFieldPreviewHarness: View {
     @State private var count = 10
     @State private var reduceMotion = false
-    @State private var revision = 0
+    @State private var largerType = false
     @State private var lastPick = "Tap a happening"
+    @State private var presentation = HappeningLiquidPresentationState(
+        happenings: Array(HappeningDefaults.builtIns.prefix(10))
+    )
 
     private var previewHappenings: [Happening] {
         Array(HappeningDefaults.builtIns.prefix(count))
@@ -658,23 +831,32 @@ private struct HappeningLiquidFieldPreviewHarness: View {
 
             HappeningLiquidField(
                 happenings: previewHappenings,
+                presentation: $presentation,
                 dayKey: "2026-08-09",
                 reduceMotionOverride: reduceMotion,
                 onPick: { happening, _ in lastPick = happening.localizedTitle() }
             )
-            .id(revision)
+            .environment(\.dynamicTypeSize, largerType ? .accessibility1 : .large)
 
             VStack(spacing: 10) {
                 HStack(spacing: 8) {
                     ForEach([10, 9, 8], id: \.self) { nextCount in
                         Button("\(nextCount)") {
                             count = nextCount
-                            revision += 1
+                            presentation.reset(
+                                with: Array(HappeningDefaults.builtIns.prefix(nextCount))
+                            )
                         }
                         .buttonStyle(.borderedProminent)
                     }
+                }
 
+                HStack(spacing: 14) {
                     Toggle("Reduce Motion", isOn: $reduceMotion)
+                        .toggleStyle(.switch)
+                        .font(.caption)
+
+                    Toggle("Larger Type", isOn: $largerType)
                         .toggleStyle(.switch)
                         .font(.caption)
                 }
