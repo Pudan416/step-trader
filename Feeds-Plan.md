@@ -1137,9 +1137,9 @@ final class UsageBudgetMonitoringErrorTests: XCTestCase {
     }
 
     func testCapMessageNamesTheCauseAndTheRemedy() {
-        let message = UsageBudgetMonitoringError.excessiveActivities.userFacingMessage
+        let message = UsageBudgetMonitoringError.excessiveActivities.userFacingMessage.lowercased()
         XCTAssertTrue(message.contains("too many"), "the message must name the cause")
-        XCTAssertTrue(message.lowercased().contains("close"), "the message must offer a remedy")
+        XCTAssertTrue(message.contains("close"), "the message must offer a remedy")
     }
 
     func testOtherMessageMentionsTheRefund() {
