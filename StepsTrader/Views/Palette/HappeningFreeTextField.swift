@@ -20,17 +20,28 @@ struct HappeningCreatorPanel: View {
                 Text("Add a happening")
                     .font(.title3.weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
-                    .accessibilitySortPriority(3)
+                    .accessibilityHint("This will replace one of the 10 shown happenings.")
+                    .accessibilitySortPriority(
+                        HappeningPanelAccessibilityOrder.priority(
+                            for: .heading,
+                            in: HappeningPanelAccessibilityOrder.creator
+                        )
+                    )
 
                 Text("This will replace one of the 10 shown happenings.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .accessibilitySortPriority(2)
+                    .accessibilityHidden(true)
 
                 HappeningFreeTextField(text: $text) { submittedTitle in
                     onCreate(submittedTitle)
                 }
-                .accessibilitySortPriority(1)
+                .accessibilitySortPriority(
+                    HappeningPanelAccessibilityOrder.priority(
+                        for: .input,
+                        in: HappeningPanelAccessibilityOrder.creator
+                    )
+                )
 
                 HStack {
                     Button("Cancel", action: onCancel)
@@ -44,7 +55,12 @@ struct HappeningCreatorPanel: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(trimmed.isEmpty)
                 }
-                .accessibilitySortPriority(0)
+                .accessibilitySortPriority(
+                    HappeningPanelAccessibilityOrder.priority(
+                        for: .actions,
+                        in: HappeningPanelAccessibilityOrder.creator
+                    )
+                )
             }
             .padding(20)
         }
@@ -106,4 +122,5 @@ struct HappeningFreeTextField: View {
     HappeningCreatorPanel(onCreate: { _ in }, onCancel: {})
         .padding()
         .dynamicTypeSize(.accessibility1)
+        .frame(height: 280)
 }

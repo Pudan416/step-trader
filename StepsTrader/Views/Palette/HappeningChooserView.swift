@@ -1,6 +1,28 @@
 import SwiftUI
 import UIKit
 
+/// The explicit reading order for the floating panels. The values below are
+/// consumed by SwiftUI's sort priorities so the contract is testable without
+/// relying on pixel- or accessibility-server inspection.
+enum HappeningPanelAccessibilityOrder {
+    enum Role: Equatable {
+        case heading
+        case status
+        case search
+        case rows
+        case input
+        case actions
+    }
+
+    static let chooser: [Role] = [.heading, .status, .search, .rows, .actions]
+    static let creator: [Role] = [.heading, .input, .actions]
+
+    static func priority(for role: Role, in order: [Role]) -> Double {
+        guard let index = order.firstIndex(of: role) else { return 0 }
+        return Double(order.count - index)
+    }
+}
+
 /// A transactional editor for the palette's fixed ten happening slots.
 /// Closing it with Cancel leaves its parent selection untouched; only Done
 /// sends the complete draft back to the owner for persistence.
@@ -32,51 +54,78 @@ struct HappeningChooserView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Choose happenings")
-                .font(.title3.weight(.semibold))
-                .accessibilityAddTraits(.isHeader)
-                .accessibilitySortPriority(3)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Choose happenings")
+                    .font(.title3.weight(.semibold))
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilitySortPriority(
+                        HappeningPanelAccessibilityOrder.priority(
+                            for: .heading,
+                            in: HappeningPanelAccessibilityOrder.chooser
+                        )
+                    )
 
-            Text("\(draft.ids.count) of \(HappeningPaletteSelection.slotCount) selected")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .accessibilitySortPriority(2)
+                Text("\(draft.ids.count) of \(HappeningPaletteSelection.slotCount) selected")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .accessibilitySortPriority(
+                        HappeningPanelAccessibilityOrder.priority(
+                            for: .status,
+                            in: HappeningPanelAccessibilityOrder.chooser
+                        )
+                    )
 
-            TextField("Search happenings", text: $query)
-                .textInputAutocapitalization(.sentences)
-                .autocorrectionDisabled()
-                .textFieldStyle(.roundedBorder)
+                TextField("Search happenings", text: $query)
+                    .textInputAutocapitalization(.sentences)
+                    .autocorrectionDisabled()
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilitySortPriority(
+                        HappeningPanelAccessibilityOrder.priority(
+                            for: .search,
+                            in: HappeningPanelAccessibilityOrder.chooser
+                        )
+                    )
 
-            ScrollView {
                 LazyVStack(spacing: 2) {
                     ForEach(filteredCatalog) { happening in
                         chooserRow(for: happening)
                     }
                 }
-            }
-            .frame(maxHeight: 320)
-            .accessibilitySortPriority(1)
+                .accessibilitySortPriority(
+                    HappeningPanelAccessibilityOrder.priority(
+                        for: .rows,
+                        in: HappeningPanelAccessibilityOrder.chooser
+                    )
+                )
 
-            HStack {
-                Button("Cancel") {
-                    draft.cancel()
-                    onCancel()
+                HStack {
+                    Button("Cancel") {
+                        draft.cancel()
+                        onCancel()
+                    }
+                    .buttonStyle(.bordered)
+
+                    Spacer()
+
+                    Button("Done") {
+                        onSave(draft.ids)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!draft.canSave)
                 }
-                .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button("Done") {
-                    onSave(draft.ids)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!draft.canSave)
+                .accessibilitySortPriority(
+                    HappeningPanelAccessibilityOrder.priority(
+                        for: .actions,
+                        in: HappeningPanelAccessibilityOrder.chooser
+                    )
+                )
             }
-            .accessibilitySortPriority(0)
+            .padding(20)
         }
-        .padding(20)
+        .scrollIndicators(.visible)
+        .frame(maxHeight: 560)
         .frame(maxWidth: 440, alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay {
@@ -131,7 +180,7 @@ struct HappeningChooserView: View {
     }
 }
 
-#Preview("Chooser") {
+#Preview("Chooser — Accessibility") {
     HappeningChooserView(
         catalog: HappeningDefaults.builtIns + [
             Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false),
@@ -143,4 +192,5 @@ struct HappeningChooserView: View {
     )
     .padding()
     .dynamicTypeSize(.accessibility1)
+    .frame(height: 360)
 }

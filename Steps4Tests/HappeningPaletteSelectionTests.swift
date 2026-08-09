@@ -144,6 +144,17 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         XCTAssertEqual(incompleteDraft.toggle(id: "unknown"), .unavailable)
     }
 
+    func testPanelAccessibilityOrderPlacesChooserSearchBeforeRowsAndCreatorInputBeforeActions() {
+        XCTAssertEqual(
+            HappeningPanelAccessibilityOrder.chooser,
+            [.heading, .status, .search, .rows, .actions]
+        )
+        XCTAssertEqual(
+            HappeningPanelAccessibilityOrder.creator,
+            [.heading, .input, .actions]
+        )
+    }
+
     func testCustomHappeningReplacesLeastUsedSlot() throws {
         let catalog = makeCatalog(counts: [5, 4, 3, 2, 1, 0, 8, 7, 6, 9])
             + [Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false)]
