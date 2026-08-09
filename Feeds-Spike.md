@@ -7,6 +7,34 @@ Activity?" and the first spike checkbox in `Feeds-Brief.md` §6.
 
 ---
 
+## Result — no
+
+Measured 2026-08-09 on a physical iPhone 15 Pro, iOS 26.6. The production
+callback fired and the probe inside it reported:
+
+```
+eventDidReachThreshold: spikeUsageTick for activity spikeUsage
+spike[monitor:eventDidReachThreshold] visible=0 wanted=BBB557AF-… matched=false
+spike[monitor:eventDidReachThreshold] RESULT=no-activities-visible elapsed=0.00s
+```
+
+The extension does not see the Live Activity at all, so it cannot update it. The
+activity was alive at that moment — visible in the Dynamic Island, id stored in
+shared defaults — and the extension's own list came back empty.
+
+`elapsed=0.00s` rules out a mid-`await` teardown; it never reached the update.
+`visible=0` with `matched=false` rules out a stale id; the list was empty, not
+wrong.
+
+`Feeds-Spec.md` is updated: the §6 `staleDate` fallback applies, and the
+frequent-updates question is moot.
+
+**Untested:** the `intervalDidStart` path. Its log lines had rolled off the
+30-entry cap before the diagnostics were taken. Same process, same entitlement,
+so the same answer is expected — but expected is not measured.
+
+---
+
 ## The question
 
 `Feeds-Spec.md` blocks the timer on one yes/no: **does `Activity.update` work from
