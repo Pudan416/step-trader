@@ -158,35 +158,52 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertEqual(model.happeningStore.happening(id: happening.id)?.lastUsedAt, date)
     }
 
-    func testMainTabCustomCreationRecordsUseAfterSuccessfulAddition() throws {
+    func testPaletteCreationReplacesAConfiguredSlotWithoutLoggingToday() throws {
         let model = makeModel()
-        let mainTab = MainTabView(model: model)
-        var spawnInfo: [AnyHashable: Any]?
-        let observer = NotificationCenter.default.addObserver(
-            forName: .canvasElementSpawnRequested,
-            object: nil,
-            queue: nil
-        ) { notification in
-            spawnInfo = notification.userInfo
-        }
-        defer { NotificationCenter.default.removeObserver(observer) }
-
-        mainTab.createAndPostHappening(title: "Sauna")
-
-        let info = try XCTUnwrap(spawnInfo)
-        let id = try XCTUnwrap(info["optionId"] as? String)
-        let recordUse = try XCTUnwrap(info["recordUse"] as? Bool)
+        model.loadDailyEnergyState()
         let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let replacedID = try XCTUnwrap(model.configuredPaletteHappenings().first?.id)
+
+        let created = try XCTUnwrap(
+            model.createPaletteHappening(title: "Sauna", at: date)
+        )
+
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+        XCTAssertEqual(model.configuredPaletteHappenings().count, 10)
+        XCTAssertEqual(model.configuredPaletteHappenings().first?.id, created.id)
+        XCTAssertEqual(model.happeningStore.happening(id: created.id)?.useCount, 0)
+        XCTAssertNil(model.happeningStore.happening(id: created.id)?.lastUsedAt)
+        XCTAssertNotNil(
+            model.happeningStore.happening(id: replacedID),
+            "replacement removes a slot, not the catalog item"
+        )
+    }
+
+    func testSavingPaletteSelectionUsesTheFullCatalogAndRefreshesAvailability() throws {
+        let model = makeModel()
+        model.loadDailyEnergyState()
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let custom = model.createHappening(title: "Sauna", at: date)
+        var selectedIDs = model.configuredPaletteHappenings().map(\.id)
+        selectedIDs[1] = custom.id
         XCTAssertNotNil(
             model.addHappening(
-                id: id,
-                colorHex: try XCTUnwrap(info["color"] as? String),
-                at: date,
-                recordUse: recordUse
+                id: selectedIDs[0],
+                colorHex: "#AABBCC",
+                at: date
             )
         )
-        XCTAssertEqual(model.happeningStore.happening(id: id)?.useCount, 1)
-        XCTAssertEqual(model.happeningStore.happening(id: id)?.lastUsedAt, date)
+
+        try model.savePaletteHappeningSelection(selectedIDs)
+
+        XCTAssertEqual(model.paletteHappeningCatalog().count, 11)
+        XCTAssertEqual(model.selectedPaletteHappeningIDs(), selectedIDs)
+        XCTAssertFalse(
+            model.availablePaletteHappenings(on: date).contains { $0.id == selectedIDs[0] }
+        )
+        XCTAssertTrue(
+            model.availablePaletteHappenings(on: date).contains { $0.id == custom.id }
+        )
     }
 
     func testPaletteOrderUsesPersistedConfiguredSelection() {

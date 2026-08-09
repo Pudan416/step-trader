@@ -54,6 +54,38 @@ extension AppModel {
         happeningStore.create(title: title, at: date)
     }
 
+    /// Creates a catalog item and installs it into the configured ten without
+    /// logging it to the current day. The user still has to tap its field zone.
+    func createPaletteHappening(title: String, at date: Date = .now) -> Happening? {
+        let happening = createHappening(title: title, at: date)
+        do {
+            try happeningPaletteSelectionStore.insertReplacingLeastUsed(
+                happening.id,
+                catalog: happeningStore.all
+            )
+            objectWillChange.send()
+            return happening
+        } catch {
+            AppLogger.energy.error(
+                "Failed to install created palette happening: \(error.localizedDescription)"
+            )
+            return nil
+        }
+    }
+
+    func paletteHappeningCatalog() -> [Happening] {
+        happeningStore.all
+    }
+
+    func selectedPaletteHappeningIDs() -> [String] {
+        happeningPaletteSelectionStore.ids
+    }
+
+    func savePaletteHappeningSelection(_ ids: [String]) throws {
+        try happeningPaletteSelectionStore.save(ids, catalog: happeningStore.all)
+        objectWillChange.send()
+    }
+
     func configuredPaletteHappenings() -> [Happening] {
         happeningPaletteSelectionStore.ids.compactMap { happeningStore.happening(id: $0) }
     }

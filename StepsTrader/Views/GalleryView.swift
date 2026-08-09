@@ -1,5 +1,25 @@
 import SwiftUI
 
+enum CanvasSpawnOriginMapper {
+    static func normalizedPosition(
+        for origin: CGPoint,
+        viewportSize: CGSize,
+        canvasSize: CGSize
+    ) -> CGPoint {
+        guard canvasSize.width > 0, canvasSize.height > 0 else {
+            return CGPoint(x: 0.5, y: 0.5)
+        }
+        let canvasOrigin = CGPoint(
+            x: (viewportSize.width - canvasSize.width) / 2,
+            y: (viewportSize.height - canvasSize.height) / 2
+        )
+        return CGPoint(
+            x: min(max((origin.x - canvasOrigin.x) / canvasSize.width, 0), 1),
+            y: min(max((origin.y - canvasOrigin.y) / canvasSize.height, 0), 1)
+        )
+    }
+}
+
 // MARK: - CANVAS tab: generative canvas
 
 struct GalleryView: View {
@@ -12,6 +32,7 @@ struct GalleryView: View {
     @AppStorage("gallery_steps_color", store: UserDefaults.stepsTrader()) private var stepsColorHex: String = "#FED415"
     @AppStorage(SharedKeys.gradientStyle) private var currentGradientStyle: String = GradientStyle.radial.rawValue
     @AppStorage(SharedKeys.gradientPalette) private var currentGradientPalette: String = GradientPalette.warmSunset.rawValue
+    @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     /// Last day key whose remote bootstrap finished. When `== todayKey`, an empty
     /// canvas (post-fetch with no remote data) is treated as a real "nothing yet"
     /// state instead of re-firing the remote round-trip on every appear.
@@ -38,7 +59,12 @@ struct GalleryView: View {
     /// canvas-edit fields hoisted to a separate Observable manager.
     @State private var editState = CanvasEditState()
     @Binding var isWideCanvas: Bool
+    var onPalettePresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
+    @State private var paletteHappenings: [Happening] = []
+    @State private var paletteCatalog: [Happening] = []
+    @State private var paletteSelectedIDs: [String] = []
+    @State private var canvasViewportSize: CGSize = .zero
     /// Directed nudge above the + button that invites the user to fill the
     /// day. It fires at most once per time-of-day window (morning / evening,
     /// see `AddHintWindow`) and only while the canvas has fewer than two
@@ -119,6 +145,75 @@ struct GalleryView: View {
     /// one-tap suggestion (Resting) leaves the canvas at one element, which is
     /// still below the bar, so the nudge can return in its next window.
     private var addHintQualifies: Bool { dayCanvas.elements.count < 2 }
+
+    private func refreshHappeningPalette() {
+        paletteCatalog = model.paletteHappeningCatalog()
+        paletteSelectedIDs = model.selectedPaletteHappeningIDs()
+        paletteHappenings = model.availablePaletteHappenings()
+    }
+
+    private func openHappeningPalette() {
+        metricOverlay = nil
+        refreshHappeningPalette()
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showHappeningPalette = true
+        }
+    }
+
+    private func closeHappeningPalette() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showHappeningPalette = false
+        }
+    }
+
+    @ViewBuilder
+    private var happeningPaletteOverlay: some View {
+        if showHappeningPalette, !isWideCanvas {
+            HappeningPaletteView(
+                happenings: paletteHappenings,
+                catalog: paletteCatalog,
+                selectedIDs: paletteSelectedIDs,
+                onPick: handlePalettePick,
+                onCreate: handlePaletteCreation,
+                onSaveSelection: handlePaletteSelectionSave,
+                onDismiss: closeHappeningPalette,
+                dayKey: todayKey
+            )
+            .transition(.opacity)
+        }
+    }
+
+    private func handlePalettePick(_ happening: Happening, origin: CGPoint) -> Bool {
+        let color = CanvasColorPalette.paletteHex.randomElement()
+            ?? AppColors.goldFallbackHex
+        return addAndSpawnHappening(
+            optionId: happening.id,
+            color: color,
+            recordUse: true,
+            origin: origin
+        )
+    }
+
+    private func handlePaletteCreation(_ title: String) -> Happening? {
+        guard let created = model.createPaletteHappening(title: title) else {
+            return nil
+        }
+        refreshHappeningPalette()
+        return created
+    }
+
+    private func handlePaletteSelectionSave(_ ids: [String]) -> Bool {
+        do {
+            try model.savePaletteHappeningSelection(ids)
+            refreshHappeningPalette()
+            return true
+        } catch {
+            AppLogger.ui.error(
+                "Failed to save happening palette selection: \(error.localizedDescription)"
+            )
+            return false
+        }
+    }
 
     /// (Re)evaluate whether the "fill your day" nudge should show. Called from
     /// `.onAppear`, on foreground, and whenever a driving condition changes.
@@ -202,17 +297,9 @@ struct GalleryView: View {
     @State private var lightHapticTick = 0
     @State private var mediumHapticTick = 0
 
-    // ═══════════════════════════════════════════════════════════
-    // MARK: - Body
-    // ═══════════════════════════════════════════════════════════
-
-    var body: some View {
-        // Hoist Observable managers into the local body scope so SwiftUI
-        // can derive `$`-bindings for the .sheet / .alert APIs below.
-        @Bindable var toolbar = toolbar
-        return ZStack {
-            // Layer 1: Fixed-size canvas — never resizes, so the backing
-            // buffer stays identical when the viewport gets wider.
+    @ViewBuilder
+    private var canvasLayers: some View {
+        ZStack {
             GenerativeCanvasView(
                 elements: dayCanvas.elements,
                 sleepPoints: model.sleepPointsToday,
@@ -235,7 +322,6 @@ struct GalleryView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            // Layer 2: Animation overlay
             if !editState.isEditMode {
                 CanvasAnimationOverlay(
                     elements: dayCanvas.elements,
@@ -256,7 +342,6 @@ struct GalleryView: View {
                 .ignoresSafeArea()
             }
 
-            // Edit mode drag overlay (wide canvas only)
             if editState.isEditMode {
                 editModeGestureOverlay
                     .frame(
@@ -264,10 +349,7 @@ struct GalleryView: View {
                         height: GenerativeCanvasView.canonicalPortraitSize.height
                     )
                     .ignoresSafeArea()
-            }
 
-            // Edit mode element overlays (circle outlines + dice buttons)
-            if editState.isEditMode {
                 editModeElementOverlays
                     .frame(
                         width: GenerativeCanvasView.canonicalPortraitSize.width,
@@ -276,6 +358,17 @@ struct GalleryView: View {
                     .ignoresSafeArea()
             }
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARK: - Body
+    // ═══════════════════════════════════════════════════════════
+
+    var body: some View {
+        // Hoist Observable managers into the local body scope so SwiftUI
+        // can derive `$`-bindings for the .sheet / .alert APIs below.
+        @Bindable var toolbar = toolbar
+        let visualCanvas = canvasLayers
         // Controls in overlays — completely decoupled from the canvas/texture
         // ZStack so texture changes never trigger a controls re-layout.
         .overlay {
@@ -296,16 +389,24 @@ struct GalleryView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
             }
         }
+        .overlay {
+            TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
+                .transaction { $0.animation = nil }
+        }
+        .overlay {
+            happeningPaletteOverlay
+        }
         .energyGradientBackground(model: model, showGrain: false)
         .toolbar(.hidden, for: .navigationBar)
         .background(
             GeometryReader { geo in
                 Color.clear
-                    .onChange(of: geo.size.width, initial: true) { _, w in
+                    .onChange(of: geo.size, initial: true) { _, size in
+                        canvasViewportSize = size
                         let isIPad = UIDevice.current.userInterfaceIdiom == .pad
                         if isIPad {
                             let canvasW = GenerativeCanvasView.canonicalPortraitSize.width
-                            let wide = w > canvasW * 1.15
+                            let wide = size.width > canvasW * 1.15
                             if wide != isNaturallyWide { isNaturallyWide = wide }
                             if wide && !userCollapsedWide && !isManuallyExpanded {
                                 if !isWideCanvas { isWideCanvas = true }
@@ -320,8 +421,11 @@ struct GalleryView: View {
         )
         .animation(.easeInOut(duration: 0.2), value: metricOverlay != nil)
         .animation(.easeInOut(duration: 0.35), value: showQuickStartArea)
+
+        let observingCanvas = visualCanvas
         .onAppear {
             model.checkDayBoundary()
+            refreshHappeningPalette()
             loadCanvas()
             refreshAddHint()
             let dayKey = AppModel.dayKey(for: Date.now)
@@ -337,7 +441,22 @@ struct GalleryView: View {
             syncCanvasWithModel()
         }
         .onChange(of: dayCanvas.elements.count) { refreshAddHint() }
-        .onChange(of: showHappeningPalette) { refreshAddHint() }
+        .onChange(of: showHappeningPalette) { _, isPresented in
+            refreshAddHint()
+            onPalettePresentationChange(isPresented)
+        }
+        .onChange(of: todayKey) { _, newKey in
+            guard newKey != activeDayKey else { return }
+            loadTask?.cancel()
+            activeDayKey = newKey
+            dayCanvas = DayCanvas(dayKey: newKey)
+            canvasLoaded = false
+            userCollapsedWide = false
+            isManuallyExpanded = false
+            pendingDeletedIds.removeAll()
+            refreshHappeningPalette()
+            loadCanvas()
+        }
         .onChange(of: isWideCanvas) { refreshAddHint() }
         .onChange(of: scenePhase) {
             if scenePhase == .background {
@@ -361,12 +480,19 @@ struct GalleryView: View {
                 pendingDeletedIds.removeAll()
                 loadCanvas()
             }
+            if showHappeningPalette {
+                refreshHappeningPalette()
+            }
             // Re-evaluate the nudge on foreground so a new time window (or a
             // fresh day) can re-arm it without needing another canvas mutation.
             refreshAddHint()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             if editState.isDraggingElement { handleEditDragEnd() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .happeningPaletteOpenRequested)) { _ in
+            guard !isWideCanvas else { return }
+            openHappeningPalette()
         }
         // Cross-tab canvas mutations: `MainTabView` posts these when the picker
         // is opened from a non-canvas tab (StepBalanceCard pills) and the user
@@ -392,27 +518,12 @@ struct GalleryView: View {
                   let elementId = info["elementId"] as? UUID else { return }
             rerollElement(id: elementId)
         }
+
+        return observingCanvas
         .sheet(isPresented: $toolbar.showShareSheet, onDismiss: { toolbar.shareImage = nil }) {
             if let image = toolbar.shareImage {
                 CanvasShareSheet(items: [image])
             }
-        }
-        .sheet(isPresented: $showHappeningPalette) {
-            HappeningPaletteView(
-                happenings: model.paletteOrder(),
-                onPick: { happening in
-                    let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
-                    addAndSpawnHappening(optionId: happening.id, color: color, recordUse: false)
-                    showHappeningPalette = false
-                },
-                onCreate: { title in
-                    let happening = model.createHappening(title: title)
-                    let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
-                    addAndSpawnHappening(optionId: happening.id, color: color)
-                    showHappeningPalette = false
-                },
-                dayKey: todayKey
-            )
         }
         .onChange(of: toolbar.showShareSheet) { _, isPresented in
             if !isPresented { toolbar.shareImage = nil }
@@ -529,7 +640,7 @@ struct GalleryView: View {
 
             Button {
                 CoachMarkManager.postAction(for: .tapPlusButton)
-                showHappeningPalette = true
+                openHappeningPalette()
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 22, weight: .regular))
@@ -930,9 +1041,15 @@ struct GalleryView: View {
         )
     }
 
-    private func addAndSpawnHappening(optionId: String, color: String, recordUse: Bool = true) {
+    @discardableResult
+    private func addAndSpawnHappening(
+        optionId: String,
+        color: String,
+        recordUse: Bool = true,
+        origin: CGPoint? = nil
+    ) -> Bool {
         guard let entry = model.addHappening(id: optionId, colorHex: color, recordUse: recordUse) else {
-            return
+            return false
         }
         let color2 = CanvasColorPalette.randomSecondColor(excluding: color)
         var element = CanvasElement.spawn(
@@ -945,12 +1062,34 @@ struct GalleryView: View {
             dayKey: dayCanvas.dayKey
         )
         element.lastEditedAt = Date.now
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+
+        let destination = element.basePosition
+        if let origin,
+           canvasViewportSize.width > 0,
+           canvasViewportSize.height > 0 {
+            element.basePosition = CanvasSpawnOriginMapper.normalizedPosition(
+                for: origin,
+                viewportSize: canvasViewportSize,
+                canvasSize: GenerativeCanvasView.canonicalPortraitSize
+            )
             dayCanvas.elements.append(element)
+            if let index = dayCanvas.elements.firstIndex(where: { $0.id == element.id }) {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                    dayCanvas.elements[index].basePosition = destination
+                }
+            }
+        } else {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                dayCanvas.elements.append(element)
+            }
         }
         dayCanvas.lastModified = Date.now
         localMutationCounter &+= 1
         saveCanvasLocally()
+        if showHappeningPalette {
+            refreshHappeningPalette()
+        }
+        return true
     }
 
     private func removeElement(id: UUID) {

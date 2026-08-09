@@ -5,14 +5,16 @@ struct HappeningPaletteView: View {
     let happenings: [Happening]
     let catalog: [Happening]
     let selectedIDs: [String]
-    let onPick: (Happening) -> Void
-    let onCreate: (String) -> Void
-    let onSaveSelection: ([String]) -> Void
+    let onPick: (Happening, CGPoint) -> Bool
+    let onCreate: (String) -> Happening?
+    let onSaveSelection: ([String]) -> Bool
+    let onDismiss: () -> Void
     let dayKey: String
 
-    @Environment(\.dismiss) private var dismiss
     @State private var presentation: HappeningLiquidPresentationState
     @State private var activePanel: Panel?
+    @State private var highlightedID: String?
+    @State private var highlightTask: Task<Void, Never>?
 
     private enum Panel {
         case chooser
@@ -23,9 +25,10 @@ struct HappeningPaletteView: View {
         happenings: [Happening],
         catalog: [Happening]? = nil,
         selectedIDs: [String]? = nil,
-        onPick: @escaping (Happening) -> Void,
-        onCreate: @escaping (String) -> Void,
-        onSaveSelection: @escaping ([String]) -> Void = { _ in },
+        onPick: @escaping (Happening, CGPoint) -> Bool,
+        onCreate: @escaping (String) -> Happening?,
+        onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
+        onDismiss: @escaping () -> Void,
         dayKey: String
     ) {
         self.happenings = happenings
@@ -34,6 +37,7 @@ struct HappeningPaletteView: View {
         self.onPick = onPick
         self.onCreate = onCreate
         self.onSaveSelection = onSaveSelection
+        self.onDismiss = onDismiss
         self.dayKey = dayKey
         _presentation = State(
             initialValue: HappeningLiquidPresentationState(happenings: happenings)
@@ -45,17 +49,25 @@ struct HappeningPaletteView: View {
             let layout = presentation.layout(in: proxy.size, safeInsets: proxy.safeAreaInsets)
 
             ZStack(alignment: .topLeading) {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard activePanel == nil else { return }
+                        onDismiss()
+                    }
+
                 HappeningLiquidField(
                     happenings: happenings,
                     presentation: $presentation,
                     dayKey: dayKey,
-                    onPick: { happening, _ in onPick(happening) }
+                    highlightedID: highlightedID,
+                    onPick: onPick
                 )
                 .accessibilityHidden(activePanel != nil)
 
                 Button {
                     activePanel = nil
-                    dismiss()
+                    onDismiss()
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 16, weight: .semibold))
@@ -92,6 +104,8 @@ struct HappeningPaletteView: View {
                 if let activePanel {
                     Color.black.opacity(0.28)
                         .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture {}
                         .transition(.opacity)
 
                     panel(for: activePanel)
@@ -104,7 +118,16 @@ struct HappeningPaletteView: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
             .background(Color.clear)
         }
-        .presentationDetents([.large])
+        .onChange(of: selectedIDs) {
+            presentation.reset(with: happenings)
+        }
+        .onChange(of: dayKey) {
+            presentation.reset(with: happenings)
+        }
+        .onDisappear {
+            highlightTask?.cancel()
+            highlightTask = nil
+        }
     }
 
     @ViewBuilder
@@ -115,16 +138,24 @@ struct HappeningPaletteView: View {
                 catalog: catalog,
                 selected: selectedIDs,
                 onSave: { ids in
-                    onSaveSelection(ids)
-                    activePanel = nil
+                    if onSaveSelection(ids) {
+                        activePanel = nil
+                    }
                 },
                 onCancel: { activePanel = nil }
             )
         case .creator:
             HappeningCreatorPanel(
                 onCreate: { title in
-                    onCreate(title)
+                    guard let created = onCreate(title) else { return }
                     activePanel = nil
+                    highlightedID = created.id
+                    highlightTask?.cancel()
+                    highlightTask = Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(900))
+                        guard !Task.isCancelled else { return }
+                        highlightedID = nil
+                    }
                 },
                 onCancel: { activePanel = nil }
             )
@@ -160,8 +191,9 @@ struct HappeningPaletteView: View {
             Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false)
         ],
         selectedIDs: HappeningDefaults.builtIns.map(\.id),
-        onPick: { _ in },
-        onCreate: { _ in },
+        onPick: { _, _ in true },
+        onCreate: { _ in nil },
+        onDismiss: {},
         dayKey: "2026-08-09"
     )
 }

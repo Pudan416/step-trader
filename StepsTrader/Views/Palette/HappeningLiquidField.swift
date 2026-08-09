@@ -37,6 +37,16 @@ struct HappeningLiquidTransitionState: Equatable {
         return true
     }
 
+    mutating func resolveBreakthrough(id: String, accepted: Bool) -> Bool {
+        guard phase == .sinking, selectedID == id else { return false }
+        guard accepted else {
+            cancelRemoval()
+            return false
+        }
+        phase = .reflowing
+        return true
+    }
+
     mutating func cancelRemoval() {
         phase = .idle
         selectedID = nil
@@ -202,7 +212,8 @@ enum HappeningLiquidLabelTypography {
 struct HappeningLiquidField: View {
     let happenings: [Happening]
     let dayKey: String
-    let onPick: (Happening, CGPoint) -> Void
+    let highlightedID: String?
+    let onPick: (Happening, CGPoint) -> Bool
 
     @Binding var presentation: HappeningLiquidPresentationState
 
@@ -230,12 +241,14 @@ struct HappeningLiquidField: View {
         presentation: Binding<HappeningLiquidPresentationState>,
         dayKey: String,
         reduceMotionOverride: Bool? = nil,
-        onPick: @escaping (Happening, CGPoint) -> Void
+        highlightedID: String? = nil,
+        onPick: @escaping (Happening, CGPoint) -> Bool
     ) {
         self.happenings = happenings
         _presentation = presentation
         self.dayKey = dayKey
         self.reduceMotionOverride = reduceMotionOverride
+        self.highlightedID = highlightedID
         self.onPick = onPick
     }
 
@@ -249,6 +262,16 @@ struct HappeningLiquidField: View {
                     sourceVector: renderVector(for: layout),
                     styles: styles
                 )
+
+                ForEach(layout.sources, id: \.index) { source in
+                    Circle()
+                        .fill(.clear)
+                        .contentShape(Circle())
+                        .frame(width: source.radius * 2, height: source.radius * 2)
+                        .position(source.center)
+                        .onTapGesture {}
+                        .accessibilityHidden(true)
+                }
 
                 ForEach(Array(presentation.presentedHappenings.enumerated()), id: \.element.id) { index, happening in
                     if index < layout.sources.count, index < layout.labelFrames.count {
@@ -367,6 +390,7 @@ struct HappeningLiquidField: View {
         style: HappeningLiquidSlotStyle
     ) -> some View {
         let isSelected = transition.selectedID == happening.id
+        let isHighlighted = highlightedID == happening.id
         let progress = isSelected && transition.phase == .sinking ? sinkProgress : 0
         let center = motionIsReduced
             ? CGPoint(x: frame.midX, y: frame.midY)
@@ -389,7 +413,10 @@ struct HappeningLiquidField: View {
                 Ellipse()
                     .fill(style.labelTreatment.backingColor)
                     .overlay {
-                        Ellipse().stroke(.white.opacity(0.14), lineWidth: 0.5)
+                        Ellipse().stroke(
+                            .white.opacity(isHighlighted ? 0.95 : 0.14),
+                            lineWidth: isHighlighted ? 2 : 0.5
+                        )
                     }
 
                 Text(happening.localizedTitle())
@@ -411,9 +438,10 @@ struct HappeningLiquidField: View {
         .frame(width: frame.width, height: frame.height)
         .contentShape(Rectangle())
         .position(center)
-        .scaleEffect(scale)
+        .scaleEffect(scale * (isHighlighted ? 1.08 : 1))
         .opacity(opacity)
         .disabled(transition.phase != .idle)
+        .animation(.easeInOut(duration: 0.28), value: isHighlighted)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(happening.localizedTitle())
         .accessibilityAddTraits(.isButton)
@@ -473,10 +501,18 @@ struct HappeningLiquidField: View {
 
     @MainActor
     private func breakthrough(_ happening: Happening, animatedReflow: Bool) async {
-        guard transition.advanceRemoval(id: happening.id, to: .reflowing) else { return }
+        let accepted = onPick(happening, sinkPoint)
+        guard transition.resolveBreakthrough(id: happening.id, accepted: accepted) else {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                selectedScale = 1
+                sinkProgress = 0
+            }
+            removalTask = nil
+            presentation.finishTransition()
+            return
+        }
 
         feedbackTick += 1
-        onPick(happening, sinkPoint)
 
         let removeFromPresentation: () -> Void = {
             _ = presentation.remove(id: happening.id)
@@ -834,7 +870,10 @@ private struct HappeningLiquidFieldPreviewHarness: View {
                 presentation: $presentation,
                 dayKey: "2026-08-09",
                 reduceMotionOverride: reduceMotion,
-                onPick: { happening, _ in lastPick = happening.localizedTitle() }
+                onPick: { happening, _ in
+                    lastPick = happening.localizedTitle()
+                    return true
+                }
             )
             .environment(\.dynamicTypeSize, largerType ? .accessibility1 : .large)
 

@@ -161,6 +161,33 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
             )
         }
     }
+
+    func testRejectedBreakthroughRestoresTheZoneAndUnlocksAnotherID() {
+        var state = HappeningLiquidTransitionState()
+        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
+        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
+
+        XCTAssertFalse(
+            state.resolveBreakthrough(id: "happening_walk", accepted: false)
+        )
+
+        XCTAssertEqual(state.phase, .idle)
+        XCTAssertNil(state.selectedID)
+        XCTAssertTrue(state.beginRemoval(id: "happening_read"))
+    }
+
+    func testAcceptedBreakthroughAdvancesToReflow() {
+        var state = HappeningLiquidTransitionState()
+        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
+        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
+
+        XCTAssertTrue(
+            state.resolveBreakthrough(id: "happening_walk", accepted: true)
+        )
+
+        XCTAssertEqual(state.phase, .reflowing)
+        XCTAssertEqual(state.selectedID, "happening_walk")
+    }
 }
 
 final class HappeningLiquidPresentationStateTests: XCTestCase {
@@ -283,5 +310,29 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
     func testSemanticLabelTypographyUsesTwoLinesAtAccessibilitySizes() {
         XCTAssertEqual(HappeningLiquidLabelTypography.maximumLines(for: .large), 3)
         XCTAssertEqual(HappeningLiquidLabelTypography.maximumLines(for: .accessibility1), 2)
+    }
+}
+
+final class CanvasSpawnOriginMapperTests: XCTestCase {
+
+    func testViewportCenterMapsToCanonicalCanvasCenter() {
+        let mapped = CanvasSpawnOriginMapper.normalizedPosition(
+            for: CGPoint(x: 201, y: 400),
+            viewportSize: CGSize(width: 402, height: 800),
+            canvasSize: CGSize(width: 390, height: 844)
+        )
+
+        XCTAssertEqual(mapped.x, 0.5, accuracy: 0.000_001)
+        XCTAssertEqual(mapped.y, 0.5, accuracy: 0.000_001)
+    }
+
+    func testOriginMappingClampsPointsOutsideCanonicalCanvas() {
+        let mapped = CanvasSpawnOriginMapper.normalizedPosition(
+            for: CGPoint(x: -100, y: 1_000),
+            viewportSize: CGSize(width: 402, height: 800),
+            canvasSize: CGSize(width: 390, height: 844)
+        )
+
+        XCTAssertEqual(mapped, CGPoint(x: 0, y: 1))
     }
 }

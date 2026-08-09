@@ -17,7 +17,8 @@ struct MainTabView: View {
     // Bumped per delivery so repeat-same-bundleId notifications still re-fire `.task(id:)`.
     @State private var ticketDeliveryToken = UUID()
     var theme: AppTheme = .night
-    @State private var showHappeningPalette = false
+    @State private var isHappeningPaletteVisible = false
+    @State private var paletteOpenTask: Task<Void, Never>?
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
     @State private var isWideCanvas: Bool = false
@@ -96,7 +97,14 @@ struct MainTabView: View {
                 // 0: My Canvas (default) — canvas goes full-bleed behind card
                 Group {
                     NavigationStack {
-                        GalleryView(model: model, metricOverlay: $metricOverlay, isWideCanvas: $isWideCanvas)
+                        GalleryView(
+                            model: model,
+                            metricOverlay: $metricOverlay,
+                            isWideCanvas: $isWideCanvas,
+                            onPalettePresentationChange: { isPresented in
+                                isHappeningPaletteVisible = isPresented
+                            }
+                        )
                             .toolbarBackground(.hidden, for: .navigationBar)
                     }
                 }
@@ -167,6 +175,8 @@ struct MainTabView: View {
             .overlay(alignment: .bottom) {
                 if !isWideCanvas {
                     customTabBar
+                        .allowsHitTesting(!isHappeningPaletteVisible)
+                        .accessibilityHidden(isHappeningPaletteVisible)
                         .background(
                             GeometryReader { geo in
                                 Color.clear.preference(key: TabBarHeightPreferenceKey.self, value: geo.size.height)
@@ -177,7 +187,7 @@ struct MainTabView: View {
             }
             .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
             .overlay {
-                if selection == Tab.canvas.rawValue || selection == Tab.feeds.rawValue {
+                if selection == Tab.feeds.rawValue {
                     TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
                         .transaction { $0.animation = nil }
                 }
@@ -185,20 +195,6 @@ struct MainTabView: View {
             .background(Color.clear)
             .onAppear {
                 model.recalculateDailyEnergy()
-            }
-            .sheet(isPresented: $showHappeningPalette) {
-                HappeningPaletteView(
-                    happenings: model.paletteOrder(),
-                    onPick: { happening in
-                        postHappeningSpawn(happening.id)
-                        showHappeningPalette = false
-                    },
-                    onCreate: { title in
-                        createAndPostHappening(title: title)
-                        showHappeningPalette = false
-                    },
-                    dayKey: AppModel.dayKey(for: .now)
-                )
             }
         }
         .overlay(alignment: .top) {
@@ -229,7 +225,7 @@ struct MainTabView: View {
                     if selection == Tab.canvas.rawValue {
                         metricOverlay = .happenings
                     } else {
-                        showHappeningPalette = true
+                        openHappeningPaletteOnCanvas()
                     }
                 },
                 onColorsHelpTap: { showColorsHelp = true }
@@ -309,24 +305,23 @@ struct MainTabView: View {
                 ticketDeliveryToken = UUID()
             }
         }
+        .onDisappear {
+            paletteOpenTask?.cancel()
+            paletteOpenTask = nil
+        }
     }
 
-    /// Creates a catalog item and requests its first canvas addition.
-    ///
-    /// The receiver records the use when it accepts this request, keeping a
-    /// newly created happening catalog-only until that successful addition.
-    func createAndPostHappening(title: String) {
-        let happening = model.createHappening(title: title)
-        postHappeningSpawn(happening.id)
-    }
-
-    private func postHappeningSpawn(_ optionId: String, recordUse: Bool = true) {
-        let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
-        NotificationCenter.default.post(
-            name: .canvasElementSpawnRequested,
-            object: nil,
-            userInfo: ["optionId": optionId, "color": color, "recordUse": recordUse]
-        )
+    private func openHappeningPaletteOnCanvas() {
+        paletteOpenTask?.cancel()
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selection = Tab.canvas.rawValue
+        }
+        paletteOpenTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled, selection == Tab.canvas.rawValue else { return }
+            NotificationCenter.default.post(name: .happeningPaletteOpenRequested, object: nil)
+            paletteOpenTask = nil
+        }
     }
 
     private var colorsHelpOverlay: some View {

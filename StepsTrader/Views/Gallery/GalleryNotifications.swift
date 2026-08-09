@@ -1,6 +1,7 @@
 import Foundation
 
 extension Notification.Name {
+    static let happeningPaletteOpenRequested = Notification.Name("happeningPaletteOpenRequested")
     static let canvasElementSpawnRequested = Notification.Name("canvasElementSpawnRequested")
     static let canvasElementRemoveRequested = Notification.Name("canvasElementRemoveRequested")
     static let canvasElementRerollRequested = Notification.Name("canvasElementRerollRequested")
