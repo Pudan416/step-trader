@@ -453,11 +453,22 @@ git commit -m "feat: add FeedRowView — plain icon, cluster, shared lock badge"
 
 **Interfaces:**
 - Consumes: `FeedRowView` from Task 3.
-- Produces: nothing new. `visibleGroups`, `moveTicket(_:up:)`, `attemptCreateGroup()`, `expandedSheetGroupId` and `groupIdToDelete` all keep their current meanings.
+- Produces: a new `@State private var unlockSheetGroupId: TicketGroupId?`, which Task 6 attaches the unlock sheet to. `visibleGroups`, `moveTicket(_:up:)`, `attemptCreateGroup()`, `expandedSheetGroupId` and `groupIdToDelete` all keep their current meanings.
+
+**Do not reuse `selectedGroupId`.** It is already taken: `AppsPageSimplified.swift:172-196` uses it to remember which group the `FamilyActivityPicker` is editing, paired with `showPicker`. Hanging the unlock sheet on it would break group editing. Add a separate state property.
 
 Keep: the reorder chevrons, the context menu, the paywall gate, the empty state, the `FirstFeedAnchor` DEBUG coach-mark modifier. Only the row rendering changes.
 
-- [ ] **Step 1: Replace the stack body**
+- [ ] **Step 1: Add the unlock-sheet state**
+
+Next to the other `@State` declarations near `AppsPageSimplified.swift:41`, add:
+
+```swift
+    @State private var unlockSheetGroupId: TicketGroupId? = nil
+    @State private var timerGroupId: TicketGroupId? = nil
+```
+
+- [ ] **Step 2: Replace the stack body**
 
 Replace the `ticketStack` property with:
 
@@ -472,7 +483,7 @@ Replace the `ticketStack` property with:
                     group: group,
                     onTap: {
                         guard !isReordering else { return }
-                        selectedGroupId = TicketGroupId(id: group.id)
+                        unlockSheetGroupId = TicketGroupId(id: group.id)
                     }
                 )
                 .overlay(alignment: .trailing) {
@@ -528,13 +539,13 @@ Replace the `ticketStack` property with:
     }
 ```
 
-- [ ] **Step 2: Verify it compiles**
+- [ ] **Step 3: Verify it compiles**
 
 Run: `xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug build`
 
-Expected: BUILD SUCCEEDED. `selectedGroupId` was already declared at line 41 and is now the unlock-sheet trigger; Task 6 attaches the sheet to it.
+Expected: BUILD SUCCEEDED.
 
-- [ ] **Step 3: Verify on the simulator**
+- [ ] **Step 4: Verify on the simulator**
 
 Run the app, open Feeds. Confirm by eye:
 - one row per group, no ticket cards, no sticker themes
@@ -543,7 +554,7 @@ Run the app, open Feeds. Confirm by eye:
 - the empty state still appears with zero groups
 - `+` still opens the template picker, and still paywalls a free user at the third group
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add StepsTrader/Views/AppsPageSimplified.swift
@@ -730,7 +741,7 @@ git commit -m "feat: add UnlockTimerModel — stepping arc that never runs backw
 
 **Files:**
 - Create: `StepsTrader/Views/Feeds/UnlockSheetView.swift`
-- Modify: `StepsTrader/Views/AppsPageSimplified.swift` — attach the sheet to `selectedGroupId`
+- Modify: `StepsTrader/Views/AppsPageSimplified.swift` — attach the sheet to `unlockSheetGroupId` (declared in Task 4)
 
 **Interfaces:**
 - Consumes: `AccessWindow.allCases`, `TicketGroup.cost(for:)`, `AppModel.handlePayGatePaymentForGroup(groupId:window:costOverride:)`, `AppModel.totalStepsBalance`, `AppModel.payGateError`.
@@ -840,7 +851,7 @@ struct UnlockSheetView: View {
 Add alongside the existing `.sheet` modifiers on the `NavigationStack`:
 
 ```swift
-            .sheet(item: $selectedGroupId) { wrapper in
+            .sheet(item: $unlockSheetGroupId) { wrapper in
                 if let group = model.blockingStore.ticketGroups.first(where: { $0.id == wrapper.id }) {
                     UnlockSheetView(
                         model: model,
@@ -851,11 +862,7 @@ Add alongside the existing `.sheet` modifiers on the `NavigationStack`:
             }
 ```
 
-and add the state that Task 7 consumes, next to the other `@State` declarations:
-
-```swift
-    @State private var timerGroupId: TicketGroupId? = nil
-```
+`unlockSheetGroupId` and `timerGroupId` were both declared in Task 4.
 
 - [ ] **Step 3: Verify it compiles**
 
