@@ -151,6 +151,7 @@
 		DA0011001100110011000011 /* HappeningPaletteSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0011001100110011000010 /* HappeningPaletteSelection.swift */; };
 		DA0012001200120012000011 /* HappeningPaletteSelectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0012001200120012000010 /* HappeningPaletteSelectionStore.swift */; };
 		DA00130013001300130013B1 /* HappeningLiquidLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00130013001300130013B0 /* HappeningLiquidLayout.swift */; };
+		DA00140014001400140014B1 /* HappeningLiquidField.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00140014001400140014B0 /* HappeningLiquidField.swift */; };
 		DA000E000E000E000E0000E1 /* HappeningPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */; };
 		DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */; };
 		30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0004300000000000CA04 /* GenerativeCanvasView.swift */; };
@@ -469,6 +470,7 @@
 		DA0011001100110011000010 /* HappeningPaletteSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteSelection.swift; sourceTree = "<group>"; };
 		DA0012001200120012000010 /* HappeningPaletteSelectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteSelectionStore.swift; sourceTree = "<group>"; };
 		DA00130013001300130013B0 /* HappeningLiquidLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningLiquidLayout.swift; sourceTree = "<group>"; };
+		DA00140014001400140014B0 /* HappeningLiquidField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningLiquidField.swift; sourceTree = "<group>"; };
 		DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteView.swift; sourceTree = "<group>"; };
 		DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFreeTextField.swift; sourceTree = "<group>"; };
 		30CA0004300000000000CA04 /* GenerativeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeCanvasView.swift; sourceTree = "<group>"; };
@@ -1137,6 +1139,7 @@
 			isa = PBXGroup;
 			children = (
 				DA00130013001300130013B0 /* HappeningLiquidLayout.swift */,
+				DA00140014001400140014B0 /* HappeningLiquidField.swift */,
 				DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */,
 				DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */,
 			);
@@ -1502,6 +1505,7 @@
 				DA0011001100110011000011 /* HappeningPaletteSelection.swift in Sources */,
 				DA0012001200120012000011 /* HappeningPaletteSelectionStore.swift in Sources */,
 				DA00130013001300130013B1 /* HappeningLiquidLayout.swift in Sources */,
+				DA00140014001400140014B1 /* HappeningLiquidField.swift in Sources */,
 				DA000E000E000E000E0000E1 /* HappeningPaletteView.swift in Sources */,
 				DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */,
 				30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */,

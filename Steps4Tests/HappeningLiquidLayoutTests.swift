@@ -107,6 +107,40 @@ final class HappeningLiquidLayoutTests: XCTestCase {
     }
 }
 
+final class HappeningLiquidTransitionStateTests: XCTestCase {
+
+    func testBeginRemovalLocksTheSelectedIDAndStartsPressing() {
+        var state = HappeningLiquidTransitionState()
+
+        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
+        XCTAssertEqual(state.phase, .pressing)
+        XCTAssertEqual(state.selectedID, "happening_walk")
+    }
+
+    func testBusyTransitionIgnoresDuplicateAndCompetingTaps() {
+        var state = HappeningLiquidTransitionState()
+        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
+
+        XCTAssertFalse(state.beginRemoval(id: "happening_walk"))
+        XCTAssertFalse(state.beginRemoval(id: "happening_read"))
+        XCTAssertEqual(state.phase, .pressing)
+        XCTAssertEqual(state.selectedID, "happening_walk")
+    }
+
+    func testFinishRemovalUnlocksOnlyAfterReflowAndAllowsAnotherID() {
+        var state = HappeningLiquidTransitionState()
+        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
+        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
+        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .reflowing))
+
+        XCTAssertFalse(state.finishRemoval(id: "happening_read"))
+        XCTAssertTrue(state.finishRemoval(id: "happening_walk"))
+        XCTAssertEqual(state.phase, .idle)
+        XCTAssertNil(state.selectedID)
+        XCTAssertTrue(state.beginRemoval(id: "happening_read"))
+    }
+}
+
 /// Label contrast is unrelated to the replaced blob geometry, so it remains
 /// covered here after the legacy layout test file is retired.
 final class HappeningPaletteLabelContrastTests: XCTestCase {

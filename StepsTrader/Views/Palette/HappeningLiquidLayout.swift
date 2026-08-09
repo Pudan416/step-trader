@@ -137,64 +137,6 @@ enum HappeningLiquidLayout {
     }
 }
 
-/// Temporary bridge for the current palette renderer. Task 4 replaces its
-/// callers with `HappeningLiquidLayout.Layout`, after which this can go away.
-/// It intentionally remains pure geometry so deleting the old layout file does
-/// not force Task 3 to render or animate the new field prematurely.
-enum HappeningBlobLayout {
-
-    struct Blob: Equatable {
-        let index: Int
-        let center: CGPoint
-        let radius: CGFloat
-    }
-
-    private static let rowsPerViewport: CGFloat = 4
-    private static let radiusRatio: CGFloat = 0.19
-    private static let radiusJitter: CGFloat = 0.22
-    private static let leftColumn: CGFloat = 0.41
-    private static let rightColumn: CGFloat = 0.59
-    private static let horizontalWander: CGFloat = 0.04
-
-    static func blobs(count: Int, in size: CGSize) -> [Blob] {
-        guard count > 0, size.width > 0, size.height > 0 else { return [] }
-
-        let baseRadius = size.width * radiusRatio
-        let rowHeight = size.height / rowsPerViewport
-        let topInset = rowHeight * 0.55
-
-        return (0..<count).map { index in
-            let row = CGFloat(index / 2)
-            let isRight = index % 2 == 1
-            let wobble = variation(for: index)
-            let radius = baseRadius * (1 - radiusJitter / 2 + radiusJitter * wobble)
-            let column = size.width * (isRight ? rightColumn : leftColumn)
-            let nudge = (wobble - 0.5) * size.width * horizontalWander
-
-            return Blob(
-                index: index,
-                center: CGPoint(
-                    x: min(max(column + nudge, radius), size.width - radius),
-                    y: topInset + row * rowHeight + (isRight ? rowHeight * 0.5 : 0)
-                ),
-                radius: radius
-            )
-        }
-    }
-
-    static func contentHeight(count: Int, in size: CGSize) -> CGFloat {
-        guard count > 0, size.height > 0 else { return size.height }
-        let lowest = blobs(count: count, in: size)
-            .map { $0.center.y + $0.radius }
-            .max() ?? size.height
-        return max(size.height, lowest + size.height * 0.12)
-    }
-
-    private static func variation(for index: Int) -> CGFloat {
-        CGFloat((index &* 2_654_435_761) % 1_000) / 1_000
-    }
-}
-
 #if DEBUG
 private struct HappeningLiquidLayoutDebugPreview: View {
     let count: Int
