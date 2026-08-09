@@ -51,6 +51,34 @@
 |------|--------|
 | `StepsTrader/Views/Components/PaperTicketView.swift` | Replaced by `FeedRowView`. |
 
+## Adding a file to the Xcode project — read before Task 1
+
+**Every task that creates a file must do this, or the file will not compile into anything.** `StepsTrader/` and `Steps4Tests/` are plain `PBXGroup`s, not synchronized folders — only `ShieldConfiguration`, `ShieldAction`, `UnlockWidget` and `DeviceActivityMonitor` sync from disk. Writing a `.swift` file into `StepsTrader/Models/Feeds/` and stopping leaves it invisible to the compiler, and a test file that is not in the test target's Sources phase produces a green run that asserted nothing.
+
+For each new file, add four entries to `Steps4.xcodeproj/project.pbxproj`. Pick a 24-character hex-ish id that `grep` shows is unused, and place each entry immediately after an existing sibling of the same kind so the surrounding formatting is preserved:
+
+1. **`PBXBuildFile`**, in the `PBXBuildFile` section:
+   `<BUILDID> /* Foo.swift in Sources */ = {isa = PBXBuildFile; fileRef = <FILEID> /* Foo.swift */; };`
+2. **`PBXFileReference`**, in the `PBXFileReference` section:
+   `<FILEID> /* Foo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Foo.swift; sourceTree = "<group>"; };`
+3. **Group child** — add `<FILEID> /* Foo.swift */,` to the children list of the group whose `path` matches the file's directory. The `Feeds` subdirectories under `Models` and `Views` do not exist yet; create a new `PBXGroup` for each with `path = Feeds;` and add it as a child of the parent group.
+4. **Sources phase** — add `<BUILDID> /* Foo.swift in Sources */,` to the right phase:
+
+| Target | Sources phase id | Used by |
+|--------|------------------|---------|
+| Steps4 | `2089F0B02E71A18E00ABF5FA` | everything under `StepsTrader/` |
+| Steps4Tests | `2089F0C02E71A18F00ABF5FA` | everything under `Steps4Tests/` |
+
+Existing group ids you will need: `Models` is `2089F0E32E71AE3400ABF5FA`, `Views` is `209424BE2E8593DA00904A0A`.
+
+**A test file goes only into the Steps4Tests phase, never the Steps4 phase.** Getting this backwards makes `@testable import Steps4` fail in confusing ways.
+
+Verify after editing, before building: `plutil -lint Steps4.xcodeproj/project.pbxproj` must print `OK`. Then confirm the file actually compiled — a build that succeeds without your file is the failure this section exists to prevent:
+
+```bash
+grep -c "Foo.swift" Steps4.xcodeproj/project.pbxproj   # expect 4
+```
+
 **A note on testing SwiftUI here.** Tasks 1, 5 and 8 are pure logic and get real failing-test-first cycles. Tasks 2, 3, 4, 6, 7 and 9 are views over FamilyControls types that cannot be instantiated off-device; they get a build gate plus an explicit on-device observation list. Do not write assertion-free tests to make those tasks look symmetrical — an empty test that passes is worse than an honest manual check.
 
 ---
@@ -126,13 +154,17 @@ final class FeedRowModelTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 2: Wire the test file into the project, then run it to verify it fails**
+
+Add `Steps4Tests/FeedRowModelTests.swift` to the project per "Adding a file to the Xcode project" above — `PBXBuildFile`, `PBXFileReference`, group child, and the **Steps4Tests** Sources phase `2089F0C02E71A18F00ABF5FA`. Then:
 
 Run: `xcodebuild test -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:Steps4Tests/FeedRowModelTests`
 
-Expected: FAIL — `cannot find 'FeedRowModel' in scope`.
+Expected: FAIL — `cannot find 'FeedRowModel' in scope`. A run that reports "no tests" instead means the file is not in the test target; fix the wiring before continuing, because a green run at Step 4 would then be meaningless.
 
 - [ ] **Step 3: Write the minimal implementation**
+
+Create `StepsTrader/Models/Feeds/FeedRowModel.swift` and wire it into the **Steps4** Sources phase `2089F0B02E71A18E00ABF5FA`, creating the `Feeds` `PBXGroup` under `Models` (`2089F0E32E71AE3400ABF5FA`).
 
 ```swift
 import Foundation
@@ -196,7 +228,7 @@ Expected: PASS, 7 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add StepsTrader/Models/Feeds/FeedRowModel.swift Steps4Tests/FeedRowModelTests.swift
+git add StepsTrader/Models/Feeds/FeedRowModel.swift Steps4Tests/FeedRowModelTests.swift Steps4.xcodeproj/project.pbxproj
 git commit -m "feat: add the Feeds row model — one row per group, plain or cluster"
 ```
 
