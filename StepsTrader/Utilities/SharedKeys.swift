@@ -117,13 +117,12 @@ enum SharedKeys {
     /// created or carried over from the old 31-option set.
     static let happeningCatalog = "happeningCatalog_v1"
 
-    /// dayKey the palette order was last computed for. Same guard shape as
-    /// `dailyRandomThemeLastRolledKey`: recompute only when the day rolls over,
-    /// so buttons never move under the user's thumb mid-day.
-    static let paletteOrderDayKey = "paletteOrderDayKey_v1"
+    /// The user's persistent, ordered ten-slot palette selection.
+    static let happeningPaletteSelection = "happeningPaletteSelection_v2"
 
-    /// The frozen palette order for `paletteOrderDayKey`, as happening ids.
-    static let paletteOrderIds = "paletteOrderIds_v1"
+    /// Read only when a v2 selection does not exist, to migrate the v1 frozen
+    /// order. New code must never write this key.
+    static let legacyHappeningPaletteOrderIds = "paletteOrderIds_v1"
 
     // MARK: - Widget
     static let widgetBackgroundMode = "widgetBackgroundMode_v1"
