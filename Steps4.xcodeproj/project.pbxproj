@@ -82,6 +82,7 @@
 		20AA24872F70BED0002F2F2C /* TicketGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201DF6D82F377E3B007D716B /* TicketGroup.swift */; };
 		FE000002FEED000100000001 /* FeedRowModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000002FEED000100000002 /* FeedRowModel.swift */; };
 		FE000004FEED000100000001 /* UnlockTimerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000004FEED000100000002 /* UnlockTimerModel.swift */; };
+		FE000006FEED000100000001 /* UsageBudgetMonitoringError.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000006FEED000100000002 /* UsageBudgetMonitoringError.swift */; };
 		20AA24882F70BEE1002F2F2C /* AppUnlockSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */; };
 		20AA24892F70BEEA002F2F2C /* AccessWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47C2F0C825C0018004E /* AccessWindow.swift */; };
 		20AA248A2F70C00100000001 /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
@@ -213,6 +214,7 @@
 		AA000002AAAA000200000001 /* TicketGroupCostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002AAAA000200000002 /* TicketGroupCostTests.swift */; };
 		FE000001FEED000100000001 /* FeedRowModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000001FEED000100000002 /* FeedRowModelTests.swift */; };
 		FE000003FEED000100000001 /* UnlockTimerModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000003FEED000100000002 /* UnlockTimerModelTests.swift */; };
+		FE000005FEED000100000001 /* UsageBudgetMonitoringErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000005FEED000100000002 /* UsageBudgetMonitoringErrorTests.swift */; };
 		AA000003AAAA000300000001 /* HealthKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000003AAAA000300000002 /* HealthKitTests.swift */; };
 		AA00NOTE2F3A000100000001 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00NOTE2F3A000100000002 /* Note.swift */; };
 		AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB001100110011AABB0010 /* SubscriptionGateTests.swift */; };
@@ -335,6 +337,7 @@
 		200AC47C2F0C825C0018004E /* AccessWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessWindow.swift; sourceTree = "<group>"; };
 		FE000002FEED000100000002 /* FeedRowModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedRowModel.swift; sourceTree = "<group>"; };
 		FE000004FEED000100000002 /* UnlockTimerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockTimerModel.swift; sourceTree = "<group>"; };
+		FE000006FEED000100000002 /* UsageBudgetMonitoringError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBudgetMonitoringError.swift; sourceTree = "<group>"; };
 		200AC4892F1402CF0018004E /* ManagedSettings.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettings.framework; path = System/Library/Frameworks/ManagedSettings.framework; sourceTree = SDKROOT; };
 		200AC48B2F1402CF0018004E /* ManagedSettingsUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettingsUI.framework; path = System/Library/Frameworks/ManagedSettingsUI.framework; sourceTree = SDKROOT; };
 		200AC5A52F16DA3F0018004E /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
@@ -529,6 +532,7 @@
 		AA000002AAAA000200000002 /* TicketGroupCostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketGroupCostTests.swift; sourceTree = "<group>"; };
 		FE000001FEED000100000002 /* FeedRowModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedRowModelTests.swift; sourceTree = "<group>"; };
 		FE000003FEED000100000002 /* UnlockTimerModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockTimerModelTests.swift; sourceTree = "<group>"; };
+		FE000005FEED000100000002 /* UsageBudgetMonitoringErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBudgetMonitoringErrorTests.swift; sourceTree = "<group>"; };
 		AA000003AAAA000300000002 /* HealthKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitTests.swift; sourceTree = "<group>"; };
 		AA00NOTE2F3A000100000002 /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
 		AABB001100110011AABB0010 /* SubscriptionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionGateTests.swift; sourceTree = "<group>"; };
@@ -776,6 +780,7 @@
 			children = (
 				FE000002FEED000100000002 /* FeedRowModel.swift */,
 				FE000004FEED000100000002 /* UnlockTimerModel.swift */,
+				FE000006FEED000100000002 /* UsageBudgetMonitoringError.swift */,
 			);
 			path = Feeds;
 			sourceTree = "<group>";
@@ -1117,6 +1122,7 @@
 				AA000002AAAA000200000002 /* TicketGroupCostTests.swift */,
 				FE000001FEED000100000002 /* FeedRowModelTests.swift */,
 				FE000003FEED000100000002 /* UnlockTimerModelTests.swift */,
+				FE000005FEED000100000002 /* UsageBudgetMonitoringErrorTests.swift */,
 				BB000001BB000001BB000001 /* WidgetTests.swift */,
 				BB000002BB000002BB000001 /* OnboardingFlowTests.swift */,
 				AABB001100110011AABB0010 /* SubscriptionGateTests.swift */,
@@ -1462,6 +1468,7 @@
 				20AA24872F70BED0002F2F2C /* TicketGroup.swift in Sources */,
 				FE000002FEED000100000001 /* FeedRowModel.swift in Sources */,
 				FE000004FEED000100000001 /* UnlockTimerModel.swift in Sources */,
+				FE000006FEED000100000001 /* UsageBudgetMonitoringError.swift in Sources */,
 				2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */,
 				20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */,
 				20B0A3562E8C65E700D5EBE4 /* SharedKeys.swift in Sources */,
@@ -1648,6 +1655,7 @@
 				AA000002AAAA000200000001 /* TicketGroupCostTests.swift in Sources */,
 				FE000001FEED000100000001 /* FeedRowModelTests.swift in Sources */,
 				FE000003FEED000100000001 /* UnlockTimerModelTests.swift in Sources */,
+				FE000005FEED000100000001 /* UsageBudgetMonitoringErrorTests.swift in Sources */,
 				BB000001BB000001BB000002 /* WidgetTests.swift in Sources */,
 				BB000002BB000002BB000002 /* OnboardingFlowTests.swift in Sources */,
 				AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */,
