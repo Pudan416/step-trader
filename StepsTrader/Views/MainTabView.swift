@@ -195,10 +195,6 @@ struct MainTabView: View {
                     },
                     onCreate: { title in
                         let happening = model.createHappening(title: title)
-                        model.paletteOrderCache.append(
-                            id: happening.id,
-                            dayKey: AppModel.dayKey(for: .now)
-                        )
                         postHappeningSpawn(happening.id, recordUse: false)
                         showHappeningPalette = false
                     },

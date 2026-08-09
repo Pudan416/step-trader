@@ -105,14 +105,14 @@ final class HappeningStoreTests: XCTestCase {
 
     // MARK: - User-created happenings
 
-    func testCreateMakesAnAlreadyUsedUserHappening() {
+    func testCreateMakesAnUnusedUserHappening() {
         let store = makeStore()
         let when = Date(timeIntervalSince1970: 500)
         let made = store.create(title: "Rooftop coffee", at: when)
 
         XCTAssertFalse(made.isBuiltIn)
-        XCTAssertEqual(made.useCount, 1, "Creating a happening is itself an addition")
-        XCTAssertEqual(made.lastUsedAt, when)
+        XCTAssertEqual(made.useCount, 0, "Creating a happening only adds it to the catalog")
+        XCTAssertNil(made.lastUsedAt)
         XCTAssertEqual(store.all.count, 11)
         XCTAssertEqual(store.happening(id: made.id)?.title, "Rooftop coffee")
     }

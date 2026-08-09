@@ -176,11 +176,11 @@ final class AppModel: ObservableObject {
     /// Deferred from bootstrap — HealthKit auth must wait until the scene is active.
     var needsHealthKitAuthorization: Bool = false
     
-    /// Every happening added today, in insertion order. Repeats are separate
-    /// entries because both the canvas and economy count additions.
+    /// Every happening added today, in insertion order. Each happening can be
+    /// added once per custom day.
     @Published var todayAdditions: [OptionEntry] = []
     let happeningStore = HappeningStore()
-    let paletteOrderCache = HappeningPaletteOrderCache()
+    let happeningPaletteSelectionStore = HappeningPaletteSelectionStore()
     @Published var savedRoutines: [EnergyRoutine] = []
     
     /// Single source of truth: UserEconomyStore.spentSteps (persisted as SharedKeys.spentStepsToday).

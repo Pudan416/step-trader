@@ -407,7 +407,6 @@ struct GalleryView: View {
                 },
                 onCreate: { title in
                     let happening = model.createHappening(title: title)
-                    model.paletteOrderCache.append(id: happening.id, dayKey: todayKey)
                     let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
                     addAndSpawnHappening(optionId: happening.id, color: color)
                     showHappeningPalette = false
@@ -932,7 +931,9 @@ struct GalleryView: View {
     }
 
     private func addAndSpawnHappening(optionId: String, color: String, recordUse: Bool = true) {
-        let entry = model.addHappening(id: optionId, colorHex: color, recordUse: recordUse)
+        guard let entry = model.addHappening(id: optionId, colorHex: color, recordUse: recordUse) else {
+            return
+        }
         let color2 = CanvasColorPalette.randomSecondColor(excluding: color)
         var element = CanvasElement.spawn(
             id: UUID(uuidString: entry.id) ?? UUID(),

@@ -26,6 +26,8 @@ final class HappeningAdditionsTests: XCTestCase {
         let defaults = UserDefaults.stepsTrader()
         Self.legacyKeys.forEach { defaults.removeObject(forKey: $0) }
         defaults.removeObject(forKey: SharedKeys.todayAdditions)
+        defaults.removeObject(forKey: SharedKeys.happeningCatalog)
+        defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
     }
 
     func testEnergyRoutineRoundTripsFlatHappeningIds() throws {
@@ -94,9 +96,10 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertEqual(decoded, original)
     }
 
-    func testAppModelAppendsRepeatsAndRemovesOnlyOneEntry() {
+    func testDuplicateHappeningIsRejectedWithinCustomDay() {
         let model = makeModel()
         let date = Date(timeIntervalSince1970: 1_786_176_000)
+        model.loadDailyEnergyState()
 
         let first = model.addHappening(
             id: "happening_walk", colorHex: "#AABBCC", at: date
@@ -105,25 +108,82 @@ final class HappeningAdditionsTests: XCTestCase {
             id: "happening_walk", colorHex: "#DDEEFF", at: date.addingTimeInterval(1)
         )
 
-        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk", "happening_walk"])
-        XCTAssertEqual(model.happeningPointsToday, 20)
-
-        model.removeAddition(entryId: first.id)
-
-        XCTAssertEqual(model.todayAdditions.map(\.id), [second.id])
+        XCTAssertNotNil(first)
+        XCTAssertNil(second)
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk"])
+        XCTAssertEqual(model.happeningStore.happening(id: "happening_walk")?.useCount, 1)
         XCTAssertEqual(model.happeningPointsToday, 10)
+
+        XCTAssertNotNil(model.addHappening(id: "happening_read", colorHex: "#DDEEFF", at: date))
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk", "happening_read"])
     }
 
-    func testCreateAndAddCountsAsOneUse() {
+    func testRemovingAdditionMakesHappeningAvailableAgain() {
         let model = makeModel()
         let date = Date(timeIntervalSince1970: 1_786_176_000)
-        let happening = model.happeningStore.create(title: "Sauna", at: date)
+        model.loadDailyEnergyState()
+        _ = model.addHappening(id: "happening_walk", colorHex: "#AABBCC", at: date)
 
-        _ = model.addHappening(
-            id: happening.id, colorHex: "#AABBCC", at: date, recordUse: false
-        )
+        model.removeAddition(entryId: model.todayAdditions[0].id)
 
+        XCTAssertTrue(model.availablePaletteHappenings(on: date).contains { $0.id == "happening_walk" })
+        XCTAssertNotNil(model.addHappening(id: "happening_walk", colorHex: "#DDEEFF", at: date))
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk"])
+    }
+
+    func testHappeningCanBeAddedAgainOnNewCustomDay() {
+        let model = makeModel()
+        let firstDate = Date(timeIntervalSince1970: 1_786_176_000)
+        let nextDay = firstDate.addingTimeInterval(24 * 60 * 60)
+
+        XCTAssertNotNil(model.addHappening(id: "happening_walk", colorHex: "#AABBCC", at: firstDate))
+        XCTAssertNotNil(model.addHappening(id: "happening_walk", colorHex: "#DDEEFF", at: nextDay))
+        XCTAssertEqual(model.todayAdditions.map(\.dayKey), [
+            AppModel.dayKey(for: firstDate),
+            AppModel.dayKey(for: nextDay),
+        ])
+    }
+
+    func testCreateIsCatalogOnlyUntilSuccessfulAdditionRecordsUse() {
+        let model = makeModel()
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        model.loadDailyEnergyState()
+        let happening = model.createHappening(title: "Sauna", at: date)
+
+        XCTAssertEqual(happening.useCount, 0)
+        XCTAssertNil(happening.lastUsedAt)
+
+        _ = model.addHappening(id: happening.id, colorHex: "#AABBCC", at: date)
         XCTAssertEqual(model.happeningStore.happening(id: happening.id)?.useCount, 1)
+        XCTAssertEqual(model.happeningStore.happening(id: happening.id)?.lastUsedAt, date)
+    }
+
+    func testPaletteOrderUsesPersistedConfiguredSelection() {
+        let defaults = UserDefaults.stepsTrader()
+        let configuredIDs = Array(HappeningDefaults.builtIns.map(\.id).reversed())
+        defaults.set(configuredIDs, forKey: SharedKeys.happeningPaletteSelection)
+        let model = makeModel()
+
+        model.loadDailyEnergyState()
+
+        XCTAssertEqual(model.paletteOrder().map(\.id), configuredIDs)
+    }
+
+    func testAvailablePaletteHappeningsExcludesOnlyCurrentCustomDayAdditions() {
+        let model = makeModel()
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        model.loadDailyEnergyState()
+
+        XCTAssertEqual(
+            model.configuredPaletteHappenings().map(\.id),
+            HappeningDefaults.builtIns.map(\.id)
+        )
+        XCTAssertNotNil(model.addHappening(id: "happening_walk", colorHex: "#AABBCC", at: date))
+        XCTAssertFalse(model.availablePaletteHappenings(on: date).contains { $0.id == "happening_walk" })
+        XCTAssertTrue(
+            model.availablePaletteHappenings(on: date.addingTimeInterval(24 * 60 * 60))
+                .contains { $0.id == "happening_walk" }
+        )
     }
 
     func testLoadDailyEnergyStateRestoresOnlyTodaysAdditions() throws {

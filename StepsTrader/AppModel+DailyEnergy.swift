@@ -11,18 +11,23 @@ extension AppModel {
         HappeningEconomy.points(forAdditionCount: todayAdditions.count)
     }
 
-    /// Adds one concrete occurrence. There is intentionally no deduplication
-    /// by happening id and no cap on what reaches the canvas.
+    /// Adds one occurrence when the happening has not already been added on
+    /// the requested custom day.
     @discardableResult
     func addHappening(
         id: String,
         colorHex: String,
         at date: Date = .now,
         recordUse: Bool = true
-    ) -> OptionEntry {
+    ) -> OptionEntry? {
+        let dayKey = Self.dayKey(for: date)
+        guard !todayAdditions.contains(where: { $0.dayKey == dayKey && $0.optionId == id }) else {
+            return nil
+        }
+
         let entry = OptionEntry(
             id: UUID().uuidString,
-            dayKey: Self.dayKey(for: date),
+            dayKey: dayKey,
             optionId: id,
             colorHex: colorHex,
             timestamp: date,
@@ -49,11 +54,19 @@ extension AppModel {
         happeningStore.create(title: title, at: date)
     }
 
+    func configuredPaletteHappenings() -> [Happening] {
+        happeningPaletteSelectionStore.ids.compactMap { happeningStore.happening(id: $0) }
+    }
+
+    func availablePaletteHappenings(on date: Date = .now) -> [Happening] {
+        let used = Set(todayAdditions.lazy
+            .filter { $0.dayKey == Self.dayKey(for: date) }
+            .map(\.optionId))
+        return configuredPaletteHappenings().filter { !used.contains($0.id) }
+    }
+
     func paletteOrder() -> [Happening] {
-        paletteOrderCache.order(
-            for: Self.dayKey(for: .now),
-            happenings: happeningStore.all
-        ).compactMap { happeningStore.happening(id: $0) }
+        configuredPaletteHappenings()
     }
 
     private func persistTodayAdditions() {
@@ -70,6 +83,7 @@ extension AppModel {
     func loadDailyEnergyState() {
         let g = UserDefaults.stepsTrader()
         happeningStore.load()
+        happeningPaletteSelectionStore.load(catalog: happeningStore.all)
         loadTodayAdditions(from: g)
         reconstituteHappeningsFromHistory()
         let rawAnchor = g.object(forKey: SharedKeys.dailyEnergyAnchor)

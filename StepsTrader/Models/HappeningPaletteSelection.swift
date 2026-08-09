@@ -46,13 +46,3 @@ enum HappeningPaletteSelection {
         return replaced
     }
 }
-
-/// Transitional, non-persisting compatibility surface for Task 2's pending
-/// AppModel migration. The v1 frozen order is neither read nor written here.
-final class HappeningPaletteOrderCache {
-    func order(for dayKey: String, happenings: [Happening]) -> [String] {
-        Array(happenings.prefix(HappeningPaletteSelection.slotCount).map(\.id))
-    }
-
-    func append(id: String, dayKey: String) {}
-}

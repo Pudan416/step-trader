@@ -46,8 +46,8 @@ final class HappeningStore {
         all.first { $0.id == id }
     }
 
-    /// Creating a happening is itself an addition — the palette's `+` node
-    /// spawns its canvas element in the same action, so it starts used.
+    /// Creating a happening only adds it to the catalog. A later successful
+    /// daily addition records its first use.
     ///
     /// Duplicate titles are allowed: two happenings that read the same are
     /// still two happenings, and merging them would silently rewrite what the
@@ -57,9 +57,7 @@ final class HappeningStore {
         let made = Happening(
             id: "user_\(UUID().uuidString)",
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-            isBuiltIn: false,
-            useCount: 1,
-            lastUsedAt: date
+            isBuiltIn: false
         )
         all.append(made)
         persist()

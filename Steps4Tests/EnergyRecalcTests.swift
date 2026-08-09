@@ -167,8 +167,8 @@ final class EnergyRecalcTests: XCTestCase {
         XCTAssertEqual(model.happeningPointsToday, 30, "Three additions total")
     }
 
-    /// Additions past the sixth still land on the canvas and still increment
-    /// `useCount` — they just stop earning.
+    /// Distinct additions past the sixth still land on the canvas and still
+    /// increment `useCount` — they just stop earning.
     func testHappeningPoints_capAtSixtyRegardlessOfCount() {
         let model = makeModel()
         addAdditions(to: model, count: 6)
@@ -182,13 +182,10 @@ final class EnergyRecalcTests: XCTestCase {
         XCTAssertEqual(model.happeningPointsToday, 60)
     }
 
-    /// The same happening twice in one day is two additions — the economy
-    /// counts occurrences, not distinct happenings.
-    func testHappeningPoints_repeatsOfOneHappeningCountSeparately() {
+    func testHappeningPoints_distinctHappeningsCountSeparately() {
         let model = makeModel()
-        let id = HappeningDefaults.builtIns[0].id
-        model.addHappening(id: id, colorHex: "#CC5050")
-        model.addHappening(id: id, colorHex: "#CC5050")
+        model.addHappening(id: HappeningDefaults.builtIns[0].id, colorHex: "#CC5050")
+        model.addHappening(id: HappeningDefaults.builtIns[1].id, colorHex: "#CC5050")
 
         XCTAssertEqual(model.todayAdditions.count, 2)
         XCTAssertEqual(model.happeningPointsToday, 20)
@@ -230,15 +227,12 @@ final class EnergyRecalcTests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Appends `count` additions straight onto the model. Uses built-in ids so
-    /// `HappeningStore.recordUse` resolves them rather than logging an error.
+    /// Appends `count` distinct catalog additions so the economy tests exercise
+    /// the one-happening-per-custom-day rule as well as its points cap.
     private func addAdditions(to model: AppModel, count: Int) {
-        let builtIns = HappeningDefaults.builtIns
         for index in 0..<count {
-            model.addHappening(
-                id: builtIns[index % builtIns.count].id,
-                colorHex: "#CC5050"
-            )
+            let happening = model.createHappening(title: "Test happening \(index)")
+            model.addHappening(id: happening.id, colorHex: "#CC5050")
         }
     }
 
