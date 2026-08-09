@@ -80,6 +80,11 @@ struct HappeningPaletteView: View {
     let onDismiss: () -> Void
     let dayKey: String
 
+    /// Global mid-Y of the canvas `+` this palette overlays. The dock sits on
+    /// exactly that line, so opening the palette does not shift the controls.
+    /// Nil only before the first layout pass reports it.
+    let dockCenterY: CGFloat?
+
     @State private var presentation: HappeningLiquidPresentationState
     @State private var activePanel: Panel?
     @State private var highlightedID: String?
@@ -103,7 +108,8 @@ struct HappeningPaletteView: View {
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
         onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
         onDismiss: @escaping () -> Void,
-        dayKey: String
+        dayKey: String,
+        dockCenterY: CGFloat? = nil
     ) {
         self.happenings = happenings
         self.catalog = catalog ?? happenings
@@ -114,6 +120,7 @@ struct HappeningPaletteView: View {
         self.onPanelPresentationChange = onPanelPresentationChange
         self.onDismiss = onDismiss
         self.dayKey = dayKey
+        self.dockCenterY = dockCenterY
         _presentation = State(
             initialValue: HappeningLiquidPresentationState(happenings: happenings)
         )
@@ -121,11 +128,15 @@ struct HappeningPaletteView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let layout = presentation.layout(
+            let computed = presentation.layout(
                 in: proxy.size,
                 safeInsets: proxy.safeAreaInsets,
                 dynamicTypeSize: dynamicTypeSize
             )
+            // Line the dock up with the canvas `+` it sits on top of. The
+            // button reports its own position, so this never drifts from the
+            // tab-bar height and paddings that place it.
+            let layout = alignedToCanvasControls(computed, in: proxy)
             let hidesSurroundingChrome = HappeningPaletteChromeLayout.hidesSurroundingChrome(
                 isPalettePresented: true,
                 isPanelPresented: activePanel != nil,
@@ -269,6 +280,27 @@ struct HappeningPaletteView: View {
                 onCancel: { activePanel = nil }
             )
         }
+    }
+
+    /// Replaces the computed dock line with the canvas `+`'s actual one.
+    /// Content is not re-flowed: the computed layout already guarantees the
+    /// cluster clears its own dock line, and the two sit within a few points
+    /// of each other.
+    private func alignedToCanvasControls(
+        _ layout: HappeningLiquidLayout.Layout,
+        in proxy: GeometryProxy
+    ) -> HappeningLiquidLayout.Layout {
+        guard let dockCenterY else { return layout }
+        let localY = dockCenterY - proxy.frame(in: .global).minY
+        guard localY.isFinite, localY > 0 else { return layout }
+        let shift = localY - layout.dockAnchor.y
+        return HappeningLiquidLayout.Layout(
+            sources: layout.sources,
+            labelFrames: layout.labelFrames,
+            contourBounds: layout.contourBounds,
+            dockAnchor: CGPoint(x: layout.dockAnchor.x, y: localY),
+            completionBounds: layout.completionBounds.map { $0.offsetBy(dx: 0, dy: shift) }
+        )
     }
 
     /// Centre-to-centre gap between the three dock buttons. Wide enough that

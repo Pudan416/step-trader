@@ -90,6 +90,10 @@ struct GalleryView: View {
     /// re-expand just because the geometry still qualifies as "naturally wide".
     @State private var userCollapsedWide: Bool = false
     @Environment(\.tabBarHeight) private var tabBarHeight
+
+    /// Global mid-Y of the canvas `+`, reported by the button itself. The
+    /// palette's dock lines up with it.
+    @State private var canvasAddButtonCenterY: CGFloat?
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
@@ -198,7 +202,8 @@ struct GalleryView: View {
                 onSaveSelection: handlePaletteSelectionSave,
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onDismiss: closeHappeningPalette,
-                dayKey: todayKey
+                dayKey: todayKey,
+                dockCenterY: canvasAddButtonCenterY
             )
             .transition(.opacity)
         }
@@ -575,6 +580,10 @@ struct GalleryView: View {
                 userCollapsedWide = false
             }
         }
+        .onPreferenceChange(CanvasAddButtonCenterKey.self) { value in
+            guard let value, value != canvasAddButtonCenterY else { return }
+            canvasAddButtonCenterY = value
+        }
         .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
     }
@@ -690,6 +699,17 @@ struct GalleryView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "Add happening", comment: "Canvas add button"))
             .coachMarkAnchor(.tapPlusButton)
+            // The palette overlays these controls and puts its own dock on the
+            // same line, so it needs where this button actually landed rather
+            // than a second copy of the padding arithmetic that positions it.
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: CanvasAddButtonCenterKey.self,
+                        value: proxy.frame(in: .global).midY
+                    )
+                }
+            )
 
             Spacer()
 
@@ -1689,5 +1709,14 @@ private struct BubbleWithTail: InsettableShape {
             paletteRoute: .constant(CanvasPaletteRouteState()),
             isCanvasSelected: true
         )
+    }
+}
+
+/// Where the canvas `+` sits, so the palette can put its dock on the same line
+/// instead of re-deriving it from tab-bar height and paddings.
+struct CanvasAddButtonCenterKey: PreferenceKey {
+    static let defaultValue: CGFloat? = nil
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        value = nextValue() ?? value
     }
 }
