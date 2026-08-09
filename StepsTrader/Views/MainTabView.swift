@@ -194,8 +194,7 @@ struct MainTabView: View {
                         showHappeningPalette = false
                     },
                     onCreate: { title in
-                        let happening = model.createHappening(title: title)
-                        postHappeningSpawn(happening.id, recordUse: false)
+                        createAndPostHappening(title: title)
                         showHappeningPalette = false
                     },
                     dayKey: AppModel.dayKey(for: .now)
@@ -310,6 +309,15 @@ struct MainTabView: View {
                 ticketDeliveryToken = UUID()
             }
         }
+    }
+
+    /// Creates a catalog item and requests its first canvas addition.
+    ///
+    /// The receiver records the use when it accepts this request, keeping a
+    /// newly created happening catalog-only until that successful addition.
+    func createAndPostHappening(title: String) {
+        let happening = model.createHappening(title: title)
+        postHappeningSpawn(happening.id)
     }
 
     private func postHappeningSpawn(_ optionId: String, recordUse: Bool = true) {

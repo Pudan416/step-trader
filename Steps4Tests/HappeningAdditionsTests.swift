@@ -158,6 +158,37 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertEqual(model.happeningStore.happening(id: happening.id)?.lastUsedAt, date)
     }
 
+    func testMainTabCustomCreationRecordsUseAfterSuccessfulAddition() throws {
+        let model = makeModel()
+        let mainTab = MainTabView(model: model)
+        var spawnInfo: [AnyHashable: Any]?
+        let observer = NotificationCenter.default.addObserver(
+            forName: .canvasElementSpawnRequested,
+            object: nil,
+            queue: nil
+        ) { notification in
+            spawnInfo = notification.userInfo
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        mainTab.createAndPostHappening(title: "Sauna")
+
+        let info = try XCTUnwrap(spawnInfo)
+        let id = try XCTUnwrap(info["optionId"] as? String)
+        let recordUse = try XCTUnwrap(info["recordUse"] as? Bool)
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        XCTAssertNotNil(
+            model.addHappening(
+                id: id,
+                colorHex: try XCTUnwrap(info["color"] as? String),
+                at: date,
+                recordUse: recordUse
+            )
+        )
+        XCTAssertEqual(model.happeningStore.happening(id: id)?.useCount, 1)
+        XCTAssertEqual(model.happeningStore.happening(id: id)?.lastUsedAt, date)
+    }
+
     func testPaletteOrderUsesPersistedConfiguredSelection() {
         let defaults = UserDefaults.stepsTrader()
         let configuredIDs = Array(HappeningDefaults.builtIns.map(\.id).reversed())
