@@ -110,10 +110,6 @@ extension AppModel {
         return configuredPaletteHappenings().filter { !used.contains($0.id) }
     }
 
-    func paletteOrder() -> [Happening] {
-        configuredPaletteHappenings()
-    }
-
     func rekeyTodayAdditions(from oldDayKey: String, to newDayKey: String) {
         guard oldDayKey != newDayKey else { return }
         var didChange = false

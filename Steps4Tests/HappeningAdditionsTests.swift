@@ -226,7 +226,7 @@ final class HappeningAdditionsTests: XCTestCase {
         )
     }
 
-    func testPaletteOrderUsesPersistedConfiguredSelection() {
+    func testConfiguredPaletteHappeningsUsesPersistedSelection() {
         let defaults = UserDefaults.stepsTrader()
         let configuredIDs = Array(HappeningDefaults.builtIns.map(\.id).reversed())
         defaults.set(configuredIDs, forKey: SharedKeys.happeningPaletteSelection)
@@ -234,7 +234,7 @@ final class HappeningAdditionsTests: XCTestCase {
 
         model.loadDailyEnergyState()
 
-        XCTAssertEqual(model.paletteOrder().map(\.id), configuredIDs)
+        XCTAssertEqual(model.configuredPaletteHappenings().map(\.id), configuredIDs)
     }
 
     func testAvailablePaletteHappeningsExcludesOnlyCurrentCustomDayAdditions() {
