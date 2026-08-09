@@ -59,12 +59,16 @@ struct GalleryView: View {
     /// canvas-edit fields hoisted to a separate Observable manager.
     @State private var editState = CanvasEditState()
     @Binding var isWideCanvas: Bool
+    @Binding var paletteRoute: CanvasPaletteRouteState
+    let isCanvasSelected: Bool
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
     @State private var canvasViewportSize: CGSize = .zero
+    @State private var spawnPresentation = CanvasSpawnPresentationState()
+    @State private var spawnFlightTasks: [UUID: Task<Void, Never>] = [:]
     /// Directed nudge above the + button that invites the user to fill the
     /// day. It fires at most once per time-of-day window (morning / evening,
     /// see `AddHintWindow`) and only while the canvas has fewer than two
@@ -146,6 +150,10 @@ struct GalleryView: View {
     /// still below the bar, so the nudge can return in its next window.
     private var addHintQualifies: Bool { dayCanvas.elements.count < 2 }
 
+    private var renderedCanvasElements: [CanvasElement] {
+        spawnPresentation.renderedElements(from: dayCanvas.elements)
+    }
+
     private func refreshHappeningPalette() {
         paletteCatalog = model.paletteHappeningCatalog()
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
@@ -164,6 +172,16 @@ struct GalleryView: View {
         withAnimation(.easeInOut(duration: 0.18)) {
             showHappeningPalette = false
         }
+    }
+
+    private func consumePaletteOpenRequestIfReady() {
+        var route = paletteRoute
+        guard route.consumeIfReady(
+            isCanvasSelected: isCanvasSelected,
+            canPresent: !isWideCanvas
+        ) != nil else { return }
+        paletteRoute = route
+        openHappeningPalette()
     }
 
     @ViewBuilder
@@ -301,7 +319,7 @@ struct GalleryView: View {
     private var canvasLayers: some View {
         ZStack {
             GenerativeCanvasView(
-                elements: dayCanvas.elements,
+                elements: renderedCanvasElements,
                 sleepPoints: model.sleepPointsToday,
                 stepsPoints: model.stepsPointsToday,
                 sleepColor: Color(hex: sleepColorHex),
@@ -324,7 +342,7 @@ struct GalleryView: View {
 
             if !editState.isEditMode {
                 CanvasAnimationOverlay(
-                    elements: dayCanvas.elements,
+                    elements: renderedCanvasElements,
                     sleepPoints: model.sleepPointsToday,
                     stepsPoints: model.stepsPointsToday,
                     sleepColor: Color(hex: sleepColorHex),
@@ -428,6 +446,7 @@ struct GalleryView: View {
             refreshHappeningPalette()
             loadCanvas()
             refreshAddHint()
+            consumePaletteOpenRequestIfReady()
             let dayKey = AppModel.dayKey(for: Date.now)
             Task {
                 await SupabaseSyncService.shared.trackAnalyticsEvent(
@@ -445,6 +464,19 @@ struct GalleryView: View {
             refreshAddHint()
             onPalettePresentationChange(isPresented)
         }
+        .onChange(of: paletteRoute) {
+            consumePaletteOpenRequestIfReady()
+        }
+        .onChange(of: isCanvasSelected) { _, selected in
+            if CanvasPaletteRouteState.shouldClosePalette(
+                isCanvasSelected: selected,
+                isPaletteVisible: showHappeningPalette
+            ) {
+                closeHappeningPalette()
+            } else if selected {
+                consumePaletteOpenRequestIfReady()
+            }
+        }
         .onChange(of: todayKey) { _, newKey in
             guard newKey != activeDayKey else { return }
             loadTask?.cancel()
@@ -458,6 +490,9 @@ struct GalleryView: View {
             loadCanvas()
         }
         .onChange(of: isWideCanvas) { refreshAddHint() }
+        .onChange(of: isWideCanvas) {
+            consumePaletteOpenRequestIfReady()
+        }
         .onChange(of: scenePhase) {
             if scenePhase == .background {
                 if editState.isDraggingElement { handleEditDragEnd() }
@@ -489,10 +524,6 @@ struct GalleryView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             if editState.isDraggingElement { handleEditDragEnd() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .happeningPaletteOpenRequested)) { _ in
-            guard !isWideCanvas else { return }
-            openHappeningPalette()
         }
         // Cross-tab canvas mutations: `MainTabView` posts these when the picker
         // is opened from a non-canvas tab (StepBalanceCard pills) and the user
@@ -1021,23 +1052,31 @@ struct GalleryView: View {
         saveCanvasLocally()
     }
 
-    private func saveCanvasLocally() {
+    @discardableResult
+    private func saveCanvasLocally() -> Bool {
         // Gate on canvasLoaded — NOT on `!elements.isEmpty`. The previous
         // empty-skip silently dropped legitimate "deleted last element"
         // saves, so the deletion failed to persist and the element came back
         // from disk on next launch.
-        guard canvasLoaded else { return }
+        guard canvasLoaded else { return false }
+        let didPersist: Bool
         if dayCanvas.elements.isEmpty {
             CanvasStorageService.shared.deleteCanvas(for: dayCanvas.dayKey)
+            didPersist = true
         } else {
-            CanvasStorageService.shared.saveCanvas(dayCanvas)
+            didPersist = CanvasStorageService.shared.saveCanvas(dayCanvas)
         }
-        let canvasCopy = dayCanvas
-        Task { await SupabaseSyncService.shared.syncDayCanvas(canvasCopy) }
+        guard didPersist else { return false }
+        publishCanvasPersistence(dayCanvas)
+        return true
+    }
+
+    private func publishCanvasPersistence(_ canvas: DayCanvas) {
+        Task { await SupabaseSyncService.shared.syncDayCanvas(canvas) }
         Task { @MainActor in refreshWidgetSnapshot() }
         NotificationCenter.default.post(
             name: .historyThumbnailNeedsRefresh,
-            object: dayCanvas.dayKey
+            object: canvas.dayKey
         )
     }
 
@@ -1048,12 +1087,10 @@ struct GalleryView: View {
         recordUse: Bool = true,
         origin: CGPoint? = nil
     ) -> Bool {
-        guard let entry = model.addHappening(id: optionId, colorHex: color, recordUse: recordUse) else {
-            return false
-        }
+        let now = Date.now
         let color2 = CanvasColorPalette.randomSecondColor(excluding: color)
         var element = CanvasElement.spawn(
-            id: UUID(uuidString: entry.id) ?? UUID(),
+            id: UUID(),
             optionId: optionId,
             color: color,
             color2: color2,
@@ -1061,35 +1098,59 @@ struct GalleryView: View {
             existingElements: dayCanvas.elements,
             dayKey: dayCanvas.dayKey
         )
-        element.lastEditedAt = Date.now
+        element.lastEditedAt = now
 
-        let destination = element.basePosition
+        let presentationOrigin: CGPoint?
         if let origin,
            canvasViewportSize.width > 0,
            canvasViewportSize.height > 0 {
-            element.basePosition = CanvasSpawnOriginMapper.normalizedPosition(
+            presentationOrigin = CanvasSpawnOriginMapper.normalizedPosition(
                 for: origin,
                 viewportSize: canvasViewportSize,
                 canvasSize: GenerativeCanvasView.canonicalPortraitSize
             )
-            dayCanvas.elements.append(element)
-            if let index = dayCanvas.elements.firstIndex(where: { $0.id == element.id }) {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                    dayCanvas.elements[index].basePosition = destination
-                }
-            }
         } else {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                dayCanvas.elements.append(element)
-            }
+            presentationOrigin = nil
         }
-        dayCanvas.lastModified = Date.now
+
+        guard let result = CanvasHappeningSpawnTransaction.commit(
+            canvasLoaded: canvasLoaded,
+            canvas: dayCanvas,
+            model: model,
+            element: element,
+            recordUse: recordUse,
+            at: now,
+            persist: CanvasStorageService.shared.saveCanvas
+        ) else {
+            return false
+        }
+
+        if let presentationOrigin {
+            spawnPresentation.stage(elementID: element.id, origin: presentationOrigin)
+        }
+        dayCanvas = result.canvas
         localMutationCounter &+= 1
-        saveCanvasLocally()
+        publishCanvasPersistence(result.canvas)
+
+        if presentationOrigin != nil {
+            animateSpawnToDestination(elementID: element.id)
+        }
         if showHappeningPalette {
             refreshHappeningPalette()
         }
         return true
+    }
+
+    private func animateSpawnToDestination(elementID: UUID) {
+        spawnFlightTasks[elementID]?.cancel()
+        spawnFlightTasks[elementID] = Task { @MainActor in
+            await CanvasDisplayFrameScheduler.waitForOriginFrame()
+            guard !Task.isCancelled else { return }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                spawnPresentation.complete(elementID: elementID)
+            }
+            spawnFlightTasks[elementID] = nil
+        }
     }
 
     private func removeElement(id: UUID) {
@@ -1603,6 +1664,12 @@ private struct BubbleWithTail: InsettableShape {
 
 #Preview {
     NavigationStack {
-        GalleryView(model: DIContainer.shared.makeAppModel(), metricOverlay: .constant(nil), isWideCanvas: .constant(false))
+        GalleryView(
+            model: DIContainer.shared.makeAppModel(),
+            metricOverlay: .constant(nil),
+            isWideCanvas: .constant(false),
+            paletteRoute: .constant(CanvasPaletteRouteState()),
+            isCanvasSelected: true
+        )
     }
 }

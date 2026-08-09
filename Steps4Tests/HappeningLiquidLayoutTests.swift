@@ -2,6 +2,201 @@ import SwiftUI
 import XCTest
 @testable import Steps4
 
+@MainActor
+final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
+    private var defaults: UserDefaults!
+
+    override func setUp() {
+        super.setUp()
+        defaults = UserDefaults.stepsTrader()
+        clearDefaults()
+    }
+
+    override func tearDown() {
+        clearDefaults()
+        super.tearDown()
+    }
+
+    func testUnloadedCanvasRejectsSpawnWithoutCreatingDomainAddition() {
+        let model = makeModel()
+        let canvas = DayCanvas(dayKey: AppModel.dayKey(for: .now))
+        let element = fixedElement(on: canvas)
+
+        let result = CanvasHappeningSpawnTransaction.commit(
+            canvasLoaded: false,
+            canvas: canvas,
+            model: model,
+            element: element,
+            recordUse: true,
+            at: .now,
+            persist: { _ in true }
+        )
+
+        XCTAssertNil(result)
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+    }
+
+    func testFailedCanvasSaveRejectsSpawnWithoutCreatingDomainAddition() {
+        let model = makeModel()
+        let canvas = DayCanvas(dayKey: AppModel.dayKey(for: .now))
+        let element = fixedElement(on: canvas)
+
+        let result = CanvasHappeningSpawnTransaction.commit(
+            canvasLoaded: true,
+            canvas: canvas,
+            model: model,
+            element: element,
+            recordUse: true,
+            at: .now,
+            persist: { _ in false }
+        )
+
+        XCTAssertNil(result)
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+    }
+
+    func testSpawnPersistsCanonicalDestinationBeforeCommittingMatchingDomainEntry() throws {
+        let model = makeModel()
+        let canvas = DayCanvas(dayKey: AppModel.dayKey(for: .now))
+        let element = fixedElement(on: canvas)
+        var persistedCanvas: DayCanvas?
+
+        let result = try XCTUnwrap(
+            CanvasHappeningSpawnTransaction.commit(
+                canvasLoaded: true,
+                canvas: canvas,
+                model: model,
+                element: element,
+                recordUse: true,
+                at: .now,
+                persist: {
+                    XCTAssertTrue(
+                        model.todayAdditions.isEmpty,
+                        "the canvas must become durable before the day entry commits"
+                    )
+                    persistedCanvas = $0
+                    return true
+                }
+            )
+        )
+
+        let persisted = try XCTUnwrap(persistedCanvas)
+        XCTAssertEqual(persisted.elements.count, 1)
+        XCTAssertEqual(persisted.elements[0].basePosition, CGPoint(x: 0.82, y: 0.24))
+        XCTAssertEqual(result.canvas.elements[0].basePosition, CGPoint(x: 0.82, y: 0.24))
+        XCTAssertEqual(model.todayAdditions.map(\.id), [element.id.uuidString])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), [element.optionId])
+    }
+
+    func testSpawnPresentationUsesOriginWithoutMutatingCanonicalDestination() throws {
+        let canvas = DayCanvas(dayKey: AppModel.dayKey(for: .now))
+        let element = fixedElement(on: canvas)
+        var canonical = canvas
+        canonical.elements = [element]
+        var presentation = CanvasSpawnPresentationState()
+
+        presentation.stage(elementID: element.id, origin: CGPoint(x: 0.5, y: 0.5))
+
+        let originFrame = try XCTUnwrap(presentation.renderedElements(from: canonical.elements).first)
+        XCTAssertEqual(originFrame.basePosition, CGPoint(x: 0.5, y: 0.5))
+        XCTAssertEqual(canonical.elements[0].basePosition, CGPoint(x: 0.82, y: 0.24))
+
+        presentation.complete(elementID: element.id)
+
+        let destinationFrame = try XCTUnwrap(presentation.renderedElements(from: canonical.elements).first)
+        XCTAssertEqual(destinationFrame.basePosition, CGPoint(x: 0.82, y: 0.24))
+        XCTAssertEqual(canonical.elements[0].basePosition, CGPoint(x: 0.82, y: 0.24))
+    }
+
+    func testPaletteOpenRequestWaitsForTargetCanvasAndIsConsumedOnce() {
+        let requestID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        var route = CanvasPaletteRouteState()
+        route.requestOpen(id: requestID)
+
+        XCTAssertNil(route.consumeIfReady(isCanvasSelected: false, canPresent: true))
+        XCTAssertEqual(route.pendingRequestID, requestID)
+        XCTAssertEqual(
+            route.consumeIfReady(isCanvasSelected: true, canPresent: true),
+            requestID
+        )
+        XCTAssertNil(route.pendingRequestID)
+        XCTAssertNil(route.consumeIfReady(isCanvasSelected: true, canPresent: true))
+
+        let reopenID = UUID(uuidString: "11111111-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        route.requestOpen(id: reopenID)
+        XCTAssertEqual(
+            route.consumeIfReady(isCanvasSelected: true, canPresent: true),
+            reopenID,
+            "a later targeted request must reopen after the first acknowledgement"
+        )
+    }
+
+    func testPaletteOnlyBlocksTabsOnCanvasAndLeavingRequestsClosure() {
+        XCTAssertTrue(
+            CanvasPaletteRouteState.blocksTabBar(
+                isCanvasSelected: true,
+                isPaletteVisible: true
+            )
+        )
+        XCTAssertFalse(
+            CanvasPaletteRouteState.blocksTabBar(
+                isCanvasSelected: false,
+                isPaletteVisible: true
+            )
+        )
+        XCTAssertTrue(
+            CanvasPaletteRouteState.shouldClosePalette(
+                isCanvasSelected: false,
+                isPaletteVisible: true
+            )
+        )
+
+        var route = CanvasPaletteRouteState()
+        route.requestOpen()
+        route.cancelPendingRequest()
+        XCTAssertNil(route.pendingRequestID, "explicit tab departure must cancel a stale open")
+    }
+
+    private func fixedElement(on canvas: DayCanvas) -> CanvasElement {
+        var element = CanvasElement.spawn(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            optionId: "happening_walk",
+            color: "#AABBCC",
+            label: "Walk",
+            existingElements: canvas.elements,
+            dayKey: canvas.dayKey
+        )
+        element.basePosition = CGPoint(x: 0.82, y: 0.24)
+        return element
+    }
+
+    private func makeModel() -> AppModel {
+        defaults.set(true, forKey: SharedKeys.isGrandfathered)
+        let subscriptionStore = SubscriptionStore(defaults: defaults)
+        let model = AppModel(
+            healthKitService: MockHealthKitService(),
+            familyControlsService: MockFamilyControlsService(),
+            notificationService: MockNotificationService(),
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: subscriptionStore
+        )
+        model.isBootstrapping = true
+        model.loadDailyEnergyState()
+        return model
+    }
+
+    private func clearDefaults() {
+        [
+            SharedKeys.isGrandfathered,
+            SharedKeys.dailyEnergyAnchor,
+            SharedKeys.stepsBalanceAnchor,
+            SharedKeys.todayAdditions,
+            SharedKeys.happeningCatalog,
+            SharedKeys.happeningPaletteSelection,
+        ].forEach { defaults.removeObject(forKey: $0) }
+    }
+}
+
 final class HappeningLiquidLayoutTests: XCTestCase {
 
     private let size = CGSize(width: 402, height: 874)
@@ -334,5 +529,50 @@ final class CanvasSpawnOriginMapperTests: XCTestCase {
         )
 
         XCTAssertEqual(mapped, CGPoint(x: 0, y: 1))
+    }
+}
+
+final class HappeningLiquidContourHitRegionTests: XCTestCase {
+
+    func testHitRegionIncludesVisibleMetaballNeckOutsideSourceCircles() {
+        let sources = [
+            HappeningLiquidLayout.Source(
+                index: 0,
+                center: CGPoint(x: 80, y: 100),
+                radius: 42
+            ),
+            HappeningLiquidLayout.Source(
+                index: 1,
+                center: CGPoint(x: 180, y: 100),
+                radius: 42
+            ),
+        ]
+        let neck = CGPoint(x: 130, y: 100)
+
+        XCTAssertGreaterThan(hypot(neck.x - sources[0].center.x, neck.y - sources[0].center.y), 42)
+        XCTAssertGreaterThan(hypot(neck.x - sources[1].center.x, neck.y - sources[1].center.y), 42)
+        XCTAssertTrue(
+            HappeningLiquidContourHitRegion.path(
+                sources: sources,
+                in: CGRect(x: 0, y: 0, width: 260, height: 200)
+            ).contains(neck)
+        )
+    }
+
+    func testHitRegionIncludesAntialiasedHaloOutsideSingleSourceContour() {
+        let sources = [
+            HappeningLiquidLayout.Source(
+                index: 0,
+                center: CGPoint(x: 100, y: 100),
+                radius: 40
+            )
+        ]
+
+        XCTAssertTrue(
+            HappeningLiquidContourHitRegion.path(
+                sources: sources,
+                in: CGRect(x: 0, y: 0, width: 200, height: 200)
+            ).contains(CGPoint(x: 150, y: 100))
+        )
     }
 }

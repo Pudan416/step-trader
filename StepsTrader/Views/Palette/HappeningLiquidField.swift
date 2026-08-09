@@ -204,6 +204,39 @@ enum HappeningLiquidLabelTypography {
     }
 }
 
+enum HappeningLiquidContourHitRegion {
+    /// Covers the seven-point luminance blur plus antialiasing at the rendered
+    /// contour edge. `strokedPath` expands by half its line width.
+    private static let haloOutset: CGFloat = 12
+
+    static func path(
+        sources: [HappeningLiquidLayout.Source],
+        in rect: CGRect
+    ) -> Path {
+        let contour = ProceduralShapeGenerator.metaballPath(
+            blobs: sources.map {
+                ProceduralShapeGenerator.BlobSource(
+                    center: $0.center,
+                    radius: $0.radius
+                )
+            },
+            in: rect,
+            gridResolution: 58
+        )
+        var hitRegion = contour
+        hitRegion.addPath(
+            contour.strokedPath(
+                StrokeStyle(
+                    lineWidth: haloOutset * 2,
+                    lineCap: .round,
+                    lineJoin: .round
+                )
+            )
+        )
+        return hitRegion
+    }
+}
+
 /// Native, transparent renderer for the palette's Living island.
 ///
 /// Domain state changes at breakthrough through `onPick`; the field and parent
@@ -256,6 +289,10 @@ struct HappeningLiquidField: View {
         GeometryReader { proxy in
             let layout = presentation.layout(in: proxy.size, safeInsets: proxy.safeAreaInsets)
             let styles = slotStyles
+            let liquidHitRegion = HappeningLiquidContourHitRegion.path(
+                sources: layout.sources,
+                in: CGRect(origin: .zero, size: proxy.size)
+            )
 
             ZStack(alignment: .topLeading) {
                 HappeningLiquidCanvas(
@@ -263,15 +300,11 @@ struct HappeningLiquidField: View {
                     styles: styles
                 )
 
-                ForEach(layout.sources, id: \.index) { source in
-                    Circle()
-                        .fill(.clear)
-                        .contentShape(Circle())
-                        .frame(width: source.radius * 2, height: source.radius * 2)
-                        .position(source.center)
-                        .onTapGesture {}
-                        .accessibilityHidden(true)
-                }
+                liquidHitRegion
+                    .fill(.clear)
+                    .contentShape(liquidHitRegion)
+                    .onTapGesture {}
+                    .accessibilityHidden(true)
 
                 ForEach(Array(presentation.presentedHappenings.enumerated()), id: \.element.id) { index, happening in
                     if index < layout.sources.count, index < layout.labelFrames.count {

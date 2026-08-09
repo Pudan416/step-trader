@@ -66,6 +66,99 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk"])
     }
 
+    func testDayEndReanchorMovesAdditionAndCanvasWithoutReopeningHappening() async throws {
+        let now = Date.now
+        let pair = try XCTUnwrap(dayEndPairWithDifferentKeys(at: now))
+        defaults.set(pair.oldHour, forKey: SharedKeys.dayEndHour)
+        defaults.set(0, forKey: SharedKeys.dayEndMinute)
+        UserDefaults.standard.set(pair.oldHour, forKey: SharedKeys.dayEndHour)
+        UserDefaults.standard.set(0, forKey: SharedKeys.dayEndMinute)
+
+        let oldKey = DayBoundary.dayKey(
+            for: now,
+            dayEndHour: pair.oldHour,
+            dayEndMinute: 0
+        )
+        let newKey = DayBoundary.dayKey(
+            for: now,
+            dayEndHour: pair.newHour,
+            dayEndMinute: 0
+        )
+        let oldBackup = CanvasStorageService.shared.loadCanvas(for: oldKey)
+        let newBackup = CanvasStorageService.shared.loadCanvas(for: newKey)
+        CanvasStorageService.shared.deleteCanvas(for: oldKey)
+        CanvasStorageService.shared.deleteCanvas(for: newKey)
+        defer {
+            CanvasStorageService.shared.deleteCanvas(for: oldKey)
+            CanvasStorageService.shared.deleteCanvas(for: newKey)
+            if let oldBackup { _ = CanvasStorageService.shared.saveCanvas(oldBackup) }
+            if let newBackup { _ = CanvasStorageService.shared.saveCanvas(newBackup) }
+            UserDefaults.standard.removeObject(forKey: SharedKeys.dayEndHour)
+            UserDefaults.standard.removeObject(forKey: SharedKeys.dayEndMinute)
+        }
+
+        defaults.set(try JSONEncoder().encode([OptionEntry]()), forKey: SharedKeys.todayAdditions)
+        defaults.set(
+            DayBoundary.currentDayStart(
+                for: now,
+                dayEndHour: pair.oldHour,
+                dayEndMinute: 0
+            ),
+            forKey: SharedKeys.dailyEnergyAnchor
+        )
+        let standardSuite = try XCTUnwrap(UserDefaults(suiteName: "day-end-reanchor-\(UUID())"))
+        let budgetEngine = BudgetEngine(
+            sharedDefaults: defaults,
+            standardDefaults: standardSuite
+        )
+        let model = AppModel(
+            healthKitService: MockHealthKitService(),
+            familyControlsService: MockFamilyControlsService(),
+            notificationService: MockNotificationService(),
+            budgetEngine: budgetEngine,
+            subscriptionStore: SubscriptionStore(defaults: defaults)
+        )
+        model.isBootstrapping = true
+        model.loadDailyEnergyState()
+
+        let entry = try XCTUnwrap(
+            model.addHappening(
+                id: "happening_walk",
+                colorHex: "#AABBCC",
+                at: now
+            )
+        )
+        var canvas = DayCanvas(dayKey: oldKey)
+        canvas.elements = [
+            CanvasElement.spawn(
+                id: try XCTUnwrap(UUID(uuidString: entry.id)),
+                optionId: entry.optionId,
+                color: entry.colorHex,
+                label: "Walk",
+                existingElements: [],
+                dayKey: oldKey
+            )
+        ]
+        XCTAssertTrue(CanvasStorageService.shared.saveCanvas(canvas))
+
+        model.updateDayEnd(hour: pair.newHour, minute: 0)
+        try await Task.sleep(for: .milliseconds(500))
+
+        XCTAssertEqual(model.todayAdditions.map(\.dayKey), [newKey])
+        XCTAssertNil(
+            model.addHappening(
+                id: "happening_walk",
+                colorHex: "#DDEEFF",
+                at: now
+            ),
+            "re-anchoring must preserve once-per-custom-day identity"
+        )
+        XCTAssertNil(CanvasStorageService.shared.loadCanvas(for: oldKey))
+        let movedCanvas = try XCTUnwrap(CanvasStorageService.shared.loadCanvas(for: newKey))
+        XCTAssertEqual(movedCanvas.dayKey, newKey)
+        XCTAssertEqual(movedCanvas.elements.map(\.id), canvas.elements.map(\.id))
+    }
+
     private func clearEnergyDefaults() {
         let keys = [
             SharedKeys.dailyEnergyAnchor,
@@ -73,11 +166,35 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
             SharedKeys.baseEnergyToday,
             SharedKeys.todayAdditions,
             SharedKeys.happeningCatalog,
+            SharedKeys.dayEndHour,
+            SharedKeys.dayEndMinute,
             "dailyEnergySelections_v1_body",
             "dailyEnergySelections_v1_mind",
             "dailyEnergySelections_v1_heart",
         ]
         keys.forEach { defaults.removeObject(forKey: $0) }
+    }
+
+    private func dayEndPairWithDifferentKeys(
+        at date: Date
+    ) -> (oldHour: Int, newHour: Int)? {
+        for oldHour in 0..<24 {
+            let oldKey = DayBoundary.dayKey(
+                for: date,
+                dayEndHour: oldHour,
+                dayEndMinute: 0
+            )
+            for newHour in 0..<24 where newHour != oldHour {
+                if DayBoundary.dayKey(
+                    for: date,
+                    dayEndHour: newHour,
+                    dayEndMinute: 0
+                ) != oldKey {
+                    return (oldHour, newHour)
+                }
+            }
+        }
+        return nil
     }
 
     private func makeModel() -> AppModel {

@@ -53,7 +53,7 @@ struct Happening: Identifiable, Codable, Equatable {
 /// identity belongs to the addition, not to the happening being added.
 struct OptionEntry: Identifiable, Codable, Equatable {
     let id: String
-    let dayKey: String
+    var dayKey: String
     let optionId: String
     var colorHex: String
     var timestamp: Date

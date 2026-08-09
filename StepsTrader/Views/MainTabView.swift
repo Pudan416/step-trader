@@ -18,7 +18,7 @@ struct MainTabView: View {
     @State private var ticketDeliveryToken = UUID()
     var theme: AppTheme = .night
     @State private var isHappeningPaletteVisible = false
-    @State private var paletteOpenTask: Task<Void, Never>?
+    @State private var paletteRoute = CanvasPaletteRouteState()
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
     @State private var isWideCanvas: Bool = false
@@ -101,6 +101,8 @@ struct MainTabView: View {
                             model: model,
                             metricOverlay: $metricOverlay,
                             isWideCanvas: $isWideCanvas,
+                            paletteRoute: $paletteRoute,
+                            isCanvasSelected: selection == Tab.canvas.rawValue,
                             onPalettePresentationChange: { isPresented in
                                 isHappeningPaletteVisible = isPresented
                             }
@@ -175,8 +177,18 @@ struct MainTabView: View {
             .overlay(alignment: .bottom) {
                 if !isWideCanvas {
                     customTabBar
-                        .allowsHitTesting(!isHappeningPaletteVisible)
-                        .accessibilityHidden(isHappeningPaletteVisible)
+                        .allowsHitTesting(
+                            !CanvasPaletteRouteState.blocksTabBar(
+                                isCanvasSelected: selection == Tab.canvas.rawValue,
+                                isPaletteVisible: isHappeningPaletteVisible
+                            )
+                        )
+                        .accessibilityHidden(
+                            CanvasPaletteRouteState.blocksTabBar(
+                                isCanvasSelected: selection == Tab.canvas.rawValue,
+                                isPaletteVisible: isHappeningPaletteVisible
+                            )
+                        )
                         .background(
                             GeometryReader { geo in
                                 Color.clear.preference(key: TabBarHeightPreferenceKey.self, value: geo.size.height)
@@ -289,6 +301,7 @@ struct MainTabView: View {
         .onChange(of: selection) { _, newValue in
             if newValue != Tab.canvas.rawValue {
                 metricOverlay = nil
+                paletteRoute.cancelPendingRequest()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("OpenTicketSettings"))) { notification in
@@ -305,22 +318,12 @@ struct MainTabView: View {
                 ticketDeliveryToken = UUID()
             }
         }
-        .onDisappear {
-            paletteOpenTask?.cancel()
-            paletteOpenTask = nil
-        }
     }
 
     private func openHappeningPaletteOnCanvas() {
-        paletteOpenTask?.cancel()
+        paletteRoute.requestOpen()
         withAnimation(.easeInOut(duration: 0.2)) {
             selection = Tab.canvas.rawValue
-        }
-        paletteOpenTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(350))
-            guard !Task.isCancelled, selection == Tab.canvas.rawValue else { return }
-            NotificationCenter.default.post(name: .happeningPaletteOpenRequested, object: nil)
-            paletteOpenTask = nil
         }
     }
 

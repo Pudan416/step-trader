@@ -13,20 +13,26 @@ extension AppModel {
 
     /// Adds one occurrence when the happening has not already been added on
     /// the requested custom day.
+    func canAddHappening(id: String, on date: Date = .now) -> Bool {
+        let dayKey = Self.dayKey(for: date)
+        return !todayAdditions.contains {
+            $0.dayKey == dayKey && $0.optionId == id
+        }
+    }
+
     @discardableResult
     func addHappening(
         id: String,
         colorHex: String,
         at date: Date = .now,
-        recordUse: Bool = true
+        recordUse: Bool = true,
+        entryId: String = UUID().uuidString
     ) -> OptionEntry? {
         let dayKey = Self.dayKey(for: date)
-        guard !todayAdditions.contains(where: { $0.dayKey == dayKey && $0.optionId == id }) else {
-            return nil
-        }
+        guard canAddHappening(id: id, on: date) else { return nil }
 
         let entry = OptionEntry(
-            id: UUID().uuidString,
+            id: entryId,
             dayKey: dayKey,
             optionId: id,
             colorHex: colorHex,
@@ -99,6 +105,22 @@ extension AppModel {
 
     func paletteOrder() -> [Happening] {
         configuredPaletteHappenings()
+    }
+
+    func rekeyTodayAdditions(from oldDayKey: String, to newDayKey: String) {
+        guard oldDayKey != newDayKey else { return }
+        var didChange = false
+        todayAdditions = todayAdditions.map { entry in
+            guard entry.dayKey == oldDayKey else { return entry }
+            var moved = entry
+            moved.dayKey = newDayKey
+            didChange = true
+            return moved
+        }
+        guard didChange else { return }
+        persistTodayAdditions()
+        let movedEntries = todayAdditions.filter { $0.dayKey == newDayKey }
+        Task { await SupabaseSyncService.shared.syncOptionEntries(movedEntries) }
     }
 
     private func persistTodayAdditions() {
