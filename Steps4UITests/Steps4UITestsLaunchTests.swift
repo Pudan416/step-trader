@@ -69,6 +69,24 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "task7-fix-r1-all-used")
     }
 
+    func testTask7FixRoundTwoAllUsedScreenshot() throws {
+        let app = launchTask7App()
+        openPalette(in: app)
+
+        for title in task7BuiltInTitles {
+            let label = app.buttons[title]
+            XCTAssertTrue(label.waitForExistence(timeout: 3), "Missing palette label: \(title)")
+            label.tap()
+            XCTAssertTrue(label.waitForNonExistence(timeout: 3), "Label did not leave field: \(title)")
+        }
+
+        XCTAssertTrue(app.staticTexts["All added for today"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
+        XCTAssertTrue(app.buttons["Close"].isHittable)
+        XCTAssertTrue(app.buttons["Add a happening"].isHittable)
+        attachScreenshot(named: "task7-fix-r2-all-used")
+    }
+
     func testTask7FixRoundOneDynamicTypeScreenshot() throws {
         let app = launchTask7App()
         openPalette(in: app)

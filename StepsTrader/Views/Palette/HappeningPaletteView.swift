@@ -291,34 +291,87 @@ struct HappeningPaletteView: View {
     }
 }
 
+struct HappeningCompletionIslandShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let x = rect.minX
+        let y = rect.minY
+        let width = rect.width
+        let height = rect.height
+
+        func point(_ unitX: CGFloat, _ unitY: CGFloat) -> CGPoint {
+            CGPoint(x: x + width * unitX, y: y + height * unitY)
+        }
+
+        var path = Path()
+        path.move(to: point(0.50, 0.23))
+        path.addCurve(
+            to: point(0.24, 0.08),
+            control1: point(0.43, 0.14),
+            control2: point(0.34, 0.06)
+        )
+        path.addCurve(
+            to: point(0.05, 0.50),
+            control1: point(0.10, 0.10),
+            control2: point(0.03, 0.28)
+        )
+        path.addCurve(
+            to: point(0.32, 0.89),
+            control1: point(0.06, 0.74),
+            control2: point(0.18, 0.92)
+        )
+        path.addCurve(
+            to: point(0.51, 0.76),
+            control1: point(0.41, 0.88),
+            control2: point(0.46, 0.80)
+        )
+        path.addCurve(
+            to: point(0.75, 0.87),
+            control1: point(0.58, 0.80),
+            control2: point(0.65, 0.89)
+        )
+        path.addCurve(
+            to: point(0.95, 0.43),
+            control1: point(0.89, 0.84),
+            control2: point(0.97, 0.65)
+        )
+        path.addCurve(
+            to: point(0.68, 0.11),
+            control1: point(0.92, 0.22),
+            control2: point(0.81, 0.07)
+        )
+        path.addCurve(
+            to: point(0.50, 0.23),
+            control1: point(0.59, 0.12),
+            control2: point(0.54, 0.19)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
 private struct HappeningCompletionIsland: View {
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
-            let sources = [
-                ProceduralShapeGenerator.BlobSource(
-                    center: CGPoint(x: size.width * 0.36, y: size.height * 0.52),
-                    radius: size.height * 0.47
-                ),
-                ProceduralShapeGenerator.BlobSource(
-                    center: CGPoint(x: size.width * 0.66, y: size.height * 0.46),
-                    radius: size.height * 0.40
-                ),
-            ]
-            let contour = ProceduralShapeGenerator.metaballPath(
-                blobs: sources,
-                in: CGRect(origin: .zero, size: size),
-                gridResolution: 42
-            )
+            let contour = HappeningCompletionIslandShape()
+                .path(in: CGRect(origin: .zero, size: size))
 
             ZStack {
                 Canvas { context, _ in
+                    context.addFilter(
+                        .shadow(
+                            color: .black.opacity(0.14),
+                            radius: 10,
+                            x: 0,
+                            y: 6
+                        )
+                    )
                     context.fill(
                         contour,
                         with: .linearGradient(
                             Gradient(colors: [
-                                Color(hex: "#E098A0").opacity(0.82),
-                                Color(hex: "#D8AD6A").opacity(0.78),
+                                Color(hex: "#E098A0").opacity(0.88),
+                                Color(hex: "#D8AD6A").opacity(0.84),
                             ]),
                             startPoint: .zero,
                             endPoint: CGPoint(x: size.width, y: size.height)

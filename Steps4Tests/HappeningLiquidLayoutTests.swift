@@ -316,6 +316,20 @@ final class HappeningLiquidLayoutTests: XCTestCase {
         )
     }
 
+    func testCompletionIslandHasAnUnbrokenHorizontalNeckBetweenItsLobes() {
+        let bounds = CGRect(x: 0, y: 0, width: 216, height: 92)
+        let contour = HappeningCompletionIslandShape().path(in: bounds)
+
+        for x in stride(from: 42.0, through: 174.0, by: 4.0) {
+            XCTAssertTrue(
+                contour.contains(CGPoint(x: x, y: 46)),
+                "the completion island must stay filled through its center at x=\(x)"
+            )
+        }
+        XCTAssertFalse(contour.contains(CGPoint(x: 0, y: 0)))
+        XCTAssertFalse(contour.contains(CGPoint(x: 216, y: 92)))
+    }
+
     func testLayoutIsDeterministicForTheSameInputs() {
         XCTAssertEqual(
             HappeningLiquidLayout.layout(count: 10, in: size, safeInsets: safeInsets),
