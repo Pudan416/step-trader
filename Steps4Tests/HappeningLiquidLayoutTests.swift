@@ -259,6 +259,75 @@ final class HappeningLiquidLayoutTests: XCTestCase {
     private let size = CGSize(width: 402, height: 874)
     private let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
 
+    // MARK: - The dock stays put
+
+    private var dockSafeBounds: CGRect {
+        CGRect(
+            x: safeInsets.leading,
+            y: safeInsets.top,
+            width: size.width - safeInsets.leading - safeInsets.trailing,
+            height: size.height - safeInsets.top - safeInsets.bottom
+        )
+    }
+
+    /// Close · choose · add used to hang off the blob contour, so consuming a
+    /// happening slid them up the screen — and with everything added they
+    /// jumped to the middle, following the completion island.
+    func testDockAnchorIsIdenticalForEveryItemCount() {
+        let anchors = (0...10).map {
+            HappeningLiquidLayout.layout(count: $0, in: size, safeInsets: safeInsets).dockAnchor
+        }
+        for (count, anchor) in anchors.enumerated() {
+            XCTAssertEqual(anchor.x, anchors[0].x, accuracy: 0.01, "count \(count) moved the dock")
+            XCTAssertEqual(anchor.y, anchors[0].y, accuracy: 0.01, "count \(count) moved the dock")
+        }
+    }
+
+    func testDockAnchorIsIdenticalForEveryCountAtAccessibilitySizes() {
+        let anchors = (0...10).map {
+            HappeningLiquidLayout.layout(
+                count: $0, in: size, safeInsets: safeInsets, dynamicTypeSize: .accessibility3
+            ).dockAnchor
+        }
+        for (count, anchor) in anchors.enumerated() {
+            XCTAssertEqual(anchor.y, anchors[0].y, accuracy: 0.01, "count \(count) moved the dock")
+        }
+    }
+
+    /// Pinned means low and stable, not floating mid-screen.
+    func testDockAnchorSitsBelowTheMiddleAndClearOfBottomChrome() {
+        let anchor = HappeningLiquidLayout.layout(
+            count: 3, in: size, safeInsets: safeInsets
+        ).dockAnchor
+        XCTAssertEqual(anchor.x, dockSafeBounds.midX, accuracy: 0.01)
+        XCTAssertGreaterThan(anchor.y, dockSafeBounds.midY)
+        XCTAssertLessThanOrEqual(
+            anchor.y, dockSafeBounds.maxY - 120,
+            "must stay clear of the canvas controls and tab bar underneath"
+        )
+    }
+
+    /// Nothing may slide under the pinned dock.
+    func testContentNeverOverlapsTheDock() {
+        for count in 0...10 {
+            let layout = HappeningLiquidLayout.layout(
+                count: count, in: size, safeInsets: safeInsets
+            )
+            if !layout.contourBounds.isEmpty {
+                XCTAssertLessThanOrEqual(
+                    layout.contourBounds.maxY, layout.dockAnchor.y,
+                    "count \(count): contour runs under the dock"
+                )
+            }
+            if let completion = layout.completionBounds {
+                XCTAssertLessThanOrEqual(
+                    completion.maxY, layout.dockAnchor.y,
+                    "count \(count): completion island runs under the dock"
+                )
+            }
+        }
+    }
+
     func testEverySupportedCountHasAccessibleNonOverlappingLabelFrames() {
         for count in 0...10 {
             let layout = HappeningLiquidLayout.layout(
@@ -311,7 +380,10 @@ final class HappeningLiquidLayoutTests: XCTestCase {
         }
     }
 
-    func testContourLeavesFreeCanvasOnEverySafeEdgeAndConnectsDock() {
+    /// The dock no longer tracks the contour, so the old "gap of at most 44pt"
+    /// clause is deliberately gone — `testContentNeverOverlapsTheDock` covers
+    /// what still has to hold.
+    func testContourLeavesFreeCanvasOnEverySafeEdge() {
         let safeBounds = CGRect(
             x: safeInsets.leading,
             y: safeInsets.top,
@@ -330,7 +402,6 @@ final class HappeningLiquidLayoutTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(contour.minY - safeBounds.minY, 16, "count \(count)")
             XCTAssertGreaterThanOrEqual(safeBounds.maxY - contour.maxY, 16, "count \(count)")
             XCTAssertGreaterThan(layout.dockAnchor.y, contour.maxY, "count \(count)")
-            XCTAssertLessThanOrEqual(layout.dockAnchor.y - contour.maxY, 44, "count \(count)")
             XCTAssertTrue(safeBounds.contains(layout.dockAnchor), "count \(count)")
         }
     }
@@ -644,7 +715,7 @@ final class HappeningLiquidPresentationStateTests: XCTestCase {
         )
     }
 
-    func testSharedPresentationCountDrivesDockThroughTenNineEight() {
+    func testSharedPresentationCountLeavesDockFixedThroughTenNineEight() {
         var state = HappeningLiquidPresentationState(
             happenings: Array(HappeningDefaults.builtIns.prefix(10))
         )
@@ -660,8 +731,11 @@ final class HappeningLiquidPresentationStateTests: XCTestCase {
         let eight = state.layout(in: size, safeInsets: safeInsets)
         XCTAssertEqual(state.presentedCount, 8)
 
-        XCTAssertNotEqual(ten.dockAnchor, nine.dockAnchor)
-        XCTAssertNotEqual(nine.dockAnchor, eight.dockAnchor)
+        // Inverted deliberately: the dock is anchored to a full field, so
+        // consuming happenings must NOT move it. It used to ride up the screen
+        // with the shrinking cluster.
+        XCTAssertEqual(ten.dockAnchor, nine.dockAnchor)
+        XCTAssertEqual(nine.dockAnchor, eight.dockAnchor)
     }
 
 }

@@ -84,13 +84,22 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
             dayEndHour: pair.newHour,
             dayEndMinute: 0
         )
+        // `CanvasStorageService` writes into the app's real container, which the
+        // test host shares — so running the app by hand on this simulator leaves
+        // a canvas for the ambient day that this test then reads as its own.
+        // Clear that one too, not just the two keys under test.
+        let ambientKey = AppModel.dayKey(for: now)
+        let ambientBackup = CanvasStorageService.shared.loadCanvas(for: ambientKey)
         let oldBackup = CanvasStorageService.shared.loadCanvas(for: oldKey)
         let newBackup = CanvasStorageService.shared.loadCanvas(for: newKey)
+        CanvasStorageService.shared.deleteCanvas(for: ambientKey)
         CanvasStorageService.shared.deleteCanvas(for: oldKey)
         CanvasStorageService.shared.deleteCanvas(for: newKey)
         defer {
             CanvasStorageService.shared.deleteCanvas(for: oldKey)
             CanvasStorageService.shared.deleteCanvas(for: newKey)
+            CanvasStorageService.shared.deleteCanvas(for: ambientKey)
+            if let ambientBackup { _ = CanvasStorageService.shared.saveCanvas(ambientBackup) }
             if let oldBackup { _ = CanvasStorageService.shared.saveCanvas(oldBackup) }
             if let newBackup { _ = CanvasStorageService.shared.saveCanvas(newBackup) }
             UserDefaults.standard.removeObject(forKey: SharedKeys.dayEndHour)

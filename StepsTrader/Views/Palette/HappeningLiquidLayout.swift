@@ -35,6 +35,13 @@ enum HappeningLiquidLayout {
     private static let edgeClearance: CGFloat = 16
     private static let dockTouchDistance: CGFloat = 28
 
+    /// The palette overlays the canvas, which keeps its own bottom controls and
+    /// the tab bar visible beneath it. The dock never descends into that strip.
+    private static let bottomChromeClearance: CGFloat = 120
+
+    /// Gap between the completion island and the dock below it.
+    private static let islandDockGap: CGFloat = 24
+
     static func usesExpandedLayout(for dynamicTypeSize: DynamicTypeSize) -> Bool {
         dynamicTypeSize > .large
     }
@@ -61,6 +68,62 @@ enum HappeningLiquidLayout {
         in size: CGSize,
         safeInsets: EdgeInsets,
         dynamicTypeSize: DynamicTypeSize = .large
+    ) -> Layout {
+        let raw = rawLayout(
+            count: count, in: size, safeInsets: safeInsets, dynamicTypeSize: dynamicTypeSize
+        )
+        let safeBounds = safeBounds(in: size, safeInsets: safeInsets)
+        guard !safeBounds.isEmpty else { return raw }
+
+        // The dock (close · choose · add) is placed where it would sit with a
+        // FULL field, whatever the field currently holds.
+        //
+        // It used to hang `dockTouchDistance` under the live contour, so every
+        // happening consumed shrank the cluster and slid the three buttons up
+        // the screen; once everything was added they jumped to the middle,
+        // following the completion island. Controls that move because the
+        // content changed are what muscle memory cannot survive.
+        //
+        // Deriving it from the full field rather than a fixed screen offset
+        // leaves every clamp below untouched: the fullest cluster already is
+        // the binding constraint, so nothing smaller can fail to fit above it.
+        let full = rawLayout(
+            count: templates.count - 1, in: size,
+            safeInsets: safeInsets, dynamicTypeSize: dynamicTypeSize
+        )
+        // Clamped: a full field on a short screen used to push the dock down
+        // into the canvas controls and tab bar showing through underneath.
+        let dockY = min(
+            full.contourBounds.maxY + dockTouchDistance,
+            safeBounds.maxY - bottomChromeClearance
+        )
+        let dockAnchor = CGPoint(x: safeBounds.midX, y: dockY)
+
+        // The completion island is the empty-field stand-in for the cluster, so
+        // it hangs off the dock rather than floating where the cluster used to be.
+        let completionBounds = raw.completionBounds.map { bounds -> CGRect in
+            CGRect(
+                x: bounds.minX,
+                y: dockY - islandDockGap - bounds.height,
+                width: bounds.width,
+                height: bounds.height
+            )
+        }
+
+        return Layout(
+            sources: raw.sources,
+            labelFrames: raw.labelFrames,
+            contourBounds: raw.contourBounds,
+            dockAnchor: dockAnchor,
+            completionBounds: completionBounds
+        )
+    }
+
+    private static func rawLayout(
+        count: Int,
+        in size: CGSize,
+        safeInsets: EdgeInsets,
+        dynamicTypeSize: DynamicTypeSize
     ) -> Layout {
         let safeBounds = safeBounds(in: size, safeInsets: safeInsets)
         guard !safeBounds.isEmpty else {
