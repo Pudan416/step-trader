@@ -95,6 +95,55 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         XCTAssertEqual(defaults.stringArray(forKey: SharedKeys.happeningPaletteSelection), original)
     }
 
+    func testCancelledChooserDraftRestoresTheOriginalSelectionWithoutPersisting() {
+        let catalog = makeCatalog(counts: Array(repeating: 0, count: 12))
+        let store = HappeningPaletteSelectionStore(defaults: defaults)
+        let original = Array(catalog.prefix(10).map(\.id))
+        try! store.save(original, catalog: catalog)
+        var draft = HappeningPaletteSelectionDraft(selected: original, catalog: catalog)
+
+        XCTAssertEqual(draft.toggle(id: "h3"), .removed)
+        XCTAssertEqual(draft.toggle(id: "h10"), .added)
+        XCTAssertEqual(draft.ids, original.filter { $0 != "h3" } + ["h10"])
+
+        draft.cancel()
+
+        XCTAssertEqual(draft.ids, original)
+        XCTAssertEqual(store.ids, original)
+        XCTAssertEqual(defaults.stringArray(forKey: SharedKeys.happeningPaletteSelection), original)
+    }
+
+    func testChooserDraftPreservesSurvivingSlotOrderAndAppendsInCheckOrder() {
+        let catalog = makeCatalog(counts: Array(repeating: 0, count: 13))
+        let original = Array(catalog.prefix(10).map(\.id))
+        var draft = HappeningPaletteSelectionDraft(selected: original, catalog: catalog)
+
+        XCTAssertEqual(draft.toggle(id: "h1"), .removed)
+        XCTAssertEqual(draft.toggle(id: "h6"), .removed)
+        XCTAssertEqual(draft.toggle(id: "h12"), .added)
+        XCTAssertEqual(draft.toggle(id: "h10"), .added)
+
+        XCTAssertEqual(
+            draft.ids,
+            ["h0", "h2", "h3", "h4", "h5", "h7", "h8", "h9", "h12", "h10"]
+        )
+        XCTAssertTrue(draft.canSave)
+    }
+
+    func testChooserDraftPreventsAnEleventhUniqueSelectionAndRequiresTenLiveIdsToSave() {
+        let catalog = makeCatalog(counts: Array(repeating: 0, count: 11))
+        let original = Array(catalog.prefix(10).map(\.id))
+        var fullDraft = HappeningPaletteSelectionDraft(selected: original, catalog: catalog)
+        var incompleteDraft = HappeningPaletteSelectionDraft(
+            selected: Array(original.dropLast()),
+            catalog: catalog
+        )
+
+        XCTAssertEqual(fullDraft.toggle(id: "h10"), .limitReached)
+        XCTAssertFalse(incompleteDraft.canSave)
+        XCTAssertEqual(incompleteDraft.toggle(id: "unknown"), .unavailable)
+    }
+
     func testCustomHappeningReplacesLeastUsedSlot() throws {
         let catalog = makeCatalog(counts: [5, 4, 3, 2, 1, 0, 8, 7, 6, 9])
             + [Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false)]
@@ -106,6 +155,20 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         XCTAssertEqual(removed, catalog[5].id)
         XCTAssertEqual(store.ids[5], "user_sauna")
         XCTAssertEqual(store.ids.count, 10)
+    }
+
+    func testCatalogOnlyCreationReplacesLeastUsedSlotWithoutRecordingUse() throws {
+        let catalog = makeCatalog(counts: [5, 4, 3, 2, 1, 0, 8, 7, 6, 9])
+            + [Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false)]
+        let store = HappeningPaletteSelectionStore(defaults: defaults)
+        try store.save(Array(catalog.prefix(10).map(\.id)), catalog: catalog)
+
+        _ = try store.insertReplacingLeastUsed("user_sauna", catalog: catalog)
+
+        let created = try XCTUnwrap(catalog.first { $0.id == "user_sauna" })
+        XCTAssertEqual(created.useCount, 0)
+        XCTAssertNil(created.lastUsedAt)
+        XCTAssertFalse(store.ids.contains("h5"))
     }
 
     func testReplacementTiesUseOldestLastUse() {

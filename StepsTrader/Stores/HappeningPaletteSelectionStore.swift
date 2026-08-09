@@ -1,5 +1,50 @@
 import Foundation
 
+enum HappeningPaletteSelectionDraftToggleResult: Equatable {
+    case added
+    case removed
+    case limitReached
+    case unavailable
+}
+
+/// In-memory selection edits for the chooser. Persistence is intentionally
+/// deferred until the enclosing panel's Done action calls the store's `save`.
+struct HappeningPaletteSelectionDraft {
+    private let originalIDs: [String]
+    private let liveIDs: Set<String>
+
+    private(set) var ids: [String]
+
+    init(selected: [String], catalog: [Happening]) {
+        originalIDs = selected
+        ids = selected
+        liveIDs = Set(catalog.map(\.id))
+    }
+
+    var canSave: Bool {
+        ids.count == HappeningPaletteSelection.slotCount
+            && Set(ids).count == HappeningPaletteSelection.slotCount
+            && ids.allSatisfy(liveIDs.contains)
+    }
+
+    mutating func toggle(id: String) -> HappeningPaletteSelectionDraftToggleResult {
+        guard liveIDs.contains(id) else { return .unavailable }
+
+        if let index = ids.firstIndex(of: id) {
+            ids.remove(at: index)
+            return .removed
+        }
+
+        guard ids.count < HappeningPaletteSelection.slotCount else { return .limitReached }
+        ids.append(id)
+        return .added
+    }
+
+    mutating func cancel() {
+        ids = originalIDs
+    }
+}
+
 final class HappeningPaletteSelectionStore {
     private let defaults: UserDefaults
     private(set) var ids: [String] = []

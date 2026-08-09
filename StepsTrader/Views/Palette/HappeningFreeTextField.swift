@@ -1,10 +1,71 @@
 import SwiftUI
 
-/// Free-text entry inside the palette's `+` node.
+/// Catalog-only creator used by the palette's add control.
 ///
-/// Submitting creates the happening and spawns its canvas element in the same
-/// action: no confirm step, no category, no icon picker. This is what replaces
-/// the ✦ Moment sheet.
+/// The parent owns catalog persistence and selection replacement; this panel
+/// only normalizes a title and sends it through after explicit confirmation.
+struct HappeningCreatorPanel: View {
+    let onCreate: (String) -> Void
+    let onCancel: () -> Void
+
+    @State private var text = ""
+
+    private var trimmed: String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Add a happening")
+                    .font(.title3.weight(.semibold))
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilitySortPriority(3)
+
+                Text("This will replace one of the 10 shown happenings.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .accessibilitySortPriority(2)
+
+                HappeningFreeTextField(text: $text) { submittedTitle in
+                    onCreate(submittedTitle)
+                }
+                .accessibilitySortPriority(1)
+
+                HStack {
+                    Button("Cancel", action: onCancel)
+                        .buttonStyle(.bordered)
+
+                    Spacer()
+
+                    Button("Add to palette") {
+                        create()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(trimmed.isEmpty)
+                }
+                .accessibilitySortPriority(0)
+            }
+            .padding(20)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .frame(maxWidth: 440, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(.white.opacity(0.18), lineWidth: 0.75)
+        }
+        .shadow(color: .black.opacity(0.24), radius: 24, y: 12)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func create() {
+        guard !trimmed.isEmpty else { return }
+        onCreate(trimmed)
+    }
+}
+
+/// A focused title field shared by the compact creator panel and previews.
 struct HappeningFreeTextField: View {
 
     @Binding var text: String
@@ -39,4 +100,10 @@ struct HappeningFreeTextField: View {
             onSubmit(trimmed)
         }
     }
+}
+
+#Preview("Creator") {
+    HappeningCreatorPanel(onCreate: { _ in }, onCancel: {})
+        .padding()
+        .dynamicTypeSize(.accessibility1)
 }
