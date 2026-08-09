@@ -42,6 +42,8 @@ struct AppsPageSimplified: View {
     @State private var showTemplatePicker = false
     @State private var expandedSheetGroupId: TicketGroupId? = nil
     @State private var isReordering = false
+    @State private var unlockSheetGroupId: TicketGroupId? = nil
+    @State private var timerGroupId: TicketGroupId? = nil
 
     private var buttonTint: Color { AppColors.Night.textPrimary }
     @State private var showCustomNamePrompt = false
@@ -264,18 +266,17 @@ struct AppsPageSimplified: View {
         .sensoryFeedback(.impact(weight: .light), trigger: reorderHapticTick)
     }
 
-    // MARK: - Ticket Stack
+    // MARK: - Feed List
 
     private var ticketStack: some View {
-        LazyVStack(spacing: 14) {
+        LazyVStack(spacing: 10) {
             ForEach(visibleGroups) { group in
-                PaperTicketView(
+                FeedRowView(
                     model: model,
                     group: group,
-                    colorScheme: colorScheme,
-                    onSettings: {
+                    onTap: {
                         guard !isReordering else { return }
-                        expandedSheetGroupId = TicketGroupId(id: group.id)
+                        unlockSheetGroupId = TicketGroupId(id: group.id)
                     }
                 )
                 .overlay(alignment: .trailing) {
