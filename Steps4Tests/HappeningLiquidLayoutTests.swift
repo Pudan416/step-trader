@@ -308,6 +308,57 @@ final class HappeningLiquidLayoutTests: XCTestCase {
         }
     }
 
+    func testExpandedTenItemMetaballIsOneClosedContourInsideSafeBounds() {
+        let safeBounds = CGRect(
+            x: safeInsets.leading,
+            y: safeInsets.top,
+            width: size.width - safeInsets.leading - safeInsets.trailing,
+            height: size.height - safeInsets.top - safeInsets.bottom
+        )
+
+        for typeSize in [
+            DynamicTypeSize.accessibility1,
+            .accessibility3,
+            .accessibility5,
+        ] {
+            let layout = HappeningLiquidLayout.layout(
+                count: 10,
+                in: size,
+                safeInsets: safeInsets,
+                dynamicTypeSize: typeSize
+            )
+            let contour = ProceduralShapeGenerator.metaballPath(
+                blobs: layout.sources.map {
+                    ProceduralShapeGenerator.BlobSource(
+                        center: $0.center,
+                        radius: $0.radius
+                    )
+                },
+                in: CGRect(origin: .zero, size: size),
+                gridResolution: 58
+            )
+            var moveCount = 0
+            var closeCount = 0
+            contour.cgPath.applyWithBlock { element in
+                switch element.pointee.type {
+                case .moveToPoint:
+                    moveCount += 1
+                case .closeSubpath:
+                    closeCount += 1
+                default:
+                    break
+                }
+            }
+
+            XCTAssertEqual(moveCount, 1, "\(typeSize) must generate one contour component")
+            XCTAssertEqual(closeCount, 1, "\(typeSize) must close exactly one component")
+            XCTAssertTrue(
+                safeBounds.insetBy(dx: 2, dy: 2).contains(contour.boundingRect),
+                "\(typeSize) contour \(contour.boundingRect) must not be clipped into a boundary chord"
+            )
+        }
+    }
+
     func testRemovingIndexPreservesRelativeIdentityOrder() {
         let ten = HappeningLiquidLayout.layout(count: 10, in: size, safeInsets: EdgeInsets())
         let nine = HappeningLiquidLayout.layout(count: 9, in: size, safeInsets: EdgeInsets())
@@ -711,6 +762,37 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
             ),
             20
         )
+    }
+
+    func testEveryExpandedTypeHidesChromeAndKeepsDockInsideSafeBounds() {
+        let size = CGSize(width: 402, height: 874)
+        let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
+        let safeBounds = CGRect(x: 0, y: 59, width: 402, height: 781)
+
+        for typeSize in [
+            DynamicTypeSize.xLarge,
+            .xxLarge,
+            .xxxLarge,
+            .accessibility1,
+        ] {
+            XCTAssertTrue(
+                HappeningPaletteChromeLayout.hidesSurroundingChrome(
+                    isPalettePresented: true,
+                    isPanelPresented: false,
+                    dynamicTypeSize: typeSize
+                ),
+                "\(typeSize) uses expanded field geometry and must hide surrounding chrome"
+            )
+
+            let layout = HappeningLiquidLayout.layout(
+                count: 10,
+                in: size,
+                safeInsets: safeInsets,
+                dynamicTypeSize: typeSize
+            )
+            XCTAssertTrue(safeBounds.contains(layout.dockAnchor), "\(typeSize)")
+            XCTAssertLessThanOrEqual(layout.dockAnchor.y + 22, safeBounds.maxY, "\(typeSize)")
+        }
     }
 
     func testPaletteWithoutPanelKeepsStandardChrome() {

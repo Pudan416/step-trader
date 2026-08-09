@@ -170,6 +170,59 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertTrue(addAction.exists)
     }
 
+    func testTask7FixRoundFourAccessibilityDynamicTypeContourScreenshot() throws {
+        let app = launchTask7App(dynamicTypeSize: "accessibility1")
+        let configuration = app.otherElements["task7_accessibility_configuration"]
+
+        XCTAssertTrue(configuration.waitForExistence(timeout: 8))
+        XCTAssertEqual(configuration.value as? String, "accessibility1,standard-contrast")
+        openPalette(in: app)
+
+        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        for title in task7BuiltInTitles {
+            XCTAssertTrue(app.buttons[title].exists, "Missing full accessibility label: \(title)")
+        }
+        XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
+        XCTAssertTrue(app.buttons["Close"].isHittable)
+        XCTAssertTrue(app.buttons["Add a happening"].isHittable)
+        attachScreenshot(named: "task7-fix-r4-dynamic-type-open-10")
+    }
+
+    func testTask7FixRoundFourCreatorUsesComfortableVerticalActions() throws {
+        let app = launchTask7App(
+            dynamicTypeSize: "accessibility1",
+            increasedContrast: true
+        )
+        let configuration = app.otherElements["task7_accessibility_configuration"]
+
+        XCTAssertTrue(configuration.waitForExistence(timeout: 8))
+        XCTAssertEqual(configuration.value as? String, "accessibility1,increased-contrast")
+        openPalette(in: app)
+        app.buttons["Add a happening"].tap()
+
+        let creatorField = app.textFields["What happened?"]
+        let cancelAction = app.buttons["Cancel"]
+        let addAction = app.buttons["Add to palette"]
+        let creatorScroll = app.scrollViews["happening_creator_scroll"]
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(creatorField.waitForExistence(timeout: 3))
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
+        XCTAssertTrue(cancelAction.isHittable)
+        XCTAssertTrue(addAction.exists)
+        XCTAssertFalse(addAction.isEnabled)
+        XCTAssertGreaterThanOrEqual(cancelAction.frame.width, creatorField.frame.width - 4)
+        XCTAssertGreaterThanOrEqual(addAction.frame.width, creatorField.frame.width - 4)
+        XCTAssertLessThan(cancelAction.frame.maxY, addAction.frame.minY)
+        XCTAssertLessThanOrEqual(
+            addAction.frame.maxY,
+            creatorScroll.frame.maxY - 12,
+            "the primary action needs visible breathing room inside the creator card"
+        )
+        XCTAssertLessThanOrEqual(addAction.frame.maxY, keyboard.frame.minY + 1)
+        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        attachScreenshot(named: "task7-fix-r4-creator-keyboard-accessibility-increased-contrast")
+    }
+
     private var task7BuiltInTitles: [String] {
         [
             "Walk",

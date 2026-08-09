@@ -59,7 +59,8 @@ enum HappeningPaletteChromeLayout {
         isPanelPresented: Bool,
         dynamicTypeSize: DynamicTypeSize
     ) -> Bool {
-        isPalettePresented && (isPanelPresented || dynamicTypeSize.isAccessibilitySize)
+        isPalettePresented
+            && (isPanelPresented || HappeningLiquidLayout.usesExpandedLayout(for: dynamicTypeSize))
     }
 
     static func showsCanvasControls(isPalettePresented: Bool) -> Bool {

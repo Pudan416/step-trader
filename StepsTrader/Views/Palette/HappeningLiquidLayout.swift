@@ -35,6 +35,10 @@ enum HappeningLiquidLayout {
     private static let edgeClearance: CGFloat = 16
     private static let dockTouchDistance: CGFloat = 28
 
+    static func usesExpandedLayout(for dynamicTypeSize: DynamicTypeSize) -> Bool {
+        dynamicTypeSize > .large
+    }
+
     /// Each array is hand-tuned in unit space for one visible-item count.
     /// Their ordering is identity ordering: removing an item never reorders
     /// the survivors, even though their visual positions can reflow.
@@ -101,7 +105,7 @@ enum HappeningLiquidLayout {
             )
         }
 
-        if dynamicTypeSize > .large {
+        if usesExpandedLayout(for: dynamicTypeSize) {
             return expandedLayout(
                 itemCount: itemCount,
                 safeBounds: safeBounds,
@@ -182,7 +186,9 @@ enum HappeningLiquidLayout {
             width: min(164, (safeBounds.width - 50) / 2),
             height: min(122, max(78, ceil(font.lineHeight * 3.25 / 0.80)))
         )
-        let radius = min(72, max(64, labelSize.height * 0.62))
+        // Keep enough overlap for one metaball while preventing the ten-source
+        // inverse-square field from accumulating across the Canvas boundary.
+        let radius = min(64, max(58, labelSize.height * 0.52))
         let maximumContourHeight = max(
             44,
             safeBounds.height
@@ -210,7 +216,7 @@ enum HappeningLiquidLayout {
             maximumTop
         )
         let firstCenterY = contourTop + radius + 12
-        let columnOffset = min(94, safeBounds.width * 0.235)
+        let columnOffset = min(84, safeBounds.width * 0.21)
 
         let sources = (0..<itemCount).map { index in
             let row = index / 2

@@ -16,6 +16,7 @@ struct HappeningCreatorPanel: View {
     @State private var text = ""
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var trimmed: String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -25,6 +26,10 @@ struct HappeningCreatorPanel: View {
         Task7UITestAccessibilityConfiguration.current.usesIncreasedContrast
             ? .increased
             : colorSchemeContrast
+    }
+
+    private var usesExpandedActionLayout: Bool {
+        HappeningLiquidLayout.usesExpandedLayout(for: dynamicTypeSize)
     }
 
     var body: some View {
@@ -60,49 +65,19 @@ struct HappeningCreatorPanel: View {
                     )
                 )
 
-                HStack {
-                    Button("Cancel", action: onCancel)
-                        .buttonStyle(.bordered)
-
-                    Spacer()
-
-                    Button {
-                        create()
-                    } label: {
-                        Text("Add to palette")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(
-                                trimmed.isEmpty
-                                    ? Color.primary.opacity(
-                                        HappeningCreatorActionAppearance.disabledForegroundOpacity
-                                    )
-                                    : Color.white
-                            )
-                            .padding(.horizontal, 16)
-                            .frame(minHeight: 44)
-                            .background(
-                                trimmed.isEmpty
-                                    ? Color.primary.opacity(
-                                        effectiveColorSchemeContrast == .increased ? 0.18 : 0.10
-                                    )
-                                    : Color.accentColor,
-                                in: Capsule()
-                            )
-                            .overlay {
-                                Capsule().strokeBorder(
-                                    Color.primary.opacity(
-                                        trimmed.isEmpty
-                                            ? effectiveColorSchemeContrast == .increased
-                                                ? HappeningCreatorActionAppearance.increasedContrastStrokeOpacity
-                                                : 0.24
-                                            : 0
-                                    ),
-                                    lineWidth: effectiveColorSchemeContrast == .increased ? 1.5 : 1
-                                )
-                            }
+                Group {
+                    if usesExpandedActionLayout {
+                        VStack(spacing: 10) {
+                            cancelAction
+                            addAction
+                        }
+                    } else {
+                        HStack {
+                            cancelAction
+                            Spacer()
+                            addAction
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .disabled(trimmed.isEmpty)
                 }
                 .accessibilitySortPriority(
                     HappeningPanelAccessibilityOrder.priority(
@@ -123,7 +98,7 @@ struct HappeningCreatorPanel: View {
                 }
         )
         .accessibilityIdentifier("happening_creator_scroll")
-        .frame(maxHeight: 320)
+        .frame(maxHeight: usesExpandedActionLayout ? 380 : 320)
         .frame(maxWidth: 440, alignment: .leading)
         .background(
             Color(uiColor: .secondarySystemBackground),
@@ -140,6 +115,60 @@ struct HappeningCreatorPanel: View {
     private func create() {
         guard !trimmed.isEmpty else { return }
         onCreate(trimmed)
+    }
+
+    private var cancelAction: some View {
+        Button(action: onCancel) {
+            Text("Cancel")
+                .frame(
+                    maxWidth: usesExpandedActionLayout ? .infinity : nil,
+                    minHeight: usesExpandedActionLayout ? 44 : nil
+                )
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private var addAction: some View {
+        Button {
+            create()
+        } label: {
+            Text("Add to palette")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(
+                    trimmed.isEmpty
+                        ? Color.primary.opacity(
+                            HappeningCreatorActionAppearance.disabledForegroundOpacity
+                        )
+                        : Color.white
+                )
+                .padding(.horizontal, 16)
+                .frame(
+                    maxWidth: usesExpandedActionLayout ? .infinity : nil,
+                    minHeight: 44
+                )
+                .background(
+                    trimmed.isEmpty
+                        ? Color.primary.opacity(
+                            effectiveColorSchemeContrast == .increased ? 0.18 : 0.10
+                        )
+                        : Color.accentColor,
+                    in: Capsule()
+                )
+                .overlay {
+                    Capsule().strokeBorder(
+                        Color.primary.opacity(
+                            trimmed.isEmpty
+                                ? effectiveColorSchemeContrast == .increased
+                                    ? HappeningCreatorActionAppearance.increasedContrastStrokeOpacity
+                                    : 0.24
+                                : 0
+                        ),
+                        lineWidth: effectiveColorSchemeContrast == .increased ? 1.5 : 1
+                    )
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(trimmed.isEmpty)
     }
 }
 
