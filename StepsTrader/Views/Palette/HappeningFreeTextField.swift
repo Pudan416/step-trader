@@ -1,5 +1,10 @@
 import SwiftUI
 
+enum HappeningCreatorActionAppearance {
+    static let disabledForegroundOpacity = 1.0
+    static let increasedContrastStrokeOpacity = 0.68
+}
+
 /// Catalog-only creator used by the palette's add control.
 ///
 /// The parent owns catalog persistence and selection replacement; this panel
@@ -9,65 +14,98 @@ struct HappeningCreatorPanel: View {
     let onCancel: () -> Void
 
     @State private var text = ""
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     private var trimmed: String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Add a happening")
-                    .font(.title3.weight(.semibold))
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityHint("This will replace one of the 10 shown happenings.")
-                    .accessibilitySortPriority(
-                        HappeningPanelAccessibilityOrder.priority(
-                            for: .heading,
-                            in: HappeningPanelAccessibilityOrder.creator
-                        )
-                    )
-
-                Text("This will replace one of the 10 shown happenings.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-
-                HappeningFreeTextField(text: $text) { submittedTitle in
-                    onCreate(submittedTitle)
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Add a happening")
+                .font(.title3.weight(.semibold))
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityHint("This will replace one of the 10 shown happenings.")
                 .accessibilitySortPriority(
                     HappeningPanelAccessibilityOrder.priority(
-                        for: .input,
+                        for: .heading,
                         in: HappeningPanelAccessibilityOrder.creator
                     )
                 )
 
-                HStack {
-                    Button("Cancel", action: onCancel)
-                        .buttonStyle(.bordered)
+            Text("This will replace one of the 10 shown happenings.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityHidden(true)
 
-                    Spacer()
-
-                    Button("Add to palette") {
-                        create()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(trimmed.isEmpty)
-                }
-                .accessibilitySortPriority(
-                    HappeningPanelAccessibilityOrder.priority(
-                        for: .actions,
-                        in: HappeningPanelAccessibilityOrder.creator
-                    )
-                )
+            HappeningFreeTextField(text: $text) { submittedTitle in
+                onCreate(submittedTitle)
             }
-            .padding(20)
+            .accessibilitySortPriority(
+                HappeningPanelAccessibilityOrder.priority(
+                    for: .input,
+                    in: HappeningPanelAccessibilityOrder.creator
+                )
+            )
+
+            HStack {
+                Button("Cancel", action: onCancel)
+                    .buttonStyle(.bordered)
+
+                Spacer()
+
+                Button {
+                    create()
+                } label: {
+                    Text("Add to palette")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(
+                            trimmed.isEmpty
+                                ? Color.primary.opacity(
+                                    HappeningCreatorActionAppearance.disabledForegroundOpacity
+                                )
+                                : Color.white
+                        )
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 44)
+                        .background(
+                            trimmed.isEmpty
+                                ? Color.primary.opacity(
+                                    colorSchemeContrast == .increased ? 0.18 : 0.10
+                                )
+                                : Color.accentColor,
+                            in: Capsule()
+                        )
+                        .overlay {
+                            Capsule().strokeBorder(
+                                Color.primary.opacity(
+                                    trimmed.isEmpty
+                                        ? colorSchemeContrast == .increased
+                                            ? HappeningCreatorActionAppearance.increasedContrastStrokeOpacity
+                                            : 0.24
+                                        : 0
+                                ),
+                                lineWidth: colorSchemeContrast == .increased ? 1.5 : 1
+                            )
+                        }
+                }
+                .buttonStyle(.plain)
+                .disabled(trimmed.isEmpty)
+            }
+            .accessibilitySortPriority(
+                HappeningPanelAccessibilityOrder.priority(
+                    for: .actions,
+                    in: HappeningPanelAccessibilityOrder.creator
+                )
+            )
         }
-        .scrollDismissesKeyboard(.interactively)
-        .frame(maxHeight: 320)
+        .padding(20)
         .frame(maxWidth: 440, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(
+            Color(uiColor: .secondarySystemBackground),
+            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+        )
         .overlay {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(.white.opacity(0.18), lineWidth: 0.75)

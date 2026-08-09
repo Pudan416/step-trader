@@ -62,6 +62,7 @@ struct GalleryView: View {
     @Binding var paletteRoute: CanvasPaletteRouteState
     let isCanvasSelected: Bool
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
+    var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
@@ -91,6 +92,7 @@ struct GalleryView: View {
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
 
     @State private var safeAreaTop: CGFloat = 0
     @State private var safeAreaBottom: CGFloat = 0
@@ -194,6 +196,7 @@ struct GalleryView: View {
                 onPick: handlePalettePick,
                 onCreate: handlePaletteCreation,
                 onSaveSelection: handlePaletteSelectionSave,
+                onPanelPresentationChange: onPalettePanelPresentationChange,
                 onDismiss: closeHappeningPalette,
                 dayKey: todayKey
             )
@@ -918,6 +921,12 @@ struct GalleryView: View {
 
     private func loadCanvas() {
         let dayKey = AppModel.dayKey(for: Date.now)
+        if usesTask7UITestFixture {
+            dayCanvas = DayCanvas(dayKey: dayKey)
+            canvasLoaded = true
+            syncCanvasWithModel()
+            return
+        }
         let local = CanvasStorageService.shared.loadCanvas(for: dayKey)
         if let local {
             dayCanvas = local

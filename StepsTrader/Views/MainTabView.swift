@@ -18,6 +18,7 @@ struct MainTabView: View {
     @State private var ticketDeliveryToken = UUID()
     var theme: AppTheme = .night
     @State private var isHappeningPaletteVisible = false
+    @State private var isHappeningPalettePanelVisible = false
     @State private var paletteRoute = CanvasPaletteRouteState()
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
@@ -80,6 +81,7 @@ struct MainTabView: View {
     private var hidesSurroundingChromeForPalette: Bool {
         HappeningPaletteChromeLayout.hidesSurroundingChrome(
             isPalettePresented: isHappeningPaletteVisible,
+            isPanelPresented: isHappeningPalettePanelVisible,
             dynamicTypeSize: dynamicTypeSize
         )
     }
@@ -113,6 +115,12 @@ struct MainTabView: View {
                             isCanvasSelected: selection == Tab.canvas.rawValue,
                             onPalettePresentationChange: { isPresented in
                                 isHappeningPaletteVisible = isPresented
+                                if !isPresented {
+                                    isHappeningPalettePanelVisible = false
+                                }
+                            },
+                            onPalettePanelPresentationChange: { isPresented in
+                                isHappeningPalettePanelVisible = isPresented
                             }
                         )
                             .toolbarBackground(.hidden, for: .navigationBar)

@@ -38,27 +38,28 @@ enum HappeningPaletteChromeLayout {
 
     static func panelTopInset(
         topCardHeight: CGFloat,
-        dynamicTypeSize: DynamicTypeSize
+        hidesSurroundingChrome: Bool
     ) -> CGFloat {
-        dynamicTypeSize.isAccessibilitySize
+        hidesSurroundingChrome
             ? compactInset
             : max(compactInset, topCardHeight + chromeSpacing)
     }
 
     static func panelBottomInset(
         tabBarHeight: CGFloat,
-        dynamicTypeSize: DynamicTypeSize
+        hidesSurroundingChrome: Bool
     ) -> CGFloat {
-        dynamicTypeSize.isAccessibilitySize
+        hidesSurroundingChrome
             ? compactInset
             : max(compactInset, tabBarHeight + chromeSpacing)
     }
 
     static func hidesSurroundingChrome(
         isPalettePresented: Bool,
+        isPanelPresented: Bool,
         dynamicTypeSize: DynamicTypeSize
     ) -> Bool {
-        isPalettePresented && dynamicTypeSize.isAccessibilitySize
+        isPalettePresented && (isPanelPresented || dynamicTypeSize.isAccessibilitySize)
     }
 
     static func showsCanvasControls(isPalettePresented: Bool) -> Bool {
@@ -74,6 +75,7 @@ struct HappeningPaletteView: View {
     let onPick: (Happening, CGPoint) -> Bool
     let onCreate: (String) -> Happening?
     let onSaveSelection: ([String]) -> Bool
+    let onPanelPresentationChange: (Bool) -> Void
     let onDismiss: () -> Void
     let dayKey: String
 
@@ -98,6 +100,7 @@ struct HappeningPaletteView: View {
         onPick: @escaping (Happening, CGPoint) -> Bool,
         onCreate: @escaping (String) -> Happening?,
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
+        onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
         onDismiss: @escaping () -> Void,
         dayKey: String
     ) {
@@ -107,6 +110,7 @@ struct HappeningPaletteView: View {
         self.onPick = onPick
         self.onCreate = onCreate
         self.onSaveSelection = onSaveSelection
+        self.onPanelPresentationChange = onPanelPresentationChange
         self.onDismiss = onDismiss
         self.dayKey = dayKey
         _presentation = State(
@@ -117,15 +121,20 @@ struct HappeningPaletteView: View {
     var body: some View {
         GeometryReader { proxy in
             let layout = presentation.layout(in: proxy.size, safeInsets: proxy.safeAreaInsets)
+            let hidesSurroundingChrome = HappeningPaletteChromeLayout.hidesSurroundingChrome(
+                isPalettePresented: true,
+                isPanelPresented: activePanel != nil,
+                dynamicTypeSize: dynamicTypeSize
+            )
             let panelTopInset = proxy.safeAreaInsets.top
                 + HappeningPaletteChromeLayout.panelTopInset(
                     topCardHeight: topCardHeight,
-                    dynamicTypeSize: dynamicTypeSize
+                    hidesSurroundingChrome: hidesSurroundingChrome
                 )
             let panelBottomInset = proxy.safeAreaInsets.bottom
                 + HappeningPaletteChromeLayout.panelBottomInset(
                     tabBarHeight: tabBarHeight,
-                    dynamicTypeSize: dynamicTypeSize
+                    hidesSurroundingChrome: hidesSurroundingChrome
                 )
             let panelHeight = max(1, proxy.size.height - panelTopInset - panelBottomInset)
 
@@ -145,6 +154,13 @@ struct HappeningPaletteView: View {
                     onPick: onPick
                 )
                 .accessibilityHidden(activePanel != nil)
+
+                if let completionBounds = layout.completionBounds {
+                    HappeningCompletionIsland()
+                        .frame(width: completionBounds.width, height: completionBounds.height)
+                        .position(x: completionBounds.midX, y: completionBounds.midY)
+                        .accessibilityHidden(activePanel != nil)
+                }
 
                 Button {
                     activePanel = nil
@@ -183,7 +199,7 @@ struct HappeningPaletteView: View {
                 .accessibilityHidden(activePanel != nil)
 
                 if let activePanel {
-                    Color.black.opacity(0.28)
+                    Color(uiColor: .systemBackground)
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .onTapGesture {}
@@ -205,6 +221,9 @@ struct HappeningPaletteView: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
             .background(Color.clear)
         }
+        .onChange(of: activePanel) { _, panel in
+            onPanelPresentationChange(panel != nil)
+        }
         .onChange(of: selectedIDs) {
             presentation.reset(with: happenings)
         }
@@ -212,6 +231,7 @@ struct HappeningPaletteView: View {
             presentation.reset(with: happenings)
         }
         .onDisappear {
+            onPanelPresentationChange(false)
             highlightTask?.cancel()
             highlightTask = nil
         }
@@ -268,6 +288,53 @@ struct HappeningPaletteView: View {
         .buttonStyle(.plain)
         .position(anchor)
         .accessibilityLabel(Text(label))
+    }
+}
+
+private struct HappeningCompletionIsland: View {
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            let sources = [
+                ProceduralShapeGenerator.BlobSource(
+                    center: CGPoint(x: size.width * 0.36, y: size.height * 0.52),
+                    radius: size.height * 0.47
+                ),
+                ProceduralShapeGenerator.BlobSource(
+                    center: CGPoint(x: size.width * 0.66, y: size.height * 0.46),
+                    radius: size.height * 0.40
+                ),
+            ]
+            let contour = ProceduralShapeGenerator.metaballPath(
+                blobs: sources,
+                in: CGRect(origin: .zero, size: size),
+                gridResolution: 42
+            )
+
+            ZStack {
+                Canvas { context, _ in
+                    context.fill(
+                        contour,
+                        with: .linearGradient(
+                            Gradient(colors: [
+                                Color(hex: "#E098A0").opacity(0.82),
+                                Color(hex: "#D8AD6A").opacity(0.78),
+                            ]),
+                            startPoint: .zero,
+                            endPoint: CGPoint(x: size.width, y: size.height)
+                        )
+                    )
+                    context.stroke(contour, with: .color(.white.opacity(0.18)), lineWidth: 0.75)
+                }
+
+                Text("All added for today")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.black.opacity(0.82))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 22)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

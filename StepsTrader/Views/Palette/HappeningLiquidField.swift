@@ -136,11 +136,13 @@ struct HappeningLiquidLabelTreatment: Equatable {
 
     static let primaryWeight = 0.72
     static let accentWeight = 0.28
+    static let fieldZoneOpacity = 0.74
 
     let red: Double
     let green: Double
     let blue: Double
     let backingLuminance: Double
+    let fieldZoneLuminance: Double
     let foreground: Foreground
 
     init(primaryHex: String, accentHex: String) {
@@ -150,9 +152,14 @@ struct HappeningLiquidLabelTreatment: Equatable {
         green = Self.primaryWeight * primary.green + Self.accentWeight * accent.green
         blue = Self.primaryWeight * primary.blue + Self.accentWeight * accent.blue
         backingLuminance = Self.relativeLuminance(red: red, green: green, blue: blue)
+        fieldZoneLuminance = Self.relativeLuminance(
+            red: Self.fieldZoneOpacity * red + (1 - Self.fieldZoneOpacity) * primary.red,
+            green: Self.fieldZoneOpacity * green + (1 - Self.fieldZoneOpacity) * primary.green,
+            blue: Self.fieldZoneOpacity * blue + (1 - Self.fieldZoneOpacity) * primary.blue
+        )
 
-        let blackContrast = (backingLuminance + 0.05) / 0.05
-        let whiteContrast = 1.05 / (backingLuminance + 0.05)
+        let blackContrast = (fieldZoneLuminance + 0.05) / 0.05
+        let whiteContrast = 1.05 / (fieldZoneLuminance + 0.05)
         foreground = blackContrast >= whiteContrast ? .black : .white
     }
 
@@ -160,12 +167,25 @@ struct HappeningLiquidLabelTreatment: Equatable {
         Color(.sRGB, red: red, green: green, blue: blue, opacity: 1)
     }
 
+    var fieldZoneColor: Color { backingColor }
+
+    var fieldZoneOpacity: Double { Self.fieldZoneOpacity }
+
+    /// The radial zone uses the same local two-color mix as the liquid source.
+    /// Its soft edge is translucent; this center value models the pixels under
+    /// the glyphs instead of the removed opaque ellipse.
+    var fieldZoneContrastRatio: Double {
+        let textLuminance = foreground == .black ? 0.0 : 1.0
+        return (max(fieldZoneLuminance, textLuminance) + 0.05)
+            / (min(fieldZoneLuminance, textLuminance) + 0.05)
+    }
+
     var foregroundColor: Color {
         foreground == .black ? .black : .white
     }
 
     static func inscribedTextSize(in labelSize: CGSize) -> CGSize {
-        CGSize(width: labelSize.width * 0.72, height: labelSize.height * 0.68)
+        CGSize(width: labelSize.width * 0.86, height: labelSize.height * 0.80)
     }
 
     static func relativeLuminance(ofHex hex: String) -> Double {
@@ -197,8 +217,9 @@ struct HappeningLiquidLabelTreatment: Equatable {
 }
 
 enum HappeningLiquidLabelTypography {
-    static let font = Font.system(.footnote, design: .rounded, weight: .semibold)
-    static let maximumDynamicTypeSize: DynamicTypeSize = .xxxLarge
+    static let pointSize: CGFloat = 14
+    static let font = Font.system(size: pointSize, weight: .semibold, design: .rounded)
+    static let maximumDynamicTypeSize: DynamicTypeSize = .large
 
     static func maximumLines(for dynamicTypeSize: DynamicTypeSize) -> Int {
         3
@@ -256,6 +277,7 @@ struct HappeningLiquidField: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     @State private var transition = HappeningLiquidTransitionState()
     @State private var selectedScale: CGFloat = 1
@@ -444,14 +466,33 @@ struct HappeningLiquidField: View {
             beginRemoval(happening, source: source)
         } label: {
             ZStack {
-                Ellipse()
-                    .fill(style.labelTreatment.backingColor)
-                    .overlay {
-                        Ellipse().stroke(
-                            .white.opacity(isHighlighted ? 0.95 : 0.14),
-                            lineWidth: isHighlighted ? 2 : 0.5
-                        )
-                    }
+                RadialGradient(
+                    stops: [
+                        .init(
+                            color: style.labelTreatment.fieldZoneColor.opacity(
+                                isHighlighted
+                                    ? 0.94
+                                    : colorSchemeContrast == .increased
+                                        ? 0.86
+                                        : style.labelTreatment.fieldZoneOpacity
+                            ),
+                            location: 0
+                        ),
+                        .init(
+                            color: style.labelTreatment.fieldZoneColor.opacity(
+                                colorSchemeContrast == .increased ? 0.52 : 0.38
+                            ),
+                            location: 0.48
+                        ),
+                        .init(color: .clear, location: 1),
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: max(frame.width, frame.height) * 0.68
+                )
+                .frame(width: frame.width * 1.28, height: frame.height * 1.28)
+                .blur(radius: isHighlighted ? 2 : 4)
+                .allowsHitTesting(false)
 
                 Text(happening.localizedTitle())
                     .font(HappeningLiquidLabelTypography.font)
@@ -461,10 +502,14 @@ struct HappeningLiquidField: View {
                     .lineLimit(
                         HappeningLiquidLabelTypography.maximumLines(for: dynamicTypeSize)
                     )
-                    .minimumScaleFactor(0.78)
-                    // This rectangle is inscribed in the opaque ellipse, so
-                    // every rendered glyph has a known contrast backing.
-                    .frame(width: textSize.width, height: textSize.height)
+                    .minimumScaleFactor(0.84)
+                    .frame(width: textSize.width)
+                    .shadow(
+                        color: style.labelTreatment.foreground == .black
+                            ? .white.opacity(colorSchemeContrast == .increased ? 0.38 : 0.22)
+                            : .black.opacity(colorSchemeContrast == .increased ? 0.64 : 0.42),
+                        radius: colorSchemeContrast == .increased ? 2.5 : 1.5
+                    )
             }
             .frame(width: frame.width, height: frame.height)
             .contentShape(Rectangle())

@@ -23,6 +23,8 @@ enum HappeningLiquidLayout {
         let contourBounds: CGRect
         /// Centre point for the attached three-control dock.
         let dockAnchor: CGPoint
+        /// The intentional residual island shown after the final happening is used.
+        let completionBounds: CGRect?
     }
 
     private struct UnitPoint {
@@ -53,21 +55,38 @@ enum HappeningLiquidLayout {
     static func layout(count: Int, in size: CGSize, safeInsets: EdgeInsets) -> Layout {
         let safeBounds = safeBounds(in: size, safeInsets: safeInsets)
         guard !safeBounds.isEmpty else {
-            return Layout(sources: [], labelFrames: [], contourBounds: .zero, dockAnchor: .zero)
+            return Layout(
+                sources: [],
+                labelFrames: [],
+                contourBounds: .zero,
+                dockAnchor: .zero,
+                completionBounds: nil
+            )
         }
 
         let itemCount = min(max(count, 0), templates.count - 1)
         guard itemCount > 0 else {
-            let bottomClearance = min(120, safeBounds.height * 0.25)
-            let preferredY = safeBounds.midY + min(96, safeBounds.height * 0.15)
+            let completionSize = CGSize(
+                width: min(216, safeBounds.width - edgeClearance * 2),
+                height: 92
+            )
+            let preferredCenterY = safeBounds.midY + min(44, safeBounds.height * 0.07)
+            let maximumCenterY = safeBounds.maxY - 120 - dockTouchDistance - completionSize.height / 2
+            let completionBounds = CGRect(
+                x: safeBounds.midX - completionSize.width / 2,
+                y: min(preferredCenterY, maximumCenterY) - completionSize.height / 2,
+                width: completionSize.width,
+                height: completionSize.height
+            )
             return Layout(
                 sources: [],
                 labelFrames: [],
                 contourBounds: .zero,
                 dockAnchor: CGPoint(
                     x: safeBounds.midX,
-                    y: min(preferredY, safeBounds.maxY - bottomClearance)
-                )
+                    y: completionBounds.maxY + dockTouchDistance
+                ),
+                completionBounds: completionBounds
             )
         }
 
@@ -128,7 +147,8 @@ enum HappeningLiquidLayout {
             sources: sources,
             labelFrames: labelFrames,
             contourBounds: contourBounds,
-            dockAnchor: CGPoint(x: contourBounds.midX, y: contourBounds.maxY + dockTouchDistance)
+            dockAnchor: CGPoint(x: contourBounds.midX, y: contourBounds.maxY + dockTouchDistance),
+            completionBounds: nil
         )
     }
 

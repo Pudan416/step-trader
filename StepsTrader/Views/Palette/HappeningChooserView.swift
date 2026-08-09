@@ -54,8 +54,8 @@ struct HappeningChooserView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text("Choose happenings")
                     .font(.title3.weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
@@ -91,47 +91,65 @@ struct HappeningChooserView: View {
                             in: HappeningPanelAccessibilityOrder.chooser
                         )
                     )
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 14)
 
+            Divider()
+
+            ScrollView {
                 LazyVStack(spacing: 2) {
                     ForEach(filteredCatalog) { happening in
                         chooserRow(for: happening)
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
                 .accessibilitySortPriority(
                     HappeningPanelAccessibilityOrder.priority(
                         for: .rows,
                         in: HappeningPanelAccessibilityOrder.chooser
                     )
                 )
-
-                HStack {
-                    Button("Cancel") {
-                        draft.cancel()
-                        onCancel()
-                    }
-                    .buttonStyle(.bordered)
-
-                    Spacer()
-
-                    Button("Done") {
-                        onSave(draft.ids)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!draft.canSave)
-                }
-                .accessibilitySortPriority(
-                    HappeningPanelAccessibilityOrder.priority(
-                        for: .actions,
-                        in: HappeningPanelAccessibilityOrder.chooser
-                    )
-                )
             }
-            .padding(20)
+            .scrollIndicators(.visible)
+
+            Divider()
+
+            HStack {
+                Button("Cancel") {
+                    draft.cancel()
+                    onCancel()
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+
+                Button("Done") {
+                    onSave(draft.ids)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!draft.canSave)
+            }
+            .frame(minHeight: 44)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(Color(uiColor: .secondarySystemBackground))
+            .accessibilitySortPriority(
+                HappeningPanelAccessibilityOrder.priority(
+                    for: .actions,
+                    in: HappeningPanelAccessibilityOrder.chooser
+                )
+            )
         }
-        .scrollIndicators(.visible)
         .frame(maxHeight: 560)
         .frame(maxWidth: 440, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(
+            Color(uiColor: .secondarySystemBackground),
+            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(.white.opacity(0.18), lineWidth: 0.75)

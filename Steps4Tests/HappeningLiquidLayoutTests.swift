@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import XCTest
 @testable import Steps4
 
@@ -224,7 +225,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
         }
     }
 
-    func testTenItemPhoneLayoutReservesReadableThreeLineLabelLenses() {
+    func testTenItemPhoneLayoutReservesReadableThreeLineLabelZones() {
         let layout = HappeningLiquidLayout.layout(
             count: 10, in: size, safeInsets: safeInsets
         )
@@ -290,7 +291,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
         XCTAssertTrue(eight.contourBounds.width < size.width)
     }
 
-    func testEmptyFieldHasNoSourcesAndAValidCloseDock() {
+    func testEmptyFieldKeepsAResidualCompletionIslandAttachedToTheDock() {
         let layout = HappeningLiquidLayout.layout(count: 0, in: size, safeInsets: safeInsets)
         let safeBounds = CGRect(
             x: safeInsets.leading,
@@ -302,6 +303,10 @@ final class HappeningLiquidLayoutTests: XCTestCase {
         XCTAssertTrue(layout.sources.isEmpty)
         XCTAssertTrue(layout.labelFrames.isEmpty)
         XCTAssertTrue(layout.contourBounds.isEmpty)
+        let completionBounds = try! XCTUnwrap(layout.completionBounds)
+        XCTAssertTrue(safeBounds.contains(completionBounds))
+        XCTAssertGreaterThan(layout.dockAnchor.y, completionBounds.maxY)
+        XCTAssertLessThanOrEqual(layout.dockAnchor.y - completionBounds.maxY, 32)
         XCTAssertTrue(safeBounds.contains(layout.dockAnchor))
         XCTAssertGreaterThan(layout.dockAnchor.y, safeBounds.midY)
         XCTAssertLessThanOrEqual(
@@ -478,22 +483,24 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         XCTAssertEqual(treatment.backingLuminance, 0.237553298, accuracy: 0.000_000_1)
     }
 
-    func testEveryRenderedWarmBlendHasFourPointFiveContrastOnItsOpaqueLens() {
+    func testEveryRenderedWarmBlendHasFourPointFiveContrastInItsTranslucentFieldZone() {
         for slot in 0..<HappeningLiquidField.warmPaletteIndices.count {
             let treatment = HappeningLiquidField.labelTreatment(forSlot: slot)
-            let textLuminance = treatment.foreground == .black ? 0.0 : 1.0
-            let ratio = (max(treatment.backingLuminance, textLuminance) + 0.05)
-                / (min(treatment.backingLuminance, textLuminance) + 0.05)
 
             XCTAssertGreaterThanOrEqual(
-                ratio,
+                treatment.fieldZoneContrastRatio,
                 4.5,
-                "slot \(slot) has insufficient rendered label contrast (\(ratio))"
+                "slot \(slot) has insufficient rendered field-zone contrast (\(treatment.fieldZoneContrastRatio))"
+            )
+            XCTAssertLessThan(
+                treatment.fieldZoneOpacity,
+                1,
+                "slot \(slot) must blend into the shared field instead of becoming an opaque control"
             )
         }
     }
 
-    func testTextBoundsAreInsideTheGuaranteedOpaqueEllipseForEveryLayout() {
+    func testTextBoundsUseMostOfTheFieldZoneWithoutRecreatingAButtonLens() {
         let size = CGSize(width: 402, height: 874)
         let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
 
@@ -507,22 +514,53 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
                 let textSize = HappeningLiquidLabelTreatment.inscribedTextSize(
                     in: labelFrame.size
                 )
-                let normalizedCornerDistance = pow(textSize.width / labelFrame.width, 2)
-                    + pow(textSize.height / labelFrame.height, 2)
-
-                XCTAssertLessThanOrEqual(
-                    normalizedCornerDistance,
-                    1,
-                    "count \(count) text corners escape the opaque label lens"
-                )
+                XCTAssertGreaterThanOrEqual(textSize.width / labelFrame.width, 0.82)
+                XCTAssertGreaterThanOrEqual(textSize.height / labelFrame.height, 0.76)
             }
         }
     }
 
-    func testSemanticLabelTypographyKeepsThreeLinesAndCapsVisualScaling() {
+    func testSemanticLabelTypographyKeepsThreeLinesWithoutAccessibilityTruncation() {
         XCTAssertEqual(HappeningLiquidLabelTypography.maximumLines(for: .large), 3)
         XCTAssertEqual(HappeningLiquidLabelTypography.maximumLines(for: .accessibility1), 3)
-        XCTAssertEqual(HappeningLiquidLabelTypography.maximumDynamicTypeSize, .xxxLarge)
+        XCTAssertEqual(HappeningLiquidLabelTypography.maximumDynamicTypeSize, .large)
+
+        let layout = HappeningLiquidLayout.layout(
+            count: 10,
+            in: CGSize(width: 402, height: 874),
+            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
+        )
+        let baseFont = UIFont.systemFont(
+            ofSize: HappeningLiquidLabelTypography.pointSize,
+            weight: .semibold
+        )
+        let roundedDescriptor = baseFont.fontDescriptor.withDesign(.rounded)
+            ?? baseFont.fontDescriptor
+        let font = UIFont(
+            descriptor: roundedDescriptor,
+            size: HappeningLiquidLabelTypography.pointSize
+        )
+
+        for (happening, frame) in zip(HappeningDefaults.builtIns, layout.labelFrames) {
+            let textSize = HappeningLiquidLabelTreatment.inscribedTextSize(in: frame.size)
+            let measured = (happening.localizedTitle() as NSString).boundingRect(
+                with: CGSize(width: textSize.width, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: [.font: font],
+                context: nil
+            )
+
+            XCTAssertLessThanOrEqual(
+                ceil(measured.height),
+                textSize.height,
+                "\(happening.localizedTitle()) must fit without truncation"
+            )
+            XCTAssertLessThanOrEqual(
+                ceil(measured.height / font.lineHeight),
+                3,
+                "\(happening.localizedTitle()) must fit within three lines"
+            )
+        }
     }
 }
 
@@ -534,20 +572,27 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(HappeningPanelTextFieldAppearance.strokeOpacity, 0.18)
     }
 
-    func testStandardTypeReservesMeasuredCardAndTabBarAroundPanels() {
+    func testOpenPanelHidesChromeAndUsesCompactInsetsAtStandardType() {
+        XCTAssertTrue(
+            HappeningPaletteChromeLayout.hidesSurroundingChrome(
+                isPalettePresented: true,
+                isPanelPresented: true,
+                dynamicTypeSize: .large
+            )
+        )
         XCTAssertEqual(
             HappeningPaletteChromeLayout.panelTopInset(
                 topCardHeight: 176,
-                dynamicTypeSize: .large
+                hidesSurroundingChrome: true
             ),
-            188
+            20
         )
         XCTAssertEqual(
             HappeningPaletteChromeLayout.panelBottomInset(
                 tabBarHeight: 82,
-                dynamicTypeSize: .large
+                hidesSurroundingChrome: true
             ),
-            94
+            20
         )
     }
 
@@ -555,22 +600,41 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
                 isPalettePresented: true,
+                isPanelPresented: false,
                 dynamicTypeSize: .accessibility2
             )
         )
         XCTAssertEqual(
             HappeningPaletteChromeLayout.panelTopInset(
                 topCardHeight: 220,
-                dynamicTypeSize: .accessibility2
+                hidesSurroundingChrome: true
             ),
             20
         )
         XCTAssertEqual(
             HappeningPaletteChromeLayout.panelBottomInset(
                 tabBarHeight: 150,
-                dynamicTypeSize: .accessibility2
+                hidesSurroundingChrome: true
             ),
             20
+        )
+    }
+
+    func testPaletteWithoutPanelKeepsStandardChrome() {
+        XCTAssertFalse(
+            HappeningPaletteChromeLayout.hidesSurroundingChrome(
+                isPalettePresented: true,
+                isPanelPresented: false,
+                dynamicTypeSize: .large
+            )
+        )
+    }
+
+    func testCreatorDisabledActionRemainsLegibleInIncreasedContrast() {
+        XCTAssertEqual(HappeningCreatorActionAppearance.disabledForegroundOpacity, 1)
+        XCTAssertGreaterThanOrEqual(
+            HappeningCreatorActionAppearance.increasedContrastStrokeOpacity,
+            0.6
         )
     }
 
