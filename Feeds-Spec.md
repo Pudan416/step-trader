@@ -159,32 +159,55 @@ Live Activity countdowns and it is wrong here: it counts wall-clock time, and
 this window is spent by usage. The Live Activity has to be updated on each
 per-minute tick instead.
 
-### Unresolved: can the monitor extension update the Live Activity?
+### Resolved: the monitor extension cannot update the Live Activity
 
 The ticks arrive in the `DeviceActivityMonitor` extension. The app is not
 running at that moment — the user is inside Instagram. So the update has to come
 from the extension.
 
-**Whether `Activity.update` works from a `DeviceActivityMonitor` extension is not
-established.** Apple documents that Live Activities can be updated from the
-background, but not that this specific extension may do it, and there are
-developer reports of `Activity.activities` arriving empty inside a widget
-extension — with the fix being to move the update into the app, which is not
-available to us here.
+**Answer: no.** Measured on a physical iPhone 15 Pro, iOS 26.6, 2026-08-09.
+The extension cannot even *see* the Live Activity, so updating it is moot.
 
-**Resolve this with a spike on a physical device before building the screen.**
-It is a yes/no that decides the shape of the feature, and it cannot be settled
-by reading.
+The production callback fired exactly as designed, and the probe inside it
+reported:
 
-If the answer is no, the fallback is a Live Activity that shows the window's
-size and a `staleDate`, refreshing only when the app next runs — degraded, but
-honest about what it knows. Do not ship a Live Activity that silently displays a
-stale number as if it were live.
+```
+eventDidReachThreshold: spikeUsageTick for activity spikeUsage
+spike[monitor:eventDidReachThreshold] visible=0 wanted=BBB557AF-… matched=false
+spike[monitor:eventDidReachThreshold] RESULT=no-activities-visible elapsed=0.00s
+```
 
-Frequency is a second risk: iOS throttles frequent updates against an
-undocumented budget. Sixty updates across an hour-long window is within reach of
-that. `NSSupportsLiveActivitiesFrequentUpdates` exists for this case and should
-be set, and the spike should confirm updates still land late in a long window.
+`Activity<…>.activities` returned an empty list inside the extension while the
+activity was demonstrably alive — visible in the Dynamic Island, its id stored in
+the shared defaults. This is the empty-`activities` failure this section
+anticipated, now confirmed for `DeviceActivityMonitor` and not merely for widget
+extensions.
+
+Two alternative readings are ruled out by the same line. `elapsed=0.00s` rules
+out the extension process being torn down mid-`await`: it never reached the
+update. `visible=0` alongside `matched=false` rules out a stale id: the list was
+empty, not mismatched.
+
+Not measured: whether `intervalDidStart` behaves differently. The retained log is
+capped at 30 entries and the relevant lines had rolled off. It runs in the same
+process under the same entitlement, so there is no reason to expect otherwise —
+but it is untested, and should not be claimed as tested.
+
+**Therefore the fallback applies.** The Live Activity shows the window's size and
+a `staleDate`, refreshing only when the app next runs — degraded, but honest
+about what it knows. Do not ship a Live Activity that silently displays a stale
+number as if it were live, and do not build a timer that assumes per-minute
+updates reach the Lock Screen.
+
+Frequency was the second risk: iOS throttles frequent updates against an
+undocumented budget, and sixty updates across an hour was within reach of it.
+**This is now moot** — the extension cannot update at all, so there is no update
+frequency to throttle. `NSSupportsLiveActivitiesFrequentUpdates` is set in
+`Steps4/Info.plist` and costs nothing, but it buys nothing either until updates
+have some path to originate from.
+
+The harness that produced this answer, and how to re-run it, is in
+`Feeds-Spike.md`.
 
 Deployment target is iOS 18, comfortably above ActivityKit's 16.1 requirement.
 
@@ -232,16 +255,19 @@ not how blocking works.
 - [ ] The timer does not move while the covered apps are unused — verified by
       leaving the phone idle with a window open and confirming nothing drains
 - [ ] The arc steps on tick boundaries and never runs backwards
-- [ ] A Live Activity appears on unlock and shows remaining time in the Dynamic Island
+- [ ] A Live Activity appears on unlock and shows the window's size in the Dynamic Island
+- [ ] The Live Activity carries a `staleDate` and visibly marks itself stale rather
+      than presenting an unrefreshed number as current
+- [ ] The Live Activity refreshes when the app next reaches the foreground
 - [ ] The Live Activity ends on expiry and on early close
 - [ ] Exceeding the DeviceActivity cap surfaces a user-facing error rather than
       leaving an app silently unblocked
 
-### Spike, before the timer is built
+### Spike — done, 2026-08-09
 
-- [ ] **On a physical device:** determine whether `Activity.update` succeeds from
-      inside the `DeviceActivityMonitor` extension. Record the answer here.
-      If it fails, the Live Activity degrades to the `staleDate` fallback and
-      that must be reflected in this spec before implementation starts.
-- [ ] Confirm per-minute updates still land in the final minutes of a 60-minute
-      window, with `NSSupportsLiveActivitiesFrequentUpdates` set
+- [x] **On a physical device:** does `Activity.update` succeed from inside the
+      `DeviceActivityMonitor` extension? **No.** The extension sees an empty
+      `Activity.activities` and never reaches the update. See the resolved
+      section above and `Feeds-Spike.md`.
+- [x] ~~Confirm per-minute updates still land in the final minutes of a 60-minute
+      window~~ — moot. There are no extension-originated updates to throttle.
