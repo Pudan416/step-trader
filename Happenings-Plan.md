@@ -22,6 +22,20 @@
 
 ---
 
+## Superseded: repeat additions
+
+**2026-08-09.** Everything below that argues for repeat additions describes the
+design as it stood while this plan was executed. The liquid-palette redesign
+reversed it: a happening can be added **once per custom day**, and leaves the
+cluster once used. `Happenings-Spec.md` and `Happenings-Brief.md` carry the
+current decision.
+
+The plan is kept as-is rather than rewritten — it is the record of what was
+built and why, including F5a below, which is still the reason
+`user_option_entries` was never touched.
+
+---
+
 ## Findings that change the brief
 
 These were verified against the code on 2026-08-08 and contradict or extend `Happenings-Brief.md`. Read them before starting; they are the difference between a 2-day job and a 2-week one.

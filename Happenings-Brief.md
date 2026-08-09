@@ -252,15 +252,17 @@ Sequence:
 Remove `category` from the row structs in `SupabaseSyncService+Entries` and
 `SupabaseSyncService+Selections`.
 
-### Repeat additions
+### Once per happening per day
 
-`user_option_entries` is keyed `PRIMARY KEY (user_id, day_key, option_id)` — one
-row per option per day. Correct for one-shot category selections, wrong now: the
-economy counts additions and everyday things repeat.
+**Reversed 2026-08-09** — this section originally asked for repeat additions.
+The palette redesign decided the other way: a used happening leaves the cluster,
+so it cannot also be tappable again. Each happening is addable at most once per
+custom day; `addHappening` returns nil for one already logged today.
 
-Make the primary key a surrogate `id uuid` and demote
-`(user_id, day_key, option_id)` to a plain index. The local `OptionEntry`
-already carries its own `id`, so client code is unaffected.
+`user_option_entries` is left alone, composite primary key and all. New clients
+write to `user_happening_additions` instead — surrogate `id uuid` key, no unique
+constraint on `(user_id, day_key, option_id)`. Dropping the old table's key would
+have broken the `on_conflict` upsert every deployed client performs.
 
 ### Onboarding compile fix
 
@@ -338,7 +340,7 @@ five-part 100-point formula.
 - [ ] `allowedCanvasShapes` cannot be emptied through the UI
 - [ ] A non-Pro user with Organic saved never spawns an Organic element, and the preference survives a Pro round-trip
 - [ ] **A `DayCanvas` fixture captured in the old format — with `category`, without `frozenShapeType` — decodes to the same `frozenShapeType` as before the change.** Use a real captured fixture, not a synthesized one. This is the guard on the only failure mode that is invisible in review.
-- [ ] The same happening added twice in one day produces two `user_option_entries` rows
+- [ ] Adding the same happening twice in one day is refused, and a used happening leaves the palette
 - [ ] A sync round-trip against nullable `category` decodes without falling back to `.body`
 - [ ] Project builds with zero references to `EnergyCategory` outside the migration path
 
