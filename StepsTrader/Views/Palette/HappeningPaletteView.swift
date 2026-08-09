@@ -133,15 +133,22 @@ struct HappeningPaletteView: View {
                 safeInsets: proxy.safeAreaInsets,
                 dynamicTypeSize: dynamicTypeSize
             )
-            // Line the dock up with the canvas `+` it sits on top of. The
-            // button reports its own position, so this never drifts from the
-            // tab-bar height and paddings that place it.
-            let layout = alignedToCanvasControls(computed, in: proxy)
             let hidesSurroundingChrome = HappeningPaletteChromeLayout.hidesSurroundingChrome(
                 isPalettePresented: true,
                 isPanelPresented: activePanel != nil,
                 dynamicTypeSize: dynamicTypeSize
             )
+            // Line the dock up with the canvas `+` it sits on top of — the
+            // button reports its own position, so this never drifts from the
+            // tab-bar height and paddings that place it.
+            //
+            // Only while that button is actually on screen. At accessibility
+            // type sizes the palette hides the surrounding chrome, so there is
+            // no `+` to line up with and the last reported position is stale;
+            // the computed anchor is the right one there.
+            let layout = hidesSurroundingChrome
+                ? computed
+                : alignedToCanvasControls(computed, in: proxy)
             let panelTopInset = proxy.safeAreaInsets.top
                 + HappeningPaletteChromeLayout.panelTopInset(
                     topCardHeight: topCardHeight,
