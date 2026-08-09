@@ -3,6 +3,35 @@ import UIKit
 import XCTest
 @testable import Steps4
 
+final class Task7UITestAccessibilityConfigurationTests: XCTestCase {
+
+    func testTask7FixtureReadsAccessibilityTypeAndIncreasedContrastFromLaunchEnvironment() {
+        let configuration = Task7UITestAccessibilityConfiguration(
+            arguments: ["ui-testing", "ui-testing-task7"],
+            environment: [
+                "TASK7_DYNAMIC_TYPE_SIZE": "accessibility1",
+                "TASK7_INCREASED_CONTRAST": "1",
+            ]
+        )
+
+        XCTAssertEqual(configuration.dynamicTypeSize, .accessibility1)
+        XCTAssertTrue(configuration.usesIncreasedContrast)
+    }
+
+    func testAccessibilityOverridesStayDisabledOutsideTheTask7Fixture() {
+        let configuration = Task7UITestAccessibilityConfiguration(
+            arguments: ["ui-testing"],
+            environment: [
+                "TASK7_DYNAMIC_TYPE_SIZE": "accessibility1",
+                "TASK7_INCREASED_CONTRAST": "1",
+            ]
+        )
+
+        XCTAssertNil(configuration.dynamicTypeSize)
+        XCTAssertFalse(configuration.usesIncreasedContrast)
+    }
+}
+
 @MainActor
 final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
     private var defaults: UserDefaults!
@@ -534,28 +563,54 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         }
     }
 
-    func testSemanticLabelTypographyKeepsThreeLinesWithoutAccessibilityTruncation() {
-        XCTAssertEqual(HappeningLiquidLabelTypography.maximumLines(for: .large), 3)
-        XCTAssertEqual(HappeningLiquidLabelTypography.maximumLines(for: .accessibility1), 3)
-        XCTAssertEqual(HappeningLiquidLabelTypography.maximumDynamicTypeSize, .large)
-
-        let layout = HappeningLiquidLayout.layout(
+    func testAccessibilityTypographyExpandsGeometryAndFitsEveryPrimaryLabel() {
+        let standardLayout = HappeningLiquidLayout.layout(
             count: 10,
             in: CGSize(width: 402, height: 874),
-            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
+            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            dynamicTypeSize: .large
         )
+        let accessibilityLayout = HappeningLiquidLayout.layout(
+            count: 10,
+            in: CGSize(width: 402, height: 874),
+            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            dynamicTypeSize: .accessibility1
+        )
+
         let baseFont = UIFont.systemFont(
-            ofSize: HappeningLiquidLabelTypography.pointSize,
+            ofSize: 14,
             weight: .semibold
         )
         let roundedDescriptor = baseFont.fontDescriptor.withDesign(.rounded)
             ?? baseFont.fontDescriptor
-        let font = UIFont(
+        let roundedBaseFont = UIFont(
             descriptor: roundedDescriptor,
-            size: HappeningLiquidLabelTypography.pointSize
+            size: 14
+        )
+        let font = UIFontMetrics(forTextStyle: .footnote).scaledFont(
+            for: roundedBaseFont,
+            compatibleWith: UITraitCollection(
+                preferredContentSizeCategory: .accessibilityMedium
+            )
         )
 
-        for (happening, frame) in zip(HappeningDefaults.builtIns, layout.labelFrames) {
+        XCTAssertGreaterThan(font.pointSize, 14)
+        XCTAssertGreaterThan(
+            accessibilityLayout.labelFrames[0].width,
+            standardLayout.labelFrames[0].width
+        )
+        XCTAssertGreaterThan(
+            accessibilityLayout.labelFrames[0].height,
+            standardLayout.labelFrames[0].height
+        )
+
+        for (index, frame) in accessibilityLayout.labelFrames.enumerated() {
+            for other in accessibilityLayout.labelFrames.dropFirst(index + 1) {
+                XCTAssertFalse(frame.intersects(other), "accessibility label frames must not overlap")
+            }
+        }
+
+        for (happening, frame) in zip(HappeningDefaults.builtIns, accessibilityLayout.labelFrames) {
             let textSize = HappeningLiquidLabelTreatment.inscribedTextSize(in: frame.size)
             let measured = (happening.localizedTitle() as NSString).boundingRect(
                 with: CGSize(width: textSize.width, height: .greatestFiniteMagnitude),
@@ -571,10 +626,34 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
             )
             XCTAssertLessThanOrEqual(
                 ceil(measured.height / font.lineHeight),
-                3,
-                "\(happening.localizedTitle()) must fit within three lines"
+                4,
+                "\(happening.localizedTitle()) must fit within four accessibility lines"
             )
         }
+    }
+
+    func testCompletionMessageGetsLargerGeometryAtAccessibilitySizes() {
+        let standard = HappeningLiquidLayout.layout(
+            count: 0,
+            in: CGSize(width: 402, height: 874),
+            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            dynamicTypeSize: .large
+        )
+        let accessibility = HappeningLiquidLayout.layout(
+            count: 0,
+            in: CGSize(width: 402, height: 874),
+            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            dynamicTypeSize: .accessibility1
+        )
+
+        XCTAssertGreaterThan(
+            try! XCTUnwrap(accessibility.completionBounds).width,
+            try! XCTUnwrap(standard.completionBounds).width
+        )
+        XCTAssertGreaterThan(
+            try! XCTUnwrap(accessibility.completionBounds).height,
+            try! XCTUnwrap(standard.completionBounds).height
+        )
     }
 }
 

@@ -120,7 +120,11 @@ struct HappeningPaletteView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let layout = presentation.layout(in: proxy.size, safeInsets: proxy.safeAreaInsets)
+            let layout = presentation.layout(
+                in: proxy.size,
+                safeInsets: proxy.safeAreaInsets,
+                dynamicTypeSize: dynamicTypeSize
+            )
             let hidesSurroundingChrome = HappeningPaletteChromeLayout.hidesSurroundingChrome(
                 isPalettePresented: true,
                 isPanelPresented: activePanel != nil,
@@ -350,6 +354,8 @@ struct HappeningCompletionIslandShape: Shape {
 }
 
 private struct HappeningCompletionIsland: View {
+    @ScaledMetric(relativeTo: .body) private var messagePointSize: CGFloat = 15
+
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
@@ -381,9 +387,10 @@ private struct HappeningCompletionIsland: View {
                 }
 
                 Text("All added for today")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(size: messagePointSize, weight: .semibold, design: .rounded))
                     .foregroundStyle(.black.opacity(0.82))
                     .multilineTextAlignment(.center)
+                    .lineLimit(3)
                     .padding(.horizontal, 22)
             }
         }

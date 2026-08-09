@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum RemovalPhase: Equatable {
     case idle
@@ -73,11 +74,16 @@ struct HappeningLiquidPresentationState: Equatable {
         presentedHappenings.count
     }
 
-    func layout(in size: CGSize, safeInsets: EdgeInsets) -> HappeningLiquidLayout.Layout {
+    func layout(
+        in size: CGSize,
+        safeInsets: EdgeInsets,
+        dynamicTypeSize: DynamicTypeSize = .large
+    ) -> HappeningLiquidLayout.Layout {
         HappeningLiquidLayout.layout(
             count: presentedCount,
             in: size,
-            safeInsets: safeInsets
+            safeInsets: safeInsets,
+            dynamicTypeSize: dynamicTypeSize
         )
     }
 
@@ -218,11 +224,45 @@ struct HappeningLiquidLabelTreatment: Equatable {
 
 enum HappeningLiquidLabelTypography {
     static let pointSize: CGFloat = 14
-    static let font = Font.system(size: pointSize, weight: .semibold, design: .rounded)
-    static let maximumDynamicTypeSize: DynamicTypeSize = .large
 
     static func maximumLines(for dynamicTypeSize: DynamicTypeSize) -> Int {
-        3
+        dynamicTypeSize > .large ? 4 : 3
+    }
+
+    static func minimumScaleFactor(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        dynamicTypeSize > .large ? 1 : 0.84
+    }
+
+    static func scaledUIFont(for dynamicTypeSize: DynamicTypeSize) -> UIFont {
+        let base = UIFont.systemFont(ofSize: pointSize, weight: .semibold)
+        let descriptor = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
+        let roundedBase = UIFont(descriptor: descriptor, size: pointSize)
+        return UIFontMetrics(forTextStyle: .footnote).scaledFont(
+            for: roundedBase,
+            compatibleWith: UITraitCollection(
+                preferredContentSizeCategory: contentSizeCategory(for: dynamicTypeSize)
+            )
+        )
+    }
+
+    private static func contentSizeCategory(
+        for dynamicTypeSize: DynamicTypeSize
+    ) -> UIContentSizeCategory {
+        switch dynamicTypeSize {
+        case .xSmall: .extraSmall
+        case .small: .small
+        case .medium: .medium
+        case .large: .large
+        case .xLarge: .extraLarge
+        case .xxLarge: .extraExtraLarge
+        case .xxxLarge: .extraExtraExtraLarge
+        case .accessibility1: .accessibilityMedium
+        case .accessibility2: .accessibilityLarge
+        case .accessibility3: .accessibilityExtraLarge
+        case .accessibility4: .accessibilityExtraExtraLarge
+        case .accessibility5: .accessibilityExtraExtraExtraLarge
+        @unknown default: .large
+        }
     }
 }
 
@@ -278,6 +318,8 @@ struct HappeningLiquidField: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @ScaledMetric(relativeTo: .footnote) private var labelPointSize: CGFloat =
+        HappeningLiquidLabelTypography.pointSize
 
     @State private var transition = HappeningLiquidTransitionState()
     @State private var selectedScale: CGFloat = 1
@@ -310,7 +352,11 @@ struct HappeningLiquidField: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let layout = presentation.layout(in: proxy.size, safeInsets: proxy.safeAreaInsets)
+            let layout = presentation.layout(
+                in: proxy.size,
+                safeInsets: proxy.safeAreaInsets,
+                dynamicTypeSize: dynamicTypeSize
+            )
             let styles = slotStyles
             let liquidHitRegion = HappeningLiquidContourHitRegion.path(
                 sources: layout.sources,
@@ -360,6 +406,12 @@ struct HappeningLiquidField: View {
 
     private var motionIsReduced: Bool {
         reduceMotionOverride ?? reduceMotion
+    }
+
+    private var effectiveColorSchemeContrast: ColorSchemeContrast {
+        Task7UITestAccessibilityConfiguration.current.usesIncreasedContrast
+            ? .increased
+            : colorSchemeContrast
     }
 
     private func style(
@@ -472,7 +524,7 @@ struct HappeningLiquidField: View {
                             color: style.labelTreatment.fieldZoneColor.opacity(
                                 isHighlighted
                                     ? 0.94
-                                    : colorSchemeContrast == .increased
+                                    : effectiveColorSchemeContrast == .increased
                                         ? 0.86
                                         : style.labelTreatment.fieldZoneOpacity
                             ),
@@ -480,7 +532,7 @@ struct HappeningLiquidField: View {
                         ),
                         .init(
                             color: style.labelTreatment.fieldZoneColor.opacity(
-                                colorSchemeContrast == .increased ? 0.52 : 0.38
+                                effectiveColorSchemeContrast == .increased ? 0.52 : 0.38
                             ),
                             location: 0.48
                         ),
@@ -495,20 +547,23 @@ struct HappeningLiquidField: View {
                 .allowsHitTesting(false)
 
                 Text(happening.localizedTitle())
-                    .font(HappeningLiquidLabelTypography.font)
-                    .dynamicTypeSize(...HappeningLiquidLabelTypography.maximumDynamicTypeSize)
+                    .font(.system(size: labelPointSize, weight: .semibold, design: .rounded))
                     .foregroundStyle(style.labelTreatment.foregroundColor)
                     .multilineTextAlignment(.center)
                     .lineLimit(
                         HappeningLiquidLabelTypography.maximumLines(for: dynamicTypeSize)
                     )
-                    .minimumScaleFactor(0.84)
-                    .frame(width: textSize.width)
+                    .minimumScaleFactor(
+                        HappeningLiquidLabelTypography.minimumScaleFactor(
+                            for: dynamicTypeSize
+                        )
+                    )
+                    .frame(width: textSize.width, height: textSize.height)
                     .shadow(
                         color: style.labelTreatment.foreground == .black
-                            ? .white.opacity(colorSchemeContrast == .increased ? 0.38 : 0.22)
-                            : .black.opacity(colorSchemeContrast == .increased ? 0.64 : 0.42),
-                        radius: colorSchemeContrast == .increased ? 2.5 : 1.5
+                            ? .white.opacity(effectiveColorSchemeContrast == .increased ? 0.38 : 0.22)
+                            : .black.opacity(effectiveColorSchemeContrast == .increased ? 0.64 : 0.42),
+                        radius: effectiveColorSchemeContrast == .increased ? 2.5 : 1.5
                     )
             }
             .frame(width: frame.width, height: frame.height)

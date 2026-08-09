@@ -14,93 +14,116 @@ struct HappeningCreatorPanel: View {
     let onCancel: () -> Void
 
     @State private var text = ""
+    @FocusState private var isTextFieldFocused: Bool
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     private var trimmed: String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var effectiveColorSchemeContrast: ColorSchemeContrast {
+        Task7UITestAccessibilityConfiguration.current.usesIncreasedContrast
+            ? .increased
+            : colorSchemeContrast
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Add a happening")
-                .font(.title3.weight(.semibold))
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityHint("This will replace one of the 10 shown happenings.")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Add a happening")
+                    .font(.title3.weight(.semibold))
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityHint("This will replace one of the 10 shown happenings.")
+                    .accessibilitySortPriority(
+                        HappeningPanelAccessibilityOrder.priority(
+                            for: .heading,
+                            in: HappeningPanelAccessibilityOrder.creator
+                        )
+                    )
+
+                Text("This will replace one of the 10 shown happenings.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityHidden(true)
+
+                HappeningFreeTextField(
+                    text: $text,
+                    isFocused: $isTextFieldFocused
+                ) { submittedTitle in
+                    onCreate(submittedTitle)
+                }
                 .accessibilitySortPriority(
                     HappeningPanelAccessibilityOrder.priority(
-                        for: .heading,
+                        for: .input,
                         in: HappeningPanelAccessibilityOrder.creator
                     )
                 )
 
-            Text("This will replace one of the 10 shown happenings.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityHidden(true)
+                HStack {
+                    Button("Cancel", action: onCancel)
+                        .buttonStyle(.bordered)
 
-            HappeningFreeTextField(text: $text) { submittedTitle in
-                onCreate(submittedTitle)
-            }
-            .accessibilitySortPriority(
-                HappeningPanelAccessibilityOrder.priority(
-                    for: .input,
-                    in: HappeningPanelAccessibilityOrder.creator
-                )
-            )
+                    Spacer()
 
-            HStack {
-                Button("Cancel", action: onCancel)
-                    .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button {
-                    create()
-                } label: {
-                    Text("Add to palette")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(
-                            trimmed.isEmpty
-                                ? Color.primary.opacity(
-                                    HappeningCreatorActionAppearance.disabledForegroundOpacity
-                                )
-                                : Color.white
-                        )
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: 44)
-                        .background(
-                            trimmed.isEmpty
-                                ? Color.primary.opacity(
-                                    colorSchemeContrast == .increased ? 0.18 : 0.10
-                                )
-                                : Color.accentColor,
-                            in: Capsule()
-                        )
-                        .overlay {
-                            Capsule().strokeBorder(
-                                Color.primary.opacity(
-                                    trimmed.isEmpty
-                                        ? colorSchemeContrast == .increased
-                                            ? HappeningCreatorActionAppearance.increasedContrastStrokeOpacity
-                                            : 0.24
-                                        : 0
-                                ),
-                                lineWidth: colorSchemeContrast == .increased ? 1.5 : 1
+                    Button {
+                        create()
+                    } label: {
+                        Text("Add to palette")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(
+                                trimmed.isEmpty
+                                    ? Color.primary.opacity(
+                                        HappeningCreatorActionAppearance.disabledForegroundOpacity
+                                    )
+                                    : Color.white
                             )
-                        }
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 44)
+                            .background(
+                                trimmed.isEmpty
+                                    ? Color.primary.opacity(
+                                        effectiveColorSchemeContrast == .increased ? 0.18 : 0.10
+                                    )
+                                    : Color.accentColor,
+                                in: Capsule()
+                            )
+                            .overlay {
+                                Capsule().strokeBorder(
+                                    Color.primary.opacity(
+                                        trimmed.isEmpty
+                                            ? effectiveColorSchemeContrast == .increased
+                                                ? HappeningCreatorActionAppearance.increasedContrastStrokeOpacity
+                                                : 0.24
+                                            : 0
+                                    ),
+                                    lineWidth: effectiveColorSchemeContrast == .increased ? 1.5 : 1
+                                )
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(trimmed.isEmpty)
                 }
-                .buttonStyle(.plain)
-                .disabled(trimmed.isEmpty)
-            }
-            .accessibilitySortPriority(
-                HappeningPanelAccessibilityOrder.priority(
-                    for: .actions,
-                    in: HappeningPanelAccessibilityOrder.creator
+                .accessibilitySortPriority(
+                    HappeningPanelAccessibilityOrder.priority(
+                        for: .actions,
+                        in: HappeningPanelAccessibilityOrder.creator
+                    )
                 )
-            )
+            }
+            .padding(20)
         }
-        .padding(20)
+        .scrollDismissesKeyboard(.interactively)
+        .scrollBounceBehavior(.always)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 12)
+                .onChanged { value in
+                    guard value.translation.height > 12 else { return }
+                    isTextFieldFocused = false
+                }
+        )
+        .accessibilityIdentifier("happening_creator_scroll")
+        .frame(maxHeight: 320)
         .frame(maxWidth: 440, alignment: .leading)
         .background(
             Color(uiColor: .secondarySystemBackground),
@@ -124,9 +147,8 @@ struct HappeningCreatorPanel: View {
 struct HappeningFreeTextField: View {
 
     @Binding var text: String
+    @FocusState.Binding var isFocused: Bool
     let onSubmit: (String) -> Void
-
-    @FocusState private var isFocused: Bool
 
     private var trimmed: String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)

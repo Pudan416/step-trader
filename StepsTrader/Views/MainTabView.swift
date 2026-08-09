@@ -86,6 +86,13 @@ struct MainTabView: View {
         )
     }
 
+    private var task7AccessibilityConfigurationValue: String {
+        let contrast = Task7UITestAccessibilityConfiguration.current.usesIncreasedContrast
+            ? "increased-contrast"
+            : "standard-contrast"
+        return "\(Task7UITestAccessibilityConfiguration.name(for: dynamicTypeSize)),\(contrast)"
+    }
+
     // Height preference key for the StepBalanceCard overlay
     private struct TopCardHeightPreferenceKey: PreferenceKey {
         static let defaultValue: CGFloat = 0
@@ -166,6 +173,7 @@ struct MainTabView: View {
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.settings.rawValue)
             }
+
             .toolbarBackground(.hidden, for: .tabBar)
             .toolbarBackground(.hidden, for: .navigationBar)
             .environment(\.topCardHeight, topCardHeight)
@@ -223,6 +231,15 @@ struct MainTabView: View {
             .background(Color.clear)
             .onAppear {
                 model.recalculateDailyEnergy()
+            }
+
+            if ProcessInfo.processInfo.arguments.contains("ui-testing-task7") {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityElement()
+                    .accessibilityIdentifier("task7_accessibility_configuration")
+                    .accessibilityLabel("Task 7 accessibility configuration")
+                    .accessibilityValue(task7AccessibilityConfigurationValue)
             }
         }
         .overlay(alignment: .top) {

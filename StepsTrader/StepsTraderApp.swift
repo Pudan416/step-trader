@@ -4,6 +4,68 @@ import Combine
 import UserNotifications
 import BackgroundTasks
 
+struct Task7UITestAccessibilityConfiguration: Equatable {
+    let dynamicTypeSize: DynamicTypeSize?
+    let usesIncreasedContrast: Bool
+
+    init(arguments: [String], environment: [String: String]) {
+        guard arguments.contains("ui-testing-task7") else {
+            dynamicTypeSize = nil
+            usesIncreasedContrast = false
+            return
+        }
+
+        switch environment["TASK7_DYNAMIC_TYPE_SIZE"] {
+        case "accessibility1": dynamicTypeSize = .accessibility1
+        case "accessibility2": dynamicTypeSize = .accessibility2
+        case "accessibility3": dynamicTypeSize = .accessibility3
+        case "accessibility4": dynamicTypeSize = .accessibility4
+        case "accessibility5": dynamicTypeSize = .accessibility5
+        default: dynamicTypeSize = nil
+        }
+        usesIncreasedContrast = environment["TASK7_INCREASED_CONTRAST"] == "1"
+    }
+
+    static var current: Self {
+        Self(
+            arguments: ProcessInfo.processInfo.arguments,
+            environment: ProcessInfo.processInfo.environment
+        )
+    }
+
+    static func name(for dynamicTypeSize: DynamicTypeSize) -> String {
+        switch dynamicTypeSize {
+        case .xSmall: "xSmall"
+        case .small: "small"
+        case .medium: "medium"
+        case .large: "large"
+        case .xLarge: "xLarge"
+        case .xxLarge: "xxLarge"
+        case .xxxLarge: "xxxLarge"
+        case .accessibility1: "accessibility1"
+        case .accessibility2: "accessibility2"
+        case .accessibility3: "accessibility3"
+        case .accessibility4: "accessibility4"
+        case .accessibility5: "accessibility5"
+        @unknown default: "unknown"
+        }
+    }
+}
+
+private struct Task7UITestAccessibilityModifier: ViewModifier {
+    let configuration: Task7UITestAccessibilityConfiguration
+
+    @Environment(\.dynamicTypeSize) private var inheritedDynamicTypeSize
+
+    func body(content: Content) -> some View {
+        content
+            .environment(
+                \.dynamicTypeSize,
+                configuration.dynamicTypeSize ?? inheritedDynamicTypeSize
+            )
+    }
+}
+
 // MARK: - AppDelegate (Remote Notifications)
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
@@ -325,6 +387,11 @@ struct StepsTraderApp: App {
             .tint(currentTheme.accentColor)
             .grayscale(0)
             .environment(coachMarkManager)
+            .modifier(
+                Task7UITestAccessibilityModifier(
+                    configuration: .current
+                )
+            )
             .alert(isPresented: $errorManager.showErrorAlert, error: errorManager.currentError) { _ in
                 Button("OK", role: .cancel) {
                     errorManager.dismiss()

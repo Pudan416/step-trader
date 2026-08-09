@@ -52,7 +52,12 @@ enum HappeningLiquidLayout {
         [.init(x: 0.18, y: 0.16), .init(x: 0.50, y: 0.09), .init(x: 0.82, y: 0.18), .init(x: 0.18, y: 0.42), .init(x: 0.50, y: 0.34), .init(x: 0.82, y: 0.44), .init(x: 0.18, y: 0.69), .init(x: 0.50, y: 0.80), .init(x: 0.82, y: 0.69), .init(x: 0.50, y: 0.98)]
     ]
 
-    static func layout(count: Int, in size: CGSize, safeInsets: EdgeInsets) -> Layout {
+    static func layout(
+        count: Int,
+        in size: CGSize,
+        safeInsets: EdgeInsets,
+        dynamicTypeSize: DynamicTypeSize = .large
+    ) -> Layout {
         let safeBounds = safeBounds(in: size, safeInsets: safeInsets)
         guard !safeBounds.isEmpty else {
             return Layout(
@@ -66,9 +71,15 @@ enum HappeningLiquidLayout {
 
         let itemCount = min(max(count, 0), templates.count - 1)
         guard itemCount > 0 else {
+            let typeScale = min(
+                1.35,
+                HappeningLiquidLabelTypography.scaledUIFont(
+                    for: dynamicTypeSize
+                ).pointSize / HappeningLiquidLabelTypography.pointSize
+            )
             let completionSize = CGSize(
-                width: min(216, safeBounds.width - edgeClearance * 2),
-                height: 92
+                width: min(216 * typeScale, safeBounds.width - edgeClearance * 2),
+                height: 92 * (1 + (typeScale - 1) * 0.72)
             )
             let preferredCenterY = safeBounds.midY + min(44, safeBounds.height * 0.07)
             let maximumCenterY = safeBounds.maxY - 120 - dockTouchDistance - completionSize.height / 2
@@ -87,6 +98,14 @@ enum HappeningLiquidLayout {
                     y: completionBounds.maxY + dockTouchDistance
                 ),
                 completionBounds: completionBounds
+            )
+        }
+
+        if dynamicTypeSize > .large {
+            return expandedLayout(
+                itemCount: itemCount,
+                safeBounds: safeBounds,
+                dynamicTypeSize: dynamicTypeSize
             )
         }
 
@@ -148,6 +167,98 @@ enum HappeningLiquidLayout {
             labelFrames: labelFrames,
             contourBounds: contourBounds,
             dockAnchor: CGPoint(x: contourBounds.midX, y: contourBounds.maxY + dockTouchDistance),
+            completionBounds: nil
+        )
+    }
+
+    private static func expandedLayout(
+        itemCount: Int,
+        safeBounds: CGRect,
+        dynamicTypeSize: DynamicTypeSize
+    ) -> Layout {
+        let rows = Int(ceil(Double(itemCount) / 2))
+        let font = HappeningLiquidLabelTypography.scaledUIFont(for: dynamicTypeSize)
+        let labelSize = CGSize(
+            width: min(164, (safeBounds.width - 50) / 2),
+            height: min(122, max(78, ceil(font.lineHeight * 3.25 / 0.80)))
+        )
+        let radius = min(72, max(64, labelSize.height * 0.62))
+        let maximumContourHeight = max(
+            44,
+            safeBounds.height
+                - edgeClearance * 2
+                - dockTouchDistance
+                - 44
+        )
+        let contourEndcaps = (radius + 12) * 2
+        let preferredStep = labelSize.height + 10
+        let verticalStep = rows > 1
+            ? min(
+                preferredStep,
+                max(labelSize.height, (maximumContourHeight - contourEndcaps) / CGFloat(rows - 1))
+            )
+            : 0
+        let contourHeight = contourEndcaps + verticalStep * CGFloat(max(0, rows - 1))
+        let preferredTop = safeBounds.midY - contourHeight / 2 - 12
+        let maximumTop = safeBounds.maxY
+            - edgeClearance
+            - dockTouchDistance
+            - 44
+            - contourHeight
+        let contourTop = min(
+            max(preferredTop, safeBounds.minY + edgeClearance),
+            maximumTop
+        )
+        let firstCenterY = contourTop + radius + 12
+        let columnOffset = min(94, safeBounds.width * 0.235)
+
+        let sources = (0..<itemCount).map { index in
+            let row = index / 2
+            let isUnpairedLastItem = itemCount.isMultiple(of: 2) == false
+                && index == itemCount - 1
+            let centerX: CGFloat
+            if itemCount == 1 || isUnpairedLastItem {
+                centerX = safeBounds.midX
+            } else {
+                centerX = safeBounds.midX + (index.isMultiple(of: 2) ? -columnOffset : columnOffset)
+            }
+            return Source(
+                index: index,
+                center: CGPoint(
+                    x: centerX,
+                    y: firstCenterY + CGFloat(row) * verticalStep
+                ),
+                radius: radius
+            )
+        }
+        let labelFrames = sources.map { source in
+            CGRect(
+                x: source.center.x - labelSize.width / 2,
+                y: source.center.y - labelSize.height / 2,
+                width: labelSize.width,
+                height: labelSize.height
+            )
+        }
+        let contourBounds = sources.reduce(CGRect.null) { bounds, source in
+            bounds.union(
+                CGRect(
+                    x: source.center.x - source.radius,
+                    y: source.center.y - source.radius,
+                    width: source.radius * 2,
+                    height: source.radius * 2
+                )
+            )
+        }
+        .insetBy(dx: -12, dy: -12)
+
+        return Layout(
+            sources: sources,
+            labelFrames: labelFrames,
+            contourBounds: contourBounds,
+            dockAnchor: CGPoint(
+                x: contourBounds.midX,
+                y: contourBounds.maxY + dockTouchDistance
+            ),
             completionBounds: nil
         )
     }
