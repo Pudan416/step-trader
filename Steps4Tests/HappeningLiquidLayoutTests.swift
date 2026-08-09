@@ -242,6 +242,7 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
     }
 
     private func clearDefaults() {
+        CanvasStorageService.shared.deleteCanvas(for: AppModel.dayKey(for: .now))
         [
             SharedKeys.isGrandfathered,
             SharedKeys.dailyEnergyAnchor,
