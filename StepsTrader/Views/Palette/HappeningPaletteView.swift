@@ -204,7 +204,12 @@ struct HappeningPaletteView: View {
                 .accessibilityHidden(activePanel != nil)
 
                 if let activePanel {
-                    Color(uiColor: .systemBackground)
+                    ZStack {
+                        Color.black.opacity(0.24)
+                        Rectangle()
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.34)
+                    }
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .onTapGesture {}

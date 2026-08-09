@@ -118,6 +118,32 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
         XCTAssertEqual(model.todayAdditions.map(\.optionId), [element.optionId])
     }
 
+    func testSpawnRejectsCapturedDayBoundaryMismatchWithoutPersistingEitherRecord() {
+        let model = makeModel()
+        let beforeBoundary = Date(timeIntervalSince1970: 1_786_176_000)
+        let afterBoundary = beforeBoundary.addingTimeInterval(24 * 60 * 60)
+        let staleCanvas = DayCanvas(dayKey: AppModel.dayKey(for: beforeBoundary))
+        let staleElement = fixedElement(on: staleCanvas)
+        var persistedCanvases: [DayCanvas] = []
+
+        let result = CanvasHappeningSpawnTransaction.commit(
+            canvasLoaded: true,
+            canvas: staleCanvas,
+            model: model,
+            element: staleElement,
+            recordUse: true,
+            at: afterBoundary,
+            persist: {
+                persistedCanvases.append($0)
+                return true
+            }
+        )
+
+        XCTAssertNil(result)
+        XCTAssertTrue(persistedCanvases.isEmpty)
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+    }
+
     func testSpawnPresentationUsesOriginWithoutMutatingCanonicalDestination() throws {
         let canvas = DayCanvas(dayKey: AppModel.dayKey(for: .now))
         let element = fixedElement(on: canvas)
@@ -428,14 +454,44 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
         XCTAssertEqual(state.selectedID, "happening_walk")
     }
 
-    func testBusyTransitionIgnoresDuplicateAndCompetingTaps() {
+    func testBusyTransitionIgnoresDuplicateButQueuesAnotherZone() {
         var state = HappeningLiquidTransitionState()
         XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
 
         XCTAssertFalse(state.beginRemoval(id: "happening_walk"))
-        XCTAssertFalse(state.beginRemoval(id: "happening_read"))
+        XCTAssertTrue(state.beginRemoval(id: "happening_read"))
         XCTAssertEqual(state.phase, .pressing)
         XCTAssertEqual(state.selectedID, "happening_walk")
+        XCTAssertEqual(state.queuedIDs, ["happening_read"])
+        XCTAssertTrue(state.isLocked(id: "happening_walk"))
+        XCTAssertTrue(state.isLocked(id: "happening_read"))
+        XCTAssertFalse(state.isLocked(id: "happening_coffee"))
+    }
+
+    func testRapidSecondTapRunsAfterFirstReflowWithoutClosingPalette() {
+        var state = HappeningLiquidTransitionState()
+        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
+        XCTAssertTrue(state.beginRemoval(id: "happening_read"))
+        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
+        XCTAssertTrue(state.resolveBreakthrough(id: "happening_walk", accepted: true))
+        XCTAssertTrue(state.finishRemoval(id: "happening_walk"))
+
+        XCTAssertEqual(state.beginNextQueuedRemoval(), "happening_read")
+        XCTAssertEqual(state.phase, .pressing)
+        XCTAssertEqual(state.selectedID, "happening_read")
+        XCTAssertTrue(state.queuedIDs.isEmpty)
+    }
+
+    func testRejectedFirstTapStillAdvancesAQueuedValidZone() {
+        var state = HappeningLiquidTransitionState()
+        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
+        XCTAssertTrue(state.beginRemoval(id: "happening_read"))
+        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
+
+        XCTAssertFalse(state.resolveBreakthrough(id: "happening_walk", accepted: false))
+        XCTAssertEqual(state.beginNextQueuedRemoval(), "happening_read")
+        XCTAssertEqual(state.phase, .pressing)
+        XCTAssertEqual(state.selectedID, "happening_read")
     }
 
     func testFinishRemovalUnlocksOnlyAfterReflowAndAllowsAnotherID() {
@@ -498,6 +554,29 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
 
         XCTAssertEqual(state.phase, .reflowing)
         XCTAssertEqual(state.selectedID, "happening_walk")
+    }
+
+    func testTransitionHitRegionCoversOldNewAndInterpolatedVisibleContours() {
+        let bounds = CGRect(x: 0, y: 0, width: 260, height: 180)
+        let old = [
+            HappeningLiquidLayout.Source(index: 0, center: CGPoint(x: 50, y: 90), radius: 38),
+            HappeningLiquidLayout.Source(index: 1, center: CGPoint(x: 90, y: 90), radius: 38),
+        ]
+        let new = [
+            HappeningLiquidLayout.Source(index: 0, center: CGPoint(x: 170, y: 90), radius: 38),
+            HappeningLiquidLayout.Source(index: 1, center: CGPoint(x: 210, y: 90), radius: 38),
+        ]
+
+        let hitRegion = HappeningLiquidContourHitRegion.path(
+            currentSources: new,
+            transitionSources: old,
+            in: bounds
+        )
+
+        XCTAssertTrue(hitRegion.contains(CGPoint(x: 70, y: 90)), "old contour")
+        XCTAssertTrue(hitRegion.contains(CGPoint(x: 130, y: 90)), "interpolated contour")
+        XCTAssertTrue(hitRegion.contains(CGPoint(x: 190, y: 90)), "new contour")
+        XCTAssertFalse(hitRegion.contains(CGPoint(x: 130, y: 10)))
     }
 }
 

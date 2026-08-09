@@ -62,7 +62,13 @@ extension AppModel {
 
     /// Creates a catalog item and installs it into the configured ten without
     /// logging it to the current day. The user still has to tap its field zone.
-    func createPaletteHappening(title: String, at date: Date = .now) -> Happening? {
+    func createPaletteHappening(
+        title: String,
+        at date: Date = .now,
+        syncCustomHappenings: @escaping ([Happening]) -> Void = { happenings in
+            Task { await SupabaseSyncService.shared.syncCustomHappenings(happenings) }
+        }
+    ) -> Happening? {
         let happening = createHappening(title: title, at: date)
         do {
             try happeningPaletteSelectionStore.insertReplacingLeastUsed(
@@ -70,6 +76,7 @@ extension AppModel {
                 catalog: happeningStore.all
             )
             objectWillChange.send()
+            syncCustomHappenings(happeningStore.all)
             return happening
         } catch {
             AppLogger.energy.error(

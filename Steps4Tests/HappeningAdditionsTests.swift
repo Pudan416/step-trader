@@ -179,6 +179,26 @@ final class HappeningAdditionsTests: XCTestCase {
         )
     }
 
+    func testPaletteCreationSynchronizesCustomCatalogImmediatelyAfterSelectionSucceeds() throws {
+        let model = makeModel()
+        model.loadDailyEnergyState()
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        var synchronizedSnapshots: [[Happening]] = []
+
+        let created = try XCTUnwrap(
+            model.createPaletteHappening(
+                title: "Sauna",
+                at: date,
+                syncCustomHappenings: { synchronizedSnapshots.append($0) }
+            )
+        )
+
+        XCTAssertEqual(synchronizedSnapshots.count, 1)
+        XCTAssertTrue(synchronizedSnapshots[0].contains { $0.id == created.id })
+        XCTAssertEqual(model.selectedPaletteHappeningIDs().first, created.id)
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+    }
+
     func testSavingPaletteSelectionUsesTheFullCatalogAndRefreshesAvailability() throws {
         let model = makeModel()
         model.loadDailyEnergyState()

@@ -135,6 +135,9 @@ struct StepsTraderApp: App {
         // every test that follows it in the full suite.
         if ProcessInfo.processInfo.arguments.contains("ui-testing-task7") {
             UserDefaults.stepsTrader().removeObject(forKey: SharedKeys.todayAdditions)
+            CanvasStorageService.shared.deleteCanvas(
+                for: AppModel.dayKey(for: Date.now)
+            )
         }
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
 

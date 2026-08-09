@@ -20,7 +20,9 @@ enum CanvasHappeningSpawnTransaction {
         at date: Date,
         persist: (DayCanvas) -> Bool
     ) -> CanvasHappeningSpawnResult? {
+        let capturedDayKey = AppModel.dayKey(for: date)
         guard canvasLoaded,
+              canvas.dayKey == capturedDayKey,
               model.canAddHappening(id: element.optionId, on: date) else {
             return nil
         }

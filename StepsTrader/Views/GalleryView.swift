@@ -1100,6 +1100,8 @@ struct GalleryView: View {
         origin: CGPoint? = nil
     ) -> Bool {
         let now = Date.now
+        let transactionDayKey = AppModel.dayKey(for: now)
+        guard dayCanvas.dayKey == transactionDayKey else { return false }
         let color2 = CanvasColorPalette.randomSecondColor(excluding: color)
         var element = CanvasElement.spawn(
             id: UUID(),
@@ -1108,7 +1110,7 @@ struct GalleryView: View {
             color2: color2,
             label: model.resolveOptionTitle(for: optionId),
             existingElements: dayCanvas.elements,
-            dayKey: dayCanvas.dayKey
+            dayKey: transactionDayKey
         )
         element.lastEditedAt = now
 
@@ -1132,7 +1134,11 @@ struct GalleryView: View {
             element: element,
             recordUse: recordUse,
             at: now,
-            persist: CanvasStorageService.shared.saveCanvas
+            persist: { canvas in
+                usesTask7UITestFixture
+                    ? true
+                    : CanvasStorageService.shared.saveCanvas(canvas)
+            }
         ) else {
             return false
         }
