@@ -190,22 +190,37 @@ extension AppModel {
             threshold: DateComponents(minute: minutes)
         )
 
-        // Use a non-wrapping 0:0:0–23:59:59 schedule. The previous day-boundary-aligned
-        // schedule (e.g. start=1:0:0 end=0:59:59) wraps around midnight; DeviceActivity
-        // interprets end < start as "already ended" and fires intervalDidEnd immediately,
-        // killing the monitor before any usage events can fire. Custom day boundary resets
-        // are handled separately by clearAllUsageBudgets.
-        let schedule = DeviceActivitySchedule(
-            intervalStart: DateComponents(hour: 0, minute: 0, second: 0),
-            intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
-            repeats: true
-        )
+        // Anchored at the purchase moment rather than midnight: thresholds count usage
+        // since intervalStart, so a midnight-anchored interval made "30 minutes" mean
+        // "30 minutes since 00:00" and re-shielded instantly once the day's usage already
+        // exceeded the budget. See ShieldRebuildHelper.usageBudgetSchedule. The interval
+        // still ends at 23:59:59 so it never wraps past midnight; custom day boundary
+        // resets are handled separately by clearAllUsageBudgets.
+        guard let schedule = ShieldRebuildHelper.usageBudgetSchedule() else {
+            // Under 15 minutes before 23:59:59 — DeviceActivity rejects the interval as
+            // intervalTooShort. Fall back to wall-clock: the minuteMode heartbeat
+            // (checkAndClearExpiredBudgets) restores the shield when the expiry passes.
+            // Report success so the caller doesn't refund a purchase that will work.
+            let expiry = ShieldRebuildHelper.wallClockFallbackExpiry(
+                defaults: logDefaults,
+                groupId: groupId,
+                minutes: minutes
+            )
+            logDefaults.set(expiry, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+            logDefaults.set(
+                "[\(iso.string(from: Date.now))] WALLCLOCK usageBudget_\(groupId) \(minutes)m — <\(ShieldRebuildHelper.minimumScheduleMinutes)m before 23:59:59, expiry=\(iso.string(from: expiry))",
+                forKey: SharedKeys.lastStartMonitoringLog
+            )
+            AppLogger.shield.debug("🕛 Late-evening unlock for \(group.name): wall-clock fallback until \(expiry)")
+            return true
+        }
 
         // Start-first pattern: avoid calling stopMonitoring before startMonitoring because
         // stopMonitoring generates an async intervalDidEnd callback that can arrive AFTER
         // the new startMonitoring's intervalDidStart, creating a race condition.
         // handlePayGatePaymentForGroup already stops the existing monitor when extending.
-        let schedDesc = "start=0:0:0 end=23:59:59"
+        let start = schedule.intervalStart
+        let schedDesc = "start=\(start.hour ?? 0):\(start.minute ?? 0):\(start.second ?? 0) end=23:59:59"
         do {
             try center.startMonitoring(activityName, during: schedule, events: events)
             let msg = "[\(iso.string(from: Date.now))] OK usageBudget_\(groupId) \(minutes)m events=\(events.count) apps=\(group.selection.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"

@@ -14,6 +14,14 @@ enum TargetResolver {
         let imageName: String
         let scheme: String
         let fallbackSchemes: [String]
+        /// Apple-verified Universal Links (https). Preferred over custom schemes when
+        /// re-opening a blocked app: iOS routes them to the exact app that owns the
+        /// domain, so a third-party app squatting a custom scheme (e.g. `x://`) can't
+        /// intercept them. Empty = no known Universal Link, custom schemes only.
+        ///
+        /// `var`, not `let`: a `let` with an inline default is dropped from the
+        /// memberwise initializer, so entries passing `universalLinks:` wouldn't compile.
+        var universalLinks: [String] = []
     }
 
     private static let registry: [AppTarget] = [
@@ -78,7 +86,11 @@ enum TargetResolver {
                   displayName: "X",
                   imageName: "x",
                   scheme: "twitter://",
-                  fallbackSchemes: ["twitter://", "x://"]),
+                  // `x://` intentionally removed — it's a generic scheme other apps
+                  // (e.g. Standoff 2) register, which hijacked the re-open and launched
+                  // the wrong app. Universal Links below open the real X app reliably.
+                  fallbackSchemes: ["twitter://"],
+                  universalLinks: ["https://x.com", "https://twitter.com"]),
 
         AppTarget(targets: ["reddit"],
                   bundleId: "com.reddit.Reddit",
@@ -148,6 +160,19 @@ enum TargetResolver {
             return entry.fallbackSchemes
         }
         return []
+    }
+
+    /// Apple-verified Universal Links for a target app, preferred over custom schemes
+    /// when re-opening it (see `AppTarget.universalLinks`). Empty for apps with none.
+    static func universalLinks(forBundleId bundleId: String) -> [String] {
+        bundleToEntry[bundleId]?.universalLinks ?? []
+    }
+
+    /// Whether we know how to re-open this app (has at least one Universal Link or
+    /// custom scheme). Callers gate their "open" affordance on this.
+    static func canOpen(bundleId: String) -> Bool {
+        guard let entry = bundleToEntry[bundleId] else { return false }
+        return !entry.universalLinks.isEmpty || !entry.fallbackSchemes.isEmpty
     }
 
 #if canImport(FamilyControls)
