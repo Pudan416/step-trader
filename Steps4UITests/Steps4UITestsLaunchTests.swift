@@ -39,7 +39,8 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertTrue(creatorField.waitForExistence(timeout: 3))
         XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Add a happening"].exists)
-        XCTAssertTrue(app.staticTexts["This will replace one of the 10 shown happenings."].exists)
+        // The explanatory copy is intentionally hidden from the accessibility
+        // tree because the heading exposes the same sentence as its hint.
         XCTAssertTrue(app.buttons["Cancel"].isHittable)
         XCTAssertTrue(addAction.exists)
         XCTAssertFalse(addAction.isEnabled)

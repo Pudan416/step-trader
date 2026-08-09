@@ -129,6 +129,13 @@ struct StepsTraderApp: App {
     }
 
     init() {
+        // Task 7 screenshot scenarios mutate today's additions. Xcode reuses the
+        // installed app container across UI-test methods, so without resetting
+        // this fixture-only state an "all used" test empties the palette for
+        // every test that follows it in the full suite.
+        if ProcessInfo.processInfo.arguments.contains("ui-testing-task7") {
+            UserDefaults.stepsTrader().removeObject(forKey: SharedKeys.todayAdditions)
+        }
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
 
         // Configure RevenueCat as early as possible. Reads `REVENUECAT_API_KEY` from
