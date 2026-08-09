@@ -167,28 +167,20 @@ struct HappeningPaletteView: View {
                         .accessibilityHidden(activePanel != nil)
                 }
 
-                Button {
+                dockButton(
+                    systemImage: "xmark",
+                    label: String(localized: "Close", comment: "Palette close button"),
+                    anchor: layout.dockAnchor
+                ) {
                     activePanel = nil
                     onDismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.primary.opacity(0.82))
-                        .frame(width: 44, height: 44)
-                        .background(.ultraThinMaterial, in: Circle())
-                        .overlay {
-                            Circle().stroke(.white.opacity(0.18), lineWidth: 0.75)
-                        }
                 }
-                .buttonStyle(.plain)
-                .position(layout.dockAnchor)
-                .accessibilityLabel(Text("Close", comment: "Palette close button"))
                 .accessibilityHidden(activePanel != nil)
 
                 dockButton(
                     systemImage: "checklist",
-                    label: "Choose happenings",
-                    anchor: CGPoint(x: layout.dockAnchor.x - 56, y: layout.dockAnchor.y)
+                    label: String(localized: "Choose happenings", comment: "Palette dock button"),
+                    anchor: CGPoint(x: layout.dockAnchor.x - dockButtonSpacing, y: layout.dockAnchor.y)
                 ) {
                     activePanel = .chooser
                 }
@@ -196,8 +188,8 @@ struct HappeningPaletteView: View {
 
                 dockButton(
                     systemImage: "plus",
-                    label: "Add a happening",
-                    anchor: CGPoint(x: layout.dockAnchor.x + 56, y: layout.dockAnchor.y)
+                    label: String(localized: "Add a happening", comment: "Palette dock button"),
+                    anchor: CGPoint(x: layout.dockAnchor.x + dockButtonSpacing, y: layout.dockAnchor.y)
                 ) {
                     activePanel = .creator
                 }
@@ -279,6 +271,15 @@ struct HappeningPaletteView: View {
         }
     }
 
+    /// Centre-to-centre gap between the three dock buttons. Wide enough that
+    /// the 72pt hit areas below never overlap.
+    private var dockButtonSpacing: CGFloat { 72 }
+
+    /// Identical to the canvas's own bottom controls — same 56pt circle, same
+    /// `liquidGlassControl` material, same icon weight and colour, same 72pt hit
+    /// area. The palette overlays those controls, so anything that changed size,
+    /// colour or material on open would read as a different set of buttons
+    /// appearing rather than the same ones staying put.
     private func dockButton(
         systemImage: String,
         label: String,
@@ -287,13 +288,13 @@ struct HappeningPaletteView: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.primary.opacity(0.82))
-                .frame(width: 44, height: 44)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay {
-                    Circle().stroke(.white.opacity(0.18), lineWidth: 0.75)
-                }
+                .font(.system(size: 20, weight: .regular))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(AppColors.Night.textPrimary)
+                .frame(width: 56, height: 56)
+                .liquidGlassControl(in: Circle())
+                .frame(width: 72, height: 72)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .position(anchor)
