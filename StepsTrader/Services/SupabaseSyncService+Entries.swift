@@ -72,6 +72,37 @@ extension SupabaseSyncService {
     func syncOptionEntry(_ entry: OptionEntry) async {
         await performEntriesSync(entries: [entry])
     }
+
+    func deleteOptionEntry(id: String) async {
+        guard let auth = await authenticatedContext() else { return }
+        var pendingRequest: URLRequest?
+        do {
+            let cfg = try SupabaseConfig.load()
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_happening_additions")
+            guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return }
+            comps.queryItems = [
+                URLQueryItem(name: "id", value: "eq.\(id)"),
+                URLQueryItem(name: "user_id", value: "eq.\(auth.userId)")
+            ]
+            guard let url = comps.url else { return }
+            var request = URLRequest(url: url)
+            request.httpMethod = "DELETE"
+            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "authorization")
+            pendingRequest = request
+            let (data, response) = try await network.data(for: request)
+            guard response.statusCode < 400 else {
+                AppLogger.network.error("📡 Option entry delete failed: HTTP \(response.statusCode)")
+                enqueueForRetry(request)
+                return
+            }
+            AppLogger.network.debug("📡 Option entry deleted: \(id, privacy: .public)")
+            _ = data
+        } catch {
+            AppLogger.network.error("📡 Option entry delete error: \(error.localizedDescription)")
+            if let pendingRequest { enqueueForRetry(pendingRequest) }
+        }
+    }
     
     func loadOptionEntriesFromServer(dayKey: String) async -> [OptionEntry]? {
         guard let auth = await authenticatedContext() else { return nil }

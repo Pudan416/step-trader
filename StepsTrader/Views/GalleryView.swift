@@ -376,7 +376,11 @@ struct GalleryView: View {
             guard let info = note.userInfo,
                   let optionId = info["optionId"] as? String,
                   let color = info["color"] as? String else { return }
-            addAndSpawnHappening(optionId: optionId, color: color)
+            addAndSpawnHappening(
+                optionId: optionId,
+                color: color,
+                recordUse: info["recordUse"] as? Bool ?? true
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: .canvasElementRemoveRequested)) { note in
             guard let info = note.userInfo,
@@ -398,11 +402,11 @@ struct GalleryView: View {
                 happenings: model.paletteOrder(),
                 onPick: { happening in
                     let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
-                    addAndSpawnHappening(optionId: happening.id, color: color)
+                    addAndSpawnHappening(optionId: happening.id, color: color, recordUse: false)
                     showHappeningPalette = false
                 },
                 onCreate: { title in
-                    let happening = model.happeningStore.create(title: title)
+                    let happening = model.createHappening(title: title)
                     model.paletteOrderCache.append(id: happening.id, dayKey: todayKey)
                     let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
                     addAndSpawnHappening(optionId: happening.id, color: color)
@@ -927,8 +931,8 @@ struct GalleryView: View {
         )
     }
 
-    private func addAndSpawnHappening(optionId: String, color: String) {
-        let entry = model.addHappening(id: optionId, colorHex: color)
+    private func addAndSpawnHappening(optionId: String, color: String, recordUse: Bool = true) {
+        let entry = model.addHappening(id: optionId, colorHex: color, recordUse: recordUse)
         let color2 = CanvasColorPalette.randomSecondColor(excluding: color)
         var element = CanvasElement.spawn(
             id: UUID(uuidString: entry.id) ?? UUID(),

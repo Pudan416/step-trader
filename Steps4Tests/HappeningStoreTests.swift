@@ -126,6 +126,26 @@ final class HappeningStoreTests: XCTestCase {
         XCTAssertEqual(makeStore().happening(id: made.id)?.title, "Sauna")
     }
 
+    func testCustomHappeningSyncRowRoundTripsTitle() throws {
+        let happening = Happening(
+            id: "user_123", title: "Sauna", isBuiltIn: false,
+            useCount: 4, lastUsedAt: Date(timeIntervalSince1970: 500)
+        )
+
+        let row = CustomHappeningRow(happening: happening, userId: "user-id")
+        let data = try JSONEncoder().encode(row)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertTrue(json["last_used_at"] is String, "PostgREST timestamptz must be ISO-8601 text")
+        let decoded = try JSONDecoder().decode(
+            CustomHappeningRow.self,
+            from: data
+        )
+
+        XCTAssertEqual(decoded.happening.title, "Sauna")
+        XCTAssertEqual(decoded.happening.useCount, 4)
+        XCTAssertEqual(decoded.happening.lastUsedAt, Date(timeIntervalSince1970: 500))
+    }
+
     func testCreateAllowsDuplicateTitles() {
         let store = makeStore()
         let first = store.create(title: "Sauna", at: .now)

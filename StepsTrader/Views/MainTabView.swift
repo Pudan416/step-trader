@@ -194,12 +194,12 @@ struct MainTabView: View {
                         showHappeningPalette = false
                     },
                     onCreate: { title in
-                        let happening = model.happeningStore.create(title: title)
+                        let happening = model.createHappening(title: title)
                         model.paletteOrderCache.append(
                             id: happening.id,
                             dayKey: AppModel.dayKey(for: .now)
                         )
-                        postHappeningSpawn(happening.id)
+                        postHappeningSpawn(happening.id, recordUse: false)
                         showHappeningPalette = false
                     },
                     dayKey: AppModel.dayKey(for: .now)
@@ -316,12 +316,12 @@ struct MainTabView: View {
         }
     }
 
-    private func postHappeningSpawn(_ optionId: String) {
+    private func postHappeningSpawn(_ optionId: String, recordUse: Bool = true) {
         let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
         NotificationCenter.default.post(
             name: .canvasElementSpawnRequested,
             object: nil,
-            userInfo: ["optionId": optionId, "color": color]
+            userInfo: ["optionId": optionId, "color": color, "recordUse": recordUse]
         )
     }
 

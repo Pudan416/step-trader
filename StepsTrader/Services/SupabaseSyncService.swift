@@ -360,6 +360,7 @@ actor SupabaseSyncService {
             let g = UserDefaults.stepsTrader()
             return (
                 todayAdditions: model.todayAdditions,
+                customHappenings: model.happeningStore.all.filter { !$0.isBuiltIn },
                 stepsToday: model.healthStore.stepsToday,
                 dailySleepHours: model.healthStore.dailySleepHours,
                 baseEnergyToday: model.healthStore.baseEnergyToday,
@@ -387,6 +388,7 @@ actor SupabaseSyncService {
 
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.performEntriesSyncForFullSync(snapshot.todayAdditions) }
+            group.addTask { await self.performCustomHappeningsSync(snapshot.customHappenings) }
             if hasLocalData {
                 group.addTask {
                     await self.performDailyStatsSync(
@@ -470,6 +472,10 @@ actor SupabaseSyncService {
         var didRestore = false
         
         let today = AppModel.dayKey(for: .now)
+        if let happenings = await loadCustomHappeningsFromServer(), !happenings.isEmpty {
+            await MainActor.run { model.happeningStore.mergeRestored(happenings) }
+            didRestore = true
+        }
         if let additions = await loadOptionEntriesFromServer(dayKey: today), !additions.isEmpty {
             await MainActor.run {
                 model.todayAdditions = additions

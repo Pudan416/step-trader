@@ -66,6 +66,18 @@ final class HappeningStore {
         return made
     }
 
+    func mergeRestored(_ happenings: [Happening]) {
+        guard !happenings.isEmpty else { return }
+        for restored in happenings where !restored.isBuiltIn {
+            if let index = all.firstIndex(where: { $0.id == restored.id }) {
+                all[index] = restored
+            } else {
+                all.append(restored)
+            }
+        }
+        persist()
+    }
+
     /// Records one addition. Drives palette ordering, so it is stored rather
     /// than derived from history.
     func recordUse(id: String, at date: Date = .now) {

@@ -239,12 +239,15 @@ final class BudgetEngineTests: XCTestCase {
     // MARK: - reloadFromStorage
 
     func testReloadFromStorage_picksUpNewValues() {
-        UserDefaults.stepsTrader().set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
-        let engine = BudgetEngine()
+        let suiteName = "BudgetEngineTests.reload.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(Tariff.medium.rawValue, forKey: SharedKeys.selectedTariff)
+        let engine = BudgetEngine(sharedDefaults: defaults, standardDefaults: defaults)
         XCTAssertEqual(engine.dayEndHour, 0)
 
-        UserDefaults.stepsTrader().set(6, forKey: SharedKeys.dayEndHour)
-        UserDefaults.stepsTrader().set(30, forKey: SharedKeys.dayEndMinute)
+        defaults.set(6, forKey: SharedKeys.dayEndHour)
+        defaults.set(30, forKey: SharedKeys.dayEndMinute)
         engine.reloadFromStorage()
 
         XCTAssertEqual(engine.dayEndHour, 6)

@@ -114,6 +114,18 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertEqual(model.happeningPointsToday, 10)
     }
 
+    func testCreateAndAddCountsAsOneUse() {
+        let model = makeModel()
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let happening = model.happeningStore.create(title: "Sauna", at: date)
+
+        _ = model.addHappening(
+            id: happening.id, colorHex: "#AABBCC", at: date, recordUse: false
+        )
+
+        XCTAssertEqual(model.happeningStore.happening(id: happening.id)?.useCount, 1)
+    }
+
     func testLoadDailyEnergyStateRestoresOnlyTodaysAdditions() throws {
         let todayKey = AppModel.dayKey(for: .now)
         let entries = [
@@ -156,6 +168,8 @@ final class HappeningAdditionsTests: XCTestCase {
             model.todayAdditions.map(\.optionId),
             ["body_walking", "mind_learning", "heart_joy"]
         )
+        XCTAssertEqual(model.happeningStore.happening(id: "body_walking")?.title, "Walking")
+        XCTAssertFalse(model.happeningStore.happening(id: "body_walking")?.isBuiltIn ?? true)
         XCTAssertNotNil(defaults.data(forKey: SharedKeys.todayAdditions))
     }
 

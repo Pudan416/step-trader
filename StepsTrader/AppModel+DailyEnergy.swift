@@ -17,7 +17,8 @@ extension AppModel {
     func addHappening(
         id: String,
         colorHex: String,
-        at date: Date = .now
+        at date: Date = .now,
+        recordUse: Bool = true
     ) -> OptionEntry {
         let entry = OptionEntry(
             id: UUID().uuidString,
@@ -28,10 +29,11 @@ extension AppModel {
             assetVariant: nil
         )
         todayAdditions.append(entry)
-        happeningStore.recordUse(id: id, at: date)
+        if recordUse { happeningStore.recordUse(id: id, at: date) }
         recalculateDailyEnergy()
         persistTodayAdditions()
         Task { await SupabaseSyncService.shared.syncOptionEntry(entry) }
+        Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
         return entry
     }
 
@@ -40,6 +42,11 @@ extension AppModel {
         todayAdditions.remove(at: index)
         recalculateDailyEnergy()
         persistTodayAdditions()
+        Task { await SupabaseSyncService.shared.deleteOptionEntry(id: entryId) }
+    }
+
+    func createHappening(title: String, at date: Date = .now) -> Happening {
+        happeningStore.create(title: title, at: date)
     }
 
     func paletteOrder() -> [Happening] {
@@ -64,6 +71,7 @@ extension AppModel {
         let g = UserDefaults.stepsTrader()
         happeningStore.load()
         loadTodayAdditions(from: g)
+        reconstituteHappeningsFromHistory()
         let rawAnchor = g.object(forKey: SharedKeys.dailyEnergyAnchor)
         AppLogger.energy.debug("📥 loadDailyEnergyState: anchor raw=\(String(describing: rawAnchor)), as Date=\(String(describing: rawAnchor as? Date))")
         guard let anchor = rawAnchor as? Date else {
@@ -90,6 +98,16 @@ extension AppModel {
         AppLogger.energy.debug("📥 loadDailyEnergyState LOADED: additions=\(self.todayAdditions.count), base=\(self.baseEnergyToday), spent=\(self.spentStepsToday)")
         
         recoverSelectionsFromCanvasIfNeeded()
+    }
+
+    private func reconstituteHappeningsFromHistory() {
+        var ids = Set(todayAdditions.map(\.optionId))
+        for snapshot in loadPastDaySnapshots().values {
+            ids.formUnion(snapshot.happeningIds)
+        }
+        happeningStore.reconstituteOrphans(fromHistoryIds: ids) { id in
+            EnergyDefaults.legacyTitle(for: id) ?? id
+        }
     }
 
     private func loadTodayAdditions(from defaults: UserDefaults) {

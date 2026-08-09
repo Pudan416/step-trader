@@ -17,7 +17,9 @@ concurrency:
 jobs:
   ios-tests:
     name: iOS unit tests
-    runs-on: macos-15
+    # The app uses the iOS 26 Liquid Glass API (`Glass`), which Xcode 16 cannot
+    # parse even behind @available. macOS 26 runners ship Xcode 26.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
@@ -45,7 +47,7 @@ jobs:
             -project Steps4.xcodeproj \
             -scheme Steps4 \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -only-testing:Steps4Tests \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 

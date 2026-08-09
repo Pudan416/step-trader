@@ -6,6 +6,64 @@ extension SupabaseSyncService {
     
     // MARK: - Public Sync Methods
 
+    func syncCustomHappenings(_ happenings: [Happening]) async {
+        await performCustomHappeningsSync(happenings.filter { !$0.isBuiltIn })
+    }
+
+    func performCustomHappeningsSync(_ happenings: [Happening]) async {
+        guard let auth = await authenticatedContext() else { return }
+        do {
+            let cfg = try SupabaseConfig.load()
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
+            guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return }
+            comps.queryItems = [URLQueryItem(name: "on_conflict", value: "id")]
+            guard let url = comps.url else { return }
+            let rows = happenings.map { CustomHappeningRow(happening: $0, userId: auth.userId) }
+            guard !rows.isEmpty else { return }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "authorization")
+            request.setValue("application/json", forHTTPHeaderField: "content-type")
+            request.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "prefer")
+            request.httpBody = try JSONEncoder().encode(rows)
+
+            let (data, response) = try await network.data(for: request)
+            guard response.statusCode < 400 else {
+                AppLogger.network.error("📡 Custom happenings sync failed: HTTP \(response.statusCode)")
+                enqueueForRetry(request)
+                _ = data
+                return
+            }
+        } catch {
+            AppLogger.network.error("📡 Custom happenings sync error: \(error.localizedDescription)")
+        }
+    }
+
+    func loadCustomHappeningsFromServer() async -> [Happening]? {
+        guard let auth = await authenticatedContext() else { return nil }
+        do {
+            let cfg = try SupabaseConfig.load()
+            let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
+            guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return nil }
+            comps.queryItems = [
+                URLQueryItem(name: "user_id", value: "eq.\(auth.userId)"),
+                URLQueryItem(name: "select", value: "*")
+            ]
+            guard let url = comps.url else { return nil }
+            var request = URLRequest(url: url)
+            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "authorization")
+            let (data, response) = try await network.data(for: request)
+            guard response.statusCode < 400 else { return nil }
+            return try JSONDecoder().decode([CustomHappeningRow].self, from: data).map(\.happening)
+        } catch {
+            AppLogger.network.error("📡 Custom happenings restore error: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     
     /// Sync daily selections for a given day
     func syncDailySelections(dayKey: String, activityIds: [String], recoveryIds: [String], joysIds: [String]) {
@@ -176,5 +234,39 @@ extension SupabaseSyncService {
             AppLogger.network.error("📡 Failed to load today's selections: \(error)")
             return nil
         }
+    }
+}
+
+struct CustomHappeningRow: Codable {
+    let id: String
+    let userId: String
+    let title: String
+    let useCount: Int
+    let lastUsedAt: String?
+
+    init(happening: Happening, userId: String) {
+        id = happening.id
+        self.userId = userId
+        title = happening.title
+        useCount = happening.useCount
+        lastUsedAt = happening.lastUsedAt.map { ISO8601DateFormatter().string(from: $0) }
+    }
+
+    var happening: Happening {
+        Happening(
+            id: id,
+            title: title,
+            isBuiltIn: false,
+            useCount: useCount,
+            lastUsedAt: lastUsedAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+        )
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case title = "title_en"
+        case useCount = "use_count"
+        case lastUsedAt = "last_used_at"
     }
 }
