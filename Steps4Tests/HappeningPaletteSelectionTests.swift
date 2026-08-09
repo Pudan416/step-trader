@@ -108,7 +108,7 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         XCTAssertEqual(store.ids.count, 10)
     }
 
-    func testReplacementTiesUseOldestLastUseThenCurrentSlotOrder() {
+    func testReplacementTiesUseOldestLastUse() {
         let catalog = [
             Happening(id: "newer", title: "Newer", isBuiltIn: true, useCount: 0,
                       lastUsedAt: Date(timeIntervalSince1970: 200)),
@@ -124,6 +124,24 @@ final class HappeningPaletteSelectionTests: XCTestCase {
                 catalog: catalog
             ),
             1
+        )
+    }
+
+    func testReplacementTiesUseCurrentSlotOrderWhenUsageAndLastUseMatch() {
+        let lastUsedAt = Date(timeIntervalSince1970: 100)
+        let catalog = [
+            Happening(id: "later-slot", title: "Later", isBuiltIn: true, useCount: 0,
+                      lastUsedAt: lastUsedAt),
+            Happening(id: "earlier-slot", title: "Earlier", isBuiltIn: true, useCount: 0,
+                      lastUsedAt: lastUsedAt)
+        ]
+
+        XCTAssertEqual(
+            HappeningPaletteSelection.replacementIndex(
+                in: ["earlier-slot", "later-slot"],
+                catalog: catalog
+            ),
+            0
         )
     }
 
