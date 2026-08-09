@@ -173,7 +173,10 @@ func availablePaletteHappenings(on date: Date = .now) -> [Happening] {
 }
 ```
 
-Creation remains catalog-only; it must not call `addHappening`.
+Creation remains catalog-only; it must not call `addHappening`. Change
+`HappeningStore.create` so a new item starts with `useCount == 0` and
+`lastUsedAt == nil`; only a successful daily addition records use. Update the
+existing store/addition tests that previously treated creation itself as use.
 
 - [ ] **Step 4: Run additions, economy, migration, and sync suites**
 
