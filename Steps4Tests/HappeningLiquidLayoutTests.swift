@@ -224,6 +224,17 @@ final class HappeningLiquidLayoutTests: XCTestCase {
         }
     }
 
+    func testTenItemPhoneLayoutReservesReadableThreeLineLabelLenses() {
+        let layout = HappeningLiquidLayout.layout(
+            count: 10, in: size, safeInsets: safeInsets
+        )
+
+        for frame in layout.labelFrames {
+            XCTAssertGreaterThanOrEqual(frame.width, 88)
+            XCTAssertGreaterThanOrEqual(frame.height, 64)
+        }
+    }
+
     func testHitFramesRemainInsideSafeBounds() {
         let safeBounds = CGRect(
             x: safeInsets.leading,
@@ -292,6 +303,12 @@ final class HappeningLiquidLayoutTests: XCTestCase {
         XCTAssertTrue(layout.labelFrames.isEmpty)
         XCTAssertTrue(layout.contourBounds.isEmpty)
         XCTAssertTrue(safeBounds.contains(layout.dockAnchor))
+        XCTAssertGreaterThan(layout.dockAnchor.y, safeBounds.midY)
+        XCTAssertLessThanOrEqual(
+            layout.dockAnchor.y,
+            safeBounds.maxY - 120,
+            "the empty-state controls must stay clear of persistent bottom chrome"
+        )
     }
 
     func testLayoutIsDeterministicForTheSameInputs() {
@@ -502,9 +519,72 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         }
     }
 
-    func testSemanticLabelTypographyUsesTwoLinesAtAccessibilitySizes() {
+    func testSemanticLabelTypographyKeepsThreeLinesAndCapsVisualScaling() {
         XCTAssertEqual(HappeningLiquidLabelTypography.maximumLines(for: .large), 3)
-        XCTAssertEqual(HappeningLiquidLabelTypography.maximumLines(for: .accessibility1), 2)
+        XCTAssertEqual(HappeningLiquidLabelTypography.maximumLines(for: .accessibility1), 3)
+        XCTAssertEqual(HappeningLiquidLabelTypography.maximumDynamicTypeSize, .xxxLarge)
+    }
+}
+
+final class HappeningPaletteChromeLayoutTests: XCTestCase {
+
+    func testPanelTextFieldsRetainAReadableSurfaceAndTouchTarget() {
+        XCTAssertGreaterThanOrEqual(HappeningPanelTextFieldAppearance.minimumHeight, 44)
+        XCTAssertGreaterThanOrEqual(HappeningPanelTextFieldAppearance.fillOpacity, 0.10)
+        XCTAssertGreaterThanOrEqual(HappeningPanelTextFieldAppearance.strokeOpacity, 0.18)
+    }
+
+    func testStandardTypeReservesMeasuredCardAndTabBarAroundPanels() {
+        XCTAssertEqual(
+            HappeningPaletteChromeLayout.panelTopInset(
+                topCardHeight: 176,
+                dynamicTypeSize: .large
+            ),
+            188
+        )
+        XCTAssertEqual(
+            HappeningPaletteChromeLayout.panelBottomInset(
+                tabBarHeight: 82,
+                dynamicTypeSize: .large
+            ),
+            94
+        )
+    }
+
+    func testAccessibilityTypeHidesSurroundingChromeAndUsesCompactInsets() {
+        XCTAssertTrue(
+            HappeningPaletteChromeLayout.hidesSurroundingChrome(
+                isPalettePresented: true,
+                dynamicTypeSize: .accessibility2
+            )
+        )
+        XCTAssertEqual(
+            HappeningPaletteChromeLayout.panelTopInset(
+                topCardHeight: 220,
+                dynamicTypeSize: .accessibility2
+            ),
+            20
+        )
+        XCTAssertEqual(
+            HappeningPaletteChromeLayout.panelBottomInset(
+                tabBarHeight: 150,
+                dynamicTypeSize: .accessibility2
+            ),
+            20
+        )
+    }
+
+    func testCanvasControlsYieldToPresentedPalette() {
+        XCTAssertFalse(
+            HappeningPaletteChromeLayout.showsCanvasControls(
+                isPalettePresented: true
+            )
+        )
+        XCTAssertTrue(
+            HappeningPaletteChromeLayout.showsCanvasControls(
+                isPalettePresented: false
+            )
+        )
     }
 }
 

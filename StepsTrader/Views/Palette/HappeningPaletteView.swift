@@ -1,5 +1,71 @@
 import SwiftUI
 
+enum HappeningPanelTextFieldAppearance {
+    static let minimumHeight: CGFloat = 44
+    static let fillOpacity: CGFloat = 0.12
+    static let strokeOpacity: CGFloat = 0.22
+}
+
+private struct HappeningPanelTextFieldModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .textFieldStyle(.plain)
+            .padding(.horizontal, 12)
+            .frame(minHeight: HappeningPanelTextFieldAppearance.minimumHeight)
+            .background(
+                Color.primary.opacity(HappeningPanelTextFieldAppearance.fillOpacity),
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(
+                        Color.primary.opacity(HappeningPanelTextFieldAppearance.strokeOpacity),
+                        lineWidth: 1
+                    )
+            }
+    }
+}
+
+extension View {
+    func happeningPanelTextFieldStyle() -> some View {
+        modifier(HappeningPanelTextFieldModifier())
+    }
+}
+
+enum HappeningPaletteChromeLayout {
+    private static let compactInset: CGFloat = 20
+    private static let chromeSpacing: CGFloat = 12
+
+    static func panelTopInset(
+        topCardHeight: CGFloat,
+        dynamicTypeSize: DynamicTypeSize
+    ) -> CGFloat {
+        dynamicTypeSize.isAccessibilitySize
+            ? compactInset
+            : max(compactInset, topCardHeight + chromeSpacing)
+    }
+
+    static func panelBottomInset(
+        tabBarHeight: CGFloat,
+        dynamicTypeSize: DynamicTypeSize
+    ) -> CGFloat {
+        dynamicTypeSize.isAccessibilitySize
+            ? compactInset
+            : max(compactInset, tabBarHeight + chromeSpacing)
+    }
+
+    static func hidesSurroundingChrome(
+        isPalettePresented: Bool,
+        dynamicTypeSize: DynamicTypeSize
+    ) -> Bool {
+        isPalettePresented && dynamicTypeSize.isAccessibilitySize
+    }
+
+    static func showsCanvasControls(isPalettePresented: Bool) -> Bool {
+        !isPalettePresented
+    }
+}
+
 /// Palette container for the native Living-island field and catalog controls.
 struct HappeningPaletteView: View {
     let happenings: [Happening]
@@ -15,6 +81,10 @@ struct HappeningPaletteView: View {
     @State private var activePanel: Panel?
     @State private var highlightedID: String?
     @State private var highlightTask: Task<Void, Never>?
+
+    @Environment(\.topCardHeight) private var topCardHeight
+    @Environment(\.tabBarHeight) private var tabBarHeight
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private enum Panel {
         case chooser
@@ -47,6 +117,17 @@ struct HappeningPaletteView: View {
     var body: some View {
         GeometryReader { proxy in
             let layout = presentation.layout(in: proxy.size, safeInsets: proxy.safeAreaInsets)
+            let panelTopInset = proxy.safeAreaInsets.top
+                + HappeningPaletteChromeLayout.panelTopInset(
+                    topCardHeight: topCardHeight,
+                    dynamicTypeSize: dynamicTypeSize
+                )
+            let panelBottomInset = proxy.safeAreaInsets.bottom
+                + HappeningPaletteChromeLayout.panelBottomInset(
+                    tabBarHeight: tabBarHeight,
+                    dynamicTypeSize: dynamicTypeSize
+                )
+            let panelHeight = max(1, proxy.size.height - panelTopInset - panelBottomInset)
 
             ZStack(alignment: .topLeading) {
                 Color.clear
@@ -109,8 +190,14 @@ struct HappeningPaletteView: View {
                         .transition(.opacity)
 
                     panel(for: activePanel)
-                        .padding(20)
-                        .frame(maxWidth: proxy.size.width, maxHeight: proxy.size.height)
+                        .frame(
+                            maxWidth: max(1, proxy.size.width - 40),
+                            maxHeight: panelHeight
+                        )
+                        .position(
+                            x: proxy.size.width / 2,
+                            y: panelTopInset + panelHeight / 2
+                        )
                         .transition(.scale(scale: 0.96).combined(with: .opacity))
                         .zIndex(1)
                 }

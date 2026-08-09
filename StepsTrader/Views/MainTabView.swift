@@ -31,6 +31,7 @@ struct MainTabView: View {
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @ScaledMetric(relativeTo: .caption2) private var tabIconSize: CGFloat = 24
     @ScaledMetric(relativeTo: .caption2) private var selectedTabIconSize: CGFloat = 26
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Environment(CoachMarkManager.self) private var coachMarkManager
     @State private var coachAnchors: [CoachMarkAnchor] = []
@@ -75,6 +76,13 @@ struct MainTabView: View {
     }
 
     private var tabTint: Color { AppColors.Night.textPrimary }
+
+    private var hidesSurroundingChromeForPalette: Bool {
+        HappeningPaletteChromeLayout.hidesSurroundingChrome(
+            isPalettePresented: isHappeningPaletteVisible,
+            dynamicTypeSize: dynamicTypeSize
+        )
+    }
 
     // Height preference key for the StepBalanceCard overlay
     private struct TopCardHeightPreferenceKey: PreferenceKey {
@@ -175,7 +183,7 @@ struct MainTabView: View {
             // (or read \.tabBarHeight) on its scrollable content so the last
             // row can scroll past the pill.
             .overlay(alignment: .bottom) {
-                if !isWideCanvas {
+                if !isWideCanvas, !hidesSurroundingChromeForPalette {
                     customTabBar
                         .allowsHitTesting(
                             !CanvasPaletteRouteState.blocksTabBar(
@@ -210,7 +218,7 @@ struct MainTabView: View {
             }
         }
         .overlay(alignment: .top) {
-            if !isWideCanvas {
+            if !isWideCanvas, !hidesSurroundingChromeForPalette {
             StepBalanceCard(
                 remainingSteps: model.userEconomyStore.totalStepsBalance,
                 totalSteps: model.healthStore.baseEnergyToday,

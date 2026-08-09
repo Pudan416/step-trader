@@ -390,7 +390,10 @@ struct GalleryView: View {
         // Controls in overlays — completely decoupled from the canvas/texture
         // ZStack so texture changes never trigger a controls re-layout.
         .overlay {
-            if !isWideCanvas {
+            if !isWideCanvas,
+               HappeningPaletteChromeLayout.showsCanvasControls(
+                   isPalettePresented: showHappeningPalette
+               ) {
                 canvasControls
                     .padding(.horizontal, controlsGuardRail)
             }

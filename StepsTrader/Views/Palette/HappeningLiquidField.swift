@@ -165,7 +165,7 @@ struct HappeningLiquidLabelTreatment: Equatable {
     }
 
     static func inscribedTextSize(in labelSize: CGSize) -> CGSize {
-        CGSize(width: labelSize.width * 0.70, height: labelSize.height * 0.70)
+        CGSize(width: labelSize.width * 0.72, height: labelSize.height * 0.68)
     }
 
     static func relativeLuminance(ofHex hex: String) -> Double {
@@ -198,9 +198,10 @@ struct HappeningLiquidLabelTreatment: Equatable {
 
 enum HappeningLiquidLabelTypography {
     static let font = Font.system(.footnote, design: .rounded, weight: .semibold)
+    static let maximumDynamicTypeSize: DynamicTypeSize = .xxxLarge
 
     static func maximumLines(for dynamicTypeSize: DynamicTypeSize) -> Int {
-        dynamicTypeSize.isAccessibilitySize ? 2 : 3
+        3
     }
 }
 
@@ -454,6 +455,7 @@ struct HappeningLiquidField: View {
 
                 Text(happening.localizedTitle())
                     .font(HappeningLiquidLabelTypography.font)
+                    .dynamicTypeSize(...HappeningLiquidLabelTypography.maximumDynamicTypeSize)
                     .foregroundStyle(style.labelTreatment.foregroundColor)
                     .multilineTextAlignment(.center)
                     .lineLimit(
@@ -475,9 +477,7 @@ struct HappeningLiquidField: View {
         .opacity(opacity)
         .disabled(transition.phase != .idle)
         .animation(.easeInOut(duration: 0.28), value: isHighlighted)
-        .accessibilityElement(children: .ignore)
         .accessibilityLabel(happening.localizedTitle())
-        .accessibilityAddTraits(.isButton)
     }
 
     private func beginRemoval(

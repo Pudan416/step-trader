@@ -47,7 +47,7 @@ enum HappeningLiquidLayout {
         [.init(x: 0.18, y: 0.24), .init(x: 0.50, y: 0.14), .init(x: 0.82, y: 0.27), .init(x: 0.18, y: 0.60), .init(x: 0.50, y: 0.48), .init(x: 0.82, y: 0.62), .init(x: 0.50, y: 0.86)],
         [.init(x: 0.18, y: 0.20), .init(x: 0.50, y: 0.12), .init(x: 0.82, y: 0.23), .init(x: 0.18, y: 0.49), .init(x: 0.50, y: 0.40), .init(x: 0.82, y: 0.51), .init(x: 0.30, y: 0.79), .init(x: 0.70, y: 0.80)],
         [.init(x: 0.18, y: 0.18), .init(x: 0.50, y: 0.10), .init(x: 0.82, y: 0.20), .init(x: 0.18, y: 0.46), .init(x: 0.50, y: 0.38), .init(x: 0.82, y: 0.48), .init(x: 0.18, y: 0.75), .init(x: 0.50, y: 0.86), .init(x: 0.82, y: 0.75)],
-        [.init(x: 0.18, y: 0.16), .init(x: 0.50, y: 0.09), .init(x: 0.82, y: 0.18), .init(x: 0.18, y: 0.42), .init(x: 0.50, y: 0.34), .init(x: 0.82, y: 0.44), .init(x: 0.18, y: 0.69), .init(x: 0.50, y: 0.80), .init(x: 0.82, y: 0.69), .init(x: 0.50, y: 0.94)]
+        [.init(x: 0.18, y: 0.16), .init(x: 0.50, y: 0.09), .init(x: 0.82, y: 0.18), .init(x: 0.18, y: 0.42), .init(x: 0.50, y: 0.34), .init(x: 0.82, y: 0.44), .init(x: 0.18, y: 0.69), .init(x: 0.50, y: 0.80), .init(x: 0.82, y: 0.69), .init(x: 0.50, y: 0.98)]
     ]
 
     static func layout(count: Int, in size: CGSize, safeInsets: EdgeInsets) -> Layout {
@@ -58,11 +58,16 @@ enum HappeningLiquidLayout {
 
         let itemCount = min(max(count, 0), templates.count - 1)
         guard itemCount > 0 else {
+            let bottomClearance = min(120, safeBounds.height * 0.25)
+            let preferredY = safeBounds.midY + min(96, safeBounds.height * 0.15)
             return Layout(
                 sources: [],
                 labelFrames: [],
                 contourBounds: .zero,
-                dockAnchor: CGPoint(x: safeBounds.midX, y: safeBounds.maxY - 44)
+                dockAnchor: CGPoint(
+                    x: safeBounds.midX,
+                    y: min(preferredY, safeBounds.maxY - bottomClearance)
+                )
             )
         }
 
@@ -84,8 +89,8 @@ enum HappeningLiquidLayout {
             height: contourHeight
         )
         let labelSize = CGSize(
-            width: min(80, max(44, contourWidth * 0.20)),
-            height: min(60, max(44, contourHeight * 0.14))
+            width: min(94, max(72, contourWidth * 0.27)),
+            height: min(68, max(56, contourHeight * 0.17))
         )
 
         let sources = templates[itemCount].enumerated().map { index, point in

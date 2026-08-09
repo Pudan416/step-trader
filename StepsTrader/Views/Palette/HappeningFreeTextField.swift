@@ -65,6 +65,7 @@ struct HappeningCreatorPanel: View {
             .padding(20)
         }
         .scrollDismissesKeyboard(.interactively)
+        .frame(maxHeight: 320)
         .frame(maxWidth: 440, alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay {
@@ -96,11 +97,16 @@ struct HappeningFreeTextField: View {
     var body: some View {
         TextField(
             String(localized: "What happened?", comment: "Palette free-text placeholder"),
-            text: $text
+            text: $text,
+            prompt: Text(
+                String(localized: "What happened?", comment: "Palette free-text placeholder")
+            )
+            .foregroundStyle(.secondary)
         )
         .font(.system(size: 14, weight: .medium))
-        .foregroundStyle(.black.opacity(0.8))
+        .foregroundStyle(.primary)
         .multilineTextAlignment(.center)
+        .happeningPanelTextFieldStyle()
         .textInputAutocapitalization(.sentences)
         // A happening is whatever the user calls it. Autocorrect against the
         // active keyboard language rewrites unfamiliar words outright — typing

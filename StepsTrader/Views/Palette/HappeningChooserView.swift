@@ -77,10 +77,14 @@ struct HappeningChooserView: View {
                         )
                     )
 
-                TextField("Search happenings", text: $query)
+                TextField(
+                    "Search happenings",
+                    text: $query,
+                    prompt: Text("Search happenings").foregroundStyle(.secondary)
+                )
                     .textInputAutocapitalization(.sentences)
                     .autocorrectionDisabled()
-                    .textFieldStyle(.roundedBorder)
+                    .happeningPanelTextFieldStyle()
                     .accessibilitySortPriority(
                         HappeningPanelAccessibilityOrder.priority(
                             for: .search,
