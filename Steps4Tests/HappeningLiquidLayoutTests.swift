@@ -494,6 +494,44 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
         XCTAssertEqual(state.selectedID, "happening_read")
     }
 
+    func testQueuedRemovalResolvesMovedZoneFromCurrentNineItemLayout() throws {
+        let size = CGSize(width: 402, height: 874)
+        let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
+        let initial = Array(HappeningDefaults.builtIns.prefix(10))
+        let queued = initial[9]
+        var presentation = HappeningLiquidPresentationState(happenings: initial)
+        let tenItemLayout = presentation.layout(in: size, safeInsets: safeInsets)
+        let staleSource = tenItemLayout.sources[9]
+
+        XCTAssertTrue(presentation.remove(id: initial[0].id))
+        let nineItemLayout = presentation.layout(in: size, safeInsets: safeInsets)
+        let currentIndex = try XCTUnwrap(
+            presentation.presentedHappenings.firstIndex { $0.id == queued.id }
+        )
+        let resolved = try XCTUnwrap(
+            HappeningLiquidRemovalResolver.resolve(
+                id: queued.id,
+                presentation: presentation,
+                size: size,
+                safeInsets: safeInsets,
+                dynamicTypeSize: .large
+            )
+        )
+
+        XCTAssertEqual(resolved.happening.id, queued.id)
+        XCTAssertEqual(resolved.source, nineItemLayout.sources[currentIndex])
+        XCTAssertEqual(resolved.transitionSources, nineItemLayout.sources)
+        XCTAssertGreaterThan(
+            hypot(
+                resolved.source.center.x - staleSource.center.x,
+                resolved.source.center.y - staleSource.center.y
+            ),
+            80,
+            "the fixture must prove the queued zone moved substantially during 10→9 reflow"
+        )
+        XCTAssertNotEqual(resolved.source, staleSource)
+    }
+
     func testFinishRemovalUnlocksOnlyAfterReflowAndAllowsAnotherID() {
         var state = HappeningLiquidTransitionState()
         XCTAssertTrue(state.beginRemoval(id: "happening_walk"))

@@ -358,10 +358,35 @@ enum HappeningLiquidContourHitRegion {
     }
 }
 
-private struct HappeningLiquidQueuedRemoval {
+struct HappeningLiquidRemovalStart {
     let happening: Happening
     let source: HappeningLiquidLayout.Source
     let transitionSources: [HappeningLiquidLayout.Source]
+}
+
+enum HappeningLiquidRemovalResolver {
+    static func resolve(
+        id: String,
+        presentation: HappeningLiquidPresentationState,
+        size: CGSize,
+        safeInsets: EdgeInsets,
+        dynamicTypeSize: DynamicTypeSize
+    ) -> HappeningLiquidRemovalStart? {
+        guard let index = presentation.presentedHappenings.firstIndex(where: { $0.id == id }) else {
+            return nil
+        }
+        let layout = presentation.layout(
+            in: size,
+            safeInsets: safeInsets,
+            dynamicTypeSize: dynamicTypeSize
+        )
+        guard index < layout.sources.count else { return nil }
+        return HappeningLiquidRemovalStart(
+            happening: presentation.presentedHappenings[index],
+            source: layout.sources[index],
+            transitionSources: layout.sources
+        )
+    }
 }
 
 /// Native, transparent renderer for the palette's Living island.
@@ -392,8 +417,9 @@ struct HappeningLiquidField: View {
     @State private var sinkPoint: CGPoint = .zero
     @State private var feedbackTick = 0
     @State private var removalTask: Task<Void, Never>?
-    @State private var queuedRemovals: [HappeningLiquidQueuedRemoval] = []
     @State private var transitionHitSources: [HappeningLiquidLayout.Source] = []
+    @State private var layoutSize: CGSize = .zero
+    @State private var layoutSafeInsets = EdgeInsets()
 
     private static let pressDuration = 0.12
     private static let sinkDuration = 0.19
@@ -450,7 +476,9 @@ struct HappeningLiquidField: View {
                             source: layout.sources[index],
                             frame: layout.labelFrames[index],
                             style: style(for: happening, in: styles),
-                            transitionSources: layout.sources
+                            transitionSources: layout.sources,
+                            layoutSize: proxy.size,
+                            safeInsets: proxy.safeAreaInsets
                         )
                     }
                 }
@@ -565,7 +593,9 @@ struct HappeningLiquidField: View {
         source: HappeningLiquidLayout.Source,
         frame: CGRect,
         style: HappeningLiquidSlotStyle,
-        transitionSources: [HappeningLiquidLayout.Source]
+        transitionSources: [HappeningLiquidLayout.Source],
+        layoutSize: CGSize,
+        safeInsets: EdgeInsets
     ) -> some View {
         let isSelected = transition.selectedID == happening.id
         let isHighlighted = highlightedID == happening.id
@@ -588,7 +618,9 @@ struct HappeningLiquidField: View {
             beginRemoval(
                 happening,
                 source: source,
-                transitionSources: transitionSources
+                transitionSources: transitionSources,
+                layoutSize: layoutSize,
+                safeInsets: safeInsets
             )
         } label: {
             ZStack {
@@ -657,25 +689,25 @@ struct HappeningLiquidField: View {
     private func beginRemoval(
         _ happening: Happening,
         source: HappeningLiquidLayout.Source,
-        transitionSources: [HappeningLiquidLayout.Source]
+        transitionSources: [HappeningLiquidLayout.Source],
+        layoutSize: CGSize,
+        safeInsets: EdgeInsets
     ) {
         let startsImmediately = transition.phase == .idle
         guard transition.beginRemoval(id: happening.id) else { return }
+        self.layoutSize = layoutSize
+        layoutSafeInsets = safeInsets
 
-        let removal = HappeningLiquidQueuedRemoval(
+        guard startsImmediately else { return }
+
+        startRemoval(HappeningLiquidRemovalStart(
             happening: happening,
             source: source,
             transitionSources: transitionSources
-        )
-        guard startsImmediately else {
-            queuedRemovals.append(removal)
-            return
-        }
-
-        startRemoval(removal)
+        ))
     }
 
-    private func startRemoval(_ removal: HappeningLiquidQueuedRemoval) {
+    private func startRemoval(_ removal: HappeningLiquidRemovalStart) {
         transitionHitSources = removal.transitionSources
         sinkPoint = CGPoint(
             x: removal.source.center.x,
@@ -768,13 +800,17 @@ struct HappeningLiquidField: View {
             transitionHitSources = []
             return
         }
-        guard let index = queuedRemovals.firstIndex(where: { $0.happening.id == nextID }) else {
+        guard let next = HappeningLiquidRemovalResolver.resolve(
+            id: nextID,
+            presentation: presentation,
+            size: layoutSize,
+            safeInsets: layoutSafeInsets,
+            dynamicTypeSize: dynamicTypeSize
+        ) else {
             transition.cancelRemoval()
-            queuedRemovals.removeAll()
             transitionHitSources = []
             return
         }
-        let next = queuedRemovals.remove(at: index)
         startRemoval(next)
     }
 
@@ -794,7 +830,6 @@ struct HappeningLiquidField: View {
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             transition.cancelRemoval()
-            queuedRemovals.removeAll()
             transitionHitSources = []
             selectedScale = 1
             sinkProgress = 0
