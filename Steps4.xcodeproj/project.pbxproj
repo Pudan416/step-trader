@@ -84,6 +84,7 @@
 		FE000004FEED000100000001 /* UnlockTimerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000004FEED000100000002 /* UnlockTimerModel.swift */; };
 		FE000006FEED000100000001 /* UsageBudgetMonitoringError.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000006FEED000100000002 /* UsageBudgetMonitoringError.swift */; };
 		FE000008FEED000100000001 /* FeedIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000008FEED000100000002 /* FeedIconView.swift */; };
+		FE000009FEED000100000001 /* FeedTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000009FEED000100000002 /* FeedTileView.swift */; };
 		20AA24882F70BEE1002F2F2C /* AppUnlockSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */; };
 		20AA24892F70BEEA002F2F2C /* AccessWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47C2F0C825C0018004E /* AccessWindow.swift */; };
 		20AA248A2F70C00100000001 /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
@@ -340,6 +341,7 @@
 		FE000004FEED000100000002 /* UnlockTimerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockTimerModel.swift; sourceTree = "<group>"; };
 		FE000006FEED000100000002 /* UsageBudgetMonitoringError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBudgetMonitoringError.swift; sourceTree = "<group>"; };
 		FE000008FEED000100000002 /* FeedIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedIconView.swift; sourceTree = "<group>"; };
+		FE000009FEED000100000002 /* FeedTileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedTileView.swift; sourceTree = "<group>"; };
 		200AC4892F1402CF0018004E /* ManagedSettings.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettings.framework; path = System/Library/Frameworks/ManagedSettings.framework; sourceTree = SDKROOT; };
 		200AC48B2F1402CF0018004E /* ManagedSettingsUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettingsUI.framework; path = System/Library/Frameworks/ManagedSettingsUI.framework; sourceTree = SDKROOT; };
 		200AC5A52F16DA3F0018004E /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
@@ -791,6 +793,7 @@
 			isa = PBXGroup;
 			children = (
 				FE000008FEED000100000002 /* FeedIconView.swift */,
+				FE000009FEED000100000002 /* FeedTileView.swift */,
 			);
 			path = Feeds;
 			sourceTree = "<group>";
@@ -1479,6 +1482,7 @@
 				20AA24872F70BED0002F2F2C /* TicketGroup.swift in Sources */,
 				FE000002FEED000100000001 /* FeedRowModel.swift in Sources */,
 				FE000008FEED000100000001 /* FeedIconView.swift in Sources */,
+				FE000009FEED000100000001 /* FeedTileView.swift in Sources */,
 				FE000004FEED000100000001 /* UnlockTimerModel.swift in Sources */,
 				FE000006FEED000100000001 /* UsageBudgetMonitoringError.swift in Sources */,
 				2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */,
