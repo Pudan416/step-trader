@@ -104,3 +104,123 @@ final class SimplexNoiseTests: XCTestCase {
         }
     }
 }
+
+// MARK: - Organic blob contour
+
+final class OrganicBlobContourTests: XCTestCase {
+
+    private let rect = CGRect(x: 0, y: 0, width: 200, height: 200)
+
+    func testRadiiAreReproducibleFromSeed() {
+        let a = ProceduralShapeGenerator.organicBlobRadiusFactor(
+            seed: 4242, complexity: 0.5, symmetry: 1, time: 0)
+        let b = ProceduralShapeGenerator.organicBlobRadiusFactor(
+            seed: 4242, complexity: 0.5, symmetry: 1, time: 0)
+        XCTAssertEqual(a, b)
+    }
+
+    func testDifferentSeedsGiveDifferentContours() {
+        let a = ProceduralShapeGenerator.organicBlobRadiusFactor(
+            seed: 1, complexity: 0.5, symmetry: 1, time: 0)
+        let b = ProceduralShapeGenerator.organicBlobRadiusFactor(
+            seed: 2, complexity: 0.5, symmetry: 1, time: 0)
+        XCTAssertNotEqual(a, b)
+    }
+
+    /// The star-shaped guarantee. While every radius stays positive the contour
+    /// cannot self-intersect, which is why no clean-up pass is needed — and why
+    /// textures can safely clip to it.
+    func testRadiiStayPositiveAcrossTheParameterSpace() {
+        for seed in stride(from: UInt64(0), to: 400, by: 7) {
+            for complexityStep in 0...10 {
+                let complexity = Double(complexityStep) / 10.0
+                let radii = ProceduralShapeGenerator.organicBlobRadiusFactor(
+                    seed: seed, complexity: complexity, symmetry: 1, time: 0)
+                XCTAssertGreaterThan(radii.min() ?? 0, 0.5,
+                                     "seed \(seed) complexity \(complexity)")
+                XCTAssertLessThan(radii.max() ?? 99, 1.5)
+            }
+        }
+    }
+
+    /// The regression this task exists to fix. The old sine-sum generator drew
+    /// a fresh random phase per point, so adjacent radii could differ by the
+    /// full amplitude — around 1.0. 0.25 is comfortably below that and
+    /// comfortably above what a correctly sampled ring produces.
+    func testAdjacentRadiiAreCorrelated() {
+        for seed in stride(from: UInt64(0), to: 200, by: 11) {
+            let radii = ProceduralShapeGenerator.organicBlobRadiusFactor(
+                seed: seed, complexity: 1.0, symmetry: 1, time: 0)
+            for i in radii.indices {
+                XCTAssertLessThan(
+                    abs(radii[i] - radii[(i + 1) % radii.count]), 0.25,
+                    "Discontinuity at point \(i) of seed \(seed)")
+            }
+        }
+    }
+
+    func testContourIsSeamlessAtTheWrapPoint() {
+        for seed in stride(from: UInt64(0), to: 200, by: 11) {
+            let radii = ProceduralShapeGenerator.organicBlobRadiusFactor(
+                seed: seed, complexity: 0.8, symmetry: 1, time: 0)
+            XCTAssertLessThan(abs(radii.first! - radii.last!), 0.25,
+                              "Seam at seed \(seed)")
+        }
+    }
+
+    func testTimeMorphsTheContourGraduallyNotAbruptly() {
+        let t0 = ProceduralShapeGenerator.organicBlobRadiusFactor(
+            seed: 31337, complexity: 0.6, symmetry: 1, time: 0)
+        let t1 = ProceduralShapeGenerator.organicBlobRadiusFactor(
+            seed: 31337, complexity: 0.6, symmetry: 1, time: 1)
+        let t100 = ProceduralShapeGenerator.organicBlobRadiusFactor(
+            seed: 31337, complexity: 0.6, symmetry: 1, time: 100)
+
+        let oneSecond = zip(t0, t1).map { abs($0 - $1) }.max() ?? 0
+        XCTAssertGreaterThan(oneSecond, 0, "The contour must actually animate")
+        XCTAssertLessThan(oneSecond, 0.05, "One second must not jump the shape")
+
+        let longRun = zip(t0, t100).map { abs($0 - $1) }.max() ?? 0
+        XCTAssertGreaterThan(longRun, 0.05, "Over 100s it must visibly morph")
+    }
+
+    /// Averaged over seeds: a single seed can pair a quiet patch of the field
+    /// with the higher amplitude and invert the comparison.
+    func testComplexityIncreasesDeviationFromACircle() {
+        func deviation(_ complexity: Double) -> Double {
+            let perSeed = stride(from: UInt64(0), to: 300, by: 13).map { seed -> Double in
+                let radii = ProceduralShapeGenerator.organicBlobRadiusFactor(
+                    seed: seed, complexity: complexity, symmetry: 1, time: 0)
+                return radii.map { abs($0 - 1.0) }.reduce(0, +) / Double(radii.count)
+            }
+            return perSeed.reduce(0, +) / Double(perSeed.count)
+        }
+        XCTAssertLessThan(deviation(0.0), deviation(1.0))
+    }
+
+    func testPointCountStaysWithinThePerformanceBudget() {
+        // CanvasLab-Spec §16: no shape may exceed 200 points, and the organic
+        // blob renderer stacks 4 layers per element.
+        let radii = ProceduralShapeGenerator.organicBlobRadiusFactor(
+            seed: 1, complexity: 1.0, symmetry: 1, time: 0)
+        XCTAssertLessThanOrEqual(radii.count * 4, 200)
+    }
+
+    func testPathIsNonEmptyAndBounded() {
+        let path = ProceduralShapeGenerator.organicBlobPath(
+            seed: 909, complexity: 0.5, symmetry: 1, time: 0, in: rect)
+        XCTAssertFalse(path.isEmpty)
+        // Max radius factor 1.32 around a centre of 100 with radius 100.
+        XCTAssertTrue(rect.insetBy(dx: -40, dy: -40).contains(path.boundingRect))
+    }
+
+    func testSymmetryFoldingStillMirrors() {
+        let radii = ProceduralShapeGenerator.organicBlobRadiusFactor(
+            seed: 606, complexity: 0.7, symmetry: 6, time: 0)
+        let sector = radii.count / 6
+        for i in 0..<sector {
+            XCTAssertEqual(radii[i], radii[i + sector], accuracy: 1e-9,
+                           "Sector \(i) did not mirror")
+        }
+    }
+}
