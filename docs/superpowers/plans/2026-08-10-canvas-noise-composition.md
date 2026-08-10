@@ -1169,7 +1169,7 @@ git commit -m "feat: add weighted Poisson-disc sampler for placement and stipple
 - Create: `StepsTrader/Shapes/ProceduralTexture.swift`
 - Modify: `StepsTrader/Views/Canvas/CanvasRenderCache.swift`
 - Modify: `StepsTrader/Shapes/OrganicBlobShapeRenderer.swift:91-157`
-- Modify: `StepsTrader/Views/GenerativeCanvasView.swift`, `StepsTrader/Services/ShapeIconCache.swift:159`, `StepsTrader/Views/Components/CanvasShapePreview.swift:229` — the three `draw`/`organicBlobPath` call sites gain the new `cache:` argument
+- Modify: `StepsTrader/Views/GenerativeCanvasView.swift:414` — the sole caller of `OrganicBlobShapeRenderer.draw`, which gains the new `cache:` argument. `ShapeIconCache` and `CanvasShapePreview` are NOT touched: they call `organicBlobPath` directly and draw their own gradients.
 - Test: `Steps4Tests/ProceduralTextureTests.swift`
 
 **Interfaces:**
@@ -1637,22 +1637,41 @@ enum ProceduralTexture {
         let spacing = 0.34 - spec.density * 0.22        // 0.34 … 0.12
         let bounds = CGRect(x: -1, y: -1, width: 2, height: 2)
 
+        // Containment only. Weighting the sampler does NOT produce a density
+        // gradient: `fill` uses weight as a Bernoulli accept gate and runs to
+        // exhaustion, so a rejected candidate is merely delayed, not removed,
+        // and final density ends up governed by `minDistance`. The gradient has
+        // to come from thinning the result afterwards.
         let raw = PoissonDiscSampler.fill(
             bounds: bounds,
             minDistance: spacing,
             maxPoints: maxDots,
-            weight: { point in
-                guard containsPoint(point, radii: radii) else { return 0 }
-                guard spec.uniformity < 1 else { return 1 }
-                let n = (noise.value(Double(point.x) * 1.3, Double(point.y) * 1.3) + 1) / 2
-                return spec.uniformity + (1 - spec.uniformity) * n
-            },
+            weight: { containsPoint($0, radii: radii) ? 1 : 0 },
             using: &rng
         )
 
+        // Separate stream so the thinning cannot perturb the placement above.
+        var thinRng = SeededRNG.derived(from: seed, domain: "stipple-thin")
+
         return raw
             .filter { containsPoint($0, radii: radii) }
-            .map { point in
+            .compactMap { point -> TextureGeometry.Dot? in
+                if spec.uniformity < 1 {
+                    // A dot where the field is low survives rarely, one where
+                    // it is high survives outright — this is what makes the
+                    // fill bunch to one side.
+                    //
+                    // The frequency is 0.4, deliberately much lower than the
+                    // 1.3 used elsewhere: the stipple domain is only ~2 units
+                    // across, and at 1.3 several noise lobes fit inside each
+                    // half of the form, so any split averages them out — over
+                    // an 18-seed sweep that produced no visible bunching at
+                    // all. At 0.4 a single lobe spans the whole form, which is
+                    // what "graded across the form" actually means.
+                    let n = (noise.value(Double(point.x) * 0.4, Double(point.y) * 0.4) + 1) / 2
+                    let survive = spec.uniformity + (1 - spec.uniformity) * n
+                    guard thinRng.nextDouble() < survive else { return nil }
+                }
                 // Dots shrink towards the rim so the fill has an interior.
                 let distance = Double(hypot(point.x, point.y))
                 let falloff = 1.0 - min(1.0, distance) * 0.55
@@ -1860,7 +1879,7 @@ Add two parameters to `OrganicBlobShapeRenderer.draw(...)`:
 - `spec: TextureSpec`, defaulting to `TextureSpec(kind: .gradient, density: 0.5, uniformity: 1, angle: 0)`. The default is a deliberate two-step: it keeps the three existing call sites compiling while this task lands, and Task 6 supplies the real per-element spec. Leave the default in place — Task 6 relies on `ShapeIconCache` and `CanvasShapePreview` continuing to render plain gradients, since an icon is too small to carry a texture.
 - `cache: RenderCache`. Both `OrganicBlobShapeRenderer` and `RenderCache` are already `@MainActor`, so passing it is free. `GenerativeCanvasView` already holds the cache and passes it to other renderers — follow the same call pattern.
 
-For the two call sites that have no `RenderCache` (`ShapeIconCache`, `CanvasShapePreview`), give each its own long-lived `RenderCache` instance rather than constructing one per call — a fresh cache per invocation would defeat the point.
+`OrganicBlobShapeRenderer.draw` has exactly **one** caller: `GenerativeCanvasView.swift:414`. `ShapeIconCache.swift:159` and `CanvasShapePreview.swift:229` call `ProceduralShapeGenerator.organicBlobPath` directly and do their own gradient drawing — they never touch the renderer. Leave both alone: they need neither the spec nor a cache, and an icon is too small to carry a texture anyway.
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
