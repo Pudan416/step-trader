@@ -34,10 +34,21 @@ struct FeedsSurfaceView: View {
     let onSettings: (String) -> Void
     let onDelete: (String) -> Void
 
-    static let size = CGSize(width: 387, height: 443)
+    /// The surface as drawn in the design, on a 393pt-wide phone. It is a
+    /// *ceiling and a ratio*, not a fixed size: hard-coding 387×443 overflowed
+    /// a 375pt-wide SE 3 / 13 mini horizontally, in a page that does not
+    /// scroll, and overran the height there too once the header, dock and
+    /// paddings were counted. The surface now fits itself into whatever the
+    /// page offers, keeping the design's proportions, and only reaches full
+    /// size where there is room.
+    static let designSize = CGSize(width: 387, height: 443)
+    static var designAspectRatio: CGFloat { designSize.width / designSize.height }
     private static let cornerRadius: CGFloat = 28
-    private static let ringDiameter: CGFloat = 176
     private static let ringLineWidth: CGFloat = 10
+
+    /// The ring is 176pt across at the design size; scale with the surface so
+    /// it keeps the same share of the card on a narrower phone.
+    private static let ringDiameterRatio: CGFloat = 176 / 387
 
     /// The three states, kept in one enum so the transitions are visible in
     /// one place. Carrying the resolved `TicketGroup` in the non-idle cases
@@ -82,19 +93,26 @@ struct FeedsSurfaceView: View {
             return remaining > 0 ? .running(group) : .offeringWindows(group)
         }()
 
-        return ZStack {
-            background
+        // GeometryReader inside the aspect-ratio frame below, not around it:
+        // it reports the size the page actually granted, which the background
+        // canvas and the ring need in points.
+        return GeometryReader { geo in
+            ZStack {
+                background(size: geo.size)
 
-            switch state {
-            case .idle:
-                EmptyView()
-            case .offeringWindows(let group):
-                windowOptions(for: group)
-            case .running(let group):
-                timerDisplay(for: group, remaining: remaining)
+                switch state {
+                case .idle:
+                    EmptyView()
+                case .offeringWindows(let group):
+                    windowOptions(for: group)
+                case .running(let group):
+                    timerDisplay(for: group, remaining: remaining, width: geo.size.width)
+                }
             }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
-        .frame(width: Self.size.width, height: Self.size.height)
+        .aspectRatio(Self.designAspectRatio, contentMode: .fit)
+        .frame(maxWidth: Self.designSize.width, maxHeight: Self.designSize.height)
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
         .overlay(alignment: .topTrailing) {
             // Independent of state (besides idle): a running window must not
@@ -134,7 +152,7 @@ struct FeedsSurfaceView: View {
     /// `showLabelsOnCanvas: false` drops labels that would just be noise under
     /// the blur. The scrim on top keeps window-option text and timer digits
     /// legible regardless of what the canvas underneath looks like today.
-    private var background: some View {
+    private func background(size: CGSize) -> some View {
         ZStack {
             GenerativeCanvasView(
                 elements: dayCanvas.elements,
@@ -150,7 +168,7 @@ struct FeedsSurfaceView: View {
                 hasSleepData: dayCanvas.resolvedHasSleepData,
                 fixedTime: fixedTime
             )
-            .frame(width: Self.size.width, height: Self.size.height)
+            .frame(width: size.width, height: size.height)
             .blur(radius: 18)
 
             // Uniform dimming so content reads anywhere on the card, plus an
@@ -273,13 +291,15 @@ struct FeedsSurfaceView: View {
 
     // MARK: - State 3: timer
 
-    private func timerDisplay(for group: TicketGroup, remaining: Int) -> some View {
+    private func timerDisplay(for group: TicketGroup, remaining: Int, width: CGFloat) -> some View {
         let display = resolvedTimerState(for: group, remaining: remaining)
         return ZStack {
-            depletionRing(fraction: display.fraction)
+            depletionRing(fraction: display.fraction, diameter: width * Self.ringDiameterRatio)
             Text(display.digits)
                 .font(.system(size: 44, weight: .medium, design: .monospaced))
                 .foregroundStyle(.white)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
         }
         .padding(.bottom, 24)
     }
@@ -291,7 +311,7 @@ struct FeedsSurfaceView: View {
     /// only changes on whole-minute tick boundaries, and this view must not
     /// smooth that into a sweep. A tick lands as a hard cut, matching the
     /// spec: never interpolate, never run backwards.
-    private func depletionRing(fraction: Double) -> some View {
+    private func depletionRing(fraction: Double, diameter: CGFloat) -> some View {
         ZStack {
             Circle()
                 .stroke(Color.white.opacity(0.18), lineWidth: Self.ringLineWidth)
@@ -304,7 +324,7 @@ struct FeedsSurfaceView: View {
                 .rotationEffect(.degrees(-90))
                 .animation(nil, value: fraction)
         }
-        .frame(width: Self.ringDiameter, height: Self.ringDiameter)
+        .frame(width: diameter, height: diameter)
     }
 
     /// What state 3 shows for `group` at `remaining` — the exact value that

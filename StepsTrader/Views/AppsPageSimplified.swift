@@ -120,6 +120,11 @@ struct AppsPageSimplified: View {
                                 groupIdToDelete = groupId
                             }
                         )
+                        // The surface fits itself to what it is offered (see
+                        // `FeedsSurfaceView.designSize`); this keeps the
+                        // design's 3pt side margins on a 393pt phone and lets
+                        // it shrink rather than overflow on a narrower one.
+                        .padding(.horizontal, 3)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 8)
 
