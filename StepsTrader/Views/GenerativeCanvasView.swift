@@ -60,12 +60,6 @@ struct GenerativeCanvasView: View {
         labelColor ?? (isDarkBackground ? .white : .black)
     }
 
-    /// One composition per canvas. Derived, never stored — a pure function of
-    /// the day key, so it survives reinstall and sync for free.
-    private var dayComposition: DayComposition {
-        DayComposition.forDay(dayKey: dayKey, happeningCount: elements.count)
-    }
-
     // ═══════════════════════════════════════════════════════════
     // MARK: - Body
     // ═══════════════════════════════════════════════════════════
@@ -254,6 +248,10 @@ struct GenerativeCanvasView: View {
         let blendMode: GraphicsContext.BlendMode = dark ? .plusLighter : .normal
         let lblColor = labelColor ?? (dark ? .white : .black)
         let shadowClr = dark ? Color.black : Color.white
+        // One composition per frame, not per organic blob — `DayComposition.forDay`
+        // does real work (archetype/palette/texture-policy derivation), so calling
+        // it from inside `drawElement` recomputed it once per blob per frame.
+        let dayComposition = DayComposition.forDay(dayKey: dayKey, happeningCount: elements.count)
 
         if showsBackgroundGradient {
             drawUnifiedGradient(context: &context, size: size, t: t)
@@ -273,7 +271,7 @@ struct GenerativeCanvasView: View {
         let snowflakeElements = sortedElements.filter { shapeType(for: $0) == .snowflake }
         for element in snowflakeElements {
             let interaction = interactions[element.id]
-            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction)
+            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction, dayComposition: dayComposition)
             if showLabelsOnCanvas {
                 let center = elementCenter(element, size: size, t: t)
                 drawLabel(element, at: center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
@@ -310,7 +308,7 @@ struct GenerativeCanvasView: View {
             if clusteredBlobIds.contains(element.id) { continue }
 
             let interaction = interactions[element.id]
-            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction)
+            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction, dayComposition: dayComposition)
             if showLabelsOnCanvas {
                 let center = elementCenter(element, size: size, t: t)
                 drawLabel(element, at: center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
@@ -395,7 +393,8 @@ struct GenerativeCanvasView: View {
         decay: Double,
         blendMode: GraphicsContext.BlendMode,
         interaction: ElementInteraction? = nil,
-        bodyBlobInfos: [BodyBlobInfo] = []
+        bodyBlobInfos: [BodyBlobInfo] = [],
+        dayComposition: DayComposition
     ) {
         let spawn = spawnFactor(for: element, t: t)
         guard spawn > 0.001 else { return }
@@ -427,6 +426,7 @@ struct GenerativeCanvasView: View {
                     decayedColor2: color2,
                     spec: CanvasElement.textureSpec(
                         rank: renderCache.sortedIndexMap[element.id] ?? 0,
+                        dayKey: dayKey,
                         composition: dayComposition),
                     cache: renderCache
                 )

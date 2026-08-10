@@ -56,7 +56,13 @@ enum CompositionArchetype: String, Codable, CaseIterable, Hashable {
     /// a centred mass has one dominant form, a constellation has peers.
     func sizeMultiplier(rank: Int, count: Int) -> Double {
         let total = max(1, count)
-        let position = Double(rank) / Double(max(1, total - 1))   // 0…1
+        // Clamped: a rank beyond `count - 1` (the caller passes a nominal day
+        // length, not the running total, so this happens routinely once a day
+        // has more than `nominalDayCount` elements) would otherwise push
+        // `position` past 1 — and `cornerWeight`'s `pow(1 - position, 2.2)`
+        // on a negative base returns NaN.
+        let position = min(1, max(0,
+            Double(rank) / Double(max(1, total - 1))))   // 0…1
 
         switch self {
         case .centeredMass:
@@ -139,6 +145,12 @@ struct DayComposition: Codable, Hashable {
     var palette: [String]
     var contrastKey: ContrastKey
     var texturePolicy: TexturePolicy
+
+    /// The size curves grade a day's elements from anchor to accent, so they need
+    /// a projected day length to normalise against — not the count so far, which
+    /// would put every new element at the end of its own curve. Ten matches the
+    /// configured happening palette, which admits one addition per happening per day.
+    static let nominalDayCount = 10
 
     /// The day's identity. `happeningCount` is accepted so density decisions
     /// can respond to how full the day is, but archetype, palette and contrast

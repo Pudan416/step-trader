@@ -133,6 +133,23 @@ final class DayCompositionTests: XCTestCase {
         }
     }
 
+    /// Pins the fix for the NaN this method used to produce: `spawn` always
+    /// passes `DayComposition.nominalDayCount` as `count`, so `rank` routinely
+    /// exceeds `count - 1` once a day has more than `nominalDayCount`
+    /// elements — before the clamp, that pushed `position` past 1, and
+    /// `cornerWeight`'s `pow(1 - position, 2.2)` on a negative base returned
+    /// NaN, silently poisoning `size` (`min`/`max` against NaN pass NaN
+    /// through). Every archetype, well past the nominal count, must still
+    /// return a finite multiplier.
+    func testSizeMultiplierIsFiniteBeyondTheNominalCount() {
+        for archetype in CompositionArchetype.allCases {
+            for rank in 0..<20 {
+                let m = archetype.sizeMultiplier(rank: rank, count: DayComposition.nominalDayCount)
+                XCTAssertTrue(m.isFinite, "\(archetype) rank \(rank) → \(m)")
+            }
+        }
+    }
+
     /// Centred mass means one dominant form; constellation means peers. The
     /// two must not produce the same size curve, or every canvas ends up with
     /// the same skeleton.
@@ -364,6 +381,23 @@ final class ComposedSpawnTests: XCTestCase {
         XCTAssertGreaterThan(Set(existing.map(\.hexColor)).count, 1)
     }
 
+    /// `spawn`'s "secondColour" stream picks two-colour ~60% of the time and
+    /// single-colour ~40% of the time. Across enough ranks both must actually
+    /// occur — this pins the fix that had `hexColor2` always set (spawn ignored
+    /// its own computed local and fell back to `composition.color(forRank:
+    /// rank + 1)` unconditionally), which made every element a gradient
+    /// regardless of what the ~40% single-colour branch computed.
+    func testACanvasHasBothSingleAndTwoColourElements() {
+        var existing: [CanvasElement] = []
+        for i in 0..<40 {
+            existing.append(spawn(optionId: "happening_\(i)", existing: existing))
+        }
+        let hasSingleColour = existing.contains { $0.hexColor2 == nil }
+        let hasTwoColour = existing.contains { $0.hexColor2 != nil }
+        XCTAssertTrue(hasSingleColour, "No single-colour elements across 40 ranks")
+        XCTAssertTrue(hasTwoColour, "No two-colour elements across 40 ranks")
+    }
+
     // MARK: Placement follows the archetype
 
     func testSpawnStaysInsideTheMargin() {
@@ -376,34 +410,67 @@ final class ComposedSpawnTests: XCTestCase {
         }
     }
 
-    /// Placement must actually follow the day's field, not ignore it.
+    /// Placement must actually follow the day's field, not ignore it. This
+    /// exercised only one archetype via a hard-coded day key — if that key
+    /// ever resolved to `constellation`, whose field is uniform by design
+    /// (see `DayCompositionTests.testConstellationIsEven`), the test would
+    /// fail outright with no way to distinguish "placement is broken" from
+    /// "this archetype has no high ground to favour". Iterate day keys until
+    /// several distinct non-constellation archetypes have each been checked.
     func testPlacementFavoursHighWeightRegions() {
-        var existing: [CanvasElement] = []
-        for i in 0..<12 {
-            existing.append(spawn(optionId: "happening_\(i)", existing: existing))
-        }
-        let archetype = composition().archetype
-        let meanWeight = existing
-            .map { archetype.weight(at: $0.basePosition) }
-            .reduce(0, +) / Double(existing.count)
+        let archetypesToCover = Set(CompositionArchetype.allCases).subtracting([.constellation])
+        var covered = Set<CompositionArchetype>()
 
-        // A uniform scatter over the bounds would average the field's mean;
-        // a weighted one must beat it.
-        var uniformSum = 0.0
-        var samples = 0
-        for xStep in 0...20 {
-            for yStep in 0...20 {
-                let p = CGPoint(
-                    x: CanvasElement.spawnBounds.minX
-                        + CanvasElement.spawnBounds.width * Double(xStep) / 20,
-                    y: CanvasElement.spawnBounds.minY
-                        + CanvasElement.spawnBounds.height * Double(yStep) / 20)
-                uniformSum += archetype.weight(at: p)
-                samples += 1
+        var dayIndex = 0
+        while covered != archetypesToCover {
+            dayIndex += 1
+            XCTAssertLessThan(dayIndex, 1000, "Ran out of day keys before covering every archetype")
+            guard dayIndex < 1000 else { break }
+
+            let key = String(format: "2026-%02d-%02d", dayIndex % 12 + 1, dayIndex % 28 + 1)
+            let dayComposition = DayComposition.forDay(dayKey: key, happeningCount: 0)
+            let archetype = dayComposition.archetype
+            // Constellation's field is uniform, so a weighted sampler cannot
+            // outscore a uniform one there — skip it rather than fail on it.
+            guard archetype != .constellation, !covered.contains(archetype) else { continue }
+            covered.insert(archetype)
+
+            var existing: [CanvasElement] = []
+            for i in 0..<12 {
+                existing.append(CanvasElement.spawn(
+                    optionId: "happening_\(i)",
+                    label: "Walk",
+                    existingElements: existing,
+                    allowedShapeTypes: [.organicBlob],
+                    dayKey: key,
+                    composition: DayComposition.forDay(dayKey: key, happeningCount: existing.count)
+                ))
             }
+            let meanWeight = existing
+                .map { archetype.weight(at: $0.basePosition) }
+                .reduce(0, +) / Double(existing.count)
+
+            // A uniform scatter over the bounds would average the field's mean;
+            // a weighted one must beat it.
+            var uniformSum = 0.0
+            var samples = 0
+            for xStep in 0...20 {
+                for yStep in 0...20 {
+                    let p = CGPoint(
+                        x: CanvasElement.spawnBounds.minX
+                            + CanvasElement.spawnBounds.width * Double(xStep) / 20,
+                        y: CanvasElement.spawnBounds.minY
+                            + CanvasElement.spawnBounds.height * Double(yStep) / 20)
+                    uniformSum += archetype.weight(at: p)
+                    samples += 1
+                }
+            }
+            XCTAssertGreaterThan(meanWeight, uniformSum / Double(samples),
+                                 "\(archetype) placement ignored its own field")
         }
-        XCTAssertGreaterThan(meanWeight, uniformSum / Double(samples),
-                             "\(archetype) placement ignored its own field")
+
+        XCTAssertEqual(covered, archetypesToCover,
+                       "Did not find day keys covering every non-constellation archetype")
     }
 
     func testSpacingRelaxesAsTheCanvasFills() {
@@ -415,14 +482,20 @@ final class ComposedSpawnTests: XCTestCase {
 
     // MARK: Size follows the archetype
 
-    func testSizeStaysRenderable() {
+    /// `spawn` clamps `size` to `0.04...0.48` unconditionally (see
+    /// `min(0.48, max(0.04, base * multiplier))`), so asserting those bounds
+    /// cannot fail regardless of whether the archetype's curve is wired up at
+    /// all. Assert something the wiring can actually break instead: that the
+    /// archetype's size curve produces more than one distinct size across a
+    /// day's elements, i.e. `sizeMultiplier` is actually being consulted.
+    func testSizeVariesAcrossTheArchetypesCurve() {
         var existing: [CanvasElement] = []
         for i in 0..<15 {
-            let element = spawn(optionId: "happening_\(i)", existing: existing)
-            XCTAssertGreaterThanOrEqual(element.size, 0.04)
-            XCTAssertLessThanOrEqual(element.size, 0.48)
-            existing.append(element)
+            existing.append(spawn(optionId: "happening_\(i)", existing: existing))
         }
+        let sizes = existing.map(\.size)
+        XCTAssertGreaterThan(Set(sizes).count, 1,
+                             "Every element had the same size — the archetype's size curve had no effect")
     }
 
     // MARK: Texture follows the policy
@@ -430,15 +503,27 @@ final class ComposedSpawnTests: XCTestCase {
     func testTextureSpecFollowsTheDayPolicy() {
         let day = composition()
         for rank in 0..<12 {
-            let spec = CanvasElement.textureSpec(rank: rank, composition: day)
+            let spec = CanvasElement.textureSpec(rank: rank, dayKey: dayKey, composition: day)
             XCTAssertEqual(spec.kind, day.texturePolicy.kind(forRank: rank))
         }
     }
 
+    /// A same-process double-call comparison (the test this replaces) is blind
+    /// by construction to a `hashValue`-derived seed: `String.hashValue` is
+    /// randomised once per process, not once per call, so two calls in the same
+    /// test run would agree with each other and still disagree with the next
+    /// launch. These constants were captured from one real run of
+    /// `CanvasElement.textureSpec(rank: 3, dayKey: "2026-08-10", composition:)`
+    /// (via `makeSeed` → FNV-1a → `SeededRNG.derived(domain: "texture")`, none
+    /// of which touch `String.hashValue`) and must reproduce on every run, on
+    /// every launch, in every process — that cross-process stability is the
+    /// entire point of the fix this test guards.
     func testTextureSpecIsDeterministic() {
         let day = composition()
-        XCTAssertEqual(CanvasElement.textureSpec(rank: 3, composition: day),
-                       CanvasElement.textureSpec(rank: 3, composition: day))
+        let spec = CanvasElement.textureSpec(rank: 3, dayKey: dayKey, composition: day)
+        XCTAssertEqual(spec.density, 0.61565509146580877, accuracy: 1e-12)
+        XCTAssertEqual(spec.uniformity, 0.35133926126910608, accuracy: 1e-12)
+        XCTAssertEqual(spec.angle, 2.0681452615172895, accuracy: 1e-12)
     }
 
     // MARK: Reroll

@@ -193,12 +193,17 @@ struct CanvasElement: Identifiable, Codable {
     }
 
     /// The fill for an element at a given arrival order under a day's policy.
-    static func textureSpec(rank: Int, composition: DayComposition) -> TextureSpec {
+    ///
+    /// Seeded on `dayKey` + `rank` via the same FNV construction `makeSeed`
+    /// uses everywhere else — never on `String.hashValue`. Swift randomises
+    /// hash seeds per process, so a hashValue-derived seed would keep the
+    /// fill *kind* stable (that comes from `texturePolicy`, which is
+    /// Codable data) but reshuffle `density`/`uniformity`/`angle` on every
+    /// launch, so a live render and a thumbnail or export rendered in a
+    /// different process would disagree on the same element.
+    static func textureSpec(rank: Int, dayKey: String, composition: DayComposition) -> TextureSpec {
         let kind = composition.texturePolicy.kind(forRank: rank)
-        // Seed on the day's palette so a day's textures share a character
-        // while still differing element to element.
-        let seed = UInt64(bitPattern: Int64(rank)) &* 0x9E37_79B9
-            &+ UInt64(truncatingIfNeeded: composition.palette.joined().hashValue)
+        let seed = makeSeed(optionId: "composition-texture", dayKey: dayKey, index: rank)
         return TextureSpec.seeded(kind: kind, seed: seed)
     }
 
@@ -218,7 +223,7 @@ struct CanvasElement: Identifiable, Codable {
         var rng = SeededRNG(seed: shapeSeed ?? 0)
         let base = rng.nextDouble(in: Self.baseSizeRange(for: resolvedShape))
         let multiplier = composition.archetype.sizeMultiplier(
-            rank: rank, count: max(rank + 1, composition.palette.count))
+            rank: rank, count: DayComposition.nominalDayCount)
         size = CGFloat(min(0.48, max(0.04, base * multiplier)))
         userSize = nil
 
@@ -289,11 +294,20 @@ struct CanvasElement: Identifiable, Codable {
         var sizeRng = SeededRNG.derived(from: seed, domain: "size")
         let base = sizeRng.nextDouble(in: baseSizeRange(for: shapeType))
         let multiplier = composition.archetype.sizeMultiplier(
-            rank: rank, count: max(rank + 1, existingElements.count + 1))
+            rank: rank, count: DayComposition.nominalDayCount)
         let size = CGFloat(min(0.48, max(0.04, base * multiplier)))
 
         // Colour comes from the day's palette, not from all 29 swatches.
         let color = composition.color(forRank: rank)
+
+        // ~60% two-colour, ~40% single-colour — restores the variety the old
+        // `randomSecondColor` (~50% nil) gave, deterministically. Every
+        // element getting a gradient made the canvas busier than intended;
+        // `hexColor2`'s own doc comment still says "Nil = solid single color".
+        var secondColourRng = SeededRNG.derived(from: seed, domain: "secondColour")
+        let hexColor2 = secondColourRng.nextDouble() < 0.6
+            ? composition.color(forRank: rank + 1)
+            : nil
 
         var motionRng = SeededRNG.derived(from: seed, domain: "motion")
         let opacityRange = composition.opacityRange(forRank: rank)
@@ -308,7 +322,7 @@ struct CanvasElement: Identifiable, Codable {
             optionId: optionId,
             label: label,
             hexColor: color,
-            hexColor2: composition.color(forRank: rank + 1),
+            hexColor2: hexColor2,
             size: size,
             basePosition: position,
             phaseOffset: motionRng.nextDouble(in: 0...(2 * .pi)),
