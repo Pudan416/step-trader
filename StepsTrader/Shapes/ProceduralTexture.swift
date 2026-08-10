@@ -1,0 +1,317 @@
+import SwiftUI
+
+// MARK: - Kind
+
+/// How the inside of a form is filled.
+///
+/// Every element used to get the same radial gradient, which is why a full
+/// canvas read as one object repeated. These five give a canvas forms that are
+/// flat, graded, ringed, hatched or stippled — and `TextureSpec.uniformity`
+/// lets each of them read as even or as strongly graded across the form.
+enum TextureKind: String, Codable, CaseIterable, Hashable {
+    case flat       // solid colour, no falloff — the contrast anchor
+    case gradient   // the existing radial falloff
+    case rings      // concentric copies of the contour, stroked
+    case hatch      // parallel lines clipped to the contour
+    case stipple    // Poisson dot field inside the contour
+}
+
+// MARK: - Spec
+
+/// Parameters of a fill. Doubles as a cache key, so its `Hashable` conformance
+/// quantises: raw `Double` equality would miss the cache on every slider tick.
+struct TextureSpec: Codable, Hashable {
+    var kind: TextureKind
+    /// How much of the fill there is — line count, dot count, ring count.
+    var density: Double
+    /// `1` = even across the form, `0` = strongly graded by a noise field.
+    var uniformity: Double
+    /// Direction, used by `hatch` and by the gradient's offset.
+    var angle: Double
+
+    init(kind: TextureKind, density: Double, uniformity: Double, angle: Double) {
+        self.kind = kind
+        self.density = min(max(density, 0), 1)
+        self.uniformity = min(max(uniformity, 0), 1)
+        self.angle = angle.truncatingRemainder(dividingBy: 2 * .pi)
+            + (angle < 0 ? 2 * .pi : 0)
+    }
+
+    /// Sensible randomised parameters for a kind.
+    static func seeded(kind: TextureKind, seed: UInt64) -> TextureSpec {
+        var rng = SeededRNG.derived(from: seed, domain: "texture")
+        return TextureSpec(
+            kind: kind,
+            density: rng.nextDouble(in: 0.3...1.0),
+            uniformity: rng.nextDouble(in: 0.0...1.0),
+            angle: rng.nextDouble(in: 0...(2 * .pi))
+        )
+    }
+
+    // Quantise to 1e-4 so cache lookups survive floating-point drift.
+    private var quantised: [Int] {
+        [Int((density * 10_000).rounded()),
+         Int((uniformity * 10_000).rounded()),
+         Int((angle * 10_000).rounded())]
+    }
+
+    static func == (lhs: TextureSpec, rhs: TextureSpec) -> Bool {
+        lhs.kind == rhs.kind && lhs.quantised == rhs.quantised
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(kind)
+        hasher.combine(quantised)
+    }
+}
+
+// MARK: - Geometry
+
+/// The cacheable output of a fill, in **unit space**: the contour's radius is
+/// `1.0`, so one cached texture serves the icon, the canvas and a 4K export.
+struct TextureGeometry: Hashable {
+    /// Normalised radii per nested ring, outermost first.
+    var rings: [[Double]] = []
+    /// Hatch segments, unit space.
+    var lines: [Line] = []
+    /// Stipple dots: centre and radius, unit space.
+    var dots: [Dot] = []
+
+    struct Line: Hashable {
+        var start: CGPoint
+        var end: CGPoint
+    }
+
+    struct Dot: Hashable {
+        var center: CGPoint
+        var radius: Double
+    }
+}
+
+// MARK: - Generator
+
+enum ProceduralTexture {
+
+    // Budget ceilings, enforced by ProceduralTextureTests.
+    private static let maxDots = 90
+    private static let maxLines = 40
+    private static let maxRings = 8
+
+    /// Pure. `radii` is the element's contour from
+    /// `ProceduralShapeGenerator.organicBlobRadiusFactor`.
+    static func geometry(
+        spec: TextureSpec,
+        radii: [Double],
+        seed: UInt64
+    ) -> TextureGeometry {
+        switch spec.kind {
+        case .flat, .gradient:
+            return TextureGeometry()
+        case .rings:
+            return TextureGeometry(rings: ringGeometry(spec: spec, radii: radii))
+        case .hatch:
+            return TextureGeometry(lines: hatchGeometry(spec: spec, radii: radii, seed: seed))
+        case .stipple:
+            return TextureGeometry(dots: stippleGeometry(spec: spec, radii: radii, seed: seed))
+        }
+    }
+
+    // MARK: Rings
+
+    /// Concentric copies of the contour, each strictly inside the last.
+    /// `uniformity` controls the spacing: even rings versus rings that bunch
+    /// towards the edge.
+    private static func ringGeometry(spec: TextureSpec, radii: [Double]) -> [[Double]] {
+        let count = max(3, min(maxRings, Int((spec.density * Double(maxRings)).rounded())))
+        var rings = [[Double]]()
+        rings.reserveCapacity(count)
+
+        for i in 0..<count {
+            let t = Double(i + 1) / Double(count + 1)
+            // Even spacing at uniformity 1, edge-weighted at 0.
+            let eased = spec.uniformity * t + (1 - spec.uniformity) * (t * t)
+            let scale = 1.0 - eased * 0.85     // never reaches the centre
+            rings.append(radii.map { $0 * scale })
+        }
+        return rings
+    }
+
+    // MARK: Hatch
+
+    /// Parallel chords across the contour at `spec.angle`. Each scanline is
+    /// clipped to the contour by walking the radius at both ends, which works
+    /// because the contour is star-shaped (Task 2 guarantees a positive radius).
+    private static func hatchGeometry(
+        spec: TextureSpec,
+        radii: [Double],
+        seed: UInt64
+    ) -> [TextureGeometry.Line] {
+        let count = max(4, min(maxLines, Int((spec.density * Double(maxLines)).rounded())))
+        let noise = SimplexNoise2D(seed: seed)
+
+        let cosA = cos(spec.angle)
+        let sinA = sin(spec.angle)
+
+        // Offsets span the inscribed circle, not the full contour. Every
+        // scanline then has a real chord, so none is wasted — and staying
+        // inside the smallest radius guarantees the line never pokes out of
+        // the form, whatever the contour does at that angle.
+        let inner = (radii.min() ?? 1) * 0.95
+
+        var lines = [TextureGeometry.Line]()
+        lines.reserveCapacity(count)
+
+        for i in 0..<count {
+            let t = (Double(i) + 0.5) / Double(count)
+            let offset = (t * 2 - 1) * inner
+
+            // uniformity 1 → every line drawn; 0 → the noise field drops some,
+            // so the hatch thins out across the form. Only thin a hatch that
+            // has lines to spare: below 8 the dropout would leave too few to
+            // read as a fill at all.
+            if spec.uniformity < 1, count > 8 {
+                let keep = (noise.value(offset * 1.7, 0.5) + 1) / 2
+                if keep < (1 - spec.uniformity) * 0.5 { continue }
+            }
+
+            let span = (inner * inner - offset * offset).squareRoot()
+
+            // The perpendicular axis carries the offset; the line runs along
+            // `spec.angle`.
+            let baseX = -sinA * offset
+            let baseY = cosA * offset
+            lines.append(TextureGeometry.Line(
+                start: CGPoint(x: baseX - cosA * span, y: baseY - sinA * span),
+                end:   CGPoint(x: baseX + cosA * span, y: baseY + sinA * span)
+            ))
+        }
+        return lines
+    }
+
+    // MARK: Stipple
+
+    /// A Poisson dot field inside the contour. `uniformity` decides whether the
+    /// density is even or driven by a noise gradient across the form.
+    private static func stippleGeometry(
+        spec: TextureSpec,
+        radii: [Double],
+        seed: UInt64
+    ) -> [TextureGeometry.Dot] {
+        var rng = SeededRNG.derived(from: seed, domain: "stipple")
+        let noise = SimplexNoise2D(seed: seed &+ 0x57)
+
+        // Denser spec → smaller spacing → more dots.
+        let spacing = 0.34 - spec.density * 0.22        // 0.34 … 0.12
+        let bounds = CGRect(x: -1, y: -1, width: 2, height: 2)
+
+        let raw = PoissonDiscSampler.fill(
+            bounds: bounds,
+            minDistance: spacing,
+            maxPoints: maxDots,
+            weight: { point in
+                guard containsPoint(point, radii: radii) else { return 0 }
+                guard spec.uniformity < 1 else { return 1 }
+                let n = (noise.value(Double(point.x) * 1.3, Double(point.y) * 1.3) + 1) / 2
+                return spec.uniformity + (1 - spec.uniformity) * n
+            },
+            using: &rng
+        )
+
+        return raw
+            .filter { containsPoint($0, radii: radii) }
+            .map { point in
+                // Dots shrink towards the rim so the fill has an interior.
+                let distance = Double(hypot(point.x, point.y))
+                let falloff = 1.0 - min(1.0, distance) * 0.55
+                return TextureGeometry.Dot(
+                    center: point,
+                    radius: max(0.008, spacing * 0.28 * falloff)
+                )
+            }
+    }
+
+    /// Star-shaped containment test: compare the point's radius against the
+    /// contour's radius at the point's angle.
+    static func containsPoint(_ point: CGPoint, radii: [Double]) -> Bool {
+        guard !radii.isEmpty else { return false }
+        let angle = atan2(Double(point.y), Double(point.x))
+        let normalised = angle < 0 ? angle + 2 * .pi : angle
+        let index = Int(normalised / (2 * .pi) * Double(radii.count)) % radii.count
+        return Double(hypot(point.x, point.y)) <= radii[index]
+    }
+
+    // MARK: - Drawing
+
+    /// Draws a cached texture into a context. Scaling happens here, so one
+    /// cached `TextureGeometry` serves every size.
+    static func draw(
+        _ geometry: TextureGeometry,
+        spec: TextureSpec,
+        contour: Path,
+        radii: [Double],
+        context: inout GraphicsContext,
+        center: CGPoint,
+        radius: Double,
+        color: Color,
+        color2: Color?,
+        gradientCenter: CGPoint
+    ) {
+        let second = color2 ?? color
+
+        switch spec.kind {
+        case .flat:
+            context.fill(contour, with: .color(color.opacity(0.72)))
+
+        case .gradient:
+            let stops = color2 == nil
+                ? [color.opacity(0.8), color.opacity(0.3), color.opacity(0)]
+                : [color.opacity(0.8), second.opacity(0.4), second.opacity(0)]
+            context.fill(contour, with: .radialGradient(
+                Gradient(colors: stops), center: gradientCenter,
+                startRadius: 0, endRadius: radius))
+
+        case .rings:
+            // A soft base so the rings read as structure on a body, not as
+            // floating outlines.
+            context.fill(contour, with: .color(color.opacity(0.18)))
+            for (index, ring) in geometry.rings.enumerated() {
+                let path = ProceduralShapeGenerator.closedPath(
+                    radii: ring, center: center, radius: radius)
+                let fade = 1.0 - Double(index) / Double(max(1, geometry.rings.count)) * 0.5
+                context.stroke(
+                    path,
+                    with: .color((index.isMultiple(of: 2) ? color : second)
+                        .opacity(0.55 * fade)),
+                    style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+            }
+
+        case .hatch:
+            context.fill(contour, with: .color(color.opacity(0.14)))
+            var strokes = Path()
+            for line in geometry.lines {
+                strokes.move(to: CGPoint(
+                    x: center.x + line.start.x * radius,
+                    y: center.y + line.start.y * radius))
+                strokes.addLine(to: CGPoint(
+                    x: center.x + line.end.x * radius,
+                    y: center.y + line.end.y * radius))
+            }
+            context.stroke(strokes, with: .color(second.opacity(0.6)),
+                           style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+
+        case .stipple:
+            context.fill(contour, with: .color(color.opacity(0.12)))
+            // One accumulated Path, one fill — 90 separate fills would blow
+            // the frame budget.
+            var field = Path()
+            for dot in geometry.dots {
+                let r = dot.radius * radius
+                field.addEllipse(in: CGRect(
+                    x: center.x + dot.center.x * radius - r,
+                    y: center.y + dot.center.y * radius - r,
+                    width: r * 2, height: r * 2))
+            }
+            context.fill(field, with: .color(second.opacity(0.75)))
+        }
+    }
+}

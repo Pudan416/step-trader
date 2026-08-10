@@ -127,7 +127,9 @@
 		DA0014001400140014001471 /* SimplexNoise.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0014001400140014001481 /* SimplexNoise.swift */; };
 		DA0014001400140014001472 /* SimplexNoiseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0014001400140014001482 /* SimplexNoiseTests.swift */; };
 		DA0003000300030003000301 /* PoissonDiscSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000302 /* PoissonDiscSampler.swift */; };
+		DA0015001500150015001501 /* ProceduralTexture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0015001500150015001502 /* ProceduralTexture.swift */; };
 		DA0003000300030003000303 /* PoissonDiscSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */; };
+		DA0016001600160016001601 /* ProceduralTextureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0016001600160016001602 /* ProceduralTextureTests.swift */; };
 		20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20F6C0012F3E100100000001 /* Localizable.xcstrings */; };
 		20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FE17A12F90000000000001 /* FeatureTipSheet.swift */; };
 		20GC00022F86100000000002 /* GlassCardModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20GC00012F86100000000001 /* GlassCardModifier.swift */; };
@@ -451,7 +453,9 @@
 		DA0014001400140014001481 /* SimplexNoise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SimplexNoise.swift; path = StepsTrader/Utilities/SimplexNoise.swift; sourceTree = SOURCE_ROOT; };
 		DA0014001400140014001482 /* SimplexNoiseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SimplexNoiseTests.swift; path = Steps4Tests/SimplexNoiseTests.swift; sourceTree = SOURCE_ROOT; };
 		DA0003000300030003000302 /* PoissonDiscSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PoissonDiscSampler.swift; path = StepsTrader/Utilities/PoissonDiscSampler.swift; sourceTree = SOURCE_ROOT; };
+		DA0015001500150015001502 /* ProceduralTexture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProceduralTexture.swift; path = StepsTrader/Shapes/ProceduralTexture.swift; sourceTree = SOURCE_ROOT; };
 		DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PoissonDiscSamplerTests.swift; path = Steps4Tests/PoissonDiscSamplerTests.swift; sourceTree = SOURCE_ROOT; };
+		DA0016001600160016001602 /* ProceduralTextureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProceduralTextureTests.swift; path = Steps4Tests/ProceduralTextureTests.swift; sourceTree = SOURCE_ROOT; };
 		20F6C0012F3E100100000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		20FE17A12F90000000000001 /* FeatureTipSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipSheet.swift; sourceTree = "<group>"; };
 		20GC00012F86100000000001 /* GlassCardModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCardModifier.swift; sourceTree = "<group>"; };
@@ -736,6 +740,7 @@
 				B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */,
 				B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */,
 				B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */,
+				DA0015001500150015001502 /* ProceduralTexture.swift */,
 				C860AD1856984A189E6B70A9 /* SnowflakeShapeRenderer.swift */,
 				1C0D419D1FDF446F850FAE7E /* RayShapeRenderer.swift */,
 				A7B3E91D4C6F47E2A0D8F5B1 /* CircleShapeRenderer.swift */,
@@ -1136,6 +1141,7 @@
 				DA0010001000100010001010 /* HappeningAdditionsTests.swift */,
 				DA0014001400140014001482 /* SimplexNoiseTests.swift */,
 				DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */,
+				DA0016001600160016001602 /* ProceduralTextureTests.swift */,
 				DA0002000200020002000020 /* canvas_legacy_categorised.json */,
 			);
 			path = Steps4Tests;
@@ -1646,6 +1652,7 @@
 				605D42CA9EBF1B3A09237455 /* MetaballGenerator.swift in Sources */,
 				DA0014001400140014001471 /* SimplexNoise.swift in Sources */,
 				DA0003000300030003000301 /* PoissonDiscSampler.swift in Sources */,
+				DA0015001500150015001501 /* ProceduralTexture.swift in Sources */,
 				8B384FBFB75371B21BDF1BC5 /* WidgetSnapshot.swift in Sources */,
 				69624326AA0BD3D99B13FBCA /* GalleryNotifications.swift in Sources */,
 				AE00000300000000000000B3 /* GalleryMetricOverlayView.swift in Sources */,
@@ -1688,6 +1695,7 @@
 				DA0010001000100010001011 /* HappeningAdditionsTests.swift in Sources */,
 				DA0014001400140014001472 /* SimplexNoiseTests.swift in Sources */,
 				DA0003000300030003000303 /* PoissonDiscSamplerTests.swift in Sources */,
+				DA0016001600160016001601 /* ProceduralTextureTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -415,7 +415,7 @@ struct GenerativeCanvasView: View {
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
                     interaction: interaction, decayedColor: color,
-                    decayedColor2: color2
+                    decayedColor2: color2, cache: renderCache
                 )
             case .snowflake:
                 SnowflakeShapeRenderer.draw(

@@ -106,7 +106,16 @@ enum PoissonDiscSampler {
         var active = [0]
 
         while !active.isEmpty, points.count < maxPoints {
-            let activeIndex = active.count - 1
+            // Bridson's formulation picks a random active point, not the most
+            // recently added one. A LIFO pop grows the frontier depth-first —
+            // it snakes into one region and exhausts it before ever trying an
+            // older branch — so a weighted field (the stipple texture's
+            // density gradient) can end up looking uniform: growth follows
+            // whatever chain it started down, not the weight, and a
+            // maxPoints-truncated fill can be lopsided even when the weight
+            // is even. A random pick grows the frontier isotropically, which
+            // is what lets `weight` actually shape the outcome.
+            let activeIndex = rng.nextInt(in: 0...(active.count - 1))
             let anchor = points[active[activeIndex]]
             var placed = false
 
