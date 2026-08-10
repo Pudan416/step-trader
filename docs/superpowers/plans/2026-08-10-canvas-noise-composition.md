@@ -1159,6 +1159,7 @@ git commit -m "feat: add weighted Poisson-disc sampler for placement and stipple
 - Create: `StepsTrader/Shapes/ProceduralTexture.swift`
 - Modify: `StepsTrader/Views/Canvas/CanvasRenderCache.swift`
 - Modify: `StepsTrader/Shapes/OrganicBlobShapeRenderer.swift:91-157`
+- Modify: `StepsTrader/Views/GenerativeCanvasView.swift`, `StepsTrader/Services/ShapeIconCache.swift:159`, `StepsTrader/Views/Components/CanvasShapePreview.swift:229` — the three `draw`/`organicBlobPath` call sites gain the new `cache:` argument
 - Test: `Steps4Tests/ProceduralTextureTests.swift`
 
 **Interfaces:**
@@ -1744,19 +1745,56 @@ enum ProceduralTexture {
 In `StepsTrader/Views/Canvas/CanvasRenderCache.swift`, add inside `final class RenderCache`:
 
 ```swift
-    /// Textures are geometry, not per-frame work: generated once per
-    /// (element, spec, contour) and reused every frame. This cache is what
-    /// keeps stipple and hatch inside the frame budget.
+    /// Textures are geometry, not per-frame work. A stipple fill runs a
+    /// Poisson sample of up to 90 points; at 20 fps across 15 elements that
+    /// would be ~27k samples a second. Generated once per bucket and reused.
     struct TextureCacheKey: Hashable {
         let seed: UInt64
         let spec: TextureSpec
-        /// Contour morphs slowly, so quantise time into buckets rather than
-        /// regenerating the texture on every tick.
+        /// The contour morphs slowly (0.012 noise units per second), so the
+        /// texture is generated against a time-quantised contour. One bucket
+        /// per `bucketSeconds` — the texture lags the outline by well under a
+        /// bucket, which is invisible at this drift rate.
         let timeBucket: Int
     }
+
+    /// Seconds per texture bucket. Small enough that a texture never visibly
+    /// detaches from its contour, large enough that regeneration is rare.
+    static let textureBucketSeconds: Double = 1.5
+
+    static func textureBucket(for time: Double) -> Int {
+        Int((time / textureBucketSeconds).rounded(.down))
+    }
+
     var textureCache: [TextureCacheKey: TextureGeometry] = [:]
-    var textureCacheLastPrune: Int = .min
+    var textureCacheLastPruneBucket: Int = .min
+
+    /// Cached lookup. Generates on miss.
+    func textureGeometry(
+        seed: UInt64,
+        spec: TextureSpec,
+        radii: [Double],
+        time: Double
+    ) -> TextureGeometry {
+        let bucket = Self.textureBucket(for: time)
+        let key = TextureCacheKey(seed: seed, spec: spec, timeBucket: bucket)
+        if let hit = textureCache[key] { return hit }
+
+        // Drop entries from older buckets so the cache cannot grow unbounded
+        // over a long-running canvas.
+        if bucket != textureCacheLastPruneBucket {
+            textureCache = textureCache.filter { $0.key.timeBucket >= bucket - 1 }
+            textureCacheLastPruneBucket = bucket
+        }
+
+        let geometry = ProceduralTexture.geometry(spec: spec, radii: radii, seed: seed)
+        textureCache[key] = geometry
+        return geometry
+    }
 ```
+
+Note `flat` and `gradient` return an empty `TextureGeometry`, so they cost a
+dictionary lookup and nothing else — no need to special-case them.
 
 - [ ] **Step 5: Route the organic blob renderer through the texture system**
 
@@ -1777,8 +1815,11 @@ In `StepsTrader/Shapes/OrganicBlobShapeRenderer.swift`, replace the body of the 
                 : TextureSpec(kind: .gradient, density: spec.density,
                               uniformity: spec.uniformity, angle: spec.angle)
 
-            let textureGeometry = ProceduralTexture.geometry(
-                spec: layerSpec, radii: layerRadii, seed: layerSeed)
+            // Cached, not regenerated per frame — see the Global Constraint.
+            // The contour above is still computed every frame (it has to
+            // morph); only the fill geometry is bucketed.
+            let textureGeometry = cache.textureGeometry(
+                seed: layerSeed, spec: layerSpec, radii: layerRadii, time: layerT)
 
             let gradCenter = CGPoint(
                 x: cx + cos(gradOffsetAngle) * Double(radius) * gradOffsetFraction,
@@ -1804,7 +1845,12 @@ In `StepsTrader/Shapes/OrganicBlobShapeRenderer.swift`, replace the body of the 
             }
 ```
 
-Add a `spec: TextureSpec` parameter to `OrganicBlobShapeRenderer.draw(...)`, defaulting to `TextureSpec(kind: .gradient, density: 0.5, uniformity: 1, angle: 0)` so existing call sites keep compiling unchanged. Task 6 supplies the real spec.
+Add two parameters to `OrganicBlobShapeRenderer.draw(...)`:
+
+- `spec: TextureSpec`, defaulting to `TextureSpec(kind: .gradient, density: 0.5, uniformity: 1, angle: 0)`. The default is a deliberate two-step: it keeps the three existing call sites compiling while this task lands, and Task 6 supplies the real per-element spec. Leave the default in place — Task 6 relies on `ShapeIconCache` and `CanvasShapePreview` continuing to render plain gradients, since an icon is too small to carry a texture.
+- `cache: RenderCache`. Both `OrganicBlobShapeRenderer` and `RenderCache` are already `@MainActor`, so passing it is free. `GenerativeCanvasView` already holds the cache and passes it to other renderers — follow the same call pattern.
+
+For the two call sites that have no `RenderCache` (`ShapeIconCache`, `CanvasShapePreview`), give each its own long-lived `RenderCache` instance rather than constructing one per call — a fresh cache per invocation would defeat the point.
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
@@ -2745,7 +2791,7 @@ In `addAndSpawnHappening`, delete the `let color2 = CanvasColorPalette.randomSec
         )
 ```
 
-The `color` parameter of `addAndSpawnHappening` becomes unused for the element's fill — colour now comes from the day's palette. Leave the parameter in place (callers pass the happening's chip colour, which the palette UI still uses) and add a comment saying so.
+This leaves `addAndSpawnHappening`'s `color:` parameter unused — the element's colour now comes from the day's palette. Delete the parameter and update its call sites; a parameter that is passed and ignored is a defect, not a courtesy. The happening's own chip colour is a separate concern that the palette UI reads directly from the happening, not through this function. Grep `addAndSpawnHappening` to find every caller.
 
 Then rewrite `rerollElement` (lines 1206-1221):
 
