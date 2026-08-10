@@ -6,7 +6,8 @@ import SwiftUI
 /// 1. **idle** — nothing selected. Only the blurred canvas.
 /// 2. **offeringWindows** — a locked group is selected: the group's enabled
 ///    window options.
-/// 3. **running** — an unlocked group is selected: the depleting timer.
+/// 3. **running** — an unlocked group is selected: the depleting timer, and
+///    the way into the app the user just paid for.
 ///
 /// A corner menu (Settings / Delete) is shown whenever a group is selected —
 /// in both non-idle states, not just state 2 — because it is the surface's
@@ -75,6 +76,8 @@ struct FeedsSurfaceView: View {
     @State private var trackedInitialMinutes = 0
 
     @State private var isPurchasing = false
+
+    @Environment(\.openURL) private var openURL
 
     private var selectedTicketGroup: TicketGroup? {
         guard let selectedGroup else { return nil }
@@ -293,15 +296,72 @@ struct FeedsSurfaceView: View {
 
     private func timerDisplay(for group: TicketGroup, remaining: Int, width: CGFloat) -> some View {
         let display = resolvedTimerState(for: group, remaining: remaining)
-        return ZStack {
-            depletionRing(fraction: display.fraction, diameter: width * Self.ringDiameterRatio)
-            Text(display.digits)
-                .font(.system(size: 44, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white)
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
+        return VStack(spacing: 24) {
+            ZStack {
+                depletionRing(fraction: display.fraction, diameter: width * Self.ringDiameterRatio)
+                Text(display.digits)
+                    .font(.system(size: 44, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+            }
+            openButton(for: group)
         }
         .padding(.bottom, 24)
+    }
+
+    /// "I paid, let me in" — the primary action once a window is open, and the
+    /// one thing the old ticket card did that the dock does not: a tile tap
+    /// only selects.
+    ///
+    /// Only the target registry knows how to reach an app, so a group built
+    /// from a custom selection or a whole category has no scheme to open. The
+    /// control is shown disabled in that case rather than sitting there
+    /// looking tappable and doing nothing.
+    private func openButton(for group: TicketGroup) -> some View {
+        let targets = openTargets(for: group)
+        let name = group.templateApp.map { TargetResolver.displayName(for: $0) } ?? group.name
+
+        return Button {
+            openFirstAvailable(targets, from: 0)
+        } label: {
+            HStack(spacing: 7) {
+                Text(String(localized: "Open \(name)", comment: "Feeds surface – open the unlocked app"))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                Image(systemName: "arrow.up.forward")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(.black)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 12)
+            .background(Capsule().fill(AppColors.brandAccent))
+        }
+        .buttonStyle(.plain)
+        .disabled(targets.isEmpty)
+        .opacity(targets.isEmpty ? 0.4 : 1.0)
+        .accessibilityHint(
+            targets.isEmpty
+                ? String(localized: "This feed has no single app to open", comment: "Feeds surface – open button VoiceOver hint, no scheme")
+                : String(localized: "Double tap to switch to the app", comment: "Feeds surface – open button VoiceOver hint")
+        )
+    }
+
+    private func openTargets(for group: TicketGroup) -> [URL] {
+        guard let bundleId = group.templateApp else { return [] }
+        return TargetResolver.primaryAndFallbackSchemes(for: bundleId)
+            .compactMap(URL.init(string:))
+    }
+
+    /// Walks the registry's fallback schemes in order, as `HandoffManager`
+    /// does: the first scheme is not always the one installed builds answer to.
+    private func openFirstAvailable(_ targets: [URL], from index: Int) {
+        guard index < targets.count else { return }
+        openURL(targets[index]) { accepted in
+            if !accepted {
+                openFirstAvailable(targets, from: index + 1)
+            }
+        }
     }
 
     /// A ring rather than a bar: it reads at a glance as time draining from a
