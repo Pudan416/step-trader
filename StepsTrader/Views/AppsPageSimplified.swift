@@ -33,21 +33,23 @@ enum TicketsPalette {
 
 struct AppsPageSimplified: View {
     @ObservedObject var model: AppModel
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
+    @Environment(\.tabBarHeight) private var tabBarHeight
     @State private var selection = FamilyActivitySelection()
     @State private var showPicker = false
     @State private var selectedGroupId: TicketGroupId? = nil
     @State private var showTemplatePicker = false
     @State private var expandedSheetGroupId: TicketGroupId? = nil
-    @State private var isReordering = false
+    /// Which group's tile is selected in the dock. Distinct from
+    /// `selectedGroupId`, which tracks the group being edited via the
+    /// `FamilyActivityPicker` sheet — conflating the two breaks group editing.
+    @State private var selectedFeedGroupId: String? = nil
 
     private var buttonTint: Color { AppColors.Night.textPrimary }
     @State private var showCustomNamePrompt = false
     @State private var customTicketName = ""
     @State private var deleteHapticTick = 0
-    @State private var reorderHapticTick = 0
     @State private var showPickerAfterDismiss = false
     @State private var groupIdToDelete: String? = nil
     @State private var showPaywall = false
@@ -76,43 +78,18 @@ struct AppsPageSimplified: View {
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(.primary)
                         Spacer()
-                        if isReordering {
-                            Button {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    isReordering = false
-                                }
-                            } label: {
-                                Text(String(localized: "Done"))
-                                    .font(.system(size: 15, weight: .regular, design: .rounded))
-                                    .foregroundStyle(buttonTint)
-                            }
-                        } else {
-                            if visibleGroups.count > 1 {
-                                Button {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        isReordering = true
-                                    }
-                                } label: {
-                                Image(systemName: "arrow.up.arrow.down")
-                                    .font(.system(size: 15, weight: .regular))
-                                    .foregroundStyle(buttonTint)
-                                    .frame(width: 44, height: 44)
-                                    .liquidGlassControl(in: Circle())
-                                }
-                            }
-                            Button {
-                                attemptCreateGroup()
-                            } label: {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 17, weight: .regular))
-                                    .foregroundStyle(buttonTint)
-                                    .frame(width: 44, height: 44)
-                                    .liquidGlassControl(in: Circle())
-                            }
-                            #if DEBUG
-                            .coachMarkAnchor(.unlockSuccess)
-                            #endif
+                        Button {
+                            attemptCreateGroup()
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 17, weight: .regular))
+                                .foregroundStyle(buttonTint)
+                                .frame(width: 44, height: 44)
+                                .liquidGlassControl(in: Circle())
                         }
+                        #if DEBUG
+                        .coachMarkAnchor(.unlockSuccess)
+                        #endif
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 32)
@@ -121,13 +98,22 @@ struct AppsPageSimplified: View {
                     if model.blockingStore.ticketGroups.isEmpty {
                         emptyTicketsContent
                     } else {
-                        ScrollView {
-                            ticketStack
-                                .padding(.horizontal, 16)
-                                .padding(.top, 8)
-                                .padding(.bottom, 96)
-                        }
-                        .frame(maxHeight: .infinity)
+                        FeedsSurfaceView(
+                            model: model,
+                            selectedGroup: selectedFeedGroupId,
+                            onSettings: { groupId in
+                                expandedSheetGroupId = TicketGroupId(id: groupId)
+                            },
+                            onDelete: { groupId in
+                                groupIdToDelete = groupId
+                            }
+                        )
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 8)
+
+                        dock
+                            .padding(.top, 7)
+                            .padding(.bottom, max(tabBarHeight, 50) + 20)
                     }
                 }
                 .zIndex(0)
@@ -220,9 +206,6 @@ struct AppsPageSimplified: View {
                 )
             }
             .onAppear { selection = model.appSelection }
-            .onChange(of: model.blockingStore.ticketGroups.count) {
-                if visibleGroups.count <= 1 { isReordering = false }
-            }
             .alert(String(localized: "Name your feed"), isPresented: $showCustomNamePrompt) {
                 TextField(String(localized: "e.g. Social, Games…", comment: "Placeholder for feed name"), text: $customTicketName)
                 Button(String(localized: "Create")) {
@@ -261,72 +244,29 @@ struct AppsPageSimplified: View {
             }
         }
         .sensoryFeedback(.warning, trigger: deleteHapticTick)
-        .sensoryFeedback(.impact(weight: .light), trigger: reorderHapticTick)
     }
 
-    // MARK: - Ticket Stack
+    // MARK: - Dock
 
-    private var ticketStack: some View {
-        LazyVStack(spacing: 14) {
-            ForEach(visibleGroups) { group in
-                PaperTicketView(
-                    model: model,
-                    group: group,
-                    colorScheme: colorScheme,
-                    onSettings: {
-                        guard !isReordering else { return }
-                        expandedSheetGroupId = TicketGroupId(id: group.id)
-                    }
-                )
-                .overlay(alignment: .trailing) {
-                    if isReordering {
-                        VStack(spacing: 0) {
-                            Button {
-                                moveTicket(group.id, up: true)
-                            } label: {
-                                Image(systemName: "chevron.up")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .frame(width: 44, height: 36)
-                                    .contentShape(Rectangle())
-                            }
-                            .disabled(visibleGroups.first?.id == group.id)
-
-                            Divider().frame(width: 20)
-
-                            Button {
-                                moveTicket(group.id, up: false)
-                            } label: {
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .frame(width: 44, height: 36)
-                                    .contentShape(Rectangle())
-                            }
-                            .disabled(visibleGroups.last?.id == group.id)
-                        }
-                        .foregroundStyle(Color.primary.opacity(0.7))
-                        .liquidGlassControl(in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .padding(.trailing, 10)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                    }
+    /// A horizontal row of one tile per group, plus a trailing add tile.
+    /// Scrolls when the tiles overflow the width; the add tile is always last.
+    private var dock: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 14) {
+                ForEach(visibleGroups) { group in
+                    FeedTileView(
+                        model: model,
+                        group: group,
+                        isSelected: selectedFeedGroupId == group.id,
+                        onTap: { selectedFeedGroupId = group.id }
+                    )
+                    #if DEBUG
+                    .modifier(FirstFeedAnchor(groupId: group.id, firstId: visibleGroups.first?.id))
+                    #endif
                 }
-                .contextMenu {
-                    if !isReordering {
-                        Button {
-                            expandedSheetGroupId = TicketGroupId(id: group.id)
-                        } label: {
-                            Label(String(localized: "Settings", comment: "Context menu action"), systemImage: "gearshape")
-                        }
-                        Button(role: .destructive) {
-                            groupIdToDelete = group.id
-                        } label: {
-                            Label(String(localized: "Delete"), systemImage: "trash")
-                        }
-                    }
-                }
-                #if DEBUG
-                .modifier(FirstFeedAnchor(groupId: group.id, firstId: visibleGroups.first?.id))
-                #endif
+                FeedAddTileView(onTap: attemptCreateGroup)
             }
+            .padding(.horizontal, 9)
         }
     }
 
@@ -408,26 +348,9 @@ struct AppsPageSimplified: View {
         }
     }
 
-    private func moveTicket(_ groupId: String, up: Bool) {
-        let visible = visibleGroups
-        guard let visibleIdx = visible.firstIndex(where: { $0.id == groupId }) else { return }
-        let targetIdx = up ? visibleIdx - 1 : visibleIdx + 1
-        guard targetIdx >= 0, targetIdx < visible.count else { return }
-
-        let targetId = visible[targetIdx].id
-        guard let fromIdx = model.blockingStore.ticketGroups.firstIndex(where: { $0.id == groupId }),
-              let toIdx = model.blockingStore.ticketGroups.firstIndex(where: { $0.id == targetId })
-        else { return }
-
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            model.blockingStore.ticketGroups.swapAt(fromIdx, toIdx)
-        }
-        reorderHapticTick &+= 1
-        model.blockingStore.persistTicketGroups()
-    }
-
     private func deleteAndCleanup(_ groupId: String) {
         if expandedSheetGroupId?.id == groupId { expandedSheetGroupId = nil }
+        if selectedFeedGroupId == groupId { selectedFeedGroupId = nil }
         PaperTicketView.removeCachedTitle(forGroupId: groupId)
         model.deleteTicketGroup(groupId)
     }
