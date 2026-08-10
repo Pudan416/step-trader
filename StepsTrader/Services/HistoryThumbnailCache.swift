@@ -180,7 +180,7 @@ final class HistoryThumbnailCache {
 
     // MARK: - Disk
 
-    private static let cacheVersion = 3
+    private static let cacheVersion = 4
 
     private func cacheKey(dayKey: String, size: CGSize, theme: AppTheme) -> String {
         "\(dayKey)_\(Int(size.width))x\(Int(size.height))_\(theme.rawValue)_v\(Self.cacheVersion)"

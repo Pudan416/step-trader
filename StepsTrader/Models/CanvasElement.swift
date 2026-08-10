@@ -177,8 +177,15 @@ struct CanvasElement: Identifiable, Codable {
 
     /// Target spacing, tightened as the canvas fills so late elements still
     /// land somewhere sensible instead of exhausting the sampler.
+    ///
+    /// Lowered from `max(0.09, 0.30 - count * 0.012)`: at 8 elements in the
+    /// 0.76-wide `spawnBounds`, that packed to ~55% density, where a
+    /// near-uniform arrangement was close to the only feasible layout — no
+    /// choice of archetype field could make elements cluster because there
+    /// was nowhere for a cluster to fit. This spacing leaves enough slack for
+    /// `PoissonDiscSampler`'s weight field to actually concentrate mass.
     static func spawnMinDistance(existingCount: Int) -> Double {
-        max(0.09, 0.30 - Double(existingCount) * 0.012)
+        max(0.07, 0.20 - Double(existingCount) * 0.010)
     }
 
     /// Per-shape base size range, before the archetype's multiplier.
@@ -227,9 +234,23 @@ struct CanvasElement: Identifiable, Codable {
         size = CGFloat(min(0.48, max(0.04, base * multiplier)))
         userSize = nil
 
-        let shifted = rank + rng.nextInt(in: 1...composition.palette.count)
+        // Draw from 1..<palette.count, not 1...palette.count: the upper bound
+        // wraps back to `rank` itself (mod count), which made roughly one
+        // dice tap in 3-5 silently return the element's own current colour.
+        // Guard palettes with fewer than 2 entries, where no other colour
+        // exists to shift to.
+        let shift = composition.palette.count > 1
+            ? rng.nextInt(in: 1...(composition.palette.count - 1))
+            : 0
+        let shifted = rank + shift
         hexColor = composition.color(forRank: shifted)
-        hexColor2 = composition.color(forRank: shifted + 1)
+
+        // Same ~60/40 two-colour split as `spawn`, so a dice tap can still
+        // produce the single-colour element that split was reinstated to
+        // preserve — previously `reroll` always assigned a second colour.
+        hexColor2 = rng.nextDouble() < 0.6
+            ? composition.color(forRank: shifted + 1)
+            : nil
 
         // Phase + drift speed — give the element a fresh "personality" so it
         // doesn't synchronise with its old motion after the dice tap.

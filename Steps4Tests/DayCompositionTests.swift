@@ -477,7 +477,71 @@ final class ComposedSpawnTests: XCTestCase {
         XCTAssertGreaterThan(CanvasElement.spawnMinDistance(existingCount: 0),
                              CanvasElement.spawnMinDistance(existingCount: 10))
         XCTAssertGreaterThanOrEqual(
-            CanvasElement.spawnMinDistance(existingCount: 30), 0.09)
+            CanvasElement.spawnMinDistance(existingCount: 30), 0.07)
+    }
+
+    /// The acceptance gate's real finding: `testPlacementFavoursHighWeightRegions`
+    /// showed the field *perturbs* placement (mean weight beats uniform), but
+    /// every archetype's layout centroid still sat within 0.02 of (0.5, 0.5) —
+    /// including cornerWeight and horizonBand, whose fields are anchored well
+    /// off-centre. A perturbation that never concentrates isn't the structural
+    /// variety the archetype system exists to produce.
+    ///
+    /// cornerWeight and horizonBand are the two archetypes with an easy,
+    /// precise off-centre target to pin: a corner quadrant and a horizontal
+    /// band. Deliberately NOT extended to centeredMass or twoMasses — both
+    /// have centroids at (0.5, 0.5) *by design* (centeredMass is radially
+    /// symmetric about the centre; twoMasses' two lobes are placed
+    /// symmetrically around it), so a centroid check on either would pass
+    /// whether or not placement followed the field at all.
+    func testConcentratingArchetypesPullTheLayoutCentroidToTheirHighGround() {
+        let targets: Set<CompositionArchetype> = [.cornerWeight, .horizonBand]
+        var dayKeyFor: [CompositionArchetype: String] = [:]
+        var dayIndex = 0
+        while dayKeyFor.count < targets.count {
+            dayIndex += 1
+            XCTAssertLessThan(dayIndex, 5000,
+                              "Ran out of day keys before covering cornerWeight/horizonBand")
+            guard dayIndex < 5000 else { break }
+            let key = String(format: "2026-%02d-%02d", dayIndex % 12 + 1, dayIndex % 28 + 1)
+            let archetype = DayComposition.forDay(dayKey: key, happeningCount: 0).archetype
+            if targets.contains(archetype), dayKeyFor[archetype] == nil {
+                dayKeyFor[archetype] = key
+            }
+        }
+        XCTAssertEqual(Set(dayKeyFor.keys), targets,
+                       "Did not find day keys covering both concentrating archetypes")
+
+        for (archetype, key) in dayKeyFor {
+            var existing: [CanvasElement] = []
+            for i in 0..<8 {
+                let composition = DayComposition.forDay(dayKey: key, happeningCount: existing.count)
+                existing.append(CanvasElement.spawn(
+                    optionId: "happening_\(i)",
+                    label: "Walk",
+                    existingElements: existing,
+                    allowedShapeTypes: [.organicBlob],
+                    dayKey: key,
+                    composition: composition
+                ))
+            }
+            let positions = existing.map(\.basePosition)
+            let centroid = CGPoint(
+                x: positions.map(\.x).reduce(0, +) / CGFloat(positions.count),
+                y: positions.map(\.y).reduce(0, +) / CGFloat(positions.count))
+
+            switch archetype {
+            case .cornerWeight:
+                // Upper-left quadrant, matching the field's peak at (0.18, 0.20).
+                XCTAssertLessThan(centroid.x, 0.45, "cornerWeight centroid drifted out of its corner: \(centroid)")
+                XCTAssertLessThan(centroid.y, 0.45, "cornerWeight centroid drifted out of its corner: \(centroid)")
+            case .horizonBand:
+                XCTAssertEqual(Double(centroid.y), 0.58, accuracy: 0.12,
+                               "horizonBand centroid drifted off its band: \(centroid)")
+            default:
+                XCTFail("Unexpected archetype under test: \(archetype)")
+            }
+        }
     }
 
     // MARK: Size follows the archetype

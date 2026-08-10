@@ -171,18 +171,21 @@ enum ProceduralTexture {
         let cosA = cos(spec.angle)
         let sinA = sin(spec.angle)
 
-        // Offsets span the inscribed circle, not the full contour. Every
-        // scanline then has a real chord, so none is wasted — and staying
-        // inside the smallest radius guarantees the line never pokes out of
-        // the form, whatever the contour does at that angle.
-        let inner = (radii.min() ?? 1) * 0.95
+        // Offsets and spans cover the circumscribing circle, not the
+        // inscribed one. Clipping the inscribed circle left hatch as a small
+        // central patch inside a large low-opacity wash — with contour radii
+        // spanning [0.68, 1.32] the covered fraction was ~40%. The
+        // circumscribing radius guarantees every chord still fully covers
+        // the star-shaped contour at its angle; `draw` clips the strokes to
+        // the actual contour, the same way `stipple` already does.
+        let outer = radii.max() ?? 1
 
         var lines = [TextureGeometry.Line]()
         lines.reserveCapacity(count)
 
         for i in 0..<count {
             let t = (Double(i) + 0.5) / Double(count)
-            let offset = (t * 2 - 1) * inner
+            let offset = (t * 2 - 1) * outer
 
             // uniformity 1 → every line drawn; 0 → the noise field drops some,
             // so the hatch thins out across the form. Only thin a hatch that
@@ -193,7 +196,7 @@ enum ProceduralTexture {
                 if keep < (1 - spec.uniformity) * 0.5 { continue }
             }
 
-            let span = (inner * inner - offset * offset).squareRoot()
+            let span = (outer * outer - offset * offset).squareRoot()
 
             // The perpendicular axis carries the offset; the line runs along
             // `spec.angle`.
@@ -337,8 +340,15 @@ enum ProceduralTexture {
                     x: center.x + line.end.x * radius,
                     y: center.y + line.end.y * radius))
             }
-            context.stroke(strokes, with: .color(second.opacity(0.6)),
-                           style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+            // Scanlines span the circumscribing circle (see `hatchGeometry`),
+            // so clip to the contour here, the same way `stipple` clips its
+            // dot field below. Scoped to a nested layer so the clip cannot
+            // leak onto the caller's later drawing.
+            context.drawLayer { strokeCtx in
+                strokeCtx.clip(to: contour)
+                strokeCtx.stroke(strokes, with: .color(second.opacity(0.6)),
+                                 style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+            }
 
         case .stipple:
             context.fill(contour, with: .color(color.opacity(0.12)))

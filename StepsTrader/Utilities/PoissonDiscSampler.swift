@@ -21,13 +21,12 @@ enum PoissonDiscSampler {
     private static let relaxationFactor = 0.75
     private static let relaxationRounds = 3
 
-    /// The first point sits near the middle, jittered by this fraction of the
-    /// bounds so an opening element is not pinned dead centre.
-    private static let firstPointJitter = 0.25
-
     /// How strongly `weight` competes with spacing. A candidate's score is
-    /// `clearance * (weightFloor + (1 - weightFloor) * weight)`, so a
-    /// zero-weight region is heavily discouraged but never impossible.
+    /// `min(clearance, radius) * (weightFloor + (1 - weightFloor) * weight)` —
+    /// clearance is capped at the round's spacing requirement, not left
+    /// unbounded, so a zero-weight region is heavily discouraged but never
+    /// impossible, and extra emptiness beyond what spacing already demands
+    /// can't outbid a real weight difference.
     private static let weightFloor = 0.05
 
     /// One more point respecting `minDistance` from `existing`, clamped to
@@ -53,11 +52,13 @@ enum PoissonDiscSampler {
 
         var bestFallback = CGPoint(x: bounds.midX, y: bounds.midY)
         var bestScore = -1.0
+        var fallbackTies = 0
 
         for round in 0..<relaxationRounds {
             let radius = minDistance * pow(relaxationFactor, Double(round))
             var bestAccepted: CGPoint?
             var bestAcceptedScore = -1.0
+            var acceptedTies = 0
 
             for anchor in anchors {
                 for _ in 0..<candidatesPerAnchor {
@@ -68,15 +69,45 @@ enum PoissonDiscSampler {
                     let clearance = anchors
                         .map { Double(hypot($0.x - candidate.x, $0.y - candidate.y)) }
                         .min() ?? .infinity
-                    let score = clearance * biased(weight(candidate))
+                    // Saturate at `radius`: once a candidate clears the
+                    // spacing requirement, extra emptiness stops earning
+                    // credit. An unbounded clearance term made the rule
+                    // "put the point in the largest empty gap" — weight
+                    // could only nudge that choice, never override it, which
+                    // is why every archetype's layout collapsed to the same
+                    // near-uniform centroid regardless of its field.
+                    let score = min(clearance, radius) * biased(weight(candidate))
 
-                    if clearance >= radius, score > bestAcceptedScore {
-                        bestAcceptedScore = score
-                        bestAccepted = candidate
+                    // Saturation means many candidates in an open, near-flat
+                    // field score *exactly* alike (all reach the `radius`
+                    // cap). Always keeping the first tie seen would bias
+                    // growth toward whichever anchor happens to sort first
+                    // — measured as a real ~0.13 population centroid drift
+                    // for a flat weight field, not sampling noise. Reservoir
+                    // sampling picks uniformly among ties instead, so a flat
+                    // field stays flat and only a real weight difference can
+                    // move the layout.
+                    if clearance >= radius {
+                        if score > bestAcceptedScore {
+                            bestAcceptedScore = score
+                            bestAccepted = candidate
+                            acceptedTies = 1
+                        } else if score == bestAcceptedScore {
+                            acceptedTies += 1
+                            if rng.nextDouble() < 1.0 / Double(acceptedTies) {
+                                bestAccepted = candidate
+                            }
+                        }
                     }
                     if score > bestScore {
                         bestScore = score
                         bestFallback = candidate
+                        fallbackTies = 1
+                    } else if score == bestScore {
+                        fallbackTies += 1
+                        if rng.nextDouble() < 1.0 / Double(fallbackTies) {
+                            bestFallback = candidate
+                        }
                     }
                 }
             }
@@ -156,16 +187,19 @@ enum PoissonDiscSampler {
         weight: (CGPoint) -> Double,
         using rng: inout SeededRNG
     ) -> CGPoint {
+        // Candidates span the whole bounds, not a jittered patch around the
+        // centre — a centre-biased seed made an off-centre peak (e.g.
+        // cornerWeight's, anchored near a corner) unreachable by
+        // construction, and every later point grew outward from that seed.
+        // Sampling the full bounds and picking the best-weighted candidate
+        // lets the field actually decide where the composition starts.
         var best = CGPoint(x: bounds.midX, y: bounds.midY)
         var bestScore = -1.0
         for _ in 0..<candidatesPerAnchor {
             let candidate = CGPoint(
-                x: bounds.midX + CGFloat(rng.nextDouble(in: -1...1))
-                    * bounds.width * firstPointJitter,
-                y: bounds.midY + CGFloat(rng.nextDouble(in: -1...1))
-                    * bounds.height * firstPointJitter
+                x: bounds.minX + CGFloat(rng.nextDouble()) * bounds.width,
+                y: bounds.minY + CGFloat(rng.nextDouble()) * bounds.height
             )
-            guard bounds.contains(candidate) else { continue }
             let score = biased(weight(candidate))
             if score > bestScore {
                 bestScore = score

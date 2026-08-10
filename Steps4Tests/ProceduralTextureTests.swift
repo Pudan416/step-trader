@@ -120,15 +120,30 @@ final class ProceduralTextureTests: XCTestCase {
         let contour = radii()
         let g = ProceduralTexture.geometry(
             spec: .seeded(kind: .hatch, seed: 19), radii: contour, seed: 19)
-        // hatchGeometry's chords are constructed on the inscribed circle of
-        // radius `contour.min() * 0.95`, so every endpoint's distance from
-        // the origin is exactly that bound (up to float error) — not the
-        // 1.4 the contour's own outer radius could reach.
-        let bound = (contour.min() ?? 1) * 0.95
+        // hatchGeometry's chords are constructed on the circumscribing circle
+        // of radius `contour.max()` (draw-time clipping to the contour is
+        // what actually bounds the visible fill — see `testHatchCoversTheFullForm`),
+        // so every endpoint's distance from the origin is at most that bound.
+        let bound = contour.max() ?? 1
         for line in g.lines {
             XCTAssertLessThanOrEqual(hypot(line.start.x, line.start.y), bound + 1e-9)
             XCTAssertLessThanOrEqual(hypot(line.end.x, line.end.y), bound + 1e-9)
         }
+    }
+
+    /// Pins the fix for hatch covering only ~40% of the form: scanlines must
+    /// reach out toward the contour's actual extent, not stop at the
+    /// inscribed circle. A hatch clipped to `contour.min() * 0.95` would fail
+    /// this on any contour whose radii vary meaningfully by angle.
+    func testHatchCoversTheFullForm() {
+        let contour = radii()
+        let g = ProceduralTexture.geometry(
+            spec: .seeded(kind: .hatch, seed: 19), radii: contour, seed: 19)
+        let farthestReach = g.lines
+            .flatMap { [hypot($0.start.x, $0.start.y), hypot($0.end.x, $0.end.y)] }
+            .max() ?? 0
+        XCTAssertGreaterThan(farthestReach, (contour.min() ?? 1) * 1.05,
+                             "Hatch lines never reach past the inscribed circle")
     }
 
     func testStippleDotsStayInsideTheContour() {

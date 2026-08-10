@@ -18,13 +18,6 @@ enum CanvasColorPalette {
         "#5C1648", "#1E2E78", "#0E3A6E", "#0E4A4E",
     ]
 
-    /// ~50% chance of a second color — any other palette color (mix all with all).
-    static func randomSecondColor(excluding primary: String) -> String? {
-        guard Bool.random() else { return nil }
-        let candidates = paletteHex.filter { $0.uppercased() != primary.uppercased() }
-        return candidates.randomElement()
-    }
-
     /// Deterministic second color from anywhere in the palette. ~50% nil.
     static func seededSecondColor(seed: UInt64, primary: String) -> String? {
         guard seed % 2 == 0 else { return nil }
