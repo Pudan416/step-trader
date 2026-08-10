@@ -2226,8 +2226,13 @@ enum CompositionArchetype: String, Codable, CaseIterable, Hashable {
             return clamp(1.0 - pow(d, 1.8))
 
         case .cornerWeight:
-            let d = hypot(x - 0.26, y - 0.28) / 0.95
-            return clamp(1.0 - pow(d, 1.2))
+            // The peak sits near the corner and the falloff is tight. An
+            // earlier draft used (0.26, 0.28) over a 0.95 normaliser, which
+            // spread the high ground so broadly that dead-centre scored 0.72
+            // against the true corner's 0.66 — the archetype did the opposite
+            // of its name and correlated r~0.48 with centeredMass.
+            let d = hypot(x - 0.18, y - 0.20) / 0.62
+            return clamp(1.0 - pow(d, 1.1))
 
         case .twoMasses:
             let a = hypot(x - 0.30, y - 0.34) / 0.34
@@ -2259,7 +2264,14 @@ enum CompositionArchetype: String, Codable, CaseIterable, Hashable {
             return rank.isMultiple(of: 3) ? 1.25 : 0.85
 
         case .cornerWeight:
-            return 1.55 - position * 0.85
+            // Convex decay, deliberately NOT a second straight ramp. An
+            // earlier draft used `1.55 - position * 0.85`, which shares its
+            // shape with diagonalSweep's line and converges on the same
+            // endpoint — two of six archetypes producing one composition
+            // skeleton, which defeats the reason archetypes exist. Guarded by
+            // testCornerWeightDecaysRatherThanRamping, which measures
+            // curvature (exactly 0 for any straight line, ~0.048 here).
+            return 0.55 + 1.05 * pow(1 - position, 2.2)
 
         case .twoMasses:
             // Two leads, one per mass.
@@ -2295,7 +2307,10 @@ struct TexturePolicy: Codable, Hashable {
     init(dominant: TextureKind, accent: TextureKind, accentShare: Double) {
         self.dominant = dominant
         self.accent = accent
-        self.accentShare = min(max(accentShare, 0), 1)
+        // Capped at 0.45, not 1: above that the stride arithmetic in
+        // `kind(forRank:)` saturates at every other element and the accent
+        // stops being an accent.
+        self.accentShare = min(max(accentShare, 0), 0.45)
     }
 
     /// Deterministic per-rank assignment. Spreads accents evenly rather than
