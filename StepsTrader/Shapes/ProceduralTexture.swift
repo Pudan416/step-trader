@@ -204,22 +204,45 @@ enum ProceduralTexture {
         let spacing = 0.34 - spec.density * 0.22        // 0.34 … 0.12
         let bounds = CGRect(x: -1, y: -1, width: 2, height: 2)
 
+        // `fill`'s weight is a Bernoulli accept gate on candidates, and the
+        // loop keeps trying until the active list is exhausted or maxPoints
+        // is hit — a rejected candidate only delays placement, since another
+        // one lands nearby moments later. Final density there is governed by
+        // `minDistance`, not by weight, so gating candidates during
+        // generation cannot produce a density *gradient*. Containment is all
+        // `fill`'s weight does here; the uniformity gradient is a second,
+        // independent thinning pass below, applied after the point set
+        // already exists.
         let raw = PoissonDiscSampler.fill(
             bounds: bounds,
             minDistance: spacing,
             maxPoints: maxDots,
-            weight: { point in
-                guard containsPoint(point, radii: radii) else { return 0 }
-                guard spec.uniformity < 1 else { return 1 }
-                let n = (noise.value(Double(point.x) * 1.3, Double(point.y) * 1.3) + 1) / 2
-                return spec.uniformity + (1 - spec.uniformity) * n
-            },
+            weight: { point in containsPoint(point, radii: radii) ? 1 : 0 },
             using: &rng
         )
 
+        // A separate stream so thinning doesn't perturb the placement
+        // sequence above.
+        var thinRng = SeededRNG.derived(from: seed, domain: "stipple-thin")
+
         return raw
             .filter { containsPoint($0, radii: radii) }
-            .map { point in
+            .compactMap { point -> TextureGeometry.Dot? in
+                if spec.uniformity < 1 {
+                    // A dot where the noise field is low survives rarely; one
+                    // where it is high survives outright — this is what
+                    // actually makes the field bunch to one side, which
+                    // gating during generation could not do. The frequency is
+                    // low (0.4, not the 1.3 used elsewhere) on purpose: the
+                    // stipple domain is only ~2 units across, and at 1.3 that
+                    // fits several noise lobes per half, so a left/right split
+                    // averages them out — over 18 calibration seeds it never
+                    // produced a visible bunch. At 0.4 one lobe dominates the
+                    // whole form, which is what "bunches to one side" means.
+                    let n = (noise.value(Double(point.x) * 0.4, Double(point.y) * 0.4) + 1) / 2
+                    let survive = spec.uniformity + (1 - spec.uniformity) * n
+                    guard thinRng.nextDouble() < survive else { return nil }
+                }
                 // Dots shrink towards the rim so the fill has an interior.
                 let distance = Double(hypot(point.x, point.y))
                 let falloff = 1.0 - min(1.0, distance) * 0.55
