@@ -151,6 +151,10 @@ final class DayCompositionTests: XCTestCase {
     /// of archetypes, not just the one pair guaranteed to differ, must have a
     /// distinct size curve — otherwise two archetypes can share a skeleton
     /// unnoticed.
+    ///
+    /// This is a magnitude floor, not a shape check: two straight lines with
+    /// different slopes clear it easily. `testCornerWeightDecaysRatherThanRamping`
+    /// guards the shape property directly.
     func testEveryArchetypePairHasADistinctSizeCurve() {
         let count = 8
         let curves = CompositionArchetype.allCases.map { archetype in
@@ -164,6 +168,30 @@ final class DayCompositionTests: XCTestCase {
                     "\(curves[i].0) and \(curves[j].0) share a size skeleton")
             }
         }
+    }
+
+    /// The magnitude test above is a floor, not a shape check — two straight lines
+    /// with different slopes clear it easily, which is exactly the bug that once
+    /// let `cornerWeight` and `diagonalSweep` share a skeleton. Curvature is what
+    /// actually distinguishes them: a straight ramp has zero second difference,
+    /// a decay does not.
+    func testCornerWeightDecaysRatherThanRamping() {
+        func curvature(_ archetype: CompositionArchetype) -> Double {
+            let c = (0..<8).map { archetype.sizeMultiplier(rank: $0, count: 8) }
+            var total = 0.0
+            for i in 1..<(c.count - 1) {
+                total += abs(c[i - 1] - 2 * c[i] + c[i + 1])
+            }
+            return total / Double(c.count - 2)
+        }
+
+        // diagonalSweep is deliberately a straight ramp.
+        XCTAssertLessThan(curvature(.diagonalSweep), 0.01,
+                          "diagonalSweep is meant to be linear")
+        // cornerWeight must not be. It was a second straight ramp once, and that
+        // made two of six archetypes produce the same composition skeleton.
+        XCTAssertGreaterThan(curvature(.cornerWeight), 0.02,
+                             "cornerWeight collapsed back into a linear ramp")
     }
 
     // MARK: - Palette
