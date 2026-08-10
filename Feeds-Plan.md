@@ -8,6 +8,29 @@
 
 **Tech Stack:** SwiftUI, FamilyControls, DeviceActivity, ManagedSettings, XCTest.
 
+## Revised 2026-08-10, after seeing the Figma reference
+
+The first version of this plan followed `Feeds-Spec.md`: one vertical scroll of
+capsule rows, a modal unlock sheet, and a separate full-screen timer. The Figma
+reference (node `1284-146`) shows a different architecture, and the reference
+governs. Tasks 3 and 4 were built to the old shape and have been reverted
+(commit `a040ae5`); tasks 1, 2, 5 and 8 were unaffected and remain done.
+
+What changed:
+
+- The page is **not** a vertical list. It is a contextual surface over a
+  horizontal dock of circular app tiles.
+- There is **no modal unlock sheet** and **no separate timer screen**. Both are
+  states of the one surface, so the old tasks 6 and 7 are gone.
+- The surface's background is the user's canvas, blurred like frosted glass.
+- Tile hue carries lock state; tile brightness carries selection.
+
+Interaction, as specified by the author: the tab opens with nothing selected and
+only the blurred canvas. Tapping a locked app fills the surface with three window
+options plus a corner menu. Buying turns the surface into that app's timer.
+Tapping another locked app switches the surface to its options — the first app's
+window keeps running in the background and its tile stays amber.
+
 ## Global Constraints
 
 - **No ActivityKit, no Live Activity, no `NSSupportsLiveActivities`.** Dropped from scope: the `Feeds-Spec.md` §6 spike established that `DeviceActivityMonitor` sees an empty `Activity.activities` and cannot update one. Do not reintroduce it.
@@ -17,6 +40,9 @@
 - `SubscriptionGate.freeMaxBlockingGroups = 2` must not tighten.
 - The shield extensions (`ShieldAction`, `ShieldConfiguration`) are untouched.
 - The window is **spent, not elapsed**. Never render a wall-clock countdown. Never interpolate between ticks.
+- **No modal sheet and no separate timer screen.** Unlock options and the timer are states of the one surface.
+- Tile **hue** encodes lock state (amber open / grey closed); tile **brightness** encodes selection. The two vary independently — never collapse them into one parameter.
+- The surface's background is `GenerativeCanvasView` rendered with `fixedTime` (a static frame) and blurred. Do not animate it: under a blur the motion is invisible and only costs battery.
 - Build: `xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug build`
 - Tests: `xcodebuild test -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17'`
 - FamilyControls and DeviceActivity do not work in the simulator. The list and sheet can be built there; the timer, the monitor and unlocking cannot be trusted until run on a physical device.
@@ -31,9 +57,8 @@
 | `StepsTrader/Models/Feeds/UnlockTimerModel.swift` | Pure: remaining/initial → arc fraction and digits, with the never-runs-backwards guard. No SwiftUI. |
 | `StepsTrader/Models/Feeds/UsageBudgetMonitoringError.swift` | Typed monitoring failures, so `excessiveActivities` is distinguishable from everything else. |
 | `StepsTrader/Views/Feeds/FeedIconView.swift` | Renders one app icon: bundled asset for registry apps, system `Label(token)` otherwise. |
-| `StepsTrader/Views/Feeds/FeedRowView.swift` | One row: plain icon or cluster, name, lock badge, remaining-time pill. |
-| `StepsTrader/Views/Feeds/UnlockSheetView.swift` | The 10 / 30 / 60 sheet. |
-| `StepsTrader/Views/Feeds/UnlockTimerView.swift` | The timer screen: depleting arc, mono digits, covered-apps list. |
+| `StepsTrader/Views/Feeds/FeedTileView.swift` | One circular dock tile, plus the trailing `+` tile. |
+| `StepsTrader/Views/Feeds/FeedsSurfaceView.swift` | The contextual surface: idle, window options, or timer, over the blurred canvas. |
 | `Steps4Tests/FeedRowModelTests.swift` | Tests for `FeedRowModel`. |
 | `Steps4Tests/UnlockTimerModelTests.swift` | Tests for `UnlockTimerModel`. |
 | `Steps4Tests/UsageBudgetMonitoringErrorTests.swift` | Tests for the error mapping. |
@@ -42,7 +67,7 @@
 
 | File | Change |
 |------|--------|
-| `StepsTrader/Views/AppsPageSimplified.swift` | Ticket stack → flat list. Keep create / reorder / delete / paywall gating. |
+| `StepsTrader/Views/AppsPageSimplified.swift` | Ticket stack → surface over dock. Keep create / delete / paywall gating; drop the vertical reorder mode. |
 | `StepsTrader/AppModel+PayGate.swift` | `startUsageBudgetMonitoring` returns a typed error; `excessiveActivities` gets its own user-facing message. |
 
 **Delete, in the last task only:**
@@ -79,7 +104,7 @@ Verify after editing, before building: `plutil -lint Steps4.xcodeproj/project.pb
 grep -c "Foo.swift" Steps4.xcodeproj/project.pbxproj   # expect 4
 ```
 
-**A note on testing SwiftUI here.** Tasks 1, 5 and 8 are pure logic and get real failing-test-first cycles. Tasks 2, 3, 4, 6, 7 and 9 are views over FamilyControls types that cannot be instantiated off-device; they get a build gate plus an explicit on-device observation list. Do not write assertion-free tests to make those tasks look symmetrical — an empty test that passes is worse than an honest manual check.
+**A note on testing SwiftUI here.** Tasks 1, 5 and 8 are pure logic and get real failing-test-first cycles. Tasks 2, 3, 4, 6 and 9 are views over FamilyControls types that cannot be instantiated off-device; they get a build gate plus an explicit on-device observation list. Do not write assertion-free tests to make those tasks look symmetrical — an empty test that passes is worse than an honest manual check.
 
 ---
 
@@ -325,16 +350,25 @@ git commit -m "feat: add FeedIconView — bundled asset or system Label"
 
 ---
 
-### Task 3: Feed row view
+### Task 3: The app tile
 
 **Files:**
-- Create: `StepsTrader/Views/Feeds/FeedRowView.swift`
+- Create: `StepsTrader/Views/Feeds/FeedTileView.swift`
 
 **Interfaces:**
-- Consumes: `FeedRowModel.kind(templateApp:appTokenCount:)`, `FeedIconView`, `AppModel.remainingUsageBudget(for:)`, `TargetResolver.displayName(for:)`.
-- Produces: `FeedRowView(model:group:onTap:)`.
+- Consumes: `FeedIconSource` and `FeedRowModel.kind(templateApp:appTokenCount:)` from Task 1, `FeedIconView` from Task 2.
+- Produces: `FeedTileView(model:group:isSelected:onTap:)` and `FeedAddTileView(onTap:)`.
 
-The lock badge must be identical for plain and cluster rows — `Feeds-Spec.md` calls this out explicitly, so draw it in one place, outside the kind switch.
+A circular tile, 83pt across, in a dock of four. Measured from the Figma reference (node `1284-146`, 590×1280 over a 393×852 screen, so divide by 1.5): tile 125→83pt, spacing 146→97pt, first tile x 13→9pt.
+
+**Two independent visual channels — do not collapse them.**
+
+| | Locked | Unlocked |
+|---|---|---|
+| **Not selected** | grey glow, dimmed | amber glow, dimmed |
+| **Selected** | grey glow, full | amber glow, full |
+
+Hue carries the window's state; brightness carries selection. They are orthogonal because both vary independently: a window keeps draining in the background while a different app is selected, so an unlocked-but-unselected tile must stay amber and a selected-but-locked tile must stay grey.
 
 - [ ] **Step 1: Write the view**
 
@@ -344,17 +378,27 @@ import SwiftUI
 import FamilyControls
 #endif
 
-/// One row per `TicketGroup`. A single-app group draws a plain icon; a multi-app
-/// group draws overlapping icons and the group's name. The lock badge is drawn
-/// once, outside the kind switch, so it is provably identical for both.
-struct FeedRowView: View {
+/// One app in the Feeds dock. Hue says whether a window is open; brightness says
+/// whether this is the app the surface is currently showing. The two are
+/// independent — a window keeps draining while another app is selected.
+struct FeedTileView: View {
     @ObservedObject var model: AppModel
     let group: TicketGroup
+    let isSelected: Bool
     let onTap: () -> Void
 
     @State private var remaining: Int = 0
 
+    static let diameter: CGFloat = 83
+
     private var isUnlocked: Bool { remaining > 0 }
+
+    private var glowColor: Color {
+        isUnlocked ? AppColors.brandAccent : Color.white.opacity(0.55)
+    }
+
+    /// Selection is brightness. Unselected tiles stay legible rather than vanishing.
+    private var glowOpacity: Double { isSelected ? 1.0 : 0.45 }
 
     private var kind: FeedRowKind {
         FeedRowModel.kind(
@@ -363,39 +407,35 @@ struct FeedRowView: View {
         )
     }
 
-    private var title: String {
-        if let templateApp = group.templateApp {
-            return TargetResolver.displayName(for: templateApp)
-        }
-        return group.name
-    }
-
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 14) {
-                icons
-                Text(title)
-                    .font(.system(size: 17, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppColors.Night.textPrimary)
-                    .lineLimit(1)
-                Spacer(minLength: 8)
-                trailing
+            ZStack {
+                // The glow is a soft radial wash behind the icon, not a ring on it.
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [glowColor.opacity(0.85), glowColor.opacity(0)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: Self.diameter * 0.62
+                        )
+                    )
+                    .frame(width: Self.diameter, height: Self.diameter)
+                    .opacity(glowOpacity)
+
+                icon
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity)
-            .background {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .frame(width: Self.diameter, height: Self.diameter)
+            .contentShape(Circle())
+            .animation(.easeOut(duration: 0.22), value: isSelected)
+            .animation(.easeOut(duration: 0.22), value: isUnlocked)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
         .onAppear(perform: refresh)
         .task {
-            // The honest signal arrives once a minute from the monitor extension.
-            // Poll a little faster than that so the row is never more than a few
-            // seconds stale, but never interpolate between ticks.
+            // The honest signal steps once a minute. Poll a little faster so the tile
+            // is never badly stale; never interpolate between ticks.
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(15))
                 refresh()
@@ -404,49 +444,29 @@ struct FeedRowView: View {
     }
 
     @ViewBuilder
-    private var icons: some View {
+    private var icon: some View {
         switch kind {
         case .single(let source):
-            icon(source: source, size: 44, index: 0)
+            tileIcon(source: source, size: 42, index: 0)
         case .cluster(let sources, _):
-            HStack(spacing: -14) {
+            HStack(spacing: -10) {
                 ForEach(Array(sources.enumerated()), id: \.offset) { index, source in
-                    icon(source: source, size: 40, index: index)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 40 * 0.24, style: .continuous)
-                                .strokeBorder(AppColors.Night.background, lineWidth: 2)
-                        }
+                    tileIcon(source: source, size: 30, index: index)
                         .zIndex(Double(sources.count - index))
                 }
             }
         }
     }
 
-    /// `FeedIconView`'s `token` parameter only exists where FamilyControls does,
-    /// so the call itself has to be conditional — not just the value passed in.
+    /// `FeedIconView`'s `token:` parameter only exists where FamilyControls does, so
+    /// the call itself must be conditional, not just the value passed in.
     @ViewBuilder
-    private func icon(source: FeedIconSource, size: CGFloat, index: Int) -> some View {
+    private func tileIcon(source: FeedIconSource, size: CGFloat, index: Int) -> some View {
         #if canImport(FamilyControls)
         FeedIconView(source: source, size: size, token: token(at: index))
         #else
         FeedIconView(source: source, size: size)
         #endif
-    }
-
-    @ViewBuilder
-    private var trailing: some View {
-        if isUnlocked {
-            Text(String(localized: "\(remaining)m", comment: "Feeds row – remaining usage minutes"))
-                .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                .foregroundStyle(AppColors.brandAccent)
-        }
-        // Identical for both row kinds, by construction.
-        Image(systemName: isUnlocked ? "lock.open" : "lock.fill")
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(isUnlocked ? AppColors.brandAccent : Color.white.opacity(0.35))
-            .accessibilityLabel(isUnlocked
-                ? String(localized: "Unlocked", comment: "Feeds row – lock badge state")
-                : String(localized: "Locked", comment: "Feeds row – lock badge state"))
     }
 
     #if canImport(FamilyControls)
@@ -457,145 +477,121 @@ struct FeedRowView: View {
     }
     #endif
 
+    private var accessibilityLabel: String {
+        let name = group.templateApp.map { TargetResolver.displayName(for: $0) } ?? group.name
+        return isUnlocked
+            ? String(localized: "\(name), unlocked, \(remaining) minutes left", comment: "Feeds tile – VoiceOver, window open")
+            : String(localized: "\(name), locked", comment: "Feeds tile – VoiceOver, window closed")
+    }
+
     private func refresh() {
         remaining = model.remainingUsageBudget(for: group.id)
     }
 }
-```
 
-- [ ] **Step 2: Verify it compiles**
+/// The trailing `+` tile. Same footprint as an app tile so the dock stays even.
+struct FeedAddTileView: View {
+    let onTap: () -> Void
 
-Run: `xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug build`
-
-Expected: BUILD SUCCEEDED.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add StepsTrader/Views/Feeds/FeedRowView.swift
-git commit -m "feat: add FeedRowView — plain icon, cluster, shared lock badge"
-```
-
----
-
-### Task 4: Flat list replaces the ticket stack
-
-**Files:**
-- Modify: `StepsTrader/Views/AppsPageSimplified.swift:269-331` (the `ticketStack` property)
-
-**Interfaces:**
-- Consumes: `FeedRowView` from Task 3.
-- Produces: a new `@State private var unlockSheetGroupId: TicketGroupId?`, which Task 6 attaches the unlock sheet to. `visibleGroups`, `moveTicket(_:up:)`, `attemptCreateGroup()`, `expandedSheetGroupId` and `groupIdToDelete` all keep their current meanings.
-
-**Do not reuse `selectedGroupId`.** It is already taken: `AppsPageSimplified.swift:172-196` uses it to remember which group the `FamilyActivityPicker` is editing, paired with `showPicker`. Hanging the unlock sheet on it would break group editing. Add a separate state property.
-
-Keep: the reorder chevrons, the context menu, the paywall gate, the empty state, the `FirstFeedAnchor` DEBUG coach-mark modifier. Only the row rendering changes.
-
-- [ ] **Step 1: Add the unlock-sheet state**
-
-Next to the other `@State` declarations near `AppsPageSimplified.swift:41`, add:
-
-```swift
-    @State private var unlockSheetGroupId: TicketGroupId? = nil
-    @State private var timerGroupId: TicketGroupId? = nil
-```
-
-- [ ] **Step 2: Replace the stack body**
-
-Replace the `ticketStack` property with:
-
-```swift
-    // MARK: - Feed List
-
-    private var ticketStack: some View {
-        LazyVStack(spacing: 10) {
-            ForEach(visibleGroups) { group in
-                FeedRowView(
-                    model: model,
-                    group: group,
-                    onTap: {
-                        guard !isReordering else { return }
-                        unlockSheetGroupId = TicketGroupId(id: group.id)
-                    }
-                )
-                .overlay(alignment: .trailing) {
-                    if isReordering {
-                        VStack(spacing: 0) {
-                            Button {
-                                moveTicket(group.id, up: true)
-                            } label: {
-                                Image(systemName: "chevron.up")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .frame(width: 44, height: 36)
-                                    .contentShape(Rectangle())
-                            }
-                            .disabled(visibleGroups.first?.id == group.id)
-
-                            Divider().frame(width: 20)
-
-                            Button {
-                                moveTicket(group.id, up: false)
-                            } label: {
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .frame(width: 44, height: 36)
-                                    .contentShape(Rectangle())
-                            }
-                            .disabled(visibleGroups.last?.id == group.id)
-                        }
-                        .foregroundStyle(Color.primary.opacity(0.7))
-                        .liquidGlassControl(in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .padding(.trailing, 10)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                    }
-                }
-                .contextMenu {
-                    if !isReordering {
-                        Button {
-                            expandedSheetGroupId = TicketGroupId(id: group.id)
-                        } label: {
-                            Label(String(localized: "Settings", comment: "Context menu action"), systemImage: "gearshape")
-                        }
-                        Button(role: .destructive) {
-                            groupIdToDelete = group.id
-                        } label: {
-                            Label(String(localized: "Delete"), systemImage: "trash")
-                        }
-                    }
-                }
-                #if DEBUG
-                .modifier(FirstFeedAnchor(groupId: group.id, firstId: visibleGroups.first?.id))
-                #endif
+    var body: some View {
+        Button(action: onTap) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.white.opacity(0.35), Color.white.opacity(0)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: FeedTileView.diameter * 0.62
+                        )
+                    )
+                Image(systemName: "plus")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(AppColors.Night.textPrimary)
             }
+            .frame(width: FeedTileView.diameter, height: FeedTileView.diameter)
+            .contentShape(Circle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "Add a feed", comment: "Feeds dock – add button VoiceOver label"))
     }
+}
 ```
+
+- [ ] **Step 2: Wire it into the project**
+
+Follow "Adding a file to the Xcode project". The `Feeds` group under `Views` already exists from Task 2; add the file to it and to the **Steps4** Sources phase `2089F0B02E71A18E00ABF5FA`.
 
 - [ ] **Step 3: Verify it compiles**
 
 Run: `xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug build`
 
-Expected: BUILD SUCCEEDED.
+Expected: BUILD SUCCEEDED. No unit tests — the tile renders FamilyControls types that cannot be instantiated off-device.
 
-- [ ] **Step 4: Verify on the simulator**
-
-Run the app, open Feeds. Confirm by eye:
-- one row per group, no ticket cards, no sticker themes
-- reorder chevrons still work and are still disabled at the ends
-- long-press still offers Settings and Delete
-- the empty state still appears with zero groups
-- `+` still opens the template picker, and still paywalls a free user at the third group
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add StepsTrader/Views/AppsPageSimplified.swift
-git commit -m "feat: render Feeds as a flat list of group rows"
+git add StepsTrader/Views/Feeds/FeedTileView.swift Steps4.xcodeproj/project.pbxproj
+git commit -m "feat: add the Feeds app tile — hue for lock state, brightness for selection"
 ```
 
 ---
 
-### Task 5: Timer model — stepping, never backwards
+### Task 4: The contextual surface
+
+**Files:**
+- Create: `StepsTrader/Views/Feeds/FeedsSurfaceView.swift`
+
+**Interfaces:**
+- Consumes: `UnlockTimerModel` from Task 5 of the original plan (already on the branch), `GenerativeCanvasView`, `AccessWindow`, `TicketGroup.cost(for:)`, `AppModel.handlePayGatePaymentForGroup(groupId:window:costOverride:)`, `AppModel.remainingUsageBudget(for:)`, `AppModel.payGateError`.
+- Produces: `FeedsSurfaceView(model:selectedGroup:onSettings:onDelete:)`.
+
+**This replaces both the unlock sheet and the timer screen from the original plan.** There is no `.sheet` and no `fullScreenCover`. The surface is one region of the page, 387×443pt at y≈193, that shows one of three states:
+
+1. **Nothing selected** — the blurred canvas alone. This is how the tab opens.
+2. **A locked group selected** — three window options (10 / 30 / 60 at 4 / 10 / 20), plus a menu button in the corner offering Settings and Delete.
+3. **An unlocked group selected** — the timer: depleting indicator and large monospaced digits.
+
+Selecting a different locked group while a window runs switches the surface back to state 2 for the new group. The running window is unaffected — it lives in `DeviceActivity`, not in this view.
+
+**The background is the canvas, blurred.** Reuse `GenerativeCanvasView` rather than inventing a second renderer. Pass `fixedTime` so it renders one static frame: the live view animates continuously, and under a blur nobody can see the motion, so animating it only costs battery. Set `showLabelsOnCanvas: false` — labels under a blur are noise. Then `.blur(radius: 18)` and a dimming scrim so the digits stay legible.
+
+The `Feeds-Spec.md` rules still bind the timer: the arc steps on tick boundaries, never interpolates, and never runs backwards. `UnlockTimerModel` already enforces all three — use it and do not re-derive remaining time.
+
+- [ ] **Step 1: Write the surface**
+
+The three states go in one file behind a private enum, so the transitions are visible in one place:
+
+```swift
+private enum SurfaceState {
+    case idle
+    case offeringWindows(TicketGroup)
+    case running(TicketGroup)
+}
+```
+
+Derive it from `selectedGroup` and `model.remainingUsageBudget(for:)` rather than storing it — a stored copy drifts from the budget the monitor extension is writing.
+
+Layout, from the reference: the surface is 387×443pt with a corner radius of about 28pt. "My Feeds" sits **over** the surface at its bottom-left, inset 13pt, baseline about 601pt in screen coordinates. The corner menu button goes top-trailing, inset 16pt, and uses `Menu` with two items — Settings and Delete — matching what the ticket context menu offers today.
+
+Window options in state 2: three full-width rows inside the surface, each showing `AccessWindow.displayName` and its cost, dimmed and disabled when `model.totalStepsBalance` is short. Reuse the payment call unchanged; on success the surface moves to state 3 by itself because the budget changed.
+
+Digits in state 3: `UnlockTimerModel.State.digits`, `.system(size: 44, weight: .medium, design: .monospaced)`, centred. The depleting indicator is drawn over the blurred canvas from `State.fraction`.
+
+- [ ] **Step 2: Wire it into the project and build**
+
+Same wiring steps. Expected: BUILD SUCCEEDED.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add StepsTrader/Views/Feeds/FeedsSurfaceView.swift Steps4.xcodeproj/project.pbxproj
+git commit -m "feat: add the Feeds contextual surface — idle, window options, timer"
+```
+
+---
+
+### Task 5: Timer model — stepping, never backwards  ✅ done (commit c7edf15)
 
 **Files:**
 - Create: `StepsTrader/Models/Feeds/UnlockTimerModel.swift`
@@ -769,329 +765,48 @@ git commit -m "feat: add UnlockTimerModel — stepping arc that never runs backw
 
 ---
 
-### Task 6: Unlock sheet
+### Task 6: Assemble the Feeds page
 
 **Files:**
-- Create: `StepsTrader/Views/Feeds/UnlockSheetView.swift`
-- Modify: `StepsTrader/Views/AppsPageSimplified.swift` — attach the sheet to `unlockSheetGroupId` (declared in Task 4)
+- Modify: `StepsTrader/Views/AppsPageSimplified.swift`
 
 **Interfaces:**
-- Consumes: `AccessWindow.allCases`, `TicketGroup.cost(for:)`, `AppModel.handlePayGatePaymentForGroup(groupId:window:costOverride:)`, `AppModel.totalStepsBalance`, `AppModel.payGateError`.
-- Produces: `UnlockSheetView(model:group:onUnlocked:)`, where `onUnlocked` fires only after a successful purchase.
+- Consumes: `FeedTileView`, `FeedAddTileView`, `FeedsSurfaceView`.
+- Produces: nothing new outside the file.
 
-Reuses the existing PayGate payment flow unchanged. This is Nowhere's own screen, not the system shield.
-
-- [ ] **Step 1: Write the sheet**
+Replaces the ticket stack with the surface plus the dock, and adds the selection state the surface reads.
 
 ```swift
-import SwiftUI
-
-/// Nowhere's own unlock screen — warm and deliberate like the PayGate, but not the
-/// system shield. Intervals and prices are unchanged: 10 / 30 / 60 at 4 / 10 / 20.
-struct UnlockSheetView: View {
-    @ObservedObject var model: AppModel
-    let group: TicketGroup
-    let onUnlocked: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var isPurchasing = false
-
-    private var title: String {
-        if let templateApp = group.templateApp {
-            return TargetResolver.displayName(for: templateApp)
-        }
-        return group.name
-    }
-
-    var body: some View {
-        VStack(spacing: 24) {
-            VStack(spacing: 6) {
-                Text(title)
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
-                Text(String(localized: "How long?", comment: "Unlock sheet – subtitle"))
-                    .font(.system(size: 15))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.top, 28)
-
-            VStack(spacing: 10) {
-                ForEach(AccessWindow.allCases, id: \.self) { window in
-                    windowRow(window)
-                }
-            }
-
-            if let error = model.payGateError {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppColors.Night.background)
-        .presentationDetents([.medium])
-    }
-
-    private func windowRow(_ window: AccessWindow) -> some View {
-        let cost = group.cost(for: window)
-        let affordable = model.totalStepsBalance >= cost
-
-        return Button {
-            guard !isPurchasing else { return }
-            isPurchasing = true
-            Task { @MainActor in
-                await model.handlePayGatePaymentForGroup(
-                    groupId: group.id,
-                    window: window,
-                    costOverride: nil
-                )
-                isPurchasing = false
-                if model.payGateError == nil, model.isGroupUsageBudgetActive(group.id) {
-                    onUnlocked()
-                    dismiss()
-                }
-            }
-        } label: {
-            HStack {
-                Text(window.displayName)
-                    .font(.system(size: 17, weight: .medium, design: .rounded))
-                Spacer()
-                Text("\(cost)")
-                    .font(.system(size: 17, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(affordable ? AppColors.brandAccent : Color.white.opacity(0.35))
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 16)
-            .background {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(!affordable || isPurchasing)
-        .opacity(affordable ? 1 : 0.5)
-    }
-}
+@State private var selectedFeedGroupId: String? = nil
 ```
 
-- [ ] **Step 2: Attach it in `AppsPageSimplified`**
+**Do not reuse `selectedGroupId`** — it already holds which group the `FamilyActivityPicker` is editing, paired with `showPicker` at lines 172-196. Reusing it breaks group editing.
 
-Add alongside the existing `.sheet` modifiers on the `NavigationStack`:
+Layout order top to bottom: the existing energy card inset, then `FeedsSurfaceView`, then the dock, then the existing tab bar inset. The dock is a horizontal row of `FeedTileView` for each group followed by one `FeedAddTileView`; when the tiles overflow the width, it scrolls horizontally with the add tile last.
 
-```swift
-            .sheet(item: $unlockSheetGroupId) { wrapper in
-                if let group = model.blockingStore.ticketGroups.first(where: { $0.id == wrapper.id }) {
-                    UnlockSheetView(
-                        model: model,
-                        group: group,
-                        onUnlocked: { timerGroupId = TicketGroupId(id: group.id) }
-                    )
-                }
-            }
-```
+Keep: `attemptCreateGroup()` and its `SubscriptionGate` paywall, the empty state, the delete confirmation, and the `#if DEBUG` `FirstFeedAnchor` anchor.
 
-`unlockSheetGroupId` and `timerGroupId` were both declared in Task 4.
+Remove: the `isReordering` mode and its up/down chevrons. They ordered a vertical list that no longer exists; reordering a horizontal dock is a separate design question and is out of scope. Remove `moveTicket(_:up:)` only if nothing else calls it — check first.
 
-- [ ] **Step 3: Verify it compiles**
+- [ ] **Step 1: Make the change, then build and run the full suite**
 
-Run: `xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug build`
+Build, then `xcodebuild test …` — expect 252 tests, 1 skipped, 0 failures.
 
-Expected: BUILD SUCCEEDED.
+- [ ] **Step 2: Verify on a physical device**
 
-- [ ] **Step 4: Verify on a physical device**
+FamilyControls does not authorise in the simulator, so the tiles cannot be judged there. On device:
+- the tab opens with nothing selected and only the blurred canvas showing
+- tapping a locked tile brings up three windows at 4 / 10 / 20; the corner menu offers Settings and Delete
+- buying turns the surface into the timer for that app
+- tapping a different locked tile switches the surface to its window options while the first window keeps running — its tile stays amber
+- **leaving the phone idle does not move the timer**
+- the arc steps and never runs backwards
 
-Purchasing touches FamilyControls and DeviceActivity and cannot be trusted in the simulator. On device, confirm:
-- tapping a locked row opens the sheet, showing 10 min / 30 min / 1 hour at 4 / 10 / 20
-- a window costing more than the balance is dimmed and unpressable
-- buying deducts the colours once, and the row's lock badge flips to unlocked
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add StepsTrader/Views/Feeds/UnlockSheetView.swift StepsTrader/Views/AppsPageSimplified.swift
-git commit -m "feat: add the Feeds unlock sheet"
-```
-
----
-
-### Task 7: Timer screen
-
-**Files:**
-- Create: `StepsTrader/Views/Feeds/UnlockTimerView.swift`
-- Modify: `StepsTrader/Views/AppsPageSimplified.swift` — present it from `timerGroupId`
-
-**Interfaces:**
-- Consumes: `UnlockTimerModel` from Task 5, `FeedIconView` from Task 2, `AppModel.remainingUsageBudget(for:)`, `TargetResolver.primaryAndFallbackSchemes(for:)`.
-- Produces: `UnlockTimerView(model:group:)`.
-
-No pause control. The screen shows time and launches apps, nothing else.
-
-- [ ] **Step 1: Write the screen**
-
-```swift
-import SwiftUI
-#if canImport(FamilyControls)
-import FamilyControls
-#endif
-
-/// The window is spent, not elapsed — this screen shows minutes of actual app use,
-/// stepping once a minute. There is no pause control and no wall-clock countdown.
-struct UnlockTimerView: View {
-    @ObservedObject var model: AppModel
-    let group: TicketGroup
-
-    @Environment(\.openURL) private var openURL
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var timer: UnlockTimerModel
-    @State private var state: UnlockTimerModel.State
-
-    init(model: AppModel, group: TicketGroup) {
-        self.model = model
-        self.group = group
-        let initial = UserDefaults.stepsTrader()
-            .integer(forKey: SharedKeys.usageBudgetInitialKey(group.id))
-        var timer = UnlockTimerModel(initialMinutes: initial)
-        let first = timer.observe(remainingMinutes: initial)
-        _timer = State(initialValue: timer)
-        _state = State(initialValue: first)
-    }
-
-    var body: some View {
-        VStack(spacing: 32) {
-            arc
-            coveredApps
-            Spacer(minLength: 0)
-        }
-        .padding(.top, 48)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppColors.Night.background.ignoresSafeArea())
-        .onAppear(perform: refresh)
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
-                refresh()
-            }
-        }
-    }
-
-    private var arc: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.10), lineWidth: 14)
-
-            Circle()
-                .trim(from: 0, to: state.fraction)
-                .stroke(
-                    AppColors.brandAccent,
-                    style: StrokeStyle(lineWidth: 14, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                // Animate the step itself so the boundary reads as deliberate.
-                // This animates between observed values only — it never runs ahead
-                // of the last tick.
-                .animation(.easeOut(duration: 0.45), value: state.fraction)
-
-            Text(state.digits)
-                .font(.system(size: 44, weight: .medium, design: .monospaced))
-                .foregroundStyle(AppColors.Night.textPrimary)
-                .monospacedDigit()
-        }
-        .frame(width: 220, height: 220)
-    }
-
-    private var coveredApps: some View {
-        VStack(spacing: 10) {
-            Text(String(localized: "Covered by this window", comment: "Timer screen – app list header"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if let templateApp = group.templateApp {
-                appButton(bundleId: templateApp)
-            } else {
-                // Non-registry apps yield no launch scheme, so the row is shown but
-                // not tappable rather than silently doing nothing on tap.
-                Text(group.name)
-                    .font(.system(size: 15))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 24)
-    }
-
-    private func appButton(bundleId: String) -> some View {
-        let schemes = TargetResolver.primaryAndFallbackSchemes(for: bundleId)
-        return Button {
-            guard let first = schemes.first, let url = URL(string: first) else { return }
-            openURL(url)
-        } label: {
-            HStack(spacing: 12) {
-                FeedIconView(source: FeedRowModel.iconSource(forBundleId: bundleId), size: 36)
-                Text(TargetResolver.displayName(for: bundleId))
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppColors.Night.textPrimary)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(schemes.isEmpty)
-    }
-
-    private func refresh() {
-        let stored = UserDefaults.stepsTrader()
-            .integer(forKey: SharedKeys.usageBudgetInitialKey(group.id))
-        if stored > timer.initialMinutes {
-            // The user bought more time; this is the one legitimate increase.
-            timer.reset(initialMinutes: stored)
-        }
-        state = timer.observe(remainingMinutes: model.remainingUsageBudget(for: group.id))
-        if state.remainingMinutes == 0 { dismiss() }
-    }
-}
-```
-
-- [ ] **Step 2: Present it from the list**
-
-Add alongside the other modifiers on the `NavigationStack` in `AppsPageSimplified`:
-
-```swift
-            .fullScreenCover(item: $timerGroupId) { wrapper in
-                if let group = model.blockingStore.ticketGroups.first(where: { $0.id == wrapper.id }) {
-                    UnlockTimerView(model: model, group: group)
-                }
-            }
-```
-
-- [ ] **Step 3: Verify it compiles**
-
-Run: `xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug build`
-
-Expected: BUILD SUCCEEDED.
-
-- [ ] **Step 4: Verify on a physical device**
-
-This is the acceptance criterion the whole spec is built around, so do not skip it:
-- buy a 10-minute window; the timer opens on the night theme with a full arc and `10:00`
-- tap the app in the list; it launches
-- **leave the phone idle for five minutes with the window open, then reopen the timer — the arc must not have moved.** The window is spent, not elapsed.
-- use the app for two minutes; the arc steps down twice and the digits read `08:00`
-- confirm the arc never jumps forward at any point
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add StepsTrader/Views/Feeds/UnlockTimerView.swift StepsTrader/Views/AppsPageSimplified.swift
-git commit -m "feat: add the unlock timer screen"
+git add StepsTrader/Views/AppsPageSimplified.swift
+git commit -m "feat: assemble the Feeds page — surface over the dock"
 ```
 
 ---
@@ -1137,9 +852,9 @@ final class UsageBudgetMonitoringErrorTests: XCTestCase {
     }
 
     func testCapMessageNamesTheCauseAndTheRemedy() {
-        let message = UsageBudgetMonitoringError.excessiveActivities.userFacingMessage
+        let message = UsageBudgetMonitoringError.excessiveActivities.userFacingMessage.lowercased()
         XCTAssertTrue(message.contains("too many"), "the message must name the cause")
-        XCTAssertTrue(message.lowercased().contains("close"), "the message must offer a remedy")
+        XCTAssertTrue(message.contains("close"), "the message must offer a remedy")
     }
 
     func testOtherMessageMentionsTheRefund() {
@@ -1297,21 +1012,26 @@ git commit -m "refactor: remove PaperTicketView, replaced by the flat Feeds list
 
 ## Acceptance criteria
 
-Mapped from `Feeds-Spec.md` and `Feeds-Brief.md` §8, minus everything the spike removed.
+Mapped from `Feeds-Spec.md`, `Feeds-Brief.md` §8 and the Figma reference, minus
+everything the spike and the revision removed.
 
-- [ ] Feeds is a single scrolling list, one row per `TicketGroup`; no ticket stack remains — Tasks 4, 9
-- [ ] A registry app shows its bundled asset; a non-registry app shows a system `Label` — Tasks 1, 2
-- [ ] A single-app group, including every template group, renders as a plain icon — Tasks 1, 3
-- [ ] A multi-app custom group renders as a cluster with the group's name — Tasks 1, 3
-- [ ] Locked entries carry a lock badge, identical for plain and cluster rows — Task 3
-- [ ] Tapping a locked entry offers 10 / 30 / 60 minutes at 4 / 10 / 20 colors, for that group — Task 6
-- [ ] Buying a window opens the timer screen, in the night theme — Tasks 6, 7
-- [ ] The timer lists the window's apps, and tapping one launches it — Task 7
-- [ ] **The timer does not move while the covered apps are unused** — Task 7, device check
-- [ ] The arc steps on tick boundaries and never runs backwards — Task 5 tests, Task 7 device check
-- [ ] Exceeding the DeviceActivity cap surfaces a user-facing error — Task 8
+- [x] A registry app shows its bundled asset; a non-registry app shows a system `Label` — Tasks 1, 2
+- [x] The arc steps on tick boundaries and never runs backwards — Task 5 tests, Task 6 device check
+- [x] Exceeding the DeviceActivity cap surfaces a user-facing error — Task 8
+- [ ] Feeds is a surface over a horizontal dock; no ticket stack and no vertical list remains — Tasks 3, 6, 9
+- [ ] One tile per `TicketGroup`; a multi-app group shows a cluster inside its tile — Tasks 1, 3
+- [ ] Tile hue tracks lock state and tile brightness tracks selection, independently — Task 3
+- [ ] The tab opens with nothing selected and only the blurred canvas showing — Tasks 4, 6
+- [ ] Tapping a locked tile fills the surface with 10 / 30 / 60 at 4 / 10 / 20 for that group — Tasks 4, 6
+- [ ] The surface's corner menu offers Settings and Delete for the selected group — Task 4
+- [ ] Buying a window turns the surface into that group's timer — Tasks 4, 6
+- [ ] Selecting another locked group switches the surface to its options while the running window continues and its tile stays amber — Task 6
+- [ ] **The timer does not move while the covered apps are unused** — Task 6, device check
 
-**Explicitly not in scope, and not a gap:** the Live Activity, `NSSupportsLiveActivities`, and anything ActivityKit. The `Feeds-Spec.md` §6 spike returned negative on 2026-08-09; the harness is archived at tag `spike/feeds-live-activity-archive`.
+**Explicitly not in scope, and not a gap:** the Live Activity, `NSSupportsLiveActivities`,
+and anything ActivityKit — the §6 spike returned negative on 2026-08-09, harness archived
+at tag `spike/feeds-live-activity-archive`. Also gone in this revision: the modal unlock
+sheet, the separate timer screen, and the vertical reorder mode.
 
 ## Known gaps to decide later, not silently
 
