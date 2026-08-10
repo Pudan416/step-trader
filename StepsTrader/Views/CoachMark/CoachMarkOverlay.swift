@@ -66,7 +66,7 @@ struct CoachMarkOverlay: View {
         guard let step else { return false }
         switch step {
         case .expandChevron, .tapPlusButton, .tapMind,
-             .tapFeedsTab, .tapUnlockPill:
+             .tapFeedsTab:
             return true
         default:
             return false
