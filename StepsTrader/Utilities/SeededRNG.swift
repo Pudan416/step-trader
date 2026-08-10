@@ -45,4 +45,24 @@ struct SeededRNG: RandomNumberGenerator {
         let span = UInt64(range.upperBound - range.lowerBound + 1)
         return range.lowerBound + Int(next() % span)
     }
+
+    /// A child generator isolated from the parent's call order.
+    ///
+    /// Without this, every consumer of a seed draws from one shared sequence:
+    /// adding a single `next()` anywhere shifts everything downstream and every
+    /// saved canvas regenerates differently. Giving each aspect — `"shape"`,
+    /// `"placement"`, `"texture"`, `"palette"` — its own domain makes the
+    /// streams independent, so a new parameter can be added without disturbing
+    /// the rest.
+    static func derived(from seed: UInt64, domain: StaticString) -> SeededRNG {
+        let prime: UInt64 = 0x0000_0100_0000_01B3
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+        domain.withUTF8Buffer { bytes in
+            for byte in bytes {
+                hash ^= UInt64(byte)
+                hash &*= prime
+            }
+        }
+        return SeededRNG(seed: seed ^ hash)
+    }
 }
