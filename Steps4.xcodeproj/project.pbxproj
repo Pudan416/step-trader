@@ -248,7 +248,6 @@
 		D0CD483BA54489AD2C23789A /* EnergyCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 524F432B8921ECFAF49A568E /* EnergyCategory.swift */; };
 		D3A1C72F8E5B4A01B9F6E4C2 /* CircleShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B3E91D4C6F47E2A0D8F5B1 /* CircleShapeRenderer.swift */; };
 		DCAF4095B8C209EC8B21F367 /* GradientPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 008E480BBB86AEC405B9C2EE /* GradientPalette.swift */; };
-		DD000001DDDD000100000001 /* PaperTicketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000001DDDD000100000002 /* PaperTicketView.swift */; };
 		DD000002DDDD000200000001 /* TicketTemplatePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000002DDDD000200000002 /* TicketTemplatePickerView.swift */; };
 		DD000003DDDD000300000001 /* InlineTicketSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000003DDDD000300000002 /* InlineTicketSettingsView.swift */; };
 		DD000004DDDD000400000001 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000004DDDD000400000002 /* SettingsSheet.swift */; };
@@ -568,7 +567,6 @@
 		D4A0EFF57C944F958DDA1052 /* AppModel+Payment.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+Payment.swift"; sourceTree = "<group>"; };
 		D6E7F8A9B0C1D2E3F4A5B6C7 /* AppModel+AccessWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppModel+AccessWindow.swift"; sourceTree = "<group>"; };
 		DB2D4682957CC0830F537534 /* ShapeHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ShapeHelpers.swift; path = StepsTrader/Shapes/ShapeHelpers.swift; sourceTree = SOURCE_ROOT; };
-		DD000001DDDD000100000002 /* PaperTicketView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperTicketView.swift; sourceTree = "<group>"; };
 		DD000002DDDD000200000002 /* TicketTemplatePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketTemplatePickerView.swift; sourceTree = "<group>"; };
 		DD000003DDDD000300000002 /* InlineTicketSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineTicketSettingsView.swift; sourceTree = "<group>"; };
 		DD000004DDDD000400000002 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
@@ -925,7 +923,6 @@
 				20C7E6132F8BF2A200BD06AA /* CanvasShapePreview.swift */,
 				30EA00013001000000EA0001 /* EnergyGradientBackground.swift */,
 				30EA00033001000000EA0003 /* EnergySignatureView.swift */,
-				DD000001DDDD000100000002 /* PaperTicketView.swift */,
 				WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */,
 				2061EB922F269CE6009FEC24 /* ImagePicker.swift */,
 				2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */,
@@ -1514,7 +1511,6 @@
 				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
 				30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */,
 				30EA00043001000000EA0004 /* EnergySignatureView.swift in Sources */,
-				DD000001DDDD000100000001 /* PaperTicketView.swift in Sources */,
 				WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */,
 				DD000002DDDD000200000001 /* TicketTemplatePickerView.swift in Sources */,
 				DD000003DDDD000300000001 /* InlineTicketSettingsView.swift in Sources */,

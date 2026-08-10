@@ -195,7 +195,7 @@ struct FeedsSurfaceView: View {
 
     private func windowOptions(for group: TicketGroup) -> some View {
         // Only the windows the user actually left enabled in Settings — every
-        // other purchase surface (PayGateView, PaperTicketView) filters the
+        // other purchase surface (PayGateView) filters the
         // same way, and `enabledIntervals` is never empty (TicketGroup's
         // decode path guarantees that), so there is no empty-list case here.
         let windows = AccessWindow.allCases.filter(group.enabledIntervals.contains)

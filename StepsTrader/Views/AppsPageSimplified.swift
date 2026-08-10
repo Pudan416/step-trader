@@ -351,7 +351,6 @@ struct AppsPageSimplified: View {
     private func deleteAndCleanup(_ groupId: String) {
         if expandedSheetGroupId?.id == groupId { expandedSheetGroupId = nil }
         if selectedFeedGroupId == groupId { selectedFeedGroupId = nil }
-        PaperTicketView.removeCachedTitle(forGroupId: groupId)
         model.deleteTicketGroup(groupId)
     }
 }
