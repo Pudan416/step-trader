@@ -7,7 +7,6 @@ import FamilyControls
 /// whether this is the app the surface is currently showing. The two are
 /// independent — a window keeps draining while another app is selected.
 struct FeedTileView: View {
-    @ObservedObject var model: AppModel
     let group: TicketGroup
     let isSelected: Bool
     /// Unspent minutes on this group's window, polled once for the whole page

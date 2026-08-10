@@ -157,7 +157,9 @@ struct InlineTicketSettingsView: View {
     @ViewBuilder
     private var unlockButtonsSection: some View {
         if model.isGroupUsageBudgetActive(group.id) {
-            let budget = model.remainingUsageBudget(for: group.id)
+            // Same accessor the Feeds surface uses: the wall-clock-floored one
+            // reports time already spent when the phone merely sat idle.
+            let budget = model.unspentUsageBudgetMatchingShield(for: group.id)
             HStack(spacing: 12) {
                 Image(systemName: "lock.open.fill")
                     .font(.title2)

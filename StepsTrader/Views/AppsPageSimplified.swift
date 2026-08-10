@@ -288,7 +288,6 @@ struct AppsPageSimplified: View {
             HStack(spacing: 14) {
                 ForEach(visibleGroups) { group in
                     FeedTileView(
-                        model: model,
                         group: group,
                         isSelected: selectedFeedGroupId == group.id,
                         remainingMinutes: unspentMinutes[group.id] ?? 0,
