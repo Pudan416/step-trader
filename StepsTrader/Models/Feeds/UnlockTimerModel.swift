@@ -32,8 +32,8 @@ struct UnlockTimerModel: Sendable {
     mutating func observe(remainingMinutes: Int) -> State {
         var value = min(max(0, remainingMinutes), initialMinutes)
 
-        // Ticks can arrive late, and the wall-clock floor in
-        // `AppModel.remainingUsageBudget(for:)` can disagree with the last tick.
+        // Ticks can arrive late, and a budget written from outside the app
+        // (widget unlock, monitor recovery) can disagree with the last tick.
         // Either way the arc must not jump forward and then fall back.
         if let last = lastShownMinutes {
             value = min(value, last)

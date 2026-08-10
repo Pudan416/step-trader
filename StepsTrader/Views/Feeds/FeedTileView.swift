@@ -110,7 +110,7 @@ struct FeedTileView: View {
     }
 
     private func refresh() {
-        remaining = model.remainingUsageBudget(for: group.id)
+        remaining = model.unspentUsageBudgetMatchingShield(for: group.id)
     }
 }
 

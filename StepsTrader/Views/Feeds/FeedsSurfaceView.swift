@@ -13,7 +13,7 @@ import SwiftUI
 /// only management affordance: the dock tile itself has no context menu.
 ///
 /// The state is derived fresh on every render from `selectedGroup` and
-/// `model.remainingUsageBudget(for:)` rather than stored. The usage budget is
+/// `model.unspentUsageBudgetMatchingShield(for:)` rather than stored. The usage budget is
 /// written from outside this view — by the `DeviceActivityMonitor` extension —
 /// so a cached copy of "which state am I in" would drift from it. Only the
 /// timer's own stepping state (`UnlockTimerModel`) lives in `@State`, because
@@ -48,7 +48,7 @@ struct FeedsSurfaceView: View {
     @State private var fixedTime = Date.now
 
     // Timer bookkeeping. `UnlockTimerModel` owns the stepping/clamping logic;
-    // this view's job is only to feed it fresh `remainingUsageBudget` reads.
+    // this view's job is only to feed it fresh unspent-budget reads.
     @State private var timerModel = UnlockTimerModel(initialMinutes: 0)
     @State private var timerState: UnlockTimerModel.State?
     @State private var trackedGroupId: String?
@@ -63,12 +63,12 @@ struct FeedsSurfaceView: View {
 
     var body: some View {
         // Both branches below — which state to show, and (for state 3) what
-        // number to show — come from this one `remainingUsageBudget` read.
+        // number to show — come from this one unspent-budget read.
         // Reading it twice per render risked the two disagreeing for a frame
         // (see `resolvedTimerState`); reading it once and threading it
         // through makes that impossible.
         let group = selectedTicketGroup
-        let remaining = group.map { model.remainingUsageBudget(for: $0.id) } ?? 0
+        let remaining = group.map { model.unspentUsageBudgetMatchingShield(for: $0.id) } ?? 0
         let state: SurfaceState = {
             guard let group else { return .idle }
             return remaining > 0 ? .running(group) : .offeringWindows(group)
@@ -335,7 +335,7 @@ struct FeedsSurfaceView: View {
         }
     }
 
-    /// Advances `timerModel` from a fresh `remainingUsageBudget` reading.
+    /// Advances `timerModel` from a fresh unspent-budget reading.
     /// Resets the model (the one legitimate way remaining time may increase)
     /// when the selected group changes or when its stored initial window size
     /// grows — the latter covers buying more time while already unlocked.
@@ -345,7 +345,7 @@ struct FeedsSurfaceView: View {
             trackedGroupId = nil
             return
         }
-        let remaining = model.remainingUsageBudget(for: group.id)
+        let remaining = model.unspentUsageBudgetMatchingShield(for: group.id)
         guard remaining > 0 else {
             timerState = nil
             trackedGroupId = nil

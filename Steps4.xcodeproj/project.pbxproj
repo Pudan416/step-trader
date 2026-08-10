@@ -218,6 +218,7 @@
 		FE000001FEED000100000001 /* FeedRowModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000001FEED000100000002 /* FeedRowModelTests.swift */; };
 		FE000003FEED000100000001 /* UnlockTimerModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000003FEED000100000002 /* UnlockTimerModelTests.swift */; };
 		FE000005FEED000100000001 /* UsageBudgetMonitoringErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000005FEED000100000002 /* UsageBudgetMonitoringErrorTests.swift */; };
+		FE00000BFEED000100000001 /* UnspentUsageBudgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE00000BFEED000100000002 /* UnspentUsageBudgetTests.swift */; };
 		AA000003AAAA000300000001 /* HealthKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000003AAAA000300000002 /* HealthKitTests.swift */; };
 		AA00NOTE2F3A000100000001 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00NOTE2F3A000100000002 /* Note.swift */; };
 		AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB001100110011AABB0010 /* SubscriptionGateTests.swift */; };
@@ -538,6 +539,7 @@
 		FE000001FEED000100000002 /* FeedRowModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedRowModelTests.swift; sourceTree = "<group>"; };
 		FE000003FEED000100000002 /* UnlockTimerModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockTimerModelTests.swift; sourceTree = "<group>"; };
 		FE000005FEED000100000002 /* UsageBudgetMonitoringErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBudgetMonitoringErrorTests.swift; sourceTree = "<group>"; };
+		FE00000BFEED000100000002 /* UnspentUsageBudgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnspentUsageBudgetTests.swift; sourceTree = "<group>"; };
 		AA000003AAAA000300000002 /* HealthKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitTests.swift; sourceTree = "<group>"; };
 		AA00NOTE2F3A000100000002 /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
 		AABB001100110011AABB0010 /* SubscriptionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionGateTests.swift; sourceTree = "<group>"; };
@@ -1137,6 +1139,7 @@
 				FE000001FEED000100000002 /* FeedRowModelTests.swift */,
 				FE000003FEED000100000002 /* UnlockTimerModelTests.swift */,
 				FE000005FEED000100000002 /* UsageBudgetMonitoringErrorTests.swift */,
+				FE00000BFEED000100000002 /* UnspentUsageBudgetTests.swift */,
 				BB000001BB000001BB000001 /* WidgetTests.swift */,
 				BB000002BB000002BB000001 /* OnboardingFlowTests.swift */,
 				AABB001100110011AABB0010 /* SubscriptionGateTests.swift */,
@@ -1672,6 +1675,7 @@
 				FE000001FEED000100000001 /* FeedRowModelTests.swift in Sources */,
 				FE000003FEED000100000001 /* UnlockTimerModelTests.swift in Sources */,
 				FE000005FEED000100000001 /* UsageBudgetMonitoringErrorTests.swift in Sources */,
+				FE00000BFEED000100000001 /* UnspentUsageBudgetTests.swift in Sources */,
 				BB000001BB000001BB000002 /* WidgetTests.swift in Sources */,
 				BB000002BB000002BB000002 /* OnboardingFlowTests.swift in Sources */,
 				AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */,
