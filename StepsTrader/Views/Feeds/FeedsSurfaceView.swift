@@ -4,9 +4,13 @@ import SwiftUI
 /// that shows exactly one of three states:
 ///
 /// 1. **idle** — nothing selected. Only the blurred canvas.
-/// 2. **offeringWindows** — a locked group is selected: three window options
-///    plus a corner menu (Settings / Delete).
+/// 2. **offeringWindows** — a locked group is selected: the group's enabled
+///    window options.
 /// 3. **running** — an unlocked group is selected: the depleting timer.
+///
+/// A corner menu (Settings / Delete) is shown whenever a group is selected —
+/// in both non-idle states, not just state 2 — because it is the surface's
+/// only management affordance: the dock tile itself has no context menu.
 ///
 /// The state is derived fresh on every render from `selectedGroup` and
 /// `model.remainingUsageBudget(for:)` rather than stored. The usage budget is
@@ -57,14 +61,18 @@ struct FeedsSurfaceView: View {
         return model.ticketGroups.first(where: { $0.id == selectedGroup })
     }
 
-    private var surfaceState: SurfaceState {
-        guard let group = selectedTicketGroup else { return .idle }
-        let remaining = model.remainingUsageBudget(for: group.id)
-        return remaining > 0 ? .running(group) : .offeringWindows(group)
-    }
-
     var body: some View {
-        let state = surfaceState
+        // Both branches below — which state to show, and (for state 3) what
+        // number to show — come from this one `remainingUsageBudget` read.
+        // Reading it twice per render risked the two disagreeing for a frame
+        // (see `resolvedTimerState`); reading it once and threading it
+        // through makes that impossible.
+        let group = selectedTicketGroup
+        let remaining = group.map { model.remainingUsageBudget(for: $0.id) } ?? 0
+        let state: SurfaceState = {
+            guard let group else { return .idle }
+            return remaining > 0 ? .running(group) : .offeringWindows(group)
+        }()
 
         return ZStack {
             background
@@ -74,14 +82,17 @@ struct FeedsSurfaceView: View {
                 EmptyView()
             case .offeringWindows(let group):
                 windowOptions(for: group)
-            case .running:
-                timerDisplay
+            case .running(let group):
+                timerDisplay(for: group, remaining: remaining)
             }
         }
         .frame(width: Self.size.width, height: Self.size.height)
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
         .overlay(alignment: .topTrailing) {
-            if case .offeringWindows(let group) = state {
+            // Independent of state (besides idle): a running window must not
+            // strand the group without a path to Settings/Delete for up to
+            // an hour, since the dock tile itself offers no context menu.
+            if let group {
                 cornerMenu(for: group)
                     .padding(16)
             }
@@ -156,7 +167,7 @@ struct FeedsSurfaceView: View {
             .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
     }
 
-    // MARK: - Corner menu (state 2 only)
+    // MARK: - Corner menu (whenever a group is selected, states 2 and 3)
 
     private func cornerMenu(for group: TicketGroup) -> some View {
         Menu {
@@ -183,8 +194,13 @@ struct FeedsSurfaceView: View {
     // MARK: - State 2: window options
 
     private func windowOptions(for group: TicketGroup) -> some View {
-        VStack(spacing: 12) {
-            ForEach(AccessWindow.allCases, id: \.self) { window in
+        // Only the windows the user actually left enabled in Settings — every
+        // other purchase surface (PayGateView, PaperTicketView) filters the
+        // same way, and `enabledIntervals` is never empty (TicketGroup's
+        // decode path guarantees that), so there is no empty-list case here.
+        let windows = AccessWindow.allCases.filter(group.enabledIntervals.contains)
+        return VStack(spacing: 12) {
+            ForEach(windows, id: \.self) { window in
                 windowRow(window, group: group)
             }
         }
@@ -250,14 +266,13 @@ struct FeedsSurfaceView: View {
 
     // MARK: - State 3: timer
 
-    private var timerDisplay: some View {
-        ZStack {
-            depletionRing
-            if let timerState {
-                Text(timerState.digits)
-                    .font(.system(size: 44, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white)
-            }
+    private func timerDisplay(for group: TicketGroup, remaining: Int) -> some View {
+        let display = resolvedTimerState(for: group, remaining: remaining)
+        return ZStack {
+            depletionRing(fraction: display.fraction)
+            Text(display.digits)
+                .font(.system(size: 44, weight: .medium, design: .monospaced))
+                .foregroundStyle(.white)
         }
         .padding(.bottom, 24)
     }
@@ -269,9 +284,8 @@ struct FeedsSurfaceView: View {
     /// only changes on whole-minute tick boundaries, and this view must not
     /// smooth that into a sweep. A tick lands as a hard cut, matching the
     /// spec: never interpolate, never run backwards.
-    private var depletionRing: some View {
-        let fraction = timerState?.fraction ?? 0
-        return ZStack {
+    private func depletionRing(fraction: Double) -> some View {
+        ZStack {
             Circle()
                 .stroke(Color.white.opacity(0.18), lineWidth: Self.ringLineWidth)
             Circle()
@@ -284,6 +298,30 @@ struct FeedsSurfaceView: View {
                 .animation(nil, value: fraction)
         }
         .frame(width: Self.ringDiameter, height: Self.ringDiameter)
+    }
+
+    /// What state 3 shows for `group` at `remaining` — the exact value that
+    /// just decided the surface is in the running branch (see `body`).
+    ///
+    /// When the persisted `timerModel` is already tracking this group
+    /// (`trackedGroupId == group.id`), its stepped state is authoritative:
+    /// that is what enforces "never runs backwards" across an ongoing
+    /// session's tick jitter. Otherwise — the selection just switched to this
+    /// group, or its budget just went from zero to non-zero from outside this
+    /// view (e.g. a widget unlock) and `refreshTimer()` hasn't run again yet
+    /// — a throwaway local model seeded from this same `remaining` read
+    /// stands in for this one render instead of the *previous* group's
+    /// leftover `timerState`. It has no history to clamp against, which is
+    /// correct: from this group's perspective this is its first observation,
+    /// identical to what the persisted model will show once `refreshTimer()`
+    /// catches up.
+    private func resolvedTimerState(for group: TicketGroup, remaining: Int) -> UnlockTimerModel.State {
+        if trackedGroupId == group.id, let timerState {
+            return timerState
+        }
+        let storedInitial = UserDefaults.stepsTrader().integer(forKey: SharedKeys.usageBudgetInitialKey(group.id))
+        var bridge = UnlockTimerModel(initialMinutes: max(storedInitial, remaining, 1))
+        return bridge.observe(remainingMinutes: remaining)
     }
 
     // MARK: - Data loading & refresh
