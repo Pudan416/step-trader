@@ -36,6 +36,7 @@ struct AppsPageSimplified: View {
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.tabBarHeight) private var tabBarHeight
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection = FamilyActivitySelection()
     @State private var showPicker = false
     @State private var selectedGroupId: TicketGroupId? = nil
@@ -45,6 +46,15 @@ struct AppsPageSimplified: View {
     /// `selectedGroupId`, which tracks the group being edited via the
     /// `FamilyActivityPicker` sheet — conflating the two breaks group editing.
     @State private var selectedFeedGroupId: String? = nil
+    /// Unspent minutes per group id, for groups whose window is open.
+    ///
+    /// One poll for the whole page. The tile and the surface used to keep
+    /// their own 15s loops, which drifted: after a purchase the surface showed
+    /// a running timer above a tile that still looked locked, for up to 15
+    /// seconds. They now read this, and it refreshes on `.active` so returning
+    /// from the blocked app — the most common transition in the app — shows
+    /// the current number immediately.
+    @State private var unspentMinutes: [String: Int] = [:]
 
     private var buttonTint: Color { AppColors.Night.textPrimary }
     @State private var showCustomNamePrompt = false
@@ -101,6 +111,8 @@ struct AppsPageSimplified: View {
                         FeedsSurfaceView(
                             model: model,
                             selectedGroup: selectedFeedGroupId,
+                            unspentMinutes: selectedFeedGroupId.flatMap { unspentMinutes[$0] } ?? 0,
+                            onBudgetChanged: refreshUnspentMinutes,
                             onSettings: { groupId in
                                 expandedSheetGroupId = TicketGroupId(id: groupId)
                             },
@@ -206,6 +218,22 @@ struct AppsPageSimplified: View {
                 )
             }
             .onAppear { selection = model.appSelection }
+            .task {
+                // The honest signal steps once a minute (the monitor
+                // extension's per-minute tick). Poll a little faster so
+                // nothing on the page is badly stale; never interpolate
+                // between ticks.
+                refreshUnspentMinutes()
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(15))
+                    refreshUnspentMinutes()
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                // Coming back from the blocked app is the transition that
+                // matters most here, and it does not wait for the poll.
+                if phase == .active { refreshUnspentMinutes() }
+            }
             .alert(String(localized: "Name your feed"), isPresented: $showCustomNamePrompt) {
                 TextField(String(localized: "e.g. Social, Games…", comment: "Placeholder for feed name"), text: $customTicketName)
                 Button(String(localized: "Create")) {
@@ -258,6 +286,7 @@ struct AppsPageSimplified: View {
                         model: model,
                         group: group,
                         isSelected: selectedFeedGroupId == group.id,
+                        remainingMinutes: unspentMinutes[group.id] ?? 0,
                         onTap: { selectedFeedGroupId = group.id }
                     )
                     #if DEBUG
@@ -340,6 +369,17 @@ struct AppsPageSimplified: View {
                 }
             }
         }
+    }
+
+    /// Re-reads every group's open window. Only groups with an open window get
+    /// an entry, so the map stays small and `?? 0` is the locked case.
+    private func refreshUnspentMinutes() {
+        var latest: [String: Int] = [:]
+        for group in model.blockingStore.ticketGroups {
+            let minutes = model.unspentUsageBudgetMatchingShield(for: group.id)
+            if minutes > 0 { latest[group.id] = minutes }
+        }
+        if latest != unspentMinutes { unspentMinutes = latest }
     }
 
     private var visibleGroups: [TicketGroup] {

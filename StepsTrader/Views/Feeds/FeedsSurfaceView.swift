@@ -12,8 +12,8 @@ import SwiftUI
 /// in both non-idle states, not just state 2 — because it is the surface's
 /// only management affordance: the dock tile itself has no context menu.
 ///
-/// The state is derived fresh on every render from `selectedGroup` and
-/// `model.unspentUsageBudgetMatchingShield(for:)` rather than stored. The usage budget is
+/// The state is derived fresh on every render from `selectedGroup` and the
+/// `unspentMinutes` the page polls, rather than stored. The usage budget is
 /// written from outside this view — by the `DeviceActivityMonitor` extension —
 /// so a cached copy of "which state am I in" would drift from it. Only the
 /// timer's own stepping state (`UnlockTimerModel`) lives in `@State`, because
@@ -22,6 +22,15 @@ import SwiftUI
 struct FeedsSurfaceView: View {
     @ObservedObject var model: AppModel
     let selectedGroup: String?
+    /// Unspent minutes on `selectedGroup`'s window; 0 when nothing is selected
+    /// or the window is closed. `AppsPageSimplified` owns the poll for the
+    /// whole page — this view and the dock tiles must show one number, and two
+    /// unsynchronised 15s loops could not guarantee that.
+    let unspentMinutes: Int
+    /// Re-poll now rather than at the page's next tick. Called after a
+    /// purchase, so the surface and the tile flip to the running state in the
+    /// same update.
+    let onBudgetChanged: () -> Void
     let onSettings: (String) -> Void
     let onDelete: (String) -> Void
 
@@ -63,12 +72,11 @@ struct FeedsSurfaceView: View {
 
     var body: some View {
         // Both branches below — which state to show, and (for state 3) what
-        // number to show — come from this one unspent-budget read.
-        // Reading it twice per render risked the two disagreeing for a frame
-        // (see `resolvedTimerState`); reading it once and threading it
-        // through makes that impossible.
+        // number to show — come from the one value the page polled. Reading
+        // the budget again here risked disagreeing with the tile for a frame
+        // (see `resolvedTimerState`); taking it as input makes that impossible.
         let group = selectedTicketGroup
-        let remaining = group.map { model.unspentUsageBudgetMatchingShield(for: $0.id) } ?? 0
+        let remaining = group == nil ? 0 : unspentMinutes
         let state: SurfaceState = {
             guard let group else { return .idle }
             return remaining > 0 ? .running(group) : .offeringWindows(group)
@@ -108,14 +116,13 @@ struct FeedsSurfaceView: View {
         )
         .onAppear {
             loadCanvasIfNeeded()
-            refreshTimer()
+            refreshTimer(remaining: remaining)
         }
-        .task(id: selectedGroup) {
-            refreshTimer()
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
-                refreshTimer()
-            }
+        .onChange(of: selectedGroup) { _, _ in
+            refreshTimer(remaining: unspentMinutes)
+        }
+        .onChange(of: unspentMinutes) { _, newValue in
+            refreshTimer(remaining: newValue)
         }
     }
 
@@ -257,9 +264,9 @@ struct FeedsSurfaceView: View {
             // the app-wide alert already wired to it in StepsTraderApp).
             await model.handlePayGatePaymentForGroup(groupId: group.id, window: window, costOverride: cost)
             // The budget UserDefaults write already happened inside the call
-            // above; refresh immediately so the surface flips to state 3
-            // without waiting for the next poll tick.
-            refreshTimer()
+            // above. Ask the page to re-poll so the surface *and* the tile
+            // flip to the running state now, not at the next tick.
+            onBudgetChanged()
             isPurchasing = false
         }
     }
@@ -335,17 +342,19 @@ struct FeedsSurfaceView: View {
         }
     }
 
-    /// Advances `timerModel` from a fresh unspent-budget reading.
+    /// Advances `timerModel` from the page's latest unspent-budget reading.
     /// Resets the model (the one legitimate way remaining time may increase)
     /// when the selected group changes or when its stored initial window size
     /// grows — the latter covers buying more time while already unlocked.
-    private func refreshTimer() {
+    ///
+    /// Takes `remaining` rather than reading the prop so it can be called from
+    /// an `onChange` handler with the value that just arrived.
+    private func refreshTimer(remaining: Int) {
         guard let group = selectedTicketGroup else {
             timerState = nil
             trackedGroupId = nil
             return
         }
-        let remaining = model.unspentUsageBudgetMatchingShield(for: group.id)
         guard remaining > 0 else {
             timerState = nil
             trackedGroupId = nil

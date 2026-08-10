@@ -10,13 +10,17 @@ struct FeedTileView: View {
     @ObservedObject var model: AppModel
     let group: TicketGroup
     let isSelected: Bool
+    /// Unspent minutes on this group's window, polled once for the whole page
+    /// by `AppsPageSimplified`. The tile does not read the budget itself: when
+    /// it had its own 15s loop it and the surface drifted apart, so a freshly
+    /// bought window showed a running timer above a tile that still looked
+    /// locked.
+    let remainingMinutes: Int
     let onTap: () -> Void
-
-    @State private var remaining: Int = 0
 
     static let diameter: CGFloat = 83
 
-    private var isUnlocked: Bool { remaining > 0 }
+    private var isUnlocked: Bool { remainingMinutes > 0 }
 
     private var glowColor: Color {
         isUnlocked ? AppColors.brandAccent : Color.white.opacity(0.55)
@@ -57,15 +61,6 @@ struct FeedTileView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
-        .onAppear(perform: refresh)
-        .task {
-            // The honest signal steps once a minute. Poll a little faster so the tile
-            // is never badly stale; never interpolate between ticks.
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
-                refresh()
-            }
-        }
     }
 
     @ViewBuilder
@@ -105,12 +100,8 @@ struct FeedTileView: View {
     private var accessibilityLabel: String {
         let name = group.templateApp.map { TargetResolver.displayName(for: $0) } ?? group.name
         return isUnlocked
-            ? String(localized: "\(name), unlocked, \(remaining) minutes left", comment: "Feeds tile – VoiceOver, window open")
+            ? String(localized: "\(name), unlocked, \(remainingMinutes) minutes left", comment: "Feeds tile – VoiceOver, window open")
             : String(localized: "\(name), locked", comment: "Feeds tile – VoiceOver, window closed")
-    }
-
-    private func refresh() {
-        remaining = model.unspentUsageBudgetMatchingShield(for: group.id)
     }
 }
 
