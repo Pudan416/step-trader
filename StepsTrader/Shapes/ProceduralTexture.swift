@@ -37,6 +37,25 @@ struct TextureSpec: Codable, Hashable {
             + (angle < 0 ? 2 * .pi : 0)
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case kind, density, uniformity, angle
+    }
+
+    /// Hand-written so decoded values still go through the clamping
+    /// initialiser above — the synthesised `init(from:)` would assign the
+    /// raw decoded Doubles directly and bypass it. Task 6 constructs specs
+    /// from derived values (e.g. a slider position saved out of range by an
+    /// older build), so this has to hold on decode, not just on construction.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            kind: try container.decode(TextureKind.self, forKey: .kind),
+            density: try container.decode(Double.self, forKey: .density),
+            uniformity: try container.decode(Double.self, forKey: .uniformity),
+            angle: try container.decode(Double.self, forKey: .angle)
+        )
+    }
+
     /// Sensible randomised parameters for a kind.
     static func seeded(kind: TextureKind, seed: UInt64) -> TextureSpec {
         var rng = SeededRNG.derived(from: seed, domain: "texture")
@@ -255,7 +274,7 @@ enum ProceduralTexture {
 
     /// Star-shaped containment test: compare the point's radius against the
     /// contour's radius at the point's angle.
-    static func containsPoint(_ point: CGPoint, radii: [Double]) -> Bool {
+    private static func containsPoint(_ point: CGPoint, radii: [Double]) -> Bool {
         guard !radii.isEmpty else { return false }
         let angle = atan2(Double(point.y), Double(point.x))
         let normalised = angle < 0 ? angle + 2 * .pi : angle
@@ -271,7 +290,6 @@ enum ProceduralTexture {
         _ geometry: TextureGeometry,
         spec: TextureSpec,
         contour: Path,
-        radii: [Double],
         context: inout GraphicsContext,
         center: CGPoint,
         radius: Double,
@@ -334,7 +352,15 @@ enum ProceduralTexture {
                     y: center.y + dot.center.y * radius - r,
                     width: r * 2, height: r * 2))
             }
-            context.fill(field, with: .color(second.opacity(0.75)))
+            // A rim dot's centre is inside the contour but its own radius
+            // can still push part of the ellipse outside it — clip so the
+            // fill never spills past the form. Scoped to a nested layer so
+            // the clip doesn't leak onto the stroke drawn after this call
+            // returns.
+            context.drawLayer { fieldCtx in
+                fieldCtx.clip(to: contour)
+                fieldCtx.fill(field, with: .color(second.opacity(0.75)))
+            }
         }
     }
 }

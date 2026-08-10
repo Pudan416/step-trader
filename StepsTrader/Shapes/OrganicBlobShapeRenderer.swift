@@ -122,9 +122,14 @@ enum OrganicBlobShapeRenderer {
 
             // Cached, not regenerated per frame — see the Global Constraint.
             // The contour above is still computed every frame (it has to
-            // morph); only the fill geometry is bucketed.
+            // morph); only the fill geometry is bucketed. complexity is part
+            // of the cache key: it drives organicBlobRadiusFactor's
+            // amplitude/ringRadius, so it changes the contour's shape, not
+            // just layerRadii's values within it — a stale key would keep
+            // serving geometry built for a contour the element no longer has.
             let textureGeometry = cache.textureGeometry(
-                seed: layerSeed, spec: layerSpec, radii: layerRadii, time: layerT)
+                seed: layerSeed, spec: layerSpec, radii: layerRadii,
+                complexity: complexity, time: layerT)
 
             let gradCenter = CGPoint(
                 x: cx + cos(gradOffsetAngle) * Double(radius) * gradOffsetFraction,
@@ -135,7 +140,7 @@ enum OrganicBlobShapeRenderer {
                 ctx.opacity = max(0.05, layerOpacity)
 
                 ProceduralTexture.draw(
-                    textureGeometry, spec: layerSpec, contour: path, radii: layerRadii,
+                    textureGeometry, spec: layerSpec, contour: path,
                     context: &ctx, center: CGPoint(x: cx, y: cy), radius: Double(radius),
                     color: color, color2: isTwoColor ? color2 : nil,
                     gradientCenter: gradCenter)

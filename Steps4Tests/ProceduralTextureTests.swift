@@ -42,6 +42,19 @@ final class ProceduralTextureTests: XCTestCase {
         }
     }
 
+    /// `init(from:)` is hand-written specifically so a decoded spec still
+    /// clamps — a synthesised `Decodable` would assign the raw JSON Doubles
+    /// straight to the stored properties and skip the constructor entirely.
+    func testSpecDecodingClampsOutOfRangeValues() throws {
+        let json = """
+        {"kind":"hatch","density":1.7,"uniformity":-0.4,"angle":-1.0}
+        """
+        let decoded = try JSONDecoder().decode(TextureSpec.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.density, 1.0)
+        XCTAssertEqual(decoded.uniformity, 0.0)
+        XCTAssertEqual(decoded.angle, 2 * .pi - 1.0, accuracy: 1e-9)
+    }
+
     /// `TextureSpec` is a cache key, so near-identical Doubles must not miss.
     func testSpecHashingIsQuantised() {
         let a = TextureSpec(kind: .hatch, density: 0.5, uniformity: 0.5, angle: 1.0)
@@ -104,12 +117,17 @@ final class ProceduralTextureTests: XCTestCase {
     }
 
     func testHatchLinesStayInsideTheUnitDisc() {
+        let contour = radii()
         let g = ProceduralTexture.geometry(
-            spec: .seeded(kind: .hatch, seed: 19), radii: radii(), seed: 19)
-        // Unit space: the contour never exceeds a factor of 1.32.
+            spec: .seeded(kind: .hatch, seed: 19), radii: contour, seed: 19)
+        // hatchGeometry's chords are constructed on the inscribed circle of
+        // radius `contour.min() * 0.95`, so every endpoint's distance from
+        // the origin is exactly that bound (up to float error) — not the
+        // 1.4 the contour's own outer radius could reach.
+        let bound = (contour.min() ?? 1) * 0.95
         for line in g.lines {
-            XCTAssertLessThanOrEqual(hypot(line.start.x, line.start.y), 1.4)
-            XCTAssertLessThanOrEqual(hypot(line.end.x, line.end.y), 1.4)
+            XCTAssertLessThanOrEqual(hypot(line.start.x, line.start.y), bound + 1e-9)
+            XCTAssertLessThanOrEqual(hypot(line.end.x, line.end.y), bound + 1e-9)
         }
     }
 
@@ -218,5 +236,125 @@ final class ProceduralTextureTests: XCTestCase {
                 XCTAssertTrue((0...(2 * Double.pi)).contains(spec.angle))
             }
         }
+    }
+}
+
+// MARK: - Render cache
+
+/// `RenderCache.textureGeometry` is the plan's single most important
+/// constraint made real: texture geometry is generated once per bucket, not
+/// per frame. These tests cover the caching mechanism itself, not the fill
+/// algorithms above — a hit that skips regeneration, a miss that doesn't
+/// (complexity, which pins the shape/scale distinction `TextureCacheKey`
+/// exists to capture), the prune keeping the dictionary bounded, and the
+/// per-seed phase that keeps 15 elements' buckets from flipping on the same
+/// frame. `RenderCache` is `@MainActor`, so this class is too.
+@MainActor
+final class RenderCacheTextureTests: XCTestCase {
+
+    private func radii(seed: UInt64 = 1, complexity: Double = 0.5) -> [Double] {
+        ProceduralShapeGenerator.organicBlobRadiusFactor(
+            seed: seed, complexity: complexity, symmetry: 1, time: 0)
+    }
+
+    /// A call within the same bucket must hit the cache. Proven by passing
+    /// *different* radii on the second call: a real regeneration would pick
+    /// them up and change the result, so an unchanged result means the
+    /// second call never reached `ProceduralTexture.geometry` at all.
+    func testRepeatCallWithinOneBucketIsCached() {
+        let cache = RenderCache()
+        let spec = TextureSpec(kind: .stipple, density: 0.7, uniformity: 0.3, angle: 0)
+
+        let first = cache.textureGeometry(
+            seed: 5, spec: spec, radii: radii(seed: 1), complexity: 0.5, time: 0.2)
+        let second = cache.textureGeometry(
+            seed: 5, spec: spec, radii: radii(seed: 99), complexity: 0.5, time: 0.9)
+
+        XCTAssertEqual(first, second,
+                       "A call within the same bucket must hit the cache, not regenerate")
+    }
+
+    /// Pins Important 2: `complexity` changes `organicBlobRadiusFactor`'s
+    /// amplitude and ringRadius — the contour's shape — so two calls that
+    /// differ only in complexity (and the radii that follow from it) must
+    /// land in different cache entries. Before the fix, this collided on
+    /// seed/spec/timeBucket alone and the second call silently returned the
+    /// first (stale) geometry.
+    func testDifferentComplexityMissesTheCache() {
+        let cache = RenderCache()
+        let spec = TextureSpec(kind: .rings, density: 0.6, uniformity: 0.4, angle: 0)
+
+        let low = cache.textureGeometry(
+            seed: 5, spec: spec, radii: radii(complexity: 0.1), complexity: 0.1, time: 0)
+        let high = cache.textureGeometry(
+            seed: 5, spec: spec, radii: radii(complexity: 0.9), complexity: 0.9, time: 0)
+
+        XCTAssertNotEqual(low, high, "Complexity change must miss the cache and regenerate")
+    }
+
+    /// Pins the prune: repeatedly advancing the bucket must not let the
+    /// dictionary grow with every bucket ever visited.
+    func testCacheStaysBoundedAcrossManyBuckets() {
+        let cache = RenderCache()
+        let spec = TextureSpec(kind: .stipple, density: 0.5, uniformity: 0.5, angle: 0)
+
+        for i in 0..<50 {
+            let time = Double(i) * RenderCache.textureBucketSeconds
+            _ = cache.textureGeometry(
+                seed: 7, spec: spec, radii: radii(), complexity: 0.5, time: time)
+        }
+
+        XCTAssertLessThanOrEqual(cache.textureCache.count, 3,
+                                 "Prune should keep the cache bounded to the current and previous bucket")
+    }
+
+    func testTextureBucketMapsTimeAsIntended() {
+        XCTAssertEqual(RenderCache.textureBucket(for: 0), 0)
+        XCTAssertEqual(RenderCache.textureBucket(for: 1.49), 0)
+        XCTAssertEqual(RenderCache.textureBucket(for: 1.5), 1)
+        XCTAssertEqual(RenderCache.textureBucket(for: 2.9), 1)
+        XCTAssertEqual(RenderCache.textureBucket(for: 3.0), 2)
+        XCTAssertEqual(RenderCache.textureBucket(for: -0.1), -1)
+    }
+
+    /// Pins Important 1's mechanism: different seeds must land at different
+    /// phases, and the phase must stay within one bucket's width (so any two
+    /// seeds are at most one bucket apart at a given instant — the property
+    /// the prune's `bucket - 1` window relies on).
+    func testPhaseStaggersDifferentSeeds() {
+        XCTAssertNotEqual(RenderCache.texturePhase(for: 0), RenderCache.texturePhase(for: 75))
+        for seed: UInt64 in [0, 1, 75, 149, 150, 12_345] {
+            let phase = RenderCache.texturePhase(for: seed)
+            XCTAssertTrue((0..<RenderCache.textureBucketSeconds).contains(phase),
+                          "Phase \(phase) for seed \(seed) exceeds one bucket width")
+        }
+    }
+
+    /// Pins the prune-safety half of Important 1: inserting a phased-ahead
+    /// seed's entry must not evict a phased-behind seed's still-current one.
+    /// seed 0 has phase 0, seed 75 has phase 0.75 — at real time 0.8 that
+    /// puts them one bucket apart (buckets 0 and 1), the maximum spread
+    /// `texturePhase` can produce.
+    func testStaggeredPhasesDoNotEvictEachOtherPrematurely() {
+        let cache = RenderCache()
+        let spec = TextureSpec(kind: .rings, density: 0.5, uniformity: 0.5, angle: 0)
+        let seedBehind: UInt64 = 0
+        let seedAhead: UInt64 = 75
+        let t = 0.8
+
+        let firstBehind = cache.textureGeometry(
+            seed: seedBehind, spec: spec, radii: radii(), complexity: 0.5, time: t)
+        // Inserting the ahead seed's entry (a later bucket) is what triggers
+        // the prune.
+        _ = cache.textureGeometry(
+            seed: seedAhead, spec: spec, radii: radii(), complexity: 0.5, time: t)
+
+        // Different radii on the re-query: an eviction would show up as a
+        // freshly regenerated (and therefore different) result.
+        let secondBehind = cache.textureGeometry(
+            seed: seedBehind, spec: spec, radii: radii(complexity: 0.9), complexity: 0.5, time: t)
+
+        XCTAssertEqual(firstBehind, secondBehind,
+                       "The phased-behind seed's entry must survive the phased-ahead seed's prune")
     }
 }
