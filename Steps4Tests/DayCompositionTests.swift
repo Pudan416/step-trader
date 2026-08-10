@@ -101,6 +101,24 @@ final class DayCompositionTests: XCTestCase {
         }
     }
 
+    /// Spread alone doesn't catch a peak in the wrong place — this pins the
+    /// high ground to the actual corner, which is what the archetype's name
+    /// promises.
+    func testCornerWeightActuallyFavoursItsCornerOverTheCentre() {
+        let corner = CompositionArchetype.cornerWeight.weight(at: CGPoint(x: 0.15, y: 0.15))
+        let centre = CompositionArchetype.cornerWeight.weight(at: CGPoint(x: 0.5, y: 0.5))
+        XCTAssertGreaterThan(corner, centre * 1.5,
+                             "cornerWeight's high ground drifted to the middle")
+    }
+
+    func testCenteredMassPeaksAtTheCentre() {
+        let centre = CompositionArchetype.centeredMass.weight(at: CGPoint(x: 0.5, y: 0.5))
+        for point in [CGPoint(x: 0.1, y: 0.1), CGPoint(x: 0.9, y: 0.1),
+                      CGPoint(x: 0.1, y: 0.9), CGPoint(x: 0.9, y: 0.9)] {
+            XCTAssertGreaterThan(centre, CompositionArchetype.centeredMass.weight(at: point))
+        }
+    }
+
     // MARK: - Size hierarchy
 
     func testSizeMultipliersStayInRange() {
@@ -127,6 +145,25 @@ final class DayCompositionTests: XCTestCase {
         }
         func spread(_ v: [Double]) -> Double { (v.max() ?? 0) - (v.min() ?? 0) }
         XCTAssertGreaterThan(spread(centred), spread(constellation))
+    }
+
+    /// The guard `testArchetypesDifferInSizeCurve` didn't provide: every pair
+    /// of archetypes, not just the one pair guaranteed to differ, must have a
+    /// distinct size curve — otherwise two archetypes can share a skeleton
+    /// unnoticed.
+    func testEveryArchetypePairHasADistinctSizeCurve() {
+        let count = 8
+        let curves = CompositionArchetype.allCases.map { archetype in
+            (archetype, (0..<count).map { archetype.sizeMultiplier(rank: $0, count: count) })
+        }
+        for i in curves.indices {
+            for j in (i + 1)..<curves.count {
+                let maxDiff = zip(curves[i].1, curves[j].1).map { abs($0 - $1) }.max() ?? 0
+                XCTAssertGreaterThan(
+                    maxDiff, 0.18,
+                    "\(curves[i].0) and \(curves[j].0) share a size skeleton")
+            }
+        }
     }
 
     // MARK: - Palette

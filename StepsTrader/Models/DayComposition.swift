@@ -39,8 +39,8 @@ enum CompositionArchetype: String, Codable, CaseIterable, Hashable {
             return clamp(1.0 - pow(d, 1.8))
 
         case .cornerWeight:
-            let d = hypot(x - 0.26, y - 0.28) / 0.95
-            return clamp(1.0 - pow(d, 1.2))
+            let d = hypot(x - 0.18, y - 0.20) / 0.62
+            return clamp(1.0 - pow(d, 1.1))
 
         case .twoMasses:
             let a = hypot(x - 0.30, y - 0.34) / 0.34
@@ -72,7 +72,11 @@ enum CompositionArchetype: String, Codable, CaseIterable, Hashable {
             return rank.isMultiple(of: 3) ? 1.25 : 0.85
 
         case .cornerWeight:
-            return 1.55 - position * 0.85
+            // Convex decay, not a second straight ramp: mass piles at the
+            // anchor and thins fast along the diagonal, distinct in shape
+            // from diagonalSweep's linear slope even though both start high
+            // and end low.
+            return 0.55 + 1.05 * pow(1 - position, 2.2)
 
         case .twoMasses:
             // Two leads, one per mass.
@@ -108,7 +112,12 @@ struct TexturePolicy: Codable, Hashable {
     init(dominant: TextureKind, accent: TextureKind, accentShare: Double) {
         self.dominant = dominant
         self.accent = accent
-        self.accentShare = min(max(accentShare, 0), 1)
+        // Capped at 0.45, not 1: kind(forRank:)'s stride is
+        // max(2, round(1/accentShare)), which floors at a stride of 2 (i.e.
+        // 50% accent) once accentShare reaches 0.5. Above that the accent
+        // would tie or overtake the dominant, breaking the "dominant must
+        // dominate" invariant the type implies.
+        self.accentShare = min(max(accentShare, 0), 0.45)
     }
 
     /// Deterministic per-rank assignment. Spreads accents evenly rather than
