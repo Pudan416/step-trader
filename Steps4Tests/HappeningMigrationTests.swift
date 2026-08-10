@@ -105,11 +105,11 @@ final class HappeningMigrationTests: XCTestCase {
     func testNewSpawnHasNoCategoryAndFreezesAnAllowedShape() throws {
         let element = CanvasElement.spawn(
             optionId: "happening_walk",
-            color: "#AABBCC",
             label: "Walk",
             existingElements: [],
             allowedShapeTypes: [.circle],
-            dayKey: "2026-08-08"
+            dayKey: "2026-08-08",
+            composition: DayComposition.forDay(dayKey: "2026-08-08", happeningCount: 0)
         )
 
         XCTAssertEqual(element.frozenShapeType, .circle)

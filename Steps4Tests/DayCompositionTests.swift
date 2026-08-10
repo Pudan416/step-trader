@@ -289,3 +289,179 @@ final class DayCompositionTests: XCTestCase {
                        composition)
     }
 }
+
+// MARK: - Spawn under a composition
+
+final class ComposedSpawnTests: XCTestCase {
+
+    private let dayKey = "2026-08-10"
+
+    private func composition(_ count: Int = 0) -> DayComposition {
+        DayComposition.forDay(dayKey: dayKey, happeningCount: count)
+    }
+
+    private func spawn(
+        optionId: String = "happening_walk",
+        existing: [CanvasElement] = [],
+        shapes: [CanvasShapeType] = [.organicBlob]
+    ) -> CanvasElement {
+        CanvasElement.spawn(
+            optionId: optionId,
+            label: "Walk",
+            existingElements: existing,
+            allowedShapeTypes: shapes,
+            dayKey: dayKey,
+            composition: composition(existing.count)
+        )
+    }
+
+    // MARK: Determinism
+
+    /// The point of the change: given the same day, option and index, the whole
+    /// element is reproducible. Before this, only the contour was — size,
+    /// position, colour and motion all came from the global RNG.
+    func testSpawnIsFullyReproducible() {
+        let a = spawn()
+        let b = spawn()
+        XCTAssertEqual(a.shapeSeed, b.shapeSeed)
+        XCTAssertEqual(a.frozenShapeType, b.frozenShapeType)
+        XCTAssertEqual(a.basePosition, b.basePosition)
+        XCTAssertEqual(a.size, b.size)
+        XCTAssertEqual(a.hexColor, b.hexColor)
+        XCTAssertEqual(a.opacity, b.opacity)
+        XCTAssertEqual(a.phaseOffset, b.phaseOffset)
+        XCTAssertEqual(a.driftSpeed, b.driftSpeed)
+    }
+
+    func testShapeChoiceIsSeededNotRandom() {
+        let shapes: [CanvasShapeType] = [.circle, .snowflake, .rays, .organicBlob]
+        let picks = (0..<12).map { _ in spawn(shapes: shapes).frozenShapeType }
+        XCTAssertEqual(Set(picks).count, 1)
+    }
+
+    func testEmptyAllowedListFallsBackToCircle() {
+        XCTAssertEqual(spawn(shapes: []).frozenShapeType, .circle)
+    }
+
+    // MARK: Colour comes from the day's palette
+
+    func testElementColoursComeFromTheDayPalette() {
+        let dayPalette = Set(composition().palette)
+        var existing: [CanvasElement] = []
+        for i in 0..<10 {
+            let element = spawn(optionId: "happening_\(i)", existing: existing)
+            XCTAssertTrue(dayPalette.contains(element.hexColor),
+                          "\(element.hexColor) is off the day's palette")
+            existing.append(element)
+        }
+    }
+
+    func testACanvasUsesMoreThanOneColour() {
+        var existing: [CanvasElement] = []
+        for i in 0..<6 {
+            existing.append(spawn(optionId: "happening_\(i)", existing: existing))
+        }
+        XCTAssertGreaterThan(Set(existing.map(\.hexColor)).count, 1)
+    }
+
+    // MARK: Placement follows the archetype
+
+    func testSpawnStaysInsideTheMargin() {
+        var existing: [CanvasElement] = []
+        for i in 0..<15 {
+            let element = spawn(optionId: "happening_\(i)", existing: existing)
+            XCTAssertTrue(CanvasElement.spawnBounds.contains(element.basePosition),
+                          "Element \(i) at \(element.basePosition) broke the margin")
+            existing.append(element)
+        }
+    }
+
+    /// Placement must actually follow the day's field, not ignore it.
+    func testPlacementFavoursHighWeightRegions() {
+        var existing: [CanvasElement] = []
+        for i in 0..<12 {
+            existing.append(spawn(optionId: "happening_\(i)", existing: existing))
+        }
+        let archetype = composition().archetype
+        let meanWeight = existing
+            .map { archetype.weight(at: $0.basePosition) }
+            .reduce(0, +) / Double(existing.count)
+
+        // A uniform scatter over the bounds would average the field's mean;
+        // a weighted one must beat it.
+        var uniformSum = 0.0
+        var samples = 0
+        for xStep in 0...20 {
+            for yStep in 0...20 {
+                let p = CGPoint(
+                    x: CanvasElement.spawnBounds.minX
+                        + CanvasElement.spawnBounds.width * Double(xStep) / 20,
+                    y: CanvasElement.spawnBounds.minY
+                        + CanvasElement.spawnBounds.height * Double(yStep) / 20)
+                uniformSum += archetype.weight(at: p)
+                samples += 1
+            }
+        }
+        XCTAssertGreaterThan(meanWeight, uniformSum / Double(samples),
+                             "\(archetype) placement ignored its own field")
+    }
+
+    func testSpacingRelaxesAsTheCanvasFills() {
+        XCTAssertGreaterThan(CanvasElement.spawnMinDistance(existingCount: 0),
+                             CanvasElement.spawnMinDistance(existingCount: 10))
+        XCTAssertGreaterThanOrEqual(
+            CanvasElement.spawnMinDistance(existingCount: 30), 0.09)
+    }
+
+    // MARK: Size follows the archetype
+
+    func testSizeStaysRenderable() {
+        var existing: [CanvasElement] = []
+        for i in 0..<15 {
+            let element = spawn(optionId: "happening_\(i)", existing: existing)
+            XCTAssertGreaterThanOrEqual(element.size, 0.04)
+            XCTAssertLessThanOrEqual(element.size, 0.48)
+            existing.append(element)
+        }
+    }
+
+    // MARK: Texture follows the policy
+
+    func testTextureSpecFollowsTheDayPolicy() {
+        let day = composition()
+        for rank in 0..<12 {
+            let spec = CanvasElement.textureSpec(rank: rank, composition: day)
+            XCTAssertEqual(spec.kind, day.texturePolicy.kind(forRank: rank))
+        }
+    }
+
+    func testTextureSpecIsDeterministic() {
+        let day = composition()
+        XCTAssertEqual(CanvasElement.textureSpec(rank: 3, composition: day),
+                       CanvasElement.textureSpec(rank: 3, composition: day))
+    }
+
+    // MARK: Reroll
+
+    func testRerollChangesTheSeed() {
+        var element = spawn()
+        let before = element.shapeSeed
+        element.reroll(rank: 0, composition: composition())
+        XCTAssertNotEqual(element.shapeSeed, before)
+    }
+
+    func testRerollKeepsTheColourOnTheDayPalette() {
+        var element = spawn()
+        for _ in 0..<20 {
+            element.reroll(rank: 2, composition: composition())
+            XCTAssertTrue(composition().palette.contains(element.hexColor))
+        }
+    }
+
+    func testRerollClearsTheUserSizeOverride() {
+        var element = spawn()
+        element.userSize = 0.4
+        element.reroll(rank: 1, composition: composition())
+        XCTAssertNil(element.userSize)
+    }
+}

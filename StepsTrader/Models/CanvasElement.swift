@@ -49,7 +49,7 @@ struct CanvasElement: Identifiable, Codable {
     var hexColor: String
     /// Optional second color for radial gradient fill. Nil = solid single color.
     var hexColor2: String?
-    /// Re-rolled by `reroll(availableCount:)` (dice tap), so `var` not `let`.
+    /// Re-rolled by `reroll(rank:composition:)` (dice tap), so `var` not `let`.
     /// Renderer reads `userSize ?? size` — clearing `userSize` lets the new
     /// value take effect immediately.
     var size: Double               // normalized 0…1 relative to canvas
@@ -168,26 +168,63 @@ struct CanvasElement: Identifiable, Codable {
         return hash
     }
 
-    /// Re-roll the visual variant of this element — randomises shape seed, size,
-    /// phase, and drift speed. Color is re-rolled by the caller
-    /// (`GalleryView.rerollElement`) since the entropy source is the
-    /// `CanvasColorPalette`, which lives outside the model.
-    mutating func reroll(availableCount: Int? = nil) {
-        // All categories now use procedural rendering driven by shapeSeed.
+    // MARK: - Composition
+
+    /// The normalised region new elements may occupy. The margin is deliberate
+    /// negative space: it keeps the composition off the frame edge, where
+    /// elements were previously cropped by the viewport.
+    static let spawnBounds = CGRect(x: 0.12, y: 0.12, width: 0.76, height: 0.76)
+
+    /// Target spacing, tightened as the canvas fills so late elements still
+    /// land somewhere sensible instead of exhausting the sampler.
+    static func spawnMinDistance(existingCount: Int) -> Double {
+        max(0.09, 0.30 - Double(existingCount) * 0.012)
+    }
+
+    /// Per-shape base size range, before the archetype's multiplier.
+    static func baseSizeRange(for shape: CanvasShapeType) -> ClosedRange<Double> {
+        switch shape {
+        case .blob:                0.16...0.32
+        case .organicBlob:         0.16...0.34
+        case .snowflake:           0.04...0.48
+        case .rays:                0.20...0.28
+        case .circle, .spirograph: 0.14...0.30
+        }
+    }
+
+    /// The fill for an element at a given arrival order under a day's policy.
+    static func textureSpec(rank: Int, composition: DayComposition) -> TextureSpec {
+        let kind = composition.texturePolicy.kind(forRank: rank)
+        // Seed on the day's palette so a day's textures share a character
+        // while still differing element to element.
+        let seed = UInt64(bitPattern: Int64(rank)) &* 0x9E37_79B9
+            &+ UInt64(truncatingIfNeeded: composition.palette.joined().hashValue)
+        return TextureSpec.seeded(kind: kind, seed: seed)
+    }
+
+    /// Re-roll the visual variant of this element.
+    ///
+    /// Unlike `spawn` this is deliberately non-deterministic — the dice is a
+    /// request for something new. It still obeys the day: size follows the
+    /// archetype's curve and colour stays on the day's palette, so one re-roll
+    /// cannot break the canvas's coherence.
+    mutating func reroll(rank: Int, composition: DayComposition) {
         shapeSeed = UInt64.random(in: UInt64.min...UInt64.max)
 
         // Freeze one currently allowed shape so historical renders stay stable.
         let resolvedShape = CanvasShapeType.allowedByUser.randomElement() ?? .circle
         frozenShapeType = resolvedShape
-        let newSize: CGFloat = switch resolvedShape {
-        case .blob:        .random(in: 0.16...0.32)
-        case .organicBlob: .random(in: 0.16...0.34)
-        case .snowflake:   .random(in: 0.04...0.48)
-        case .rays:        .random(in: 0.20...0.28)
-        case .circle, .spirograph: .random(in: 0.14...0.30)
-        }
-        size = newSize
+
+        var rng = SeededRNG(seed: shapeSeed ?? 0)
+        let base = rng.nextDouble(in: Self.baseSizeRange(for: resolvedShape))
+        let multiplier = composition.archetype.sizeMultiplier(
+            rank: rank, count: max(rank + 1, composition.palette.count))
+        size = CGFloat(min(0.48, max(0.04, base * multiplier)))
         userSize = nil
+
+        let shifted = rank + rng.nextInt(in: 1...composition.palette.count)
+        hexColor = composition.color(forRank: shifted)
+        hexColor2 = composition.color(forRank: shifted + 1)
 
         // Phase + drift speed — give the element a fresh "personality" so it
         // doesn't synchronise with its old motion after the dice tap.
@@ -207,43 +244,63 @@ struct CanvasElement: Identifiable, Codable {
     static func spawn(
         id: UUID = UUID(),
         optionId: String,
-        color: String,
-        color2: String? = nil,
         label: String,
         existingElements: [CanvasElement],
         forcedVariant: Int? = nil,
         allowedShapeTypes: [CanvasShapeType] = CanvasShapeType.allowedByUser,
         dayKey: String? = nil,
-        activityCount: Int? = nil
+        activityCount: Int? = nil,
+        composition: DayComposition
     ) -> CanvasElement {
-        let shapeType = allowedShapeTypes.randomElement() ?? .circle
+        // Arrival order within the day. Drives size, colour and texture.
+        let rank = existingElements.count
+
+        // The seed comes first: everything below derives from it, so the same
+        // day + option + index reproduces the whole element, not just its
+        // contour. Without a dayKey there is nothing stable to hash, so the
+        // element gets a one-off random identity.
+        let seed = dayKey.map { makeSeed(optionId: optionId, dayKey: $0, index: rank) }
+            ?? UInt64.random(in: UInt64.min...UInt64.max)
+
+        // `allowedByUser` returns its result in picker order, so indexing into
+        // it is stable across launches. Never index into a Set here — Swift
+        // randomises hash seeds per process.
+        let choices = allowedShapeTypes.isEmpty ? [CanvasShapeType.circle] : allowedShapeTypes
+        var shapeRng = SeededRNG.derived(from: seed, domain: "shape")
+        let shapeType = choices[shapeRng.nextInt(in: 0...(choices.count - 1))]
 
         let kind: ElementKind = switch shapeType {
             case .blob, .organicBlob, .snowflake, .circle, .spirograph: .circle
             case .rays:                                                  .ray
         }
 
-        let position = findOpenPosition(existing: existingElements)
+        // Placement follows the day's archetype field.
+        var placementRng = SeededRNG.derived(from: seed, domain: "placement")
+        let position = PoissonDiscSampler.nextPoint(
+            existing: existingElements.map(\.basePosition),
+            bounds: spawnBounds,
+            minDistance: spawnMinDistance(existingCount: rank),
+            weight: { composition.archetype.weight(at: $0) },
+            using: &placementRng
+        )
 
-        let variant: Int = forcedVariant ?? 0
+        // Size follows the archetype's curve, so a centred-mass day and a
+        // constellation day do not share a skeleton.
+        var sizeRng = SeededRNG.derived(from: seed, domain: "size")
+        let base = sizeRng.nextDouble(in: baseSizeRange(for: shapeType))
+        let multiplier = composition.archetype.sizeMultiplier(
+            rank: rank, count: max(rank + 1, existingElements.count + 1))
+        let size = CGFloat(min(0.48, max(0.04, base * multiplier)))
 
-        let size: CGFloat = switch shapeType {
-        case .blob:        .random(in: 0.16...0.32)
-        case .organicBlob: .random(in: 0.16...0.34)
-        case .snowflake:   .random(in: 0.04...0.48)
-        case .rays:        .random(in: 0.20...0.28)
-        case .circle, .spirograph: .random(in: 0.14...0.30)
-        }
+        // Colour comes from the day's palette, not from all 29 swatches.
+        let color = composition.color(forRank: rank)
+
+        var motionRng = SeededRNG.derived(from: seed, domain: "motion")
+        let opacityRange = composition.opacityRange(forRank: rank)
         let isGrounded = shapeType == .blob || shapeType == .circle || shapeType == .spirograph
-        let pulseFreq = isGrounded
-            ? Double.random(in: 0.08...0.2)
-            : Double.random(in: 0.3...0.8)
-        let opacity = isGrounded
-            ? Double.random(in: 0.20...0.45)
-            : Double.random(in: 0.35...0.75)
-
-        let seed = dayKey.map { makeSeed(optionId: optionId, dayKey: $0, index: existingElements.count) }
-            ?? UInt64.random(in: UInt64.min...UInt64.max)
+        let pulseFrequency = isGrounded
+            ? motionRng.nextDouble(in: 0.08...0.2)
+            : motionRng.nextDouble(in: 0.3...0.8)
 
         return CanvasElement(
             id: id,
@@ -251,18 +308,18 @@ struct CanvasElement: Identifiable, Codable {
             optionId: optionId,
             label: label,
             hexColor: color,
-            hexColor2: color2,
+            hexColor2: composition.color(forRank: rank + 1),
             size: size,
             basePosition: position,
-            phaseOffset: Double.random(in: 0...(2 * .pi)),
-            driftSpeed: Double.random(in: 0.08...0.2),
-            driftAmplitude: CGFloat.random(in: 0.01...0.03),
-            pulseFrequency: pulseFreq,
-            pulseAmplitude: CGFloat.random(in: 0.01...0.03),
-            rotationSpeed: Double.random(in: 3...10),
-            opacity: opacity,
+            phaseOffset: motionRng.nextDouble(in: 0...(2 * .pi)),
+            driftSpeed: motionRng.nextDouble(in: 0.08...0.2),
+            driftAmplitude: motionRng.nextCGFloat(in: 0.01...0.03),
+            pulseFrequency: pulseFrequency,
+            pulseAmplitude: motionRng.nextCGFloat(in: 0.01...0.03),
+            rotationSpeed: motionRng.nextDouble(in: 3...10),
+            opacity: motionRng.nextDouble(in: opacityRange),
             createdAt: .now,
-            assetVariant: variant,
+            assetVariant: forcedVariant ?? 0,
             shapeSeed: seed,
             activityCount: activityCount,
             frozenShapeType: shapeType
@@ -344,61 +401,4 @@ struct CanvasElement: Identifiable, Codable {
         try c.encodeIfPresent(frozenShapeType, forKey: .frozenShapeType)
     }
 
-    /// Find an open position avoiding overlap with existing elements.
-    /// Uses progressive distance relaxation: starts strict, relaxes if space is tight.
-    private static func findOpenPosition(existing: [CanvasElement]) -> CGPoint {
-        let margin: CGFloat = 0.12
-        let maxAttempts = 40
-        let idealDistance: CGFloat = 0.15
-
-        // Phase 1: strict spacing
-        for _ in 0..<maxAttempts / 2 {
-            let candidate = CGPoint(
-                x: CGFloat.random(in: margin...(1.0 - margin)),
-                y: CGFloat.random(in: margin...(1.0 - margin))
-            )
-            let tooClose = existing.contains { el in
-                let dx = el.basePosition.x - candidate.x
-                let dy = el.basePosition.y - candidate.y
-                return sqrt(dx * dx + dy * dy) < idealDistance
-            }
-            if !tooClose { return candidate }
-        }
-
-        // Phase 2: relaxed spacing for crowded canvases
-        let relaxedDistance: CGFloat = max(0.08, idealDistance - CGFloat(existing.count) * 0.01)
-        for _ in 0..<maxAttempts / 2 {
-            let candidate = CGPoint(
-                x: CGFloat.random(in: margin...(1.0 - margin)),
-                y: CGFloat.random(in: margin...(1.0 - margin))
-            )
-            let tooClose = existing.contains { el in
-                let dx = el.basePosition.x - candidate.x
-                let dy = el.basePosition.y - candidate.y
-                return sqrt(dx * dx + dy * dy) < relaxedDistance
-            }
-            if !tooClose { return candidate }
-        }
-
-        // Fallback: pick the position that maximizes minimum distance to existing elements
-        var bestCandidate = CGPoint(x: 0.5, y: 0.5)
-        var bestMinDist: CGFloat = 0
-        for _ in 0..<10 {
-            let candidate = CGPoint(
-                x: CGFloat.random(in: margin...(1.0 - margin)),
-                y: CGFloat.random(in: margin...(1.0 - margin))
-            )
-            let minDist = existing.map { el -> CGFloat in
-                let dx = el.basePosition.x - candidate.x
-                let dy = el.basePosition.y - candidate.y
-                return sqrt(dx * dx + dy * dy)
-            }.min() ?? .greatestFiniteMagnitude
-
-            if minDist > bestMinDist {
-                bestMinDist = minDist
-                bestCandidate = candidate
-            }
-        }
-        return bestCandidate
-    }
 }

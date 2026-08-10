@@ -5,6 +5,9 @@ import os
 
 struct GenerativeCanvasView: View {
     let elements: [CanvasElement]
+    /// The day this canvas belongs to. Feeds `dayComposition` — never persisted,
+    /// just re-derived per render.
+    let dayKey: String
     let sleepPoints: Int
     let stepsPoints: Int
     let sleepColor: Color
@@ -55,6 +58,12 @@ struct GenerativeCanvasView: View {
 
     private var effectiveLabelColor: Color {
         labelColor ?? (isDarkBackground ? .white : .black)
+    }
+
+    /// One composition per canvas. Derived, never stored — a pure function of
+    /// the day key, so it survives reinstall and sync for free.
+    private var dayComposition: DayComposition {
+        DayComposition.forDay(dayKey: dayKey, happeningCount: elements.count)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -415,7 +424,11 @@ struct GenerativeCanvasView: View {
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
                     interaction: interaction, decayedColor: color,
-                    decayedColor2: color2, cache: renderCache
+                    decayedColor2: color2,
+                    spec: CanvasElement.textureSpec(
+                        rank: renderCache.sortedIndexMap[element.id] ?? 0,
+                        composition: dayComposition),
+                    cache: renderCache
                 )
             case .snowflake:
                 SnowflakeShapeRenderer.draw(
@@ -536,6 +549,7 @@ struct GenerativeCanvasView: View {
 #Preview("Empty Canvas - Dark") {
     GenerativeCanvasView(
         elements: [],
+        dayKey: "2026-08-10",
         sleepPoints: 10,
         stepsPoints: 15,
         sleepColor: Color(hex: "#000000"),
@@ -547,13 +561,29 @@ struct GenerativeCanvasView: View {
 }
 
 #Preview("With Elements") {
-    let elements: [CanvasElement] = [
-        .spawn(optionId: "activity_sport", color: "#C3143B", label: "Sport", existingElements: [], allowedShapeTypes: [.circle]),
-        .spawn(optionId: "creativity_curiosity", color: "#7652AF", label: "Curiosity", existingElements: [], allowedShapeTypes: [.snowflake]),
-        .spawn(optionId: "joys_friends", color: "#FEAAC2", label: "Friends", existingElements: [], allowedShapeTypes: [.rays]),
-    ]
+    let previewDayKey = "2026-08-10"
+    let elements: [CanvasElement] = {
+        var built: [CanvasElement] = []
+        for spec in [
+            (optionId: "activity_sport", label: "Sport", shapes: [CanvasShapeType.circle]),
+            (optionId: "creativity_curiosity", label: "Curiosity", shapes: [CanvasShapeType.snowflake]),
+            (optionId: "joys_friends", label: "Friends", shapes: [CanvasShapeType.rays]),
+        ] {
+            built.append(.spawn(
+                optionId: spec.optionId,
+                label: spec.label,
+                existingElements: built,
+                allowedShapeTypes: spec.shapes,
+                dayKey: previewDayKey,
+                composition: DayComposition.forDay(
+                    dayKey: previewDayKey, happeningCount: built.count)
+            ))
+        }
+        return built
+    }()
     GenerativeCanvasView(
         elements: elements,
+        dayKey: previewDayKey,
         sleepPoints: 14,
         stepsPoints: 18,
         sleepColor: Color(hex: "#000000"),

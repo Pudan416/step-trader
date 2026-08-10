@@ -50,8 +50,8 @@ enum CanvasShapeType: String, CaseIterable, Codable, Identifiable {
     /// Seeds itself from the three legacy per-category keys on first read, so a
     /// user's current preferences carry over.
     ///
-    /// Never returns empty: `CanvasElement.spawn` picks from this with
-    /// `randomElement()`.
+    /// Never returns empty: `CanvasElement.spawn` picks from this with a
+    /// seeded index, and `reroll` with `randomElement()`.
     static var allowedByUser: [CanvasShapeType] {
         let stored: [CanvasShapeType]
         if let raw = UserDefaults.standard.stringArray(forKey: SharedKeys.allowedCanvasShapes) {

@@ -179,6 +179,7 @@ struct OnboardingStoriesView: View {
                 if index >= 7 {
                     GenerativeCanvasView(
                         elements: Self.onboardingCanvasElements,
+                        dayKey: Self.onboardingDayKey,
                         sleepPoints: 80,
                         stepsPoints: 80,
                         sleepColor: Color(hex: "#4A6FA5"),
@@ -1752,6 +1753,12 @@ struct OnboardingStoriesView: View {
     }
 
     // MARK: - Onboarding Canvas Elements (slide 8+)
+
+    /// Fixed so the demo canvas's fill (rings/hatch/stipple mix) is stable
+    /// across runs — `onboardingCanvasElements` below builds elements by hand
+    /// rather than through `spawn`, so this is only consumed by the renderer's
+    /// `dayComposition`, not by element placement.
+    private static let onboardingDayKey = "2026-01-01"
 
     private static let onboardingCanvasElements: [CanvasElement] = {
         let palette = CanvasColorPalette.paletteHex
