@@ -130,6 +130,7 @@
 		DA0015001500150015001501 /* ProceduralTexture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0015001500150015001502 /* ProceduralTexture.swift */; };
 		DA0003000300030003000303 /* PoissonDiscSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */; };
 		DA0016001600160016001601 /* ProceduralTextureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0016001600160016001602 /* ProceduralTextureTests.swift */; };
+		DA0018001800180018001801 /* DayCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0018001800180018001802 /* DayCompositionTests.swift */; };
 		20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20F6C0012F3E100100000001 /* Localizable.xcstrings */; };
 		20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FE17A12F90000000000001 /* FeatureTipSheet.swift */; };
 		20GC00022F86100000000002 /* GlassCardModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20GC00012F86100000000001 /* GlassCardModifier.swift */; };
@@ -178,6 +179,7 @@
 		57E04F4FB048E115C40D98E7 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8648A4882378AF2E1E742F /* Color+Hex.swift */; };
 		5E9E43978D80841CEA8F84B8 /* ShapeStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = C669447E94C63E9A8EB39A0B /* ShapeStyles.swift */; };
 		605D42CA9EBF1B3A09237455 /* MetaballGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E94D8EA5C48F5875A51740 /* MetaballGenerator.swift */; };
+		DA0017001700170017001701 /* DayComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0017001700170017001702 /* DayComposition.swift */; };
 		60CO0001300000000060CO0001 /* CanvasOverlayStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0002300000000060CO0002 /* CanvasOverlayStyle.swift */; };
 		60CO0003300000000060CO0003 /* CanvasAnimationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0004300000000060CO0004 /* CanvasAnimationOverlay.swift */; };
 		60SA00023003000060SA0002 /* SleepGoalArcPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SA00013003000060SA0001 /* SleepGoalArcPicker.swift */; };
@@ -456,6 +458,8 @@
 		DA0015001500150015001502 /* ProceduralTexture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProceduralTexture.swift; path = StepsTrader/Shapes/ProceduralTexture.swift; sourceTree = SOURCE_ROOT; };
 		DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PoissonDiscSamplerTests.swift; path = Steps4Tests/PoissonDiscSamplerTests.swift; sourceTree = SOURCE_ROOT; };
 		DA0016001600160016001602 /* ProceduralTextureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProceduralTextureTests.swift; path = Steps4Tests/ProceduralTextureTests.swift; sourceTree = SOURCE_ROOT; };
+		DA0018001800180018001802 /* DayCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DayCompositionTests.swift; path = Steps4Tests/DayCompositionTests.swift; sourceTree = SOURCE_ROOT; };
+		DA0017001700170017001702 /* DayComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DayComposition.swift; path = StepsTrader/Models/DayComposition.swift; sourceTree = SOURCE_ROOT; };
 		20F6C0012F3E100100000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		20FE17A12F90000000000001 /* FeatureTipSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipSheet.swift; sourceTree = "<group>"; };
 		20GC00012F86100000000001 /* GlassCardModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCardModifier.swift; sourceTree = "<group>"; };
@@ -731,6 +735,7 @@
 				45F540E48318D3A7CEF51B99 /* ThemeTextStyles.swift */,
 				CE8A4067A79B84F980E2699C /* DayCanvas.swift */,
 				49C347368C4F416256BE0CF8 /* CanvasColorPalette.swift */,
+				DA0017001700170017001702 /* DayComposition.swift */,
 				8C8648A4882378AF2E1E742F /* Color+Hex.swift */,
 				77E648AABF4FC13465DF42C1 /* PastDaySnapshot.swift */,
 				7A214D7EB007648A8206D56D /* EnergyDefaults.swift */,
@@ -1142,6 +1147,7 @@
 				DA0014001400140014001482 /* SimplexNoiseTests.swift */,
 				DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */,
 				DA0016001600160016001602 /* ProceduralTextureTests.swift */,
+				DA0018001800180018001802 /* DayCompositionTests.swift */,
 				DA0002000200020002000020 /* canvas_legacy_categorised.json */,
 			);
 			path = Steps4Tests;
@@ -1650,6 +1656,7 @@
 				813F4369B7A9A646FC3A6336 /* MindShapeGenerator.swift in Sources */,
 				A77A483EB05551DF8B9C7528 /* HeartShapeGenerator.swift in Sources */,
 				605D42CA9EBF1B3A09237455 /* MetaballGenerator.swift in Sources */,
+				DA0017001700170017001701 /* DayComposition.swift in Sources */,
 				DA0014001400140014001471 /* SimplexNoise.swift in Sources */,
 				DA0003000300030003000301 /* PoissonDiscSampler.swift in Sources */,
 				DA0015001500150015001501 /* ProceduralTexture.swift in Sources */,
@@ -1696,6 +1703,7 @@
 				DA0014001400140014001472 /* SimplexNoiseTests.swift in Sources */,
 				DA0003000300030003000303 /* PoissonDiscSamplerTests.swift in Sources */,
 				DA0016001600160016001601 /* ProceduralTextureTests.swift in Sources */,
+				DA0018001800180018001801 /* DayCompositionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
