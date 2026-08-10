@@ -126,6 +126,8 @@
 		20F5A0162FFF030000000007 /* SeededRNG.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0172FFF030000000008 /* SeededRNG.swift */; };
 		DA0014001400140014001471 /* SimplexNoise.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0014001400140014001481 /* SimplexNoise.swift */; };
 		DA0014001400140014001472 /* SimplexNoiseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0014001400140014001482 /* SimplexNoiseTests.swift */; };
+		DA0003000300030003000301 /* PoissonDiscSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000302 /* PoissonDiscSampler.swift */; };
+		DA0003000300030003000303 /* PoissonDiscSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */; };
 		20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20F6C0012F3E100100000001 /* Localizable.xcstrings */; };
 		20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FE17A12F90000000000001 /* FeatureTipSheet.swift */; };
 		20GC00022F86100000000002 /* GlassCardModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20GC00012F86100000000001 /* GlassCardModifier.swift */; };
@@ -448,6 +450,8 @@
 		20F5A0172FFF030000000008 /* SeededRNG.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SeededRNG.swift; sourceTree = "<group>"; };
 		DA0014001400140014001481 /* SimplexNoise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SimplexNoise.swift; path = StepsTrader/Utilities/SimplexNoise.swift; sourceTree = SOURCE_ROOT; };
 		DA0014001400140014001482 /* SimplexNoiseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SimplexNoiseTests.swift; path = Steps4Tests/SimplexNoiseTests.swift; sourceTree = SOURCE_ROOT; };
+		DA0003000300030003000302 /* PoissonDiscSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PoissonDiscSampler.swift; path = StepsTrader/Utilities/PoissonDiscSampler.swift; sourceTree = SOURCE_ROOT; };
+		DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PoissonDiscSamplerTests.swift; path = Steps4Tests/PoissonDiscSamplerTests.swift; sourceTree = SOURCE_ROOT; };
 		20F6C0012F3E100100000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		20FE17A12F90000000000001 /* FeatureTipSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipSheet.swift; sourceTree = "<group>"; };
 		20GC00012F86100000000001 /* GlassCardModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCardModifier.swift; sourceTree = "<group>"; };
@@ -853,6 +857,7 @@
 				CC000001CCCC000100000002 /* FormattingHelpers.swift */,
 				20F5A0172FFF030000000008 /* SeededRNG.swift */,
 				DA0014001400140014001481 /* SimplexNoise.swift */,
+				DA0003000300030003000302 /* PoissonDiscSampler.swift */,
 				2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */,
 				2089F0E72E71AE3400ABF5FA /* Date+Today.swift */,
 				20GC00012F86100000000001 /* GlassCardModifier.swift */,
@@ -1130,6 +1135,7 @@
 				DA00130013001300130013C0 /* HappeningLiquidLayoutTests.swift */,
 				DA0010001000100010001010 /* HappeningAdditionsTests.swift */,
 				DA0014001400140014001482 /* SimplexNoiseTests.swift */,
+				DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */,
 				DA0002000200020002000020 /* canvas_legacy_categorised.json */,
 			);
 			path = Steps4Tests;
@@ -1639,6 +1645,7 @@
 				A77A483EB05551DF8B9C7528 /* HeartShapeGenerator.swift in Sources */,
 				605D42CA9EBF1B3A09237455 /* MetaballGenerator.swift in Sources */,
 				DA0014001400140014001471 /* SimplexNoise.swift in Sources */,
+				DA0003000300030003000301 /* PoissonDiscSampler.swift in Sources */,
 				8B384FBFB75371B21BDF1BC5 /* WidgetSnapshot.swift in Sources */,
 				69624326AA0BD3D99B13FBCA /* GalleryNotifications.swift in Sources */,
 				AE00000300000000000000B3 /* GalleryMetricOverlayView.swift in Sources */,
@@ -1680,6 +1687,7 @@
 				DA00130013001300130013C1 /* HappeningLiquidLayoutTests.swift in Sources */,
 				DA0010001000100010001011 /* HappeningAdditionsTests.swift in Sources */,
 				DA0014001400140014001472 /* SimplexNoiseTests.swift in Sources */,
+				DA0003000300030003000303 /* PoissonDiscSamplerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
