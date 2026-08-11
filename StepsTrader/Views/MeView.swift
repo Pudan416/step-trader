@@ -3,6 +3,9 @@ import SwiftUI
 // MARK: - Me tab
 struct MeView: View {
     @ObservedObject var model: AppModel
+    /// Opens the settings sheet. Owned by `MainTabView`, not by this view, so a
+    /// feature-tip deep link works even if Me has never been on screen.
+    var onOpenSettings: () -> Void = {}
     @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
@@ -401,6 +404,29 @@ struct MeView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "Profile, \(userName). Double tap to edit.", comment: "MeView – profile pill VoiceOver label"))
+
+            Spacer(minLength: 12)
+
+            Button { onOpenSettings() } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 18, weight: .regular))
+                        .foregroundStyle(theme.textPrimary.opacity(0.7))
+                    // Same warning the Me tab icon carries — kept here so the
+                    // trail from tab badge to the actual entry point is unbroken.
+                    if model.hasPermissionIssues {
+                        Circle()
+                            .fill(.orange)
+                            .frame(width: 7, height: 7)
+                            .offset(x: 3, y: -2)
+                    }
+                }
+                .frame(width: 44, height: 44, alignment: .trailing)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("me_settings_button")
+            .accessibilityLabel(String(localized: "Settings", comment: "MeView – settings button VoiceOver label"))
         }
     }
 
