@@ -169,7 +169,7 @@ struct DayHistoryTile: View {
     }
 
     private var todayBadge: some View {
-        Text(String(localized: "Today", comment: "HistoryView – today badge"))
+        Text(String(localized: "Today", comment: "Me calendar – today badge"))
             .font(.system(size: 8, weight: .bold))
             .tracking(0.6)
             .foregroundStyle(AppColors.brandAccent)
@@ -186,7 +186,7 @@ struct DayHistoryTile: View {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(AppColors.brandAccent)
-                Text(String(localized: "Pro", comment: "HistoryView – locked tile badge"))
+                Text(String(localized: "Pro", comment: "Me calendar – locked tile badge"))
                     .font(.system(size: 9, weight: .bold))
                     .tracking(0.8)
                     .foregroundStyle(AppColors.brandAccent)
@@ -201,12 +201,12 @@ struct DayHistoryTile: View {
         let dayName = CachedFormatters.shortWeekday.string(from: date)
         let monthDay = CachedFormatters.monthDay.string(from: date)
         if isLocked {
-            return String(localized: "\(dayName), \(monthDay), locked, requires Pro", comment: "HistoryView – tile a11y, locked")
+            return String(localized: "\(dayName), \(monthDay), locked, requires Pro", comment: "Me calendar – tile a11y, locked")
         }
         if let snap = snapshot {
-            return String(localized: "\(dayName), \(monthDay), \(snap.inkEarned) colors earned", comment: "HistoryView – tile a11y, with data")
+            return String(localized: "\(dayName), \(monthDay), \(snap.inkEarned) colors earned", comment: "Me calendar – tile a11y, with data")
         }
-        return String(localized: "\(dayName), \(monthDay), no data", comment: "HistoryView – tile a11y, empty")
+        return String(localized: "\(dayName), \(monthDay), no data", comment: "Me calendar – tile a11y, empty")
     }
 
     // MARK: - Thumbnail loading

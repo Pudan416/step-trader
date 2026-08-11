@@ -27,7 +27,7 @@ enum SubscriptionGate {
     /// are NOT removed — only blocking new creation.
     static let freeMaxBlockingGroups: Int = 2
 
-    /// Number of past days unlocked in `HistoryView` for Free users.
+    /// Number of past days unlocked in the Me calendar for Free users.
     /// Older days (8…∞) render blurred behind a paywall. History itself is
     /// retained indefinitely for everyone — this only gates visibility, not storage.
     static let freeHistoryDayCount: Int = 7

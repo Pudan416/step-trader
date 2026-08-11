@@ -284,7 +284,7 @@ extension AppModel {
         // History is retained indefinitely for everyone — no retention prune.
         // Pro users see all days; Free users see only the last
         // `SubscriptionGate.freeHistoryDayCount` days (older days are locked,
-        // not deleted). See `HistoryView.unlockedKeys`.
+        // not deleted). See `MeWeekStats.unlockedKeys`.
         return decoded
     }
 

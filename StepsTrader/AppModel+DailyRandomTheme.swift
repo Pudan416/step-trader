@@ -12,7 +12,7 @@ import SwiftUI
 //   2. Mirrored to the App Group container so the wallpaper Shortcut intent
 //      and widget render with the same palette as the live app.
 //   3. Persisted onto today's `DayCanvas` via `GalleryView.saveCanvasLocally`,
-//      so when the user opens the day later in `HistoryView` →
+//      so when the user opens the day later in the Me calendar →
 //      `DayCanvasViewerView`, that day reproduces with its own unique theme.
 //
 // The user's manual preference (chips in `SettingsAppearancePage`) is preserved
