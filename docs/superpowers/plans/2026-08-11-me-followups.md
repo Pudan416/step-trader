@@ -39,7 +39,7 @@ The device used for the previous plan (`00349825-3076-4659-80E4-50B9CFF9090F`) h
 
 ---
 
-## Task 1: Isolate `HappeningAdditionsTests` from app state
+## Task 1: Isolate `HappeningAdditionsTests` from app state — DONE (`29366dd`)
 
 **Files:**
 - Modify: `Steps4Tests/HappeningAdditionsTests.swift`
@@ -94,7 +94,7 @@ git commit -m "test: isolate happening additions tests from app storage"
 
 ---
 
-## Task 2: Characterise the spotlight renderer the radar left behind
+## Task 2: Characterise the spotlight renderer the radar left behind — DONE (`f67d3dd`)
 
 **Files:**
 - Create: `Steps4Tests/RayShapeRendererTests.swift`
@@ -179,7 +179,10 @@ git commit -m "test: cover the CPU spotlight renderer kept for the canvas"
 
 ---
 
-## Task 3: Verify both first-launch-after-update risks for real
+## Task 3: Verify both first-launch-after-update risks for real — DONE
+
+Both upgrades open the canvas (Settings→4 and History→3), and the grandfathering
+path ran without trapping. Recorded in `2026-08-11-me-screen-three-tabs.md`.
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-11-me-screen-three-tabs.md` (record the outcome)

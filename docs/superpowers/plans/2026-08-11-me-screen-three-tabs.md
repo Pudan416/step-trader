@@ -1093,7 +1093,16 @@ Expected: all tests pass, including the six in `MainTabSelectionTests`.
 
 Build and run. Confirm: the tab bar shows exactly Canvas, Feeds, Me. The calendar strip scrolls horizontally, newest day at the left, older days to the right. Tapping a past day opens its canvas as a poster; tapping today opens today's.
 
-- [ ] **Step 8: Verify the stored-tab clamp with a real stored value**
+- [x] **Step 8: Verify the stored-tab clamp with a real stored value** — DONE 2026-08-11, on the real upgrade path
+
+Both stored values were checked by installing a build of `main` on the iPhone 17 simulator, using it, backgrounding it on the tab in question, then installing this branch over the top **without deleting the app**:
+
+| Left on | Raw value | First launch after the update |
+|---------|-----------|-------------------------------|
+| Settings | 4 | Canvas — no blank screen |
+| History | 3 | Canvas — no blank screen |
+
+The grandfathering launch crash (`d2a2c3d`) was verified in the same pass: with app-group data present and the evaluation flag absent, the app grandfathered the user, wrote the RC attributes and launched. Zero occurrences of `Fatal error: Purchases has not been configured` across the evening's launches, against every launch crashing that morning on the same device.
 
 Reasoning about this is not verification. `@SceneStorage` lives in UIKit's state-restoration archive, **not** in `UserDefaults` — `defaults write` cannot reach it. Reproduce the real upgrade instead.
 
