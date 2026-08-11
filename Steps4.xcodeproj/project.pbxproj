@@ -85,6 +85,8 @@
 		FE000006FEED000100000001 /* UsageBudgetMonitoringError.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000006FEED000100000002 /* UsageBudgetMonitoringError.swift */; };
 		FE000008FEED000100000001 /* FeedIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000008FEED000100000002 /* FeedIconView.swift */; };
 		FE000009FEED000100000001 /* FeedTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000009FEED000100000002 /* FeedTileView.swift */; };
+		FE0000D1FEED000100000001 /* DepletionWedge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000D1FEED000100000002 /* DepletionWedge.swift */; };
+		FE0000C1FEED000100000001 /* FeedsCanvasBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000C1FEED000100000002 /* FeedsCanvasBackground.swift */; };
 		FE00000AFEED000100000001 /* FeedsSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE00000AFEED000100000002 /* FeedsSurfaceView.swift */; };
 		20AA24882F70BEE1002F2F2C /* AppUnlockSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */; };
 		20AA24892F70BEEA002F2F2C /* AccessWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47C2F0C825C0018004E /* AccessWindow.swift */; };
@@ -343,6 +345,8 @@
 		FE000006FEED000100000002 /* UsageBudgetMonitoringError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBudgetMonitoringError.swift; sourceTree = "<group>"; };
 		FE000008FEED000100000002 /* FeedIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedIconView.swift; sourceTree = "<group>"; };
 		FE000009FEED000100000002 /* FeedTileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedTileView.swift; sourceTree = "<group>"; };
+		FE0000D1FEED000100000002 /* DepletionWedge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepletionWedge.swift; sourceTree = "<group>"; };
+		FE0000C1FEED000100000002 /* FeedsCanvasBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedsCanvasBackground.swift; sourceTree = "<group>"; };
 		FE00000AFEED000100000002 /* FeedsSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedsSurfaceView.swift; sourceTree = "<group>"; };
 		200AC4892F1402CF0018004E /* ManagedSettings.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettings.framework; path = System/Library/Frameworks/ManagedSettings.framework; sourceTree = SDKROOT; };
 		200AC48B2F1402CF0018004E /* ManagedSettingsUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettingsUI.framework; path = System/Library/Frameworks/ManagedSettingsUI.framework; sourceTree = SDKROOT; };
@@ -796,6 +800,8 @@
 			children = (
 				FE000008FEED000100000002 /* FeedIconView.swift */,
 				FE000009FEED000100000002 /* FeedTileView.swift */,
+				FE0000D1FEED000100000002 /* DepletionWedge.swift */,
+				FE0000C1FEED000100000002 /* FeedsCanvasBackground.swift */,
 				FE00000AFEED000100000002 /* FeedsSurfaceView.swift */,
 			);
 			path = Feeds;
@@ -1486,6 +1492,8 @@
 				FE000002FEED000100000001 /* FeedRowModel.swift in Sources */,
 				FE000008FEED000100000001 /* FeedIconView.swift in Sources */,
 				FE000009FEED000100000001 /* FeedTileView.swift in Sources */,
+				FE0000D1FEED000100000001 /* DepletionWedge.swift in Sources */,
+				FE0000C1FEED000100000001 /* FeedsCanvasBackground.swift in Sources */,
 				FE00000AFEED000100000001 /* FeedsSurfaceView.swift in Sources */,
 				FE000004FEED000100000001 /* UnlockTimerModel.swift in Sources */,
 				FE000006FEED000100000001 /* UsageBudgetMonitoringError.swift in Sources */,

@@ -82,11 +82,15 @@ struct AppsPageSimplified: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                // The canvas is the page's background, edge to edge behind the
+                // dock and the tab bar — there is no card. It is also the only
+                // title this page needs, so the "My Feeds" header is gone: the
+                // reference has none, and it was being printed twice.
+                FeedsCanvasBackground()
+                    .zIndex(-1)
+
                 VStack(spacing: 0) {
                     HStack {
-                        Text(String(localized: "My Feeds", comment: "Feeds page title"))
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(.primary)
                         Spacer()
                         Button {
                             attemptCreateGroup()
@@ -120,13 +124,11 @@ struct AppsPageSimplified: View {
                                 groupIdToDelete = groupId
                             }
                         )
-                        // The surface fits itself to what it is offered (see
-                        // `FeedsSurfaceView.designSize`); this keeps the
-                        // design's 3pt side margins on a 393pt phone and lets
-                        // it shrink rather than overflow on a narrower one.
-                        .padding(.horizontal, 3)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 8)
+                        // No card and no fixed size any more: the surface is
+                        // content laid over the page's canvas, so it simply
+                        // takes the room between the energy card and the dock.
+                        .padding(.horizontal, 20)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                         dock
                             .padding(.top, 7)
@@ -285,7 +287,7 @@ struct AppsPageSimplified: View {
     /// Scrolls when the tiles overflow the width; the add tile is always last.
     private var dock: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 14) {
+            HStack(spacing: 8) {
                 ForEach(visibleGroups) { group in
                     FeedTileView(
                         group: group,

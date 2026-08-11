@@ -42,14 +42,12 @@ struct FeedsSurfaceView: View {
     /// paddings were counted. The surface now fits itself into whatever the
     /// page offers, keeping the design's proportions, and only reaches full
     /// size where there is room.
-    static let designSize = CGSize(width: 387, height: 443)
-    static var designAspectRatio: CGFloat { designSize.width / designSize.height }
-    private static let cornerRadius: CGFloat = 28
-    private static let ringLineWidth: CGFloat = 10
-
-    /// The ring is 176pt across at the design size; scale with the surface so
-    /// it keeps the same share of the card on a narrower phone.
-    private static let ringDiameterRatio: CGFloat = 176 / 387
+    /// From the reference (a 590pt-wide mock over a 393pt screen, so ÷1.5):
+    /// the disc is 411 → 274pt, the digits 76 → 51pt, the open pill 331×85 →
+    /// 221×57pt. Expressed against the screen width so they hold their share
+    /// on a narrower phone rather than overflowing it.
+    private static let discWidthRatio: CGFloat = 274 / 393
+    private static let digitsSize: CGFloat = 51
 
     /// The three states, kept in one enum so the transitions are visible in
     /// one place. Carrying the resolved `TicketGroup` in the non-idle cases
@@ -64,9 +62,6 @@ struct FeedsSurfaceView: View {
     // decorative chrome, not the live gallery, so it is loaded once from disk
     // via the same `CanvasStorageService` singleton the Gallery tab already
     // uses — no network fetch, no day-boundary tracking, no writes.
-    @State private var dayCanvas = DayCanvas(dayKey: AppModel.dayKey(for: .now))
-    @State private var hasLoadedCanvas = false
-    @State private var fixedTime = Date.now
 
     // Timer bookkeeping. `UnlockTimerModel` owns the stepping/clamping logic;
     // this view's job is only to feed it fresh unspent-budget reads.
@@ -99,100 +94,34 @@ struct FeedsSurfaceView: View {
         // GeometryReader inside the aspect-ratio frame below, not around it:
         // it reports the size the page actually granted, which the background
         // canvas and the ring need in points.
-        return GeometryReader { geo in
-            ZStack {
-                background(size: geo.size)
-
-                switch state {
-                case .idle:
-                    EmptyView()
-                case .offeringWindows(let group):
-                    windowOptions(for: group)
-                case .running(let group):
-                    timerDisplay(for: group, remaining: remaining, width: geo.size.width)
-                }
+        return VStack(spacing: 0) {
+            switch state {
+            case .idle:
+                // Nothing selected: the page is the blurred canvas alone.
+                Color.clear
+            case .offeringWindows(let group):
+                windowOptions(for: group)
+            case .running(let group):
+                timerDisplay(for: group, remaining: remaining)
             }
-            .frame(width: geo.size.width, height: geo.size.height)
         }
-        .aspectRatio(Self.designAspectRatio, contentMode: .fit)
-        .frame(maxWidth: Self.designSize.width, maxHeight: Self.designSize.height)
-        .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .topTrailing) {
             // Independent of state (besides idle): a running window must not
             // strand the group without a path to Settings/Delete for up to
             // an hour, since the dock tile itself offers no context menu.
             if let group {
                 cornerMenu(for: group)
-                    .padding(16)
+                    .padding(.trailing, 16)
             }
         }
-        .overlay(alignment: .bottomLeading) {
-            title
-                .padding(.leading, 13)
-                .padding(.bottom, 22)
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-                .strokeBorder(.white.opacity(0.06), lineWidth: 0.5)
-        )
-        .onAppear {
-            loadCanvasIfNeeded()
-            refreshTimer(remaining: remaining)
-        }
+        .onAppear { refreshTimer(remaining: remaining) }
         .onChange(of: selectedGroup) { _, _ in
             refreshTimer(remaining: unspentMinutes)
         }
         .onChange(of: unspentMinutes) { _, newValue in
             refreshTimer(remaining: newValue)
         }
-    }
-
-    // MARK: - Background
-
-    /// Reuses `GenerativeCanvasView` rather than a second renderer. `fixedTime`
-    /// freezes it to one frame — under `.blur` the continuous animation the
-    /// live view uses would be invisible motion, purely burning battery — and
-    /// `showLabelsOnCanvas: false` drops labels that would just be noise under
-    /// the blur. The scrim on top keeps window-option text and timer digits
-    /// legible regardless of what the canvas underneath looks like today.
-    private func background(size: CGSize) -> some View {
-        ZStack {
-            GenerativeCanvasView(
-                elements: dayCanvas.elements,
-                sleepPoints: dayCanvas.sleepPoints,
-                stepsPoints: dayCanvas.stepsPoints,
-                sleepColor: Color(hex: dayCanvas.sleepColorHex),
-                stepsColor: Color(hex: dayCanvas.stepsColorHex),
-                decayNorm: dayCanvas.decayNorm,
-                backgroundColor: AppColors.Night.background,
-                showLabelsOnCanvas: false,
-                showsOutlinedLabels: false,
-                hasStepsData: dayCanvas.resolvedHasStepsData,
-                hasSleepData: dayCanvas.resolvedHasSleepData,
-                fixedTime: fixedTime
-            )
-            .frame(width: size.width, height: size.height)
-            .blur(radius: 18)
-
-            // Uniform dimming so content reads anywhere on the card, plus an
-            // extra gradient toward the bottom where "My Feeds" sits.
-            Color.black.opacity(0.32)
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.5)],
-                startPoint: .center,
-                endPoint: .bottom
-            )
-        }
-        .allowsHitTesting(false)
-    }
-
-    // MARK: - "My Feeds" title (always visible, overlaid on the surface)
-
-    private var title: some View {
-        Text(String(localized: "My Feeds", comment: "Feeds surface – overlay title"))
-            .font(.system(size: 20, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
     }
 
     // MARK: - Corner menu (whenever a group is selected, states 2 and 3)
@@ -294,20 +223,38 @@ struct FeedsSurfaceView: View {
 
     // MARK: - State 3: timer
 
-    private func timerDisplay(for group: TicketGroup, remaining: Int, width: CGFloat) -> some View {
+    private func timerDisplay(for group: TicketGroup, remaining: Int) -> some View {
         let display = resolvedTimerState(for: group, remaining: remaining)
-        return VStack(spacing: 24) {
-            ZStack {
-                depletionRing(fraction: display.fraction, diameter: width * Self.ringDiameterRatio)
+        return GeometryReader { geo in
+            VStack(spacing: 0) {
+                // Digits above the indicator, not inside it: the reference
+                // gives them their own line so neither has to shrink to make
+                // room for the other.
                 Text(display.digits)
-                    .font(.system(size: 44, weight: .medium, design: .monospaced))
+                    .font(.systemSerif(Self.digitsSize, weight: .bold, relativeTo: .largeTitle))
                     .foregroundStyle(.white)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
+                    // The canvas underneath is unscrimmed, so legibility is
+                    // bought here rather than by dimming the artwork.
+                    .shadow(color: .black.opacity(0.45), radius: 12, y: 2)
+                    .padding(.top, 8)
+
+                Spacer(minLength: 12)
+
+                depletionDisc(
+                    fraction: display.fraction,
+                    diameter: min(geo.size.width * Self.discWidthRatio,
+                                  geo.size.height * 0.62)
+                )
+
+                Spacer(minLength: 12)
+
+                openButton(for: group)
+                    .padding(.bottom, 8)
             }
-            openButton(for: group)
+            .frame(width: geo.size.width, height: geo.size.height)
         }
-        .padding(.bottom, 24)
     }
 
     /// "I paid, let me in" — the primary action once a window is open, and the
@@ -332,10 +279,13 @@ struct FeedsSurfaceView: View {
                 Image(systemName: "arrow.up.forward")
                     .font(.system(size: 13, weight: .semibold))
             }
-            .foregroundStyle(.black)
-            .padding(.horizontal, 22)
-            .padding(.vertical, 12)
-            .background(Capsule().fill(AppColors.brandAccent))
+            // Outlined, not filled: against an unscrimmed canvas a solid
+            // block of accent would fight the disc for attention.
+            .foregroundStyle(AppColors.brandAccent)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 15)
+            .background(Capsule().fill(.black.opacity(0.18)))
+            .overlay(Capsule().strokeBorder(AppColors.brandAccent, lineWidth: 1.5))
         }
         .buttonStyle(.plain)
         .disabled(targets.isEmpty)
@@ -364,27 +314,31 @@ struct FeedsSurfaceView: View {
         }
     }
 
-    /// A ring rather than a bar: it reads at a glance as time draining from a
-    /// full clock face, and its round footprint centers naturally behind the
-    /// digits instead of competing with them for width. There is no
-    /// `.animation` on the trim — `UnlockTimerModel.State.fraction` already
+    /// A filled disc with the spent wedge cut away, not a ring outline: the
+    /// reference makes the indicator a solid mass of warm light with the used
+    /// portion removed so the canvas shows through it. That reads as
+    /// something being consumed, and it belongs to the artwork behind it in a
+    /// way a thin stroke does not.
+    ///
+    /// There is no `.animation` on the shape — `UnlockTimerModel.State.fraction`
     /// only changes on whole-minute tick boundaries, and this view must not
     /// smooth that into a sweep. A tick lands as a hard cut, matching the
     /// spec: never interpolate, never run backwards.
-    private func depletionRing(fraction: Double, diameter: CGFloat) -> some View {
+    private func depletionDisc(fraction: Double, diameter: CGFloat) -> some View {
         ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.18), lineWidth: Self.ringLineWidth)
-            Circle()
-                .trim(from: 0, to: max(0, min(1, fraction)))
-                .stroke(
-                    AppColors.brandAccent,
-                    style: StrokeStyle(lineWidth: Self.ringLineWidth, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .animation(nil, value: fraction)
+            // The glow is a blurred copy of the same wedge, so it shrinks with
+            // the disc instead of hanging around as a halo of a shape that is
+            // no longer there.
+            DepletionWedge(fraction: fraction)
+                .fill(AppColors.brandAccent)
+                .blur(radius: 26)
+                .opacity(0.55)
+
+            DepletionWedge(fraction: fraction)
+                .fill(AppColors.brandAccent)
         }
         .frame(width: diameter, height: diameter)
+        .animation(nil, value: fraction)
     }
 
     /// What state 3 shows for `group` at `remaining` — the exact value that
@@ -412,15 +366,6 @@ struct FeedsSurfaceView: View {
     }
 
     // MARK: - Data loading & refresh
-
-    private func loadCanvasIfNeeded() {
-        guard !hasLoadedCanvas else { return }
-        hasLoadedCanvas = true
-        let dayKey = AppModel.dayKey(for: .now)
-        if let loaded = CanvasStorageService.shared.loadCanvas(for: dayKey) {
-            dayCanvas = loaded
-        }
-    }
 
     /// Advances `timerModel` from the page's latest unspent-budget reading.
     /// Resets the model (the one legitimate way remaining time may increase)

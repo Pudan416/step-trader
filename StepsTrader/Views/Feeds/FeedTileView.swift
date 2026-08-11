@@ -3,9 +3,14 @@ import SwiftUI
 import FamilyControls
 #endif
 
-/// One app in the Feeds dock. Hue says whether a window is open; brightness says
-/// whether this is the app the surface is currently showing. The two are
-/// independent — a window keeps draining while another app is selected.
+/// One app in the Feeds dock: a frosted translucent disc with the app's icon.
+///
+/// Two independent channels, per the reference. The **ring** says which app the
+/// surface is currently showing; the **fill's warmth** says whether that app's
+/// window is open. They have to be independent, because a window keeps draining
+/// in the background while a different app is selected — so an open-but-
+/// unselected tile stays warm without a ring, and a selected-but-locked tile
+/// gets a ring over a cool fill.
 struct FeedTileView: View {
     let group: TicketGroup
     let isSelected: Bool
@@ -17,16 +22,19 @@ struct FeedTileView: View {
     let remainingMinutes: Int
     let onTap: () -> Void
 
-    static let diameter: CGFloat = 83
+    /// 118pt in the reference's 590pt-wide mock, ÷1.5.
+    static let diameter: CGFloat = 79
 
     private var isUnlocked: Bool { remainingMinutes > 0 }
 
-    private var glowColor: Color {
-        isUnlocked ? AppColors.brandAccent : Color.white.opacity(0.55)
+    /// Warmth carries the window's state. Both fills are translucent so the
+    /// canvas reads through them — the dock sits directly on the artwork, with
+    /// no card between.
+    private var fill: Color {
+        isUnlocked
+            ? AppColors.brandAccent.opacity(0.28)
+            : Color.white.opacity(0.13)
     }
-
-    /// Selection is brightness. Unselected tiles stay legible rather than vanishing.
-    private var glowOpacity: Double { isSelected ? 1.0 : 0.45 }
 
     private var kind: FeedRowKind {
         FeedRowModel.kind(
@@ -38,22 +46,24 @@ struct FeedTileView: View {
     var body: some View {
         Button(action: onTap) {
             ZStack {
-                // The glow is a soft radial wash behind the icon, not a ring on it.
                 Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [glowColor.opacity(0.85), glowColor.opacity(0)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: Self.diameter * 0.62
-                        )
+                    .fill(fill)
+                    .overlay(
+                        // A hairline so the disc has an edge even where the
+                        // canvas behind it happens to be pale.
+                        Circle().strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
                     )
-                    .frame(width: Self.diameter, height: Self.diameter)
-                    .opacity(glowOpacity)
 
                 icon
             }
             .frame(width: Self.diameter, height: Self.diameter)
+            // Selection is the ring, drawn outside the fill so it never tints
+            // the icon or the disc.
+            .overlay(
+                Circle()
+                    .strokeBorder(AppColors.brandAccent, lineWidth: 2)
+                    .opacity(isSelected ? 1 : 0)
+            )
             .contentShape(Circle())
             .animation(.easeOut(duration: 0.22), value: isSelected)
             .animation(.easeOut(duration: 0.22), value: isUnlocked)
@@ -112,14 +122,8 @@ struct FeedAddTileView: View {
         Button(action: onTap) {
             ZStack {
                 Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color.white.opacity(0.35), Color.white.opacity(0)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: FeedTileView.diameter * 0.62
-                        )
-                    )
+                    .fill(Color.white.opacity(0.13))
+                    .overlay(Circle().strokeBorder(.white.opacity(0.14), lineWidth: 0.5))
                 Image(systemName: "plus")
                     .font(.system(size: 28, weight: .light))
                     .foregroundStyle(AppColors.Night.textPrimary)
