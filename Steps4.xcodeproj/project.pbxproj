@@ -159,7 +159,6 @@
 		30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0008300000000000CA08 /* CanvasStateManagers.swift */; };
 		30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA000A300000000000CA0A /* CanvasStorageService.swift */; };
 		30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EA00013001000000EA0001 /* EnergyGradientBackground.swift */; };
-		30EA00043001000000EA0004 /* EnergySignatureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EA00033001000000EA0003 /* EnergySignatureView.swift */; };
 		31E56CC97BFC4B2EB6CAA2A8 /* AppModel+PayGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E8B78AD65E54737AA7CA90F /* AppModel+PayGate.swift */; };
 		3B9C4E54AE20A00DECDAFDAF /* PastDaySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E648AABF4FC13465DF42C1 /* PastDaySnapshot.swift */; };
 		40IN00022FFF050000000002 /* ExportCanvasWallpaperIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40IN00012FFF050000000001 /* ExportCanvasWallpaperIntent.swift */; };
@@ -228,7 +227,6 @@
 		DA0010001000100010001011 /* HappeningAdditionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0010001000100010001010 /* HappeningAdditionsTests.swift */; };
 		DA0002000200020002000021 /* canvas_legacy_categorised.json in Resources */ = {isa = PBXBuildFile; fileRef = DA0002000200020002000020 /* canvas_legacy_categorised.json */; };
 		AC000001300400000000AC01 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000002300400000000AC02 /* AppConstants.swift */; };
-		AE00000100000000000000B1 /* MeAxisDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000100000000000000A1 /* MeAxisDetailView.swift */; };
 		AE00000200000000000000B2 /* MeViewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000200000000000000A2 /* MeViewSupport.swift */; };
 		AE00000300000000000000B3 /* GalleryMetricOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000300000000000000A3 /* GalleryMetricOverlayView.swift */; };
 		AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */; };
@@ -480,7 +478,6 @@
 		30CA0008300000000000CA08 /* CanvasStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStateManagers.swift; sourceTree = "<group>"; };
 		30CA000A300000000000CA0A /* CanvasStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStorageService.swift; sourceTree = "<group>"; };
 		30EA00013001000000EA0001 /* EnergyGradientBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyGradientBackground.swift; sourceTree = "<group>"; };
-		30EA00033001000000EA0003 /* EnergySignatureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergySignatureView.swift; sourceTree = "<group>"; };
 		40IN00012FFF050000000001 /* ExportCanvasWallpaperIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCanvasWallpaperIntent.swift; sourceTree = "<group>"; };
 		40IN00032FFF050000000003 /* AppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcuts.swift; sourceTree = "<group>"; };
 		45F540E48318D3A7CEF51B99 /* ThemeTextStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ThemeTextStyles.swift; path = StepsTrader/Theme/ThemeTextStyles.swift; sourceTree = SOURCE_ROOT; };
@@ -549,7 +546,6 @@
 		DA0010001000100010001010 /* HappeningAdditionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningAdditionsTests.swift; sourceTree = "<group>"; };
 		DA0002000200020002000020 /* canvas_legacy_categorised.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/canvas_legacy_categorised.json; sourceTree = "<group>"; };
 		AC000002300400000000AC02 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
-		AE00000100000000000000A1 /* MeAxisDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeAxisDetailView.swift; sourceTree = "<group>"; };
 		AE00000200000000000000A2 /* MeViewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeViewSupport.swift; sourceTree = "<group>"; };
 		AE00000300000000000000A3 /* GalleryMetricOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GalleryMetricOverlayView.swift; path = StepsTrader/Views/Gallery/GalleryMetricOverlayView.swift; sourceTree = SOURCE_ROOT; };
 		AE00000400000000000000A4 /* Secrets-Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Secrets-Debug.xcconfig"; sourceTree = "<group>"; };
@@ -901,7 +897,6 @@
 				20F5A00F2FFF020000000000 /* StepBalanceCard.swift */,
 				20C7E6132F8BF2A200BD06AA /* CanvasShapePreview.swift */,
 				30EA00013001000000EA0001 /* EnergyGradientBackground.swift */,
-				30EA00033001000000EA0003 /* EnergySignatureView.swift */,
 				DD000001DDDD000100000002 /* PaperTicketView.swift */,
 				WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */,
 				2061EB922F269CE6009FEC24 /* ImagePicker.swift */,
@@ -932,7 +927,6 @@
 				DD000003DDDD000300000002 /* InlineTicketSettingsView.swift */,
 				DD000004DDDD000400000002 /* SettingsSheet.swift */,
 				2061EBF22F269D50009FEC24 /* MeView.swift */,
-				AE00000100000000000000A1 /* MeAxisDetailView.swift */,
 				AE00000200000000000000A2 /* MeViewSupport.swift */,
 				DA000D000D000D000D0000D0 /* Palette */,
 				200AC5A72F16DA570018004E /* LoginView.swift */,
@@ -1498,7 +1492,6 @@
 				20A05E030000000000000002 /* AuthenticationService+SupabaseREST.swift in Sources */,
 				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
 				30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */,
-				30EA00043001000000EA0004 /* EnergySignatureView.swift in Sources */,
 				DD000001DDDD000100000001 /* PaperTicketView.swift in Sources */,
 				WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */,
 				DD000002DDDD000200000001 /* TicketTemplatePickerView.swift in Sources */,
@@ -1519,7 +1512,6 @@
 				30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */,
 				30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */,
 				2061EBF32F269D50009FEC24 /* MeView.swift in Sources */,
-				AE00000100000000000000B1 /* MeAxisDetailView.swift in Sources */,
 				AE00000200000000000000B2 /* MeViewSupport.swift in Sources */,
 				20HV0001AAAA000100000001 /* HistoryView.swift in Sources */,
 				20HV0003AAAA000100000003 /* DayCanvasViewerView.swift in Sources */,
