@@ -93,7 +93,12 @@ the gaps of the rows of three. Each tile is the rendered figure with its label
 below it. An eleventh affordance opens free-text creation.
 
 The dock keeps its three buttons, its style, and the height it sits at today.
-A fourth control re-rolls the set (see Shake).
+Nothing is added to it.
+
+A small line of text sits at the top of the overlay — "shake to change the
+shapes" — and it is the only thing that teaches the gesture. It is secondary
+type, quiet enough not to compete with the field, present whenever the palette
+is open.
 
 Picking a tile spawns the element and removes the tile; the remaining tiles
 re-flow into the 3-2-3-2 arrangement for their new count. When the field
@@ -128,9 +133,14 @@ same tomorrow as today. History is never rewritten.
 Mechanically: `motionEnded(.motionShake)`, re-roll the assignment map, bump the
 shuffle nonce, persist, animate the tiles into their new figures.
 
-Shake alone is not enough. It is undiscoverable, and unavailable to anyone who
-cannot shake a phone, so the dock carries a visible re-roll control that does
-the same thing. Under Reduce Motion the set changes without the transition.
+Shake is the only way to re-roll. The hint line at the top of the overlay
+carries the discovery; there is no button.
+
+Noted rather than argued: that leaves someone who cannot shake a phone with no
+way to change the set. The decision is deliberate — a fourth dock control was
+considered and rejected to keep the dock as it is.
+
+Under Reduce Motion the set changes without the transition.
 
 ## What goes
 
@@ -159,10 +169,10 @@ out of `HappeningPaletteView` before the rest is rewritten.
 - Tile shape types are drawn only from `CanvasShapeType.allowedByUser`; with one
   allowed type, all ten tiles use it and still differ by seed and colour.
 - Rays tiles keep the canvas aspect ratio and read as cones.
-- The dock keeps its three buttons at the height the canvas `+` sits at, plus
-  the re-roll control.
-- The re-roll control does exactly what shake does, and is reachable without
-  shaking.
+- The dock keeps its three buttons, unchanged, at the height the canvas `+`
+  sits at.
+- The hint line is present at the top whenever the palette is open, and reads
+  as secondary next to the field.
 - Picking removes the tile and the rest re-flow to 3-2-3-2 for their count.
 
 ## Risks
