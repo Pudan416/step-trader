@@ -106,7 +106,9 @@ final class SubscriptionStore: ObservableObject {
         // Grandfathering MUST be evaluated regardless of whether RC is linked
         // or whether the API key is configured. Otherwise a misconfigured build
         // (empty key, missing SDK) silently strips legacy users of their gifted Pro.
-        evaluateGrandfatheringIfNeeded()
+        // It runs BEFORE `Purchases.configure`, so it must not touch the SDK —
+        // it reports back instead, and the RC tagging happens once RC is up.
+        let didGrandfather = evaluateGrandfatheringIfNeeded()
 
         #if canImport(RevenueCat)
         guard !apiKey.isEmpty, !apiKey.hasPrefix("$(") else {
@@ -131,6 +133,17 @@ final class SubscriptionStore: ObservableObject {
         // Persist the resolved app user ID for diagnostics.
         defaults.set(Purchases.shared.appUserID, forKey: SharedKeys.rcAppUserID)
 
+        // Tag grandfathered users in RC so the dashboard can segment them. This
+        // has to wait until here: `Purchases.shared` traps if it is read before
+        // `configure`, which is what the evaluation above would have done.
+        if didGrandfather {
+            Purchases.shared.attribution.setAttributes([
+                SubscriptionIDs.Attribute.grandfathered: "true",
+                SubscriptionIDs.Attribute.grandfatheredAt: ISO8601DateFormatter().string(from: Date.now),
+                SubscriptionIDs.Attribute.appLaunchCount: String(defaults.integer(forKey: "appLaunchCount"))
+            ])
+        }
+
         // Listen for entitlement changes pushed by the SDK (e.g. renewal, expiry).
         // §3.5: tracked so deinit can cancel — otherwise the loop runs forever
         // against a stale `self` after DI reset / test teardown.
@@ -153,10 +166,15 @@ final class SubscriptionStore: ObservableObject {
 
     /// Runs once, on first launch after the subscription feature is added.
     /// If the user already used the app, mark them grandfathered forever.
-    private func evaluateGrandfatheringIfNeeded() {
+    ///
+    /// Must not touch the RevenueCat SDK: this runs before `Purchases.configure`,
+    /// and `Purchases.shared` traps when read first. Returns whether it granted
+    /// grandfathering this launch so the caller can tag RC once it is up.
+    @discardableResult
+    private func evaluateGrandfatheringIfNeeded() -> Bool {
         guard defaults.object(forKey: SharedKeys.grandfatherEvaluatedAt) == nil else {
             // Already evaluated; nothing to do.
-            return
+            return false
         }
 
         let isExisting = Self.detectExistingUser(defaults)
@@ -167,17 +185,10 @@ final class SubscriptionStore: ObservableObject {
             AppLogger.app.debug("🎁 Grandfathered existing user into Pro")
             state = .grandfathered
             cacheProFlag(true)
-            #if canImport(RevenueCat)
-            // Tag in RC so dashboard can segment grandfathered users.
-            Purchases.shared.attribution.setAttributes([
-                SubscriptionIDs.Attribute.grandfathered: "true",
-                SubscriptionIDs.Attribute.grandfatheredAt: ISO8601DateFormatter().string(from: Date.now),
-                SubscriptionIDs.Attribute.appLaunchCount: String(defaults.integer(forKey: "appLaunchCount"))
-            ])
-            #endif
         } else {
             AppLogger.app.debug("🆕 New user — grandfathering not granted")
         }
+        return isExisting
     }
 
     // MARK: - Identity
