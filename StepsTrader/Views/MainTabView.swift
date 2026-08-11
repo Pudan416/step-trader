@@ -264,7 +264,9 @@ struct MainTabView: View {
             }
         }
         .overlay(alignment: .top) {
-            if !isWideCanvas, !hidesSurroundingChromeForPalette {
+            // Me is where you look back, not where you check your balance — the
+            // card is drawn on canvas and feeds only.
+            if !isWideCanvas, !hidesSurroundingChromeForPalette, selection != Tab.me.rawValue {
             StepBalanceCard(
                 remainingSteps: model.userEconomyStore.totalStepsBalance,
                 totalSteps: model.healthStore.baseEnergyToday,

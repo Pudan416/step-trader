@@ -54,9 +54,9 @@ struct MeView: View {
                 }
                 .onPreferenceChange(RadarCenterKey.self) { radarCenterGlobalY = $0 }
                 .energyGradientBackground(model: model, showGrain: false)
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    Color.clear.frame(height: topCardHeight)
-                }
+                // No inset for the energy card: it is not drawn on Me, and
+                // `\.topCardHeight` still reports the height it has on the other
+                // tabs — reserving it here would leave an empty band.
                 // Grain texture overlay — above content so it picks up rays beneath.
                 .overlay {
                     if !reduceTransparency {
