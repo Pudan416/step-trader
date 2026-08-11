@@ -118,34 +118,23 @@ struct MeView: View {
 
 
     private var contentSection: some View {
-        let snaps = cachedSnaps
-        let weekEarned = snaps.reduce(0) { $0 + $1.inkEarned }
-        let weekSpent = snaps.reduce(0) { $0 + $1.inkSpent }
         let sectionSpacing: CGFloat = useTightMeLayout ? 20 : 28
 
         return VStack(alignment: .leading, spacing: sectionSpacing) {
 
-            // ── Greeting + subtitle ───────────────────────────────────────────
-            VStack(alignment: .leading, spacing: 6) {
-                greetingRow
-                Text(String(localized: "Statistics for the last 7 days",
-                            comment: "MeView – weekly overview subtitle"))
-                    .font(.system(size: useTightMeLayout ? 12 : 13))
-                    .foregroundStyle(theme.textSecondary.opacity(0.50))
-            }
-            .padding(.top, useTightMeLayout ? 18 : 24)
+            // ── Greeting ──────────────────────────────────────────────────────
+            // No subtitle: it claimed "the last 7 days" over a screen that now
+            // ends in a calendar of every day ever recorded. Each section names
+            // its own window instead.
+            greetingRow
+                .padding(.top, useTightMeLayout ? 18 : 24)
 
             // ── This week, in three numbers ───────────────────────────────────
             weekSummarySection(cachedSummary)
 
-            // ── Stats ─────────────────────────────────────────────────────────
-            if weekEarned > 0 || weekSpent > 0 || !cachedTopApps.isEmpty {
-                if weekEarned > 0 || weekSpent > 0 {
-                    compactColorsRow(earned: weekEarned, spent: weekSpent)
-                }
-                if !cachedTopApps.isEmpty {
-                    connectedAppsSection(apps: Array(cachedTopApps.prefix(5)))
-                }
+            // ── Connected apps ────────────────────────────────────────────────
+            if !cachedTopApps.isEmpty {
+                connectedAppsSection(apps: Array(cachedTopApps.prefix(5)))
             }
 
             // ── The calendar ──────────────────────────────────────────────────
@@ -290,49 +279,6 @@ struct MeView: View {
             .foregroundStyle(theme.textSecondary.opacity(0.55))
             .tracking(0.6)
     }
-
-    // MARK: - Compact Colors Row
-
-    /// Two-stat row: colored dot + big rounded number + small label below.
-    /// Drops redundant `+`/`−` prefixes (the label already says "earned" / "spent")
-    /// and gives each value its own visual block so the eye can grab one at a time.
-    private func compactColorsRow(earned: Int, spent: Int) -> some View {
-        HStack(alignment: .top, spacing: 28) {
-            statPair(
-                value: earned,
-                label: String(localized: "earned"),
-                accent: theme.accentColor
-            )
-            statPair(
-                value: spent,
-                label: String(localized: "spent"),
-                accent: theme.textSecondary.opacity(0.45)
-            )
-            Spacer(minLength: 0)
-        }
-    }
-
-    private func statPair(value: Int, label: String, accent: Color) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Circle()
-                .fill(accent)
-                .frame(width: 6, height: 6)
-                .padding(.top, useTightMeLayout ? 8 : 10)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(value.formatted())
-                    .font(.system(useTightMeLayout ? .title3 : .title2, design: .rounded).weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(theme.textPrimary)
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(theme.textSecondary.opacity(0.6))
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(value) \(label)")
-    }
-
 
     // MARK: - Connected apps
     //

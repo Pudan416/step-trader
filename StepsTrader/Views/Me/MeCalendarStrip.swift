@@ -18,6 +18,9 @@ struct MeCalendarStrip: View {
 
     @Environment(\.appTheme) private var theme
 
+    /// 3:4, matching the poster the tile opens.
+    private static let tileSize = CGSize(width: 96, height: 128)
+
     #if DEBUG
     @State private var debugForceUnlock = false
     #endif
@@ -52,9 +55,20 @@ struct MeCalendarStrip: View {
                     .foregroundStyle(theme.textSecondary.opacity(0.55))
                     .tracking(0.6)
                 Spacer(minLength: 8)
-                Text(String(localized: "\(keys.count) days tracked", comment: "MeView – tracked count"))
-                    .font(.caption)
-                    .foregroundStyle(theme.textSecondary.opacity(0.5))
+                if !pastDays.isEmpty {
+                    Text(String(localized: "\(keys.count) days tracked", comment: "MeView – tracked count"))
+                        .font(.caption)
+                        .foregroundStyle(theme.textSecondary.opacity(0.5))
+                }
+            }
+
+            // On a first run the strip still holds today's tile, so it never
+            // looks broken — but nothing explains what it is going to become.
+            if pastDays.isEmpty {
+                Text(String(localized: "Your days will collect here.",
+                            comment: "Me calendar – empty state"))
+                    .font(.subheadline)
+                    .foregroundStyle(theme.textSecondary.opacity(0.6))
             }
 
             ScrollView(.horizontal) {
@@ -69,10 +83,14 @@ struct MeCalendarStrip: View {
                                 if unlocked.contains(key) { onSelect(key) } else { onLocked() }
                             }
                         )
-                        .frame(width: 96, height: 128)
+                        .frame(width: Self.tileSize.width, height: Self.tileSize.height)
                     }
                 }
             }
+            // Without an explicit height the scroll view claims every point the
+            // VStack has left, floating the tiles in the middle of it and
+            // pushing whatever follows off the bottom of the screen.
+            .frame(height: Self.tileSize.height)
             .scrollIndicators(.hidden)
 
             #if DEBUG
