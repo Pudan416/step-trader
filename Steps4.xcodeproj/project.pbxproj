@@ -37,6 +37,7 @@
 		2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */; };
 		2061EBD02F269D30009FEC24 /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBD12F269D30009FEC24 /* GalleryView.swift */; };
 		2061EBF32F269D50009FEC24 /* MeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBF22F269D50009FEC24 /* MeView.swift */; };
+		ME7A00ME7A00ME7A00F031 /* MeWeekStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F030 /* MeWeekStats.swift */; };
 		2061ECE92F276FE8009FEC24 /* TimeAccessPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECE82F276FE8009FEC24 /* TimeAccessPickerSheet.swift */; };
 		2061ECEA2F277000009FEC24 /* StatusViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */; };
 		2061ECEC2F277000009FEC24 /* StatusViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061ECED2F277000009FEC24 /* StatusViewModels.swift */; };
@@ -215,6 +216,7 @@
 		AA00NOTE2F3A000100000001 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00NOTE2F3A000100000002 /* Note.swift */; };
 		AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB001100110011AABB0010 /* SubscriptionGateTests.swift */; };
 		ME7A00ME7A00ME7A00F011 /* MainTabSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */; };
+		ME7A00ME7A00ME7A00F021 /* MeWeekStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */; };
 		AABB002200220022AABB0022 /* PaymentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB002200220022AABB0020 /* PaymentTests.swift */; };
 		AABB003300330033AABB0033 /* EnergyRecalcTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB003300330033AABB0030 /* EnergyRecalcTests.swift */; };
 		AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB004400440044AABB0040 /* SubscriptionStateTests.swift */; };
@@ -363,6 +365,7 @@
 		2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSelectionComponents.swift; sourceTree = "<group>"; };
 		2061EBD12F269D30009FEC24 /* GalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
 		2061EBF22F269D50009FEC24 /* MeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeView.swift; sourceTree = "<group>"; };
+		ME7A00ME7A00ME7A00F030 /* MeWeekStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeWeekStats.swift; sourceTree = "<group>"; };
 		2061ECE82F276FE8009FEC24 /* TimeAccessPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAccessPickerSheet.swift; sourceTree = "<group>"; };
 		2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViewHelpers.swift; sourceTree = "<group>"; };
 		2061ECED2F277000009FEC24 /* StatusViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViewModels.swift; sourceTree = "<group>"; };
@@ -534,6 +537,7 @@
 		AA00NOTE2F3A000100000002 /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
 		AABB001100110011AABB0010 /* SubscriptionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionGateTests.swift; sourceTree = "<group>"; };
 		ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabSelectionTests.swift; sourceTree = "<group>"; };
+		ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeWeekStatsTests.swift; sourceTree = "<group>"; };
 		AABB002200220022AABB0020 /* PaymentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTests.swift; sourceTree = "<group>"; };
 		AABB003300330033AABB0030 /* EnergyRecalcTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyRecalcTests.swift; sourceTree = "<group>"; };
 		AABB004400440044AABB0040 /* SubscriptionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionStateTests.swift; sourceTree = "<group>"; };
@@ -929,6 +933,7 @@
 				2061EBF22F269D50009FEC24 /* MeView.swift */,
 				AE00000200000000000000A2 /* MeViewSupport.swift */,
 				DA000D000D000D000D0000D0 /* Palette */,
+				ME7A00ME7A00ME7A00G000 /* Me */,
 				200AC5A72F16DA570018004E /* LoginView.swift */,
 				2061EB7D2F269C99009FEC24 /* HandoffProtectionView.swift */,
 				2061EB7E2F269C99009FEC24 /* MainTabView.swift */,
@@ -1110,6 +1115,7 @@
 				BB000002BB000002BB000001 /* OnboardingFlowTests.swift */,
 				AABB001100110011AABB0010 /* SubscriptionGateTests.swift */,
 				ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */,
+				ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */,
 				AABB002200220022AABB0020 /* PaymentTests.swift */,
 				AABB003300330033AABB0030 /* EnergyRecalcTests.swift */,
 				AABB004400440044AABB0040 /* SubscriptionStateTests.swift */,
@@ -1132,6 +1138,14 @@
 				T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
 			);
 			path = Steps4UITests;
+			sourceTree = "<group>";
+		};
+		ME7A00ME7A00ME7A00G000 /* Me */ = {
+			isa = PBXGroup;
+			children = (
+				ME7A00ME7A00ME7A00F030 /* MeWeekStats.swift */,
+			);
+			path = Me;
 			sourceTree = "<group>";
 		};
 		DA000D000D000D000D0000D0 /* Palette */ = {
@@ -1512,6 +1526,7 @@
 				30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */,
 				30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */,
 				2061EBF32F269D50009FEC24 /* MeView.swift in Sources */,
+				ME7A00ME7A00ME7A00F031 /* MeWeekStats.swift in Sources */,
 				AE00000200000000000000B2 /* MeViewSupport.swift in Sources */,
 				20HV0001AAAA000100000001 /* HistoryView.swift in Sources */,
 				20HV0003AAAA000100000003 /* DayCanvasViewerView.swift in Sources */,
@@ -1657,6 +1672,7 @@
 				BB000002BB000002BB000002 /* OnboardingFlowTests.swift in Sources */,
 				AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */,
 				ME7A00ME7A00ME7A00F011 /* MainTabSelectionTests.swift in Sources */,
+				ME7A00ME7A00ME7A00F021 /* MeWeekStatsTests.swift in Sources */,
 				AABB002200220022AABB0022 /* PaymentTests.swift in Sources */,
 				AABB003300330033AABB0033 /* EnergyRecalcTests.swift in Sources */,
 				AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */,
