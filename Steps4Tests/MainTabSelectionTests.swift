@@ -23,4 +23,12 @@ final class MainTabSelectionTests: XCTestCase {
     func testSettingsIsNoLongerATab() {
         XCTAssertNil(MainTabView.Tab.allCases.first { $0.accessibilityId == "tab_settings" })
     }
+
+    func testTabBarHasExactlyThreeDestinations() {
+        XCTAssertEqual(MainTabView.Tab.allCases.count, 3)
+    }
+
+    func testRetiredHistoryRawValueResolvesToCanvas() {
+        XCTAssertEqual(MainTabView.Tab.resolve(storedRawValue: 3), .canvas)
+    }
 }

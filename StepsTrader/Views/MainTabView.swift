@@ -58,14 +58,12 @@ struct MainTabView: View {
         case canvas = 0
         case feeds = 1
         case me = 2
-        case history = 3
 
         var icon: String {
             switch self {
             case .feeds: return "square.grid.2x2"
             case .canvas: return "scribble.variable"
             case .me: return "person.circle"
-            case .history: return "calendar"
             }
         }
 
@@ -74,7 +72,6 @@ struct MainTabView: View {
             case .feeds: return String(localized: "Feeds", comment: "Tab bar title")
             case .canvas: return String(localized: "Canvas", comment: "Tab bar title")
             case .me: return String(localized: "Me", comment: "Tab bar title")
-            case .history: return String(localized: "History", comment: "Tab bar title")
             }
         }
 
@@ -84,13 +81,12 @@ struct MainTabView: View {
             case .feeds: return "tab_feeds"
             case .canvas: return "tab_canvas"
             case .me: return "tab_me"
-            case .history: return "tab_history"
             }
         }
 
         /// `@SceneStorage` persists a raw Int across app updates. Values written
-        /// by builds that had more tabs (4 = Settings) no longer resolve, so
-        /// anything unknown falls back to the canvas.
+        /// by builds that had more tabs (3 = History, 4 = Settings) no longer
+        /// resolve, so anything unknown falls back to the canvas.
         static func resolve(storedRawValue: Int) -> Tab {
             Tab(rawValue: storedRawValue) ?? .canvas
         }
@@ -182,11 +178,6 @@ struct MainTabView: View {
                 MeView(model: model, onOpenSettings: { showSettings = true })
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.me.rawValue)
-
-                // 3: History
-                HistoryView(model: model)
-                    .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.history.rawValue)
             }
 
             .toolbarBackground(.hidden, for: .tabBar)

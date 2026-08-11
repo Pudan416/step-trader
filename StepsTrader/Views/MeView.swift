@@ -9,12 +9,14 @@ struct MeView: View {
     @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @State private var pastDays: [String: PastDaySnapshot] = [:]
     @State private var selectedDayKey: String? = nil
     @State private var showLogin = false
     @State private var showProfileEditor = false
+    @State private var showPaywall = false
     @State private var cachedDayKeys: [String] = []
     @State private var hasLoadedSnapshots = false
     @State private var cachedTopApps: [(name: String, spent: Int)] = []
@@ -66,6 +68,9 @@ struct MeView: View {
                 }
                 .scrollIndicators(.hidden)
                 .scrollBounceBehavior(.basedOnSize)
+                // The tab bar is an overlay, not a safe-area inset, so the last
+                // row would otherwise scroll under the pill and stop there.
+                .safeAreaPadding(.bottom, tabBarHeight)
             }
         } else {
             ScrollView(.vertical) {
@@ -76,6 +81,7 @@ struct MeView: View {
                 .padding(.horizontal, 20)
             }
             .scrollIndicators(.hidden)
+            .safeAreaPadding(.bottom, tabBarHeight)
         }
     }
 
@@ -98,7 +104,8 @@ struct MeView: View {
             authService: authService,
             showLogin: $showLogin,
             showProfileEditor: $showProfileEditor,
-            selectedDayKey: $selectedDayKey
+            selectedDayKey: $selectedDayKey,
+            showPaywall: $showPaywall
         )
     }
 
@@ -140,6 +147,16 @@ struct MeView: View {
                     connectedAppsSection(apps: Array(cachedTopApps.prefix(5)))
                 }
             }
+
+            // ── The calendar ──────────────────────────────────────────────────
+            // `pastDays` is every persisted day, not just this week's window, so
+            // the strip needs no loader of its own.
+            MeCalendarStrip(
+                model: model,
+                pastDays: pastDays,
+                onSelect: { selectedDayKey = $0 },
+                onLocked: { showPaywall = true }
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
