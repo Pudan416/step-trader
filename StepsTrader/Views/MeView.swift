@@ -17,8 +17,7 @@ struct MeView: View {
     @State private var showProfileEditor = false
     @State private var cachedDayKeys: [String] = []
     @State private var hasLoadedSnapshots = false
-    @State private var cachedTopApps: [(name: String, spent: Int, minutes: Int)] = []
-    @State private var cachedWeekMinutesByTarget: [String: Int] = [:]
+    @State private var cachedTopApps: [(name: String, spent: Int)] = []
     @State private var cachedTxNames: [String: String] = [:]
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
@@ -138,7 +137,7 @@ struct MeView: View {
                     compactColorsRow(earned: weekEarned, spent: weekSpent)
                 }
                 if !cachedTopApps.isEmpty {
-                    topAppsSection(apps: Array(cachedTopApps.prefix(3)))
+                    connectedAppsSection(apps: Array(cachedTopApps.prefix(5)))
                 }
             }
         }
@@ -318,26 +317,29 @@ struct MeView: View {
     }
 
 
-    // MARK: - Top Apps
+    // MARK: - Connected apps
+    //
+    // Each connected app with the colors it cost this week. Bars are relative to
+    // the heaviest app, so the ranking reads at a glance. The number is exact:
+    // it comes from the per-day spend ledger, not from the payment log.
 
-    /// Top apps as proportional bars: ranking is visible at a glance instead of read off the numbers.
-    /// The longest bar is the heaviest app this week; everything else scales relative to it.
-    private func topAppsSection(apps: [(name: String, spent: Int, minutes: Int)]) -> some View {
-        let maxMinutes = max(1, apps.map(\.minutes).max() ?? 1)
+    private func connectedAppsSection(apps: [(name: String, spent: Int)]) -> some View {
+        let maxSpent = max(1, apps.map(\.spent).max() ?? 1)
         return VStack(alignment: .leading, spacing: useTightMeLayout ? 8 : 12) {
-            sectionHeader(String(localized: "TOP APPS"))
+            sectionHeader(String(localized: "CONNECTED APPS", comment: "MeView – connected apps section header"))
 
             VStack(alignment: .leading, spacing: useTightMeLayout ? 10 : 12) {
                 ForEach(Array(apps.enumerated()), id: \.offset) { _, app in
-                    appBarRow(name: app.name, minutes: app.minutes, maxMinutes: maxMinutes)
+                    appBarRow(name: app.name, spent: app.spent, maxSpent: maxSpent)
                 }
             }
         }
     }
 
-    private func appBarRow(name: String, minutes: Int, maxMinutes: Int) -> some View {
+    private func appBarRow(name: String, spent: Int, maxSpent: Int) -> some View {
         // Minimum fraction so even tiny values are visible as a hint, not invisible.
-        let fraction = max(0.04, CGFloat(minutes) / CGFloat(maxMinutes))
+        let fraction = max(0.04, CGFloat(spent) / CGFloat(maxSpent))
+        let spentLabel = String(localized: "\(spent) colors", comment: "MeView – per-app color spend")
         return VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(name)
@@ -345,7 +347,7 @@ struct MeView: View {
                     .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                Text(formatAppTime(minutes))
+                Text(spentLabel)
                     .font((useTightMeLayout ? Font.footnote : Font.subheadline).weight(.semibold))
                     .monospacedDigit()
                     .foregroundStyle(theme.textPrimary)
@@ -360,19 +362,10 @@ struct MeView: View {
                 }
             }
             .frame(height: 4)
-            .accessibilityHidden(true)  // bar is decorative; the row already announces name + time
+            .accessibilityHidden(true)  // bar is decorative; the row already announces name + spend
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name), \(formatAppTime(minutes))")
-    }
-
-    private func formatAppTime(_ totalMinutes: Int) -> String {
-        if totalMinutes <= 0 { return "—" }
-        let hours = totalMinutes / 60
-        let mins = totalMinutes % 60
-        if hours > 0 && mins > 0 { return "\(hours)h \(mins)m" }
-        if hours > 0 { return "\(hours)h" }
-        return "\(mins)m"
+        .accessibilityLabel("\(name), \(spentLabel)")
     }
 
     // MARK: - Helpers
@@ -430,15 +423,11 @@ struct MeView: View {
         rebuildWeekModel()
 
         loadTask = Task { @MainActor in
-            let dayKeySet = Set(cachedDayKeys)
-            let (names, minutes) = await Task.detached {
-                let n = Self.loadTransactionNameMap()
-                let m = Self.loadWeeklyMinutesByTarget(dayKeys: dayKeySet)
-                return (n, m)
-            }.value
+            // The payment log is read only for display names now — targets that
+            // are no longer in a ticket group would otherwise show a raw key.
+            let names = await Task.detached { Self.loadTransactionNameMap() }.value
             guard !Task.isCancelled else { return }
             cachedTxNames = names
-            cachedWeekMinutesByTarget = minutes
             rebuildTopConsumers()
         }
 
@@ -458,14 +447,10 @@ struct MeView: View {
     }
 
     private func rebuildTopConsumers() {
-        var allSpending: [String: Int] = [:]
-        for dayKey in cachedDayKeys {
-            if let perApp = model.appStepsSpentByDay[dayKey] {
-                for (key, value) in perApp {
-                    allSpending[key, default: 0] += value
-                }
-            }
-        }
+        let allSpending = MeWeekStats.appSpend(
+            byDay: model.appStepsSpentByDay,
+            dayKeys: cachedDayKeys
+        )
 
         var results: [(name: String, spent: Int, key: String)] = []
         var claimedKeys: Set<String> = []
@@ -495,16 +480,10 @@ struct MeView: View {
             results.append((name: name, spent: value, key: key))
         }
 
-        let weekMinutes = cachedWeekMinutesByTarget
         cachedTopApps = results
             .sorted { $0.spent != $1.spent ? $0.spent > $1.spent : $0.name < $1.name }
             .prefix(5)
-            .map { entry in
-                let mins = weekMinutes[entry.key]
-                    ?? weekMinutes[String(entry.key.dropFirst(6))]
-                    ?? 0
-                return (name: entry.name, spent: entry.spent, minutes: mins)
-            }
+            .map { (name: $0.name, spent: $0.spent) }
     }
 
     private nonisolated static func loadTransactionNameMap() -> [String: String] {
@@ -522,39 +501,6 @@ struct MeView: View {
     private struct TransactionNameEntry: Decodable {
         let target: String
         let targetName: String?
-    }
-
-    private struct WeekTransactionEntry: Decodable {
-        let timestamp: Date
-        let target: String
-        let window: String?
-        let minutes: Int?
-    }
-
-    private nonisolated static func loadWeeklyMinutesByTarget(dayKeys: Set<String>) -> [String: Int] {
-        let url = PersistenceManager.paymentTransactionsFileURL
-        guard let data = try? Data(contentsOf: url),
-              let txs = try? JSONDecoder().decode([WeekTransactionEntry].self, from: data)
-        else { return [:] }
-
-        var minutesByTarget: [String: Int] = [:]
-        for tx in txs {
-            let txKey = AppModel.dayKey(for: tx.timestamp)
-            guard dayKeys.contains(txKey) else { continue }
-            let resolved: Int
-            if let m = tx.minutes, m > 0 {
-                resolved = m
-            } else {
-                switch tx.window {
-                case "minutes10": resolved = 10
-                case "minutes30": resolved = 30
-                case "hour1": resolved = 60
-                default: continue
-                }
-            }
-            minutesByTarget[tx.target, default: 0] += resolved
-        }
-        return minutesByTarget
     }
 }
 
