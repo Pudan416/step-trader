@@ -17,6 +17,7 @@ struct MeCalendarStrip: View {
     let onLocked: () -> Void
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// 3:4, matching the poster the tile opens.
     private static let tileSize = CGSize(width: 96, height: 128)
@@ -31,6 +32,16 @@ struct MeCalendarStrip: View {
         #else
         return model.isPro
         #endif
+    }
+
+    /// Short month name for a day key, e.g. "Aug" — localised, and abbreviated
+    /// by the locale's own rules rather than by truncation.
+    private func monthLabel(for dayKey: String) -> String? {
+        guard let date = CachedFormatters.dayKey.date(from: dayKey) else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.setLocalizedDateFormatFromTemplate("LLL")
+        return formatter.string(from: date)
     }
 
     /// Newest first. Today is always present, even before it has a snapshot.
@@ -49,16 +60,30 @@ struct MeCalendarStrip: View {
         )
 
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(String(localized: "CALENDAR", comment: "MeView – calendar section header"))
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(theme.textSecondary.opacity(0.55))
-                    .tracking(0.6)
-                Spacer(minLength: 8)
+            // The header is a fixed-size label and the count scales, so side by
+            // side they collide at accessibility sizes. Stack them there.
+            let header = Text(String(localized: "CALENDAR", comment: "MeView – calendar section header"))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(theme.textSecondary.opacity(0.55))
+                .tracking(0.6)
+            let count = Group {
                 if !pastDays.isEmpty {
                     Text(String(localized: "\(keys.count) days tracked", comment: "MeView – tracked count"))
                         .font(.caption)
                         .foregroundStyle(theme.textSecondary.opacity(0.5))
+                }
+            }
+
+            if dynamicTypeSize >= .accessibility1 {
+                VStack(alignment: .leading, spacing: 2) {
+                    header
+                    count
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline) {
+                    header
+                    Spacer(minLength: 8)
+                    count
                 }
             }
 
@@ -73,7 +98,19 @@ struct MeCalendarStrip: View {
 
             ScrollView(.horizontal) {
                 LazyHStack(spacing: 10) {
-                    ForEach(keys, id: \.self) { key in
+                    ForEach(Array(keys.enumerated()), id: \.element) { index, key in
+                        // Name a month the first time you reach it, so scrolling
+                        // back reads as travel rather than as more of the same.
+                        if index == 0 || monthLabel(for: key) != monthLabel(for: keys[index - 1]),
+                           let month = monthLabel(for: key) {
+                            Text(month)
+                                .font(.caption2)
+                                .foregroundStyle(theme.textSecondary.opacity(0.5))
+                                .fixedSize()
+                                .rotationEffect(.degrees(-90))
+                                .frame(width: 16, height: Self.tileSize.height)
+                        }
+
                         DayHistoryTile(
                             model: model,
                             dayKey: key,
@@ -153,14 +190,18 @@ struct DayHistoryTile: View {
                     .aspectRatio(contentMode: .fill)
                     .blur(radius: isLocked ? 12 : 0)
             } else if isEmptyDay {
-                Color(white: 0.94)
+                // The tile came from a Photos-style grid on a light settings
+                // background. On Me it sits on the dark energy gradient, where
+                // fixed light greys read as punched-out white blocks — so the
+                // placeholders and the border come from the theme instead.
+                theme.textPrimary.opacity(0.06)
             } else {
-                Color(white: 0.88)
+                theme.textPrimary.opacity(0.10)
             }
 
             Text(dayNumber)
-                .font(.system(size: 28, weight: .black, design: .serif))
-                .foregroundStyle(Color.yellow)
+                .font(.system(size: 20, weight: .semibold, design: .serif))
+                .foregroundStyle(isToday ? AppColors.brandAccent : theme.textPrimary.opacity(0.75))
                 .padding(8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
 
@@ -177,7 +218,7 @@ struct DayHistoryTile: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color(white: 0.82), lineWidth: 0.5)
+                .strokeBorder(theme.stroke.opacity(theme.strokeOpacity * 0.5), lineWidth: 0.5)
         )
         .task {
             guard !hasLoaded else { return }

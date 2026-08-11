@@ -185,7 +185,8 @@ struct MeView: View {
                         icon: "sparkles",
                         value: titles.joined(separator: ", "),
                         label: String(localized: "came up most", comment: "MeView – frequent happenings label"),
-                        monospaced: false
+                        monospaced: false,
+                        lineLimit: nil
                     )
                 }
             }
@@ -196,7 +197,8 @@ struct MeView: View {
         icon: String,
         value: String,
         label: String,
-        monospaced: Bool = true
+        monospaced: Bool = true,
+        lineLimit: Int? = 1
     ) -> some View {
         // Digits line up column-wise; happening titles are prose and must not.
         let valueFont = Font.system(useTightMeLayout ? .title3 : .title2, design: .rounded)
@@ -211,7 +213,10 @@ struct MeView: View {
                 Text(value)
                     .font(monospaced ? valueFont.monospacedDigit() : valueFont)
                     .foregroundStyle(theme.textPrimary)
-                    .lineLimit(2)
+                    // A number never needs a second line. The happenings list is
+                    // prose and gets none: at accessibility sizes a cap turns
+                    // the reading into "made_somethi…".
+                    .lineLimit(lineLimit)
                 Text(label)
                     .font(.caption)
                     .foregroundStyle(theme.textSecondary.opacity(0.6))
