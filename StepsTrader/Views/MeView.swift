@@ -23,9 +23,11 @@ struct MeView: View {
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
 
-    // The week's snapshots, derived once per data load rather than per body
-    // pass — the aggregation is not free and must stay off the SwiftUI hot path.
+    // The week's snapshots and the numbers derived from them, computed once per
+    // data load rather than per body pass — the aggregation is not free and must
+    // stay off the SwiftUI hot path.
     @State private var cachedSnaps: [PastDaySnapshot] = []
+    @State private var cachedSummary = MeWeekStats.Summary()
 
     var body: some View {
         NavigationStack {
@@ -127,6 +129,9 @@ struct MeView: View {
             }
             .padding(.top, useTightMeLayout ? 18 : 24)
 
+            // ── This week, in three numbers ───────────────────────────────────
+            weekSummarySection(cachedSummary)
+
             // ── Stats ─────────────────────────────────────────────────────────
             if weekEarned > 0 || weekSpent > 0 || !cachedTopApps.isEmpty {
                 if weekEarned > 0 || weekSpent > 0 {
@@ -140,6 +145,76 @@ struct MeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+
+    // MARK: - This week, in three numbers
+    //
+    // Sleep, steps, happenings — the three things a day is made of, one reading
+    // each. A reading with nothing behind it is omitted rather than shown as a
+    // zero, so a quiet week reads as quiet instead of as failure.
+
+    @ViewBuilder
+    private func weekSummarySection(_ summary: MeWeekStats.Summary) -> some View {
+        if summary.avgSleepHours > 0 || summary.avgSteps > 0 || !summary.topHappeningIds.isEmpty {
+            VStack(alignment: .leading, spacing: useTightMeLayout ? 10 : 14) {
+                sectionHeader(String(localized: "THIS WEEK", comment: "MeView – week summary section header"))
+
+                if summary.avgSleepHours > 0 {
+                    summaryRow(
+                        icon: "moon.zzz.fill",
+                        value: summary.avgSleepHours.formatted(.number.precision(.fractionLength(1))) + "h",
+                        label: String(localized: "sleep a night", comment: "MeView – average sleep label")
+                    )
+                }
+
+                if summary.avgSteps > 0 {
+                    summaryRow(
+                        icon: "figure.walk",
+                        value: summary.avgSteps.formatted(),
+                        label: String(localized: "steps a day", comment: "MeView – average steps label")
+                    )
+                }
+
+                if !summary.topHappeningIds.isEmpty {
+                    let titles = summary.topHappeningIds.map { model.resolveOptionTitle(for: $0) }
+                    summaryRow(
+                        icon: "sparkles",
+                        value: titles.joined(separator: ", "),
+                        label: String(localized: "came up most", comment: "MeView – frequent happenings label"),
+                        monospaced: false
+                    )
+                }
+            }
+        }
+    }
+
+    private func summaryRow(
+        icon: String,
+        value: String,
+        label: String,
+        monospaced: Bool = true
+    ) -> some View {
+        // Digits line up column-wise; happening titles are prose and must not.
+        let valueFont = Font.system(useTightMeLayout ? .title3 : .title2, design: .rounded)
+            .weight(.semibold)
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(theme.textSecondary)
+                .frame(width: 18, alignment: .center)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(monospaced ? valueFont.monospacedDigit() : valueFont)
+                    .foregroundStyle(theme.textPrimary)
+                    .lineLimit(2)
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(theme.textSecondary.opacity(0.6))
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(value), \(label)")
+    }
 
     // MARK: - Greeting
 
@@ -337,6 +412,7 @@ struct MeView: View {
     /// `body` — so the per-frame render path only reads the cached results.
     private func rebuildWeekModel() {
         cachedSnaps = cachedDayKeys.compactMap { pastDays[$0] }
+        cachedSummary = MeWeekStats.summary(snapshots: cachedSnaps)
     }
 
     private func refreshDayKeysAndReload() {
