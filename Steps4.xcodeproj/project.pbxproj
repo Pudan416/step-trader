@@ -155,6 +155,7 @@
 		DA00140014001400140014B1 /* HappeningLiquidField.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00140014001400140014B0 /* HappeningLiquidField.swift */; };
 		DA00150015001500150015B1 /* HappeningChooserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00150015001500150015B0 /* HappeningChooserView.swift */; };
 		DA000E000E000E000E0000E1 /* HappeningPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */; };
+		DA0020002000200020000011 /* HappeningShapeTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0020002000200020000010 /* HappeningShapeTile.swift */; };
 		DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */; };
 		30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0004300000000000CA04 /* GenerativeCanvasView.swift */; };
 		30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0008300000000000CA08 /* CanvasStateManagers.swift */; };
@@ -225,6 +226,7 @@
 		DA0005000500050005000051 /* HappeningModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0005000500050005000050 /* HappeningModelTests.swift */; };
 		DA0007000700070007000071 /* HappeningStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0007000700070007000070 /* HappeningStoreTests.swift */; };
 		DA0009000900090009000091 /* HappeningPaletteSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0009000900090009000090 /* HappeningPaletteSelectionTests.swift */; };
+		DA0021002100210021000011 /* HappeningShapeTileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0021002100210021000010 /* HappeningShapeTileTests.swift */; };
 		DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */; };
 		DA00130013001300130013C1 /* HappeningLiquidLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00130013001300130013C0 /* HappeningLiquidLayoutTests.swift */; };
 		DA0010001000100010001011 /* HappeningAdditionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0010001000100010001010 /* HappeningAdditionsTests.swift */; };
@@ -477,6 +479,7 @@
 		DA00140014001400140014B0 /* HappeningLiquidField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningLiquidField.swift; sourceTree = "<group>"; };
 		DA00150015001500150015B0 /* HappeningChooserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningChooserView.swift; sourceTree = "<group>"; };
 		DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteView.swift; sourceTree = "<group>"; };
+		DA0020002000200020000010 /* HappeningShapeTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeTile.swift; sourceTree = "<group>"; };
 		DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFreeTextField.swift; sourceTree = "<group>"; };
 		30CA0004300000000000CA04 /* GenerativeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeCanvasView.swift; sourceTree = "<group>"; };
 		30CA0008300000000000CA08 /* CanvasStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStateManagers.swift; sourceTree = "<group>"; };
@@ -547,6 +550,7 @@
 		DA0005000500050005000050 /* HappeningModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningModelTests.swift; sourceTree = "<group>"; };
 		DA0007000700070007000070 /* HappeningStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningStoreTests.swift; sourceTree = "<group>"; };
 		DA0009000900090009000090 /* HappeningPaletteSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteSelectionTests.swift; sourceTree = "<group>"; };
+		DA0021002100210021000010 /* HappeningShapeTileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeTileTests.swift; sourceTree = "<group>"; };
 		DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllowedCanvasShapesTests.swift; sourceTree = "<group>"; };
 		DA00130013001300130013C0 /* HappeningLiquidLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningLiquidLayoutTests.swift; sourceTree = "<group>"; };
 		DA0010001000100010001010 /* HappeningAdditionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningAdditionsTests.swift; sourceTree = "<group>"; };
@@ -1126,6 +1130,7 @@
 				DA0005000500050005000050 /* HappeningModelTests.swift */,
 				DA0007000700070007000070 /* HappeningStoreTests.swift */,
 				DA0009000900090009000090 /* HappeningPaletteSelectionTests.swift */,
+				DA0021002100210021000010 /* HappeningShapeTileTests.swift */,
 				DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */,
 				DA00130013001300130013C0 /* HappeningLiquidLayoutTests.swift */,
 				DA0010001000100010001010 /* HappeningAdditionsTests.swift */,
@@ -1158,6 +1163,7 @@
 				DA00140014001400140014B0 /* HappeningLiquidField.swift */,
 				DA00150015001500150015B0 /* HappeningChooserView.swift */,
 				DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */,
+				DA0020002000200020000010 /* HappeningShapeTile.swift */,
 				DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */,
 			);
 			path = Palette;
@@ -1524,6 +1530,7 @@
 				DA00140014001400140014B1 /* HappeningLiquidField.swift in Sources */,
 				DA00150015001500150015B1 /* HappeningChooserView.swift in Sources */,
 				DA000E000E000E000E0000E1 /* HappeningPaletteView.swift in Sources */,
+				DA0020002000200020000011 /* HappeningShapeTile.swift in Sources */,
 				DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */,
 				30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */,
 				30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */,
@@ -1685,6 +1692,7 @@
 				DA0005000500050005000051 /* HappeningModelTests.swift in Sources */,
 				DA0007000700070007000071 /* HappeningStoreTests.swift in Sources */,
 				DA0009000900090009000091 /* HappeningPaletteSelectionTests.swift in Sources */,
+				DA0021002100210021000011 /* HappeningShapeTileTests.swift in Sources */,
 				DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */,
 				DA00130013001300130013C1 /* HappeningLiquidLayoutTests.swift in Sources */,
 				DA0010001000100010001011 /* HappeningAdditionsTests.swift in Sources */,
