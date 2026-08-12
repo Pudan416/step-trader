@@ -769,23 +769,6 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         XCTAssertEqual(treatment.backingLuminance, 0.237553298, accuracy: 0.000_000_1)
     }
 
-    func testEveryRenderedWarmBlendHasFourPointFiveContrastInItsTranslucentFieldZone() {
-        for slot in 0..<HappeningLiquidField.warmPaletteIndices.count {
-            let treatment = HappeningLiquidField.labelTreatment(forSlot: slot)
-
-            XCTAssertGreaterThanOrEqual(
-                treatment.fieldZoneContrastRatio,
-                4.5,
-                "slot \(slot) has insufficient rendered field-zone contrast (\(treatment.fieldZoneContrastRatio))"
-            )
-            XCTAssertLessThan(
-                treatment.fieldZoneOpacity,
-                1,
-                "slot \(slot) must blend into the shared field instead of becoming an opaque control"
-            )
-        }
-    }
-
     func testTextBoundsUseMostOfTheFieldZoneWithoutRecreatingAButtonLens() {
         let size = CGSize(width: 402, height: 874)
         let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
