@@ -2463,6 +2463,9 @@
     "Share canvas" : {
       "comment" : "DayCanvasViewer – share VoiceOver\nGalleryView – share button VoiceOver label"
     },
+    "Shake to change the shapes" : {
+      "comment" : "Palette shake hint"
+    },
     "ShieldAction Logs" : {
 
     },

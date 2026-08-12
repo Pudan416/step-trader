@@ -71,6 +71,9 @@ enum HappeningPaletteChromeLayout {
 /// Palette container for the native Living-island field and catalog controls.
 struct HappeningPaletteView: View {
     let happenings: [Happening]
+    /// The figure each happening takes today. Passed in rather than derived
+    /// here so the tile and the canvas element come from one roll.
+    let figures: [String: HappeningShapeAssignment]
     let catalog: [Happening]
     let selectedIDs: [String]
     let onPick: (Happening, CGPoint) -> Bool
@@ -101,6 +104,7 @@ struct HappeningPaletteView: View {
 
     init(
         happenings: [Happening],
+        figures: [String: HappeningShapeAssignment] = [:],
         catalog: [Happening]? = nil,
         selectedIDs: [String]? = nil,
         onPick: @escaping (Happening, CGPoint) -> Bool,
@@ -112,6 +116,7 @@ struct HappeningPaletteView: View {
         dockCenterY: CGFloat? = nil
     ) {
         self.happenings = happenings
+        self.figures = figures
         self.catalog = catalog ?? happenings
         self.selectedIDs = selectedIDs ?? happenings.map(\.id)
         self.onPick = onPick
@@ -162,17 +167,36 @@ struct HappeningPaletteView: View {
             let panelHeight = max(1, proxy.size.height - panelTopInset - panelBottomInset)
 
             ZStack(alignment: .topLeading) {
-                Color.clear
+                // Frosted, not clear: the canvas stays visible and blurred
+                // behind the field instead of being painted over.
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture {
                         guard activePanel == nil else { return }
                         onDismiss()
                     }
 
-                HappeningLiquidField(
-                    happenings: happenings,
+                Text("Shake to change the shapes", comment: "Palette shake hint")
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    // `textSecondary` is a deliberate alias of `textPrimary` in
+                    // this theme — hierarchy comes from opacity, so without this
+                    // the hint reads as loud as the tile labels.
+                    .foregroundStyle(AppColors.Night.textSecondary.opacity(0.6))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .position(
+                        x: proxy.size.width / 2,
+                        y: proxy.safeAreaInsets.top + hintTopInset
+                    )
+                    .accessibilityHidden(activePanel != nil)
+
+                HappeningShapeField(
                     presentation: $presentation,
-                    dayKey: dayKey,
+                    happenings: happenings,
+                    figures: figures,
+                    bounds: fieldBounds(layout, in: proxy),
                     highlightedID: highlightedID,
                     onPick: onPick
                 )
@@ -307,6 +331,29 @@ struct HappeningPaletteView: View {
             contourBounds: layout.contourBounds,
             dockAnchor: CGPoint(x: layout.dockAnchor.x, y: localY),
             completionBounds: layout.completionBounds.map { $0.offsetBy(dx: 0, dy: shift) }
+        )
+    }
+
+    /// Clears a two-line hint. The Russian string is about a quarter longer
+    /// than the English and wraps on narrow screens and at accessibility type
+    /// sizes, so the field starts below where one line would end.
+    private var hintTopInset: CGFloat { 30 }
+
+    /// The box the tiles lay out in: the dock line above, the hint below.
+    ///
+    /// Derived from the layout that used to bound the metaball contour, so the
+    /// field keeps clearing the dock exactly as the cluster did.
+    private func fieldBounds(
+        _ layout: HappeningLiquidLayout.Layout,
+        in proxy: GeometryProxy
+    ) -> CGRect {
+        let top = proxy.safeAreaInsets.top + hintTopInset + 28
+        let bottom = layout.dockAnchor.y - 52
+        return CGRect(
+            x: 16,
+            y: top,
+            width: max(1, proxy.size.width - 32),
+            height: max(1, bottom - top)
         )
     }
 

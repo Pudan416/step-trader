@@ -195,6 +195,7 @@ struct GalleryView: View {
         if showHappeningPalette, !isWideCanvas {
             HappeningPaletteView(
                 happenings: paletteHappenings,
+                figures: model.paletteFigures(),
                 catalog: paletteCatalog,
                 selectedIDs: paletteSelectedIDs,
                 onPick: handlePalettePick,
@@ -210,11 +211,14 @@ struct GalleryView: View {
     }
 
     private func handlePalettePick(_ happening: Happening, origin: CGPoint) -> Bool {
-        let color = CanvasColorPalette.paletteHex.randomElement()
-            ?? AppColors.goldFallbackHex
+        // The tile already showed this figure. Spawning anything else would
+        // make the palette a lie, so a missing figure refuses the pick rather
+        // than falling back to a random colour and shape.
+        guard let figure = model.paletteFigures()[happening.id] else { return false }
         return addAndSpawnHappening(
             optionId: happening.id,
-            color: color,
+            color: figure.colorHex,
+            figure: figure,
             recordUse: true,
             origin: origin
         )
@@ -1116,6 +1120,7 @@ struct GalleryView: View {
     private func addAndSpawnHappening(
         optionId: String,
         color: String,
+        figure: HappeningShapeAssignment? = nil,
         recordUse: Bool = true,
         origin: CGPoint? = nil
     ) -> Bool {
@@ -1130,7 +1135,8 @@ struct GalleryView: View {
             color2: color2,
             label: model.resolveOptionTitle(for: optionId),
             existingElements: dayCanvas.elements,
-            dayKey: transactionDayKey
+            dayKey: transactionDayKey,
+            figure: figure
         )
         element.lastEditedAt = now
 
