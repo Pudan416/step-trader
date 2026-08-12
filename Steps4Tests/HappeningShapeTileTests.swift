@@ -63,6 +63,22 @@ final class HappeningShapeTileTests: XCTestCase {
         XCTAssertEqual(element.kind, .ray)
     }
 
+    /// The assignment's rotation has to reach the element, or rays tiles all
+    /// point the same way — the renderer derives cone direction from the vector
+    /// to the canvas centre, and a tile sits exactly on it.
+    func testPreviewElementCarriesTheAssignedRotation() {
+        let element = HappeningShapeTile.previewElement(
+            optionId: "happening_outside",
+            label: "Time outside",
+            shapeType: .rays,
+            colorHex: "#BA7517",
+            seed: 3,
+            rotation: 1.25
+        )
+
+        XCTAssertEqual(element.userRotation, 1.25, accuracy: 0.0001)
+    }
+
     /// A preview is a still frame. Anything that animates would make the tile
     /// drift away from the figure it is promising.
     func testPreviewElementDoesNotMove() {

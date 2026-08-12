@@ -27,7 +27,8 @@ struct HappeningShapeTile: View {
         label: String,
         shapeType: CanvasShapeType,
         colorHex: String,
-        seed: UInt64
+        seed: UInt64,
+        rotation: Double = 0
     ) -> CanvasElement {
         CanvasElement(
             id: UUID(),
@@ -48,6 +49,11 @@ struct HappeningShapeTile: View {
             rotationSpeed: 0,
             opacity: 1,
             createdAt: .now,
+            // Rays take their cone direction from the vector to the canvas
+            // centre, and a tile puts the element exactly there — so without an
+            // explicit rotation every rays tile points the same way and the
+            // seed changes nothing visible.
+            userRotation: rotation,
             shapeSeed: seed,
             frozenShapeType: shapeType
         )
