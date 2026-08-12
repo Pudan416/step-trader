@@ -48,7 +48,11 @@ struct HappeningShapeField: View {
         figure: HappeningShapeAssignment,
         frame: CGRect
     ) -> some View {
-        VStack(spacing: 4) {
+        // Shape and label share the tile rather than the label hanging below
+        // it. A VStack taller than the frame centres itself, which pushed every
+        // figure up and every label down until the two stopped reading as one
+        // thing.
+        VStack(spacing: 2) {
             HappeningShapeTile(
                 element: HappeningShapeTile.previewElement(
                     optionId: happening.id,
@@ -58,15 +62,18 @@ struct HappeningShapeField: View {
                     seed: figure.seed,
                     rotation: figure.rotation
                 ),
-                side: tileSide
+                side: frame.width * 0.68
             )
             Text(happening.localizedTitle())
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(AppColors.Night.textPrimary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
-                .frame(width: frame.width + 24)
+                // Barely wider than the tile: the rows of two sit at the same
+                // pitch as the rows of three, so a generous label box has the
+                // neighbours' text running into it.
+                .frame(width: frame.width + 6)
         }
         // `contentShape` before `.position()`, never after: `.position()`
         // expands a view to fill its parent, so a shape applied afterwards

@@ -32,7 +32,33 @@ final class HappeningShapeTileTests: XCTestCase {
 
         XCTAssertEqual(element.basePosition.x, 0.5, accuracy: 0.0001)
         XCTAssertEqual(element.basePosition.y, 0.5, accuracy: 0.0001)
-        XCTAssertEqual(element.size, HappeningShapeTile.previewSize, accuracy: 0.0001)
+        XCTAssertEqual(element.size, HappeningShapeTile.previewSize(for: .circle), accuracy: 0.0001)
+    }
+
+    /// One size for all four types renders a filled circle beside a speck of
+    /// rays — each renderer reads `size` differently, which is why `spawn`
+    /// carries a different random range per type too.
+    func testEachShapeTypeGetsItsOwnPreviewSize() {
+        // Two types landing on the same number is fine — what matters is that
+        // the ones which read differently at the same value are separated.
+        XCTAssertGreaterThan(
+            HappeningShapeTile.previewSize(for: .rays),
+            HappeningShapeTile.previewSize(for: .circle),
+            "Rays lose over half their scale to the aspect-preserving fit"
+        )
+        XCTAssertGreaterThan(
+            HappeningShapeTile.previewSize(for: .snowflake),
+            HappeningShapeTile.previewSize(for: .circle),
+            "A snowflake's arms are thin, so it needs more radius to read"
+        )
+        for shape in CanvasShapeType.selectableCases {
+            XCTAssertGreaterThan(HappeningShapeTile.previewSize(for: shape), 0)
+            XCTAssertLessThanOrEqual(
+                HappeningShapeTile.previewSize(for: shape),
+                0.45,
+                "\(shape.rawValue) clips into a square block past this"
+            )
+        }
     }
 
     /// Two tiles of the same type must differ when their seeds differ — that is

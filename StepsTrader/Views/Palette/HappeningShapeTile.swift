@@ -8,14 +8,29 @@ import SwiftUI
 /// the canvas, and a hand-drawn preview would break that promise the first time
 /// a renderer changed.
 struct HappeningShapeTile: View {
-    /// Fixed for every tile. `CanvasElement.spawn` gives each shape type its own
-    /// random size on the canvas; here they must all render at one scale or the
-    /// grid looks ragged.
+    /// Per shape type, because one number does not work for all four.
     ///
-    /// 0.24 comes from rendering a sweep of 0.10 to 0.40 and looking at it. The
-    /// renderers scale their radius by the canvas dimension, so the sizes
-    /// `spawn` uses on a full screen — 0.14 to 0.34 — overflow a 100pt tile.
-    static let previewSize: CGFloat = 0.24
+    /// The renderers read `size` as a fraction of the canvas dimension but each
+    /// interprets it differently — `spawn` already compensates with a different
+    /// random range per type. At a single 0.24 the circle filled its tile while
+    /// the blob washed out and the cones were a speck. These are calibrated by
+    /// rendering them and looking.
+    ///
+    /// Rays need by far the most because they are drawn into a box holding the
+    /// canvas aspect ratio and then scaled to fit the square, which throws away
+    /// better than half the scale.
+    static func previewSize(for shapeType: CanvasShapeType) -> CGFloat {
+        switch shapeType {
+        case .circle, .blob, .spirograph: 0.24
+        case .snowflake:                  0.34
+        // The blob's contour reaches well past its nominal radius, so it
+        // clips into a square block sooner than the others.
+        case .organicBlob:                0.24
+        // Not larger: past roughly 0.45 the cone runs past the tile's canvas
+        // and is clipped into a hard-edged block rather than reading as light.
+        case .rays:                       0.42
+        }
+    }
 
     let element: CanvasElement
     let side: CGFloat
@@ -37,7 +52,7 @@ struct HappeningShapeTile: View {
             label: label,
             hexColor: colorHex,
             hexColor2: nil,
-            size: previewSize,
+            size: previewSize(for: shapeType),
             basePosition: CGPoint(x: 0.5, y: 0.5),
             // A preview is a still frame: every animated term is zeroed so the
             // tile cannot drift away from the figure it is promising.

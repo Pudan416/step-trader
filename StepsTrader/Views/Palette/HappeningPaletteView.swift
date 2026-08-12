@@ -188,7 +188,7 @@ struct HappeningPaletteView: View {
                     .padding(.horizontal, 24)
                     .position(
                         x: proxy.size.width / 2,
-                        y: proxy.safeAreaInsets.top + hintTopInset
+                        y: panelTopInset + hintTopInset
                     )
                     .accessibilityHidden(activePanel != nil)
 
@@ -196,7 +196,7 @@ struct HappeningPaletteView: View {
                     presentation: $presentation,
                     happenings: happenings,
                     figures: figures,
-                    bounds: fieldBounds(layout, in: proxy),
+                    bounds: fieldBounds(layout, topInset: panelTopInset, width: proxy.size.width),
                     highlightedID: highlightedID,
                     onPick: onPick
                 )
@@ -334,25 +334,31 @@ struct HappeningPaletteView: View {
         )
     }
 
-    /// Clears a two-line hint. The Russian string is about a quarter longer
-    /// than the English and wraps on narrow screens and at accessibility type
-    /// sizes, so the field starts below where one line would end.
+    /// Room for the hint below the top card, with enough left over for it to
+    /// wrap to two lines at accessibility type sizes without reaching the
+    /// first row of tiles.
     private var hintTopInset: CGFloat { 30 }
 
-    /// The box the tiles lay out in: the dock line above, the hint below.
+    /// The box the tiles lay out in: below the top card and the hint, above the
+    /// dock.
     ///
-    /// Derived from the layout that used to bound the metaball contour, so the
-    /// field keeps clearing the dock exactly as the cluster did.
+    /// `topInset` is the same value the panels use, which already accounts for
+    /// `topCardHeight` — measuring from the safe area instead put the whole
+    /// first row behind the energy card.
+    ///
+    /// The bottom comes from the layout that used to bound the metaball
+    /// contour, so the field keeps clearing the dock exactly as the cluster did.
     private func fieldBounds(
         _ layout: HappeningLiquidLayout.Layout,
-        in proxy: GeometryProxy
+        topInset: CGFloat,
+        width: CGFloat
     ) -> CGRect {
-        let top = proxy.safeAreaInsets.top + hintTopInset + 28
+        let top = topInset + hintTopInset + 34
         let bottom = layout.dockAnchor.y - 52
         return CGRect(
             x: 16,
             y: top,
-            width: max(1, proxy.size.width - 32),
+            width: max(1, width - 32),
             height: max(1, bottom - top)
         )
     }
