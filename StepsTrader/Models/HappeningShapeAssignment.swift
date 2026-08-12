@@ -3,7 +3,7 @@ import Foundation
 /// The figure a happening takes for one custom day: which shape type, which
 /// colour, the seed that gives it its own silhouette within that type, and the
 /// rotation that turns it.
-struct HappeningShapeAssignment: Equatable {
+struct HappeningShapeAssignment: Hashable {
     let shapeType: CanvasShapeType
     let colorHex: String
     let seed: UInt64

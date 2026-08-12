@@ -16,6 +16,19 @@ struct HappeningShapeField: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Changes whenever any tile's figure changes, which is what a re-roll is.
+    /// Used to drive the haptic — the figures themselves are the trigger, so a
+    /// shake that changed nothing makes no bump.
+    private var figuresSignature: Int {
+        var hasher = Hasher()
+        for happening in presentation.presentedHappenings {
+            hasher.combine(happening.id)
+            hasher.combine(figures[happening.id]?.seed ?? 0)
+            hasher.combine(figures[happening.id]?.colorHex ?? "")
+        }
+        return hasher.finalize()
+    }
+
     /// Three columns have to fit the field's width at the layout's pitch, and
     /// the label below needs room under each tile. 92 is the cap; narrow
     /// screens get whatever the width allows.
@@ -41,6 +54,7 @@ struct HappeningShapeField: View {
         .onChange(of: happenings) { _, next in
             presentation.receiveParent(next, whileTransitioning: false)
         }
+        .sensoryFeedback(.impact(weight: .medium), trigger: figuresSignature)
     }
 
     private func tile(
@@ -63,6 +77,16 @@ struct HappeningShapeField: View {
                     rotation: figure.rotation
                 ),
                 side: frame.width * 0.68
+            )
+            // A Canvas redraws its new figure instantly — there is nothing
+            // between the old silhouette and the new one to interpolate. Keying
+            // the view on the figure makes the change an identity change, so
+            // the two can cross-fade instead of snapping.
+            .id(figure)
+            .transition(
+                reduceMotion
+                    ? .opacity
+                    : .opacity.combined(with: .scale(scale: 0.86))
             )
             Text(happening.localizedTitle())
                 .font(.system(size: 12, weight: .medium, design: .rounded))
