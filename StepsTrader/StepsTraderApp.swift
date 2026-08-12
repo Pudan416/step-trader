@@ -580,12 +580,11 @@ struct StepsTraderApp: App {
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let bundleId = components.queryItems?.first(where: { $0.name == "bundleId" })?.value,
               bundleId.range(of: bundleIdPattern, options: .regularExpression) != nil,
-              let scheme = TargetResolver.primaryAndFallbackSchemes(for: bundleId).first,
-              let targetURL = URL(string: scheme)
+              TargetResolver.canOpen(bundleId: bundleId)
         else { return }
 
         Task { @MainActor in
-            UIApplication.shared.open(targetURL)
+            AppLauncher.open(bundleId: bundleId)
         }
     }
 

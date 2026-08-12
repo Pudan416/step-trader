@@ -15,7 +15,6 @@ struct PaperTicketView: View {
     let colorScheme: ColorScheme
     var onSettings: () -> Void = {}
 
-    @Environment(\.openURL) private var openURL
     @State private var isUnlocking = false
     @State private var resolvedTitle: String?
     @State private var liveBudget: Int = 0
@@ -141,10 +140,10 @@ struct PaperTicketView: View {
 
     private func handleCardTap() {
         if let bundleId = group.templateApp,
-           let scheme = TargetResolver.primaryAndFallbackSchemes(for: bundleId).first,
-           let url = URL(string: scheme) {
+           TargetResolver.canOpen(bundleId: bundleId) {
             lightHapticTick &+= 1
-            openURL(url)
+            // Universal Link first, then custom schemes (see AppLauncher).
+            AppLauncher.open(bundleId: bundleId)
         } else {
             onSettings()
         }

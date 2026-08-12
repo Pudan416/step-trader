@@ -380,11 +380,20 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                 threshold: DateComponents(minute: minutes)
             )
 
-            let schedule = DeviceActivitySchedule(
-                intervalStart: DateComponents(hour: 0, minute: 0, second: 0),
-                intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
-                repeats: true
-            )
+            // Anchored at now, not midnight — see ShieldRebuildHelper.usageBudgetSchedule.
+            guard let schedule = ShieldRebuildHelper.usageBudgetSchedule() else {
+                let expiry = ShieldRebuildHelper.wallClockFallbackExpiry(
+                    defaults: defaults,
+                    groupId: group.id,
+                    minutes: minutes
+                )
+                defaults.set(expiry, forKey: SharedKeys.usageBudgetExpiryKey(group.id))
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+                MonitorLogger.info("Late-evening pending budget for \(group.name) — wall-clock fallback")
+                appendMonitorLog("pendingBudgetWallClock \(group.id): \(minutes)m")
+                continue
+            }
 
             do {
                 try center.startMonitoring(activityName, during: schedule, events: events)
