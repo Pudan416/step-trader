@@ -239,9 +239,37 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         ]
     }
 
+    /// Shake changes the figures without disturbing anything around them.
+    ///
+    /// What a UI test can see is structure, not silhouettes: the ten tiles
+    /// survive, the dock still has exactly its three buttons, and the hint is
+    /// on screen. That the figures actually changed is a thing for eyes.
+    func testShakeKeepsTheFieldAndTheDockIntact() throws {
+        let app = launchTask7App(shakeTrigger: true)
+        openPalette(in: app)
+
+        XCTAssertTrue(app.staticTexts["Shake to change the shapes"].exists)
+        for title in task7BuiltInTitles {
+            XCTAssertTrue(app.buttons[title].exists, "Missing tile before shake: \(title)")
+        }
+
+        let trigger = app.buttons["task7_shake_trigger"]
+        XCTAssertTrue(trigger.waitForExistence(timeout: 3))
+        trigger.tap()
+
+        for title in task7BuiltInTitles {
+            XCTAssertTrue(app.buttons[title].exists, "Tile lost on shake: \(title)")
+        }
+        XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
+        XCTAssertTrue(app.buttons["Close"].isHittable)
+        XCTAssertTrue(app.buttons["Add a happening"].isHittable)
+        attachScreenshot(named: "palette-shapes-after-shake")
+    }
+
     private func launchTask7App(
         dynamicTypeSize: String? = nil,
-        increasedContrast: Bool = false
+        increasedContrast: Bool = false,
+        shakeTrigger: Bool = false
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -256,6 +284,9 @@ final class Steps4UITestsLaunchTests: XCTestCase {
                 "-UIPreferredContentSizeCategoryName",
                 "UICTContentSizeCategoryAccessibilityM",
             ]
+        }
+        if shakeTrigger {
+            app.launchEnvironment["TASK7_SHAKE_PALETTE"] = "1"
         }
         if increasedContrast {
             app.launchEnvironment["TASK7_INCREASED_CONTRAST"] = "1"
