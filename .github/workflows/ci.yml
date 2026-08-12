@@ -36,6 +36,15 @@ jobs:
         # optionally included and absent here, so Debug falls back to these.)
         run: cp Config/Secrets.xcconfig.template Config/Secrets.xcconfig
 
+      - name: Check secrets config
+        # Catches the two ways this layer rots: an Info.plist growing a new
+        # $(VAR) that nobody added to the template (every machine then builds
+        # with an empty value), and the real Secrets.xcconfig being committed.
+        # Placeholders are NOT rejected here — the step above installs them on
+        # purpose, since the unit tests never hit the network. The release path
+        # (ci_scripts/ci_post_clone.sh) is where placeholders are fatal.
+        run: ./Scripts/check-secrets-config.sh
+
       - name: Run Steps4Tests
         # The HealthStoreTests observer flake (a fixed-sleep wait on a MainActor
         # hop) was fixed by polling deterministically, so the global
