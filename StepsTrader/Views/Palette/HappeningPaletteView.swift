@@ -81,6 +81,9 @@ struct HappeningPaletteView: View {
     let onSaveSelection: ([String]) -> Bool
     let onPanelPresentationChange: (Bool) -> Void
     let onDismiss: () -> Void
+    /// Shake. Nothing in the dock triggers this — the hint at the top of the
+    /// overlay is the only thing that teaches the gesture.
+    let onReroll: () -> Void
     let dayKey: String
 
     /// Global mid-Y of the canvas `+` this palette overlays. The dock sits on
@@ -96,6 +99,7 @@ struct HappeningPaletteView: View {
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Panel {
         case chooser
@@ -112,6 +116,7 @@ struct HappeningPaletteView: View {
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
         onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
         onDismiss: @escaping () -> Void,
+        onReroll: @escaping () -> Void = {},
         dayKey: String,
         dockCenterY: CGFloat? = nil
     ) {
@@ -124,6 +129,7 @@ struct HappeningPaletteView: View {
         self.onSaveSelection = onSaveSelection
         self.onPanelPresentationChange = onPanelPresentationChange
         self.onDismiss = onDismiss
+        self.onReroll = onReroll
         self.dayKey = dayKey
         self.dockCenterY = dockCenterY
         _presentation = State(
@@ -264,6 +270,16 @@ struct HappeningPaletteView: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .background(Color.clear)
+        }
+        .onShake {
+            // Not while a panel is up: a shake behind the chooser or the
+            // creator would re-roll a field the user cannot see.
+            guard activePanel == nil else { return }
+            if reduceMotion {
+                onReroll()
+            } else {
+                withAnimation(.easeInOut(duration: 0.32)) { onReroll() }
+            }
         }
         .onChange(of: activePanel) { _, panel in
             onPanelPresentationChange(panel != nil)

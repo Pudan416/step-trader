@@ -203,6 +203,7 @@ struct GalleryView: View {
                 onSaveSelection: handlePaletteSelectionSave,
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onDismiss: closeHappeningPalette,
+                onReroll: { model.rerollPaletteFigures() },
                 dayKey: todayKey,
                 dockCenterY: canvasAddButtonCenterY
             )
