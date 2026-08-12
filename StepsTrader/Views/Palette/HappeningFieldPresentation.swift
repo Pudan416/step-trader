@@ -8,7 +8,7 @@ enum RemovalPhase: Equatable {
     case reflowing
 }
 
-struct HappeningLiquidTransitionState: Equatable {
+struct HappeningFieldTransitionState: Equatable {
     private(set) var phase: RemovalPhase = .idle
     private(set) var selectedID: String?
     private(set) var queuedIDs: [String] = []
@@ -76,7 +76,7 @@ struct HappeningLiquidTransitionState: Equatable {
 /// Session presentation state shared by the field and its surrounding controls.
 /// Parent updates refresh metadata, while ids consumed in this mounted session
 /// stay consumed even if `onPick` synchronously republishes its old array.
-struct HappeningLiquidPresentationState: Equatable {
+struct HappeningFieldPresentationState: Equatable {
     private(set) var slotHappenings: [Happening]
     private(set) var presentedHappenings: [Happening]
 
@@ -97,8 +97,8 @@ struct HappeningLiquidPresentationState: Equatable {
         in size: CGSize,
         safeInsets: EdgeInsets,
         dynamicTypeSize: DynamicTypeSize = .large
-    ) -> HappeningLiquidLayout.Layout {
-        HappeningLiquidLayout.layout(
+    ) -> HappeningFieldLayout.Layout {
+        HappeningFieldLayout.layout(
             count: presentedCount,
             in: size,
             safeInsets: safeInsets,
@@ -153,7 +153,7 @@ struct HappeningLiquidPresentationState: Equatable {
     }
 }
 
-struct HappeningLiquidLabelTreatment: Equatable {
+struct HappeningFieldLabelTreatment: Equatable {
     enum Foreground: Equatable {
         case black
         case white
@@ -196,7 +196,7 @@ struct HappeningLiquidLabelTreatment: Equatable {
 
     var fieldZoneOpacity: Double { Self.fieldZoneOpacity }
 
-    /// The radial zone uses the same local two-color mix as the liquid source.
+    /// The radial zone uses the same local two-color mix as the field source.
     /// Its soft edge is translucent; this center value models the pixels under
     /// the glyphs instead of the removed opaque ellipse.
     var fieldZoneContrastRatio: Double {
@@ -241,7 +241,7 @@ struct HappeningLiquidLabelTreatment: Equatable {
     }
 }
 
-enum HappeningLiquidLabelTypography {
+enum HappeningFieldLabelTypography {
     static let pointSize: CGFloat = 14
 
     static func maximumLines(for dynamicTypeSize: DynamicTypeSize) -> Int {
@@ -285,21 +285,21 @@ enum HappeningLiquidLabelTypography {
     }
 }
 
-enum HappeningLiquidContourHitRegion {
+enum HappeningFieldContourHitRegion {
     /// Covers the seven-point luminance blur plus antialiasing at the rendered
     /// contour edge. `strokedPath` expands by half its line width.
     private static let haloOutset: CGFloat = 12
 
     static func path(
-        sources: [HappeningLiquidLayout.Source],
+        sources: [HappeningFieldLayout.Source],
         in rect: CGRect
     ) -> Path {
         expandedContour(sources: sources, in: rect)
     }
 
     static func path(
-        currentSources: [HappeningLiquidLayout.Source],
-        transitionSources: [HappeningLiquidLayout.Source],
+        currentSources: [HappeningFieldLayout.Source],
+        transitionSources: [HappeningFieldLayout.Source],
         in rect: CGRect
     ) -> Path {
         guard !transitionSources.isEmpty else {
@@ -311,12 +311,12 @@ enum HappeningLiquidContourHitRegion {
         for step in 0...interpolationSteps {
             let progress = CGFloat(step) / CGFloat(interpolationSteps)
             let sourceCount = max(currentSources.count, transitionSources.count)
-            let sources = (0..<sourceCount).compactMap { index -> HappeningLiquidLayout.Source? in
+            let sources = (0..<sourceCount).compactMap { index -> HappeningFieldLayout.Source? in
                 let oldSource = index < transitionSources.count ? transitionSources[index] : nil
                 let newSource = index < currentSources.count ? currentSources[index] : nil
                 guard let old = oldSource ?? newSource else { return nil }
                 let new = newSource ?? old
-                return HappeningLiquidLayout.Source(
+                return HappeningFieldLayout.Source(
                     index: index,
                     center: CGPoint(
                         x: old.center.x + (new.center.x - old.center.x) * progress,
@@ -331,7 +331,7 @@ enum HappeningLiquidContourHitRegion {
     }
 
     private static func expandedContour(
-        sources: [HappeningLiquidLayout.Source],
+        sources: [HappeningFieldLayout.Source],
         in rect: CGRect
     ) -> Path {
         let contour = ProceduralShapeGenerator.metaballPath(
@@ -358,20 +358,20 @@ enum HappeningLiquidContourHitRegion {
     }
 }
 
-struct HappeningLiquidRemovalStart {
+struct HappeningFieldRemovalStart {
     let happening: Happening
-    let source: HappeningLiquidLayout.Source
-    let transitionSources: [HappeningLiquidLayout.Source]
+    let source: HappeningFieldLayout.Source
+    let transitionSources: [HappeningFieldLayout.Source]
 }
 
-enum HappeningLiquidRemovalResolver {
+enum HappeningFieldRemovalResolver {
     static func resolve(
         id: String,
-        presentation: HappeningLiquidPresentationState,
+        presentation: HappeningFieldPresentationState,
         size: CGSize,
         safeInsets: EdgeInsets,
         dynamicTypeSize: DynamicTypeSize
-    ) -> HappeningLiquidRemovalStart? {
+    ) -> HappeningFieldRemovalStart? {
         guard let index = presentation.presentedHappenings.firstIndex(where: { $0.id == id }) else {
             return nil
         }
@@ -381,7 +381,7 @@ enum HappeningLiquidRemovalResolver {
             dynamicTypeSize: dynamicTypeSize
         )
         guard index < layout.sources.count else { return nil }
-        return HappeningLiquidRemovalStart(
+        return HappeningFieldRemovalStart(
             happening: presentation.presentedHappenings[index],
             source: layout.sources[index],
             transitionSources: layout.sources

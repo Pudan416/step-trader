@@ -7,7 +7,7 @@ import SwiftUI
 /// summed point fields — by construction that has no per-item silhouette to
 /// show, only the outline of a merged mass.
 struct HappeningShapeField: View {
-    @Binding var presentation: HappeningLiquidPresentationState
+    @Binding var presentation: HappeningFieldPresentationState
     let happenings: [Happening]
     let figures: [String: HappeningShapeAssignment]
     let bounds: CGRect

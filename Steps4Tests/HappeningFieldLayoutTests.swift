@@ -254,7 +254,7 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
     }
 }
 
-final class HappeningLiquidLayoutTests: XCTestCase {
+final class HappeningFieldLayoutTests: XCTestCase {
 
     private let size = CGSize(width: 402, height: 874)
     private let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
@@ -275,7 +275,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
     /// jumped to the middle, following the completion island.
     func testDockAnchorIsIdenticalForEveryItemCount() {
         let anchors = (0...10).map {
-            HappeningLiquidLayout.layout(count: $0, in: size, safeInsets: safeInsets).dockAnchor
+            HappeningFieldLayout.layout(count: $0, in: size, safeInsets: safeInsets).dockAnchor
         }
         for (count, anchor) in anchors.enumerated() {
             XCTAssertEqual(anchor.x, anchors[0].x, accuracy: 0.01, "count \(count) moved the dock")
@@ -285,7 +285,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
 
     func testDockAnchorIsIdenticalForEveryCountAtAccessibilitySizes() {
         let anchors = (0...10).map {
-            HappeningLiquidLayout.layout(
+            HappeningFieldLayout.layout(
                 count: $0, in: size, safeInsets: safeInsets, dynamicTypeSize: .accessibility3
             ).dockAnchor
         }
@@ -296,7 +296,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
 
     /// Pinned means low and stable, not floating mid-screen.
     func testDockAnchorSitsBelowTheMiddleAndClearOfBottomChrome() {
-        let anchor = HappeningLiquidLayout.layout(
+        let anchor = HappeningFieldLayout.layout(
             count: 3, in: size, safeInsets: safeInsets
         ).dockAnchor
         XCTAssertEqual(anchor.x, dockSafeBounds.midX, accuracy: 0.01)
@@ -310,7 +310,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
     /// Nothing may slide under the pinned dock.
     func testContentNeverOverlapsTheDock() {
         for count in 0...10 {
-            let layout = HappeningLiquidLayout.layout(
+            let layout = HappeningFieldLayout.layout(
                 count: count, in: size, safeInsets: safeInsets
             )
             if !layout.contourBounds.isEmpty {
@@ -330,7 +330,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
 
     func testEverySupportedCountHasAccessibleNonOverlappingLabelFrames() {
         for count in 0...10 {
-            let layout = HappeningLiquidLayout.layout(
+            let layout = HappeningFieldLayout.layout(
                 count: count, in: size, safeInsets: safeInsets
             )
 
@@ -351,7 +351,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
     }
 
     func testTenItemPhoneLayoutReservesReadableThreeLineLabelZones() {
-        let layout = HappeningLiquidLayout.layout(
+        let layout = HappeningFieldLayout.layout(
             count: 10, in: size, safeInsets: safeInsets
         )
 
@@ -370,7 +370,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
         )
 
         for count in 0...10 {
-            let layout = HappeningLiquidLayout.layout(
+            let layout = HappeningFieldLayout.layout(
                 count: count, in: size, safeInsets: safeInsets
             )
 
@@ -392,7 +392,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
         )
 
         for count in 1...10 {
-            let layout = HappeningLiquidLayout.layout(
+            let layout = HappeningFieldLayout.layout(
                 count: count, in: size, safeInsets: safeInsets
             )
             let contour = layout.contourBounds
@@ -419,7 +419,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
             .accessibility3,
             .accessibility5,
         ] {
-            let layout = HappeningLiquidLayout.layout(
+            let layout = HappeningFieldLayout.layout(
                 count: 10,
                 in: size,
                 safeInsets: safeInsets,
@@ -458,9 +458,9 @@ final class HappeningLiquidLayoutTests: XCTestCase {
     }
 
     func testRemovingIndexPreservesRelativeIdentityOrder() {
-        let ten = HappeningLiquidLayout.layout(count: 10, in: size, safeInsets: EdgeInsets())
-        let nine = HappeningLiquidLayout.layout(count: 9, in: size, safeInsets: EdgeInsets())
-        let eight = HappeningLiquidLayout.layout(count: 8, in: size, safeInsets: EdgeInsets())
+        let ten = HappeningFieldLayout.layout(count: 10, in: size, safeInsets: EdgeInsets())
+        let nine = HappeningFieldLayout.layout(count: 9, in: size, safeInsets: EdgeInsets())
+        let eight = HappeningFieldLayout.layout(count: 8, in: size, safeInsets: EdgeInsets())
 
         XCTAssertEqual(ten.sources.map(\.index), Array(0..<10))
         XCTAssertEqual(nine.sources.map(\.index), Array(0..<9))
@@ -470,7 +470,7 @@ final class HappeningLiquidLayoutTests: XCTestCase {
     }
 
     func testEmptyFieldKeepsAResidualCompletionIslandAttachedToTheDock() {
-        let layout = HappeningLiquidLayout.layout(count: 0, in: size, safeInsets: safeInsets)
+        let layout = HappeningFieldLayout.layout(count: 0, in: size, safeInsets: safeInsets)
         let safeBounds = CGRect(
             x: safeInsets.leading,
             y: safeInsets.top,
@@ -510,16 +510,16 @@ final class HappeningLiquidLayoutTests: XCTestCase {
 
     func testLayoutIsDeterministicForTheSameInputs() {
         XCTAssertEqual(
-            HappeningLiquidLayout.layout(count: 10, in: size, safeInsets: safeInsets),
-            HappeningLiquidLayout.layout(count: 10, in: size, safeInsets: safeInsets)
+            HappeningFieldLayout.layout(count: 10, in: size, safeInsets: safeInsets),
+            HappeningFieldLayout.layout(count: 10, in: size, safeInsets: safeInsets)
         )
     }
 }
 
-final class HappeningLiquidTransitionStateTests: XCTestCase {
+final class HappeningFieldTransitionStateTests: XCTestCase {
 
     func testBeginRemovalLocksTheSelectedIDAndStartsPressing() {
-        var state = HappeningLiquidTransitionState()
+        var state = HappeningFieldTransitionState()
 
         XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
         XCTAssertEqual(state.phase, .pressing)
@@ -527,7 +527,7 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
     }
 
     func testBusyTransitionIgnoresDuplicateButQueuesAnotherZone() {
-        var state = HappeningLiquidTransitionState()
+        var state = HappeningFieldTransitionState()
         XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
 
         XCTAssertFalse(state.beginRemoval(id: "happening_walk"))
@@ -541,7 +541,7 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
     }
 
     func testRapidSecondTapRunsAfterFirstReflowWithoutClosingPalette() {
-        var state = HappeningLiquidTransitionState()
+        var state = HappeningFieldTransitionState()
         XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
         XCTAssertTrue(state.beginRemoval(id: "happening_read"))
         XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
@@ -555,7 +555,7 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
     }
 
     func testRejectedFirstTapStillAdvancesAQueuedValidZone() {
-        var state = HappeningLiquidTransitionState()
+        var state = HappeningFieldTransitionState()
         XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
         XCTAssertTrue(state.beginRemoval(id: "happening_read"))
         XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
@@ -571,7 +571,7 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
         let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
         let initial = Array(HappeningDefaults.builtIns.prefix(10))
         let queued = initial[9]
-        var presentation = HappeningLiquidPresentationState(happenings: initial)
+        var presentation = HappeningFieldPresentationState(happenings: initial)
         let tenItemLayout = presentation.layout(in: size, safeInsets: safeInsets)
         let staleSource = tenItemLayout.sources[9]
 
@@ -581,7 +581,7 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
             presentation.presentedHappenings.firstIndex { $0.id == queued.id }
         )
         let resolved = try XCTUnwrap(
-            HappeningLiquidRemovalResolver.resolve(
+            HappeningFieldRemovalResolver.resolve(
                 id: queued.id,
                 presentation: presentation,
                 size: size,
@@ -605,7 +605,7 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
     }
 
     func testFinishRemovalUnlocksOnlyAfterReflowAndAllowsAnotherID() {
-        var state = HappeningLiquidTransitionState()
+        var state = HappeningFieldTransitionState()
         XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
         XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
         XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .reflowing))
@@ -619,7 +619,7 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
 
     func testCancelRemovalRollsBackEveryBusyPhaseAndUnlocksControls() {
         for terminalPhase in [RemovalPhase.pressing, .sinking, .reflowing] {
-            var state = HappeningLiquidTransitionState()
+            var state = HappeningFieldTransitionState()
             XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
             if terminalPhase == .sinking || terminalPhase == .reflowing {
                 XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
@@ -640,7 +640,7 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
     }
 
     func testRejectedBreakthroughRestoresTheZoneAndUnlocksAnotherID() {
-        var state = HappeningLiquidTransitionState()
+        var state = HappeningFieldTransitionState()
         XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
         XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
 
@@ -654,7 +654,7 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
     }
 
     func testAcceptedBreakthroughAdvancesToReflow() {
-        var state = HappeningLiquidTransitionState()
+        var state = HappeningFieldTransitionState()
         XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
         XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
 
@@ -669,15 +669,15 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
     func testTransitionHitRegionCoversOldNewAndInterpolatedVisibleContours() {
         let bounds = CGRect(x: 0, y: 0, width: 260, height: 180)
         let old = [
-            HappeningLiquidLayout.Source(index: 0, center: CGPoint(x: 50, y: 90), radius: 38),
-            HappeningLiquidLayout.Source(index: 1, center: CGPoint(x: 90, y: 90), radius: 38),
+            HappeningFieldLayout.Source(index: 0, center: CGPoint(x: 50, y: 90), radius: 38),
+            HappeningFieldLayout.Source(index: 1, center: CGPoint(x: 90, y: 90), radius: 38),
         ]
         let new = [
-            HappeningLiquidLayout.Source(index: 0, center: CGPoint(x: 170, y: 90), radius: 38),
-            HappeningLiquidLayout.Source(index: 1, center: CGPoint(x: 210, y: 90), radius: 38),
+            HappeningFieldLayout.Source(index: 0, center: CGPoint(x: 170, y: 90), radius: 38),
+            HappeningFieldLayout.Source(index: 1, center: CGPoint(x: 210, y: 90), radius: 38),
         ]
 
-        let hitRegion = HappeningLiquidContourHitRegion.path(
+        let hitRegion = HappeningFieldContourHitRegion.path(
             currentSources: new,
             transitionSources: old,
             in: bounds
@@ -690,7 +690,7 @@ final class HappeningLiquidTransitionStateTests: XCTestCase {
     }
 }
 
-final class HappeningLiquidPresentationStateTests: XCTestCase {
+final class HappeningFieldPresentationStateTests: XCTestCase {
 
     private let size = CGSize(width: 402, height: 874)
     private let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
@@ -699,7 +699,7 @@ final class HappeningLiquidPresentationStateTests: XCTestCase {
         let initial = Array(HappeningDefaults.builtIns.prefix(3))
         let removed = initial[0]
         let survivor = initial[1]
-        var state = HappeningLiquidPresentationState(happenings: initial)
+        var state = HappeningFieldPresentationState(happenings: initial)
 
         var parentRefresh = initial
         parentRefresh[1].useCount = 7
@@ -716,7 +716,7 @@ final class HappeningLiquidPresentationStateTests: XCTestCase {
     }
 
     func testSharedPresentationCountLeavesDockFixedThroughTenNineEight() {
-        var state = HappeningLiquidPresentationState(
+        var state = HappeningFieldPresentationState(
             happenings: Array(HappeningDefaults.builtIns.prefix(10))
         )
 
@@ -745,20 +745,20 @@ final class HappeningLiquidPresentationStateTests: XCTestCase {
 final class HappeningPaletteLabelContrastTests: XCTestCase {
 
     func testLuminanceEndpoints() {
-        XCTAssertEqual(HappeningLiquidLabelTreatment.relativeLuminance(ofHex: "#000000"), 0, accuracy: 0.001)
-        XCTAssertEqual(HappeningLiquidLabelTreatment.relativeLuminance(ofHex: "#FFFFFF"), 1, accuracy: 0.001)
+        XCTAssertEqual(HappeningFieldLabelTreatment.relativeLuminance(ofHex: "#000000"), 0, accuracy: 0.001)
+        XCTAssertEqual(HappeningFieldLabelTreatment.relativeLuminance(ofHex: "#FFFFFF"), 1, accuracy: 0.001)
     }
 
     func testLuminanceToleratesMissingHashAndWhitespace() {
         XCTAssertEqual(
-            HappeningLiquidLabelTreatment.relativeLuminance(ofHex: " FFFFFF "),
-            HappeningLiquidLabelTreatment.relativeLuminance(ofHex: "#FFFFFF"),
+            HappeningFieldLabelTreatment.relativeLuminance(ofHex: " FFFFFF "),
+            HappeningFieldLabelTreatment.relativeLuminance(ofHex: "#FFFFFF"),
             accuracy: 0.001
         )
     }
 
     func testTreatmentUsesProductionWeightedTwoColorBlend() {
-        let treatment = HappeningLiquidLabelTreatment(
+        let treatment = HappeningFieldLabelTreatment(
             primaryHex: "#CC5050",
             accentHex: "#E098A0"
         )
@@ -774,13 +774,13 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
 
         for count in 1...10 {
-            let layout = HappeningLiquidLayout.layout(
+            let layout = HappeningFieldLayout.layout(
                 count: count,
                 in: size,
                 safeInsets: safeInsets
             )
             for labelFrame in layout.labelFrames {
-                let textSize = HappeningLiquidLabelTreatment.inscribedTextSize(
+                let textSize = HappeningFieldLabelTreatment.inscribedTextSize(
                     in: labelFrame.size
                 )
                 XCTAssertGreaterThanOrEqual(textSize.width / labelFrame.width, 0.82)
@@ -790,13 +790,13 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
     }
 
     func testAccessibilityTypographyExpandsGeometryAndFitsEveryPrimaryLabel() {
-        let standardLayout = HappeningLiquidLayout.layout(
+        let standardLayout = HappeningFieldLayout.layout(
             count: 10,
             in: CGSize(width: 402, height: 874),
             safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
             dynamicTypeSize: .large
         )
-        let accessibilityLayout = HappeningLiquidLayout.layout(
+        let accessibilityLayout = HappeningFieldLayout.layout(
             count: 10,
             in: CGSize(width: 402, height: 874),
             safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
@@ -837,7 +837,7 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         }
 
         for (happening, frame) in zip(HappeningDefaults.builtIns, accessibilityLayout.labelFrames) {
-            let textSize = HappeningLiquidLabelTreatment.inscribedTextSize(in: frame.size)
+            let textSize = HappeningFieldLabelTreatment.inscribedTextSize(in: frame.size)
             let measured = (happening.localizedTitle() as NSString).boundingRect(
                 with: CGSize(width: textSize.width, height: .greatestFiniteMagnitude),
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
@@ -859,13 +859,13 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
     }
 
     func testCompletionMessageGetsLargerGeometryAtAccessibilitySizes() {
-        let standard = HappeningLiquidLayout.layout(
+        let standard = HappeningFieldLayout.layout(
             count: 0,
             in: CGSize(width: 402, height: 874),
             safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
             dynamicTypeSize: .large
         )
-        let accessibility = HappeningLiquidLayout.layout(
+        let accessibility = HappeningFieldLayout.layout(
             count: 0,
             in: CGSize(width: 402, height: 874),
             safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
@@ -959,7 +959,7 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
                 "\(typeSize) uses expanded field geometry and must hide surrounding chrome"
             )
 
-            let layout = HappeningLiquidLayout.layout(
+            let layout = HappeningFieldLayout.layout(
                 count: 10,
                 in: size,
                 safeInsets: safeInsets,
@@ -1026,16 +1026,16 @@ final class CanvasSpawnOriginMapperTests: XCTestCase {
     }
 }
 
-final class HappeningLiquidContourHitRegionTests: XCTestCase {
+final class HappeningFieldContourHitRegionTests: XCTestCase {
 
     func testHitRegionIncludesVisibleMetaballNeckOutsideSourceCircles() {
         let sources = [
-            HappeningLiquidLayout.Source(
+            HappeningFieldLayout.Source(
                 index: 0,
                 center: CGPoint(x: 80, y: 100),
                 radius: 42
             ),
-            HappeningLiquidLayout.Source(
+            HappeningFieldLayout.Source(
                 index: 1,
                 center: CGPoint(x: 180, y: 100),
                 radius: 42
@@ -1046,7 +1046,7 @@ final class HappeningLiquidContourHitRegionTests: XCTestCase {
         XCTAssertGreaterThan(hypot(neck.x - sources[0].center.x, neck.y - sources[0].center.y), 42)
         XCTAssertGreaterThan(hypot(neck.x - sources[1].center.x, neck.y - sources[1].center.y), 42)
         XCTAssertTrue(
-            HappeningLiquidContourHitRegion.path(
+            HappeningFieldContourHitRegion.path(
                 sources: sources,
                 in: CGRect(x: 0, y: 0, width: 260, height: 200)
             ).contains(neck)
@@ -1055,7 +1055,7 @@ final class HappeningLiquidContourHitRegionTests: XCTestCase {
 
     func testHitRegionIncludesAntialiasedHaloOutsideSingleSourceContour() {
         let sources = [
-            HappeningLiquidLayout.Source(
+            HappeningFieldLayout.Source(
                 index: 0,
                 center: CGPoint(x: 100, y: 100),
                 radius: 40
@@ -1063,7 +1063,7 @@ final class HappeningLiquidContourHitRegionTests: XCTestCase {
         ]
 
         XCTAssertTrue(
-            HappeningLiquidContourHitRegion.path(
+            HappeningFieldContourHitRegion.path(
                 sources: sources,
                 in: CGRect(x: 0, y: 0, width: 200, height: 200)
             ).contains(CGPoint(x: 150, y: 100))

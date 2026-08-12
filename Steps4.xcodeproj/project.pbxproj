@@ -153,8 +153,8 @@
 		DA0011001100110011000011 /* HappeningPaletteSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0011001100110011000010 /* HappeningPaletteSelection.swift */; };
 		DA0012001200120012000011 /* HappeningPaletteSelectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0012001200120012000010 /* HappeningPaletteSelectionStore.swift */; };
 		DA0024002400240024000011 /* HappeningShapeNonceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0024002400240024000010 /* HappeningShapeNonceStore.swift */; };
-		DA00130013001300130013B1 /* HappeningLiquidLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00130013001300130013B0 /* HappeningLiquidLayout.swift */; };
-		DA00140014001400140014B1 /* HappeningLiquidField.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00140014001400140014B0 /* HappeningLiquidField.swift */; };
+		DA00130013001300130013B1 /* HappeningFieldLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00130013001300130013B0 /* HappeningFieldLayout.swift */; };
+		DA00140014001400140014B1 /* HappeningFieldPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00140014001400140014B0 /* HappeningFieldPresentation.swift */; };
 		DA00150015001500150015B1 /* HappeningChooserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00150015001500150015B0 /* HappeningChooserView.swift */; };
 		DA000E000E000E000E0000E1 /* HappeningPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */; };
 		DA0020002000200020000011 /* HappeningShapeTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0020002000200020000010 /* HappeningShapeTile.swift */; };
@@ -238,7 +238,7 @@
 		DA0026002600260026000011 /* HappeningShapeAssignmentModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0026002600260026000010 /* HappeningShapeAssignmentModelTests.swift */; };
 		DA0028002800280028000011 /* HappeningTileLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0028002800280028000010 /* HappeningTileLayoutTests.swift */; };
 		DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */; };
-		DA00130013001300130013C1 /* HappeningLiquidLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00130013001300130013C0 /* HappeningLiquidLayoutTests.swift */; };
+		DA00130013001300130013C1 /* HappeningFieldLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00130013001300130013C0 /* HappeningFieldLayoutTests.swift */; };
 		DA0010001000100010001011 /* HappeningAdditionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0010001000100010001010 /* HappeningAdditionsTests.swift */; };
 		DA0002000200020002000021 /* canvas_legacy_categorised.json in Resources */ = {isa = PBXBuildFile; fileRef = DA0002000200020002000020 /* canvas_legacy_categorised.json */; };
 		AC000001300400000000AC01 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000002300400000000AC02 /* AppConstants.swift */; };
@@ -487,8 +487,8 @@
 		DA0011001100110011000010 /* HappeningPaletteSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteSelection.swift; sourceTree = "<group>"; };
 		DA0012001200120012000010 /* HappeningPaletteSelectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteSelectionStore.swift; sourceTree = "<group>"; };
 		DA0024002400240024000010 /* HappeningShapeNonceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeNonceStore.swift; sourceTree = "<group>"; };
-		DA00130013001300130013B0 /* HappeningLiquidLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningLiquidLayout.swift; sourceTree = "<group>"; };
-		DA00140014001400140014B0 /* HappeningLiquidField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningLiquidField.swift; sourceTree = "<group>"; };
+		DA00130013001300130013B0 /* HappeningFieldLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFieldLayout.swift; sourceTree = "<group>"; };
+		DA00140014001400140014B0 /* HappeningFieldPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFieldPresentation.swift; sourceTree = "<group>"; };
 		DA00150015001500150015B0 /* HappeningChooserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningChooserView.swift; sourceTree = "<group>"; };
 		DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteView.swift; sourceTree = "<group>"; };
 		DA0020002000200020000010 /* HappeningShapeTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeTile.swift; sourceTree = "<group>"; };
@@ -572,7 +572,7 @@
 		DA0026002600260026000010 /* HappeningShapeAssignmentModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeAssignmentModelTests.swift; sourceTree = "<group>"; };
 		DA0028002800280028000010 /* HappeningTileLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningTileLayoutTests.swift; sourceTree = "<group>"; };
 		DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllowedCanvasShapesTests.swift; sourceTree = "<group>"; };
-		DA00130013001300130013C0 /* HappeningLiquidLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningLiquidLayoutTests.swift; sourceTree = "<group>"; };
+		DA00130013001300130013C0 /* HappeningFieldLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFieldLayoutTests.swift; sourceTree = "<group>"; };
 		DA0010001000100010001010 /* HappeningAdditionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningAdditionsTests.swift; sourceTree = "<group>"; };
 		DA0002000200020002000020 /* canvas_legacy_categorised.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/canvas_legacy_categorised.json; sourceTree = "<group>"; };
 		AC000002300400000000AC02 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
@@ -1159,7 +1159,7 @@
 				DA0026002600260026000010 /* HappeningShapeAssignmentModelTests.swift */,
 				DA0028002800280028000010 /* HappeningTileLayoutTests.swift */,
 				DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */,
-				DA00130013001300130013C0 /* HappeningLiquidLayoutTests.swift */,
+				DA00130013001300130013C0 /* HappeningFieldLayoutTests.swift */,
 				DA0010001000100010001010 /* HappeningAdditionsTests.swift */,
 				DA0002000200020002000020 /* canvas_legacy_categorised.json */,
 			);
@@ -1186,8 +1186,8 @@
 		DA000D000D000D000D0000D0 /* Palette */ = {
 			isa = PBXGroup;
 			children = (
-				DA00130013001300130013B0 /* HappeningLiquidLayout.swift */,
-				DA00140014001400140014B0 /* HappeningLiquidField.swift */,
+				DA00130013001300130013B0 /* HappeningFieldLayout.swift */,
+				DA00140014001400140014B0 /* HappeningFieldPresentation.swift */,
 				DA00150015001500150015B0 /* HappeningChooserView.swift */,
 				DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */,
 				DA0020002000200020000010 /* HappeningShapeTile.swift */,
@@ -1558,8 +1558,8 @@
 				DA0011001100110011000011 /* HappeningPaletteSelection.swift in Sources */,
 				DA0012001200120012000011 /* HappeningPaletteSelectionStore.swift in Sources */,
 				DA0024002400240024000011 /* HappeningShapeNonceStore.swift in Sources */,
-				DA00130013001300130013B1 /* HappeningLiquidLayout.swift in Sources */,
-				DA00140014001400140014B1 /* HappeningLiquidField.swift in Sources */,
+				DA00130013001300130013B1 /* HappeningFieldLayout.swift in Sources */,
+				DA00140014001400140014B1 /* HappeningFieldPresentation.swift in Sources */,
 				DA00150015001500150015B1 /* HappeningChooserView.swift in Sources */,
 				DA000E000E000E000E0000E1 /* HappeningPaletteView.swift in Sources */,
 				DA0020002000200020000011 /* HappeningShapeTile.swift in Sources */,
@@ -1734,7 +1734,7 @@
 				DA0026002600260026000011 /* HappeningShapeAssignmentModelTests.swift in Sources */,
 				DA0028002800280028000011 /* HappeningTileLayoutTests.swift in Sources */,
 				DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */,
-				DA00130013001300130013C1 /* HappeningLiquidLayoutTests.swift in Sources */,
+				DA00130013001300130013C1 /* HappeningFieldLayoutTests.swift in Sources */,
 				DA0010001000100010001011 /* HappeningAdditionsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

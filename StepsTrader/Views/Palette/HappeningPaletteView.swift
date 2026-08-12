@@ -60,7 +60,7 @@ enum HappeningPaletteChromeLayout {
         dynamicTypeSize: DynamicTypeSize
     ) -> Bool {
         isPalettePresented
-            && (isPanelPresented || HappeningLiquidLayout.usesExpandedLayout(for: dynamicTypeSize))
+            && (isPanelPresented || HappeningFieldLayout.usesExpandedLayout(for: dynamicTypeSize))
     }
 
     static func showsCanvasControls(isPalettePresented: Bool) -> Bool {
@@ -91,7 +91,7 @@ struct HappeningPaletteView: View {
     /// Nil only before the first layout pass reports it.
     let dockCenterY: CGFloat?
 
-    @State private var presentation: HappeningLiquidPresentationState
+    @State private var presentation: HappeningFieldPresentationState
     @State private var activePanel: Panel?
     @State private var highlightedID: String?
     @State private var highlightTask: Task<Void, Never>?
@@ -133,7 +133,7 @@ struct HappeningPaletteView: View {
         self.dayKey = dayKey
         self.dockCenterY = dockCenterY
         _presentation = State(
-            initialValue: HappeningLiquidPresentationState(happenings: happenings)
+            initialValue: HappeningFieldPresentationState(happenings: happenings)
         )
     }
 
@@ -345,14 +345,14 @@ struct HappeningPaletteView: View {
     /// cluster clears its own dock line, and the two sit within a few points
     /// of each other.
     private func alignedToCanvasControls(
-        _ layout: HappeningLiquidLayout.Layout,
+        _ layout: HappeningFieldLayout.Layout,
         in proxy: GeometryProxy
-    ) -> HappeningLiquidLayout.Layout {
+    ) -> HappeningFieldLayout.Layout {
         guard let dockCenterY else { return layout }
         let localY = dockCenterY - proxy.frame(in: .global).minY
         guard localY.isFinite, localY > 0 else { return layout }
         let shift = localY - layout.dockAnchor.y
-        return HappeningLiquidLayout.Layout(
+        return HappeningFieldLayout.Layout(
             sources: layout.sources,
             labelFrames: layout.labelFrames,
             contourBounds: layout.contourBounds,
@@ -376,7 +376,7 @@ struct HappeningPaletteView: View {
     /// The bottom comes from the layout that used to bound the metaball
     /// contour, so the field keeps clearing the dock exactly as the cluster did.
     private func fieldBounds(
-        _ layout: HappeningLiquidLayout.Layout,
+        _ layout: HappeningFieldLayout.Layout,
         topInset: CGFloat,
         width: CGFloat
     ) -> CGRect {
