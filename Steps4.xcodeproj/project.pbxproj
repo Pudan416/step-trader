@@ -231,6 +231,7 @@
 		DA0021002100210021000011 /* HappeningShapeTileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0021002100210021000010 /* HappeningShapeTileTests.swift */; };
 		DA0023002300230023000011 /* HappeningShapeAssignmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0023002300230023000010 /* HappeningShapeAssignmentTests.swift */; };
 		DA0025002500250025000011 /* HappeningShapeNonceStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0025002500250025000010 /* HappeningShapeNonceStoreTests.swift */; };
+		DA0030003000300030000011 /* CanvasElementSpawnFigureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0030003000300030000010 /* CanvasElementSpawnFigureTests.swift */; };
 		DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */; };
 		DA00130013001300130013C1 /* HappeningLiquidLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00130013001300130013C0 /* HappeningLiquidLayoutTests.swift */; };
 		DA0010001000100010001011 /* HappeningAdditionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0010001000100010001010 /* HappeningAdditionsTests.swift */; };
@@ -559,6 +560,7 @@
 		DA0021002100210021000010 /* HappeningShapeTileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeTileTests.swift; sourceTree = "<group>"; };
 		DA0023002300230023000010 /* HappeningShapeAssignmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeAssignmentTests.swift; sourceTree = "<group>"; };
 		DA0025002500250025000010 /* HappeningShapeNonceStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeNonceStoreTests.swift; sourceTree = "<group>"; };
+		DA0030003000300030000010 /* CanvasElementSpawnFigureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasElementSpawnFigureTests.swift; sourceTree = "<group>"; };
 		DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllowedCanvasShapesTests.swift; sourceTree = "<group>"; };
 		DA00130013001300130013C0 /* HappeningLiquidLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningLiquidLayoutTests.swift; sourceTree = "<group>"; };
 		DA0010001000100010001010 /* HappeningAdditionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningAdditionsTests.swift; sourceTree = "<group>"; };
@@ -1143,6 +1145,7 @@
 				DA0021002100210021000010 /* HappeningShapeTileTests.swift */,
 				DA0023002300230023000010 /* HappeningShapeAssignmentTests.swift */,
 				DA0025002500250025000010 /* HappeningShapeNonceStoreTests.swift */,
+				DA0030003000300030000010 /* CanvasElementSpawnFigureTests.swift */,
 				DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */,
 				DA00130013001300130013C0 /* HappeningLiquidLayoutTests.swift */,
 				DA0010001000100010001010 /* HappeningAdditionsTests.swift */,
@@ -1709,6 +1712,7 @@
 				DA0021002100210021000011 /* HappeningShapeTileTests.swift in Sources */,
 				DA0023002300230023000011 /* HappeningShapeAssignmentTests.swift in Sources */,
 				DA0025002500250025000011 /* HappeningShapeNonceStoreTests.swift in Sources */,
+				DA0030003000300030000011 /* CanvasElementSpawnFigureTests.swift in Sources */,
 				DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */,
 				DA00130013001300130013C1 /* HappeningLiquidLayoutTests.swift in Sources */,
 				DA0010001000100010001011 /* HappeningAdditionsTests.swift in Sources */,

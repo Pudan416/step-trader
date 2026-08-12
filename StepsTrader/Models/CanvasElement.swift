@@ -214,9 +214,14 @@ struct CanvasElement: Identifiable, Codable {
         forcedVariant: Int? = nil,
         allowedShapeTypes: [CanvasShapeType] = CanvasShapeType.allowedByUser,
         dayKey: String? = nil,
-        activityCount: Int? = nil
+        activityCount: Int? = nil,
+        figure: HappeningShapeAssignment? = nil
     ) -> CanvasElement {
-        let shapeType = allowedShapeTypes.randomElement() ?? .circle
+        // The palette shows the figure before the tap, so it has to decide it:
+        // a roll made here could not be previewed. When no figure is supplied
+        // — every caller other than the palette — this rolls its own exactly as
+        // it always has.
+        let shapeType = figure?.shapeType ?? (allowedShapeTypes.randomElement() ?? .circle)
 
         let kind: ElementKind = switch shapeType {
             case .blob, .organicBlob, .snowflake, .circle, .spirograph: .circle
@@ -242,15 +247,18 @@ struct CanvasElement: Identifiable, Codable {
             ? Double.random(in: 0.20...0.45)
             : Double.random(in: 0.35...0.75)
 
-        let seed = dayKey.map { makeSeed(optionId: optionId, dayKey: $0, index: existingElements.count) }
+        let seed = figure?.seed
+            ?? dayKey.map { makeSeed(optionId: optionId, dayKey: $0, index: existingElements.count) }
             ?? UInt64.random(in: UInt64.min...UInt64.max)
 
+        // Size, opacity and motion stay random even with a figure: the palette
+        // promises the figure, not how large it lands or how it moves.
         return CanvasElement(
             id: id,
             kind: kind,
             optionId: optionId,
             label: label,
-            hexColor: color,
+            hexColor: figure?.colorHex ?? color,
             hexColor2: color2,
             size: size,
             basePosition: position,
@@ -263,6 +271,7 @@ struct CanvasElement: Identifiable, Codable {
             opacity: opacity,
             createdAt: .now,
             assetVariant: variant,
+            userRotation: figure?.rotation ?? 0,
             shapeSeed: seed,
             activityCount: activityCount,
             frozenShapeType: shapeType
