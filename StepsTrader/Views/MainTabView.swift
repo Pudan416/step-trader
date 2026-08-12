@@ -257,22 +257,6 @@ struct MainTabView: View {
                 // fires the notification the window would have posted. Gated on
                 // the environment variable, so it cannot exist in a shipping
                 // build.
-                if ProcessInfo.processInfo.environment["TASK7_SHAKE_PALETTE"] == "1" {
-                    Button("Fire shake") {
-                        NotificationCenter.default.post(
-                            name: UIDevice.deviceDidShakeNotification,
-                            object: nil
-                        )
-                    }
-                    .frame(width: 44, height: 44)
-                    .opacity(0.02)
-                    .accessibilityIdentifier("task7_shake_trigger")
-                    // Above the palette and out of the field's way. Sitting
-                    // under the overlay, its tap reached the dismissing
-                    // backdrop instead and closed the palette.
-                    .position(x: 24, y: 24)
-                    .zIndex(999)
-                }
             }
         }
         .overlay(alignment: .top) {

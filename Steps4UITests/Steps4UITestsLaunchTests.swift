@@ -253,16 +253,20 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             XCTAssertTrue(app.buttons[title].exists, "Missing tile before shake: \(title)")
         }
 
-        let trigger = app.buttons["task7_shake_trigger"]
-        XCTAssertTrue(trigger.waitForExistence(timeout: 3))
-        trigger.tap()
+        // The fixture shakes the palette 1.2s after it appears — nothing to
+        // tap, because a tap anywhere over the field reaches the dismissing
+        // backdrop and closes the palette instead.
+        Thread.sleep(forTimeInterval: 3)
 
+        // Dock first: if the palette closed instead of re-rolling, the tiles
+        // being gone says nothing about the shake.
+        XCTAssertTrue(app.buttons["Choose happenings"].isHittable, "Palette closed")
+        XCTAssertTrue(app.buttons["Close"].isHittable)
+        XCTAssertTrue(app.buttons["Add a happening"].isHittable)
+        XCTAssertTrue(app.staticTexts["Shake to change the shapes"].exists, "Hint gone")
         for title in task7BuiltInTitles {
             XCTAssertTrue(app.buttons[title].exists, "Tile lost on shake: \(title)")
         }
-        XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
-        XCTAssertTrue(app.buttons["Close"].isHittable)
-        XCTAssertTrue(app.buttons["Add a happening"].isHittable)
         attachScreenshot(named: "palette-shapes-after-shake")
     }
 

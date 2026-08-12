@@ -271,6 +271,17 @@ struct HappeningPaletteView: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
             .background(Color.clear)
         }
+        .task {
+            // XCUITest cannot synthesise a shake and a tappable trigger just
+            // gets swallowed by the palette's own dismissing backdrop, so under
+            // the fixture the palette shakes itself once after it appears.
+            guard ProcessInfo.processInfo.environment["TASK7_SHAKE_PALETTE"] == "1" else { return }
+            try? await Task.sleep(for: .milliseconds(1200))
+            NotificationCenter.default.post(
+                name: UIDevice.deviceDidShakeNotification,
+                object: nil
+            )
+        }
         .onShake {
             // Not while a panel is up: a shake behind the chooser or the
             // creator would re-roll a field the user cannot see.
