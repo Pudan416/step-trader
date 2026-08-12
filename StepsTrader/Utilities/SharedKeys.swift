@@ -120,6 +120,16 @@ enum SharedKeys {
     /// The user's persistent, ordered ten-slot palette selection.
     static let happeningPaletteSelection = "happeningPaletteSelection_v2"
 
+    /// Seeds every palette figure for the day — shape type, colour, silhouette
+    /// and rotation are all derived from it, so it is the only thing stored.
+    /// Shaking the phone mints a new one.
+    static let happeningShapeNonce = "happeningShapeNonce_v1"
+
+    /// The day the stored nonce belongs to. A read against any other day mints
+    /// a fresh nonce, which is what rolls the figures over at the user's day
+    /// end without a separate hook.
+    static let happeningShapeNonceDayKey = "happeningShapeNonceDayKey_v1"
+
     /// Read only when a v2 selection does not exist, to migrate the v1 frozen
     /// order. New code must never write this key.
     static let legacyHappeningPaletteOrderIds = "paletteOrderIds_v1"
