@@ -97,10 +97,6 @@
 		20B884442FAF9B8C0088AA6D /* BlockingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8843E2FAF9B8C0088AA6D /* BlockingStore.swift */; };
 		20B884452FAF9B8C0088AA6D /* SubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B884402FAF9B8C0088AA6D /* SubscriptionStore.swift */; };
 		20B884462FAF9B8C0088AA6D /* HealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8843F2FAF9B8C0088AA6D /* HealthStore.swift */; };
-		20B884482FAF9BBB0088AA6D /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B884472FAF9BBB0088AA6D /* PaywallView.swift */; };
-		20B8844A2FAF9BD30088AA6D /* SettingsSubscriptionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B884492FAF9BD30088AA6D /* SettingsSubscriptionPage.swift */; };
-		20B8844F2FAF9CD90088AA6D /* Configuration.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 20B8844E2FAF9CD90088AA6D /* Configuration.storekit */; };
-		20B884502FAF9CD90088AA6D /* Configuration.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 20B8844E2FAF9CD90088AA6D /* Configuration.storekit */; };
 		20C7E6142F8BF2A200BD06AA /* CanvasShapePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C7E6132F8BF2A200BD06AA /* CanvasShapePreview.swift */; };
 		20CC02012F86000000000001 /* SettingsAppearancePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01012F86000000000001 /* SettingsAppearancePage.swift */; };
 		20CC02022F86000000000002 /* GradientPreviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01022F86000000000002 /* GradientPreviewSheet.swift */; };
@@ -421,9 +417,6 @@
 		20B884412FAF9B8C0088AA6D /* UserEconomyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserEconomyStore.swift; sourceTree = "<group>"; };
 		PREF5702570057005700F001 /* PreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStore.swift; sourceTree = "<group>"; };
 		DA0006000600060006000060 /* HappeningStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningStore.swift; sourceTree = "<group>"; };
-		20B884472FAF9BBB0088AA6D /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
-		20B884492FAF9BD30088AA6D /* SettingsSubscriptionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSubscriptionPage.swift; sourceTree = "<group>"; };
-		20B8844E2FAF9CD90088AA6D /* Configuration.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Configuration.storekit; sourceTree = "<group>"; };
 		20C7E6132F8BF2A200BD06AA /* CanvasShapePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasShapePreview.swift; sourceTree = "<group>"; };
 		20CC01012F86000000000001 /* SettingsAppearancePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAppearancePage.swift; sourceTree = "<group>"; };
 		20CC01022F86000000000002 /* GradientPreviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradientPreviewSheet.swift; sourceTree = "<group>"; };
@@ -766,7 +759,6 @@
 		2089F0B62E71A18E00ABF5FA /* Steps4 */ = {
 			isa = PBXGroup;
 			children = (
-				20B8844E2FAF9CD90088AA6D /* Configuration.storekit */,
 				2089F0F42E72EC1700ABF5FA /* Info.plist */,
 				2089F0BD2E71A18F00ABF5FA /* Preview Content */,
 			);
@@ -946,7 +938,6 @@
 				7C2B2D3E4F5A6B7C8D9E0F11 /* OnboardingDemoView.swift */,
 				A0B10000A0B10000A0B10000 /* Onboarding */,
 				2061EB802F269C99009FEC24 /* PayGateView.swift */,
-				20B884472FAF9BBB0088AA6D /* PaywallView.swift */,
 				2061EB812F269C99009FEC24 /* QuickStatusView.swift */,
 				2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */,
 				2061EB982F269CF7009FEC24 /* ManualsPage.swift */,
@@ -992,7 +983,6 @@
 				20CC01042F86000000000004 /* SettingsShortcutPage.swift */,
 				20CC01052F86000000000005 /* SettingsWidgetPage.swift */,
 				20CC01062F86000000000006 /* SettingsAboutPage.swift */,
-				20B884492FAF9BD30088AA6D /* SettingsSubscriptionPage.swift */,
 				20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */,
 				20CC01072F86000000000007 /* SettingsComponents.swift */,
 			);
@@ -1400,7 +1390,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */,
-				20B884502FAF9CD90088AA6D /* Configuration.storekit in Resources */,
 				20E3AE142F3F6C1C007CF1EC /* Assets.xcassets in Resources */,
 				20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */,
 				20A8F0022F3D000100000002 /* PrivacyInfo.xcprivacy in Resources */,
@@ -1433,7 +1422,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				20B8844F2FAF9CD90088AA6D /* Configuration.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1597,7 +1585,6 @@
 				20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */,
 				20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */,
 				20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */,
-				20B884482FAF9BBB0088AA6D /* PaywallView.swift in Sources */,
 				20C7E6142F8BF2A200BD06AA /* CanvasShapePreview.swift in Sources */,
 				70CF00023004000070CF0002 /* CanvasFrameView.swift in Sources */,
 				80PS00023005000080PS0002 /* PosterStyle.swift in Sources */,
@@ -1612,7 +1599,6 @@
 				20SS02032F87000000000003 /* SupabaseSyncService+Stats.swift in Sources */,
 				20SS02042F87000000000004 /* SupabaseSyncService+Canvas.swift in Sources */,
 				20SS02052F87000000000005 /* SupabaseSyncService+TicketGroups.swift in Sources */,
-				20B8844A2FAF9BD30088AA6D /* SettingsSubscriptionPage.swift in Sources */,
 				20SS02062F87000000000006 /* SupabaseSyncService+Preferences.swift in Sources */,
 				20SS02072F87000000000007 /* SupabaseSyncService+Spent.swift in Sources */,
 				20SS02082F87000000000008 /* SupabaseSyncService+Entries.swift in Sources */,
