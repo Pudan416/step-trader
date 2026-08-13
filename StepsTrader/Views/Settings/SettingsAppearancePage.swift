@@ -29,14 +29,10 @@ struct SettingsAppearancePage: View {
         EnergyGradientRenderer.palette(for: selectedPalette)
     }
 
-    private var canUseDailyRandom: Bool {
-        SubscriptionGate.canUseDailyRandomTheme(isPro: model.isPro)
-    }
-
     private var canCustomizeShapes: Bool { true }
 
     private var isDailyRandomActive: Bool {
-        dailyRandomThemeEnabled && canUseDailyRandom
+        dailyRandomThemeEnabled
     }
 
     var body: some View {
@@ -104,14 +100,9 @@ struct SettingsAppearancePage: View {
                 .background(Circle().fill((isDailyRandomActive ? AppColors.brandAccent : theme.adaptiveSecondaryText).opacity(0.12)))
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(String(localized: "Daily random theme"))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(theme.adaptivePrimaryText)
-                    if !canUseDailyRandom {
-                        proBadge
-                    }
-                }
+                Text(String(localized: "Daily random theme"))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(theme.adaptivePrimaryText)
                 Text(isDailyRandomActive
                      ? String(localized: "Randomizes color & gradient style each day.")
                      : String(localized: "A fresh palette + style every day."))
@@ -121,30 +112,19 @@ struct SettingsAppearancePage: View {
 
             Spacer(minLength: 0)
 
-            if canUseDailyRandom {
-                Toggle("", isOn: Binding(
-                    get: { dailyRandomThemeEnabled },
-                    set: { newValue in
-                        model.setDailyRandomTheme(enabled: newValue)
-                                                lightHapticTick &+= 1
-                    }
-                ))
-                .labelsHidden()
-                .tint(AppColors.brandAccent)
-            } else {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(AppColors.brandAccent)
-            }
+            Toggle("", isOn: Binding(
+                get: { dailyRandomThemeEnabled },
+                set: { newValue in
+                    model.setDailyRandomTheme(enabled: newValue)
+                                            lightHapticTick &+= 1
+                }
+            ))
+            .labelsHidden()
+            .tint(AppColors.brandAccent)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .contentShape(Rectangle())
-        .onTapGesture {
-            if !canUseDailyRandom {
-                                lightHapticTick &+= 1
-            }
-        }
         .accessibilityAddTraits(.isButton)
     }
 
@@ -528,16 +508,6 @@ struct SettingsAppearancePage: View {
             .font(.caption2.weight(.semibold))
             .tracking(3)
             .foregroundStyle(theme.adaptiveMutedText)
-    }
-
-    private var proBadge: some View {
-        Text(String(localized: "PRO", comment: "Pro feature badge"))
-            .font(.system(size: 9, weight: .heavy))
-            .tracking(0.6)
-            .foregroundStyle(.black)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(AppColors.brandAccent))
     }
 
     private var autoTag: some View {
