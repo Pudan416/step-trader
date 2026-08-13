@@ -283,6 +283,7 @@ struct HappeningPaletteView: View {
             )
         }
         .onShake {
+            AppLogger.ui.debug("🎲 shake received, panel=\(activePanel == nil ? "none" : "open")")
             // Not while a panel is up: a shake behind the chooser or the
             // creator would re-roll a field the user cannot see.
             guard activePanel == nil else { return }

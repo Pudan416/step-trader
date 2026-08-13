@@ -108,6 +108,9 @@ extension AppModel {
     /// Derived from the day's nonce rather than stored; see `HappeningShapeRoll`.
     func paletteFigures(on date: Date = .now) -> [String: HappeningShapeAssignment] {
         let dayKey = Self.dayKey(for: date)
+        AppLogger.energy.debug(
+            "🎲 paletteFigures read: nonce \(self.happeningShapeNonceStore.nonce(for: dayKey))"
+        )
         return HappeningShapeRoll.assignments(
             for: configuredPaletteHappenings().map(\.id),
             dayKey: dayKey,
@@ -118,7 +121,9 @@ extension AppModel {
     /// Shake. Only the field changes: additions already carry the colour they
     /// were logged with, and their canvas elements already froze their shape.
     func rerollPaletteFigures(on date: Date = .now) {
-        happeningShapeNonceStore.reroll(for: Self.dayKey(for: date))
+        let dayKey = Self.dayKey(for: date)
+        let minted = happeningShapeNonceStore.reroll(for: dayKey)
+        AppLogger.energy.debug("🎲 reroll: minted nonce \(minted) for \(dayKey)")
         objectWillChange.send()
     }
 
