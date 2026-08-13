@@ -50,21 +50,12 @@ struct AppsPageSimplified: View {
     @State private var reorderHapticTick = 0
     @State private var showPickerAfterDismiss = false
     @State private var groupIdToDelete: String? = nil
-    @State private var showPaywall = false
 
-    /// Centralized gate for the "create new feed" entry points. Free users get
-    /// a paywall once they've already created their allotted group(s); Pro
-    /// users (and grandfathered legacy users) bypass the check entirely.
+    /// Single entry point for the "create new feed" buttons. Feeds are
+    /// unlimited — this stays a named function so the call sites keep reading
+    /// as an intent rather than a raw state flip.
     private func attemptCreateGroup() {
-        let canAdd = SubscriptionGate.canAddBlockingGroup(
-            isPro: model.isPro,
-            currentCount: model.blockingStore.ticketGroups.count
-        )
-        if canAdd {
-            showTemplatePicker = true
-        } else {
-            showPaywall = true
-        }
+        showTemplatePicker = true
     }
 
     var body: some View {
@@ -251,13 +242,6 @@ struct AppsPageSimplified: View {
                 Button(String(localized: "Cancel"), role: .cancel) {
                     groupIdToDelete = nil
                 }
-            }
-            .fullScreenCover(isPresented: $showPaywall) {
-                PaywallView(
-                    model: model,
-                    store: model.subscriptionStore,
-                    source: .feature
-                )
             }
         }
         .sensoryFeedback(.warning, trigger: deleteHapticTick)

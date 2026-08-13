@@ -16,7 +16,6 @@ struct MeView: View {
     @State private var selectedDayKey: String? = nil
     @State private var showLogin = false
     @State private var showProfileEditor = false
-    @State private var showPaywall = false
     @State private var cachedDayKeys: [String] = []
     @State private var hasLoadedSnapshots = false
     @State private var cachedTopApps: [(name: String, spent: Int)] = []
@@ -104,8 +103,7 @@ struct MeView: View {
             authService: authService,
             showLogin: $showLogin,
             showProfileEditor: $showProfileEditor,
-            selectedDayKey: $selectedDayKey,
-            showPaywall: $showPaywall
+            selectedDayKey: $selectedDayKey
         )
     }
 
@@ -143,8 +141,7 @@ struct MeView: View {
             MeCalendarStrip(
                 model: model,
                 pastDays: pastDays,
-                onSelect: { selectedDayKey = $0 },
-                onLocked: { showPaywall = true }
+                onSelect: { selectedDayKey = $0 }
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)

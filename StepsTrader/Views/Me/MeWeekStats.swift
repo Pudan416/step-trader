@@ -56,12 +56,4 @@ enum MeWeekStats {
         return totals
     }
 
-    /// The history days a user may open. Dormant today —
-    /// `SubscriptionGate.allFeaturesUnlocked` makes `isPro` unconditionally
-    /// true — but the constant is a documented kill-switch, so the rule stays
-    /// live and tested. `sortedKeys` must be newest first.
-    static func unlockedKeys(sortedKeys: [String], isPro: Bool, freeCount: Int) -> Set<String> {
-        if isPro { return Set(sortedKeys) }
-        return Set(sortedKeys.prefix(freeCount))
-    }
 }

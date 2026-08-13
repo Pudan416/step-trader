@@ -104,11 +104,6 @@ struct StepsTraderApp: App {
     @AppStorage("hasRequestedReview_v1") private var hasRequestedReview: Bool = false
     @Environment(\.requestReview) private var requestReview
 
-    /// One-shot post-onboarding paywall. Shown exactly once per device for
-    /// non-Pro users immediately after they complete onboarding. Dismissal
-    /// (purchase OR cancel) marks it as shown so it never reappears.
-    @State private var showPostOnboardingPaywall = false
-
     /// Currently presented feature tip (wallpaper / widgets nudge), or `nil`.
     /// Driven by `presentFeatureTipIfNeeded()` on scenePhase `.active`.
     @State private var activeFeatureTip: FeatureTip?
@@ -243,18 +238,6 @@ struct StepsTraderApp: App {
         }
     }
 
-    /// Decide whether to flip `showPostOnboardingPaywall` to `true`.
-    /// Called only after `runCoachMarksIfRequested()` has returned, so the
-    /// tour (if any) is guaranteed to be finished by this point.
-    @MainActor
-    private func presentPostOnboardingPaywallIfNeeded() async {
-        guard SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) else { return }
-        // Brief cosmetic delay so the welcome screen renders before the paywall.
-        try? await Task.sleep(for: .milliseconds(600))
-        if Task.isCancelled { return }
-        showPostOnboardingPaywall = true
-    }
-
     /// Binding for the §5.1 PayGate-failure alert. Extracted so `body` stays
     /// inside the SwiftUI type-checker's complexity budget.
     private var payGateErrorBinding: Binding<Bool> {
@@ -285,46 +268,14 @@ struct StepsTraderApp: App {
                             MainTabView(model: model, theme: currentTheme)
                         }
                     }
-                    // Welcome paywall — gated to non-Pro users who haven't seen
-                    // it yet. Driven from a `.task` here (not from the
+                    // Run the optional in-app coach mark tour once onboarding
+                    // completes. Driven from a `.task` here (not from the
                     // onboarding-completion closure) so it survives the case
-                    // where the user kills the app between completing onboarding
-                    // and the closure's deferred presentation.
+                    // where the user kills the app between completing
+                    // onboarding and the closure's deferred presentation.
                     .task {
                         guard !isUITest else { return }
-
-                        // 1) Run the optional in-app coach mark tour FIRST.
-                        // The paywall must never appear while the tour is
-                        // active — it would slide up over the coach overlay
-                        // and break the flow. `runCoachMarksIfRequested` is a
-                        // no-op (returns immediately) when the user declined
-                        // the tour, so non-tour users don't pay any latency.
                         await runCoachMarksIfRequested()
-                        if Task.isCancelled { return }
-
-                        // 2) Wait for subscription state to settle off transient
-                        // states (`.unknown` and `.loadingFromCache`) so we
-                        // don't accidentally show paywall to a grandfathered
-                        // or freshly-restored user before RC bootstraps.
-                        // 2s budget is plenty for cached/local resolution;
-                        // if RC is offline we proceed anyway based on cached
-                        // `isPro` (correct: cached==true → no paywall).
-                        // .task cancels when the view disappears — make sure
-                        // sleeps don't keep us "alive" past that point and
-                        // accidentally trigger the paywall on a stale view.
-                        // (§3.7)
-                        for _ in 0..<10 {
-                            switch model.subscriptionStore.state {
-                            case .unknown, .loadingFromCache: break
-                            default:
-                                await presentPostOnboardingPaywallIfNeeded()
-                                return
-                            }
-                            try? await Task.sleep(for: .milliseconds(200))
-                            if Task.isCancelled { return }
-                        }
-                        // Fallback after timeout: respect cached isPro.
-                        await presentPostOnboardingPaywallIfNeeded()
                     }
 
                     // Handoff protection screen (disabled for Instagram flow and UI tests)
@@ -377,18 +328,6 @@ struct StepsTraderApp: App {
                 }
             } message: {
                 Text(model.payGateError ?? "")
-            }
-            .fullScreenCover(isPresented: $showPostOnboardingPaywall, onDismiss: {
-                // Whether they purchased or skipped, we mark this user as having
-                // seen the welcome paywall — they'll only encounter the paywall
-                // again via in-app feature gates (1-group limit, custom activities, etc.)
-                SubscriptionGate.markPostOnboardingPaywallShown()
-            }) {
-                PaywallView(
-                    model: model,
-                    store: model.subscriptionStore,
-                    source: .promotion
-                )
             }
             .sheet(item: $activeFeatureTip) { tip in
                 FeatureTipSheet(tip: tip)

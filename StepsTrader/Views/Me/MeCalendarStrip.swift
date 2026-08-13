@@ -7,32 +7,17 @@ import UIKit
 // Tapping a day opens `DayCanvasViewerView` — a pixel-faithful render of the
 // persisted canvas at its frozen lastModified time.
 //
-// The Pro gate is dormant, not gone: `SubscriptionGate.allFeaturesUnlocked` is
-// currently `true`, so `model.isPro` is unconditionally true and every day is
-// open. The constant is a documented kill-switch, so the gating stays wired.
+// Every day is open — the app is free and there is no history gate.
 struct MeCalendarStrip: View {
     @ObservedObject var model: AppModel
     let pastDays: [String: PastDaySnapshot]
     let onSelect: (String) -> Void
-    let onLocked: () -> Void
 
     @Environment(\.appTheme) private var theme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// 3:4, matching the poster the tile opens.
     private static let tileSize = CGSize(width: 96, height: 128)
-
-    #if DEBUG
-    @State private var debugForceUnlock = false
-    #endif
-
-    private var effectiveIsPro: Bool {
-        #if DEBUG
-        return model.isPro || debugForceUnlock
-        #else
-        return model.isPro
-        #endif
-    }
 
     /// Short month name for a day key, e.g. "Aug" — localised, and abbreviated
     /// by the locale's own rules rather than by truncation.
@@ -53,11 +38,6 @@ struct MeCalendarStrip: View {
 
     var body: some View {
         let keys = dayKeysSorted
-        let unlocked = MeWeekStats.unlockedKeys(
-            sortedKeys: keys,
-            isPro: effectiveIsPro,
-            freeCount: SubscriptionGate.freeHistoryDayCount
-        )
 
         return VStack(alignment: .leading, spacing: 10) {
             // The header is a fixed-size label and the count scales, so side by
@@ -115,10 +95,7 @@ struct MeCalendarStrip: View {
                             model: model,
                             dayKey: key,
                             snapshot: pastDays[key],
-                            isLocked: !unlocked.contains(key),
-                            onTap: {
-                                if unlocked.contains(key) { onSelect(key) } else { onLocked() }
-                            }
+                            onTap: { onSelect(key) }
                         )
                         .frame(width: Self.tileSize.width, height: Self.tileSize.height)
                     }
@@ -129,16 +106,6 @@ struct MeCalendarStrip: View {
             // pushing whatever follows off the bottom of the screen.
             .frame(height: Self.tileSize.height)
             .scrollIndicators(.hidden)
-
-            #if DEBUG
-            Toggle(isOn: $debugForceUnlock) {
-                Text("🐛 Force unlock")
-                    .font(.caption)
-                    .foregroundStyle(theme.textSecondary)
-            }
-            .toggleStyle(.switch)
-            .tint(AppColors.brandAccent)
-            #endif
         }
     }
 }
@@ -149,7 +116,6 @@ struct DayHistoryTile: View {
     @ObservedObject var model: AppModel
     let dayKey: String
     let snapshot: PastDaySnapshot?
-    let isLocked: Bool
     let onTap: () -> Void
 
     @Environment(\.appTheme) private var theme
@@ -188,7 +154,6 @@ struct DayHistoryTile: View {
                 Image(uiImage: thumbnail)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .blur(radius: isLocked ? 12 : 0)
             } else if isEmptyDay {
                 // The tile came from a Photos-style grid on a light settings
                 // background. On Me it sits on the dark energy gradient, where
@@ -209,10 +174,6 @@ struct DayHistoryTile: View {
                 todayBadge
                     .padding(6)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            }
-
-            if isLocked {
-                lockOverlay
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -237,31 +198,9 @@ struct DayHistoryTile: View {
             .background(.ultraThinMaterial, in: Capsule())
     }
 
-    private var lockOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.18)
-
-            VStack(spacing: 6) {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(AppColors.brandAccent)
-                Text(String(localized: "Pro", comment: "Me calendar – locked tile badge"))
-                    .font(.system(size: 9, weight: .bold))
-                    .tracking(0.8)
-                    .foregroundStyle(AppColors.brandAccent)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.ultraThinMaterial, in: Capsule())
-            }
-        }
-    }
-
     private var accessibilityLabel: String {
         let dayName = CachedFormatters.shortWeekday.string(from: date)
         let monthDay = CachedFormatters.monthDay.string(from: date)
-        if isLocked {
-            return String(localized: "\(dayName), \(monthDay), locked, requires Pro", comment: "Me calendar – tile a11y, locked")
-        }
         if let snap = snapshot {
             return String(localized: "\(dayName), \(monthDay), \(snap.inkEarned) colors earned", comment: "Me calendar – tile a11y, with data")
         }
@@ -276,7 +215,7 @@ struct DayHistoryTile: View {
             CanvasStorageService.shared.loadCanvas(for: key)
         }.value
 
-        if canvas == nil && !isLocked {
+        if canvas == nil {
             if let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: key) {
                 CanvasStorageService.shared.saveCanvas(remote)
                 canvas = remote
@@ -309,8 +248,7 @@ struct DayHistoryTile: View {
     MeCalendarStrip(
         model: DIContainer.shared.makeAppModel(),
         pastDays: [:],
-        onSelect: { _ in },
-        onLocked: {}
+        onSelect: { _ in }
     )
     .padding()
 }

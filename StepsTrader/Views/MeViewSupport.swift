@@ -53,7 +53,6 @@ struct MeSheetsModifier: ViewModifier {
     @Binding var showLogin: Bool
     @Binding var showProfileEditor: Bool
     @Binding var selectedDayKey: String?
-    @Binding var showPaywall: Bool
 
     func body(content: Content) -> some View {
         content
@@ -68,10 +67,6 @@ struct MeSheetsModifier: ViewModifier {
                 set: { selectedDayKey = $0?.key }
             )) { wrapper in
                 DayCanvasViewerView(model: model, dayKey: wrapper.key)
-            }
-            // Reached by tapping a day the dormant history gate has locked.
-            .fullScreenCover(isPresented: $showPaywall) {
-                PaywallView(model: model, store: model.subscriptionStore, source: .feature)
             }
     }
 }
