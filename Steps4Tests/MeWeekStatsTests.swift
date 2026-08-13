@@ -76,30 +76,4 @@ final class MeWeekStatsTests: XCTestCase {
         let byDay = ["2026-08-09": ["instagram": 12]]
         XCTAssertTrue(MeWeekStats.appSpend(byDay: byDay, dayKeys: ["2026-01-01"]).isEmpty)
     }
-
-    // MARK: - History gate
-
-    func testProUnlocksEveryDay() {
-        let keys = ["2026-08-10", "2026-08-09", "2026-08-08"]
-        XCTAssertEqual(
-            MeWeekStats.unlockedKeys(sortedKeys: keys, isPro: true, freeCount: 2),
-            Set(keys)
-        )
-    }
-
-    func testFreeUnlocksOnlyTheNewestDays() {
-        let keys = ["2026-08-10", "2026-08-09", "2026-08-08"]
-        XCTAssertEqual(
-            MeWeekStats.unlockedKeys(sortedKeys: keys, isPro: false, freeCount: 2),
-            ["2026-08-10", "2026-08-09"]
-        )
-    }
-
-    func testFreeWithFewerDaysThanTheLimitUnlocksEverything() {
-        let keys = ["2026-08-10"]
-        XCTAssertEqual(
-            MeWeekStats.unlockedKeys(sortedKeys: keys, isPro: false, freeCount: 7),
-            Set(keys)
-        )
-    }
 }

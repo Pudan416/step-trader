@@ -204,8 +204,7 @@ struct StepsTraderApp: App {
     /// onboarding slide (see `OnboardingStoriesView.finish(wantsTour:)`).
     ///
     /// Blocks until the tour completes (or returns immediately if no tour was
-    /// requested). The caller — the welcome-paywall `.task` — uses this as a
-    /// gate so the paywall never appears over an in-progress coach mark.
+    /// requested). Called from the `.task` on the post-onboarding root view.
     @MainActor
     private func runCoachMarksIfRequested() async {
         let defaults = UserDefaults.standard
@@ -213,7 +212,7 @@ struct StepsTraderApp: App {
 
         // Start the tour if it was requested and not already running. We read
         // & clear `shouldStartCoachMark` here (instead of in `onFinish`) so
-        // the start is sequenced inside the same task that gates the paywall.
+        // the start is sequenced inside the `.task` that calls this function.
         if wantsTour && !coachMarkManager.isActive {
             defaults.removeObject(forKey: "shouldStartCoachMark")
             // Let the canvas render before the first coach mark anchors so
@@ -230,8 +229,8 @@ struct StepsTraderApp: App {
             if Task.isCancelled { return }
         }
 
-        // Breathing room between the last coach mark dismissing and whatever
-        // comes next (typically the welcome paywall sliding up).
+        // Breathing room after the last coach mark dismisses, before this
+        // function (and the `.task` it runs inside) returns.
         if wantsTour {
             try? await Task.sleep(for: .milliseconds(400))
             if Task.isCancelled { return }
@@ -300,16 +299,14 @@ struct StepsTraderApp: App {
                             await model.refreshSleepIfAuthorized()
                         }
 
-                        // NOTE: Post-onboarding paywall AND the optional coach
-                        // mark tour are both triggered from the `.task` on the
-                        // `hasCompletedOnboarding` branch above — that path
-                        // always fires when the root flips, even if the user
-                        // kills the app immediately after onboarding completes
-                        // (the paywall marker is set on dismiss, so a kill-
-                        // before-dismiss still allows it to appear on the next
-                        // cold launch). The `.task` runs the tour first and
-                        // only then evaluates the paywall, so the welcome flow
-                        // is never interrupted mid-tour.
+                        // NOTE: The optional coach mark tour is triggered from
+                        // the `.task` on the `hasCompletedOnboarding` branch
+                        // above — that path always fires when the root flips,
+                        // even if the user kills the app immediately after
+                        // onboarding completes (the tour request is persisted
+                        // via `shouldStartCoachMark`, so a kill right after
+                        // onboarding still lets it run on the next cold
+                        // launch).
                     }
                     .transition(.opacity)
                     .zIndex(3)
