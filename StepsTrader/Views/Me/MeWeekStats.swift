@@ -55,5 +55,4 @@ enum MeWeekStats {
         }
         return totals
     }
-
 }

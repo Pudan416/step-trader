@@ -217,13 +217,6 @@ struct StepsTraderApp: App {
             try? await Task.sleep(for: .milliseconds(300))
             if Task.isCancelled { return }
         }
-
-        // Breathing room after the last coach mark dismisses, before this
-        // function (and the `.task` it runs inside) returns.
-        if wantsTour {
-            try? await Task.sleep(for: .milliseconds(400))
-            if Task.isCancelled { return }
-        }
     }
 
     /// Binding for the §5.1 PayGate-failure alert. Extracted so `body` stays

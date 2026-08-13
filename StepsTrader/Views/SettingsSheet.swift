@@ -212,10 +212,10 @@ struct SettingsSheet: View {
         .buttonStyle(MattePressStyle())
     }
 
-    private func rowIcon(_ name: String, color: Color? = nil) -> some View {
+    private func rowIcon(_ name: String) -> some View {
         Image(systemName: name)
             .font(.system(size: 15))
-            .foregroundStyle(color ?? theme.adaptiveSecondaryText)
+            .foregroundStyle(theme.adaptiveSecondaryText)
             .frame(width: 24)
     }
 

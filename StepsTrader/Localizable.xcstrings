@@ -148,17 +148,6 @@
         }
       }
     },
-    "%@, %@, locked, requires Pro" : {
-      "comment" : "HistoryView – tile a11y, locked",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@, %2$@, locked, requires Pro"
-          }
-        }
-      }
-    },
     "%@, %@, no data" : {
       "comment" : "HistoryView – tile a11y, empty",
       "localizations" : {
@@ -191,9 +180,6 @@
       }
     },
     "%@, 20 colors" : {
-
-    },
-    "%@, locked, requires Pro" : {
 
     },
     "%@, no data" : {
@@ -319,9 +305,6 @@
     "⏱️ %@" : {
       "comment" : "Notification – timer title with app name"
     },
-    "🐛 Force unlock" : {
-
-    },
     "📊" : {
 
     },
@@ -434,9 +417,6 @@
       "comment" : "CategoryDetail – add custom card button"
     },
     "Add your own card" : {
-
-    },
-    "Add your own card, locked, requires Pro" : {
 
     },
     "all" : {
@@ -562,9 +542,6 @@
     "Charged: %lld colors." : {
       "comment" : "Notification – charged colors only body"
     },
-    "Checking your subscription with the App Store…" : {
-
-    },
     "Choose App → select Nowhere → pick \"Is Closed\"" : {
 
     },
@@ -633,9 +610,6 @@
     },
     "Colors restored. %lld min." : {
       "comment" : "Notification – budget restored body"
-    },
-    "Confirming your subscription with the App Store…" : {
-
     },
     "Contact" : {
       "comment" : "About section header"
@@ -850,9 +824,6 @@
     "Free plan" : {
 
     },
-    "Free trial, then %@. Auto-renews. Cancel anytime." : {
-
-    },
     "Full" : {
       "comment" : "GradientPreview – preview mode showing all data"
     },
@@ -970,9 +941,6 @@
     "Let's go" : {
 
     },
-    "Lifetime" : {
-
-    },
     "Limits" : {
       "comment" : "Settings section title"
     },
@@ -997,9 +965,6 @@
     "Long-press the widget → Edit to choose which group to display." : {
 
     },
-    "Manage subscription" : {
-
-    },
     "Maybe later" : {
       "comment" : "Feature tip dismiss button"
     },
@@ -1008,9 +973,6 @@
     },
     "Medium" : {
       "comment" : "Texture picker – medium grain"
-    },
-    "Membership" : {
-      "comment" : "Settings section header"
     },
     "Mesh" : {
 
@@ -1063,12 +1025,6 @@
     "No %@ activities logged this week." : {
 
     },
-    "No active subscription found on this Apple ID." : {
-
-    },
-    "No active subscription was found on this Apple ID." : {
-
-    },
     "No activities selected yet" : {
       "comment" : "Category overlay – empty hint"
     },
@@ -1090,9 +1046,6 @@
     "No overlay on the canvas." : {
       "comment" : "Canvas animation picker – off subtitle"
     },
-    "No subscription plans are available right now." : {
-
-    },
     "no, thanks" : {
 
     },
@@ -1104,9 +1057,6 @@
     },
     "Notes from Kosta" : {
       "comment" : "ManualsPage – page title\nSettings row label"
-    },
-    "Nothing to restore" : {
-
     },
     "Notifications" : {
       "comment" : "Navigation title\nPermission row – Notifications"
@@ -1130,9 +1080,6 @@
       "comment" : "Generic alert dismiss button\nProfileEditor – alert dismiss button"
     },
     "One-time payment" : {
-
-    },
-    "One-time purchase — yours forever. Thank you." : {
 
     },
     "Open" : {
@@ -2304,34 +2251,10 @@
     "pick the one app that drains you the most." : {
 
     },
-    "Plans couldn't be loaded. Check that pro_monthly, pro_annual, and pro_lifetime exist in App Store Connect and are attached to a Current offering in RevenueCat." : {
-
-    },
     "Plastic" : {
       "comment" : "Texture picker – plastic"
     },
-    "Preview Paywall (debug)" : {
-
-    },
     "Privacy" : {
-
-    },
-    "Pro" : {
-      "comment" : "HistoryView – locked tile badge"
-    },
-    "PRO" : {
-      "comment" : "Pro feature badge"
-    },
-    "Pro — active" : {
-
-    },
-    "Pro — cancelled" : {
-
-    },
-    "Pro — gifted" : {
-
-    },
-    "Pro — lifetime" : {
 
     },
     "probably just like you." : {
@@ -2344,9 +2267,6 @@
       "comment" : "Onboarding – progress bar VoiceOver label"
     },
     "Protection Screen" : {
-
-    },
-    "Purchase Failed" : {
 
     },
     "Quick Status" : {
@@ -2365,9 +2285,6 @@
       "comment" : "Canvas shape type"
     },
     "Re-roll today's theme" : {
-
-    },
-    "Redeem promo code" : {
 
     },
     "Refreshing…" : {
@@ -2391,23 +2308,8 @@
     "Reset Grandfathering (debug)" : {
 
     },
-    "Reset Welcome Paywall (debug)" : {
-
-    },
     "Resting" : {
       "comment" : "Morning resting suggestion – title"
-    },
-    "Restore" : {
-
-    },
-    "Restore failed" : {
-
-    },
-    "Restore purchases" : {
-
-    },
-    "Restored!" : {
-
     },
     "Retry" : {
 
@@ -2473,9 +2375,6 @@
 
     },
     "Sign in with Apple" : {
-
-    },
-    "Sign in with Apple to keep your subscription safe across devices and reinstalls." : {
 
     },
     "Sign Out" : {
@@ -2592,9 +2491,6 @@
     "Spirograph" : {
       "comment" : "Canvas shape type"
     },
-    "Start Free Trial" : {
-
-    },
     "Statistics for the last 7 days" : {
       "comment" : "MeView – weekly overview subtitle"
     },
@@ -2635,12 +2531,6 @@
       "comment" : "Permission row – HealthKit detail"
     },
     "steps/day" : {
-
-    },
-    "Subscription" : {
-
-    },
-    "Subscriptions auto-renew unless cancelled at least 24h before the period ends. Manage or cancel anytime in iOS Settings → Apple ID → Subscriptions." : {
 
     },
     "Sunset" : {
@@ -2754,13 +2644,7 @@
         }
       }
     },
-    "Unlock Pro." : {
-
-    },
     "Updates automatically each time the wallpaper shortcut runs." : {
-
-    },
-    "Upgrade to Pro for unlimited app limits, all wallpapers, and full history." : {
 
     },
     "Used: %lld min · Charged: %lld colors." : {
@@ -2818,9 +2702,6 @@
 
     },
     "Welcome offer." : {
-
-    },
-    "Welcome paywall reset — re-onboard to see" : {
 
     },
     "welcome to" : {
@@ -2888,16 +2769,10 @@
         }
       }
     },
-    "You were here before. Pro is yours, free, forever. Thanks for being early." : {
-
-    },
     "You're about to open %@" : {
 
     },
     "you're here." : {
-
-    },
-    "You're Pro!" : {
 
     },
     "Your canvas and colors reset at this time each day." : {
@@ -2917,12 +2792,6 @@
     },
     "Your daily canvases will appear here." : {
       "comment" : "HistoryView – empty state subtitle"
-    },
-    "Your Pro subscription is now active." : {
-
-    },
-    "Your purchase is pending approval (Ask to Buy?). It will activate once approved." : {
-
     }
   },
   "version" : "1.1"

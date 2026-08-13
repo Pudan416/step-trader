@@ -3,9 +3,17 @@ import Foundation
 /// Central answer to "what can a user do".
 ///
 /// The app is free and every gate returns `true`. The functions survive their
-/// own retirement on purpose: they keep the call sites reading as intent, and
-/// they are the one place to reintroduce gating without hunting through views.
-/// The `isPro` parameters are deliberately unused.
+/// own retirement on purpose, by product decision, but views no longer consult
+/// most of them: only `canUseDailyRandomTheme` still has a production call site
+/// (`AppModel+DailyRandomTheme.swift`). The other seven exist solely so
+/// `SubscriptionGateTests` keeps compiling against a stable API shape; nothing
+/// in the app reads their return value.
+///
+/// Reintroducing gating is therefore NOT a matter of flipping a return value
+/// here — e.g. changing `canAddBlockingGroup` to `currentCount < 2` would do
+/// nothing, because no view calls it. Restoring a limit means re-adding the
+/// call site in the relevant view (or view model) first, then changing the
+/// gate's body. The `isPro` parameters are deliberately unused.
 enum SubscriptionGate {
 
     /// Blocking groups are unlimited.

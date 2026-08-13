@@ -90,7 +90,7 @@ enum SharedKeys {
     static let userGradientStyle = "userGradientStyle_v1"
     static let userGradientPalette = "userGradientPalette_v1"
 
-    /// Pro-only: when ON, app rolls a new random palette+style every calendar day
+    /// Free for everyone: when ON, app rolls a new random palette+style every calendar day
     /// and persists it to the day's `DayCanvas`, so each day in History looks unique.
     static let dailyRandomThemeEnabled = "dailyRandomTheme_v1"
     /// dayKey ("yyyy-MM-dd") for which we last rolled a daily-random theme. Prevents

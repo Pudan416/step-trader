@@ -9,7 +9,6 @@ import UIKit
 //
 // Every day is open — the app is free and there is no history gate.
 struct MeCalendarStrip: View {
-    @ObservedObject var model: AppModel
     let pastDays: [String: PastDaySnapshot]
     let onSelect: (String) -> Void
 
@@ -92,7 +91,6 @@ struct MeCalendarStrip: View {
                         }
 
                         DayHistoryTile(
-                            model: model,
                             dayKey: key,
                             snapshot: pastDays[key],
                             onTap: { onSelect(key) }
@@ -113,7 +111,6 @@ struct MeCalendarStrip: View {
 // MARK: - Day Tile
 
 struct DayHistoryTile: View {
-    @ObservedObject var model: AppModel
     let dayKey: String
     let snapshot: PastDaySnapshot?
     let onTap: () -> Void
@@ -246,7 +243,6 @@ struct DayHistoryTile: View {
 
 #Preview {
     MeCalendarStrip(
-        model: DIContainer.shared.makeAppModel(),
         pastDays: [:],
         onSelect: { _ in }
     )

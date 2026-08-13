@@ -139,7 +139,6 @@ struct MeView: View {
             // `pastDays` is every persisted day, not just this week's window, so
             // the strip needs no loader of its own.
             MeCalendarStrip(
-                model: model,
                 pastDays: pastDays,
                 onSelect: { selectedDayKey = $0 }
             )

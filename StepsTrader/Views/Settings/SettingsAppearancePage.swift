@@ -8,7 +8,8 @@ struct SettingsAppearancePage: View {
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     /// Mirrors `SharedKeys.allowedCanvasShapes` only to trigger redraws —
     /// `CanvasShapeType.allowedByUser` stays the single source of truth, since
-    /// it also seeds from the legacy keys and applies the Pro gate.
+    /// it also seeds from the legacy keys. There is no gate: every shape is
+    /// available to every user.
     @State private var allowedShapes: Set<CanvasShapeType> = []
 
     @Environment(\.topCardHeight) private var topCardHeight
@@ -28,8 +29,6 @@ struct SettingsAppearancePage: View {
     private var activePalette: EnergyGradientRenderer.Palette {
         EnergyGradientRenderer.palette(for: selectedPalette)
     }
-
-    private var canCustomizeShapes: Bool { true }
 
     private var isDailyRandomActive: Bool {
         dailyRandomThemeEnabled
@@ -124,8 +123,6 @@ struct SettingsAppearancePage: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .contentShape(Rectangle())
-        .accessibilityAddTraits(.isButton)
     }
 
     private var rerollRow: some View {
