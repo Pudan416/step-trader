@@ -110,7 +110,16 @@ struct AppsPageSimplified: View {
                     .padding(.bottom, 8)
 
                     if model.blockingStore.ticketGroups.isEmpty {
-                        emptyTicketsContent
+                        // Nothing connected yet: the canvas fills the page and
+                        // the dock below shows what the shape of this screen
+                        // will be. No copy, no illustration — the empty slots
+                        // and the one "+" say it.
+                        Color.clear
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        emptyDock
+                            .padding(.top, 7)
+                            .padding(.bottom, max(tabBarHeight, 50) + 20)
                     } else {
                         FeedsSurfaceView(
                             model: model,
@@ -285,6 +294,22 @@ struct AppsPageSimplified: View {
 
     /// A horizontal row of one tile per group, plus a trailing add tile.
     /// Scrolls when the tiles overflow the width; the add tile is always last.
+    /// The dock before any feed exists: the add slot first, then empty ones.
+    /// `emptyDockSlots` is the reference's rhythm of four circles across the
+    /// width — enough to read as a row rather than a stray button.
+    private static let emptyDockSlots = 4
+
+    private var emptyDock: some View {
+        HStack(spacing: 8) {
+            FeedAddTileView(onTap: attemptCreateGroup)
+            ForEach(1..<Self.emptyDockSlots, id: \.self) { _ in
+                FeedPlaceholderTileView()
+            }
+        }
+        .padding(.horizontal, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private var dock: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -306,46 +331,6 @@ struct AppsPageSimplified: View {
     }
 
     // MARK: - Empty state
-    private var emptyTicketsContent: some View {
-        VStack(spacing: 28) {
-            Spacer()
-            Image(systemName: "ticket")
-                .font(.system(size: 52, weight: .regular))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.primary)
-                .opacity(0.55)
-            VStack(spacing: 8) {
-                Text(String(localized: "No feeds connected yet"))
-                    .font(.title3.weight(.regular))
-                    .foregroundStyle(.primary)
-                Text(String(localized: "Create one when you're ready."))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-            }
-            Button {
-                attemptCreateGroup()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .ultraLight))
-                    Text(String(localized: "New Feed"))
-                        .font(.system(size: 15, weight: .light, design: .rounded))
-                }
-                .foregroundStyle(Color.primary.opacity(0.7))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.15), lineWidth: 1)
-                )
-            }
-            .padding(.horizontal, 40)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-    }
 
     /// Sheet for full ticket settings
     private func ticketSettingsSheet(group: Binding<TicketGroup>, onDismiss: @escaping () -> Void) -> some View {

@@ -135,3 +135,18 @@ struct FeedAddTileView: View {
         .accessibilityLabel(String(localized: "Add a feed", comment: "Feeds dock – add button VoiceOver label"))
     }
 }
+
+/// An empty slot in the dock, shown only before the first feed exists.
+///
+/// It teaches the shape of the page rather than describing it: the row of
+/// circles is where your apps will live, and the one carrying a `+` is where
+/// you start. Inert and hidden from VoiceOver — there is nothing here to act
+/// on, and announcing three empty slots would be noise.
+struct FeedPlaceholderTileView: View {
+    var body: some View {
+        Circle()
+            .strokeBorder(.white.opacity(0.16), style: StrokeStyle(lineWidth: 1, dash: [4, 5]))
+            .frame(width: FeedTileView.diameter, height: FeedTileView.diameter)
+            .accessibilityHidden(true)
+    }
+}
