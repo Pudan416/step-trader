@@ -237,7 +237,7 @@ final class EnergyRecalcTests: XCTestCase {
     }
 
     private func makeModel() -> AppModel {
-        let store = SubscriptionStore(defaults: defaults)
+        let store = SubscriptionStore()
         let model = AppModel(
             healthKitService: MockHealthKitService(),
             familyControlsService: MockFamilyControlsService(),

@@ -227,7 +227,7 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
     }
 
     private func makeModel() -> AppModel {
-        let subscriptionStore = SubscriptionStore(defaults: defaults)
+        let subscriptionStore = SubscriptionStore()
         let model = AppModel(
             healthKitService: MockHealthKitService(),
             familyControlsService: MockFamilyControlsService(),

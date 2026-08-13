@@ -11,12 +11,4 @@ import SwiftUI
 final class SubscriptionStore: ObservableObject {
     /// Always true. See `SubscriptionGate` for the gates this feeds.
     var isPro: Bool { true }
-
-    init() {}
-
-    /// Source-compat shim: several test call sites still construct
-    /// `SubscriptionStore(defaults:)` from before the subscription SDK was
-    /// retired. The stub has no persisted state, so the parameter is
-    /// accepted and ignored.
-    init(defaults: UserDefaults) {}
 }

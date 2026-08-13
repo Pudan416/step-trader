@@ -133,7 +133,7 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
             familyControlsService: MockFamilyControlsService(),
             notificationService: MockNotificationService(),
             budgetEngine: budgetEngine,
-            subscriptionStore: SubscriptionStore(defaults: defaults)
+            subscriptionStore: SubscriptionStore()
         )
         model.isBootstrapping = true
         model.loadDailyEnergyState()

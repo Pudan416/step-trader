@@ -352,7 +352,7 @@ final class HappeningAdditionsTests: XCTestCase {
             familyControlsService: MockFamilyControlsService(),
             notificationService: MockNotificationService(),
             budgetEngine: MockBudgetEngine(),
-            subscriptionStore: SubscriptionStore(defaults: defaults)
+            subscriptionStore: SubscriptionStore()
         )
     }
 }

@@ -212,7 +212,7 @@ final class PaymentTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeModel() -> AppModel {
-        let store = SubscriptionStore(defaults: defaults)
+        let store = SubscriptionStore()
         return AppModel(
             healthKitService: MockHealthKitService(),
             familyControlsService: MockFamilyControlsService(),
