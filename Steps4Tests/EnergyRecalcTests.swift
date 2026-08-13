@@ -237,7 +237,6 @@ final class EnergyRecalcTests: XCTestCase {
     }
 
     private func makeModel() -> AppModel {
-        defaults.set(true, forKey: SharedKeys.isGrandfathered)
         let store = SubscriptionStore(defaults: defaults)
         let model = AppModel(
             healthKitService: MockHealthKitService(),
@@ -258,7 +257,6 @@ final class EnergyRecalcTests: XCTestCase {
             SharedKeys.userStepsTarget,
             SharedKeys.userSleepTarget,
             SharedKeys.restDayOverrideEnabled,
-            SharedKeys.isGrandfathered,
             SharedKeys.spentStepsToday,
             SharedKeys.stepsBalance,
             SharedKeys.stepsBalanceAnchor,

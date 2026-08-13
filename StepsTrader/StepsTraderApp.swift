@@ -136,17 +136,6 @@ struct StepsTraderApp: App {
         }
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
 
-        // Configure RevenueCat as early as possible. Reads `REVENUECAT_API_KEY` from
-        // Info.plist (which interpolates from xcconfig at build time). Anonymous user
-        // is fine — we'll `logIn(supabaseUserID:)` once Sign in with Apple completes.
-        //
-        // ORDER NOTE: configure() runs grandfather detection which reads
-        // `appLaunchCount`. The increment below happens AFTER, so the threshold
-        // logic in `SubscriptionStore.detectExistingUser` is order-independent
-        // (it tolerates either ordering). Don't move this around carelessly.
-        let rcKey = Bundle.main.object(forInfoDictionaryKey: "REVENUECAT_API_KEY") as? String ?? ""
-        SubscriptionStore.shared.configure(apiKey: rcKey)
-
         // Register the MetricKit subscriber early so diagnostics aggregated since
         // the last run (crashes/hangs/exceptions) are delivered and reported.
         DiagnosticsManager.shared.start()

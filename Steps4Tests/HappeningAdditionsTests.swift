@@ -347,7 +347,6 @@ final class HappeningAdditionsTests: XCTestCase {
         if clearAdditions {
             defaults.removeObject(forKey: SharedKeys.todayAdditions)
         }
-        defaults.set(true, forKey: SharedKeys.isGrandfathered)
         return AppModel(
             healthKitService: MockHealthKitService(),
             familyControlsService: MockFamilyControlsService(),

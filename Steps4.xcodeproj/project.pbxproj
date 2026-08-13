@@ -89,8 +89,6 @@
 		20B0A3592E8C65E700D5EBE4 /* SharedKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */; };
 		20B0A35A2E8C65E700D5EBE4 /* SharedKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */; };
 		20B0A35B2E8C65E700D5EBE4 /* SharedKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */; };
-		20B8843B2FAF9A920088AA6D /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 20B8843A2FAF9A920088AA6D /* RevenueCat */; };
-		20B8843D2FAF9B540088AA6D /* SubscriptionEntitlement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8843C2FAF9B540088AA6D /* SubscriptionEntitlement.swift */; };
 		20B884432FAF9B8C0088AA6D /* UserEconomyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B884412FAF9B8C0088AA6D /* UserEconomyStore.swift */; };
 		PREF5702570057005700B001 /* PreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = PREF5702570057005700F001 /* PreferencesStore.swift */; };
 		DA0006000600060006000061 /* HappeningStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0006000600060006000060 /* HappeningStore.swift */; };
@@ -216,7 +214,6 @@
 		ME7A00ME7A00ME7A00F051 /* RayShapeRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */; };
 		AABB002200220022AABB0022 /* PaymentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB002200220022AABB0020 /* PaymentTests.swift */; };
 		AABB003300330033AABB0033 /* EnergyRecalcTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB003300330033AABB0030 /* EnergyRecalcTests.swift */; };
-		AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB004400440044AABB0040 /* SubscriptionStateTests.swift */; };
 		DA0001000100010001000011 /* HappeningMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0001000100010001000010 /* HappeningMigrationTests.swift */; };
 		DA0005000500050005000051 /* HappeningModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0005000500050005000050 /* HappeningModelTests.swift */; };
 		DA0007000700070007000071 /* HappeningStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0007000700070007000070 /* HappeningStoreTests.swift */; };
@@ -410,7 +407,6 @@
 		20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StepsTrader.swift"; sourceTree = "<group>"; };
 		20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeys.swift; sourceTree = "<group>"; };
 		20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffManager.swift; sourceTree = "<group>"; };
-		20B8843C2FAF9B540088AA6D /* SubscriptionEntitlement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionEntitlement.swift; sourceTree = "<group>"; };
 		20B8843E2FAF9B8C0088AA6D /* BlockingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockingStore.swift; sourceTree = "<group>"; };
 		20B8843F2FAF9B8C0088AA6D /* HealthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthStore.swift; sourceTree = "<group>"; };
 		20B884402FAF9B8C0088AA6D /* SubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionStore.swift; sourceTree = "<group>"; };
@@ -536,7 +532,6 @@
 		ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RayShapeRendererTests.swift; sourceTree = "<group>"; };
 		AABB002200220022AABB0020 /* PaymentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTests.swift; sourceTree = "<group>"; };
 		AABB003300330033AABB0030 /* EnergyRecalcTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyRecalcTests.swift; sourceTree = "<group>"; };
-		AABB004400440044AABB0040 /* SubscriptionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionStateTests.swift; sourceTree = "<group>"; };
 		DA0001000100010001000010 /* HappeningMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningMigrationTests.swift; sourceTree = "<group>"; };
 		DA0005000500050005000050 /* HappeningModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningModelTests.swift; sourceTree = "<group>"; };
 		DA0007000700070007000070 /* HappeningStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningStoreTests.swift; sourceTree = "<group>"; };
@@ -643,7 +638,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				20B8843B2FAF9A920088AA6D /* RevenueCat in Frameworks */,
 				2035D7582E7D9CF90011B21D /* DeviceActivity.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -790,7 +784,6 @@
 				2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */,
 				2061ECFF2F277010009FEC25 /* StepsTrader/Services/PersistenceManager.swift */,
 				20DIAG022F5000010018004E /* StepsTrader/Services/DiagnosticsManager.swift */,
-				20B8843C2FAF9B540088AA6D /* SubscriptionEntitlement.swift */,
 				2061ED012F277010009FEC25 /* StepsTrader/Services/ErrorManager.swift */,
 				2061ECF92F277010009FEC24 /* PayGateSession.swift */,
 				20F5A0012FFF000100000001 /* AutomationUIModels.swift */,
@@ -1112,7 +1105,6 @@
 				ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */,
 				AABB002200220022AABB0020 /* PaymentTests.swift */,
 				AABB003300330033AABB0030 /* EnergyRecalcTests.swift */,
-				AABB004400440044AABB0040 /* SubscriptionStateTests.swift */,
 				AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */,
 				DA0001000100010001000010 /* HappeningMigrationTests.swift */,
 				DA0005000500050005000050 /* HappeningModelTests.swift */,
@@ -1222,7 +1214,6 @@
 			);
 			name = Steps4;
 			packageProductDependencies = (
-				20B8843A2FAF9A920088AA6D /* RevenueCat */,
 			);
 			productName = Steps4;
 			productReference = 2089F0B42E71A18E00ABF5FA /* Nowhere.app */;
@@ -1353,7 +1344,6 @@
 			);
 			mainGroup = 2089F0AB2E71A18E00ABF5FA;
 			packageReferences = (
-				20B884392FAF9A920088AA6D /* XCRemoteSwiftPackageReference "purchases-ios" */,
 			);
 			productRefGroup = 2089F0B52E71A18E00ABF5FA /* Products */;
 			projectDirPath = "";
@@ -1565,7 +1555,6 @@
 				20DE0E652F2B78970016EEAE /* AppLogger.swift in Sources */,
 				AC000001300400000000AC01 /* AppConstants.swift in Sources */,
 				40IN00022FFF050000000002 /* ExportCanvasWallpaperIntent.swift in Sources */,
-				20B8843D2FAF9B540088AA6D /* SubscriptionEntitlement.swift in Sources */,
 				40IN00042FFF050000000004 /* AppShortcuts.swift in Sources */,
 				50SM00013002000050SM0001 /* SmudgeShaders.metal in Sources */,
 				50SM00023002000050SM0002 /* MetalSmudgeRenderer.swift in Sources */,
@@ -1668,7 +1657,6 @@
 				ME7A00ME7A00ME7A00F051 /* RayShapeRendererTests.swift in Sources */,
 				AABB002200220022AABB0022 /* PaymentTests.swift in Sources */,
 				AABB003300330033AABB0033 /* EnergyRecalcTests.swift in Sources */,
-				AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */,
 				AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */,
 				DA0001000100010001000011 /* HappeningMigrationTests.swift in Sources */,
 				DA0005000500050005000051 /* HappeningModelTests.swift in Sources */,
@@ -2505,24 +2493,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		20B884392FAF9A920088AA6D /* XCRemoteSwiftPackageReference "purchases-ios" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/RevenueCat/purchases-ios";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 5.72.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		20B8843A2FAF9A920088AA6D /* RevenueCat */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 20B884392FAF9A920088AA6D /* XCRemoteSwiftPackageReference "purchases-ios" */;
-			productName = RevenueCat;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2089F0AC2E71A18E00ABF5FA /* Project object */;
 }

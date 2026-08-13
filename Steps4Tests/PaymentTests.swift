@@ -212,7 +212,6 @@ final class PaymentTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeModel() -> AppModel {
-        defaults.set(true, forKey: SharedKeys.isGrandfathered)
         let store = SubscriptionStore(defaults: defaults)
         return AppModel(
             healthKitService: MockHealthKitService(),
@@ -230,7 +229,6 @@ final class PaymentTests: XCTestCase {
             SharedKeys.stepsBalanceAnchor,
             SharedKeys.dailyEnergyAnchor,
             SharedKeys.bonusSteps,
-            SharedKeys.isGrandfathered,
             "serverGrantedSteps_v1",
             "debugStepsBonus_outerworld_v1",
             "debugStepsBonus_debug_v1",
