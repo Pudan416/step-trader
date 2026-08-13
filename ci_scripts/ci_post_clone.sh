@@ -1,6 +1,6 @@
 #!/bin/sh
 # Xcode Cloud: create Secrets.xcconfig from template so the build can succeed.
-# Set REVENUECAT_API_KEY (and Supabase keys) as Xcode Cloud workflow secrets;
+# Set the Supabase keys as Xcode Cloud workflow secrets;
 # this script substitutes them into Secrets.xcconfig before the build.
 set -e
 REPO_ROOT="${CI_PRIMARY_REPOSITORY_PATH:-.}"
@@ -25,7 +25,6 @@ substitute() {
   fi
 }
 
-substitute "REVENUECAT_API_KEY" "${REVENUECAT_API_KEY:-}"
 substitute "SUPABASE_URL" "${SUPABASE_URL:-}"
 substitute "SUPABASE_ANON_KEY" "${SUPABASE_ANON_KEY:-}"
 
@@ -45,6 +44,5 @@ assert_substituted() {
   fi
 }
 
-assert_substituted "REVENUECAT_API_KEY"
 assert_substituted "SUPABASE_URL"
 assert_substituted "SUPABASE_ANON_KEY"

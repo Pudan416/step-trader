@@ -70,7 +70,7 @@ class AuthenticationService: NSObject, ObservableObject {
     private var pendingContinuations: [CheckedContinuation<Void, Never>] = []
 
     /// Handle to the background work spawned after a successful sign-in
-    /// (RC link + full Supabase sync). Stored so logout can cancel it
+    /// (full Supabase sync). Stored so logout can cancel it
     /// before the late-arriving sync writes back to a stale `AppModel`.
     /// (§3.1)
     private var postLoginSyncTask: Task<Void, Never>?

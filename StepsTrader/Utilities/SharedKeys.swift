@@ -177,10 +177,9 @@ enum SharedKeys {
     static let hasStepsData = "hasStepsData_v1"
 
     // MARK: - Subscription (retired)
-    /// First time we ever evaluated grandfathering. Used to pin "existing user" status.
-    static let grandfatherEvaluatedAt = "subscription_grandfatherEvaluatedAt_v1"
-    // isGrandfathered, cachedHasProEntitlement and rcAppUserID were retired
-    // along with the subscription SDK — see SubscriptionStore.swift.
+    // grandfatherEvaluatedAt, isGrandfathered, cachedHasProEntitlement and
+    // rcAppUserID were retired along with the subscription SDK — see
+    // SubscriptionStore.swift.
 
     // MARK: - Notes (app-only)
     static let readNoteIDs = "readNoteIDs_v1"

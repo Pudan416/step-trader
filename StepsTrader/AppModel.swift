@@ -279,7 +279,7 @@ final class AppModel: ObservableObject {
         authService.postLoginSyncModel = self
     }
 
-    /// Convenience: true if user has Pro access (paid OR grandfathered).
+    /// Convenience: always true. The app is free for everyone.
     var isPro: Bool { subscriptionStore.isPro }
 
     func currentDayStart(for date: Date) -> Date {

@@ -29,8 +29,8 @@ jobs:
           xcrun simctl list runtimes | grep iOS || true
 
       - name: Create placeholder secrets
-        # The build's Info.plist references $(SUPABASE_URL)/$(SUPABASE_ANON_KEY)/
-        # $(REVENUECAT_API_KEY) via Config/Secrets.xcconfig, which is gitignored.
+        # The build's Info.plist references $(SUPABASE_URL)/$(SUPABASE_ANON_KEY)
+        # via Config/Secrets.xcconfig, which is gitignored.
         # Unit tests never hit the network, so the placeholder values from the
         # template are sufficient to compile and run. (Secrets-Dev.xcconfig is
         # optionally included and absent here, so Debug falls back to these.)
