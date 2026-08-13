@@ -204,14 +204,21 @@ struct HappeningPaletteView: View {
                     figures: figures,
                     bounds: fieldBounds(layout, topInset: panelTopInset, width: proxy.size.width),
                     highlightedID: highlightedID,
-                    onPick: onPick
+                    onPick: pickAndClose
                 )
                 .accessibilityHidden(activePanel != nil)
 
-                if let completionBounds = layout.completionBounds {
-                    HappeningCompletionIsland()
-                        .frame(width: completionBounds.width, height: completionBounds.height)
-                        .position(x: completionBounds.midX, y: completionBounds.midY)
+                if layout.completionBounds != nil {
+                    // Just the sentence, centred. The island it replaced was a
+                    // liquid blob left over from the metaball palette — with no
+                    // figures beside it any more it read as one more shape
+                    // rather than as the end of the day's list.
+                    Text("All added for today", comment: "Palette completion state")
+                        .font(.system(size: 17, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppColors.Night.textPrimary.opacity(0.75))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
                         .accessibilityHidden(activePanel != nil)
                 }
 
@@ -365,6 +372,15 @@ struct HappeningPaletteView: View {
     /// Room for the hint below the top card, with enough left over for it to
     /// wrap to two lines at accessibility type sizes without reaching the
     /// first row of tiles.
+    /// One tap, one happening, and the palette is done: picking closes it
+    /// rather than leaving the field open over a canvas the user now wants to
+    /// look at. Only on success — a refused pick leaves everything as it was.
+    private func pickAndClose(_ happening: Happening, at origin: CGPoint) -> Bool {
+        guard onPick(happening, origin) else { return false }
+        onDismiss()
+        return true
+    }
+
     private var hintTopInset: CGFloat { 30 }
 
     /// The box the tiles lay out in: below the top card and the hint, above the

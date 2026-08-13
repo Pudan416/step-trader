@@ -56,11 +56,15 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let app = launchTask7App()
         openPalette(in: app)
 
+        // Picking closes the palette, so each happening needs it opened again.
+        // That is the behaviour, not a workaround: one tap logs one thing and
+        // hands the canvas back.
         for title in task7BuiltInTitles {
             let label = app.buttons[title]
             XCTAssertTrue(label.waitForExistence(timeout: 3), "Missing palette label: \(title)")
             label.tap()
             XCTAssertTrue(label.waitForNonExistence(timeout: 3), "Label did not leave field: \(title)")
+            openPalette(in: app)
         }
 
         XCTAssertTrue(app.staticTexts["All added for today"].waitForExistence(timeout: 3))
@@ -74,11 +78,15 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let app = launchTask7App()
         openPalette(in: app)
 
+        // Picking closes the palette, so each happening needs it opened again.
+        // That is the behaviour, not a workaround: one tap logs one thing and
+        // hands the canvas back.
         for title in task7BuiltInTitles {
             let label = app.buttons[title]
             XCTAssertTrue(label.waitForExistence(timeout: 3), "Missing palette label: \(title)")
             label.tap()
             XCTAssertTrue(label.waitForNonExistence(timeout: 3), "Label did not leave field: \(title)")
+            openPalette(in: app)
         }
 
         XCTAssertTrue(app.staticTexts["All added for today"].waitForExistence(timeout: 3))
@@ -307,7 +315,9 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let addHappening = app.buttons["Add happening"]
         XCTAssertTrue(addHappening.waitForExistence(timeout: 8))
         addHappening.tap()
-        XCTAssertTrue(app.buttons["Walk"].waitForExistence(timeout: 5))
+        // The dock, not a happening: once one has been picked it never comes
+        // back, and the palette is just as open without it.
+        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5))
     }
 
     private func attachScreenshot(named name: String) {
