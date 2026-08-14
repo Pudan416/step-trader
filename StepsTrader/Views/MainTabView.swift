@@ -462,7 +462,10 @@ struct MainTabView: View {
 
     @ViewBuilder
     private func tabBarItems(animated: Bool) -> some View {
-        HStack(spacing: 0) {
+        // Fixed spacing, not a distributed one: with three destinations left,
+        // stretching each item to an equal share of the screen leaves the icons
+        // marooned at the edges of a bar that spans the whole width.
+        HStack(spacing: 4) {
             ForEach(Tab.allCases, id: \.rawValue) { tab in
                 let isSelected = selection == tab.rawValue
                 Button {
@@ -502,7 +505,10 @@ struct MainTabView: View {
                             .minimumScaleFactor(0.8)
                     }
                     .foregroundStyle(tabTint.opacity(isSelected ? 1.0 : 0.75))
-                    .frame(maxWidth: .infinity)
+                    // A minimum, so the pill hugs its contents while every item
+                    // keeps a tap target wider than the 44pt floor.
+                    .frame(minWidth: 56)
+                    .padding(.horizontal, 4)
                     .padding(.vertical, 4)
                     .contentShape(Rectangle())
                 }
