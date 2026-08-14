@@ -377,9 +377,6 @@
     "About Steps" : {
       "comment" : "Note topic"
     },
-    "About Subscription" : {
-      "comment" : "Note topic"
-    },
     "About the Canvas" : {
       "comment" : "Note topic"
     },
@@ -2571,9 +2568,6 @@
     },
     "TEXTURE" : {
       "comment" : "Appearance section header"
-    },
-    "The app is free. The core loop — canvas, daily rhythm, all of it — stays open. On the free tier you can block one app. Pick the worst offender. That's where the leak stops.\n\nSubscribing lets you block more than one app. Plus a few extras: more palettes and shapes, longer history, custom activities, daily random themes. Small things. They add up if you actually use this.\n\nHere's the deal. I pay for Supabase. Apple Developer. The AI tools I used to build this. A pile of tiny services that quietly add up every month. And I'd like this app to grow into something I can work on properly. Instead of squeezing it between corporate gigs.\n\nIf I get laid off — which, looking at the industry, isn't exactly a wild scenario — this is what I'd want to fall back on. Instead of starving.\n\nSo if the app gave you anything. A quiet moment. A nicer wallpaper. A different way to look at your day. And you can spare it — subscribing helps me keep building it.\n\nIf you can't, no worries. Use it freely. That's the point." : {
-      "comment" : "Note body: about_subscription"
     },
     "the app needs access to apple health." : {
 

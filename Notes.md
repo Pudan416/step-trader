@@ -20,13 +20,6 @@ You can add widgets to your home screen. They bring the app's mechanics right to
 About Colors
 Colors are not a currency. Well — kind of. You can earn up to 100 per day. Steps and sleep give them to you automatically. Body, mind, and heart — you add those yourself. You can spend colors to unlock apps. But the more you spend, the less colorful your canvas becomes. Because doomscrolling takes color out of life. Literally, here.
 I'm not selling them through microtransactions. Colors are yours. You earn them, you deserve them, you can always add more. Within limits.
-About Subscription
-The app is free. The core loop — canvas, daily rhythm, all of it — stays open. On the free tier you can block one app. Pick the worst offender. That's where the leak stops.
-Subscribing lets you block more than one app. Plus a few extras: more palettes and shapes, longer history, custom activities, daily random themes. Small things. They add up if you actually use this.
-Here's the deal. I pay for Supabase. Apple Developer. The AI tools I used to build this. A pile of tiny services that quietly add up every month. And I'd like this app to grow into something I can work on properly. Instead of squeezing it between corporate gigs.
-If I get laid off — which, looking at the industry, isn't exactly a wild scenario — this is what I'd want to fall back on. Instead of starving.
-So if the app gave you anything. A quiet moment. A nicer wallpaper. A different way to look at your day. And you can spare it — subscribing helps me keep building it.
-If you can't, no worries. Use it freely. That's the point.
 About Me
 I am not my job title
 I am not a designer
