@@ -66,9 +66,13 @@ struct HappeningChooserView: View {
                         )
                     )
 
-                Text("\(draft.ids.count) of \(HappeningPaletteSelection.slotCount) selected")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                Text("\(draft.ids.count)/\(HappeningPaletteSelection.slotCount)")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(
+                        draft.ids.count == HappeningPaletteSelection.slotCount
+                            ? AppColors.brandAccent
+                            : Color.secondary
+                    )
                     .monospacedDigit()
                     .accessibilitySortPriority(
                         HappeningPanelAccessibilityOrder.priority(
@@ -173,18 +177,36 @@ struct HappeningChooserView: View {
                 break
             }
         } label: {
+            // Name on the left, its mark on the right. A leading checkbox reads
+            // as a settings table; the eye should land on what the happening is
+            // called first and on whether it is in the palette second.
             HStack(spacing: 12) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                    .accessibilityHidden(true)
-
                 Text(happening.localizedTitle())
                     .font(.body)
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
 
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
+
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? AppColors.brandAccent : Color.clear)
+                        .overlay {
+                            Circle().strokeBorder(
+                                isSelected
+                                    ? Color.clear
+                                    : Color.primary.opacity(0.25),
+                                lineWidth: 1.5
+                            )
+                        }
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.black.opacity(0.8))
+                    }
+                }
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())

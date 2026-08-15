@@ -295,24 +295,26 @@ struct CanvasElement: Identifiable, Codable {
         allowedShapeTypes: [CanvasShapeType] = CanvasShapeType.allowedByUser,
         dayKey: String? = nil,
         activityCount: Int? = nil,
-        composition: DayComposition
+        composition: DayComposition,
+        figure: HappeningShapeAssignment? = nil
     ) -> CanvasElement {
         // Arrival order within the day. Drives size, colour and texture.
         let rank = existingElements.count
 
-        // The seed comes first: everything below derives from it, so the same
-        // day + option + index reproduces the whole element, not just its
-        // contour. Without a dayKey there is nothing stable to hash, so the
-        // element gets a one-off random identity.
-        let seed = dayKey.map { makeSeed(optionId: optionId, dayKey: $0, index: rank) }
+        // A palette figure has already chosen the seed that defines its exact
+        // silhouette. Other callers keep the composition-era deterministic
+        // day + option + rank derivation.
+        let seed = figure?.seed
+            ?? dayKey.map { makeSeed(optionId: optionId, dayKey: $0, index: rank) }
             ?? UInt64.random(in: UInt64.min...UInt64.max)
 
-        // `allowedByUser` returns its result in picker order, so indexing into
-        // it is stable across launches. Never index into a Set here — Swift
-        // randomises hash seeds per process.
+        // The palette must win over a second roll here: the tile and the
+        // resulting canvas element promise the same figure. Without a supplied
+        // figure, `allowedByUser` remains deterministic in picker order.
         let choices = allowedShapeTypes.isEmpty ? [CanvasShapeType.circle] : allowedShapeTypes
         var shapeRng = SeededRNG.derived(from: seed, domain: "shape")
-        let shapeType = choices[shapeRng.nextInt(in: 0...(choices.count - 1))]
+        let shapeType = figure?.shapeType
+            ?? choices[shapeRng.nextInt(in: 0...(choices.count - 1))]
 
         let kind: ElementKind = switch shapeType {
             case .blob, .organicBlob, .snowflake, .circle, .spirograph: .circle
@@ -337,8 +339,9 @@ struct CanvasElement: Identifiable, Codable {
             rank: rank, count: DayComposition.nominalDayCount)
         let size = CGFloat(min(0.48, max(0.04, base * multiplier)))
 
-        // Colour comes from the day's palette, not from all 29 swatches.
-        let color = composition.color(forRank: rank)
+        // A previewed figure keeps its primary colour. All other spawns derive
+        // colour from the day's composition rather than all 29 swatches.
+        let color = figure?.colorHex ?? composition.color(forRank: rank)
 
         // ~60% two-colour, ~40% single-colour — restores the variety the old
         // `randomSecondColor` (~50% nil) gave, deterministically. Every
@@ -356,6 +359,9 @@ struct CanvasElement: Identifiable, Codable {
             ? motionRng.nextDouble(in: 0.08...0.2)
             : motionRng.nextDouble(in: 0.3...0.8)
 
+        // Composition still owns placement, size, opacity and motion. The
+        // palette promise covers shape, silhouette seed, primary colour and
+        // rotation — not how large the figure lands or how it moves.
         return CanvasElement(
             id: id,
             kind: kind,
@@ -374,6 +380,7 @@ struct CanvasElement: Identifiable, Codable {
             opacity: motionRng.nextDouble(in: opacityRange),
             createdAt: .now,
             assetVariant: forcedVariant ?? 0,
+            userRotation: figure?.rotation ?? 0,
             shapeSeed: seed,
             activityCount: activityCount,
             frozenShapeType: shapeType

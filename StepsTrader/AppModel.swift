@@ -181,6 +181,7 @@ final class AppModel: ObservableObject {
     @Published var todayAdditions: [OptionEntry] = []
     let happeningStore = HappeningStore()
     let happeningPaletteSelectionStore = HappeningPaletteSelectionStore()
+    let happeningShapeNonceStore = HappeningShapeNonceStore()
     @Published var savedRoutines: [EnergyRoutine] = []
     
     /// Single source of truth: UserEconomyStore.spentSteps (persisted as SharedKeys.spentStepsToday).

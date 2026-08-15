@@ -5,7 +5,7 @@ import SwiftUI
 /// The templates intentionally describe relative placement only. The renderer
 /// supplies the visual material and interpolates between returned layouts;
 /// this type keeps the field stable, testable, and safe-area-aware.
-enum HappeningLiquidLayout {
+enum HappeningFieldLayout {
 
     struct Source: Equatable {
         /// Stable position in the caller's ordered happening collection.
@@ -17,7 +17,7 @@ enum HappeningLiquidLayout {
     struct Layout: Equatable {
         let sources: [Source]
         /// Rectangular, independent hit regions. They never overlap even when
-        /// the rendered liquid sources do.
+        /// the rendered field sources do.
         let labelFrames: [CGRect]
         /// The renderer's intended outer extent, leaving free canvas around it.
         let contourBounds: CGRect
@@ -140,9 +140,9 @@ enum HappeningLiquidLayout {
         guard itemCount > 0 else {
             let typeScale = min(
                 1.35,
-                HappeningLiquidLabelTypography.scaledUIFont(
+                HappeningFieldLabelTypography.scaledUIFont(
                     for: dynamicTypeSize
-                ).pointSize / HappeningLiquidLabelTypography.pointSize
+                ).pointSize / HappeningFieldLabelTypography.pointSize
             )
             let completionSize = CGSize(
                 width: min(216 * typeScale, safeBounds.width - edgeClearance * 2),
@@ -244,7 +244,7 @@ enum HappeningLiquidLayout {
         dynamicTypeSize: DynamicTypeSize
     ) -> Layout {
         let rows = Int(ceil(Double(itemCount) / 2))
-        let font = HappeningLiquidLabelTypography.scaledUIFont(for: dynamicTypeSize)
+        let font = HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize)
         let labelSize = CGSize(
             width: min(164, (safeBounds.width - 50) / 2),
             height: min(122, max(78, ceil(font.lineHeight * 3.25 / 0.80)))
@@ -343,12 +343,12 @@ enum HappeningLiquidLayout {
 }
 
 #if DEBUG
-private struct HappeningLiquidLayoutDebugPreview: View {
+private struct HappeningFieldLayoutDebugPreview: View {
     let count: Int
 
     var body: some View {
         GeometryReader { proxy in
-            let layout = HappeningLiquidLayout.layout(
+            let layout = HappeningFieldLayout.layout(
                 count: count, in: proxy.size, safeInsets: EdgeInsets()
             )
 
@@ -393,11 +393,11 @@ private struct HappeningLiquidLayoutDebugPreview: View {
     }
 }
 
-#Preview("Liquid layout grid") {
+#Preview("Field layout grid") {
     ScrollView {
         VStack(spacing: 16) {
             ForEach([10, 9, 6, 3, 0], id: \.self) { count in
-                HappeningLiquidLayoutDebugPreview(count: count)
+                HappeningFieldLayoutDebugPreview(count: count)
             }
         }
         .padding()
@@ -405,11 +405,11 @@ private struct HappeningLiquidLayoutDebugPreview: View {
     .background(.gray.opacity(0.25))
 }
 
-#Preview("Liquid layout grid — Accessibility") {
+#Preview("Field layout grid — Accessibility") {
     ScrollView {
         VStack(spacing: 16) {
             ForEach([10, 9, 6, 3, 0], id: \.self) { count in
-                HappeningLiquidLayoutDebugPreview(count: count)
+                HappeningFieldLayoutDebugPreview(count: count)
             }
         }
         .padding()

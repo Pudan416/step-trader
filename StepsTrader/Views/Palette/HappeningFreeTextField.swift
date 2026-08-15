@@ -29,7 +29,7 @@ struct HappeningCreatorPanel: View {
     }
 
     private var usesExpandedActionLayout: Bool {
-        HappeningLiquidLayout.usesExpandedLayout(for: dynamicTypeSize)
+        HappeningFieldLayout.usesExpandedLayout(for: dynamicTypeSize)
     }
 
     var body: some View {

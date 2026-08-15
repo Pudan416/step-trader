@@ -103,6 +103,30 @@ extension AppModel {
         happeningPaletteSelectionStore.ids.compactMap { happeningStore.happening(id: $0) }
     }
 
+    /// The figure each configured happening takes today — the shape type,
+    /// colour, silhouette and rotation a tile previews and `spawn` then uses.
+    /// Derived from the day's nonce rather than stored; see `HappeningShapeRoll`.
+    func paletteFigures(on date: Date = .now) -> [String: HappeningShapeAssignment] {
+        let dayKey = Self.dayKey(for: date)
+        AppLogger.energy.debug(
+            "🎲 paletteFigures read: nonce \(self.happeningShapeNonceStore.nonce(for: dayKey))"
+        )
+        return HappeningShapeRoll.assignments(
+            for: configuredPaletteHappenings().map(\.id),
+            dayKey: dayKey,
+            nonce: happeningShapeNonceStore.nonce(for: dayKey)
+        )
+    }
+
+    /// Shake. Only the field changes: additions already carry the colour they
+    /// were logged with, and their canvas elements already froze their shape.
+    func rerollPaletteFigures(on date: Date = .now) {
+        let dayKey = Self.dayKey(for: date)
+        let minted = happeningShapeNonceStore.reroll(for: dayKey)
+        AppLogger.energy.debug("🎲 reroll: minted nonce \(minted) for \(dayKey)")
+        objectWillChange.send()
+    }
+
     func availablePaletteHappenings(on date: Date = .now) -> [Happening] {
         let used = Set(todayAdditions.lazy
             .filter { $0.dayKey == Self.dayKey(for: date) }

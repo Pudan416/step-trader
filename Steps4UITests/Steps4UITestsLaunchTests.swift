@@ -56,11 +56,15 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let app = launchTask7App()
         openPalette(in: app)
 
+        // Picking closes the palette, so each happening needs it opened again.
+        // That is the behaviour, not a workaround: one tap logs one thing and
+        // hands the canvas back.
         for title in task7BuiltInTitles {
             let label = app.buttons[title]
             XCTAssertTrue(label.waitForExistence(timeout: 3), "Missing palette label: \(title)")
             label.tap()
             XCTAssertTrue(label.waitForNonExistence(timeout: 3), "Label did not leave field: \(title)")
+            openPalette(in: app)
         }
 
         XCTAssertTrue(app.staticTexts["All added for today"].waitForExistence(timeout: 3))
@@ -74,11 +78,15 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let app = launchTask7App()
         openPalette(in: app)
 
+        // Picking closes the palette, so each happening needs it opened again.
+        // That is the behaviour, not a workaround: one tap logs one thing and
+        // hands the canvas back.
         for title in task7BuiltInTitles {
             let label = app.buttons[title]
             XCTAssertTrue(label.waitForExistence(timeout: 3), "Missing palette label: \(title)")
             label.tap()
             XCTAssertTrue(label.waitForNonExistence(timeout: 3), "Label did not leave field: \(title)")
+            openPalette(in: app)
         }
 
         XCTAssertTrue(app.staticTexts["All added for today"].waitForExistence(timeout: 3))
@@ -239,9 +247,41 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         ]
     }
 
+    /// Shake changes the figures without disturbing anything around them.
+    ///
+    /// What a UI test can see is structure, not silhouettes: the ten tiles
+    /// survive, the dock still has exactly its three buttons, and the hint is
+    /// on screen. That the figures actually changed is a thing for eyes.
+    func testShakeKeepsTheFieldAndTheDockIntact() throws {
+        let app = launchTask7App(shakeTrigger: true)
+        openPalette(in: app)
+
+        XCTAssertTrue(app.staticTexts["Shake to change the shapes"].exists)
+        for title in task7BuiltInTitles {
+            XCTAssertTrue(app.buttons[title].exists, "Missing tile before shake: \(title)")
+        }
+
+        // The fixture shakes the palette 1.2s after it appears — nothing to
+        // tap, because a tap anywhere over the field reaches the dismissing
+        // backdrop and closes the palette instead.
+        Thread.sleep(forTimeInterval: 3)
+
+        // Dock first: if the palette closed instead of re-rolling, the tiles
+        // being gone says nothing about the shake.
+        XCTAssertTrue(app.buttons["Choose happenings"].isHittable, "Palette closed")
+        XCTAssertTrue(app.buttons["Close"].isHittable)
+        XCTAssertTrue(app.buttons["Add a happening"].isHittable)
+        XCTAssertTrue(app.staticTexts["Shake to change the shapes"].exists, "Hint gone")
+        for title in task7BuiltInTitles {
+            XCTAssertTrue(app.buttons[title].exists, "Tile lost on shake: \(title)")
+        }
+        attachScreenshot(named: "palette-shapes-after-shake")
+    }
+
     private func launchTask7App(
         dynamicTypeSize: String? = nil,
-        increasedContrast: Bool = false
+        increasedContrast: Bool = false,
+        shakeTrigger: Bool = false
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -256,6 +296,9 @@ final class Steps4UITestsLaunchTests: XCTestCase {
                 "-UIPreferredContentSizeCategoryName",
                 "UICTContentSizeCategoryAccessibilityM",
             ]
+        }
+        if shakeTrigger {
+            app.launchEnvironment["TASK7_SHAKE_PALETTE"] = "1"
         }
         if increasedContrast {
             app.launchEnvironment["TASK7_INCREASED_CONTRAST"] = "1"
@@ -272,7 +315,9 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let addHappening = app.buttons["Add happening"]
         XCTAssertTrue(addHappening.waitForExistence(timeout: 8))
         addHappening.tap()
-        XCTAssertTrue(app.buttons["Walk"].waitForExistence(timeout: 5))
+        // The dock, not a happening: once one has been picked it never comes
+        // back, and the palette is just as open without it.
+        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5))
     }
 
     private func attachScreenshot(named name: String) {

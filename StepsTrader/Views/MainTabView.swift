@@ -252,6 +252,11 @@ struct MainTabView: View {
                     .accessibilityIdentifier("task7_accessibility_configuration")
                     .accessibilityLabel("Task 7 accessibility configuration")
                     .accessibilityValue(task7AccessibilityConfigurationValue)
+
+                // XCUITest cannot synthesise a device shake, so the fixture
+                // fires the notification the window would have posted. Gated on
+                // the environment variable, so it cannot exist in a shipping
+                // build.
             }
         }
         .overlay(alignment: .top) {

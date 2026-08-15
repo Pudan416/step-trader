@@ -60,7 +60,7 @@ enum HappeningPaletteChromeLayout {
         dynamicTypeSize: DynamicTypeSize
     ) -> Bool {
         isPalettePresented
-            && (isPanelPresented || HappeningLiquidLayout.usesExpandedLayout(for: dynamicTypeSize))
+            && (isPanelPresented || HappeningFieldLayout.usesExpandedLayout(for: dynamicTypeSize))
     }
 
     static func showsCanvasControls(isPalettePresented: Bool) -> Bool {
@@ -71,6 +71,9 @@ enum HappeningPaletteChromeLayout {
 /// Palette container for the native Living-island field and catalog controls.
 struct HappeningPaletteView: View {
     let happenings: [Happening]
+    /// The figure each happening takes today. Passed in rather than derived
+    /// here so the tile and the canvas element come from one roll.
+    let figures: [String: HappeningShapeAssignment]
     let catalog: [Happening]
     let selectedIDs: [String]
     let onPick: (Happening, CGPoint) -> Bool
@@ -78,6 +81,9 @@ struct HappeningPaletteView: View {
     let onSaveSelection: ([String]) -> Bool
     let onPanelPresentationChange: (Bool) -> Void
     let onDismiss: () -> Void
+    /// Shake. Nothing in the dock triggers this — the hint at the top of the
+    /// overlay is the only thing that teaches the gesture.
+    let onReroll: () -> Void
     let dayKey: String
 
     /// Global mid-Y of the canvas `+` this palette overlays. The dock sits on
@@ -85,7 +91,7 @@ struct HappeningPaletteView: View {
     /// Nil only before the first layout pass reports it.
     let dockCenterY: CGFloat?
 
-    @State private var presentation: HappeningLiquidPresentationState
+    @State private var presentation: HappeningFieldPresentationState
     @State private var activePanel: Panel?
     @State private var highlightedID: String?
     @State private var highlightTask: Task<Void, Never>?
@@ -93,6 +99,7 @@ struct HappeningPaletteView: View {
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Panel {
         case chooser
@@ -101,6 +108,7 @@ struct HappeningPaletteView: View {
 
     init(
         happenings: [Happening],
+        figures: [String: HappeningShapeAssignment] = [:],
         catalog: [Happening]? = nil,
         selectedIDs: [String]? = nil,
         onPick: @escaping (Happening, CGPoint) -> Bool,
@@ -108,10 +116,12 @@ struct HappeningPaletteView: View {
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
         onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
         onDismiss: @escaping () -> Void,
+        onReroll: @escaping () -> Void = {},
         dayKey: String,
         dockCenterY: CGFloat? = nil
     ) {
         self.happenings = happenings
+        self.figures = figures
         self.catalog = catalog ?? happenings
         self.selectedIDs = selectedIDs ?? happenings.map(\.id)
         self.onPick = onPick
@@ -119,10 +129,11 @@ struct HappeningPaletteView: View {
         self.onSaveSelection = onSaveSelection
         self.onPanelPresentationChange = onPanelPresentationChange
         self.onDismiss = onDismiss
+        self.onReroll = onReroll
         self.dayKey = dayKey
         self.dockCenterY = dockCenterY
         _presentation = State(
-            initialValue: HappeningLiquidPresentationState(happenings: happenings)
+            initialValue: HappeningFieldPresentationState(happenings: happenings)
         )
     }
 
@@ -162,26 +173,52 @@ struct HappeningPaletteView: View {
             let panelHeight = max(1, proxy.size.height - panelTopInset - panelBottomInset)
 
             ZStack(alignment: .topLeading) {
-                Color.clear
+                // Frosted, not clear: the canvas stays visible and blurred
+                // behind the field instead of being painted over.
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture {
                         guard activePanel == nil else { return }
                         onDismiss()
                     }
 
-                HappeningLiquidField(
-                    happenings: happenings,
+                Text("Shake to change the shapes", comment: "Palette shake hint")
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    // `textSecondary` is a deliberate alias of `textPrimary` in
+                    // this theme — hierarchy comes from opacity, so without this
+                    // the hint reads as loud as the tile labels.
+                    .foregroundStyle(AppColors.Night.textSecondary.opacity(0.6))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .position(
+                        x: proxy.size.width / 2,
+                        y: panelTopInset + hintTopInset
+                    )
+                    .accessibilityHidden(activePanel != nil)
+
+                HappeningShapeField(
                     presentation: $presentation,
-                    dayKey: dayKey,
+                    happenings: happenings,
+                    figures: figures,
+                    bounds: fieldBounds(layout, topInset: panelTopInset, width: proxy.size.width),
                     highlightedID: highlightedID,
-                    onPick: onPick
+                    onPick: pickAndClose
                 )
                 .accessibilityHidden(activePanel != nil)
 
-                if let completionBounds = layout.completionBounds {
-                    HappeningCompletionIsland()
-                        .frame(width: completionBounds.width, height: completionBounds.height)
-                        .position(x: completionBounds.midX, y: completionBounds.midY)
+                if layout.completionBounds != nil {
+                    // Just the sentence, centred. The island it replaced was a
+                    // liquid blob left over from the metaball palette — with no
+                    // figures beside it any more it read as one more shape
+                    // rather than as the end of the day's list.
+                    Text("All added for today", comment: "Palette completion state")
+                        .font(.system(size: 17, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppColors.Night.textPrimary.opacity(0.75))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
                         .accessibilityHidden(activePanel != nil)
                 }
 
@@ -241,6 +278,28 @@ struct HappeningPaletteView: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
             .background(Color.clear)
         }
+        .task {
+            // XCUITest cannot synthesise a shake and a tappable trigger just
+            // gets swallowed by the palette's own dismissing backdrop, so under
+            // the fixture the palette shakes itself once after it appears.
+            guard ProcessInfo.processInfo.environment["TASK7_SHAKE_PALETTE"] == "1" else { return }
+            try? await Task.sleep(for: .milliseconds(1200))
+            NotificationCenter.default.post(
+                name: UIDevice.deviceDidShakeNotification,
+                object: nil
+            )
+        }
+        .onShake {
+            AppLogger.ui.debug("🎲 shake received, panel=\(activePanel == nil ? "none" : "open")")
+            // Not while a panel is up: a shake behind the chooser or the
+            // creator would re-roll a field the user cannot see.
+            guard activePanel == nil else { return }
+            if reduceMotion {
+                onReroll()
+            } else {
+                withAnimation(.easeInOut(duration: 0.32)) { onReroll() }
+            }
+        }
         .onChange(of: activePanel) { _, panel in
             onPanelPresentationChange(panel != nil)
         }
@@ -294,19 +353,57 @@ struct HappeningPaletteView: View {
     /// cluster clears its own dock line, and the two sit within a few points
     /// of each other.
     private func alignedToCanvasControls(
-        _ layout: HappeningLiquidLayout.Layout,
+        _ layout: HappeningFieldLayout.Layout,
         in proxy: GeometryProxy
-    ) -> HappeningLiquidLayout.Layout {
+    ) -> HappeningFieldLayout.Layout {
         guard let dockCenterY else { return layout }
         let localY = dockCenterY - proxy.frame(in: .global).minY
         guard localY.isFinite, localY > 0 else { return layout }
         let shift = localY - layout.dockAnchor.y
-        return HappeningLiquidLayout.Layout(
+        return HappeningFieldLayout.Layout(
             sources: layout.sources,
             labelFrames: layout.labelFrames,
             contourBounds: layout.contourBounds,
             dockAnchor: CGPoint(x: layout.dockAnchor.x, y: localY),
             completionBounds: layout.completionBounds.map { $0.offsetBy(dx: 0, dy: shift) }
+        )
+    }
+
+    /// Room for the hint below the top card, with enough left over for it to
+    /// wrap to two lines at accessibility type sizes without reaching the
+    /// first row of tiles.
+    /// One tap, one happening, and the palette is done: picking closes it
+    /// rather than leaving the field open over a canvas the user now wants to
+    /// look at. Only on success — a refused pick leaves everything as it was.
+    private func pickAndClose(_ happening: Happening, at origin: CGPoint) -> Bool {
+        guard onPick(happening, origin) else { return false }
+        onDismiss()
+        return true
+    }
+
+    private var hintTopInset: CGFloat { 30 }
+
+    /// The box the tiles lay out in: below the top card and the hint, above the
+    /// dock.
+    ///
+    /// `topInset` is the same value the panels use, which already accounts for
+    /// `topCardHeight` — measuring from the safe area instead put the whole
+    /// first row behind the energy card.
+    ///
+    /// The bottom comes from the layout that used to bound the metaball
+    /// contour, so the field keeps clearing the dock exactly as the cluster did.
+    private func fieldBounds(
+        _ layout: HappeningFieldLayout.Layout,
+        topInset: CGFloat,
+        width: CGFloat
+    ) -> CGRect {
+        let top = topInset + hintTopInset + 34
+        let bottom = layout.dockAnchor.y - 52
+        return CGRect(
+            x: 16,
+            y: top,
+            width: max(1, width - 32),
+            height: max(1, bottom - top)
         )
     }
 
