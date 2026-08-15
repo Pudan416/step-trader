@@ -279,7 +279,7 @@ final class AppModel: ObservableObject {
         authService.postLoginSyncModel = self
     }
 
-    /// Convenience: true if user has Pro access (paid OR grandfathered).
+    /// Convenience: always true. The app is free for everyone.
     var isPro: Bool { subscriptionStore.isPro }
 
     func currentDayStart(for date: Date) -> Date {
@@ -318,7 +318,7 @@ final class AppModel: ObservableObject {
         }
         if dayChanged {
             // Custom day boundary flipped (respects `dayEndHour`/`dayEndMinute`) —
-            // give Pro users with Daily Random Theme a fresh palette + style for
+            // give users with Daily Random Theme enabled a fresh palette + style for
             // the new day. Note: `dayChanged` is computed via `AppModel.dayKey(for:)`
             // which is custom-day-aware, so this fires at the user's reset time
             // (e.g. 4am if dayEndHour=4), not at calendar midnight.
@@ -578,8 +578,7 @@ final class AppModel: ObservableObject {
         didCompleteBootstrap = true
 
         // Apply daily random theme on cold launch (no-op when toggle is OFF
-        // or already rolled today). Called after `didCompleteBootstrap = true`
-        // so `isPro` resolution has settled.
+        // or already rolled today).
         applyDailyRandomThemeIfNeeded()
 
         // HealthKit authorization is deferred until the scene is fully active.

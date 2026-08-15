@@ -259,7 +259,7 @@ extension SupabaseSyncService {
             // §5.5 — defensive filter on the receive side too. New writes
             // never send moment IDs, but historical rows from before this fix
             // can still contain `moment_*` strings; dropping them here avoids
-            // showing opaque IDs in MeView / HistoryView on a second device.
+            // showing opaque IDs in MeView on a second device.
             var result: [String: PastDaySnapshot] = [:]
             for row in rows {
                 result[row.dayKey] = PastDaySnapshot(

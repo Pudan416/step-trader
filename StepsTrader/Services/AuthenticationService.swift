@@ -70,7 +70,7 @@ class AuthenticationService: NSObject, ObservableObject {
     private var pendingContinuations: [CheckedContinuation<Void, Never>] = []
 
     /// Handle to the background work spawned after a successful sign-in
-    /// (RC link + full Supabase sync). Stored so logout can cancel it
+    /// (full Supabase sync). Stored so logout can cancel it
     /// before the late-arriving sync writes back to a stale `AppModel`.
     /// (§3.1)
     private var postLoginSyncTask: Task<Void, Never>?
@@ -156,11 +156,10 @@ class AuthenticationService: NSObject, ObservableObject {
 
     /// Runs sign-out side-effects against the *previous* session's bearer.
     ///
-    /// Order matters: we must delete the `device_tokens` row before RC logout
-    /// because the DELETE call goes through PostgREST (RLS-checked against the
-    /// captured bearer), while RC logout only touches the RevenueCat SDK.
-    /// Both happen after the keychain has already been wiped — that's fine,
-    /// the bearer JWT is still valid until its server-side expiry. (§5.1, §5.2)
+    /// The DELETE call goes through PostgREST (RLS-checked against the
+    /// captured bearer). This happens after the keychain has already been
+    /// wiped — that's fine, the bearer JWT is still valid until its
+    /// server-side expiry. (§5.1, §5.2)
     private static func performTeardown(_ pending: PendingTeardown?) async {
         if let pending {
             if let tokenHex = pending.deviceTokenHex {
@@ -174,8 +173,6 @@ class AuthenticationService: NSObject, ObservableObject {
         // Clear the cached APNs token regardless — a fresh registration
         // happens on the next launch via UIApplication.registerForRemoteNotifications.
         UserDefaults.standard.removeObject(forKey: pushTokenStorageKey)
-
-        await SubscriptionStore.shared.logOut()
     }
 
     // MARK: - Anonymous Auth
@@ -263,8 +260,8 @@ class AuthenticationService: NSObject, ObservableObject {
         currentUser = nil
         isAuthenticated = false
 
-        // §5.1 / §5.2: remove the push-token row and log out RevenueCat with
-        // the captured bearer. The DELETE may 404 if the server-side cascade
+        // §5.1 / §5.2: remove the push-token row using the captured bearer.
+        // The DELETE may 404 if the server-side cascade
         // (auth.users → public.users / device_tokens) already removed it —
         // that's fine, removeDeviceToken treats non-200 as best-effort.
         await Self.performTeardown(pendingTeardown)
@@ -299,10 +296,7 @@ class AuthenticationService: NSObject, ObservableObject {
         }
         
         AppLogger.auth.debug("🔐 handleAuthorization — got identity token (\(identityToken.count) bytes), nonce present, starting Supabase exchange")
-        
-        isLoading = true
-        error = nil
-        
+
         let appleFullName: String? = {
             guard let fn = credential.fullName else { return nil }
             let formatter = PersonNameComponentsFormatter()
@@ -316,87 +310,149 @@ class AuthenticationService: NSObject, ObservableObject {
             AppLogger.auth.debug("🔐 handleAuthorization — Apple provided fullName: \(name)")
         }
         
+        beginSignIn(idToken: idTokenString, nonce: nonce, appleFullName: appleFullName)
+    }
+
+    /// Kick off the Apple → Supabase sign-in flow and track it so
+    /// `signOut` / `deleteAccount` can cancel it.
+    ///
+    /// Split out of `handleAuthorization` because `ASAuthorization` cannot be
+    /// constructed outside of AuthenticationServices — everything past
+    /// credential extraction would otherwise be unreachable from a test.
+    func beginSignIn(idToken: String, nonce: String, appleFullName: String?) {
         // Replace any prior in-flight sign-in (e.g. user retried mid-flow) and
         // track the new one so signOut/deleteAccount can cancel it. The outer
         // Task inherits MainActor isolation from the enclosing @MainActor
         // class — no explicit `@MainActor in` annotation needed. (§3.1)
         signInTask?.cancel()
         signInTask = Task {
-            do {
-                AppLogger.auth.debug("🔐 supabaseSignInWithApple — starting token exchange")
-                let session = try await self.supabaseSignInWithApple(idToken: idTokenString, nonce: nonce)
-                guard !Task.isCancelled else {
-                    AppLogger.auth.debug("🔐 Sign-in cancelled after token exchange — discarding session")
-                    return
-                }
-                AppLogger.auth.debug("🔐 supabaseSignInWithApple — success, userId: \(session.user.id.prefix(8))…, expiresAt: \(session.expiresAt)")
-
-                self.storeSession(session)
-                self.isAnonymous = false
-                if let name = appleFullName {
-                    self.storeAppleDisplayName(name, for: session.user.id)
-                }
-
-                // Optimistic: token is valid — show logged-in UI before profile fetch finishes.
-                self.applyCachedSessionState(
-                    userId: session.user.id,
-                    email: session.user.email,
-                    createdAt: session.user.createdAt
-                )
-                self.currentNonce = nil
-                self.isLoading = false
-                AppLogger.auth.debug("🔐 Optimistic sign-in — isAuthenticated: \(self.isAuthenticated)")
-
-                do {
-                    AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — fetching profile")
-                    try await self.loadCurrentUserFromSupabase(session: session)
-                    guard !Task.isCancelled else { return }
-                    AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — done, user: \(self.currentUser?.displayName ?? "nil")")
-
-                    if let name = appleFullName {
-                        await self.promoteAppleNameAsDefaultProfileNameIfNeeded(name, session: session)
-                        guard !Task.isCancelled else { return }
-                    }
-                } catch {
-                    if self.isSessionInvalidatingError(error) {
-                        AppLogger.auth.error("🔐 Profile fetch invalidated session: \(error.localizedDescription)")
-                        self.clearStoredSession()
-                        self.clearCachedProfile(for: session.user.id)
-                        self.currentUser = nil
-                        self.isAuthenticated = false
-                        self.error = error.localizedDescription
-                        return
-                    }
-                    AppLogger.auth.warning("🔐 Profile refresh after sign-in deferred: \(error.localizedDescription)")
-                    if let user = self.currentUser {
-                        self.persistCachedProfile(user)
-                    }
-                }
-
-                AppLogger.auth.debug("🔐 Sign in complete — isAuthenticated: \(self.isAuthenticated)")
-
-                let uid = self.currentUser?.id ?? session.user.id
-                // Replace any previously-running post-login task (e.g. a
-                // re-sign-in before the previous sync settled). (§3.1)
-                self.postLoginSyncTask?.cancel()
-                self.postLoginSyncTask = Task { [weak self] in
-                    AppLogger.auth.debug("🔐 Post-login — linking RC userId: \(uid.prefix(8))…")
-                    await SubscriptionStore.shared.logIn(supabaseUserID: uid)
-                    guard !Task.isCancelled else { return }
-                    if let appModel = self?.postLoginSyncModel {
-                        AppLogger.auth.debug("🔐 Post-login — starting full Supabase sync")
-                        await SupabaseSyncService.shared.performFullSync(model: appModel)
-                        AppLogger.auth.debug("🔐 Post-login — full sync finished")
-                    }
-                }
-            } catch {
-                AppLogger.auth.error("🔐 Sign in FAILED: \(error.localizedDescription)")
-                self.isLoading = false
-                self.error = error.localizedDescription
-            }
+            await self.runSignIn(
+                idToken: idToken,
+                nonce: nonce,
+                appleFullName: appleFullName,
+                exchange: { try await self.supabaseSignInWithApple(idToken: $0, nonce: $1) }
+            )
         }
     }
-    
+
+    /// The sign-in flow proper, from token exchange through profile load.
+    ///
+    /// `exchange` is the Apple-identity-token → Supabase-session step. It is a
+    /// parameter rather than a direct call to `supabaseSignInWithApple` so the
+    /// flow can be driven against a canned session, without a network
+    /// round-trip. (§9.2)
+    func runSignIn(
+        idToken: String,
+        nonce: String,
+        appleFullName: String?,
+        exchangeTimeout: Duration = .seconds(30),
+        exchange: @escaping @MainActor @Sendable (String, String) async throws -> SupabaseSessionResponse
+    ) async {
+        isLoading = true
+        error = nil
+
+        // Backstop for *every* exit path — the optimistic reset below, the
+        // `catch`, and each `guard !Task.isCancelled` early return. The
+        // cancellation returns are reachable: `signOut()` and `deleteAccount()`
+        // both call `signInTask?.cancel()`. Because the service is a
+        // process-lifetime singleton, a leaked `true` is permanent — LoginView
+        // keeps the Sign in with Apple button `.disabled` and the ProgressView
+        // spinning until the app is killed. (§3.1)
+        defer { if isLoading { isLoading = false } }
+
+        do {
+            AppLogger.auth.debug("🔐 supabaseSignInWithApple — starting token exchange")
+            let (session, exchangeWasCancelled) = try await withThrowingTaskGroup(
+                of: (SupabaseSessionResponse, Bool).self
+            ) { group in
+                group.addTask {
+                    let session = try await exchange(idToken, nonce)
+                    return (session, Task.isCancelled)
+                }
+                group.addTask {
+                    try await Task.sleep(for: exchangeTimeout)
+                    throw AuthError.serverUnreachable
+                }
+
+                defer { group.cancelAll() }
+                guard let result = try await group.next() else {
+                    throw AuthError.serverUnreachable
+                }
+                return result
+            }
+            if exchangeWasCancelled {
+                withUnsafeCurrentTask { $0?.cancel() }
+            }
+            guard !Task.isCancelled else {
+                AppLogger.auth.debug("🔐 Sign-in cancelled after token exchange — discarding session")
+                return
+            }
+            AppLogger.auth.debug("🔐 supabaseSignInWithApple — success, userId: \(session.user.id.prefix(8))…, expiresAt: \(session.expiresAt)")
+
+            self.storeSession(session)
+            self.isAnonymous = false
+            if let name = appleFullName {
+                self.storeAppleDisplayName(name, for: session.user.id)
+            }
+
+            // Optimistic: token is valid — show logged-in UI before profile fetch finishes.
+            self.applyCachedSessionState(
+                userId: session.user.id,
+                email: session.user.email,
+                createdAt: session.user.createdAt
+            )
+            self.currentNonce = nil
+            // Deliberately early — not left to the `defer`: the profile fetch
+            // below runs behind the already-logged-in UI, so the spinner stops
+            // as soon as the token is known good.
+            self.isLoading = false
+            AppLogger.auth.debug("🔐 Optimistic sign-in — isAuthenticated: \(self.isAuthenticated)")
+
+            do {
+                AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — fetching profile")
+                try await self.loadCurrentUserFromSupabase(session: session)
+                guard !Task.isCancelled else { return }
+                AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — done, user: \(self.currentUser?.displayName ?? "nil")")
+
+                if let name = appleFullName {
+                    await self.promoteAppleNameAsDefaultProfileNameIfNeeded(name, session: session)
+                    guard !Task.isCancelled else { return }
+                }
+            } catch {
+                if self.isSessionInvalidatingError(error) {
+                    AppLogger.auth.error("🔐 Profile fetch invalidated session: \(error.localizedDescription)")
+                    self.clearStoredSession()
+                    self.clearCachedProfile(for: session.user.id)
+                    self.currentUser = nil
+                    self.isAuthenticated = false
+                    self.error = error.localizedDescription
+                    return
+                }
+                AppLogger.auth.warning("🔐 Profile refresh after sign-in deferred: \(error.localizedDescription)")
+                if let user = self.currentUser {
+                    self.persistCachedProfile(user)
+                }
+            }
+
+            AppLogger.auth.debug("🔐 Sign in complete — isAuthenticated: \(self.isAuthenticated)")
+
+            // Replace any previously-running post-login task (e.g. a
+            // re-sign-in before the previous sync settled). (§3.1)
+            self.postLoginSyncTask?.cancel()
+            self.postLoginSyncTask = Task { [weak self] in
+                guard !Task.isCancelled else { return }
+                if let appModel = self?.postLoginSyncModel {
+                    AppLogger.auth.debug("🔐 Post-login — starting full Supabase sync")
+                    await SupabaseSyncService.shared.performFullSync(model: appModel)
+                    AppLogger.auth.debug("🔐 Post-login — full sync finished")
+                }
+            }
+        } catch {
+            AppLogger.auth.error("🔐 Sign in FAILED: \(error.localizedDescription)")
+            self.error = error.localizedDescription
+        }
+    }
+
     func checkAuthenticationState() async { await loadStoredSessionAndRefreshUser() }
     
     // MARK: - Input Validation
@@ -685,10 +741,6 @@ class AuthenticationService: NSObject, ObservableObject {
             #if DEBUG
             AppLogger.auth.debug("🔐 Final state: isAuthenticated=\(self.isAuthenticated)")
             #endif
-            // Re-link RC on cold launch when we already have a session.
-            if let uid = currentUser?.id {
-                await SubscriptionStore.shared.logIn(supabaseUserID: uid)
-            }
         } catch {
             if isSessionInvalidatingError(error) {
                 AppLogger.auth.error("🔐 Session invalid — signing out locally: \(error.localizedDescription)")

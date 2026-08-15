@@ -12,13 +12,30 @@ final class HappeningAdditionsTests: XCTestCase {
         "dailyEnergySelections_v1_heart",
     ]
 
+    /// Test-owned storage directory. Without it the model reads the running
+    /// app's saved history: `reconstituteHappeningsFromHistory()` turns every
+    /// happening id ever recorded on the device into a custom happening, so
+    /// catalog counts here depended on what the simulator was carrying.
+    private var storageDirectory: URL!
+
     override func setUp() {
         super.setUp()
+        storageDirectory = FileManager.default.temporaryDirectory
+            .appending(path: "HappeningAdditionsTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
+        // An empty snapshot file, not a missing one: `loadPastDaySnapshots()`
+        // falls back to the App Group key when the file is absent — and deletes
+        // that key after migrating it, which would destroy real history.
+        try? Data("{}".utf8).write(to: storageDirectory.appending(path: "pastDaySnapshots.json"))
+        PersistenceManager.storageDirectoryOverride = storageDirectory
         clearLegacyKeys()
     }
 
     override func tearDown() {
         clearLegacyKeys()
+        PersistenceManager.storageDirectoryOverride = nil
+        try? FileManager.default.removeItem(at: storageDirectory)
+        storageDirectory = nil
         super.tearDown()
     }
 
@@ -330,13 +347,12 @@ final class HappeningAdditionsTests: XCTestCase {
         if clearAdditions {
             defaults.removeObject(forKey: SharedKeys.todayAdditions)
         }
-        defaults.set(true, forKey: SharedKeys.isGrandfathered)
         return AppModel(
             healthKitService: MockHealthKitService(),
             familyControlsService: MockFamilyControlsService(),
             notificationService: MockNotificationService(),
             budgetEngine: MockBudgetEngine(),
-            subscriptionStore: SubscriptionStore(defaults: defaults)
+            subscriptionStore: SubscriptionStore()
         )
     }
 }

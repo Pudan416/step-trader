@@ -2,23 +2,26 @@
 
 Your life makes colors. Your feeds cost them.
 
-An iOS app where real-world activity — steps, sleep, and daily choices across body, mind, and heart — produces **colors**. Colors are what you spend to open your feeds.
+An iOS app where real-world activity — sleep, steps and happenings — produces **colors**. Colors are what you spend to open your feeds.
 
 ## Core Loop
 
-1. **Live** — Walk, sleep, choose pieces from three categories (body, mind, heart).
+1. **Live** — Sleep, walk, log the happenings of your day.
 2. **See** — Your canvas fills up. Colors accumulate.
 3. **Spend** — When you want into your feeds, spend colors through the PayGate.
+
+A day is `sleep(20) + steps(20) + happenings(60) = 100`.
 
 ## Tabs
 
 | Tab | View | Purpose |
 |-----|------|---------|
-| 0 (default) | Canvas | Generative canvas + daily piece selection via radial menu |
+| 0 (default) | Canvas | Generative canvas + the happenings palette |
 | 1 | Feeds | App blocking groups — create tickets, set tariffs, configure time windows |
-| 2 | Me | 7-day ring row, weekly reflection, dimension breakdown, top consumers |
-| 3 | Notes | 12 wall texts — philosophy, not instructions |
-| 4 | Settings | Theme, targets, account, rest day override |
+| 2 | Me | This week in three numbers, connected apps, the calendar of past days |
+
+Settings is a button at the top right of Me, not a tab. **Notes from Kosta** —
+the wall texts — is reached from inside Settings (`Info` → `Notes from Kosta`).
 
 ## Targets
 

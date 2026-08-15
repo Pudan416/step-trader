@@ -8,13 +8,13 @@ struct SettingsAppearancePage: View {
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     /// Mirrors `SharedKeys.allowedCanvasShapes` only to trigger redraws —
     /// `CanvasShapeType.allowedByUser` stays the single source of truth, since
-    /// it also seeds from the legacy keys and applies the Pro gate.
+    /// it also seeds from the legacy keys. There is no gate: every shape is
+    /// available to every user.
     @State private var allowedShapes: Set<CanvasShapeType> = []
 
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.appTheme) private var theme
     @State private var previewConfig: GradientPreviewConfig?
-    @State private var showPaywall = false
     @State private var lightHapticTick = 0
     @State private var mediumHapticTick = 0
 
@@ -30,14 +30,8 @@ struct SettingsAppearancePage: View {
         EnergyGradientRenderer.palette(for: selectedPalette)
     }
 
-    private var canUseDailyRandom: Bool {
-        SubscriptionGate.canUseDailyRandomTheme(isPro: model.isPro)
-    }
-
-    private var canCustomizeShapes: Bool { true }
-
     private var isDailyRandomActive: Bool {
-        dailyRandomThemeEnabled && canUseDailyRandom
+        dailyRandomThemeEnabled
     }
 
     var body: some View {
@@ -79,13 +73,6 @@ struct SettingsAppearancePage: View {
             )
             .presentationBackground(.clear)
         }
-        .fullScreenCover(isPresented: $showPaywall) {
-            PaywallView(
-                model: model,
-                store: model.subscriptionStore,
-                source: .feature
-            )
-        }
         .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
     }
@@ -112,14 +99,9 @@ struct SettingsAppearancePage: View {
                 .background(Circle().fill((isDailyRandomActive ? AppColors.brandAccent : theme.adaptiveSecondaryText).opacity(0.12)))
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(String(localized: "Daily random theme"))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(theme.adaptivePrimaryText)
-                    if !canUseDailyRandom {
-                        proBadge
-                    }
-                }
+                Text(String(localized: "Daily random theme"))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(theme.adaptivePrimaryText)
                 Text(isDailyRandomActive
                      ? String(localized: "Randomizes color & gradient style each day.")
                      : String(localized: "A fresh palette + style every day."))
@@ -129,32 +111,18 @@ struct SettingsAppearancePage: View {
 
             Spacer(minLength: 0)
 
-            if canUseDailyRandom {
-                Toggle("", isOn: Binding(
-                    get: { dailyRandomThemeEnabled },
-                    set: { newValue in
-                        model.setDailyRandomTheme(enabled: newValue)
-                                                lightHapticTick &+= 1
-                    }
-                ))
-                .labelsHidden()
-                .tint(AppColors.brandAccent)
-            } else {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(AppColors.brandAccent)
-            }
+            Toggle("", isOn: Binding(
+                get: { dailyRandomThemeEnabled },
+                set: { newValue in
+                    model.setDailyRandomTheme(enabled: newValue)
+                                            lightHapticTick &+= 1
+                }
+            ))
+            .labelsHidden()
+            .tint(AppColors.brandAccent)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if !canUseDailyRandom {
-                showPaywall = true
-                                lightHapticTick &+= 1
-            }
-        }
-        .accessibilityAddTraits(.isButton)
     }
 
     private var rerollRow: some View {
@@ -216,23 +184,15 @@ struct SettingsAppearancePage: View {
             HStack(spacing: 14) {
                 ForEach(GradientPalette.allCases, id: \.rawValue) { scheme in
                     let isSelected = selectedPalette == scheme
-                    let isUnlocked = SubscriptionGate.isGradientPaletteAvailable(
-                        isPro: model.isPro,
-                        paletteRaw: scheme.rawValue
-                    )
                     Button {
                         guard !isDailyRandomActive else { return }
-                        if isUnlocked {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                gradientPaletteRaw = scheme.rawValue
-                            }
-                            model.syncUserPreferencesToSupabase()
-                        } else {
-                            showPaywall = true
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            gradientPaletteRaw = scheme.rawValue
                         }
+                        model.syncUserPreferencesToSupabase()
                                                 lightHapticTick &+= 1
                     } label: {
-                        paletteChip(scheme: scheme, isSelected: isSelected, isLocked: !isUnlocked)
+                        paletteChip(scheme: scheme, isSelected: isSelected)
                     }
                     .buttonStyle(.plain)
                     .disabled(isDailyRandomActive)
@@ -244,7 +204,7 @@ struct SettingsAppearancePage: View {
         .scrollIndicators(.hidden)
     }
 
-    private func paletteChip(scheme: GradientPalette, isSelected: Bool, isLocked: Bool) -> some View {
+    private func paletteChip(scheme: GradientPalette, isSelected: Bool) -> some View {
         let pal = EnergyGradientRenderer.palette(for: scheme)
         return VStack(spacing: 6) {
             ZStack {
@@ -256,8 +216,6 @@ struct SettingsAppearancePage: View {
                         )
                     )
                     .frame(width: 48, height: 48)
-                    .saturation(isLocked ? 0.35 : 1.0)
-                    .opacity(isLocked ? 0.7 : 1.0)
 
                 if isSelected {
                     Circle()
@@ -269,26 +227,14 @@ struct SettingsAppearancePage: View {
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                 }
-
-                if isLocked {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(5)
-                        .background(Circle().fill(.black.opacity(0.55)))
-                        .offset(x: 16, y: 16)
-                }
             }
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
 
             Text(scheme.displayName)
                 .font(.system(size: 10, weight: isSelected ? .bold : .medium))
                 .foregroundStyle(isSelected ? .primary : .secondary)
-                .opacity(isLocked ? 0.6 : 1.0)
         }
-        .accessibilityLabel(isLocked
-            ? String(localized: "\(scheme.displayName), locked, requires Pro")
-            : scheme.displayName)
+        .accessibilityLabel(scheme.displayName)
     }
 
     // MARK: - Gradient Style (horizontal scroll)
@@ -298,17 +244,9 @@ struct SettingsAppearancePage: View {
             HStack(spacing: 10) {
                 ForEach(GradientStyle.allCases, id: \.rawValue) { style in
                     let isSelected = gradientStyleRaw == style.rawValue
-                    let isUnlocked = SubscriptionGate.isGradientStyleAvailable(
-                        isPro: model.isPro,
-                        styleRaw: style.rawValue
-                    )
                     Button {
                         guard !isDailyRandomActive else { return }
-                        if isUnlocked {
-                            previewConfig = GradientPreviewConfig(style: style)
-                        } else {
-                            showPaywall = true
-                        }
+                        previewConfig = GradientPreviewConfig(style: style)
                                                 lightHapticTick &+= 1
                     } label: {
                         VStack(spacing: 6) {
@@ -332,16 +270,6 @@ struct SettingsAppearancePage: View {
                                 }
                                 .frame(width: 100, height: 64)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .saturation(isUnlocked ? 1.0 : 0.3)
-                                .opacity(isUnlocked ? 1.0 : 0.55)
-
-                                if !isUnlocked {
-                                    Image(systemName: "lock.fill")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundStyle(.white)
-                                        .padding(6)
-                                        .background(Circle().fill(.black.opacity(0.55)))
-                                }
                             }
                             .overlay {
                                 RoundedRectangle(cornerRadius: 10)
@@ -354,15 +282,12 @@ struct SettingsAppearancePage: View {
                             Text(style.displayName)
                                 .font(.system(size: 10, weight: isSelected ? .bold : .medium))
                                 .foregroundStyle(isSelected ? .primary : .secondary)
-                                .opacity(isUnlocked ? 1.0 : 0.6)
                                 .lineLimit(1)
                         }
                     }
                     .buttonStyle(.plain)
                     .disabled(isDailyRandomActive)
-                    .accessibilityLabel(isUnlocked
-                        ? Text(style.displayName)
-                        : Text(String(localized: "\(style.displayName), locked, requires Pro")))
+                    .accessibilityLabel(Text(style.displayName))
                 }
             }
             .padding(.horizontal, 16)
@@ -412,7 +337,7 @@ struct SettingsAppearancePage: View {
 
             HStack(spacing: 6) {
                 ForEach(CanvasShapeType.selectableCases) { shape in
-                    shapeChipButton(shape: shape, isUnlocked: true)
+                    shapeChipButton(shape: shape)
                 }
             }
 
@@ -421,18 +346,13 @@ struct SettingsAppearancePage: View {
         .padding(.vertical, 10)
     }
 
-    private func shapeChipButton(shape: CanvasShapeType, isUnlocked: Bool) -> some View {
+    private func shapeChipButton(shape: CanvasShapeType) -> some View {
         let isSelected = allowedShapes.contains(shape)
         // The set may never be empty. Disable the last selected chip rather
         // than letting the tap fail silently — a dead tap reads as a bug.
         let isLastSelected = isSelected && allowedShapes.count == 1
 
         return Button {
-            guard isUnlocked else {
-                showPaywall = true
-                lightHapticTick &+= 1
-                return
-            }
             var next = allowedShapes
             if isSelected { next.remove(shape) } else { next.insert(shape) }
             guard CanvasShapeType.setAllowed(next) else { return }
@@ -442,14 +362,14 @@ struct SettingsAppearancePage: View {
             lightHapticTick &+= 1
             model.syncUserPreferencesToSupabase()
         } label: {
-            compactShapeChip(shape: shape, isSelected: isSelected, isUnlocked: isUnlocked)
+            compactShapeChip(shape: shape, isSelected: isSelected)
         }
         .buttonStyle(.plain)
-        .disabled(isUnlocked && isLastSelected)
-        .opacity(isUnlocked && isLastSelected ? 0.75 : 1)
+        .disabled(isLastSelected)
+        .opacity(isLastSelected ? 0.75 : 1)
     }
 
-    private func compactShapeChip(shape: CanvasShapeType, isSelected: Bool, isUnlocked: Bool) -> some View {
+    private func compactShapeChip(shape: CanvasShapeType, isSelected: Bool) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 8)
                 .fill(theme.adaptivePrimaryText.opacity(isSelected ? 0.1 : 0.04))
@@ -465,10 +385,7 @@ struct SettingsAppearancePage: View {
                     lineWidth: isSelected ? 2 : 0.5
                 )
         }
-        .saturation(isUnlocked ? 1.0 : 0.4)
-        .accessibilityLabel(isUnlocked
-            ? shape.displayName
-            : String(localized: "\(shape.displayName), locked, requires Pro"))
+        .accessibilityLabel(shape.displayName)
     }
 
     @ViewBuilder
@@ -537,22 +454,13 @@ struct SettingsAppearancePage: View {
 
     private func textureChip(texture: CanvasTexture) -> some View {
         let isSelected = selectedTexture == texture
-        let isUnlocked = SubscriptionGate.isCanvasTextureAvailable(
-            isPro: model.isPro,
-            textureRaw: texture.rawValue
-        )
 
         return Button {
-            if isUnlocked {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    canvasTextureRaw = texture.rawValue
-                }
-                                lightHapticTick &+= 1
-                model.syncUserPreferencesToSupabase()
-            } else {
-                showPaywall = true
-                                lightHapticTick &+= 1
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                canvasTextureRaw = texture.rawValue
             }
+                                lightHapticTick &+= 1
+            model.syncUserPreferencesToSupabase()
         } label: {
             VStack(spacing: 6) {
                 ZStack {
@@ -570,17 +478,6 @@ struct SettingsAppearancePage: View {
                         Image(systemName: "circle.slash")
                             .font(.system(size: 18, weight: .ultraLight))
                             .foregroundStyle(theme.adaptiveMutedText)
-                    }
-
-                    if !isUnlocked {
-                        Color.black.opacity(0.4)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .frame(width: 56, height: 56)
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(5)
-                            .background(Circle().fill(.black.opacity(0.55)))
                     }
                 }
                 .frame(width: 56, height: 56)
@@ -608,16 +505,6 @@ struct SettingsAppearancePage: View {
             .font(.caption2.weight(.semibold))
             .tracking(3)
             .foregroundStyle(theme.adaptiveMutedText)
-    }
-
-    private var proBadge: some View {
-        Text(String(localized: "PRO", comment: "Pro feature badge"))
-            .font(.system(size: 9, weight: .heavy))
-            .tracking(0.6)
-            .foregroundStyle(.black)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(AppColors.brandAccent))
     }
 
     private var autoTag: some View {

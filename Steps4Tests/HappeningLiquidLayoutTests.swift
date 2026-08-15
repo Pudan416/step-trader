@@ -228,8 +228,7 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
     }
 
     private func makeModel() -> AppModel {
-        defaults.set(true, forKey: SharedKeys.isGrandfathered)
-        let subscriptionStore = SubscriptionStore(defaults: defaults)
+        let subscriptionStore = SubscriptionStore()
         let model = AppModel(
             healthKitService: MockHealthKitService(),
             familyControlsService: MockFamilyControlsService(),
@@ -245,7 +244,6 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
     private func clearDefaults() {
         CanvasStorageService.shared.deleteCanvas(for: AppModel.dayKey(for: .now))
         [
-            SharedKeys.isGrandfathered,
             SharedKeys.dailyEnergyAnchor,
             SharedKeys.stepsBalanceAnchor,
             SharedKeys.todayAdditions,

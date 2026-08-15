@@ -90,7 +90,7 @@ enum SharedKeys {
     static let userGradientStyle = "userGradientStyle_v1"
     static let userGradientPalette = "userGradientPalette_v1"
 
-    /// Pro-only: when ON, app rolls a new random palette+style every calendar day
+    /// Free for everyone: when ON, app rolls a new random palette+style every calendar day
     /// and persists it to the day's `DayCanvas`, so each day in History looks unique.
     static let dailyRandomThemeEnabled = "dailyRandomTheme_v1"
     /// dayKey ("yyyy-MM-dd") for which we last rolled a daily-random theme. Prevents
@@ -176,16 +176,10 @@ enum SharedKeys {
     // MARK: - Steps data
     static let hasStepsData = "hasStepsData_v1"
 
-    // MARK: - Subscription / RevenueCat
-    /// True if user is grandfathered into Pro for free (existing user before paywall shipped).
-    /// Once set, never unset locally; mirrored to RC as a custom attribute.
-    static let isGrandfathered = "subscription_isGrandfathered_v1"
-    /// First time we ever evaluated grandfathering. Used to pin "existing user" status.
-    static let grandfatherEvaluatedAt = "subscription_grandfatherEvaluatedAt_v1"
-    /// Cached entitlement state so UI can render before RC SDK finishes refreshing.
-    static let cachedHasProEntitlement = "subscription_cachedHasPro_v1"
-    /// RevenueCat user ID (== Supabase user ID once signed in, otherwise anonymous).
-    static let rcAppUserID = "subscription_rcAppUserID_v1"
+    // MARK: - Subscription (retired)
+    // grandfatherEvaluatedAt, isGrandfathered, cachedHasProEntitlement and
+    // rcAppUserID were retired along with the subscription SDK — see
+    // SubscriptionStore.swift.
 
     // MARK: - Notes (app-only)
     static let readNoteIDs = "readNoteIDs_v1"

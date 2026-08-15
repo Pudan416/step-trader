@@ -148,17 +148,6 @@
         }
       }
     },
-    "%@, %@, locked, requires Pro" : {
-      "comment" : "HistoryView – tile a11y, locked",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@, %2$@, locked, requires Pro"
-          }
-        }
-      }
-    },
     "%@, %@, no data" : {
       "comment" : "HistoryView – tile a11y, empty",
       "localizations" : {
@@ -191,9 +180,6 @@
       }
     },
     "%@, 20 colors" : {
-
-    },
-    "%@, locked, requires Pro" : {
 
     },
     "%@, no data" : {
@@ -319,9 +305,6 @@
     "⏱️ %@" : {
       "comment" : "Notification – timer title with app name"
     },
-    "🐛 Force unlock" : {
-
-    },
     "📊" : {
 
     },
@@ -370,7 +353,7 @@
     "About" : {
       "comment" : "Settings row label\nSettings section title"
     },
-    "About Body, Mind, and Heart" : {
+    "About Happenings" : {
       "comment" : "Note topic"
     },
     "About colors" : {
@@ -392,9 +375,6 @@
       "comment" : "Note topic"
     },
     "About Steps" : {
-      "comment" : "Note topic"
-    },
-    "About Subscription" : {
       "comment" : "Note topic"
     },
     "About the Canvas" : {
@@ -434,9 +414,6 @@
       "comment" : "CategoryDetail – add custom card button"
     },
     "Add your own card" : {
-
-    },
-    "Add your own card, locked, requires Pro" : {
 
     },
     "all" : {
@@ -517,7 +494,7 @@
     "Body" : {
       "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nEnergyCategory display name\nStepBalanceCard – body chip label"
     },
-    "Body: large, breathing shapes. Constant, grounded.\nMind: drifting circles — ideas that float and collide.\nHeart: beams of light that reach outward.\n\nNo metaphors. Just things that felt true." : {
+    "Circles, snowflakes, rays, organic blobs. Four families, and you decide which of them the canvas is allowed to use — in Settings, under Appearance.\n\nThey used to be assigned: one family per category, whether you liked it or not. Now nothing is assigned. Every happening takes a shape from the ones you left on, a color from the day, and a place it keeps until midnight.\n\nNo metaphors. Just things that felt true." : {
       "comment" : "Note body: about_shapes"
     },
     "btw, my name is kosta." : {
@@ -561,9 +538,6 @@
     },
     "Charged: %lld colors." : {
       "comment" : "Notification – charged colors only body"
-    },
-    "Checking your subscription with the App Store…" : {
-
     },
     "Choose App → select Nowhere → pick \"Is Closed\"" : {
 
@@ -619,7 +593,7 @@
     "colors" : {
       "comment" : "Category overlay – unit"
     },
-    "Colors are not a currency. Well — kind of. You can earn up to 100 per day. Steps and sleep give them to you automatically. Body, mind, and heart — you add those yourself. You can spend colors to unlock apps. But the more you spend, the less colorful your canvas becomes. Because doomscrolling takes color out of life. Literally, here.\n\nI'm not selling them through microtransactions. Colors are yours. You earn them, you deserve them, you can always add more. Within limits." : {
+    "Colors are not a currency. Well — kind of. You can earn up to 100 per day. Steps and sleep give them to you automatically — 20 each. The other 60 are happenings, and you add those yourself. You can spend colors to unlock apps. But the more you spend, the less colorful your canvas becomes. Because doomscrolling takes color out of life. Literally, here.\n\nI'm not selling them through microtransactions. Colors are yours. You earn them, you deserve them, you can always add more. Within limits." : {
       "comment" : "Note body: about_colors"
     },
     "colors are the currency you earn for living a real life." : {
@@ -633,9 +607,6 @@
     },
     "Colors restored. %lld min." : {
       "comment" : "Notification – budget restored body"
-    },
-    "Confirming your subscription with the App Store…" : {
-
     },
     "Contact" : {
       "comment" : "About section header"
@@ -850,9 +821,6 @@
     "Free plan" : {
 
     },
-    "Free trial, then %@. Auto-renews. Cancel anytime." : {
-
-    },
     "Full" : {
       "comment" : "GradientPreview – preview mode showing all data"
     },
@@ -937,8 +905,8 @@
     "I made a shortcut that sets the canvas as your wallpaper. It changed something — you see your day every time you unlock your phone. The downside: you have to open the app to refresh it. The upside: once you've blocked enough apps here, you'll be opening it anyway. Seemed fair." : {
       "comment" : "Note body: about_wallpaper"
     },
-    "I tried many ways to slice a human being. Tibetan Buddhism came closest. Body — the physical form. Mind — thoughts and perceptions. Heart — awareness, emotion, compassion. I don't understand Buddhism. Honestly, I know almost nothing about it. But this framework felt right. That was enough." : {
-      "comment" : "Note body: about_body_mind_heart"
+    "I used to slice the day into three — body, mind, heart. Borrowed from Tibetan Buddhism, which I know almost nothing about. It felt right, and that was enough.\n\nIt wasn't. Nobody who just called their mother wants to decide whether that was mind or heart.\n\nNow there is one word. A happening is anything a day is made of, and each counts once a day." : {
+      "comment" : "Note body: about_happenings"
     },
     "i'll nudge you when colors are ready to spend." : {
 
@@ -970,9 +938,6 @@
     "Let's go" : {
 
     },
-    "Lifetime" : {
-
-    },
     "Limits" : {
       "comment" : "Settings section title"
     },
@@ -997,9 +962,6 @@
     "Long-press the widget → Edit to choose which group to display." : {
 
     },
-    "Manage subscription" : {
-
-    },
     "Maybe later" : {
       "comment" : "Feature tip dismiss button"
     },
@@ -1008,9 +970,6 @@
     },
     "Medium" : {
       "comment" : "Texture picker – medium grain"
-    },
-    "Membership" : {
-      "comment" : "Settings section header"
     },
     "Mesh" : {
 
@@ -1063,12 +1022,6 @@
     "No %@ activities logged this week." : {
 
     },
-    "No active subscription found on this Apple ID." : {
-
-    },
-    "No active subscription was found on this Apple ID." : {
-
-    },
     "No activities selected yet" : {
       "comment" : "Category overlay – empty hint"
     },
@@ -1090,9 +1043,6 @@
     "No overlay on the canvas." : {
       "comment" : "Canvas animation picker – off subtitle"
     },
-    "No subscription plans are available right now." : {
-
-    },
     "no, thanks" : {
 
     },
@@ -1104,9 +1054,6 @@
     },
     "Notes from Kosta" : {
       "comment" : "ManualsPage – page title\nSettings row label"
-    },
-    "Nothing to restore" : {
-
     },
     "Notifications" : {
       "comment" : "Navigation title\nPermission row – Notifications"
@@ -1130,9 +1077,6 @@
       "comment" : "Generic alert dismiss button\nProfileEditor – alert dismiss button"
     },
     "One-time payment" : {
-
-    },
-    "One-time purchase — yours forever. Thank you." : {
 
     },
     "Open" : {
@@ -2304,34 +2248,10 @@
     "pick the one app that drains you the most." : {
 
     },
-    "Plans couldn't be loaded. Check that pro_monthly, pro_annual, and pro_lifetime exist in App Store Connect and are attached to a Current offering in RevenueCat." : {
-
-    },
     "Plastic" : {
       "comment" : "Texture picker – plastic"
     },
-    "Preview Paywall (debug)" : {
-
-    },
     "Privacy" : {
-
-    },
-    "Pro" : {
-      "comment" : "HistoryView – locked tile badge"
-    },
-    "PRO" : {
-      "comment" : "Pro feature badge"
-    },
-    "Pro — active" : {
-
-    },
-    "Pro — cancelled" : {
-
-    },
-    "Pro — gifted" : {
-
-    },
-    "Pro — lifetime" : {
 
     },
     "probably just like you." : {
@@ -2344,9 +2264,6 @@
       "comment" : "Onboarding – progress bar VoiceOver label"
     },
     "Protection Screen" : {
-
-    },
-    "Purchase Failed" : {
 
     },
     "Quick Status" : {
@@ -2365,9 +2282,6 @@
       "comment" : "Canvas shape type"
     },
     "Re-roll today's theme" : {
-
-    },
-    "Redeem promo code" : {
 
     },
     "Refreshing…" : {
@@ -2391,23 +2305,8 @@
     "Reset Grandfathering (debug)" : {
 
     },
-    "Reset Welcome Paywall (debug)" : {
-
-    },
     "Resting" : {
       "comment" : "Morning resting suggestion – title"
-    },
-    "Restore" : {
-
-    },
-    "Restore failed" : {
-
-    },
-    "Restore purchases" : {
-
-    },
-    "Restored!" : {
-
     },
     "Retry" : {
 
@@ -2473,9 +2372,6 @@
 
     },
     "Sign in with Apple" : {
-
-    },
-    "Sign in with Apple to keep your subscription safe across devices and reinstalls." : {
 
     },
     "Sign Out" : {
@@ -2592,9 +2488,6 @@
     "Spirograph" : {
       "comment" : "Canvas shape type"
     },
-    "Start Free Trial" : {
-
-    },
     "Statistics for the last 7 days" : {
       "comment" : "MeView – weekly overview subtitle"
     },
@@ -2637,12 +2530,6 @@
     "steps/day" : {
 
     },
-    "Subscription" : {
-
-    },
-    "Subscriptions auto-renew unless cancelled at least 24h before the period ends. Manage or cancel anytime in iOS Settings → Apple ID → Subscriptions." : {
-
-    },
     "Sunset" : {
 
     },
@@ -2681,9 +2568,6 @@
     },
     "TEXTURE" : {
       "comment" : "Appearance section header"
-    },
-    "The app is free. The core loop — canvas, daily rhythm, all of it — stays open. On the free tier you can block one app. Pick the worst offender. That's where the leak stops.\n\nSubscribing lets you block more than one app. Plus a few extras: more palettes and shapes, longer history, custom activities, daily random themes. Small things. They add up if you actually use this.\n\nHere's the deal. I pay for Supabase. Apple Developer. The AI tools I used to build this. A pile of tiny services that quietly add up every month. And I'd like this app to grow into something I can work on properly. Instead of squeezing it between corporate gigs.\n\nIf I get laid off — which, looking at the industry, isn't exactly a wild scenario — this is what I'd want to fall back on. Instead of starving.\n\nSo if the app gave you anything. A quiet moment. A nicer wallpaper. A different way to look at your day. And you can spare it — subscribing helps me keep building it.\n\nIf you can't, no worries. Use it freely. That's the point." : {
-      "comment" : "Note body: about_subscription"
     },
     "the app needs access to apple health." : {
 
@@ -2754,13 +2638,7 @@
         }
       }
     },
-    "Unlock Pro." : {
-
-    },
     "Updates automatically each time the wallpaper shortcut runs." : {
-
-    },
-    "Upgrade to Pro for unlimited app limits, all wallpapers, and full history." : {
 
     },
     "Used: %lld min · Charged: %lld colors." : {
@@ -2818,9 +2696,6 @@
 
     },
     "Welcome offer." : {
-
-    },
-    "Welcome paywall reset — re-onboard to see" : {
 
     },
     "welcome to" : {
@@ -2888,16 +2763,10 @@
         }
       }
     },
-    "You were here before. Pro is yours, free, forever. Thanks for being early." : {
-
-    },
     "You're about to open %@" : {
 
     },
     "you're here." : {
-
-    },
-    "You're Pro!" : {
 
     },
     "Your canvas and colors reset at this time each day." : {
@@ -2917,12 +2786,6 @@
     },
     "Your daily canvases will appear here." : {
       "comment" : "HistoryView – empty state subtitle"
-    },
-    "Your Pro subscription is now active." : {
-
-    },
-    "Your purchase is pending approval (Ask to Buy?). It will activate once approved." : {
-
     }
   },
   "version" : "1.1"

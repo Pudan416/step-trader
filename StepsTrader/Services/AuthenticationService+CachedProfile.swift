@@ -72,7 +72,7 @@ extension AuthenticationService {
       switch auth {
       case .sessionExpired, .invalidCredential:
         return true
-      case .cancelled, .misconfiguredSupabase, .unknown:
+      case .cancelled, .misconfiguredSupabase, .serverUnreachable, .unknown:
         return false
       case .supabaseError(let message):
         let lower = message.lowercased()

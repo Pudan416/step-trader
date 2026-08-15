@@ -116,13 +116,6 @@ enum CanvasTexture: String, CaseIterable, Identifiable {
         return pool[Int(seed) % pool.count]
     }
 
-    var isPro: Bool {
-        switch self {
-        case .none, .grainSmall: false
-        default: true
-        }
-    }
-
     /// Migrates legacy raw values to the current enum.
     /// Returns `.grainSmall` for unknown/legacy values.
     static func fromStored(_ raw: String) -> CanvasTexture {

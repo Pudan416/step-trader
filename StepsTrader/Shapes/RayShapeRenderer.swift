@@ -181,80 +181,10 @@ enum RayShapeRenderer {
         }
     }
 
-    // MARK: - Radar Spotlight Cache (off the hot path)
-    //
-    // The radar (EnergySignatureView) draws one fixed-colour spotlight per axis.
-    // The bitmap is *time-invariant* — the only time term in the shader is the
-    // slow cone-width breath, which is imperceptible and is approximated here by
-    // freezing the cone at mid-breath (time = 0). So each axis bitmap is rendered
-    // exactly once, off the main thread, and cached permanently keyed by axis id.
-    // The per-frame draw then becomes an O(1) dictionary lookup — no pixel work on
-    // the render hot path. (The slow rotation + breathing scale + tip pulse are all
-    // cheap transforms applied to this cached image, see EnergySignatureView.)
-    //
-    // NOTE: this is separate from `renderSpotlightBitmap`, which the Gallery canvas
-    // element path still calls per-frame with live time for its sweeping shapes.
-
-    private static var _radarSpotCache: [String: CGImage] = [:]
-
-    /// Derives the radar gradient (near/mid/far) from a single axis colour —
-    /// boosted at the source, full colour through the beam, dark at the edges.
-    /// Kept here so the warm-up and the renderer agree on the exact colours.
-    static func radarSpotlightColors(
-        _ color: Color
-    ) -> (near: (Float, Float, Float), mid: (Float, Float, Float), far: (Float, Float, Float)) {
-        let (r, g, b) = rgbComponents(color)
-        return (
-            near: (min(1.0, r * 1.55), min(1.0, g * 1.55), min(1.0, b * 1.55)),
-            mid:  (r, g, b),
-            far:  (r * 0.35, g * 0.35, b * 0.35)
-        )
-    }
-
-    /// Returns the cached radar bitmap for `id` if it has already been rendered,
-    /// otherwise `nil`. Never renders synchronously — the hot path stays pixel-free;
-    /// callers simply skip the ray until `warmRadarSpotlights` has filled the cache.
-    static func radarSpotlightIfReady(id: String) -> CGImage? {
-        _radarSpotCache[id]
-    }
-
-    /// Renders any not-yet-cached radar bitmaps on a background task, then publishes
-    /// the results into the cache on the main actor. Idempotent and safe to call
-    /// repeatedly (e.g. from `.task`); colours are fixed per axis id so a single warm
-    /// per id suffices for the lifetime of the process.
-    static func warmRadarSpotlights(_ specs: [(id: String, color: Color)]) async {
-        // Resolve colours on the main actor (UIColor access), skip already-cached ids.
-        let work: [(id: String, colors: (near: (Float, Float, Float),
-                                         mid:  (Float, Float, Float),
-                                         far:  (Float, Float, Float)))] =
-            specs
-                .filter { _radarSpotCache[$0.id] == nil }
-                .map { (id: $0.id, colors: radarSpotlightColors($0.color)) }
-        guard !work.isEmpty else { return }
-
-        let size = Int(symbolSize)
-        // Heavy pixel loop runs off the main thread; we ferry raw RGBA `Data`
-        // (Sendable) back and build the CGImage on the main actor.
-        let rendered: [(id: String, data: Data)] = await Task.detached(priority: .userInitiated) {
-            work.compactMap { spec in
-                guard let data = renderSpotlightPixels(
-                    size: size, time: 0,
-                    near: spec.colors.near, mid: spec.colors.mid, far: spec.colors.far
-                ) else { return nil }
-                return (id: spec.id, data: data)
-            }
-        }.value
-
-        for item in rendered where _radarSpotCache[item.id] == nil {
-            if let img = makeCGImage(from: item.data, size: size) {
-                _radarSpotCache[item.id] = img
-            }
-        }
-    }
 
     // MARK: - CPU Spotlight Renderer (pixel-matched to SpotlightShader.metal)
 
-    /// Exposed for use by EnergySignatureView.
+    /// Exposed for use by the Gallery canvas element path.
     static func rgbComponents(_ color: Color) -> (Float, Float, Float) {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
         UIColor(color).getRed(&r, green: &g, blue: &b, alpha: nil)
@@ -268,10 +198,10 @@ enum RayShapeRenderer {
 
     /// Pixel-accurate CPU port of `spotlightEffect` from SpotlightShader.metal.
     /// Produces a premultiplied-alpha CGImage matching the Metal shader output.
-    /// ~10ms per 256×256 element on modern iPhones. Exposed for EnergySignatureView.
+    /// ~10ms per 256×256 element on modern iPhones.
     ///
-    /// `nonisolated` so the heavy pixel loop can run off the main actor (see
-    /// `warmRadarSpotlights`). It only reads immutable `Sendable` shader constants.
+    /// `nonisolated` so the heavy pixel loop can run off the main actor. It only
+    /// reads immutable `Sendable` shader constants.
     nonisolated static func renderSpotlightBitmap(
         size: Int,
         time: Float,

@@ -35,7 +35,10 @@ struct ManualsPage: View {
                 Spacer(minLength: 20)
 
                 bottomButtons
-                    .padding(.bottom, 100)
+                    // Was 100 to clear the floating tab bar. Notes is reached
+                    // from the settings sheet now, where there is no tab bar and
+                    // that reserve is just a hole at the bottom of the page.
+                    .padding(.bottom, 24)
             }
             .padding(.horizontal, 0)
         }
@@ -68,34 +71,41 @@ struct ManualsPage: View {
     // MARK: - Note card
 
     private func noteCard(_ note: Note) -> some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(note.topic)
-                    .font(.system(size: 13, weight: .medium, design: .default))
-                    .tracking(1.5)
-                    .textCase(.uppercase)
-                    .foregroundStyle(theme.textSecondary.opacity(0.5))
-                    .padding(.bottom, 20)
+        // The card keeps the same size on every page so swiping doesn't make it
+        // jump, which leaves short notes with room to spare — centre them in it
+        // rather than pinning them to the top. Long ones still scroll.
+        GeometryReader { proxy in
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(note.topic)
+                        .font(.system(size: 13, weight: .medium, design: .default))
+                        .tracking(1.5)
+                        .textCase(.uppercase)
+                        .foregroundStyle(theme.textSecondary.opacity(0.5))
+                        .padding(.bottom, 20)
 
-                Text(note.body)
-                    .font(.system(size: 20, weight: .thin, design: .serif))
-                    .italic()
-                    .foregroundStyle(theme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .lineSpacing(6)
-                    .multilineTextAlignment(.leading)
+                    Text(note.body)
+                        .font(.system(size: 20, weight: .thin, design: .serif))
+                        .italic()
+                        .foregroundStyle(theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineSpacing(6)
+                        .multilineTextAlignment(.leading)
+                }
+                .padding(28)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minHeight: proxy.size.height, alignment: .center)
             }
-            .padding(28)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize)
+            .glassCard(cornerRadius: 20, style: .lensTinted)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(theme.stroke.opacity(theme.strokeOpacity * 0.5), lineWidth: 0.5)
+            )
+            .accessibilityElement(children: .combine)
         }
-        .scrollIndicators(.hidden)
-        .glassCard(cornerRadius: 20, style: .lensTinted)
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(theme.stroke.opacity(theme.strokeOpacity * 0.5), lineWidth: 0.5)
-        )
         .padding(.horizontal, 28)
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Page indicator

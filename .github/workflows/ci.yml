@@ -29,12 +29,21 @@ jobs:
           xcrun simctl list runtimes | grep iOS || true
 
       - name: Create placeholder secrets
-        # The build's Info.plist references $(SUPABASE_URL)/$(SUPABASE_ANON_KEY)/
-        # $(REVENUECAT_API_KEY) via Config/Secrets.xcconfig, which is gitignored.
+        # The build's Info.plist references $(SUPABASE_URL)/$(SUPABASE_ANON_KEY)
+        # via Config/Secrets.xcconfig, which is gitignored.
         # Unit tests never hit the network, so the placeholder values from the
         # template are sufficient to compile and run. (Secrets-Dev.xcconfig is
         # optionally included and absent here, so Debug falls back to these.)
         run: cp Config/Secrets.xcconfig.template Config/Secrets.xcconfig
+
+      - name: Check secrets config
+        # Catches the two ways this layer rots: an Info.plist growing a new
+        # $(VAR) that nobody added to the template (every machine then builds
+        # with an empty value), and the real Secrets.xcconfig being committed.
+        # Placeholders are NOT rejected here — the step above installs them on
+        # purpose, since the unit tests never hit the network. The release path
+        # (ci_scripts/ci_post_clone.sh) is where placeholders are fatal.
+        run: ./Scripts/check-secrets-config.sh
 
       - name: Run Steps4Tests
         # The HealthStoreTests observer flake (a fixed-sleep wait on a MainActor

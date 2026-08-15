@@ -3,10 +3,13 @@ import SwiftUI
 // MARK: - Me tab
 struct MeView: View {
     @ObservedObject var model: AppModel
+    /// Opens the settings sheet. Owned by `MainTabView`, not by this view, so a
+    /// feature-tip deep link works even if Me has never been on screen.
+    var onOpenSettings: () -> Void = {}
     @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
-    @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @State private var pastDays: [String: PastDaySnapshot] = [:]
@@ -15,45 +18,24 @@ struct MeView: View {
     @State private var showProfileEditor = false
     @State private var cachedDayKeys: [String] = []
     @State private var hasLoadedSnapshots = false
-    @State private var cachedTopApps: [(name: String, spent: Int, minutes: Int)] = []
-    @State private var cachedWeekMinutesByTarget: [String: Int] = [:]
+    @State private var cachedTopApps: [(name: String, spent: Int)] = []
     @State private var cachedTxNames: [String: String] = [:]
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
-    @State private var axisDetail: AxisDetailContext? = nil
 
-    // Radar model — derived from snapshots once per data load, NOT per body pass.
-    // The radar background, the tap overlay and the stats row all read these so
-    // the (non-trivial) week-summary + axes computation runs once, off the
-    // SwiftUI hot path.
-    @State private var radarSnaps: [PastDaySnapshot] = []
-    @State private var radarSummary = MeWeekSummary()
-    @State private var radarAxes: [EnergySignatureView.Axis] = []
-    // The radar canvas (in `.background`) and the tap circle (in `.overlay`) live
-    // in two separate GeometryReaders whose `safeAreaInsets.top` can differ by
-    // `topCardHeight` (the background sits before `.safeAreaInset`, the overlay
-    // after). Hand-computing `centerY` independently in each therefore drifts
-    // them apart vertically, so taps land at the wrong angle. The radar publishes
-    // its true centre in GLOBAL coords; the tap circle anchors to that exact
-    // point so the two can never diverge.
-    @State private var radarCenterGlobalY: CGFloat? = nil
+    // The week's snapshots and the numbers derived from them, computed once per
+    // data load rather than per body pass — the aggregation is not free and must
+    // stay off the SwiftUI hot path.
+    @State private var cachedSnaps: [PastDaySnapshot] = []
+    @State private var cachedSummary = MeWeekStats.Summary()
 
     var body: some View {
         NavigationStack {
             mainScrollContent
-                // Radar sits behind the scroll content as a screen-spanning
-                // canvas — rays bleed wherever they want, never clipped by a
-                // layout frame.
-                .background {
-                    radarBackground
-                        .allowsHitTesting(false)
-                        .ignoresSafeArea()
-                }
-                .onPreferenceChange(RadarCenterKey.self) { radarCenterGlobalY = $0 }
                 .energyGradientBackground(model: model, showGrain: false)
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    Color.clear.frame(height: topCardHeight)
-                }
+                // No inset for the energy card: it is not drawn on Me, and
+                // `\.topCardHeight` still reports the height it has on the other
+                // tabs — reserving it here would leave an empty band.
                 // Grain texture overlay — above content so it picks up rays beneath.
                 .overlay {
                     if !reduceTransparency {
@@ -62,178 +44,10 @@ struct MeView: View {
                             .ignoresSafeArea()
                     }
                 }
-                // Invisible tap target sitting exactly over the radar's label
-                // ring — restores tap-to-open-AxisDetail without the radar
-                // background swallowing taps on greeting / stats.
-                .overlay {
-                    radarTapOverlay
-                        .ignoresSafeArea()
-                }
-                // Liquid Glass popover for axis detail (Steps / Sleep / etc.) —
-                // presented in-place as a card with a close button, not as a
-                // bottom sheet.
-                .overlay {
-                    axisDetailOverlay
-                        .ignoresSafeArea()
-                }
                 .toolbar(.hidden, for: .navigationBar)
                 .modifier(meLifecycle)
                 .modifier(meSheets)
         }
-    }
-
-    // MARK: - Radar layout math
-    //
-    // Single source of truth for the Y position of the radar centre. Used by
-    // both the visual background canvas and the invisible tap overlay so they
-    // can never drift apart.
-    // Published by the radar canvas, consumed by the tap circle, so both share
-    // one source of truth for the centre (see `radarCenterGlobalY`).
-    private struct RadarCenterKey: PreferenceKey {
-        static let defaultValue: CGFloat? = nil
-        static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
-            value = nextValue() ?? value
-        }
-    }
-
-    private struct RadarLayout {
-        let centerY: CGFloat
-        /// Outer radius of the tap band, in screen-width units. Slightly smaller
-        /// than the canvas's outerR so the overlay never extends into the
-        /// greeting (above) or stats (below).
-        let tapOuterR: CGFloat
-        /// Inner dead-zone — taps closer than this to centre are ignored.
-        let tapInnerR: CGFloat
-    }
-
-    private func radarLayout(in proxy: GeometryProxy) -> RadarLayout {
-        let W = proxy.size.width
-        // Inside a `.background` / `.overlay` with `.ignoresSafeArea()` the
-        // proxy reports the DEVICE safe area only — it does NOT include the
-        // `.safeAreaInset(.top, topCardHeight)` we add for the energy bar. So
-        // we have to add `topCardHeight` ourselves to line up with where the
-        // foreground ScrollView actually starts laying out content.
-        let safeTop = proxy.safeAreaInsets.top + topCardHeight
-        let contentTopPad: CGFloat = useTightMeLayout ? 18 : 24
-        let greetingBlock: CGFloat = 53   // greeting (~30) + spacing (6) + subtitle (~17)
-        let secSpacing:    CGFloat = useTightMeLayout ? 20 : 28
-        let radarReserve = W * 0.78
-        // Visual nudge: labels are asymmetric — low-score axes (e.g. Body)
-        // sit close to centre while high-score axes (e.g. Steps) sit at the
-        // outer ring, which makes the geometric midpoint feel high. Push the
-        // centre down a hair so the perceived middle of the radar matches the
-        // empty space between the subtitle and the earned/spent row.
-        let visualBalance: CGFloat = 60
-        let centerY = safeTop
-                    + contentTopPad
-                    + greetingBlock
-                    + secSpacing
-                    + radarReserve / 2
-                    + visualBalance
-        return RadarLayout(
-            centerY: centerY,
-            tapOuterR: W * 0.40,   // covers labels w/ a tap-friendly margin
-            tapInnerR: W * 0.08    // matches EnergySignatureView.handleTap
-        )
-    }
-
-    // MARK: - Radar Background
-    //
-    // Full-screen Canvas hosting the rays + grid + labels. The radar is positioned
-    // so its centre lands on the midpoint of the reserved gap between the
-    // subtitle and the earned/spent row. The canvas itself still spans the full
-    // screen so beams fade out in all directions without hitting a frame.
-
-    @ViewBuilder
-    private var radarBackground: some View {
-        if !radarAxes.isEmpty {
-            GeometryReader { proxy in
-                let layout = radarLayout(in: proxy)
-                let W = proxy.size.width
-                let H = proxy.size.height
-                // Where the radar's drawing centre actually lands on screen.
-                let centerGlobalY = proxy.frame(in: .global).minY + layout.centerY
-
-                EnergySignatureView(
-                    axes: radarAxes,
-                    canvasSize: W,
-                    canvasHeight: H,
-                    showSpotlights: true
-                )
-                .frame(width: W, height: H)
-                .position(x: W / 2, y: layout.centerY)
-                .preference(key: RadarCenterKey.self, value: centerGlobalY)
-            }
-        }
-    }
-
-    // MARK: - Radar Tap Overlay
-    //
-    // Tiny invisible circular hit zone, sized to the radar's label ring and
-    // anchored to the radar centre. Taps outside the circle pass straight
-    // through to whatever's underneath (greeting button, scroll view, etc.).
-    // The circle's `onTapGesture` mirrors `EnergySignatureView.handleTap` to
-    // pick the nearest axis and present `AxisDetail`.
-
-    @ViewBuilder
-    private var radarTapOverlay: some View {
-        if !radarAxes.isEmpty {
-            let snaps = radarSnaps
-            let summary = radarSummary
-            let axes = radarAxes
-            GeometryReader { proxy in
-                let layout = radarLayout(in: proxy)
-                let diameter = layout.tapOuterR * 2
-                // Anchor to the radar's published centre (global → this overlay's
-                // local space) so the tap circle sits exactly over the labels,
-                // regardless of any safe-area difference between the two readers.
-                let centerY: CGFloat = radarCenterGlobalY.map {
-                    $0 - proxy.frame(in: .global).minY
-                } ?? layout.centerY
-
-                Color.clear
-                    .frame(width: diameter, height: diameter)
-                    .contentShape(Circle())
-                    // Tap gesture must be attached BEFORE `.position` — `.position`
-                    // stretches the view to fill the parent, which would make
-                    // `location` arrive in full-screen coords instead of this
-                    // circle's local space. Here `location` is local to the
-                    // diameter×diameter frame, so centre = (tapOuterR, tapOuterR).
-                    .onTapGesture { location in
-                        let dx = Double(location.x - layout.tapOuterR)
-                        let dy = Double(location.y - layout.tapOuterR)
-                        let dist = sqrt(dx * dx + dy * dy)
-                        guard dist > Double(layout.tapInnerR) else { return }
-
-                        // Subtract current canvas rotation (1°/s) so the tap
-                        // angle is compared against axes' base angles.
-                        let rotationSpeed: Double = 1.0 * .pi / 180
-                        let now = Date.now.timeIntervalSinceReferenceDate
-                        let tapAngle = atan2(dy, dx) - now * rotationSpeed
-
-                        if let best = axes.min(by: {
-                            Self.angularDist($0.angle, tapAngle)
-                                < Self.angularDist($1.angle, tapAngle)
-                        }) {
-                            withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
-                                axisDetail = AxisDetailContext(
-                                    axis: best,
-                                    snaps: snaps,
-                                    avgSteps: summary.avgSteps,
-                                    avgSleep: summary.avgSleep
-                                )
-                            }
-                        }
-                    }
-                    .position(x: proxy.size.width / 2, y: centerY)
-            }
-        }
-    }
-
-    private static func angularDist(_ a: Double, _ b: Double) -> Double {
-        var d = (a - b).truncatingRemainder(dividingBy: 2 * .pi)
-        if d < 0 { d += 2 * .pi }
-        return min(d, 2 * .pi - d)
     }
 
 
@@ -253,6 +67,9 @@ struct MeView: View {
                 }
                 .scrollIndicators(.hidden)
                 .scrollBounceBehavior(.basedOnSize)
+                // The tab bar is an overlay, not a safe-area inset, so the last
+                // row would otherwise scroll under the pill and stop there.
+                .safeAreaPadding(.bottom, tabBarHeight)
             }
         } else {
             ScrollView(.vertical) {
@@ -263,6 +80,7 @@ struct MeView: View {
                 .padding(.horizontal, 20)
             }
             .scrollIndicators(.hidden)
+            .safeAreaPadding(.bottom, tabBarHeight)
         }
     }
 
@@ -296,87 +114,112 @@ struct MeView: View {
         dynamicTypeSize < .accessibility1
     }
 
-    private var meProse: Font {
-        useTightMeLayout ? .subheadline : .body
-    }
-
-    private var weekRingOuter: CGFloat { useTightMeLayout ? 32 : 40 }
-    private var weekRingInner: CGFloat { useTightMeLayout ? 29 : 37 }
-    private var weekDayLabelSize: CGFloat { useTightMeLayout ? 8 : 9 }
 
     private var contentSection: some View {
-        let snaps = radarSnaps
-        let weekEarned = snaps.reduce(0) { $0 + $1.inkEarned }
-        let weekSpent = snaps.reduce(0) { $0 + $1.inkSpent }
         let sectionSpacing: CGFloat = useTightMeLayout ? 20 : 28
-        // Reserved vertical space where the radar grid is visible behind the
-        // foreground content. The radar itself lives in `radarBackground` and
-        // spans the full screen — this just keeps the stats from landing on
-        // top of the radar's labels.
-        let radarReserve: CGFloat = UIScreen.main.bounds.width * 0.78
 
         return VStack(alignment: .leading, spacing: sectionSpacing) {
 
-            // ── Greeting + subtitle ───────────────────────────────────────────
-            VStack(alignment: .leading, spacing: 6) {
-                greetingRow
-                Text(String(localized: "Statistics for the last 7 days",
-                            comment: "MeView – weekly overview subtitle"))
-                    .font(.system(size: useTightMeLayout ? 12 : 13))
-                    .foregroundStyle(theme.textSecondary.opacity(0.50))
-            }
-            .padding(.top, useTightMeLayout ? 18 : 24)
+            // ── Greeting ──────────────────────────────────────────────────────
+            // No subtitle: it claimed "the last 7 days" over a screen that now
+            // ends in a calendar of every day ever recorded. Each section names
+            // its own window instead.
+            greetingRow
+                .padding(.top, useTightMeLayout ? 18 : 24)
 
-            // ── Reserved space so the radar circle sits visually between
-            //    greeting (above) and stats (below).
-            if !snaps.isEmpty {
-                Color.clear.frame(height: radarReserve)
+            // ── This week, in three numbers ───────────────────────────────────
+            weekSummarySection(cachedSummary)
+
+            // ── Connected apps ────────────────────────────────────────────────
+            if !cachedTopApps.isEmpty {
+                connectedAppsSection(apps: Array(cachedTopApps.prefix(5)))
             }
 
-            // ── Stats below the radar ────────────────────────────────────────
-            if weekEarned > 0 || weekSpent > 0 || !cachedTopApps.isEmpty {
-                if weekEarned > 0 || weekSpent > 0 {
-                    compactColorsRow(earned: weekEarned, spent: weekSpent)
-                }
-                if !cachedTopApps.isEmpty {
-                    topAppsSection(apps: Array(cachedTopApps.prefix(3)))
-                }
-            }
+            // ── The calendar ──────────────────────────────────────────────────
+            // `pastDays` is every persisted day, not just this week's window, so
+            // the strip needs no loader of its own.
+            MeCalendarStrip(
+                pastDays: pastDays,
+                onSelect: { selectedDayKey = $0 }
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Axis Detail Overlay (Liquid Glass)
+
+    // MARK: - This week, in three numbers
+    //
+    // Sleep, steps, happenings — the three things a day is made of, one reading
+    // each. A reading with nothing behind it is omitted rather than shown as a
+    // zero, so a quiet week reads as quiet instead of as failure.
 
     @ViewBuilder
-    private var axisDetailOverlay: some View {
-        ZStack {
-            if let ctx = axisDetail {
-                // Dimmed backdrop — tap to dismiss.
-                Color.black.opacity(0.40)
-                    .contentShape(Rectangle())
-                    .onTapGesture { dismissAxisDetail() }
-                    .transition(.opacity)
+    private func weekSummarySection(_ summary: MeWeekStats.Summary) -> some View {
+        if summary.avgSleepHours > 0 || summary.avgSteps > 0 || !summary.topHappeningIds.isEmpty {
+            VStack(alignment: .leading, spacing: useTightMeLayout ? 10 : 14) {
+                sectionHeader(String(localized: "THIS WEEK", comment: "MeView – week summary section header"))
 
-                // Glass card hosting the AxisDetailView. The X lives inside
-                // the header (AxisDetailView wires it up via onClose). The
-                // card height is content-driven — `.fixedSize` on the inner
-                // VStack makes the card hug its data so there's no empty
-                // space below the last row.
-                AxisDetailView(context: ctx, model: model, onClose: dismissAxisDetail)
-                    .frame(maxWidth: 360)
-                    .glassCard(cornerRadius: 26, style: .frosted)
-                    .padding(.horizontal, 20)
-                    .transition(.scale(scale: 0.94).combined(with: .opacity))
+                if summary.avgSleepHours > 0 {
+                    summaryRow(
+                        icon: "moon.zzz.fill",
+                        value: summary.avgSleepHours.formatted(.number.precision(.fractionLength(1))) + "h",
+                        label: String(localized: "sleep a night", comment: "MeView – average sleep label")
+                    )
+                }
+
+                if summary.avgSteps > 0 {
+                    summaryRow(
+                        icon: "figure.walk",
+                        value: summary.avgSteps.formatted(),
+                        label: String(localized: "steps a day", comment: "MeView – average steps label")
+                    )
+                }
+
+                if !summary.topHappeningIds.isEmpty {
+                    let titles = summary.topHappeningIds.map { model.resolveOptionTitle(for: $0) }
+                    summaryRow(
+                        icon: "sparkles",
+                        value: titles.joined(separator: ", "),
+                        label: String(localized: "came up most", comment: "MeView – frequent happenings label"),
+                        monospaced: false,
+                        lineLimit: nil
+                    )
+                }
             }
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: axisDetail?.id)
     }
 
-    private func dismissAxisDetail() {
-        withAnimation(.easeOut(duration: 0.22)) {
-            axisDetail = nil
+    private func summaryRow(
+        icon: String,
+        value: String,
+        label: String,
+        monospaced: Bool = true,
+        lineLimit: Int? = 1
+    ) -> some View {
+        // Digits line up column-wise; happening titles are prose and must not.
+        let valueFont = Font.system(useTightMeLayout ? .title3 : .title2, design: .rounded)
+            .weight(.semibold)
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(theme.textSecondary)
+                .frame(width: 18, alignment: .center)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(monospaced ? valueFont.monospacedDigit() : valueFont)
+                    .foregroundStyle(theme.textPrimary)
+                    // A number never needs a second line. The happenings list is
+                    // prose and gets none: at accessibility sizes a cap turns
+                    // the reading into "made_somethi…".
+                    .lineLimit(lineLimit)
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(theme.textSecondary.opacity(0.6))
+            }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(value), \(label)")
     }
 
     // MARK: - Greeting
@@ -401,6 +244,29 @@ struct MeView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "Profile, \(userName). Double tap to edit.", comment: "MeView – profile pill VoiceOver label"))
+
+            Spacer(minLength: 12)
+
+            Button { onOpenSettings() } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 18, weight: .regular))
+                        .foregroundStyle(theme.textPrimary.opacity(0.7))
+                    // Same warning the Me tab icon carries — kept here so the
+                    // trail from tab badge to the actual entry point is unbroken.
+                    if model.hasPermissionIssues {
+                        Circle()
+                            .fill(.orange)
+                            .frame(width: 7, height: 7)
+                            .offset(x: 3, y: -2)
+                    }
+                }
+                .frame(width: 44, height: 44, alignment: .trailing)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("me_settings_button")
+            .accessibilityLabel(String(localized: "Settings", comment: "MeView – settings button VoiceOver label"))
         }
     }
 
@@ -415,175 +281,29 @@ struct MeView: View {
             .tracking(0.6)
     }
 
-    // MARK: - Compact Colors Row
+    // MARK: - Connected apps
+    //
+    // Each connected app with the colors it cost this week. Bars are relative to
+    // the heaviest app, so the ranking reads at a glance. The number is exact:
+    // it comes from the per-day spend ledger, not from the payment log.
 
-    /// Two-stat row: colored dot + big rounded number + small label below.
-    /// Drops redundant `+`/`−` prefixes (the label already says "earned" / "spent")
-    /// and gives each value its own visual block so the eye can grab one at a time.
-    private func compactColorsRow(earned: Int, spent: Int) -> some View {
-        HStack(alignment: .top, spacing: 28) {
-            statPair(
-                value: earned,
-                label: String(localized: "earned"),
-                accent: theme.accentColor
-            )
-            statPair(
-                value: spent,
-                label: String(localized: "spent"),
-                accent: theme.textSecondary.opacity(0.45)
-            )
-            Spacer(minLength: 0)
-        }
-    }
-
-    private func statPair(value: Int, label: String, accent: Color) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Circle()
-                .fill(accent)
-                .frame(width: 6, height: 6)
-                .padding(.top, useTightMeLayout ? 8 : 10)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(value.formatted())
-                    .font(.system(useTightMeLayout ? .title3 : .title2, design: .rounded).weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(theme.textPrimary)
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(theme.textSecondary.opacity(0.6))
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(value) \(label)")
-    }
-
-    // MARK: - Colors Earned / Spent (legacy — kept for reference)
-
-    private func colorsSection(earned: Int, spent: Int) -> some View {
-        VStack(alignment: .leading, spacing: useTightMeLayout ? 6 : 10) {
-            sectionHeader(String(localized: "THIS WEEK"))
-
-            HStack(spacing: 24) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("+\(earned)")
-                        .font(.system(.title2, design: .rounded).weight(.bold))
-                        .monospacedDigit()
-                        .foregroundStyle(theme.textPrimary)
-                    Text(String(localized: "earned"))
-                        .font(.caption)
-                        .foregroundStyle(theme.textSecondary)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("−\(spent)")
-                        .font(.system(.title2, design: .rounded).weight(.bold))
-                        .monospacedDigit()
-                        .foregroundStyle(theme.textSecondary)
-                    Text(String(localized: "spent"))
-                        .font(.caption)
-                        .foregroundStyle(theme.textSecondary)
-                }
-
-                Spacer(minLength: 0)
-            }
-        }
-    }
-
-    // MARK: - Averages
-
-    private func averagesSection(summary: MeWeekSummary) -> some View {
-        VStack(alignment: .leading, spacing: useTightMeLayout ? 6 : 10) {
-            sectionHeader(String(localized: "AVERAGES"))
-
-            VStack(alignment: .leading, spacing: useTightMeLayout ? 4 : 8) {
-                if summary.avgSteps > 0 {
-                    HStack(spacing: 8) {
-                        Image(systemName: "figure.walk")
-                            .font(.system(size: 13))
-                            .foregroundStyle(theme.textSecondary)
-                            .frame(width: 18, alignment: .center)
-                        Text(formatCompactNumber(summary.avgSteps))
-                            .font(meProse.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(theme.textPrimary)
-                        Text(String(localized: "steps/day"))
-                            .font(useTightMeLayout ? .caption : .subheadline)
-                            .foregroundStyle(theme.textSecondary)
-                    }
-                }
-
-                if summary.avgSleep > 0 {
-                    HStack(spacing: 8) {
-                        Image(systemName: "moon.zzz.fill")
-                            .font(.system(size: 13))
-                            .foregroundStyle(theme.textSecondary)
-                            .frame(width: 18, alignment: .center)
-                        Text(summary.avgSleep.formatted(.number.precision(.fractionLength(1))) + "h")
-                            .font(meProse.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(theme.textPrimary)
-                        Text(String(localized: "sleep/day"))
-                            .font(useTightMeLayout ? .caption : .subheadline)
-                            .foregroundStyle(theme.textSecondary)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Activities
-
-    private func activitiesSection(summary: MeWeekSummary) -> some View {
-        VStack(alignment: .leading, spacing: useTightMeLayout ? 6 : 10) {
-            sectionHeader(String(localized: "ACTIVITIES"))
-
-            VStack(alignment: .leading, spacing: useTightMeLayout ? 4 : 8) {
-                if !summary.topBody.isEmpty {
-                    activityRow(icon: "flame.fill", items: summary.topBody)
-                }
-                if !summary.topMind.isEmpty {
-                    activityRow(icon: "brain.head.profile.fill", items: summary.topMind)
-                }
-                if !summary.topHeart.isEmpty {
-                    activityRow(icon: "heart.fill", items: summary.topHeart)
-                }
-            }
-        }
-    }
-
-    private func activityRow(icon: String, items: [String]) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 13))
-                .foregroundStyle(theme.textSecondary)
-                .frame(width: 18, alignment: .center)
-            Text(items.joined(separator: ", "))
-                .font(useTightMeLayout ? .caption : .subheadline)
-                .foregroundStyle(theme.textPrimary)
-                .lineLimit(2)
-        }
-    }
-
-    // MARK: - Top Apps
-
-    /// Top apps as proportional bars: ranking is visible at a glance instead of read off the numbers.
-    /// The longest bar is the heaviest app this week; everything else scales relative to it.
-    private func topAppsSection(apps: [(name: String, spent: Int, minutes: Int)]) -> some View {
-        let maxMinutes = max(1, apps.map(\.minutes).max() ?? 1)
+    private func connectedAppsSection(apps: [(name: String, spent: Int)]) -> some View {
+        let maxSpent = max(1, apps.map(\.spent).max() ?? 1)
         return VStack(alignment: .leading, spacing: useTightMeLayout ? 8 : 12) {
-            sectionHeader(String(localized: "TOP APPS"))
+            sectionHeader(String(localized: "CONNECTED APPS", comment: "MeView – connected apps section header"))
 
             VStack(alignment: .leading, spacing: useTightMeLayout ? 10 : 12) {
                 ForEach(Array(apps.enumerated()), id: \.offset) { _, app in
-                    appBarRow(name: app.name, minutes: app.minutes, maxMinutes: maxMinutes)
+                    appBarRow(name: app.name, spent: app.spent, maxSpent: maxSpent)
                 }
             }
         }
     }
 
-    private func appBarRow(name: String, minutes: Int, maxMinutes: Int) -> some View {
+    private func appBarRow(name: String, spent: Int, maxSpent: Int) -> some View {
         // Minimum fraction so even tiny values are visible as a hint, not invisible.
-        let fraction = max(0.04, CGFloat(minutes) / CGFloat(maxMinutes))
+        let fraction = max(0.04, CGFloat(spent) / CGFloat(maxSpent))
+        let spentLabel = String(localized: "\(spent) colors", comment: "MeView – per-app color spend")
         return VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(name)
@@ -591,7 +311,7 @@ struct MeView: View {
                     .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                Text(formatAppTime(minutes))
+                Text(spentLabel)
                     .font((useTightMeLayout ? Font.footnote : Font.subheadline).weight(.semibold))
                     .monospacedDigit()
                     .foregroundStyle(theme.textPrimary)
@@ -606,19 +326,10 @@ struct MeView: View {
                 }
             }
             .frame(height: 4)
-            .accessibilityHidden(true)  // bar is decorative; the row already announces name + time
+            .accessibilityHidden(true)  // bar is decorative; the row already announces name + spend
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name), \(formatAppTime(minutes))")
-    }
-
-    private func formatAppTime(_ totalMinutes: Int) -> String {
-        if totalMinutes <= 0 { return "—" }
-        let hours = totalMinutes / 60
-        let mins = totalMinutes % 60
-        if hours > 0 && mins > 0 { return "\(hours)h \(mins)m" }
-        if hours > 0 { return "\(hours)h" }
-        return "\(mins)m"
+        .accessibilityLabel("\(name), \(spentLabel)")
     }
 
     // MARK: - Helpers
@@ -640,114 +351,7 @@ struct MeView: View {
         return String(localized: "someone")
     }
 
-    /// Recomputes the cached radar model (snapshots → week summary → axes) from
-    /// the current `pastDays` / `cachedDayKeys`. Call this whenever the snapshot
-    /// set changes — NOT from `body` — so the per-frame render path only reads
-    /// the cached results.
-    private func rebuildRadarModel() {
-        let snaps = cachedDayKeys.compactMap { pastDays[$0] }
-        radarSnaps = snaps
-        guard !snaps.isEmpty else {
-            radarSummary = MeWeekSummary()
-            radarAxes = []
-            return
-        }
-        let summary = computeWeekSummary(from: snaps)
-        radarSummary = summary
-        radarAxes = EnergySignatureView.makeAxes(
-            from: snaps, avgSteps: summary.avgSteps, avgSleep: summary.avgSleep
-        )
-    }
 
-    private func computeWeekSummary(from snapshots: [PastDaySnapshot]) -> MeWeekSummary {
-        guard !snapshots.isEmpty else { return MeWeekSummary() }
-        let count = snapshots.count
-
-        let totalSteps = snapshots.reduce(0) { $0 + $1.steps }
-        let totalSleep = snapshots.reduce(0.0) { $0 + $1.sleepHours }
-
-        // topBody/topMind/topHeart are intentionally left at their defaults: the
-        // only consumer (`activitiesSection`) isn't wired into the current layout,
-        // so computing them — flatMap over the week × `model.resolveOptionTitle`
-        // on every data load — was wasted work. The radar and AxisDetail need only
-        // the averages below.
-        return MeWeekSummary(
-            avgSteps: totalSteps / count,
-            avgSleep: totalSleep / Double(count)
-        )
-    }
-
-    // MARK: - Week Row
-
-    private var weekRow: some View {
-        HStack(spacing: 0) {
-            ForEach(cachedDayKeys, id: \.self) { dayKey in
-                dayRing(dayKey: dayKey).frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    private func dayRing(dayKey: String) -> some View {
-        let today = isToday(dayKey)
-        return Button { selectedDayKey = dayKey } label: {
-            let snapshot = pastDays[dayKey]
-            VStack(spacing: 4) {
-                ZStack {
-                    Circle()
-                        .stroke(theme.stroke.opacity(theme.strokeOpacity * 0.4), lineWidth: 0.5)
-                        .frame(width: weekRingOuter, height: weekRingOuter)
-
-                    if let snap = snapshot {
-                        let maxE = 100.0
-                        let gained = min(1.0, Double(snap.inkEarned) / maxE)
-                        let remaining = min(1.0, Double(max(0, snap.inkEarned - snap.inkSpent)) / maxE)
-                        let ringLine: CGFloat = useTightMeLayout ? 2 : 2.5
-
-                        Circle()
-                            .trim(from: 0, to: remaining)
-                            .stroke(theme.accentColor, lineWidth: ringLine)
-                            .frame(width: weekRingInner, height: weekRingInner)
-                            .rotationEffect(.degrees(-90))
-
-                        if gained > remaining {
-                            Circle()
-                                .trim(from: remaining, to: gained)
-                                .stroke(theme.accentColor.opacity(0.2), lineWidth: ringLine)
-                                .frame(width: weekRingInner, height: weekRingInner)
-                                .rotationEffect(.degrees(-90))
-                        }
-                    }
-                }
-
-                Text(shortDayLabel(dayKey))
-                    .font(.system(size: weekDayLabelSize, weight: today ? .bold : .regular))
-                    .foregroundStyle(today ? theme.textPrimary : theme.adaptiveSecondaryText)
-
-                Circle()
-                    .fill(today ? theme.accentColor : .clear)
-                    .frame(width: useTightMeLayout ? 2.5 : 3, height: useTightMeLayout ? 2.5 : 3)
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(dayRingAccessibilityLabel(dayKey: dayKey))
-    }
-
-    private func dayRingAccessibilityLabel(dayKey: String) -> String {
-        guard let date = CachedFormatters.dayKey.date(from: dayKey) else { return dayKey }
-        let dayName = CachedFormatters.shortWeekday.string(from: date)
-        guard let snap = pastDays[dayKey] else { return String(localized: "\(dayName), no data") }
-        let remaining = max(0, snap.inkEarned - snap.inkSpent)
-        return String(localized: "\(dayName), \(snap.inkEarned) earned, \(remaining) remaining")
-    }
-
-    private func shortDayLabel(_ dayKey: String) -> String {
-        guard let date = CachedFormatters.dayKey.date(from: dayKey) else { return "" }
-        return String(CachedFormatters.shortWeekday.string(from: date).prefix(2))
-    }
-
-    private func isToday(_ dayKey: String) -> Bool {
-        dayKey == AppModel.dayKey(for: Date.now)
-    }
 
     static func computeDayKeys() -> [String] {
         let cal = Calendar.current
@@ -759,6 +363,14 @@ struct MeView: View {
     }
 
     // MARK: - Data Loading
+
+    /// Recomputes the cached week model from the current `pastDays` /
+    /// `cachedDayKeys`. Call this whenever the snapshot set changes — NOT from
+    /// `body` — so the per-frame render path only reads the cached results.
+    private func rebuildWeekModel() {
+        cachedSnaps = cachedDayKeys.compactMap { pastDays[$0] }
+        cachedSummary = MeWeekStats.summary(snapshots: cachedSnaps)
+    }
 
     private func refreshDayKeysAndReload() {
         let newKeys = Self.computeDayKeys()
@@ -772,18 +384,14 @@ struct MeView: View {
         serverFetchTask?.cancel()
 
         pastDays = model.loadPastDaySnapshots()
-        rebuildRadarModel()
+        rebuildWeekModel()
 
         loadTask = Task { @MainActor in
-            let dayKeySet = Set(cachedDayKeys)
-            let (names, minutes) = await Task.detached {
-                let n = Self.loadTransactionNameMap()
-                let m = Self.loadWeeklyMinutesByTarget(dayKeys: dayKeySet)
-                return (n, m)
-            }.value
+            // The payment log is read only for display names now — targets that
+            // are no longer in a ticket group would otherwise show a raw key.
+            let names = await Task.detached { Self.loadTransactionNameMap() }.value
             guard !Task.isCancelled else { return }
             cachedTxNames = names
-            cachedWeekMinutesByTarget = minutes
             rebuildTopConsumers()
         }
 
@@ -796,21 +404,17 @@ struct MeView: View {
                 changed = true
             }
             if changed {
-                rebuildRadarModel()
+                rebuildWeekModel()
                 rebuildTopConsumers()
             }
         }
     }
 
     private func rebuildTopConsumers() {
-        var allSpending: [String: Int] = [:]
-        for dayKey in cachedDayKeys {
-            if let perApp = model.appStepsSpentByDay[dayKey] {
-                for (key, value) in perApp {
-                    allSpending[key, default: 0] += value
-                }
-            }
-        }
+        let allSpending = MeWeekStats.appSpend(
+            byDay: model.appStepsSpentByDay,
+            dayKeys: cachedDayKeys
+        )
 
         var results: [(name: String, spent: Int, key: String)] = []
         var claimedKeys: Set<String> = []
@@ -840,16 +444,10 @@ struct MeView: View {
             results.append((name: name, spent: value, key: key))
         }
 
-        let weekMinutes = cachedWeekMinutesByTarget
         cachedTopApps = results
             .sorted { $0.spent != $1.spent ? $0.spent > $1.spent : $0.name < $1.name }
             .prefix(5)
-            .map { entry in
-                let mins = weekMinutes[entry.key]
-                    ?? weekMinutes[String(entry.key.dropFirst(6))]
-                    ?? 0
-                return (name: entry.name, spent: entry.spent, minutes: mins)
-            }
+            .map { (name: $0.name, spent: $0.spent) }
     }
 
     private nonisolated static func loadTransactionNameMap() -> [String: String] {
@@ -867,39 +465,6 @@ struct MeView: View {
     private struct TransactionNameEntry: Decodable {
         let target: String
         let targetName: String?
-    }
-
-    private struct WeekTransactionEntry: Decodable {
-        let timestamp: Date
-        let target: String
-        let window: String?
-        let minutes: Int?
-    }
-
-    private nonisolated static func loadWeeklyMinutesByTarget(dayKeys: Set<String>) -> [String: Int] {
-        let url = PersistenceManager.paymentTransactionsFileURL
-        guard let data = try? Data(contentsOf: url),
-              let txs = try? JSONDecoder().decode([WeekTransactionEntry].self, from: data)
-        else { return [:] }
-
-        var minutesByTarget: [String: Int] = [:]
-        for tx in txs {
-            let txKey = AppModel.dayKey(for: tx.timestamp)
-            guard dayKeys.contains(txKey) else { continue }
-            let resolved: Int
-            if let m = tx.minutes, m > 0 {
-                resolved = m
-            } else {
-                switch tx.window {
-                case "minutes10": resolved = 10
-                case "minutes30": resolved = 30
-                case "hour1": resolved = 60
-                default: continue
-                }
-            }
-            minutesByTarget[tx.target, default: 0] += resolved
-        }
-        return minutesByTarget
     }
 }
 

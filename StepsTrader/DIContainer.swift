@@ -35,7 +35,7 @@ final class DIContainer {
         )
     }
 
-    /// Single shared SubscriptionStore — RC SDK is process-singleton anyway.
+    /// Single shared SubscriptionStore instance for the process.
     @MainActor
     func makeSubscriptionStore() -> SubscriptionStore {
         SubscriptionStore.shared

@@ -225,6 +225,67 @@ enum ShieldRebuildHelper {
         #endif
     }
 
+    // MARK: - Usage Budget Schedule
+
+    #if canImport(DeviceActivity)
+    /// Shortest interval DeviceActivity accepts before throwing `MonitoringError.intervalTooShort`.
+    static let minimumScheduleMinutes = 15
+
+    /// Builds the `usageBudget_*` schedule anchored at `now` instead of midnight.
+    ///
+    /// DeviceActivity evaluates event thresholds as cumulative usage **since
+    /// `intervalStart`**, and it back-fills from Screen Time data recorded before
+    /// `startMonitoring` was ever called. With the previous `00:00:00 → 23:59:59`
+    /// interval, a "30 minutes" purchase therefore meant "30 minutes of this app
+    /// since local midnight": once the day's usage already exceeded the budget,
+    /// every threshold — `usageBudgetDone_` included — was satisfied the instant
+    /// monitoring started, and the shield came back within a minute while the
+    /// user's colors were already spent.
+    ///
+    /// Anchoring `intervalStart` at the purchase moment gives the thresholds a
+    /// fresh zero. `intervalEnd` stays at 23:59:59 so the interval never wraps
+    /// past midnight — `end < start` is treated as already-ended and kills the
+    /// monitor before any event can fire.
+    ///
+    /// - Returns: `nil` when fewer than `minimumScheduleMinutes` remain before
+    ///   23:59:59, since DeviceActivity would reject that interval. Callers must
+    ///   fall back to wall-clock expiry for that window.
+    static func usageBudgetSchedule(
+        anchoredAt now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> DeviceActivitySchedule? {
+        let parts = calendar.dateComponents([.hour, .minute, .second], from: now)
+        guard let hour = parts.hour, let minute = parts.minute, let second = parts.second else { return nil }
+
+        let endOfDaySeconds = 23 * 3600 + 59 * 60 + 59
+        let nowSeconds = hour * 3600 + minute * 60 + second
+        guard endOfDaySeconds - nowSeconds >= minimumScheduleMinutes * 60 else { return nil }
+
+        return DeviceActivitySchedule(
+            intervalStart: DateComponents(hour: hour, minute: minute, second: second),
+            intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
+            repeats: true
+        )
+    }
+
+    /// Wall-clock expiry used when `usageBudgetSchedule` can't produce a valid interval.
+    ///
+    /// Never extends an already-stored expiry (the caller anchors that to the custom
+    /// day boundary), so a late-evening fallback can't outlive the day it was bought in.
+    static func wallClockFallbackExpiry(
+        defaults: UserDefaults,
+        groupId: String,
+        minutes: Int,
+        now: Date = Date()
+    ) -> Date {
+        let requested = now.addingTimeInterval(TimeInterval(minutes * 60))
+        guard let existing = coercedDate(from: defaults.object(forKey: SharedKeys.usageBudgetExpiryKey(groupId))) else {
+            return requested
+        }
+        return min(requested, existing)
+    }
+    #endif
+
     // MARK: - Pending Widget Budget Monitoring
 
     /// Starts DeviceActivity monitoring for widget-initiated budgets. Called from rebuild()
@@ -291,11 +352,18 @@ enum ShieldRebuildHelper {
                 threshold: DateComponents(minute: minutes)
             )
 
-            let schedule = DeviceActivitySchedule(
-                intervalStart: DateComponents(hour: 0, minute: 0, second: 0),
-                intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
-                repeats: true
-            )
+            // Anchored at now, not midnight — see usageBudgetSchedule.
+            guard let schedule = usageBudgetSchedule() else {
+                let expiry = wallClockFallbackExpiry(defaults: defaults, groupId: group.id, minutes: minutes)
+                defaults.set(expiry, forKey: SharedKeys.usageBudgetExpiryKey(group.id))
+                defaults.removeObject(forKey: pendingKey)
+                defaults.removeObject(forKey: minutesKey)
+
+                let ts = isoFormatter.string(from: Date())
+                let msg = "[\(ts)] WALLCLOCK usageBudget_\(group.id) \(minutes)m — <\(minimumScheduleMinutes)m before 23:59:59, expiry=\(isoFormatter.string(from: expiry))"
+                defaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
+                continue
+            }
 
             do {
                 try center.startMonitoring(activityName, during: schedule, events: events)
@@ -303,7 +371,9 @@ enum ShieldRebuildHelper {
                 defaults.removeObject(forKey: minutesKey)
 
                 let ts = isoFormatter.string(from: Date())
-                let msg = "[\(ts)] OK usageBudget_\(group.id) \(minutes)m events=\(events.count) apps=\(sel.applicationTokens.count) sched=[start=0:0:0 end=23:59:59] activities=\(center.activities.map(\.rawValue))"
+                let start = schedule.intervalStart
+                let schedDesc = "start=\(start.hour ?? 0):\(start.minute ?? 0):\(start.second ?? 0) end=23:59:59"
+                let msg = "[\(ts)] OK usageBudget_\(group.id) \(minutes)m events=\(events.count) apps=\(sel.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"
                 defaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
             } catch {
                 // Don't clear pending keys on failure — the extension or main app will retry
