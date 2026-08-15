@@ -168,6 +168,19 @@ struct CanvasElement: Identifiable, Codable {
         return hash
     }
 
+    static func stableSeed(for id: UUID) -> UInt64 {
+        let prime: UInt64 = 0x0000_0100_0000_01B3
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+        var uuid = id.uuid
+        withUnsafeBytes(of: &uuid) { bytes in
+            for byte in bytes {
+                hash ^= UInt64(byte)
+                hash &*= prime
+            }
+        }
+        return hash
+    }
+
     // MARK: - Composition
 
     /// The normalised region new elements may occupy. The margin is deliberate
@@ -211,7 +224,13 @@ struct CanvasElement: Identifiable, Codable {
     static func textureSpec(rank: Int, dayKey: String, composition: DayComposition) -> TextureSpec {
         let kind = composition.texturePolicy.kind(forRank: rank)
         let seed = makeSeed(optionId: "composition-texture", dayKey: dayKey, index: rank)
-        return TextureSpec.seeded(kind: kind, seed: seed)
+        var spec = TextureSpec.seeded(kind: kind, seed: seed)
+        var angleRng = SeededRNG.derived(from: seed, domain: "hatchJitter")
+        let jitter = angleRng.nextDouble(in: (-Double.pi / 12)...(Double.pi / 12))
+        spec.angle = (composition.hatchAngle + jitter)
+            .truncatingRemainder(dividingBy: 2 * .pi)
+        if spec.angle < 0 { spec.angle += 2 * .pi }
+        return spec
     }
 
     /// Re-roll the visual variant of this element.

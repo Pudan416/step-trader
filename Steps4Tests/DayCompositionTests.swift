@@ -14,6 +14,39 @@ final class DayCompositionTests: XCTestCase {
         XCTAssertEqual(a, b)
     }
 
+    func testStableUUIDSeedHasGoldenValue() throws {
+        let id = try XCTUnwrap(UUID(uuidString: "00112233-4455-6677-8899-AABBCCDDEEFF"))
+        XCTAssertEqual(CanvasElement.stableSeed(for: id), 0x52A3_9B8A_741B_3EF5)
+    }
+
+    func testDayHatchAngleIsStableAndNormalised() {
+        let a = DayComposition.forDay(dayKey: "2026-08-10", happeningCount: 8)
+        let b = DayComposition.forDay(dayKey: "2026-08-10", happeningCount: 1)
+        XCTAssertEqual(a.hatchAngle, b.hatchAngle, accuracy: 1e-12)
+        XCTAssertTrue((0..<(2 * Double.pi)).contains(a.hatchAngle))
+    }
+
+    func testRepresentativeDaysUseMoreThanOneHatchDirection() {
+        let values = (10...30).map {
+            DayComposition.forDay(
+                dayKey: String(format: "2026-08-%02d", $0), happeningCount: 8
+            ).hatchAngle
+        }
+        XCTAssertGreaterThan(Set(values.map { Int(($0 * 10_000).rounded()) }).count, 8)
+    }
+
+    func testElementHatchAngleStaysWithinFifteenDegreesOfDay() {
+        let dayKey = "2026-08-10"
+        let day = DayComposition.forDay(dayKey: dayKey, happeningCount: 10)
+        for rank in 0..<10 {
+            let angle = CanvasElement.textureSpec(
+                rank: rank, dayKey: dayKey, composition: day).angle
+            var delta = abs(angle - day.hatchAngle)
+            delta = min(delta, 2 * .pi - delta)
+            XCTAssertLessThanOrEqual(delta, .pi / 12 + 1e-12)
+        }
+    }
+
     func testDifferentDaysGetDifferentCompositions() {
         let keys = (1...28).map { String(format: "2026-08-%02d", $0) }
         let archetypes = keys.map {
@@ -587,7 +620,7 @@ final class ComposedSpawnTests: XCTestCase {
         let spec = CanvasElement.textureSpec(rank: 3, dayKey: dayKey, composition: day)
         XCTAssertEqual(spec.density, 0.61565509146580877, accuracy: 1e-12)
         XCTAssertEqual(spec.uniformity, 0.35133926126910608, accuracy: 1e-12)
-        XCTAssertEqual(spec.angle, 2.0681452615172895, accuracy: 1e-12)
+        XCTAssertEqual(spec.angle, 2.146519981143583, accuracy: 1e-12)
     }
 
     // MARK: Reroll

@@ -145,6 +145,7 @@ struct DayComposition: Codable, Hashable {
     var palette: [String]
     var contrastKey: ContrastKey
     var texturePolicy: TexturePolicy
+    var hatchAngle: Double
 
     /// The size curves grade a day's elements from anchor to accent, so they need
     /// a projected day length to normalise against — not the count so far, which
@@ -176,7 +177,8 @@ struct DayComposition: Codable, Hashable {
             archetype: archetype,
             palette: makePalette(seed: seed),
             contrastKey: contrastKey,
-            texturePolicy: makeTexturePolicy(seed: seed)
+            texturePolicy: makeTexturePolicy(seed: seed),
+            hatchAngle: makeHatchAngle(seed: seed)
         )
     }
 
@@ -235,5 +237,10 @@ struct DayComposition: Codable, Hashable {
             accent: accent,
             accentShare: rng.nextDouble(in: 0.15...0.4)
         )
+    }
+
+    private static func makeHatchAngle(seed: UInt64) -> Double {
+        var rng = SeededRNG.derived(from: seed, domain: "hatchAngle")
+        return rng.nextDouble() * 2 * .pi
     }
 }
