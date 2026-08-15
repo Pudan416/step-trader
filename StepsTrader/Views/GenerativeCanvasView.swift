@@ -448,14 +448,23 @@ struct GenerativeCanvasView: View {
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
                     interaction: interaction, decayedColor: color,
-                    decayedColor2: color2
+                    decayedColor2: color2,
+                    spec: CanvasElement.textureSpec(
+                        rank: renderCache.sortedIndexMap[element.id] ?? 0,
+                        dayKey: dayKey,
+                        composition: dayComposition),
+                    cache: renderCache
                 )
             case .spirograph:
                 CircleShapeRenderer.draw(
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
                     interaction: interaction, decayedColor: color,
-                    decayedColor2: color2
+                    decayedColor2: color2,
+                    spec: TextureSpec(
+                        kind: .gradient, density: 0.5,
+                        uniformity: 1, angle: 0),
+                    cache: renderCache
                 )
             }
         }

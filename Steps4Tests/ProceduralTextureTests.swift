@@ -622,3 +622,37 @@ final class RenderCacheTextureTests: XCTestCase {
                        "The phased-behind seed's entry must survive the phased-ahead seed's prune")
     }
 }
+
+@MainActor
+final class CircleTextureTests: XCTestCase {
+    func testCircleLegacyFillStyleGoldenSeeds() {
+        XCTAssertEqual(
+            CircleShapeRenderer.FillStyle(seed: 0),
+            .init(isSolid: true, opacityMul: 0.85))
+        XCTAssertEqual(CircleShapeRenderer.FillStyle(seed: 8).isSolid, false)
+        XCTAssertEqual(
+            CircleShapeRenderer.FillStyle(seed: 0x780).opacityMul,
+            1.0,
+            accuracy: 1e-12)
+    }
+
+    func testEveryTextureKindBuildsCircleGeometry() {
+        let radii = [Double](repeating: 1, count: 48)
+        for kind in TextureKind.allCases {
+            let spec = TextureSpec(
+                kind: kind, density: 0.7, uniformity: 0.4, angle: 1)
+            let geometry = ProceduralTexture.geometry(
+                spec: spec, radii: radii, seed: 7)
+            switch kind {
+            case .flat, .gradient:
+                XCTAssertEqual(geometry, TextureGeometry())
+            case .rings:
+                XCTAssertFalse(geometry.rings.isEmpty)
+            case .hatch:
+                XCTAssertFalse(geometry.lines.isEmpty)
+            case .stipple:
+                XCTAssertFalse(geometry.dots.isEmpty)
+            }
+        }
+    }
+}
