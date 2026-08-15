@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import UIKit
 
@@ -285,6 +286,23 @@ enum HappeningLiquidLabelTypography {
     }
 }
 
+struct HappeningLiquidMetaballBudget: Equatable {
+    let sourceCount: Int
+    let gridResolution: Int
+
+    init(
+        currentSourceCount: Int,
+        transitionSourceCount: Int,
+        lowPowerMode: Bool
+    ) {
+        sourceCount = max(currentSourceCount, transitionSourceCount)
+        gridResolution = CanvasRenderBudget.metaballGridResolution(
+            sourceCount: sourceCount,
+            lowPowerMode: lowPowerMode
+        )
+    }
+}
+
 enum HappeningLiquidContourHitRegion {
     /// Covers the seven-point luminance blur plus antialiasing at the rendered
     /// contour edge. `strokedPath` expands by half its line width.
@@ -292,18 +310,40 @@ enum HappeningLiquidContourHitRegion {
 
     static func path(
         sources: [HappeningLiquidLayout.Source],
-        in rect: CGRect
+        in rect: CGRect,
+        gridResolution: Int? = nil,
+        lowPowerMode: Bool = false
     ) -> Path {
-        expandedContour(sources: sources, in: rect)
+        let resolvedGridResolution = gridResolution ?? HappeningLiquidMetaballBudget(
+            currentSourceCount: sources.count,
+            transitionSourceCount: 0,
+            lowPowerMode: lowPowerMode
+        ).gridResolution
+        return expandedContour(
+            sources: sources,
+            in: rect,
+            gridResolution: resolvedGridResolution
+        )
     }
 
     static func path(
         currentSources: [HappeningLiquidLayout.Source],
         transitionSources: [HappeningLiquidLayout.Source],
-        in rect: CGRect
+        in rect: CGRect,
+        gridResolution: Int? = nil,
+        lowPowerMode: Bool = false
     ) -> Path {
+        let resolvedGridResolution = gridResolution ?? HappeningLiquidMetaballBudget(
+            currentSourceCount: currentSources.count,
+            transitionSourceCount: transitionSources.count,
+            lowPowerMode: lowPowerMode
+        ).gridResolution
         guard !transitionSources.isEmpty else {
-            return expandedContour(sources: currentSources, in: rect)
+            return expandedContour(
+                sources: currentSources,
+                in: rect,
+                gridResolution: resolvedGridResolution
+            )
         }
 
         var hitRegion = Path()
@@ -325,14 +365,19 @@ enum HappeningLiquidContourHitRegion {
                     radius: old.radius + (new.radius - old.radius) * progress
                 )
             }
-            hitRegion.addPath(expandedContour(sources: sources, in: rect))
+            hitRegion.addPath(expandedContour(
+                sources: sources,
+                in: rect,
+                gridResolution: resolvedGridResolution
+            ))
         }
         return hitRegion
     }
 
     private static func expandedContour(
         sources: [HappeningLiquidLayout.Source],
-        in rect: CGRect
+        in rect: CGRect,
+        gridResolution: Int
     ) -> Path {
         let contour = ProceduralShapeGenerator.metaballPath(
             blobs: sources.map {
@@ -342,7 +387,7 @@ enum HappeningLiquidContourHitRegion {
                 )
             },
             in: rect,
-            gridResolution: 58
+            gridResolution: gridResolution
         )
         var hitRegion = contour
         hitRegion.addPath(
@@ -421,6 +466,10 @@ struct HappeningLiquidField: View {
     @State private var layoutSize: CGSize = .zero
     @State private var layoutSafeInsets = EdgeInsets()
 
+    private var lowPowerMode: Bool {
+        ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
+
     private static let pressDuration = 0.12
     private static let sinkDuration = 0.19
     private static let reflowDuration = 0.38
@@ -450,17 +499,24 @@ struct HappeningLiquidField: View {
                 safeInsets: proxy.safeAreaInsets,
                 dynamicTypeSize: dynamicTypeSize
             )
+            let metaballBudget = HappeningLiquidMetaballBudget(
+                currentSourceCount: layout.sources.count,
+                transitionSourceCount: transitionHitSources.count,
+                lowPowerMode: lowPowerMode
+            )
             let styles = slotStyles
             let liquidHitRegion = HappeningLiquidContourHitRegion.path(
                 currentSources: layout.sources,
                 transitionSources: transitionHitSources,
-                in: CGRect(origin: .zero, size: proxy.size)
+                in: CGRect(origin: .zero, size: proxy.size),
+                gridResolution: metaballBudget.gridResolution
             )
 
             ZStack(alignment: .topLeading) {
                 HappeningLiquidCanvas(
                     sourceVector: renderVector(for: layout),
-                    styles: styles
+                    styles: styles,
+                    gridResolution: metaballBudget.gridResolution
                 )
 
                 liquidHitRegion
@@ -919,6 +975,7 @@ private struct HappeningLiquidRenderSource {
 private struct HappeningLiquidCanvas: View, Animatable {
     var sourceVector: HappeningLiquidSourceVector
     let styles: [HappeningLiquidSlotStyle]
+    let gridResolution: Int
 
     var animatableData: HappeningLiquidSourceVector {
         get { sourceVector }
@@ -941,7 +998,7 @@ private struct HappeningLiquidCanvas: View, Animatable {
                     )
                 },
                 in: CGRect(origin: .zero, size: size),
-                gridResolution: 58
+                gridResolution: gridResolution
             )
             let maximumOpacity = Double(visible.map(\.element.opacity).max() ?? 0)
 

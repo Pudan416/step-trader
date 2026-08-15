@@ -23,13 +23,28 @@ struct CanvasAnimationOverlay: View {
     @AppStorage(SharedKeys.canvasOverlayStyle, store: UserDefaults.stepsTrader())
     private var styleRaw: String = CanvasOverlayStyle.smudge.rawValue
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.renderingIsActive) private var renderingIsActive
+    @Environment(\.scenePhase) private var scenePhase
+
     private var style: CanvasOverlayStyle {
         CanvasOverlayStyle(rawValue: styleRaw) ?? .smudge
     }
 
+    private var isRenderingAllowed: Bool {
+        RenderingActivity.shouldAnimate(
+            isViewActive: renderingIsActive,
+            sceneIsActive: scenePhase == .active,
+            reduceMotion: reduceMotion
+        )
+    }
+
     var body: some View {
-        switch style {
-        case .none, .smudge:
+        switch style.requiredResource {
+        case .none:
+            EmptyView()
+                .allowsHitTesting(false)
+        case .smudge:
             SmudgeOverlayView(
                 elements: elements,
                 sleepPoints: sleepPoints,
@@ -40,10 +55,11 @@ struct CanvasAnimationOverlay: View {
                 backgroundColor: backgroundColor,
                 labelColor: labelColor,
                 hasStepsData: hasStepsData,
-                hasSleepData: hasSleepData
+                hasSleepData: hasSleepData,
+                isRenderingAllowed: isRenderingAllowed
             )
         case .cosmic:
-            ShaderParkOverlayView()
+            ShaderParkOverlayView(isRenderingAllowed: isRenderingAllowed)
         }
     }
 }

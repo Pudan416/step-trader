@@ -52,6 +52,9 @@ struct GlassShimmerProvider<Content: View>: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(SharedKeys.gradientPalette) private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.renderingIsActive) private var renderingIsActive
+    @Environment(\.scenePhase) private var scenePhase
 
     private var palette: EnergyGradientRenderer.Palette {
         EnergyGradientRenderer.palette(for: GradientPalette.normalized(rawValue: gradientPaletteRaw))
@@ -61,8 +64,16 @@ struct GlassShimmerProvider<Content: View>: View {
         (palette.bright, palette.dark)
     }
 
+    private var shouldAnimate: Bool {
+        RenderingActivity.shouldAnimate(
+            isViewActive: renderingIsActive,
+            sceneIsActive: scenePhase == .active,
+            reduceMotion: reduceMotion
+        )
+    }
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / fps, paused: false)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / fps, paused: !shouldAnimate)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             let twoPi = Double.pi * 2
             // sin gives a soft hold at the endpoints (slows down near 0 and 1)

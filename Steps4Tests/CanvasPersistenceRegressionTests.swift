@@ -137,6 +137,8 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         )
         model.isBootstrapping = true
         model.loadDailyEnergyState()
+        XCTAssertEqual(model.dayEndHour, pair.old.hour)
+        XCTAssertEqual(model.dayEndMinute, pair.old.minute)
 
         let entry = try XCTUnwrap(
             model.addHappening(
@@ -157,9 +159,17 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
             )
         ]
         XCTAssertTrue(CanvasStorageService.shared.saveCanvas(canvas))
+        XCTAssertEqual(
+            CanvasStorageService.shared.loadCanvas(for: oldKey)?.elements.map(\.id),
+            canvas.elements.map(\.id)
+        )
 
         model.updateDayEnd(hour: pair.new.hour, minute: pair.new.minute)
-        try await Task.sleep(for: .milliseconds(500))
+        // Wait for the production debounce task itself. A fixed delay races
+        // simulator scheduling and can inspect storage before the commit ran.
+        await model.dayEndCommitTask?.value
+        XCTAssertEqual(model.dayEndHour, pair.new.hour)
+        XCTAssertEqual(model.dayEndMinute, pair.new.minute)
 
         XCTAssertEqual(model.todayAdditions.map(\.dayKey), [newKey])
         XCTAssertNil(
@@ -171,7 +181,10 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
             "re-anchoring must preserve once-per-custom-day identity"
         )
         XCTAssertNil(CanvasStorageService.shared.loadCanvas(for: oldKey))
-        let movedCanvas = try XCTUnwrap(CanvasStorageService.shared.loadCanvas(for: newKey))
+        let movedCanvas = try XCTUnwrap(
+            CanvasStorageService.shared.loadCanvas(for: newKey),
+            "Expected moved canvas at \(newKey); available: \(CanvasStorageService.shared.availableDayKeys())"
+        )
         XCTAssertEqual(movedCanvas.dayKey, newKey)
         XCTAssertEqual(movedCanvas.elements.map(\.id), canvas.elements.map(\.id))
     }

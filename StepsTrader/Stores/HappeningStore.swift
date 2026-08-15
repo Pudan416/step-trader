@@ -64,6 +64,19 @@ final class HappeningStore {
         return made
     }
 
+    /// Installs an activity discovered outside the app under a stable id.
+    /// Repeated detections reuse the same catalog item instead of creating
+    /// duplicate rows for the same HealthKit workout type.
+    @discardableResult
+    func ensureExternalHappening(id: String, title: String) -> Happening {
+        if let existing = happening(id: id) { return existing }
+
+        let made = Happening(id: id, title: title, isBuiltIn: false)
+        all.append(made)
+        persist()
+        return made
+    }
+
     func mergeRestored(_ happenings: [Happening]) {
         guard !happenings.isEmpty else { return }
         for restored in happenings where !restored.isBuiltIn {

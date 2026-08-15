@@ -610,6 +610,7 @@ private struct AnimatedGradientView: View {
     let hasSleepData: Bool
     let gradientStyle: GradientStyle
     let gradientPalette: GradientPalette
+    let isAnimating: Bool
 
     @State private var stepsOrigin: Double = 0
     @State private var stepsTarget: Double = 0
@@ -629,7 +630,7 @@ private struct AnimatedGradientView: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isAnimating)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             let smoothSteps = eased(stepsOrigin, stepsTarget, stepsTransStart, t)
             let smoothSleep = eased(sleepOrigin, sleepTarget, sleepTransStart, t)
@@ -720,6 +721,16 @@ struct EnergyGradientBackground: View {
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.renderingIsActive) private var renderingIsActive
+    @Environment(\.scenePhase) private var scenePhase
+
+    private var shouldAnimate: Bool {
+        RenderingActivity.shouldAnimate(
+            isViewActive: renderingIsActive,
+            sceneIsActive: scenePhase == .active,
+            reduceMotion: reduceMotion
+        )
+    }
 
     var body: some View {
         gradientContent
@@ -742,7 +753,8 @@ struct EnergyGradientBackground: View {
                 hasStepsData: hasStepsData,
                 hasSleepData: hasSleepData,
                 gradientStyle: gradientStyle,
-                gradientPalette: gradientPaletteValue
+                gradientPalette: gradientPaletteValue,
+                isAnimating: shouldAnimate
             )
         } else {
             Color.clear

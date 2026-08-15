@@ -36,6 +36,8 @@ final class ShaderParkMTKView: MTKView {
 
 struct ShaderParkOverlayView: UIViewRepresentable {
 
+    let isRenderingAllowed: Bool
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> ShaderParkMTKView {
@@ -57,6 +59,7 @@ struct ShaderParkOverlayView: UIViewRepresentable {
         // `velocity` have both decayed to zero. See `MetalShaderParkRenderer`.
         view.isPaused                = true
         view.enableSetNeedsDisplay   = false
+        view.isUserInteractionEnabled = isRenderingAllowed
 
         view.isOpaque            = false
         view.layer.isOpaque      = false
@@ -71,6 +74,8 @@ struct ShaderParkOverlayView: UIViewRepresentable {
         view.contentScaleFactor  = min(UIScreen.main.scale, 1.25)
 
         let coord = context.coordinator
+        coord.renderingIsAllowed = isRenderingAllowed
+        renderer.setActive(isRenderingAllowed)
         // UIKit haptic is correct here: `.sensoryFeedback` is a SwiftUI view
         // modifier and can't attach to UIView touch callbacks. The generator
         // is captured by the closure below, allocated once per representable
@@ -79,19 +84,34 @@ struct ShaderParkOverlayView: UIViewRepresentable {
         touchHaptic.prepare()
 
         view.onTouchBegan = { [weak coord, weak view] point in
-            guard let coord = coord, let view = view else { return }
-            view.isPaused = false
-            coord.renderer?.touchBegan()
-            coord.renderer?.setTouch(point: point, bounds: view.bounds.size)
+            guard let coord,
+                  coord.renderingIsAllowed,
+                  let view,
+                  let renderer = coord.renderer
+            else { return }
+            renderer.touchBegan()
+            renderer.setTouch(point: point, bounds: view.bounds.size)
+            view.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
+                isRenderingAllowed: coord.renderingIsAllowed,
+                hasActiveEffect: renderer.hasActiveEffect
+            )
             touchHaptic.impactOccurred(intensity: 0.6)
         }
         view.onTouchMoved = { [weak coord, weak view] point in
-            guard let coord = coord, let view = view else { return }
-            view.isPaused = false
-            coord.renderer?.setTouch(point: point, bounds: view.bounds.size)
+            guard let coord,
+                  coord.renderingIsAllowed,
+                  let view,
+                  let renderer = coord.renderer
+            else { return }
+            renderer.setTouch(point: point, bounds: view.bounds.size)
+            view.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
+                isRenderingAllowed: coord.renderingIsAllowed,
+                hasActiveEffect: renderer.hasActiveEffect
+            )
         }
         view.onTouchEnded = { [weak coord] in
-            coord?.renderer?.touchEnded()
+            guard let coord, coord.renderingIsAllowed else { return }
+            coord.renderer?.touchEnded()
         }
 
         context.coordinator.mtkView = view
@@ -99,19 +119,34 @@ struct ShaderParkOverlayView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: ShaderParkMTKView, context: Context) {
-        // Only resume if the renderer was explicitly deactivated (teardown).
-        // SwiftUI calls updateUIView on every recomposition; unconditionally
-        // unpausing here would wake an idle renderer that self-parked after
-        // touch decay, burning GPU on invisible empty frames until it re-parks.
-        guard let renderer = context.coordinator.renderer else { return }
-        if !renderer.isActive {
-            renderer.setActive(true)
-            uiView.isPaused = false
+        let coordinator = context.coordinator
+        coordinator.renderingIsAllowed = isRenderingAllowed
+        uiView.isUserInteractionEnabled = isRenderingAllowed
+
+        guard let renderer = coordinator.renderer else {
+            uiView.isPaused = true
+            return
         }
+
+        renderer.setActive(isRenderingAllowed)
+        if !isRenderingAllowed {
+            renderer.cancelActiveInteraction()
+        }
+
+        // SwiftUI calls updateUIView on every recomposition. Gate the display
+        // link by both lifecycle permission and actual effect state so an idle
+        // renderer stays parked instead of waking for invisible frames.
+        uiView.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
+            isRenderingAllowed: isRenderingAllowed,
+            hasActiveEffect: renderer.hasActiveEffect
+        )
     }
 
     static func dismantleUIView(_ uiView: ShaderParkMTKView, coordinator: Coordinator) {
+        coordinator.renderingIsAllowed = false
+        coordinator.renderer?.cancelActiveInteraction()
         coordinator.renderer?.setActive(false)
+        uiView.isUserInteractionEnabled = false
         uiView.isPaused = true
         uiView.delegate = nil
     }
@@ -123,6 +158,7 @@ struct ShaderParkOverlayView: UIViewRepresentable {
     @MainActor final class Coordinator {
         let renderer: MetalShaderParkRenderer?
         weak var mtkView: ShaderParkMTKView?
+        var renderingIsAllowed = false
 
         init() { renderer = MetalShaderParkRenderer.create() }
     }

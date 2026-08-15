@@ -181,6 +181,7 @@ enum SnowflakeShapeRenderer {
         blendMode: GraphicsContext.BlendMode,
         ampScale: Double,
         renderCache: RenderCache,
+        trailLength: Int,
         decayedColor: Color? = nil,
         decayedColor2: Color? = nil
     ) {
@@ -189,7 +190,7 @@ enum SnowflakeShapeRenderer {
         let r = radius(e, size: size, t: t, ampScale: ampScale)
         let seed = e.shapeSeed ?? UInt64(bitPattern: Int64(e.id.hashValue))
         let idleOpacity = (0.92 + breathePhase * 0.04) * (1.0 - decay * 0.3)
-        let trailLen = 20
+        let trailLen = trailLength
         let trailSpacing: Double = 0.7
         let trailPeak: Double = 0.30
         let strokeW: CGFloat = 1.2

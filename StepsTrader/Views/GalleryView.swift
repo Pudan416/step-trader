@@ -97,6 +97,7 @@ struct GalleryView: View {
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
+    private let isUnitTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
     @State private var safeAreaTop: CGFloat = 0
     @State private var safeAreaBottom: CGFloat = 0
@@ -623,9 +624,11 @@ struct GalleryView: View {
                     ActivitySuggestionBanner(
                         suggestions: model._pendingActivitySuggestions,
                         onAccept: { suggestion in
-                            model.acceptActivitySuggestion(suggestion)
+                            guard let optionId = model.acceptActivitySuggestion(suggestion) else {
+                                return
+                            }
                             let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
-                            addAndSpawnHappening(optionId: suggestion.optionId, color: color)
+                            addAndSpawnHappening(optionId: optionId, color: color)
                         },
                         onDismiss: { suggestion in
                             model.dismissActivitySuggestion(suggestion)
@@ -941,6 +944,14 @@ struct GalleryView: View {
 
     private func loadCanvas() {
         let dayKey = AppModel.dayKey(for: Date.now)
+        // Unit tests run inside the application host. Keep the host Gallery
+        // inert so it cannot race persistence tests through the shared canvas
+        // directory; tests exercise CanvasStorageService explicitly.
+        if isUnitTestHost {
+            dayCanvas = DayCanvas(dayKey: dayKey)
+            canvasLoaded = true
+            return
+        }
         if usesTask7UITestFixture {
             dayCanvas = DayCanvas(dayKey: dayKey)
             canvasLoaded = true
@@ -1086,6 +1097,7 @@ struct GalleryView: View {
 
     @discardableResult
     private func saveCanvasLocally() -> Bool {
+        guard !isUnitTestHost else { return false }
         // Gate on canvasLoaded — NOT on `!elements.isEmpty`. The previous
         // empty-skip silently dropped legitimate "deleted last element"
         // saves, so the deletion failed to persist and the element came back

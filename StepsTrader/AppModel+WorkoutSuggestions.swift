@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Proactive Workout Suggestions (HealthKit + behavioral signals → Canvas)
+// MARK: - Proactive Activity Suggestions (HealthKit + behavioral signals → Canvas)
 extension AppModel {
 
     /// All pending suggestions from every source, filtered and deduped.
@@ -26,7 +26,11 @@ extension AppModel {
 
         // 1. Workouts from HealthKit
         let workouts = await healthStore.fetchTodayWorkouts()
-        let workoutSuggestions = buildWorkoutSuggestions(workouts, alreadyAdded: alreadyAdded, dismissed: dismissed)
+        let workoutSuggestions = buildWorkoutSuggestions(
+            workouts,
+            alreadyAdded: alreadyAdded,
+            dismissed: dismissed
+        )
         suggestions.append(contentsOf: workoutSuggestions)
 
         // 2. Mindful minutes from HealthKit
@@ -50,7 +54,6 @@ extension AppModel {
 
         let previousIds = Set(_pendingActivitySuggestions.map(\.id))
         let newSuggestions = suggestions.filter { !previousIds.contains($0.id) }
-
         for suggestion in newSuggestions where suggestion.source.isWorkout {
             (notificationService as? NotificationManager)?
                 .sendActivityDetectedNotification(title: suggestion.title, subtitle: suggestion.subtitle)
@@ -119,8 +122,23 @@ extension AppModel {
 
     // MARK: - Accept / Dismiss
 
-    func acceptActivitySuggestion(_ suggestion: ActivitySuggestion) {
+    @discardableResult
+    func acceptActivitySuggestion(_ suggestion: ActivitySuggestion) -> String? {
+        let optionId: String
+        if case .workout(let workout) = suggestion.source {
+            guard let workoutOptionId = workout.suggestedOptionId,
+                  installExternalPaletteHappening(
+                    id: workoutOptionId,
+                    title: workout.activityName
+                  ) != nil else {
+                return nil
+            }
+            optionId = workoutOptionId
+        } else {
+            optionId = suggestion.optionId
+        }
         pendingActivitySuggestions.removeAll { $0.id == suggestion.id }
+        return optionId
     }
 
     func dismissActivitySuggestion(_ suggestion: ActivitySuggestion) {

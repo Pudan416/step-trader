@@ -48,6 +48,12 @@ final class MetalShaderParkRenderer: NSObject, MTKViewDelegate {
 
     private(set) var isActive: Bool = true
 
+    var hasActiveEffect: Bool {
+        clickTarget != 0
+            || click >= 0.005
+            || simd_length(velocity) >= 0.0008
+    }
+
     @available(*, unavailable)
     private override init() { fatalError() }
 
@@ -141,6 +147,10 @@ final class MetalShaderParkRenderer: NSObject, MTKViewDelegate {
         prevTouch   = nil
     }
 
+    func cancelActiveInteraction() {
+        touchEnded()
+    }
+
     // ════════════════════════════════════════════════════════════════
     // MARK: - MTKViewDelegate
     // ════════════════════════════════════════════════════════════════
@@ -151,23 +161,13 @@ final class MetalShaderParkRenderer: NSObject, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
-        guard isActive,
-              let drawable = view.currentDrawable,
+        guard isActive else { return }
+
+        guard let drawable = view.currentDrawable,
               let rpd      = view.currentRenderPassDescriptor,
               let cb       = commandQueue.makeCommandBuffer(),
               let encoder  = cb.makeRenderCommandEncoder(descriptor: rpd)
-        else {
-            // Drain swap-chain on inactive frames so the OS doesn't stall.
-            if let drawable = view.currentDrawable,
-               let rpd      = view.currentRenderPassDescriptor,
-               let cb       = commandQueue.makeCommandBuffer(),
-               let encoder  = cb.makeRenderCommandEncoder(descriptor: rpd) {
-                encoder.endEncoding()
-                cb.present(drawable)
-                cb.commit()
-            }
-            return
-        }
+        else { return }
 
         // Smooth click attack/decay. Slower decay (0.06/frame ≈ 1s tail at
         // 60fps) keeps the cosmic dissipating like fog instead of vanishing.
