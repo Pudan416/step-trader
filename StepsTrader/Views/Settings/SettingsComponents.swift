@@ -25,7 +25,10 @@ struct DetailHeader: View {
             Spacer()
             Color.clear.frame(width: 50, height: 1)
         }
-        .padding(.top, 4)
+        // Settings is a sheet now, not a tab: there is no status-bar safe area
+        // above these pages, so 4pt put Back flush against the sheet's top edge
+        // and into its rounded corners.
+        .padding(.top, 16)
         .padding(.bottom, 8)
     }
 }

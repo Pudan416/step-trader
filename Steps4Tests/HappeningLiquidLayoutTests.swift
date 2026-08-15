@@ -217,10 +217,11 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
         var element = CanvasElement.spawn(
             id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
             optionId: "happening_walk",
-            color: "#AABBCC",
             label: "Walk",
             existingElements: canvas.elements,
-            dayKey: canvas.dayKey
+            dayKey: canvas.dayKey,
+            composition: DayComposition.forDay(
+                dayKey: canvas.dayKey, happeningCount: canvas.elements.count)
         )
         element.basePosition = CGPoint(x: 0.82, y: 0.24)
         return element

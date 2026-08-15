@@ -53,8 +53,9 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         var canvas = DayCanvas(dayKey: today)
         canvas.elements = [
             CanvasElement.spawn(
-                optionId: "happening_walk", color: "#CC5050", label: "Walk",
-                existingElements: [], dayKey: today
+                optionId: "happening_walk", label: "Walk",
+                existingElements: [], dayKey: today,
+                composition: DayComposition.forDay(dayKey: today, happeningCount: 0)
             )
         ]
         _ = CanvasStorageService.shared.saveCanvas(canvas)
@@ -150,10 +151,10 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
             CanvasElement.spawn(
                 id: try XCTUnwrap(UUID(uuidString: entry.id)),
                 optionId: entry.optionId,
-                color: entry.colorHex,
                 label: "Walk",
                 existingElements: [],
-                dayKey: oldKey
+                dayKey: oldKey,
+                composition: DayComposition.forDay(dayKey: oldKey, happeningCount: 0)
             )
         ]
         XCTAssertTrue(CanvasStorageService.shared.saveCanvas(canvas))

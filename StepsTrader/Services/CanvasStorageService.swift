@@ -109,6 +109,7 @@ final class CanvasStorageService {
     func saveSnapshot(for dayKey: String, elements: [CanvasElement], sleepPoints: Int, stepsPoints: Int, sleepColor: Color, stepsColor: Color, decayNorm: Double, backgroundColor: Color = AppColors.Night.background) {
         let view = GenerativeCanvasView(
             elements: elements,
+            dayKey: dayKey,
             sleepPoints: sleepPoints,
             stepsPoints: stepsPoints,
             sleepColor: sleepColor,
@@ -140,6 +141,7 @@ final class CanvasStorageService {
     func saveWidgetSnapshot(for dayKey: String, elements: [CanvasElement], sleepPoints: Int, stepsPoints: Int, sleepColor: Color, stepsColor: Color, decayNorm: Double, backgroundColor: Color = AppColors.Night.background) {
         let view = GenerativeCanvasView(
             elements: elements,
+            dayKey: dayKey,
             sleepPoints: sleepPoints,
             stepsPoints: stepsPoints,
             sleepColor: sleepColor,

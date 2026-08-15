@@ -210,11 +210,8 @@ struct GalleryView: View {
     }
 
     private func handlePalettePick(_ happening: Happening, origin: CGPoint) -> Bool {
-        let color = CanvasColorPalette.paletteHex.randomElement()
-            ?? AppColors.goldFallbackHex
         return addAndSpawnHappening(
             optionId: happening.id,
-            color: color,
             recordUse: true,
             origin: origin
         )
@@ -328,6 +325,7 @@ struct GalleryView: View {
         ZStack {
             GenerativeCanvasView(
                 elements: renderedCanvasElements,
+                dayKey: dayCanvas.dayKey,
                 sleepPoints: model.sleepPointsToday,
                 stepsPoints: model.stepsPointsToday,
                 sleepColor: Color(hex: sleepColorHex),
@@ -542,11 +540,9 @@ struct GalleryView: View {
         // local radial-menu sheet uses below.
         .onReceive(NotificationCenter.default.publisher(for: .canvasElementSpawnRequested)) { note in
             guard let info = note.userInfo,
-                  let optionId = info["optionId"] as? String,
-                  let color = info["color"] as? String else { return }
+                  let optionId = info["optionId"] as? String else { return }
             addAndSpawnHappening(
                 optionId: optionId,
-                color: color,
                 recordUse: info["recordUse"] as? Bool ?? true
             )
         }
@@ -624,8 +620,7 @@ struct GalleryView: View {
                         suggestions: model._pendingActivitySuggestions,
                         onAccept: { suggestion in
                             model.acceptActivitySuggestion(suggestion)
-                            let color = CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
-                            addAndSpawnHappening(optionId: suggestion.optionId, color: color)
+                            addAndSpawnHappening(optionId: suggestion.optionId)
                         },
                         onDismiss: { suggestion in
                             model.dismissActivitySuggestion(suggestion)
@@ -1115,22 +1110,21 @@ struct GalleryView: View {
     @discardableResult
     private func addAndSpawnHappening(
         optionId: String,
-        color: String,
         recordUse: Bool = true,
         origin: CGPoint? = nil
     ) -> Bool {
         let now = Date.now
         let transactionDayKey = AppModel.dayKey(for: now)
         guard dayCanvas.dayKey == transactionDayKey else { return false }
-        let color2 = CanvasColorPalette.randomSecondColor(excluding: color)
         var element = CanvasElement.spawn(
             id: UUID(),
             optionId: optionId,
-            color: color,
-            color2: color2,
             label: model.resolveOptionTitle(for: optionId),
             existingElements: dayCanvas.elements,
-            dayKey: transactionDayKey
+            dayKey: transactionDayKey,
+            composition: DayComposition.forDay(
+                dayKey: transactionDayKey,
+                happeningCount: dayCanvas.elements.count)
         )
         element.lastEditedAt = now
 
@@ -1205,14 +1199,10 @@ struct GalleryView: View {
 
     private func rerollElement(id: UUID) {
         guard let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
-        let currentColor = dayCanvas.elements[index].hexColor
-        let palette = CanvasColorPalette.paletteHex.filter { $0 != currentColor }
-        let newColor = palette.randomElement() ?? CanvasColorPalette.paletteHex.randomElement() ?? currentColor
-        let newColor2 = CanvasColorPalette.randomSecondColor(excluding: newColor)
+        let composition = DayComposition.forDay(
+            dayKey: dayCanvas.dayKey, happeningCount: dayCanvas.elements.count)
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            dayCanvas.elements[index].reroll()
-            dayCanvas.elements[index].hexColor = newColor
-            dayCanvas.elements[index].hexColor2 = newColor2
+            dayCanvas.elements[index].reroll(rank: index, composition: composition)
             dayCanvas.elements[index].lastEditedAt = Date.now
         }
         dayCanvas.lastModified = Date.now
@@ -1566,6 +1556,7 @@ struct GalleryView: View {
 
                 GenerativeCanvasView(
                     elements: dayCanvas.elements,
+                    dayKey: dayCanvas.dayKey,
                     sleepPoints: model.sleepPointsToday,
                     stepsPoints: model.stepsPointsToday,
                     sleepColor: Color(hex: sleepColorHex),

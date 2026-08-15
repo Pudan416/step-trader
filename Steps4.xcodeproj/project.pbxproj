@@ -126,6 +126,13 @@
 		20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A00F2FFF020000000000 /* StepBalanceCard.swift */; };
 		20F5A0112FFF030000000002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0122FFF030000000003 /* Localization.swift */; };
 		20F5A0162FFF030000000007 /* SeededRNG.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0172FFF030000000008 /* SeededRNG.swift */; };
+		DA0014001400140014001471 /* SimplexNoise.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0014001400140014001481 /* SimplexNoise.swift */; };
+		DA0014001400140014001472 /* SimplexNoiseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0014001400140014001482 /* SimplexNoiseTests.swift */; };
+		DA0003000300030003000301 /* PoissonDiscSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000302 /* PoissonDiscSampler.swift */; };
+		DA0015001500150015001501 /* ProceduralTexture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0015001500150015001502 /* ProceduralTexture.swift */; };
+		DA0003000300030003000303 /* PoissonDiscSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */; };
+		DA0016001600160016001601 /* ProceduralTextureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0016001600160016001602 /* ProceduralTextureTests.swift */; };
+		DA0018001800180018001801 /* DayCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0018001800180018001802 /* DayCompositionTests.swift */; };
 		20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20F6C0012F3E100100000001 /* Localizable.xcstrings */; };
 		20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FE17A12F90000000000001 /* FeatureTipSheet.swift */; };
 		20GC00022F86100000000002 /* GlassCardModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20GC00012F86100000000001 /* GlassCardModifier.swift */; };
@@ -172,6 +179,7 @@
 		57E04F4FB048E115C40D98E7 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8648A4882378AF2E1E742F /* Color+Hex.swift */; };
 		5E9E43978D80841CEA8F84B8 /* ShapeStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = C669447E94C63E9A8EB39A0B /* ShapeStyles.swift */; };
 		605D42CA9EBF1B3A09237455 /* MetaballGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E94D8EA5C48F5875A51740 /* MetaballGenerator.swift */; };
+		DA0017001700170017001701 /* DayComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0017001700170017001702 /* DayComposition.swift */; };
 		60CO0001300000000060CO0001 /* CanvasOverlayStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0002300000000060CO0002 /* CanvasOverlayStyle.swift */; };
 		60CO0003300000000060CO0003 /* CanvasAnimationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0004300000000060CO0004 /* CanvasAnimationOverlay.swift */; };
 		60SA00023003000060SA0002 /* SleepGoalArcPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SA00013003000060SA0001 /* SleepGoalArcPicker.swift */; };
@@ -237,6 +245,7 @@
 		AE00000300000000000000B3 /* GalleryMetricOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000300000000000000A3 /* GalleryMetricOverlayView.swift */; };
 		AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */; };
 		UB53000053000053000000B1 /* UsageBudgetScheduleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UB53000053000053000000A1 /* UsageBudgetScheduleTests.swift */; };
+		AL01000053000053000000B1 /* AuthSignInLoadingStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */; };
 		AEF40DC05AB94589A68AB8CD /* BlobShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */; };
 		AEF40DC15AB945890B0B0B01 /* OrganicBlobShapeGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */; };
 		AEF40DC25AB945890B0B0B02 /* OrganicBlobShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */; };
@@ -453,6 +462,14 @@
 		20F5A00F2FFF020000000000 /* StepBalanceCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepBalanceCard.swift; sourceTree = "<group>"; };
 		20F5A0122FFF030000000003 /* Localization.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		20F5A0172FFF030000000008 /* SeededRNG.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SeededRNG.swift; sourceTree = "<group>"; };
+		DA0014001400140014001481 /* SimplexNoise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SimplexNoise.swift; path = StepsTrader/Utilities/SimplexNoise.swift; sourceTree = SOURCE_ROOT; };
+		DA0014001400140014001482 /* SimplexNoiseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SimplexNoiseTests.swift; path = Steps4Tests/SimplexNoiseTests.swift; sourceTree = SOURCE_ROOT; };
+		DA0003000300030003000302 /* PoissonDiscSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PoissonDiscSampler.swift; path = StepsTrader/Utilities/PoissonDiscSampler.swift; sourceTree = SOURCE_ROOT; };
+		DA0015001500150015001502 /* ProceduralTexture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProceduralTexture.swift; path = StepsTrader/Shapes/ProceduralTexture.swift; sourceTree = SOURCE_ROOT; };
+		DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PoissonDiscSamplerTests.swift; path = Steps4Tests/PoissonDiscSamplerTests.swift; sourceTree = SOURCE_ROOT; };
+		DA0016001600160016001602 /* ProceduralTextureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProceduralTextureTests.swift; path = Steps4Tests/ProceduralTextureTests.swift; sourceTree = SOURCE_ROOT; };
+		DA0018001800180018001802 /* DayCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DayCompositionTests.swift; path = Steps4Tests/DayCompositionTests.swift; sourceTree = SOURCE_ROOT; };
+		DA0017001700170017001702 /* DayComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DayComposition.swift; path = StepsTrader/Models/DayComposition.swift; sourceTree = SOURCE_ROOT; };
 		20F6C0012F3E100100000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		20FE17A12F90000000000001 /* FeatureTipSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipSheet.swift; sourceTree = "<group>"; };
 		20GC00012F86100000000001 /* GlassCardModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCardModifier.swift; sourceTree = "<group>"; };
@@ -566,6 +583,7 @@
 		AE00000500000000000000A5 /* Secrets-Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Secrets-Release.xcconfig"; sourceTree = "<group>"; };
 		AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroupRMWConcurrencyTests.swift; sourceTree = "<group>"; };
 		UB53000053000053000000A1 /* UsageBudgetScheduleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBudgetScheduleTests.swift; sourceTree = "<group>"; };
+		AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSignInLoadingStateTests.swift; sourceTree = "<group>"; };
 		AF354BA8B84F3623DFC56E52 /* CanvasRenderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasRenderModels.swift; path = StepsTrader/Views/Canvas/CanvasRenderModels.swift; sourceTree = SOURCE_ROOT; };
 		B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BlobShapeRenderer.swift; path = StepsTrader/Shapes/BlobShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OrganicBlobShapeGenerator.swift; path = StepsTrader/Shapes/OrganicBlobShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
@@ -730,6 +748,7 @@
 				45F540E48318D3A7CEF51B99 /* ThemeTextStyles.swift */,
 				CE8A4067A79B84F980E2699C /* DayCanvas.swift */,
 				49C347368C4F416256BE0CF8 /* CanvasColorPalette.swift */,
+				DA0017001700170017001702 /* DayComposition.swift */,
 				8C8648A4882378AF2E1E742F /* Color+Hex.swift */,
 				77E648AABF4FC13465DF42C1 /* PastDaySnapshot.swift */,
 				7A214D7EB007648A8206D56D /* EnergyDefaults.swift */,
@@ -739,6 +758,7 @@
 				B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */,
 				B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */,
 				B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */,
+				DA0015001500150015001502 /* ProceduralTexture.swift */,
 				C860AD1856984A189E6B70A9 /* SnowflakeShapeRenderer.swift */,
 				1C0D419D1FDF446F850FAE7E /* RayShapeRenderer.swift */,
 				A7B3E91D4C6F47E2A0D8F5B1 /* CircleShapeRenderer.swift */,
@@ -878,6 +898,8 @@
 				BB000001BBBB000100000002 /* CachedFormatters.swift */,
 				CC000001CCCC000100000002 /* FormattingHelpers.swift */,
 				20F5A0172FFF030000000008 /* SeededRNG.swift */,
+				DA0014001400140014001481 /* SimplexNoise.swift */,
+				DA0003000300030003000302 /* PoissonDiscSampler.swift */,
 				2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */,
 				2089F0E72E71AE3400ABF5FA /* Date+Today.swift */,
 				20GC00012F86100000000001 /* GlassCardModifier.swift */,
@@ -1156,8 +1178,13 @@
 				DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */,
 				DA00130013001300130013C0 /* HappeningLiquidLayoutTests.swift */,
 				DA0010001000100010001010 /* HappeningAdditionsTests.swift */,
+				DA0014001400140014001482 /* SimplexNoiseTests.swift */,
+				DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */,
+				DA0016001600160016001602 /* ProceduralTextureTests.swift */,
+				DA0018001800180018001802 /* DayCompositionTests.swift */,
 				DA0002000200020002000020 /* canvas_legacy_categorised.json */,
 				UB53000053000053000000A1 /* UsageBudgetScheduleTests.swift */,
+				AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */,
 			);
 			path = Steps4Tests;
 			sourceTree = "<group>";
@@ -1671,6 +1698,10 @@
 				813F4369B7A9A646FC3A6336 /* MindShapeGenerator.swift in Sources */,
 				A77A483EB05551DF8B9C7528 /* HeartShapeGenerator.swift in Sources */,
 				605D42CA9EBF1B3A09237455 /* MetaballGenerator.swift in Sources */,
+				DA0017001700170017001701 /* DayComposition.swift in Sources */,
+				DA0014001400140014001471 /* SimplexNoise.swift in Sources */,
+				DA0003000300030003000301 /* PoissonDiscSampler.swift in Sources */,
+				DA0015001500150015001501 /* ProceduralTexture.swift in Sources */,
 				8B384FBFB75371B21BDF1BC5 /* WidgetSnapshot.swift in Sources */,
 				69624326AA0BD3D99B13FBCA /* GalleryNotifications.swift in Sources */,
 				AE00000300000000000000B3 /* GalleryMetricOverlayView.swift in Sources */,
@@ -1717,7 +1748,12 @@
 				DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */,
 				DA00130013001300130013C1 /* HappeningLiquidLayoutTests.swift in Sources */,
 				DA0010001000100010001011 /* HappeningAdditionsTests.swift in Sources */,
+				DA0014001400140014001472 /* SimplexNoiseTests.swift in Sources */,
+				DA0003000300030003000303 /* PoissonDiscSamplerTests.swift in Sources */,
+				DA0016001600160016001601 /* ProceduralTextureTests.swift in Sources */,
+				DA0018001800180018001801 /* DayCompositionTests.swift in Sources */,
 				UB53000053000053000000B1 /* UsageBudgetScheduleTests.swift in Sources */,
+				AL01000053000053000000B1 /* AuthSignInLoadingStateTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

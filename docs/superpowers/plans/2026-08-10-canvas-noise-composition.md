@@ -542,7 +542,7 @@ extension ProceduralShapeGenerator {
 
     /// Contour points per blob. Four layers are stacked per element, so this
     /// times four must stay under the 200-point budget in CanvasLab-Spec §16.
-    static let blobPointCount = 40
+    static let blobPointCount = 48
 
     /// How fast the sampling ring travels through the noise field, in noise
     /// units per second. Slow enough that a blob never appears to twitch.
@@ -603,12 +603,20 @@ extension ProceduralShapeGenerator {
 
         let noise = SimplexNoise2D(seed: seed)
 
-        // Ring radius sets how many lobes fit around the circumference. It is
-        // capped so the arc between adjacent samples stays under ~0.22 noise
-        // units (1.4 * 2π / 40): sample any coarser and the field aliases,
-        // reintroducing exactly the point-to-point jitter this removes. More
-        // detail comes from octaves, not a bigger ring.
-        let ringRadius = 0.8 + clamped * 0.6      // 0.8 … 1.4
+        // Ring radius sets how many lobes fit around the circumference, and is
+        // capped by the sampling rate: the arc between adjacent samples must
+        // stay small enough that the second octave (2x the base frequency)
+        // does not alias, which would reintroduce exactly the point-to-point
+        // jitter this change removes. More detail comes from octaves, not a
+        // bigger ring.
+        //
+        // These three numbers were calibrated empirically, not derived: the
+        // measured worst-case delta between adjacent radii over seeds 0..<500
+        // x complexity 0.0...1.0 is 0.1933, against the 0.25 the contour test
+        // asserts. Changing any of them requires re-running that sweep.
+        // Measured lobe structure at these values: 3-6 lobes at complexity 0,
+        // 5-9 at complexity 1 — still a blob, not a circle.
+        let ringRadius = 0.6 + clamped * 0.4      // 0.6 … 1.0
         let amplitude = 0.12 + clamped * 0.20     // max 0.32 → factor ∈ [0.68, 1.32]
 
         let driftX = time * blobTimeDrift
@@ -630,8 +638,10 @@ extension ProceduralShapeGenerator {
             let sx = cos(sampleAngle) * ringRadius + driftX
             let sy = sin(sampleAngle) * ringRadius + driftY
             // Two octaves, not three: a third would sit at 4x the base
-            // frequency, past the ring's sampling rate, and would alias.
-            let n = noise.fbm(sx, sy, octaves: 2, persistence: 0.45, lacunarity: 2.0)
+            // frequency, past the ring's sampling rate, and would alias. The
+            // low persistence keeps even the second octave's contribution
+            // small for the same reason — see the calibration note above.
+            let n = noise.fbm(sx, sy, octaves: 2, persistence: 0.2, lacunarity: 2.0)
 
             factors.append(1.0 + n * amplitude)
         }
@@ -1159,6 +1169,7 @@ git commit -m "feat: add weighted Poisson-disc sampler for placement and stipple
 - Create: `StepsTrader/Shapes/ProceduralTexture.swift`
 - Modify: `StepsTrader/Views/Canvas/CanvasRenderCache.swift`
 - Modify: `StepsTrader/Shapes/OrganicBlobShapeRenderer.swift:91-157`
+- Modify: `StepsTrader/Views/GenerativeCanvasView.swift:414` — the sole caller of `OrganicBlobShapeRenderer.draw`, which gains the new `cache:` argument. `ShapeIconCache` and `CanvasShapePreview` are NOT touched: they call `organicBlobPath` directly and draw their own gradients.
 - Test: `Steps4Tests/ProceduralTextureTests.swift`
 
 **Interfaces:**
@@ -1626,22 +1637,41 @@ enum ProceduralTexture {
         let spacing = 0.34 - spec.density * 0.22        // 0.34 … 0.12
         let bounds = CGRect(x: -1, y: -1, width: 2, height: 2)
 
+        // Containment only. Weighting the sampler does NOT produce a density
+        // gradient: `fill` uses weight as a Bernoulli accept gate and runs to
+        // exhaustion, so a rejected candidate is merely delayed, not removed,
+        // and final density ends up governed by `minDistance`. The gradient has
+        // to come from thinning the result afterwards.
         let raw = PoissonDiscSampler.fill(
             bounds: bounds,
             minDistance: spacing,
             maxPoints: maxDots,
-            weight: { point in
-                guard containsPoint(point, radii: radii) else { return 0 }
-                guard spec.uniformity < 1 else { return 1 }
-                let n = (noise.value(Double(point.x) * 1.3, Double(point.y) * 1.3) + 1) / 2
-                return spec.uniformity + (1 - spec.uniformity) * n
-            },
+            weight: { containsPoint($0, radii: radii) ? 1 : 0 },
             using: &rng
         )
 
+        // Separate stream so the thinning cannot perturb the placement above.
+        var thinRng = SeededRNG.derived(from: seed, domain: "stipple-thin")
+
         return raw
             .filter { containsPoint($0, radii: radii) }
-            .map { point in
+            .compactMap { point -> TextureGeometry.Dot? in
+                if spec.uniformity < 1 {
+                    // A dot where the field is low survives rarely, one where
+                    // it is high survives outright — this is what makes the
+                    // fill bunch to one side.
+                    //
+                    // The frequency is 0.4, deliberately much lower than the
+                    // 1.3 used elsewhere: the stipple domain is only ~2 units
+                    // across, and at 1.3 several noise lobes fit inside each
+                    // half of the form, so any split averages them out — over
+                    // an 18-seed sweep that produced no visible bunching at
+                    // all. At 0.4 a single lobe spans the whole form, which is
+                    // what "graded across the form" actually means.
+                    let n = (noise.value(Double(point.x) * 0.4, Double(point.y) * 0.4) + 1) / 2
+                    let survive = spec.uniformity + (1 - spec.uniformity) * n
+                    guard thinRng.nextDouble() < survive else { return nil }
+                }
                 // Dots shrink towards the rim so the fill has an interior.
                 let distance = Double(hypot(point.x, point.y))
                 let falloff = 1.0 - min(1.0, distance) * 0.55
@@ -1744,19 +1774,56 @@ enum ProceduralTexture {
 In `StepsTrader/Views/Canvas/CanvasRenderCache.swift`, add inside `final class RenderCache`:
 
 ```swift
-    /// Textures are geometry, not per-frame work: generated once per
-    /// (element, spec, contour) and reused every frame. This cache is what
-    /// keeps stipple and hatch inside the frame budget.
+    /// Textures are geometry, not per-frame work. A stipple fill runs a
+    /// Poisson sample of up to 90 points; at 20 fps across 15 elements that
+    /// would be ~27k samples a second. Generated once per bucket and reused.
     struct TextureCacheKey: Hashable {
         let seed: UInt64
         let spec: TextureSpec
-        /// Contour morphs slowly, so quantise time into buckets rather than
-        /// regenerating the texture on every tick.
+        /// The contour morphs slowly (0.012 noise units per second), so the
+        /// texture is generated against a time-quantised contour. One bucket
+        /// per `bucketSeconds` — the texture lags the outline by well under a
+        /// bucket, which is invisible at this drift rate.
         let timeBucket: Int
     }
+
+    /// Seconds per texture bucket. Small enough that a texture never visibly
+    /// detaches from its contour, large enough that regeneration is rare.
+    static let textureBucketSeconds: Double = 1.5
+
+    static func textureBucket(for time: Double) -> Int {
+        Int((time / textureBucketSeconds).rounded(.down))
+    }
+
     var textureCache: [TextureCacheKey: TextureGeometry] = [:]
-    var textureCacheLastPrune: Int = .min
+    var textureCacheLastPruneBucket: Int = .min
+
+    /// Cached lookup. Generates on miss.
+    func textureGeometry(
+        seed: UInt64,
+        spec: TextureSpec,
+        radii: [Double],
+        time: Double
+    ) -> TextureGeometry {
+        let bucket = Self.textureBucket(for: time)
+        let key = TextureCacheKey(seed: seed, spec: spec, timeBucket: bucket)
+        if let hit = textureCache[key] { return hit }
+
+        // Drop entries from older buckets so the cache cannot grow unbounded
+        // over a long-running canvas.
+        if bucket != textureCacheLastPruneBucket {
+            textureCache = textureCache.filter { $0.key.timeBucket >= bucket - 1 }
+            textureCacheLastPruneBucket = bucket
+        }
+
+        let geometry = ProceduralTexture.geometry(spec: spec, radii: radii, seed: seed)
+        textureCache[key] = geometry
+        return geometry
+    }
 ```
+
+Note `flat` and `gradient` return an empty `TextureGeometry`, so they cost a
+dictionary lookup and nothing else — no need to special-case them.
 
 - [ ] **Step 5: Route the organic blob renderer through the texture system**
 
@@ -1777,8 +1844,11 @@ In `StepsTrader/Shapes/OrganicBlobShapeRenderer.swift`, replace the body of the 
                 : TextureSpec(kind: .gradient, density: spec.density,
                               uniformity: spec.uniformity, angle: spec.angle)
 
-            let textureGeometry = ProceduralTexture.geometry(
-                spec: layerSpec, radii: layerRadii, seed: layerSeed)
+            // Cached, not regenerated per frame — see the Global Constraint.
+            // The contour above is still computed every frame (it has to
+            // morph); only the fill geometry is bucketed.
+            let textureGeometry = cache.textureGeometry(
+                seed: layerSeed, spec: layerSpec, radii: layerRadii, time: layerT)
 
             let gradCenter = CGPoint(
                 x: cx + cos(gradOffsetAngle) * Double(radius) * gradOffsetFraction,
@@ -1804,7 +1874,12 @@ In `StepsTrader/Shapes/OrganicBlobShapeRenderer.swift`, replace the body of the 
             }
 ```
 
-Add a `spec: TextureSpec` parameter to `OrganicBlobShapeRenderer.draw(...)`, defaulting to `TextureSpec(kind: .gradient, density: 0.5, uniformity: 1, angle: 0)` so existing call sites keep compiling unchanged. Task 6 supplies the real spec.
+Add two parameters to `OrganicBlobShapeRenderer.draw(...)`:
+
+- `spec: TextureSpec`, defaulting to `TextureSpec(kind: .gradient, density: 0.5, uniformity: 1, angle: 0)`. The default is a deliberate two-step: it keeps the three existing call sites compiling while this task lands, and Task 6 supplies the real per-element spec. Leave the default in place — Task 6 relies on `ShapeIconCache` and `CanvasShapePreview` continuing to render plain gradients, since an icon is too small to carry a texture.
+- `cache: RenderCache`. Both `OrganicBlobShapeRenderer` and `RenderCache` are already `@MainActor`, so passing it is free. `GenerativeCanvasView` already holds the cache and passes it to other renderers — follow the same call pattern.
+
+`OrganicBlobShapeRenderer.draw` has exactly **one** caller: `GenerativeCanvasView.swift:414`. `ShapeIconCache.swift:159` and `CanvasShapePreview.swift:229` call `ProceduralShapeGenerator.organicBlobPath` directly and do their own gradient drawing — they never touch the renderer. Leave both alone: they need neither the spec nor a cache, and an icon is too small to carry a texture anyway.
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
@@ -2151,8 +2226,13 @@ enum CompositionArchetype: String, Codable, CaseIterable, Hashable {
             return clamp(1.0 - pow(d, 1.8))
 
         case .cornerWeight:
-            let d = hypot(x - 0.26, y - 0.28) / 0.95
-            return clamp(1.0 - pow(d, 1.2))
+            // The peak sits near the corner and the falloff is tight. An
+            // earlier draft used (0.26, 0.28) over a 0.95 normaliser, which
+            // spread the high ground so broadly that dead-centre scored 0.72
+            // against the true corner's 0.66 — the archetype did the opposite
+            // of its name and correlated r~0.48 with centeredMass.
+            let d = hypot(x - 0.18, y - 0.20) / 0.62
+            return clamp(1.0 - pow(d, 1.1))
 
         case .twoMasses:
             let a = hypot(x - 0.30, y - 0.34) / 0.34
@@ -2184,7 +2264,14 @@ enum CompositionArchetype: String, Codable, CaseIterable, Hashable {
             return rank.isMultiple(of: 3) ? 1.25 : 0.85
 
         case .cornerWeight:
-            return 1.55 - position * 0.85
+            // Convex decay, deliberately NOT a second straight ramp. An
+            // earlier draft used `1.55 - position * 0.85`, which shares its
+            // shape with diagonalSweep's line and converges on the same
+            // endpoint — two of six archetypes producing one composition
+            // skeleton, which defeats the reason archetypes exist. Guarded by
+            // testCornerWeightDecaysRatherThanRamping, which measures
+            // curvature (exactly 0 for any straight line, ~0.048 here).
+            return 0.55 + 1.05 * pow(1 - position, 2.2)
 
         case .twoMasses:
             // Two leads, one per mass.
@@ -2220,7 +2307,10 @@ struct TexturePolicy: Codable, Hashable {
     init(dominant: TextureKind, accent: TextureKind, accentShare: Double) {
         self.dominant = dominant
         self.accent = accent
-        self.accentShare = min(max(accentShare, 0), 1)
+        // Capped at 0.45, not 1: above that the stride arithmetic in
+        // `kind(forRank:)` saturates at every other element and the accent
+        // stops being an accent.
+        self.accentShare = min(max(accentShare, 0), 0.45)
     }
 
     /// Deterministic per-rank assignment. Spreads accents evenly rather than
@@ -2745,7 +2835,7 @@ In `addAndSpawnHappening`, delete the `let color2 = CanvasColorPalette.randomSec
         )
 ```
 
-The `color` parameter of `addAndSpawnHappening` becomes unused for the element's fill — colour now comes from the day's palette. Leave the parameter in place (callers pass the happening's chip colour, which the palette UI still uses) and add a comment saying so.
+This leaves `addAndSpawnHappening`'s `color:` parameter unused — the element's colour now comes from the day's palette. Delete the parameter and update its call sites; a parameter that is passed and ignored is a defect, not a courtesy. The happening's own chip colour is a separate concern that the palette UI reads directly from the happening, not through this function. Grep `addAndSpawnHappening` to find every caller.
 
 Then rewrite `rerollElement` (lines 1206-1221):
 

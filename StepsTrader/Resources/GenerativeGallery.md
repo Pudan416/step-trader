@@ -405,6 +405,7 @@ struct DayCanvas: Codable {
 func saveCanvasSnapshot(canvas: DayCanvas) {
     let view = GenerativeCanvasView(
         elements: canvas.elements,
+        dayKey: canvas.dayKey,
         sleepPoints: canvas.sleepPoints,
         stepsPoints: canvas.stepsPoints,
         sleepColor: Color(hex: canvas.sleepColorHex),

@@ -151,6 +151,7 @@ final class HistoryThumbnailCache {
 
             GenerativeCanvasView(
                 elements: canvas.elements,
+                dayKey: canvas.dayKey,
                 sleepPoints: canvas.sleepPoints,
                 stepsPoints: canvas.stepsPoints,
                 sleepColor: Color(hex: canvas.sleepColorHex),
@@ -179,7 +180,7 @@ final class HistoryThumbnailCache {
 
     // MARK: - Disk
 
-    private static let cacheVersion = 3
+    private static let cacheVersion = 5
 
     private func cacheKey(dayKey: String, size: CGSize, theme: AppTheme) -> String {
         "\(dayKey)_\(Int(size.width))x\(Int(size.height))_\(theme.rawValue)_v\(Self.cacheVersion)"

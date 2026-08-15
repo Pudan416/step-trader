@@ -5,6 +5,8 @@ import SwiftUI
 @MainActor
 enum CircleShapeRenderer {
 
+    private static let textureStrength = 0.72
+
     // MARK: - Positioning
 
     static func center(
@@ -62,27 +64,64 @@ enum CircleShapeRenderer {
         ampScale: Double,
         interaction: ElementInteraction?,
         decayedColor: Color,
-        decayedColor2: Color? = nil
+        decayedColor2: Color? = nil,
+        spec: TextureSpec,
+        cache: RenderCache
     ) {
         let c = center(e, size: size, t: t, ampScale: ampScale)
         let r = radius(e, size: size, t: t, ampScale: ampScale)
         let rotation = Angle.radians(e.phaseOffset * 0.3 + e.userRotation)
-        let seed = e.shapeSeed ?? UInt64(bitPattern: Int64(e.id.hashValue))
+        let seed = e.shapeSeed ?? CanvasElement.stableSeed(for: e.id)
 
-        drawFill(
-            center: c, radius: r,
-            color: decayedColor, color2: decayedColor2,
-            phase: e.phaseOffset,
-            seed: seed,
-            rotation: rotation,
-            blendMode: blendMode,
-            context: &context
-        )
+        if spec.kind == .gradient {
+            drawFill(
+                center: c, radius: r,
+                color: decayedColor, color2: decayedColor2,
+                phase: e.phaseOffset,
+                seed: seed,
+                rotation: rotation,
+                blendMode: blendMode,
+                context: &context
+            )
+        } else {
+            let profile = RadialTextureProfile.circle(center: c, radius: r)
+            let geometry = cache.textureGeometry(
+                family: .circle,
+                seed: seed,
+                spec: spec,
+                profileKey: 0,
+                time: t,
+                radiiAtCanonicalTime: { _ in profile.radii })
+            let contour = Path(ellipseIn: CGRect(
+                x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
+            context.drawLayer { textureContext in
+                textureContext.blendMode = blendMode
+                textureContext.translateBy(x: c.x, y: c.y)
+                textureContext.rotate(by: rotation)
+                textureContext.translateBy(x: -c.x, y: -c.y)
+                textureContext.opacity = textureStrength
+                ProceduralTexture.draw(
+                    geometry,
+                    spec: spec,
+                    contour: contour,
+                    context: &textureContext,
+                    center: c,
+                    radius: r,
+                    color: decayedColor,
+                    color2: decayedColor2,
+                    gradientCenter: c)
+            }
+        }
     }
 
-    private struct FillStyle {
+    struct FillStyle: Equatable {
         let isSolid: Bool
         let opacityMul: Double
+
+        init(isSolid: Bool, opacityMul: Double) {
+            self.isSolid = isSolid
+            self.opacityMul = opacityMul
+        }
 
         init(seed: UInt64) {
             isSolid = (seed &>> 3) % 2 == 0

@@ -162,6 +162,7 @@ struct DayCanvasViewerView: View {
 
             GenerativeCanvasView(
                 elements: dc.elements,
+                dayKey: dc.dayKey,
                 sleepPoints: dc.sleepPoints,
                 stepsPoints: dc.stepsPoints,
                 sleepColor: Color(hex: dc.sleepColorHex),

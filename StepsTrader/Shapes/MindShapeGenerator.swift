@@ -78,6 +78,7 @@ extension ProceduralShapeGenerator {
         let color: Color
         let color2: Color?
         let alpha: Double
+        let textureProfile: RadialTextureProfile
     }
 
     private static let rectMorphN = 64
@@ -119,11 +120,22 @@ extension ProceduralShapeGenerator {
             color2 = nil
         }
 
+        let profile = RadialTextureProfile(
+            center: CGPoint(x: lerped.cx, y: lerped.cy),
+            sourceRadii: lerped.radii,
+            rotation: lerped.rotation)
+
+        // The path and profile are adapters over the same immutable morph
+        // sample, but they have different jobs. Preserve the legacy path from
+        // its local radii plus rotation. The profile is resampled into world
+        // order for textures and must never be used to reconstruct this path:
+        // fixed-angle interpolation can miss a rotated source peak.
         return RectMorphFrame(
             path: snowflakePath(lerped),
             color: color,
             color2: color2,
-            alpha: 1.0
+            alpha: 1.0,
+            textureProfile: profile
         )
     }
 
@@ -220,15 +232,16 @@ extension ProceduralShapeGenerator {
         )
     }
 
-    private static func snowflakePath(_ s: RectMorphShape) -> Path {
-        var pts = [CGPoint](repeating: .zero, count: rectMorphN)
-        for i in 0..<rectMorphN {
-            let theta = (Double(i) / Double(rectMorphN)) * 2 * .pi + s.rotation
-            pts[i] = CGPoint(
-                x: s.cx + cos(theta) * Double(s.radii[i]),
-                y: s.cy + sin(theta) * Double(s.radii[i])
-            )
+    private static func snowflakePath(_ shape: RectMorphShape) -> Path {
+        var points = [CGPoint](repeating: .zero, count: rectMorphN)
+        for index in 0..<rectMorphN {
+            let angle = Double(index) / Double(rectMorphN) * 2 * .pi
+                + shape.rotation
+            points[index] = CGPoint(
+                x: shape.cx + cos(angle) * Double(shape.radii[index]),
+                y: shape.cy + sin(angle) * Double(shape.radii[index]))
         }
-        return smoothClosedPath(through: pts)
+        return smoothClosedPath(through: points)
     }
+
 }

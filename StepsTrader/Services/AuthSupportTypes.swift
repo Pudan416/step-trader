@@ -60,6 +60,7 @@ enum AuthError: LocalizedError {
     case cancelled
     case misconfiguredSupabase
     case sessionExpired
+    case serverUnreachable
     case supabaseError(String)
     case unknown
 
@@ -73,6 +74,8 @@ enum AuthError: LocalizedError {
             return "Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in Info.plist."
         case .sessionExpired:
             return "Session expired"
+        case .serverUnreachable:
+            return "Couldn't reach the server. Please check your connection and try again."
         case .supabaseError(let message):
             return message
         case .unknown:

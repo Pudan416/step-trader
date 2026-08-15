@@ -353,7 +353,7 @@
     "About" : {
       "comment" : "Settings row label\nSettings section title"
     },
-    "About Body, Mind, and Heart" : {
+    "About Happenings" : {
       "comment" : "Note topic"
     },
     "About colors" : {
@@ -494,7 +494,7 @@
     "Body" : {
       "comment" : "Canvas shape category\nCategoryDetail – energy category name\nEnergy category\nEnergyCategory display name\nStepBalanceCard – body chip label"
     },
-    "Body: large, breathing shapes. Constant, grounded.\nMind: drifting circles — ideas that float and collide.\nHeart: beams of light that reach outward.\n\nNo metaphors. Just things that felt true." : {
+    "Circles, snowflakes, rays, organic blobs. Four families, and you decide which of them the canvas is allowed to use — in Settings, under Appearance.\n\nThey used to be assigned: one family per category, whether you liked it or not. Now nothing is assigned. Every happening takes a shape from the ones you left on, a color from the day, and a place it keeps until midnight.\n\nNo metaphors. Just things that felt true." : {
       "comment" : "Note body: about_shapes"
     },
     "btw, my name is kosta." : {
@@ -593,7 +593,7 @@
     "colors" : {
       "comment" : "Category overlay – unit"
     },
-    "Colors are not a currency. Well — kind of. You can earn up to 100 per day. Steps and sleep give them to you automatically. Body, mind, and heart — you add those yourself. You can spend colors to unlock apps. But the more you spend, the less colorful your canvas becomes. Because doomscrolling takes color out of life. Literally, here.\n\nI'm not selling them through microtransactions. Colors are yours. You earn them, you deserve them, you can always add more. Within limits." : {
+    "Colors are not a currency. Well — kind of. You can earn up to 100 per day. Steps and sleep give them to you automatically — 20 each. The other 60 are happenings, and you add those yourself. You can spend colors to unlock apps. But the more you spend, the less colorful your canvas becomes. Because doomscrolling takes color out of life. Literally, here.\n\nI'm not selling them through microtransactions. Colors are yours. You earn them, you deserve them, you can always add more. Within limits." : {
       "comment" : "Note body: about_colors"
     },
     "colors are the currency you earn for living a real life." : {
@@ -905,8 +905,8 @@
     "I made a shortcut that sets the canvas as your wallpaper. It changed something — you see your day every time you unlock your phone. The downside: you have to open the app to refresh it. The upside: once you've blocked enough apps here, you'll be opening it anyway. Seemed fair." : {
       "comment" : "Note body: about_wallpaper"
     },
-    "I tried many ways to slice a human being. Tibetan Buddhism came closest. Body — the physical form. Mind — thoughts and perceptions. Heart — awareness, emotion, compassion. I don't understand Buddhism. Honestly, I know almost nothing about it. But this framework felt right. That was enough." : {
-      "comment" : "Note body: about_body_mind_heart"
+    "I used to slice the day into three — body, mind, heart. Borrowed from Tibetan Buddhism, which I know almost nothing about. It felt right, and that was enough.\n\nIt wasn't. Nobody who just called their mother wants to decide whether that was mind or heart.\n\nNow there is one word. A happening is anything a day is made of, and each counts once a day." : {
+      "comment" : "Note body: about_happenings"
     },
     "i'll nudge you when colors are ready to spend." : {
 

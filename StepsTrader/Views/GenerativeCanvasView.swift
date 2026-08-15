@@ -5,6 +5,9 @@ import os
 
 struct GenerativeCanvasView: View {
     let elements: [CanvasElement]
+    /// The day this canvas belongs to. Feeds `dayComposition` — never persisted,
+    /// just re-derived per render.
+    let dayKey: String
     let sleepPoints: Int
     let stepsPoints: Int
     let sleepColor: Color
@@ -245,6 +248,10 @@ struct GenerativeCanvasView: View {
         let blendMode: GraphicsContext.BlendMode = dark ? .plusLighter : .normal
         let lblColor = labelColor ?? (dark ? .white : .black)
         let shadowClr = dark ? Color.black : Color.white
+        // One composition per frame, not per organic blob — `DayComposition.forDay`
+        // does real work (archetype/palette/texture-policy derivation), so calling
+        // it from inside `drawElement` recomputed it once per blob per frame.
+        let dayComposition = DayComposition.forDay(dayKey: dayKey, happeningCount: elements.count)
 
         if showsBackgroundGradient {
             drawUnifiedGradient(context: &context, size: size, t: t)
@@ -264,7 +271,7 @@ struct GenerativeCanvasView: View {
         let snowflakeElements = sortedElements.filter { shapeType(for: $0) == .snowflake }
         for element in snowflakeElements {
             let interaction = interactions[element.id]
-            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction)
+            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction, dayComposition: dayComposition)
             if showLabelsOnCanvas {
                 let center = elementCenter(element, size: size, t: t)
                 drawLabel(element, at: center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
@@ -301,7 +308,7 @@ struct GenerativeCanvasView: View {
             if clusteredBlobIds.contains(element.id) { continue }
 
             let interaction = interactions[element.id]
-            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction)
+            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction, dayComposition: dayComposition)
             if showLabelsOnCanvas {
                 let center = elementCenter(element, size: size, t: t)
                 drawLabel(element, at: center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
@@ -386,7 +393,8 @@ struct GenerativeCanvasView: View {
         decay: Double,
         blendMode: GraphicsContext.BlendMode,
         interaction: ElementInteraction? = nil,
-        bodyBlobInfos: [BodyBlobInfo] = []
+        bodyBlobInfos: [BodyBlobInfo] = [],
+        dayComposition: DayComposition
     ) {
         let spawn = spawnFactor(for: element, t: t)
         guard spawn > 0.001 else { return }
@@ -415,14 +423,23 @@ struct GenerativeCanvasView: View {
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
                     interaction: interaction, decayedColor: color,
-                    decayedColor2: color2
+                    decayedColor2: color2,
+                    spec: CanvasElement.textureSpec(
+                        rank: renderCache.sortedIndexMap[element.id] ?? 0,
+                        dayKey: dayKey,
+                        composition: dayComposition),
+                    cache: renderCache
                 )
             case .snowflake:
                 SnowflakeShapeRenderer.draw(
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
                     renderCache: renderCache,
-                    decayedColor: color, decayedColor2: color2
+                    decayedColor: color, decayedColor2: color2,
+                    spec: CanvasElement.textureSpec(
+                        rank: renderCache.sortedIndexMap[element.id] ?? 0,
+                        dayKey: dayKey,
+                        composition: dayComposition)
                 )
             case .rays:
                 RayShapeRenderer.draw(
@@ -435,14 +452,23 @@ struct GenerativeCanvasView: View {
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
                     interaction: interaction, decayedColor: color,
-                    decayedColor2: color2
+                    decayedColor2: color2,
+                    spec: CanvasElement.textureSpec(
+                        rank: renderCache.sortedIndexMap[element.id] ?? 0,
+                        dayKey: dayKey,
+                        composition: dayComposition),
+                    cache: renderCache
                 )
             case .spirograph:
                 CircleShapeRenderer.draw(
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
                     interaction: interaction, decayedColor: color,
-                    decayedColor2: color2
+                    decayedColor2: color2,
+                    spec: TextureSpec(
+                        kind: .gradient, density: 0.5,
+                        uniformity: 1, angle: 0),
+                    cache: renderCache
                 )
             }
         }
@@ -536,6 +562,7 @@ struct GenerativeCanvasView: View {
 #Preview("Empty Canvas - Dark") {
     GenerativeCanvasView(
         elements: [],
+        dayKey: "2026-08-10",
         sleepPoints: 10,
         stepsPoints: 15,
         sleepColor: Color(hex: "#000000"),
@@ -547,13 +574,29 @@ struct GenerativeCanvasView: View {
 }
 
 #Preview("With Elements") {
-    let elements: [CanvasElement] = [
-        .spawn(optionId: "activity_sport", color: "#C3143B", label: "Sport", existingElements: [], allowedShapeTypes: [.circle]),
-        .spawn(optionId: "creativity_curiosity", color: "#7652AF", label: "Curiosity", existingElements: [], allowedShapeTypes: [.snowflake]),
-        .spawn(optionId: "joys_friends", color: "#FEAAC2", label: "Friends", existingElements: [], allowedShapeTypes: [.rays]),
-    ]
+    let previewDayKey = "2026-08-10"
+    let elements: [CanvasElement] = {
+        var built: [CanvasElement] = []
+        for spec in [
+            (optionId: "activity_sport", label: "Sport", shapes: [CanvasShapeType.circle]),
+            (optionId: "creativity_curiosity", label: "Curiosity", shapes: [CanvasShapeType.snowflake]),
+            (optionId: "joys_friends", label: "Friends", shapes: [CanvasShapeType.rays]),
+        ] {
+            built.append(.spawn(
+                optionId: spec.optionId,
+                label: spec.label,
+                existingElements: built,
+                allowedShapeTypes: spec.shapes,
+                dayKey: previewDayKey,
+                composition: DayComposition.forDay(
+                    dayKey: previewDayKey, happeningCount: built.count)
+            ))
+        }
+        return built
+    }()
     GenerativeCanvasView(
         elements: elements,
+        dayKey: previewDayKey,
         sleepPoints: 14,
         stepsPoints: 18,
         sleepColor: Color(hex: "#000000"),

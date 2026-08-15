@@ -72,11 +72,13 @@ enum OrganicBlobShapeRenderer {
         ampScale: Double,
         interaction: ElementInteraction?,
         decayedColor: Color,
-        decayedColor2: Color? = nil
+        decayedColor2: Color? = nil,
+        spec: TextureSpec = TextureSpec(kind: .gradient, density: 0.5, uniformity: 1, angle: 0),
+        cache: RenderCache
     ) {
         let elementCenter = center(e, size: size, t: t, ampScale: ampScale)
         let elementRadius = radius(e, size: size, t: t, ampScale: ampScale)
-        let baseSeed = e.shapeSeed ?? UInt64(bitPattern: Int64(e.id.hashValue))
+        let baseSeed = e.shapeSeed ?? CanvasElement.stableSeed(for: e.id)
         let baseComplexity = min(1.0, Double(e.activityCount ?? 1) / 30.0)
         let complexity = min(1.0, baseComplexity + (interaction?.noiseBoost ?? 0))
         let symmetry = 1
@@ -104,55 +106,60 @@ enum OrganicBlobShapeRenderer {
             let layerOpacity = baseOpacity * (1.0 - Double(layer) * 0.08)
             let blurRadius = blurSpread * Double(layer + 1) / Double(layerCount)
 
-            let rect = CGRect(
-                x: cx - Double(radius), y: cy - Double(radius),
-                width: Double(radius) * 2, height: Double(radius) * 2
-            )
-            let path = ProceduralShapeGenerator.organicBlobPath(
-                seed: layerSeed, complexity: complexity,
-                symmetry: symmetry, time: layerT, in: rect
-            )
+            let layerRadii = ProceduralShapeGenerator.organicBlobRadiusFactor(
+                seed: layerSeed, complexity: complexity, symmetry: symmetry, time: layerT)
+            let path = ProceduralShapeGenerator.closedPath(
+                radii: layerRadii,
+                center: CGPoint(x: cx, y: cy),
+                radius: Double(radius))
 
-            // Gradient center offset
-            let gradCenterX = cx + cos(gradOffsetAngle) * Double(radius) * gradOffsetFraction
-            let gradCenterY = cy + sin(gradOffsetAngle) * Double(radius) * gradOffsetFraction
-            let gradCenter = CGPoint(x: gradCenterX, y: gradCenterY)
+            // Only the front layer carries the texture; the halo layers stay
+            // soft gradients, which is what keeps the glow.
+            let layerSpec = layer == layerCount - 1
+                ? spec
+                : TextureSpec(kind: .gradient, density: spec.density,
+                              uniformity: spec.uniformity, angle: spec.angle)
+
+            // Cached, not regenerated per frame — see the Global Constraint.
+            // The contour above remains current-frame geometry; only the fill
+            // geometry is generated from the bucket's canonical contour.
+            // Complexity remains part of the profile identity because it
+            // changes the contour's shape, not merely its absolute scale.
+            let textureGeometry = cache.textureGeometry(
+                family: .organicBlob,
+                seed: layerSeed,
+                spec: layerSpec,
+                profileKey: Int((complexity * 10_000).rounded()),
+                time: layerT,
+                radiiAtCanonicalTime: { canonicalTime in
+                    ProceduralShapeGenerator.organicBlobRadiusFactor(
+                        seed: layerSeed,
+                        complexity: complexity,
+                        symmetry: symmetry,
+                        time: canonicalTime)
+                })
+
+            let gradCenter = CGPoint(
+                x: cx + cos(gradOffsetAngle) * Double(radius) * gradOffsetFraction,
+                y: cy + sin(gradOffsetAngle) * Double(radius) * gradOffsetFraction)
 
             context.drawLayer { ctx in
                 ctx.blendMode = blendMode
                 ctx.opacity = max(0.05, layerOpacity)
 
-                let grad: Gradient
-                if isTwoColor {
-                    grad = Gradient(colors: [
-                        color.opacity(0.8),
-                        color2.opacity(0.4),
-                        color2.opacity(0),
-                    ])
-                } else {
-                    grad = Gradient(colors: [
-                        color.opacity(0.8),
-                        color.opacity(0.3),
-                        color.opacity(0),
-                    ])
-                }
-
-                ctx.fill(
-                    path,
-                    with: .radialGradient(grad, center: gradCenter,
-                                          startRadius: 0, endRadius: radius)
-                )
+                ProceduralTexture.draw(
+                    textureGeometry, spec: layerSpec, contour: path,
+                    context: &ctx, center: CGPoint(x: cx, y: cy), radius: Double(radius),
+                    color: color, color2: isTwoColor ? color2 : nil,
+                    gradientCenter: gradCenter)
 
                 if blurRadius > 1 {
                     ctx.addFilter(.blur(radius: blurRadius))
                 }
 
                 let strokeColor = isTwoColor ? color2 : color
-                ctx.stroke(
-                    path,
-                    with: .color(strokeColor.opacity(0.6)),
-                    style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
-                )
+                ctx.stroke(path, with: .color(strokeColor.opacity(0.6)),
+                           style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
             }
         }
     }
