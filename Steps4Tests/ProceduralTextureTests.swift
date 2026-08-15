@@ -315,11 +315,11 @@ final class ProceduralTextureTests: XCTestCase {
 /// `RenderCache.textureGeometry` is the plan's single most important
 /// constraint made real: texture geometry is generated once per bucket, not
 /// per frame. These tests cover the caching mechanism itself, not the fill
-/// algorithms above — a hit that skips regeneration, a miss that doesn't
-/// (complexity, which pins the shape/scale distinction `TextureCacheKey`
-/// exists to capture), the prune keeping the dictionary bounded, and the
-/// per-seed phase that keeps 15 elements' buckets from flipping on the same
-/// frame. `RenderCache` is `@MainActor`, so this class is too.
+/// algorithms above — hits skip regeneration, family and profile identities
+/// cannot collide, generation uses canonical bucket time independent of call
+/// order, pruning keeps the dictionary bounded, and per-seed phase keeps 15
+/// elements' buckets from flipping on the same frame. `RenderCache` is
+/// `@MainActor`, so this class is too.
 @MainActor
 final class RenderCacheTextureTests: XCTestCase {
 
@@ -328,39 +328,154 @@ final class RenderCacheTextureTests: XCTestCase {
             seed: seed, complexity: complexity, symmetry: 1, time: 0)
     }
 
-    /// A call within the same bucket must hit the cache. Proven by passing
-    /// *different* radii on the second call: a real regeneration would pick
-    /// them up and change the result, so an unchanged result means the
-    /// second call never reached `ProceduralTexture.geometry` at all.
+    /// Removing the cache-hit branch would invoke the provider twice.
     func testRepeatCallWithinOneBucketIsCached() {
         let cache = RenderCache()
         let spec = TextureSpec(kind: .stipple, density: 0.7, uniformity: 0.3, angle: 0)
+        var providerCalls = 0
 
         let first = cache.textureGeometry(
-            seed: 5, spec: spec, radii: radii(seed: 1), complexity: 0.5, time: 0.2)
+            family: .organicBlob,
+            seed: 5,
+            spec: spec,
+            profileKey: 5_000,
+            time: 0.2,
+            radiiAtCanonicalTime: { _ in
+                providerCalls += 1
+                return self.radii(seed: 1)
+            })
         let second = cache.textureGeometry(
-            seed: 5, spec: spec, radii: radii(seed: 99), complexity: 0.5, time: 0.9)
+            family: .organicBlob,
+            seed: 5,
+            spec: spec,
+            profileKey: 5_000,
+            time: 0.9,
+            radiiAtCanonicalTime: { _ in
+                providerCalls += 1
+                return self.radii(seed: 99)
+            })
 
         XCTAssertEqual(first, second,
                        "A call within the same bucket must hit the cache, not regenerate")
+        XCTAssertEqual(providerCalls, 1)
     }
 
-    /// Pins Important 2: `complexity` changes `organicBlobRadiusFactor`'s
-    /// amplitude and ringRadius — the contour's shape — so two calls that
-    /// differ only in complexity (and the radii that follow from it) must
-    /// land in different cache entries. Before the fix, this collided on
-    /// seed/spec/timeBucket alone and the second call silently returned the
-    /// first (stale) geometry.
-    func testDifferentComplexityMissesTheCache() {
+    /// Removing `profileKey` from the key would return the low-complexity
+    /// rings for the high-complexity contour.
+    func testDifferentProfileKeysNeverCollide() {
         let cache = RenderCache()
         let spec = TextureSpec(kind: .rings, density: 0.6, uniformity: 0.4, angle: 0)
 
         let low = cache.textureGeometry(
-            seed: 5, spec: spec, radii: radii(complexity: 0.1), complexity: 0.1, time: 0)
+            family: .organicBlob,
+            seed: 5,
+            spec: spec,
+            profileKey: 1_000,
+            time: 0,
+            radiiAtCanonicalTime: { _ in self.radii(complexity: 0.1) })
         let high = cache.textureGeometry(
-            seed: 5, spec: spec, radii: radii(complexity: 0.9), complexity: 0.9, time: 0)
+            family: .organicBlob,
+            seed: 5,
+            spec: spec,
+            profileKey: 9_000,
+            time: 0,
+            radiiAtCanonicalTime: { _ in self.radii(complexity: 0.9) })
 
-        XCTAssertNotEqual(low, high, "Complexity change must miss the cache and regenerate")
+        XCTAssertNotEqual(low, high, "Different radial profiles must generate separate geometry")
+        XCTAssertEqual(cache.textureCache.count, 2)
+    }
+
+    /// Removing `family` from the key would let one shape family reuse
+    /// another family's geometry when every other key field matches.
+    func testFamiliesNeverCollide() {
+        let cache = RenderCache()
+        let spec = TextureSpec(kind: .rings, density: 0.6, uniformity: 0.4, angle: 0)
+
+        let circle = cache.textureGeometry(
+            family: .circle,
+            seed: 5,
+            spec: spec,
+            profileKey: 0,
+            time: 0,
+            radiiAtCanonicalTime: { _ in [Double](repeating: 1, count: 48) })
+        let snowflake = cache.textureGeometry(
+            family: .snowflake,
+            seed: 5,
+            spec: spec,
+            profileKey: 0,
+            time: 0,
+            radiiAtCanonicalTime: { _ in [1, 0.4, 1, 0.4, 1, 0.4] })
+
+        XCTAssertNotEqual(circle, snowflake)
+        XCTAssertEqual(cache.textureCache.count, 2)
+    }
+
+    /// Passing request time to the provider, or regenerating on a hit, would
+    /// record two non-canonical times here.
+    func testProviderReceivesCanonicalBucketTimeOnlyOnce() {
+        let cache = RenderCache()
+        let spec = TextureSpec(kind: .rings, density: 0.6, uniformity: 0.4, angle: 0)
+        var received: [Double] = []
+
+        _ = cache.textureGeometry(
+            family: .snowflake,
+            seed: 75,
+            spec: spec,
+            profileKey: 0,
+            time: 0.9,
+            radiiAtCanonicalTime: {
+                received.append($0)
+                return [1, 0.5, 1, 0.5]
+            })
+        _ = cache.textureGeometry(
+            family: .snowflake,
+            seed: 75,
+            spec: spec,
+            profileKey: 0,
+            time: 1.1,
+            radiiAtCanonicalTime: {
+                received.append($0)
+                return [1, 0.2, 1, 0.2]
+            })
+
+        XCTAssertEqual(received.count, 1)
+        let bucket = RenderCache.textureBucket(
+            for: 0.9 + RenderCache.texturePhase(for: 75))
+        let expected = (Double(bucket) + 0.5) * RenderCache.textureBucketSeconds
+            - RenderCache.texturePhase(for: 75)
+        XCTAssertEqual(received[0], expected, accuracy: 1e-12)
+    }
+
+    /// Using the first request's render time to build geometry would make the
+    /// winning value depend on whether 0.9 or 1.1 reached an empty cache first.
+    func testCanonicalGeometryIsIndependentOfCallOrderWithinBucket() {
+        let spec = TextureSpec(kind: .rings, density: 0.6, uniformity: 0.4, angle: 0)
+
+        func geometry(firstTime: Double, secondTime: Double) -> TextureGeometry {
+            let cache = RenderCache()
+            func request(at time: Double) -> TextureGeometry {
+                cache.textureGeometry(
+                    family: .organicBlob,
+                    seed: 75,
+                    spec: spec,
+                    profileKey: 5_000,
+                    time: time,
+                    radiiAtCanonicalTime: { canonicalTime in
+                        ProceduralShapeGenerator.organicBlobRadiusFactor(
+                            seed: 75,
+                            complexity: 0.5,
+                            symmetry: 1,
+                            time: canonicalTime)
+                    })
+            }
+            let first = request(at: firstTime)
+            XCTAssertEqual(first, request(at: secondTime))
+            return first
+        }
+
+        XCTAssertEqual(
+            geometry(firstTime: 0.9, secondTime: 1.1),
+            geometry(firstTime: 1.1, secondTime: 0.9))
     }
 
     /// Pins the prune: repeatedly advancing the bucket must not let the
@@ -372,7 +487,12 @@ final class RenderCacheTextureTests: XCTestCase {
         for i in 0..<50 {
             let time = Double(i) * RenderCache.textureBucketSeconds
             _ = cache.textureGeometry(
-                seed: 7, spec: spec, radii: radii(), complexity: 0.5, time: time)
+                family: .organicBlob,
+                seed: 7,
+                spec: spec,
+                profileKey: 5_000,
+                time: time,
+                radiiAtCanonicalTime: { _ in self.radii() })
         }
 
         XCTAssertLessThanOrEqual(cache.textureCache.count, 3,
@@ -414,16 +534,31 @@ final class RenderCacheTextureTests: XCTestCase {
         let t = 0.8
 
         let firstBehind = cache.textureGeometry(
-            seed: seedBehind, spec: spec, radii: radii(), complexity: 0.5, time: t)
+            family: .organicBlob,
+            seed: seedBehind,
+            spec: spec,
+            profileKey: 5_000,
+            time: t,
+            radiiAtCanonicalTime: { _ in self.radii() })
         // Inserting the ahead seed's entry (a later bucket) is what triggers
         // the prune.
         _ = cache.textureGeometry(
-            seed: seedAhead, spec: spec, radii: radii(), complexity: 0.5, time: t)
+            family: .organicBlob,
+            seed: seedAhead,
+            spec: spec,
+            profileKey: 5_000,
+            time: t,
+            radiiAtCanonicalTime: { _ in self.radii() })
 
         // Different radii on the re-query: an eviction would show up as a
         // freshly regenerated (and therefore different) result.
         let secondBehind = cache.textureGeometry(
-            seed: seedBehind, spec: spec, radii: radii(complexity: 0.9), complexity: 0.5, time: t)
+            family: .organicBlob,
+            seed: seedBehind,
+            spec: spec,
+            profileKey: 5_000,
+            time: t,
+            radiiAtCanonicalTime: { _ in self.radii(complexity: 0.9) })
 
         XCTAssertEqual(firstBehind, secondBehind,
                        "The phased-behind seed's entry must survive the phased-ahead seed's prune")

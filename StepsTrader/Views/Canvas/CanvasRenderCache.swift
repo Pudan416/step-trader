@@ -27,18 +27,13 @@ final class RenderCache {
     /// Poisson sample of up to 90 points; at 20 fps across 15 elements that
     /// would be ~27k samples a second. Generated once per bucket and reused.
     struct TextureCacheKey: Hashable {
+        let family: TextureGeometryFamily
         let seed: UInt64
         let spec: TextureSpec
-        /// Quantised to 1e-4, same treatment as `TextureSpec`'s Doubles.
-        /// `complexity` feeds `organicBlobRadiusFactor`'s amplitude and
-        /// ringRadius — it changes the contour's *shape*, not just its scale
-        /// — so a stale key here would keep serving rings/hatch/stipple
-        /// built against a contour the element no longer has (e.g. mid
-        /// interaction, where `noiseBoost` can move it by up to 0.4) for as
-        /// long as a bucket lasts. Keyed on the quantised value, not on
-        /// `radii` itself — keying on the array would defeat the cache
-        /// entirely, since the contour changes every frame.
-        let complexityKey: Int
+        /// Quantised identity for the radial-profile inputs that remain fixed
+        /// within one bucket. Keying on the sampled radii themselves would
+        /// defeat caching because animated contours change every frame.
+        let profileKey: Int
         /// The contour morphs slowly (0.012 noise units per second), so the
         /// texture is generated against a time-quantised contour. One bucket
         /// per `bucketSeconds` — the texture lags the outline by well under a
@@ -82,15 +77,21 @@ final class RenderCache {
 
     /// Cached lookup. Generates on miss.
     func textureGeometry(
+        family: TextureGeometryFamily,
         seed: UInt64,
         spec: TextureSpec,
-        radii: [Double],
-        complexity: Double,
-        time: Double
+        profileKey: Int,
+        time: Double,
+        radiiAtCanonicalTime: (Double) -> [Double]
     ) -> TextureGeometry {
-        let bucket = Self.textureBucket(for: time + Self.texturePhase(for: seed))
-        let complexityKey = Int((complexity * 10_000).rounded())
-        let key = TextureCacheKey(seed: seed, spec: spec, complexityKey: complexityKey, timeBucket: bucket)
+        let phase = Self.texturePhase(for: seed)
+        let bucket = Self.textureBucket(for: time + phase)
+        let key = TextureCacheKey(
+            family: family,
+            seed: seed,
+            spec: spec,
+            profileKey: profileKey,
+            timeBucket: bucket)
         if let hit = textureCache[key] { return hit }
 
         // Drop entries from older buckets so the cache cannot grow unbounded
@@ -103,7 +104,11 @@ final class RenderCache {
             textureCacheLastPruneBucket = bucket
         }
 
-        let geometry = ProceduralTexture.geometry(spec: spec, radii: radii, seed: seed)
+        let canonicalTime = (Double(bucket) + 0.5) * Self.textureBucketSeconds - phase
+        let geometry = ProceduralTexture.geometry(
+            spec: spec,
+            radii: radiiAtCanonicalTime(canonicalTime),
+            seed: seed)
         textureCache[key] = geometry
         return geometry
     }

@@ -78,7 +78,7 @@ enum OrganicBlobShapeRenderer {
     ) {
         let elementCenter = center(e, size: size, t: t, ampScale: ampScale)
         let elementRadius = radius(e, size: size, t: t, ampScale: ampScale)
-        let baseSeed = e.shapeSeed ?? UInt64(bitPattern: Int64(e.id.hashValue))
+        let baseSeed = e.shapeSeed ?? CanvasElement.stableSeed(for: e.id)
         let baseComplexity = min(1.0, Double(e.activityCount ?? 1) / 30.0)
         let complexity = min(1.0, baseComplexity + (interaction?.noiseBoost ?? 0))
         let symmetry = 1
@@ -121,15 +121,23 @@ enum OrganicBlobShapeRenderer {
                               uniformity: spec.uniformity, angle: spec.angle)
 
             // Cached, not regenerated per frame — see the Global Constraint.
-            // The contour above is still computed every frame (it has to
-            // morph); only the fill geometry is bucketed. complexity is part
-            // of the cache key: it drives organicBlobRadiusFactor's
-            // amplitude/ringRadius, so it changes the contour's shape, not
-            // just layerRadii's values within it — a stale key would keep
-            // serving geometry built for a contour the element no longer has.
+            // The contour above remains current-frame geometry; only the fill
+            // geometry is generated from the bucket's canonical contour.
+            // Complexity remains part of the profile identity because it
+            // changes the contour's shape, not merely its absolute scale.
             let textureGeometry = cache.textureGeometry(
-                seed: layerSeed, spec: layerSpec, radii: layerRadii,
-                complexity: complexity, time: layerT)
+                family: .organicBlob,
+                seed: layerSeed,
+                spec: layerSpec,
+                profileKey: Int((complexity * 10_000).rounded()),
+                time: layerT,
+                radiiAtCanonicalTime: { canonicalTime in
+                    ProceduralShapeGenerator.organicBlobRadiusFactor(
+                        seed: layerSeed,
+                        complexity: complexity,
+                        symmetry: symmetry,
+                        time: canonicalTime)
+                })
 
             let gradCenter = CGPoint(
                 x: cx + cos(gradOffsetAngle) * Double(radius) * gradOffsetFraction,

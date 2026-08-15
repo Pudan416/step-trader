@@ -145,6 +145,13 @@ struct RadialTextureProfile: Hashable {
     }
 }
 
+/// Separates cached geometry belonging to different radial shape families.
+enum TextureGeometryFamily: UInt8, Hashable {
+    case organicBlob
+    case circle
+    case snowflake
+}
+
 /// The cacheable output of a fill, in **unit space**: the contour's radius is
 /// `1.0`, so one cached texture serves the icon, the canvas and a 4K export.
 struct TextureGeometry: Hashable {
