@@ -697,3 +697,30 @@ final class CircleTextureTests: XCTestCase {
         }
     }
 }
+
+@MainActor
+final class HistoryThumbnailCacheVersionTests: XCTestCase {
+    func testStoredThumbnailUsesVersionFiveCacheKey() throws {
+        let dayKey = "task6-cache-version-\(UUID().uuidString)"
+        let cacheDirectory = URL.cachesDirectory
+            .appending(path: "HistoryThumbnails", directoryHint: .isDirectory)
+        defer {
+            HistoryThumbnailCache.shared.invalidate(dayKey: dayKey)
+        }
+
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1)).image {
+            $0.cgContext.setFillColor(UIColor.red.cgColor)
+            $0.cgContext.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        HistoryThumbnailCache.shared.store(
+            image,
+            dayKey: dayKey,
+            size: CGSize(width: 11, height: 13),
+            theme: .night)
+
+        let filenames = try FileManager.default.contentsOfDirectory(
+            atPath: cacheDirectory.path)
+        XCTAssertTrue(filenames.contains("\(dayKey)_11x13_night_v5.png"))
+        XCTAssertFalse(filenames.contains("\(dayKey)_11x13_night_v4.png"))
+    }
+}
