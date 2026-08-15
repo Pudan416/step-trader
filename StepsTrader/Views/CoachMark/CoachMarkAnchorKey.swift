@@ -20,7 +20,6 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
     // Feeds tab
     case tapFeedsTab
     case feedsExplain
-    case tapUnlockPill
     case unlockSuccess
 
     // Closing
@@ -52,10 +51,8 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
             return "tap feeds"
         case .feedsExplain:
             return "this is the app you connected — it uses your colors to unlock"
-        case .tapUnlockPill:
-            return "it's locked right now. tap 10 min to open it"
         case .unlockSuccess:
-            return "done. want more? tap + to add other apps"
+            return "want more? tap + to add other apps"
         case .allSet:
             return "that's it. enjoy"
         }
@@ -102,12 +99,12 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
     }
 
     /// Steps that only make sense when the user has at least one blocking
-    /// group: the Feeds-tab leg of the tour (navigate there, explain the
-    /// ticket, unlock it). `CoachMarkManager` reroutes these to `.allSet`
+    /// group: the Feeds-tab leg of the tour (navigate there, look at the
+    /// connected app). `CoachMarkManager` reroutes these to `.allSet`
     /// when there are no groups (e.g. blocked-app setup skipped in onboarding).
     var requiresTicketGroups: Bool {
         switch self {
-        case .goToFeeds, .tapFeedsTab, .feedsExplain, .tapUnlockPill, .unlockSuccess:
+        case .goToFeeds, .tapFeedsTab, .feedsExplain, .unlockSuccess:
             return true
         default:
             return false

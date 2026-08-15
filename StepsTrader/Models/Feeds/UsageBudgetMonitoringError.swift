@@ -1,0 +1,40 @@
+import Foundation
+#if canImport(DeviceActivity)
+import DeviceActivity
+#endif
+
+/// Why a usage-budget monitor refused to start.
+///
+/// `DeviceActivity` caps an app and its extensions at twenty concurrently monitored
+/// activities. The ceiling counts open windows, not rows in the list, so reaching it
+/// is unlikely — but it must fail legibly rather than leaving an app the user paid
+/// to block sitting open.
+enum UsageBudgetMonitoringError: Equatable, Sendable {
+    case excessiveActivities
+    case other(String)
+
+    static func classify(_ error: Error) -> UsageBudgetMonitoringError {
+        #if canImport(DeviceActivity)
+        if let monitoring = error as? DeviceActivityCenter.MonitoringError,
+           case .excessiveActivities = monitoring {
+            return .excessiveActivities
+        }
+        #endif
+        return .other(error.localizedDescription)
+    }
+
+    var userFacingMessage: String {
+        switch self {
+        case .excessiveActivities:
+            String(
+                localized: "Too many windows are open at once. Close one and try again — your colors were refunded.",
+                comment: "Unlock failure – DeviceActivity activity cap reached"
+            )
+        case .other:
+            String(
+                localized: "Couldn't start the timer. Your colors were refunded — please try again in a moment.",
+                comment: "Unlock failure – generic monitoring failure, after refund"
+            )
+        }
+    }
+}

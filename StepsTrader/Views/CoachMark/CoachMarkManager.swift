@@ -60,7 +60,7 @@ final class CoachMarkManager {
             return 0
         case .tapFeedsTab:
             return nil
-        case .feedsExplain, .tapUnlockPill, .unlockSuccess:
+        case .feedsExplain, .unlockSuccess:
             return 1
         case .allSet:
             return nil

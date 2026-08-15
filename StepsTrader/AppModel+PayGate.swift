@@ -98,22 +98,22 @@ extension AppModel {
         let endOfDay = DayBoundary.nextBoundary(after: Date.now, dayEndHour: dayEndH, dayEndMinute: dayEndM)
         defaults.set(endOfDay, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
 
-        let monitoringStarted = startUsageBudgetMonitoring(groupId: groupId, minutes: totalMinutes)
-        if !monitoringStarted {
+        if let failure = startUsageBudgetMonitoring(groupId: groupId, minutes: totalMinutes) {
             // DeviceActivity wouldn't start — refund the colors, clear the keys, and
             // surface a user-visible error before dismissing. Otherwise the user just
             // sees the balance bounce back with no explanation and assumes the
             // purchase silently failed. (§5.1)
-            AppLogger.shield.error("❌ Monitoring failed after payment — refunding \(cost) colors")
+            //
+            // Hitting the twenty-activity cap gets its own message: "try again in a
+            // moment" is useless advice for a ceiling that only clears when a window
+            // is closed.
+            AppLogger.shield.error("❌ Monitoring failed after payment (\(String(describing: failure))) — refunding \(cost) colors")
             refund(cost: cost)
             defaults.removeObject(forKey: budgetKey)
             defaults.removeObject(forKey: initialKey)
             defaults.removeObject(forKey: startedKey)
             defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(groupId))
-            payGateError = String(
-                localized: "Couldn't start the timer. Your colors were refunded — please try again in a moment.",
-                comment: "PayGate – DeviceActivity monitoring failure, after refund"
-            )
+            payGateError = failure.userFacingMessage
             dismissPayGate(reason: .programmatic)
             return
         }
@@ -139,18 +139,19 @@ extension AppModel {
         dismissPayGate(reason: .programmatic)
     }
 
+    /// Returns `nil` on success, or why the monitor refused to start.
     @discardableResult
-    private func startUsageBudgetMonitoring(groupId: String, minutes: Int) -> Bool {
+    private func startUsageBudgetMonitoring(groupId: String, minutes: Int) -> UsageBudgetMonitoringError? {
         let logDefaults = UserDefaults.stepsTrader()
         let iso = ISO8601DateFormatter()
 
         #if !canImport(DeviceActivity) || !canImport(FamilyControls)
         logDefaults.set("[\(iso.string(from: Date.now))] SKIP usageBudget_\(groupId) — DeviceActivity/FamilyControls not available", forKey: SharedKeys.lastStartMonitoringLog)
-        return true
+        return nil
         #else
         guard let group = ticketGroups.first(where: { $0.id == groupId }) else {
             logDefaults.set("[\(iso.string(from: Date.now))] SKIP usageBudget_\(groupId) — group not found", forKey: SharedKeys.lastStartMonitoringLog)
-            return false
+            return .other("Group not found")
         }
 
         let center = DeviceActivityCenter()
@@ -225,18 +226,19 @@ extension AppModel {
             try center.startMonitoring(activityName, during: schedule, events: events)
             let msg = "[\(iso.string(from: Date.now))] OK usageBudget_\(groupId) \(minutes)m events=\(events.count) apps=\(group.selection.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"
             logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
-            return true
+            return nil
         } catch {
             center.stopMonitoring([activityName])
             do {
                 try center.startMonitoring(activityName, during: schedule, events: events)
                 let msg = "[\(iso.string(from: Date.now))] OK (retry) usageBudget_\(groupId) \(minutes)m events=\(events.count) apps=\(group.selection.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"
                 logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
-                return true
+                return nil
             } catch {
+                let classified = UsageBudgetMonitoringError.classify(error)
                 let msg = "[\(iso.string(from: Date.now))] FAIL usageBudget_\(groupId) — \(error.localizedDescription) sched=[\(schedDesc)]"
                 logDefaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
-                return false
+                return classified
             }
         }
         #endif
