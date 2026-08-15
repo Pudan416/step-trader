@@ -54,6 +54,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
     var labelColor: Color? = nil
     var hasStepsData: Bool = true
     var hasSleepData: Bool = true
+    let isRenderingAllowed: Bool
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> SmudgeMTKView {
@@ -72,6 +73,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         view.isPaused                = true
         view.enableSetNeedsDisplay   = false
         view.isMultipleTouchEnabled  = true
+        view.isUserInteractionEnabled = isRenderingAllowed
 
         view.isOpaque            = false
         view.layer.isOpaque      = false
@@ -80,6 +82,8 @@ struct SmudgeOverlayView: UIViewRepresentable {
 
         let scale = view.contentScaleFactor
         let coord = context.coordinator
+        coord.renderingIsAllowed = isRenderingAllowed
+        renderer.setActive(isRenderingAllowed)
 
         // UIKit haptic is correct here: `.sensoryFeedback` is a SwiftUI view
         // modifier and can't attach to UIView touch callbacks. The generator
@@ -89,19 +93,28 @@ struct SmudgeOverlayView: UIViewRepresentable {
         touchHaptic.prepare()
 
         view.onTouchBegan = { [weak coord, weak view] id, point in
-            guard let coord = coord, let renderer = coord.renderer else { return }
-            view?.isPaused = false
+            guard let coord,
+                  coord.renderingIsAllowed,
+                  let view,
+                  let renderer = coord.renderer
+            else { return }
             if renderer.needsSnapshot {
                 coord.snapshotCanvas(scale: scale)
             }
             renderer.handleTouchBegan(id: id, at: point, scale: scale)
+            view.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
+                isRenderingAllowed: coord.renderingIsAllowed,
+                hasActiveEffect: renderer.isDistorted
+            )
             touchHaptic.impactOccurred(intensity: 0.7)
         }
         view.onTouchMoved = { [weak coord] id, previous, current in
-            coord?.renderer?.addStrokeSegment(id: id, from: previous, to: current, scale: scale)
+            guard let coord, coord.renderingIsAllowed else { return }
+            coord.renderer?.addStrokeSegment(id: id, from: previous, to: current, scale: scale)
         }
         view.onTouchEnded = { [weak coord] id in
-            coord?.renderer?.handleTouchEnded(id: id)
+            guard let coord, coord.renderingIsAllowed else { return }
+            coord.renderer?.handleTouchEnded(id: id)
             touchHaptic.impactOccurred(intensity: 0.5)
         }
 
@@ -110,7 +123,34 @@ struct SmudgeOverlayView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: SmudgeMTKView, context: Context) {
-        context.coordinator.storedConfig = self
+        let coordinator = context.coordinator
+        coordinator.storedConfig = self
+        coordinator.renderingIsAllowed = isRenderingAllowed
+        uiView.isUserInteractionEnabled = isRenderingAllowed
+
+        guard let renderer = coordinator.renderer else {
+            uiView.isPaused = true
+            return
+        }
+
+        renderer.setActive(isRenderingAllowed)
+        if !isRenderingAllowed {
+            renderer.cancelActiveInteraction()
+        }
+
+        uiView.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
+            isRenderingAllowed: isRenderingAllowed,
+            hasActiveEffect: renderer.isDistorted
+        )
+    }
+
+    static func dismantleUIView(_ uiView: SmudgeMTKView, coordinator: Coordinator) {
+        coordinator.renderingIsAllowed = false
+        coordinator.renderer?.cancelActiveInteraction()
+        coordinator.renderer?.setActive(false)
+        uiView.isUserInteractionEnabled = false
+        uiView.isPaused = true
+        uiView.delegate = nil
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -121,6 +161,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         let renderer: MetalSmudgeRenderer?
         weak var mtkView: SmudgeMTKView?
         var storedConfig: SmudgeOverlayView?
+        var renderingIsAllowed = false
 
         init() { renderer = MetalSmudgeRenderer.create() }
 

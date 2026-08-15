@@ -183,6 +183,7 @@ enum SnowflakeShapeRenderer {
         blendMode: GraphicsContext.BlendMode,
         ampScale: Double,
         renderCache: RenderCache,
+        trailLength: Int = 20,
         decayedColor: Color? = nil,
         decayedColor2: Color? = nil
     ) {
@@ -190,7 +191,7 @@ enum SnowflakeShapeRenderer {
         let r = radius(e, size: size, t: t, ampScale: ampScale)
         let seed = e.shapeSeed ?? CanvasElement.stableSeed(for: e.id)
         let idleOpacity = (0.92 + breathePhase * 0.04) * (1.0 - decay * 0.3)
-        let trailLen = 20
+        let trailLen = trailLength
         let trailSpacing: Double = 0.7
         let trailPeak: Double = 0.30
         let strokeW: CGFloat = 1.2
@@ -264,6 +265,7 @@ enum SnowflakeShapeRenderer {
         blendMode: GraphicsContext.BlendMode,
         ampScale: Double,
         renderCache: RenderCache,
+        trailLength: Int = 20,
         decayedColor: Color? = nil,
         decayedColor2: Color? = nil,
         spec: TextureSpec
@@ -271,7 +273,8 @@ enum SnowflakeShapeRenderer {
         drawTrailGhosts(
             e, context: &context, size: size, t: t, decay: decay,
             blendMode: blendMode, ampScale: ampScale,
-            renderCache: renderCache, decayedColor: decayedColor,
+            renderCache: renderCache, trailLength: trailLength,
+            decayedColor: decayedColor,
             decayedColor2: decayedColor2)
 
         let breathePhase = sin(t * (0.25 + e.phaseOffset * 0.1) + e.phaseOffset * 3.7)

@@ -154,6 +154,7 @@ struct MainTabView: View {
                 }
                 .toolbar(.hidden, for: .tabBar)
                 .tag(Tab.canvas.rawValue)
+                .environment(\.renderingIsActive, selection == Tab.canvas.rawValue)
 
                 // 1: My Feeds
                 AppsPageSimplified(model: model)
@@ -173,11 +174,13 @@ struct MainTabView: View {
                         )
                         pendingTicketBundleId = nil
                     }
+                    .environment(\.renderingIsActive, selection == Tab.feeds.rawValue)
 
                 // 2: Me
                 MeView(model: model, onOpenSettings: { showSettings = true })
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.me.rawValue)
+                    .environment(\.renderingIsActive, selection == Tab.me.rawValue)
             }
 
             .toolbarBackground(.hidden, for: .tabBar)

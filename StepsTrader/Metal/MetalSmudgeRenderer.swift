@@ -102,6 +102,8 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     private var lastStrokeTime: CFTimeInterval = 0
     private var lastFrameTime: CFTimeInterval = 0
 
+    private(set) var isActive = true
+
     var needsSnapshot: Bool { !isBaseInitialized_ }
 
     // ── Tuning constants ────────────────────────────────────────────
@@ -425,6 +427,24 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         lastStrokeTime = CACurrentMediaTime()
     }
 
+    func setActive(_ active: Bool) {
+        isActive = active
+    }
+
+    func cancelActiveInteraction() {
+        let hadActiveTouches = !activeTouches.isEmpty
+        activeTouches.removeAll()
+
+        strokeLock.lock()
+        let hadPendingStrokes = !pendingStrokes.isEmpty
+        pendingStrokes.removeAll()
+        strokeLock.unlock()
+
+        if hadActiveTouches || hadPendingStrokes {
+            lastStrokeTime = CACurrentMediaTime()
+        }
+    }
+
     // ════════════════════════════════════════════════════════════════
     // MARK: - MTKViewDelegate
     // ════════════════════════════════════════════════════════════════
@@ -432,6 +452,8 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) { }
 
     func draw(in view: MTKView) {
+        guard isActive else { return }
+
         guard let drawable = view.currentDrawable,
               let rpd      = view.currentRenderPassDescriptor
         else { return }

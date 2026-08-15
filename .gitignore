@@ -113,7 +113,6 @@ Config/Secrets.xcconfig
 Config/Secrets-Dev.xcconfig
 
 # Documentation build
-docs/
 documentation/
 # Claude Code local tooling — per-contributor session state, not shared project artefacts.
 .claude/
@@ -126,6 +125,11 @@ skills-lock.json
 node_modules/
 .env
 .env.local
+
+# Rebuildable project artefacts
+/admin-panel/.next/
+/admin-panel/tsconfig.tsbuildinfo
+/OnboardingPreview/.swiftpm/
 
 # Build/runtime junk that should never be committed
 # iOS runtime diagnostic dumps (xcresult bundles, auto-fix notes, error summaries)

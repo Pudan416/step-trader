@@ -1,5 +1,6 @@
 import XCTest
 import HealthKit
+import Combine
 @testable import Steps4
 
 /// Energy recalculation against the three-part model:
@@ -50,6 +51,27 @@ final class EnergyRecalcTests: XCTestCase {
 
         XCTAssertEqual(model.baseEnergyToday, 100, "20 steps + 20 sleep + 60 happenings")
         XCTAssertEqual(model.stepsBalance, 100)
+    }
+
+    /// Recalculation changes base energy, spendable balance, and the derived
+    /// total balance. A fourth manual notification would invalidate every
+    /// AppModel observer without representing another state change.
+    func testRecalculatePublishesOnlyChangedStoreValues() {
+        let model = makeModel()
+        defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
+        defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
+        model.stepsToday = 10_000
+        model.dailySleepHours = 8.0
+
+        var notificationCount = 0
+        let observation = model.objectWillChange.sink {
+            notificationCount += 1
+        }
+        defer { observation.cancel() }
+
+        model.recalculateDailyEnergy()
+
+        XCTAssertEqual(notificationCount, 3)
     }
 
     /// Acceptance criterion: a day of 2 happenings plus full steps and sleep

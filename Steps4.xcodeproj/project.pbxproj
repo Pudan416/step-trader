@@ -189,6 +189,7 @@
 		605D42CA9EBF1B3A09237455 /* MetaballGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E94D8EA5C48F5875A51740 /* MetaballGenerator.swift */; };
 		DA0017001700170017001701 /* DayComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0017001700170017001702 /* DayComposition.swift */; };
 		60CO0001300000000060CO0001 /* CanvasOverlayStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0002300000000060CO0002 /* CanvasOverlayStyle.swift */; };
+		60OR0001300000000060OR0001 /* CanvasOverlayStyleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60OR0002300000000060OR0002 /* CanvasOverlayStyleTests.swift */; };
 		60CO0003300000000060CO0003 /* CanvasAnimationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0004300000000060CO0004 /* CanvasAnimationOverlay.swift */; };
 		60SA00023003000060SA0002 /* SleepGoalArcPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SA00013003000060SA0001 /* SleepGoalArcPicker.swift */; };
 		60SD00023003000060SD0002 /* StepGoalDrumPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SD00013003000060SD0001 /* StepGoalDrumPicker.swift */; };
@@ -238,6 +239,10 @@
 		ME7A00ME7A00ME7A00F011 /* MainTabSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */; };
 		ME7A00ME7A00ME7A00F021 /* MeWeekStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */; };
 		ME7A00ME7A00ME7A00F051 /* RayShapeRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */; };
+		RA0000013005000000000001 /* RenderingActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RA0000023005000000000002 /* RenderingActivityTests.swift */; };
+		RA0000033005000000000003 /* RenderingActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = RA0000043005000000000004 /* RenderingActivity.swift */; };
+		CB0000013005000000000001 /* CanvasRenderBudgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000023005000000000002 /* CanvasRenderBudgetTests.swift */; };
+		CB0000033005000000000003 /* CanvasRenderBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000043005000000000004 /* CanvasRenderBudget.swift */; };
 		AABB002200220022AABB0022 /* PaymentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB002200220022AABB0020 /* PaymentTests.swift */; };
 		AABB003300330033AABB0033 /* EnergyRecalcTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB003300330033AABB0030 /* EnergyRecalcTests.swift */; };
 		DA0001000100010001000011 /* HappeningMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0001000100010001000010 /* HappeningMigrationTests.swift */; };
@@ -540,6 +545,7 @@
 		5C664BEFA2BBECD3F1AB1266 /* FamilyControlsServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamilyControlsServiceProtocol.swift; path = StepsTrader/Protocols/FamilyControlsServiceProtocol.swift; sourceTree = SOURCE_ROOT; };
 		5F4C4CBBA3ED654713693D34 /* BodyShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BodyShapeGenerator.swift; path = StepsTrader/Shapes/BodyShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
 		60CO0002300000000060CO0002 /* CanvasOverlayStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasOverlayStyle.swift; sourceTree = "<group>"; };
+		60OR0002300000000060OR0002 /* CanvasOverlayStyleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasOverlayStyleTests.swift; sourceTree = "<group>"; };
 		60CO0004300000000060CO0004 /* CanvasAnimationOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAnimationOverlay.swift; sourceTree = "<group>"; };
 		60SA00013003000060SA0001 /* SleepGoalArcPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepGoalArcPicker.swift; sourceTree = "<group>"; };
 		60SD00013003000060SD0001 /* StepGoalDrumPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepGoalDrumPicker.swift; sourceTree = "<group>"; };
@@ -588,6 +594,10 @@
 		ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabSelectionTests.swift; sourceTree = "<group>"; };
 		ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeWeekStatsTests.swift; sourceTree = "<group>"; };
 		ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RayShapeRendererTests.swift; sourceTree = "<group>"; };
+		RA0000023005000000000002 /* RenderingActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderingActivityTests.swift; sourceTree = "<group>"; };
+		RA0000043005000000000004 /* RenderingActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderingActivity.swift; sourceTree = "<group>"; };
+		CB0000023005000000000002 /* CanvasRenderBudgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasRenderBudgetTests.swift; path = Steps4Tests/CanvasRenderBudgetTests.swift; sourceTree = SOURCE_ROOT; };
+		CB0000043005000000000004 /* CanvasRenderBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasRenderBudget.swift; path = StepsTrader/Shapes/CanvasRenderBudget.swift; sourceTree = SOURCE_ROOT; };
 		AABB002200220022AABB0020 /* PaymentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTests.swift; sourceTree = "<group>"; };
 		AABB003300330033AABB0030 /* EnergyRecalcTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyRecalcTests.swift; sourceTree = "<group>"; };
 		DA0001000100010001000010 /* HappeningMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningMigrationTests.swift; sourceTree = "<group>"; };
@@ -934,6 +944,7 @@
 				2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */,
 				2089F0E72E71AE3400ABF5FA /* Date+Today.swift */,
 				20GC00012F86100000000001 /* GlassCardModifier.swift */,
+				RA0000043005000000000004 /* RenderingActivity.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -1200,6 +1211,7 @@
 				ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */,
 				ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */,
 				ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */,
+				RA0000023005000000000002 /* RenderingActivityTests.swift */,
 				AABB002200220022AABB0020 /* PaymentTests.swift */,
 				AABB003300330033AABB0030 /* EnergyRecalcTests.swift */,
 				AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */,
@@ -1223,6 +1235,7 @@
 				DA0002000200020002000020 /* canvas_legacy_categorised.json */,
 				UB53000053000053000000A1 /* UsageBudgetScheduleTests.swift */,
 				AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */,
+				60OR0002300000000060OR0002 /* CanvasOverlayStyleTests.swift */,
 			);
 			path = Steps4Tests;
 			sourceTree = "<group>";
@@ -1758,6 +1771,8 @@
 				E5A8441DA8F639D18D64B0EA /* GallerySubviews.swift in Sources */,
 				4960407B879716E45433318C /* CanvasRenderCache.swift in Sources */,
 				BE254EC2A686412E10D5F41D /* CanvasRenderModels.swift in Sources */,
+				RA0000033005000000000003 /* RenderingActivity.swift in Sources */,
+				CB0000033005000000000003 /* CanvasRenderBudget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1788,6 +1803,8 @@
 				ME7A00ME7A00ME7A00F011 /* MainTabSelectionTests.swift in Sources */,
 				ME7A00ME7A00ME7A00F021 /* MeWeekStatsTests.swift in Sources */,
 				ME7A00ME7A00ME7A00F051 /* RayShapeRendererTests.swift in Sources */,
+				RA0000013005000000000001 /* RenderingActivityTests.swift in Sources */,
+				CB0000013005000000000001 /* CanvasRenderBudgetTests.swift in Sources */,
 				AABB002200220022AABB0022 /* PaymentTests.swift in Sources */,
 				AABB003300330033AABB0033 /* EnergyRecalcTests.swift in Sources */,
 				AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */,
@@ -1810,6 +1827,7 @@
 				DA0018001800180018001801 /* DayCompositionTests.swift in Sources */,
 				UB53000053000053000000B1 /* UsageBudgetScheduleTests.swift in Sources */,
 				AL01000053000053000000B1 /* AuthSignInLoadingStateTests.swift in Sources */,
+				60OR0001300000000060OR0001 /* CanvasOverlayStyleTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,5 +1,12 @@
 import SwiftUI
 
+/// The renderer resource needed for a canvas overlay style.
+enum CanvasOverlayResource: Equatable {
+    case none
+    case smudge
+    case cosmic
+}
+
 /// User-selectable interactive overlay rendered on top of the gallery canvas.
 /// Persisted via `SharedKeys.canvasOverlayStyle` in the App-Group defaults so
 /// the choice is mirrored to widgets / future extensions.
@@ -13,6 +20,20 @@ enum CanvasOverlayStyle: String, CaseIterable, Identifiable {
     case cosmic
 
     var id: String { rawValue }
+
+    /// The sole renderer resource the overlay router may create for this style.
+    var requiredResource: CanvasOverlayResource {
+        switch self {
+        case .none: .none
+        case .smudge: .smudge
+        case .cosmic: .cosmic
+        }
+    }
+
+    /// Whether the routed overlay should receive canvas gestures.
+    var interceptsTouches: Bool {
+        requiredResource != .none
+    }
 
     var displayName: String {
         switch self {

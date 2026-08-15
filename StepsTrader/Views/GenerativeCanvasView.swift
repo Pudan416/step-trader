@@ -39,7 +39,17 @@ struct GenerativeCanvasView: View {
     var isOffscreenRender: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.renderingIsActive) private var renderingIsActive
+    @Environment(\.scenePhase) private var scenePhase
     @State private var ampScale: Double = 1.0
+
+    private var shouldAnimate: Bool {
+        RenderingActivity.shouldAnimate(
+            isViewActive: renderingIsActive,
+            sceneIsActive: scenePhase == .active,
+            reduceMotion: reduceMotion
+        )
+    }
 
     /// Per-instance render cache. Held in `@State` so the same instance
     /// persists across SwiftUI body recompositions; mutating its properties
@@ -85,7 +95,7 @@ struct GenerativeCanvasView: View {
                 }
                 .drawingGroup()
                 .background(Color.clear)
-                .canvasAnimationScale($ampScale, timeScale: timeScale, reduceMotion: reduceMotion)
+                .canvasAnimationScale($ampScale, timeScale: timeScale, isAnimating: !reduceMotion)
             } else {
                 // Live view with fixed time (e.g. history viewer): Metal shaders
                 // work, so provide symbols for proper ray rendering.
@@ -96,10 +106,10 @@ struct GenerativeCanvasView: View {
                 }
                 .drawingGroup()
                 .background(Color.clear)
-                .canvasAnimationScale($ampScale, timeScale: timeScale, reduceMotion: reduceMotion)
+                .canvasAnimationScale($ampScale, timeScale: timeScale, isAnimating: !reduceMotion)
             }
         } else {
-            TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 20.0, paused: !shouldAnimate)) { timeline in
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 Canvas { context, size in
                     renderCanvas(context: &context, size: size, t: t)
@@ -109,7 +119,7 @@ struct GenerativeCanvasView: View {
                 .drawingGroup()
             }
             .background(Color.clear)
-            .canvasAnimationScale($ampScale, timeScale: timeScale, reduceMotion: reduceMotion)
+            .canvasAnimationScale($ampScale, timeScale: timeScale, isAnimating: shouldAnimate)
         }
     }
 
@@ -252,6 +262,8 @@ struct GenerativeCanvasView: View {
         // does real work (archetype/palette/texture-policy derivation), so calling
         // it from inside `drawElement` recomputed it once per blob per frame.
         let dayComposition = DayComposition.forDay(dayKey: dayKey, happeningCount: elements.count)
+        let elementCount = elements.count
+        let lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
 
         if showsBackgroundGradient {
             drawUnifiedGradient(context: &context, size: size, t: t)
@@ -271,7 +283,12 @@ struct GenerativeCanvasView: View {
         let snowflakeElements = sortedElements.filter { shapeType(for: $0) == .snowflake }
         for element in snowflakeElements {
             let interaction = interactions[element.id]
-            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction, dayComposition: dayComposition)
+            drawElement(
+                element, context: &context, size: size, t: t,
+                decay: decay, blendMode: blendMode,
+                elementCount: elementCount, lowPowerMode: lowPowerMode,
+                interaction: interaction, dayComposition: dayComposition
+            )
             if showLabelsOnCanvas {
                 let center = elementCenter(element, size: size, t: t)
                 drawLabel(element, at: center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
@@ -308,7 +325,12 @@ struct GenerativeCanvasView: View {
             if clusteredBlobIds.contains(element.id) { continue }
 
             let interaction = interactions[element.id]
-            drawElement(element, context: &context, size: size, t: t, decay: decay, blendMode: blendMode, interaction: interaction, dayComposition: dayComposition)
+            drawElement(
+                element, context: &context, size: size, t: t,
+                decay: decay, blendMode: blendMode,
+                elementCount: elementCount, lowPowerMode: lowPowerMode,
+                interaction: interaction, dayComposition: dayComposition
+            )
             if showLabelsOnCanvas {
                 let center = elementCenter(element, size: size, t: t)
                 drawLabel(element, at: center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
@@ -392,6 +414,8 @@ struct GenerativeCanvasView: View {
         t: Double,
         decay: Double,
         blendMode: GraphicsContext.BlendMode,
+        elementCount: Int,
+        lowPowerMode: Bool,
         interaction: ElementInteraction? = nil,
         bodyBlobInfos: [BodyBlobInfo] = [],
         dayComposition: DayComposition
@@ -423,6 +447,10 @@ struct GenerativeCanvasView: View {
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
                     interaction: interaction, decayedColor: color,
+                    layerCount: CanvasRenderBudget.organicLayerCount(
+                        elementCount: elementCount,
+                        lowPowerMode: lowPowerMode
+                    ),
                     decayedColor2: color2,
                     spec: CanvasElement.textureSpec(
                         rank: renderCache.sortedIndexMap[element.id] ?? 0,
@@ -435,6 +463,10 @@ struct GenerativeCanvasView: View {
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
                     renderCache: renderCache,
+                    trailLength: CanvasRenderBudget.snowflakeTrailLength(
+                        elementCount: elementCount,
+                        lowPowerMode: lowPowerMode
+                    ),
                     decayedColor: color, decayedColor2: color2,
                     spec: CanvasElement.textureSpec(
                         rank: renderCache.sortedIndexMap[element.id] ?? 0,
@@ -613,18 +645,18 @@ private extension View {
     func canvasAnimationScale(
         _ ampScale: Binding<Double>,
         timeScale: Double,
-        reduceMotion: Bool
+        isAnimating: Bool
     ) -> some View {
-        let effective = reduceMotion ? 0 : timeScale
+        let effective = isAnimating ? timeScale : 0
         return onAppear { ampScale.wrappedValue = effective }
             .onChange(of: timeScale) { _, newValue in
                 withAnimation(.easeInOut(duration: 0.6)) {
-                    ampScale.wrappedValue = reduceMotion ? 0 : newValue
+                    ampScale.wrappedValue = isAnimating ? newValue : 0
                 }
             }
-            .onChange(of: reduceMotion) { _, reduced in
+            .onChange(of: isAnimating) { _, newValue in
                 withAnimation(.easeInOut(duration: 0.6)) {
-                    ampScale.wrappedValue = reduced ? 0 : timeScale
+                    ampScale.wrappedValue = newValue ? timeScale : 0
                 }
             }
     }

@@ -613,9 +613,6 @@ extension AppModel {
         
         AppLogger.energy.debug("⚡️ totalStepsBalance = \(self.totalStepsBalance)")
         
-        // Force UI update
-        objectWillChange.send()
-        
         // Sync daily stats to Supabase (skip during bootstrap)
         guard !isBootstrapping else { return }
         

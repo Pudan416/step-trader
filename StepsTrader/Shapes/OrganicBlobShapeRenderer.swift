@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Renderer for "Organic Blob" shape type.
 ///
-/// Each element = one cohesive blob with depth: 4 sublayers at the same center,
+/// Each element = one cohesive blob with a budgeted number of layers at the same center,
 /// back layers slightly larger and more blurred (halo), front layer = crisp core.
 /// Radial gradient fill (0.8 → 0.3 → 0), crisp stroke, plusLighter blend.
 @MainActor
@@ -55,7 +55,6 @@ enum OrganicBlobShapeRenderer {
 
     // MARK: - Constants
 
-    private static let layerCount = 4
     private static let blurSpread: Double = 8.0
     private static let baseOpacity: Double = 0.60
     private static let seedStride: UInt64 = 7919
@@ -72,6 +71,7 @@ enum OrganicBlobShapeRenderer {
         ampScale: Double,
         interaction: ElementInteraction?,
         decayedColor: Color,
+        layerCount: Int = 4,
         decayedColor2: Color? = nil,
         spec: TextureSpec = TextureSpec(kind: .gradient, density: 0.5, uniformity: 1, angle: 0),
         cache: RenderCache
