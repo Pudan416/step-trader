@@ -70,15 +70,18 @@ Invariants:
 
 - `radii.count >= 3`.
 - Every radius is finite and strictly positive.
-- `radii.max()` is `1.0` within floating-point tolerance.
+- Every normalised sample is at most `1.0`. The maximum may be below `1.0`
+  after fractional world-angle resampling because `outerRadius` preserves the
+  immutable source contour scale even when the fixed sample grid misses its peak.
 - Samples run clockwise in screen coordinates from angle zero.
 - The profile centre is the same centre used to construct the corresponding
   contour `Path`.
 - The profile is render-only and never `Codable`.
 
 `ProceduralShapeGenerator.RectMorphFrame` gains `textureProfile`. The private
-snowflake morph shape remains private; `rectMorphFrame` normalises its lerped
-radii and exposes only the stable rendering contract.
+snowflake morph shape remains private; `rectMorphFrame` exposes a resampled,
+normalised texture profile while continuing to build the legacy body and ghost
+paths from the immutable source radii.
 
 The snowflake's internal rotation must be reflected in the returned samples.
 The profile is resampled in world-angle order after rotation, so callers do not

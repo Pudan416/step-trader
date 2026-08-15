@@ -200,6 +200,11 @@ git commit -m "feat: anchor texture direction to each day"
 
 ### Task 2: Shared Radial Profile and Snowflake Resampling
 
+> **Implementation correction (2026-08-15):** fractional resampling preserves
+> the source `outerRadius`, so normalised samples satisfy `0 < radius <= 1` but
+> their sampled maximum may be below `1`. Legacy Snowflake body and ghost paths
+> remain constructed from the immutable source radii; the profile is render-only.
+
 **Files:**
 - Modify: `StepsTrader/Shapes/ProceduralTexture.swift`
 - Modify: `StepsTrader/Shapes/MindShapeGenerator.swift`
