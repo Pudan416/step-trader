@@ -133,4 +133,3 @@
 - [ ] Run `git diff --check` and inspect the complete diff.
 - [ ] Record a fresh bounded Time Profiler launch and compare application hotspots with the baseline.
 - [ ] Attempt the UI suite with a bounded timeout and report its exact result.
-

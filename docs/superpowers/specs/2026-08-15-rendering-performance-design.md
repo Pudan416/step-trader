@@ -36,4 +36,3 @@ Overlay routing is expressed as model behavior on `CanvasOverlayStyle`, making `
 - Existing ray, metaball, layout, HealthKit, and full unit suites remain green.
 - Admin ESLint and `tg-admin` TypeScript checks remain green.
 - A Debug simulator build and a bounded Time Profiler launch verify integration and compare hotspots.
-
