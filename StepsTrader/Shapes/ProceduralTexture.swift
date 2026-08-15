@@ -91,10 +91,23 @@ struct RadialTextureProfile: Hashable {
     let outerRadius: Double
     let radii: [Double]
 
+    init(center: CGPoint, outerRadius: Double, radii: [Double]) {
+        precondition(center.x.isFinite && center.y.isFinite)
+        precondition(outerRadius.isFinite && outerRadius > 0)
+        precondition(radii.count >= 3)
+        precondition(radii.allSatisfy { $0.isFinite && $0 > 0 })
+        precondition(abs((radii.max() ?? 0) - 1) <= 1e-12)
+
+        self.center = center
+        self.outerRadius = outerRadius
+        self.radii = radii
+    }
+
     init(center: CGPoint, sourceRadii: [CGFloat], rotation: Double) {
+        precondition(rotation.isFinite)
         precondition(sourceRadii.count >= 3)
         precondition(sourceRadii.allSatisfy { $0.isFinite && $0 > 0 })
-        self.center = center
+        let sourceOuterRadius = Double(sourceRadii.max() ?? 0)
 
         let count = sourceRadii.count
         let resampled = (0..<count).map { index in
@@ -110,10 +123,11 @@ struct RadialTextureProfile: Hashable {
                 + (Double(sourceRadii[upper]) - Double(sourceRadii[lower])) * fraction
             return value
         }
-        let outer = resampled.max() ?? 1
-        precondition(outer.isFinite && outer > 0)
-        self.outerRadius = outer
-        self.radii = resampled.map { $0 / outer }
+        let interpolatedPeak = resampled.max() ?? 0
+        self.init(
+            center: center,
+            outerRadius: sourceOuterRadius,
+            radii: resampled.map { $0 / interpolatedPeak })
     }
 
     static func circle(

@@ -126,7 +126,10 @@ extension ProceduralShapeGenerator {
             rotation: lerped.rotation)
 
         return RectMorphFrame(
-            path: snowflakePath(lerped),
+            path: closedPath(
+                radii: profile.radii,
+                center: profile.center,
+                radius: profile.outerRadius),
             color: color,
             color2: color2,
             alpha: 1.0,
@@ -227,15 +230,4 @@ extension ProceduralShapeGenerator {
         )
     }
 
-    private static func snowflakePath(_ s: RectMorphShape) -> Path {
-        var pts = [CGPoint](repeating: .zero, count: rectMorphN)
-        for i in 0..<rectMorphN {
-            let theta = (Double(i) / Double(rectMorphN)) * 2 * .pi + s.rotation
-            pts[i] = CGPoint(
-                x: s.cx + cos(theta) * Double(s.radii[i]),
-                y: s.cy + sin(theta) * Double(s.radii[i])
-            )
-        }
-        return smoothClosedPath(through: pts)
-    }
 }

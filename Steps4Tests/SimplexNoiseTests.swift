@@ -230,6 +230,16 @@ final class OrganicBlobContourTests: XCTestCase {
 final class SnowflakeTextureProfileTests: XCTestCase {
     private let rect = CGRect(x: 20, y: 40, width: 200, height: 200)
 
+    private func contourControlPoints(in path: Path) -> [CGPoint] {
+        var controls = [CGPoint]()
+        path.forEach { element in
+            if case let .quadCurve(_, control) = element {
+                controls.append(control)
+            }
+        }
+        return controls
+    }
+
     func testFrameExposesNormalisedPositiveProfile() {
         let frame = ProceduralShapeGenerator.rectMorphFrame(
             seed: 42, time: 3, in: rect)
@@ -257,5 +267,25 @@ final class SnowflakeTextureProfileTests: XCTestCase {
             .reduce(0, +) / 64
         XCTAssertGreaterThan(meanDelta, 0)
         XCTAssertLessThan(meanDelta, 0.02)
+    }
+
+    func testProfileAlignsWithContourAtRepresentativeWorldAngles() {
+        let frame = ProceduralShapeGenerator.rectMorphFrame(
+            seed: 42, time: 3, in: rect)
+        let profile = frame.textureProfile
+        let controls = contourControlPoints(in: frame.path)
+
+        XCTAssertEqual(controls.count, profile.radii.count)
+        for index in [0, 7, 16, 31, 48, 63] {
+            let angle = Double(index) / Double(profile.radii.count) * 2 * .pi
+            let expectedRadius = profile.outerRadius * profile.radii[index]
+            let expected = CGPoint(
+                x: Double(profile.center.x) + cos(angle) * expectedRadius,
+                y: Double(profile.center.y) + sin(angle) * expectedRadius)
+            XCTAssertEqual(controls[index].x, expected.x, accuracy: 1e-4,
+                           "x mismatch at profile sample \(index)")
+            XCTAssertEqual(controls[index].y, expected.y, accuracy: 1e-4,
+                           "y mismatch at profile sample \(index)")
+        }
     }
 }

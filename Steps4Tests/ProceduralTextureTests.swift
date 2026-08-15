@@ -14,6 +14,16 @@ final class ProceduralTextureTests: XCTestCase {
 
     // MARK: - Radial profiles
 
+    func testExplicitProfileInitializerPreservesValidProfile() {
+        let profile = RadialTextureProfile(
+            center: CGPoint(x: 12, y: 34),
+            outerRadius: 56,
+            radii: [0.25, 1, 0.5, 0.75])
+        XCTAssertEqual(profile.center, CGPoint(x: 12, y: 34))
+        XCTAssertEqual(profile.outerRadius, 56)
+        XCTAssertEqual(profile.radii, [0.25, 1, 0.5, 0.75])
+    }
+
     func testCircleProfileIsFortyEightUnitRadii() {
         let profile = RadialTextureProfile.circle(
             center: CGPoint(x: 12, y: 34), radius: 56, sampleCount: 48)
@@ -34,7 +44,28 @@ final class ProceduralTextureTests: XCTestCase {
     func testQuarterTurnResamplesIntoWorldAngleOrder() {
         let profile = RadialTextureProfile(
             center: .zero, sourceRadii: [1, 2, 3, 4], rotation: .pi / 2)
+        XCTAssertEqual(profile.outerRadius, 4)
         XCTAssertEqual(profile.radii, [1, 0.25, 0.5, 0.75])
+    }
+
+    func testFractionalRotationInterpolatesWithoutChangingSourceOuterRadius() {
+        let profile = RadialTextureProfile(
+            center: .zero, sourceRadii: [1, 4, 1, 1], rotation: .pi / 4)
+        XCTAssertEqual(profile.outerRadius, 4)
+        XCTAssertEqual(profile.radii.count, 4)
+        for (actual, expected) in zip(profile.radii, [0.4, 1, 1, 0.4]) {
+            XCTAssertEqual(actual, expected, accuracy: 1e-12)
+        }
+    }
+
+    func testFractionalRotationInterpolatesAcrossWrapBoundary() {
+        let profile = RadialTextureProfile(
+            center: .zero, sourceRadii: [4, 2, 1, 3], rotation: .pi / 8)
+        XCTAssertEqual(profile.outerRadius, 4)
+        XCTAssertEqual(profile.radii.count, 4)
+        for (actual, expected) in zip(profile.radii, [1, 2.0 / 3, 1.0 / 3, 2.0 / 3]) {
+            XCTAssertEqual(actual, expected, accuracy: 1e-12)
+        }
     }
 
     // MARK: - Determinism
