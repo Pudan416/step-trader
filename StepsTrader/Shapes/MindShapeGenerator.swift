@@ -125,11 +125,13 @@ extension ProceduralShapeGenerator {
             sourceRadii: lerped.radii,
             rotation: lerped.rotation)
 
+        // The path and profile are adapters over the same immutable morph
+        // sample, but they have different jobs. Preserve the legacy path from
+        // its local radii plus rotation. The profile is resampled into world
+        // order for textures and must never be used to reconstruct this path:
+        // fixed-angle interpolation can miss a rotated source peak.
         return RectMorphFrame(
-            path: closedPath(
-                radii: profile.radii,
-                center: profile.center,
-                radius: profile.outerRadius),
+            path: snowflakePath(lerped),
             color: color,
             color2: color2,
             alpha: 1.0,
@@ -228,6 +230,18 @@ extension ProceduralShapeGenerator {
             colorIdx: b.colorIdx,
             folds: a.folds
         )
+    }
+
+    private static func snowflakePath(_ shape: RectMorphShape) -> Path {
+        var points = [CGPoint](repeating: .zero, count: rectMorphN)
+        for index in 0..<rectMorphN {
+            let angle = Double(index) / Double(rectMorphN) * 2 * .pi
+                + shape.rotation
+            points[index] = CGPoint(
+                x: shape.cx + cos(angle) * Double(shape.radii[index]),
+                y: shape.cy + sin(angle) * Double(shape.radii[index]))
+        }
+        return smoothClosedPath(through: points)
     }
 
 }

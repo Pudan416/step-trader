@@ -88,7 +88,11 @@ struct TextureSpec: Codable, Hashable {
 
 struct RadialTextureProfile: Hashable {
     let center: CGPoint
+    /// The immutable source contour's maximum radius.
     let outerRadius: Double
+    /// World-angle samples divided by `outerRadius`. Every value is in
+    /// `(0, 1]`; the sampled maximum can be below `1` when fractional rotation
+    /// places the source peak between two fixed world-angle samples.
     let radii: [Double]
 
     init(center: CGPoint, outerRadius: Double, radii: [Double]) {
@@ -96,7 +100,7 @@ struct RadialTextureProfile: Hashable {
         precondition(outerRadius.isFinite && outerRadius > 0)
         precondition(radii.count >= 3)
         precondition(radii.allSatisfy { $0.isFinite && $0 > 0 })
-        precondition(abs((radii.max() ?? 0) - 1) <= 1e-12)
+        precondition((radii.max() ?? .infinity) <= 1 + 1e-12)
 
         self.center = center
         self.outerRadius = outerRadius
@@ -123,11 +127,10 @@ struct RadialTextureProfile: Hashable {
                 + (Double(sourceRadii[upper]) - Double(sourceRadii[lower])) * fraction
             return value
         }
-        let interpolatedPeak = resampled.max() ?? 0
         self.init(
             center: center,
             outerRadius: sourceOuterRadius,
-            radii: resampled.map { $0 / interpolatedPeak })
+            radii: resampled.map { $0 / sourceOuterRadius })
     }
 
     static func circle(
