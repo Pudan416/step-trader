@@ -1,4 +1,5 @@
 import Foundation
+import HealthKit
 import SwiftUI
 
 struct DetectedWorkout: Identifiable, Equatable {
@@ -14,46 +15,35 @@ struct DetectedWorkout: Identifiable, Equatable {
     var activityName: String { Self.displayName(for: activityType) }
 
     private static func mapToOptionId(activityType: UInt) -> String? {
-        switch activityType {
-        case 37, 52: return "happening_walk"
-        case 13: return "happening_workout"
-        case 46, 50, 20, 35, 16, 56, 24, 36, 57, 63, 38, 17, 47, 62, 6, 25, 32, 10, 55, 4:
-            return "happening_workout"
-        case 15: return nil
-        case 3000: return nil
-        default:
-            AppLogger.app.debug("⚠️ DetectedWorkout.mapToOptionId: no mapping for HKWorkoutActivityType raw=\(activityType, privacy: .public) (name=\(displayName(for: activityType), privacy: .public))")
-            return nil
-        }
+        "health_workout_\(activityType)"
     }
 
     static func displayName(for activityType: UInt) -> String {
-        switch activityType {
-        case 37: "Walking"
-        case 52: "Running"
-        case 13: "Cycling"
-        case 46: "Strength Training"
-        case 50: "Strength Training"
-        case 20: "Cross Training"
-        case 35: "Stair Climbing"
-        case 16: "Core Training"
-        case 56: "Swimming"
-        case 24: "Yoga"
-        case 36: "Pilates"
-        case 57: "Tai Chi"
-        case 63: "Flexibility"
-        case 38: "Hiking"
-        case 17: "Dance"
-        case 47: "HIIT"
-        case 62: "Mind & Body"
-        case 6:  "Boxing"
-        case 25: "Tennis"
-        case 32: "Rowing"
-        case 10: "Climbing"
-        case 55: "Soccer"
-        case 4:  "Basketball"
-        case 15: "Cooldown"
-        case 3000: "Other"
+        switch HKWorkoutActivityType(rawValue: activityType) {
+        case .walking: "Walking"
+        case .running: "Running"
+        case .cycling: "Cycling"
+        case .functionalStrengthTraining, .traditionalStrengthTraining: "Strength Training"
+        case .crossTraining: "Cross Training"
+        case .stairClimbing, .stairs, .stepTraining: "Stair Climbing"
+        case .coreTraining: "Core Training"
+        case .swimming: "Swimming"
+        case .yoga: "Yoga"
+        case .pilates: "Pilates"
+        case .taiChi: "Tai Chi"
+        case .flexibility: "Flexibility"
+        case .hiking: "Hiking"
+        case .dance, .cardioDance, .socialDance: "Dance"
+        case .highIntensityIntervalTraining: "HIIT"
+        case .mindAndBody: "Mind & Body"
+        case .boxing, .kickboxing: "Boxing"
+        case .tennis: "Tennis"
+        case .rowing: "Rowing"
+        case .climbing: "Climbing"
+        case .soccer: "Soccer"
+        case .basketball: "Basketball"
+        case .cooldown: "Cooldown"
+        case .other: "Workout"
         default: "Workout"
         }
     }
@@ -130,24 +120,24 @@ struct ActivitySuggestion: Identifiable, Equatable {
     }
 
     private static func workoutIcon(for activityType: UInt) -> String {
-        switch activityType {
-        case 37: "figure.walk"
-        case 52: "figure.run"
-        case 13: "figure.outdoor.cycle"
-        case 56: "figure.pool.swim"
-        case 24: "figure.yoga"
-        case 36: "figure.pilates"
-        case 38: "figure.hiking"
-        case 17: "figure.dance"
-        case 47: "flame.fill"
-        case 46, 50: "dumbbell.fill"
-        case 10: "figure.climbing"
-        case 25: "figure.tennis"
-        case 55: "soccerball"
-        case 4:  "figure.basketball"
-        case 32: "figure.rowing"
-        case 6:  "figure.boxing"
-        case 57: "figure.taichi"
+        switch HKWorkoutActivityType(rawValue: activityType) {
+        case .walking: "figure.walk"
+        case .running: "figure.run"
+        case .cycling: "figure.outdoor.cycle"
+        case .swimming: "figure.pool.swim"
+        case .yoga: "figure.yoga"
+        case .pilates: "figure.pilates"
+        case .hiking: "figure.hiking"
+        case .dance, .cardioDance, .socialDance: "figure.dance"
+        case .highIntensityIntervalTraining: "flame.fill"
+        case .functionalStrengthTraining, .traditionalStrengthTraining: "dumbbell.fill"
+        case .climbing: "figure.climbing"
+        case .tennis: "figure.tennis"
+        case .soccer: "soccerball"
+        case .basketball: "figure.basketball"
+        case .rowing: "figure.rowing"
+        case .boxing, .kickboxing: "figure.boxing"
+        case .taiChi: "figure.taichi"
         default: "figure.run"
         }
     }

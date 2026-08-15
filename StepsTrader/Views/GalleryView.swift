@@ -626,8 +626,10 @@ struct GalleryView: View {
                     ActivitySuggestionBanner(
                         suggestions: model._pendingActivitySuggestions,
                         onAccept: { suggestion in
-                            model.acceptActivitySuggestion(suggestion)
-                            addAndSpawnHappening(optionId: suggestion.optionId)
+                            guard let optionId = model.acceptActivitySuggestion(suggestion) else {
+                                return
+                            }
+                            addAndSpawnHappening(optionId: optionId)
                         },
                         onDismiss: { suggestion in
                             model.dismissActivitySuggestion(suggestion)

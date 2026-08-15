@@ -86,6 +86,28 @@ extension AppModel {
         }
     }
 
+    /// Adds a detected external activity to the full catalog and to the ten
+    /// active palette slots. Stable ids make this operation idempotent.
+    func installExternalPaletteHappening(id: String, title: String) -> Happening? {
+        let happening = happeningStore.ensureExternalHappening(id: id, title: title)
+        do {
+            if !happeningPaletteSelectionStore.ids.contains(id) {
+                try happeningPaletteSelectionStore.insertReplacingLeastUsed(
+                    id,
+                    catalog: happeningStore.all
+                )
+            }
+            objectWillChange.send()
+            Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
+            return happening
+        } catch {
+            AppLogger.energy.error(
+                "Failed to install external palette happening: \(error.localizedDescription)"
+            )
+            return nil
+        }
+    }
+
     func paletteHappeningCatalog() -> [Happening] {
         happeningStore.all
     }

@@ -14,6 +14,8 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
     var authorizationRequested = false
     var observerStarted = false
     var observerStopped = false
+    var workoutsToReturn: [DetectedWorkout] = []
+    var workoutFetchCount = 0
     private var observerHandler: ((Double) -> Void)?
 
     func fetchSleep(from: Date, to: Date) async throws -> Double {
@@ -43,7 +45,10 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
         observerHandler = updateHandler
     }
 
-    func fetchWorkouts(from: Date, to: Date) async throws -> [DetectedWorkout] { [] }
+    func fetchWorkouts(from: Date, to: Date) async throws -> [DetectedWorkout] {
+        workoutFetchCount += 1
+        return workoutsToReturn
+    }
 
     func fetchMindfulMinutes(from: Date, to: Date) async throws -> Double { 0 }
 
@@ -57,6 +62,112 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
     /// Simulate a step observation update (for testing the callback path).
     func simulateStepUpdate(_ steps: Double) {
         observerHandler?(steps)
+    }
+}
+
+// MARK: - Activity Suggestions
+
+@MainActor
+final class HealthActivitySuggestionTests: XCTestCase {
+    func testHealthWorkoutTypesHaveDistinctStableActivitiesAndCorrectNames() {
+        let cases: [(HKWorkoutActivityType, String)] = [
+            (.walking, "Walking"),
+            (.running, "Running"),
+            (.swimming, "Swimming"),
+            (.yoga, "Yoga")
+        ]
+
+        for (activityType, expectedName) in cases {
+            let workout = DetectedWorkout(
+                id: UUID(),
+                activityType: activityType.rawValue,
+                startDate: .now,
+                endDate: .now,
+                durationMinutes: 20,
+                caloriesBurned: nil,
+                distance: nil
+            )
+
+            XCTAssertEqual(workout.activityName, expectedName)
+            XCTAssertEqual(workout.suggestedOptionId, "health_workout_\(activityType.rawValue)")
+        }
+    }
+
+    func testRefreshSuggestsYogaAsItsOwnHealthActivity() async throws {
+        let healthKit = ConfigurableHealthKitMock()
+        healthKit.workoutsToReturn = [
+            DetectedWorkout(
+                id: UUID(),
+                activityType: HKWorkoutActivityType.yoga.rawValue,
+                startDate: Date.now.addingTimeInterval(-1_800),
+                endDate: Date.now,
+                durationMinutes: 30,
+                caloriesBurned: 100,
+                distance: nil
+            )
+        ]
+        let model = AppModel(
+            healthKitService: healthKit,
+            familyControlsService: MockFamilyControlsService(),
+            notificationService: MockNotificationService(),
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: SubscriptionStore()
+        )
+
+        await model.refreshActivitySuggestions()
+
+        XCTAssertEqual(healthKit.workoutFetchCount, 1)
+        let suggestion = try XCTUnwrap(
+            model.pendingActivitySuggestions.first { $0.source.isWorkout }
+        )
+        XCTAssertEqual(suggestion.optionId, "health_workout_57")
+        XCTAssertEqual(suggestion.title, "Yoga")
+    }
+
+    func testAcceptingYogaInstallsItInCatalogAndActivePalette() throws {
+        let defaults = UserDefaults.stepsTrader()
+        let catalogBefore = defaults.data(forKey: SharedKeys.happeningCatalog)
+        let selectionBefore = defaults.stringArray(forKey: SharedKeys.happeningPaletteSelection)
+        defer {
+            if let catalogBefore {
+                defaults.set(catalogBefore, forKey: SharedKeys.happeningCatalog)
+            } else {
+                defaults.removeObject(forKey: SharedKeys.happeningCatalog)
+            }
+            if let selectionBefore {
+                defaults.set(selectionBefore, forKey: SharedKeys.happeningPaletteSelection)
+            } else {
+                defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
+            }
+        }
+
+        let model = AppModel(
+            healthKitService: ConfigurableHealthKitMock(),
+            familyControlsService: MockFamilyControlsService(),
+            notificationService: MockNotificationService(),
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: SubscriptionStore()
+        )
+        model.happeningStore.load()
+        model.happeningPaletteSelectionStore.load(catalog: model.happeningStore.all)
+        let workout = DetectedWorkout(
+            id: UUID(),
+            activityType: HKWorkoutActivityType.yoga.rawValue,
+            startDate: Date.now.addingTimeInterval(-1_800),
+            endDate: Date.now,
+            durationMinutes: 30,
+            caloriesBurned: nil,
+            distance: nil
+        )
+        let suggestion = try XCTUnwrap(ActivitySuggestion.fromWorkout(workout))
+
+        model.acceptActivitySuggestion(suggestion)
+
+        XCTAssertEqual(
+            model.happeningStore.happening(id: "health_workout_57")?.title,
+            "Yoga"
+        )
+        XCTAssertTrue(model.selectedPaletteHappeningIDs().contains("health_workout_57"))
     }
 }
 
