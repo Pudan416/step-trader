@@ -6,12 +6,6 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
     case expandChevron
     case categoriesRevealed
     case tapPlusButton
-    case categoryExplain
-    case tapMind
-
-    // Inside CategoryDetailView sheet
-    case spotlightFocusing
-    case tapAddToCanvas
 
     // Back on canvas
     case canvasTrace
@@ -35,14 +29,6 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
             return "steps and sleep come from health. body, mind, heart — that's on you"
         case .tapPlusButton:
             return "tap here to add something you did"
-        case .categoryExplain:
-            return "body — movement, physical stuff. mind — reading, learning, focus. heart — people, feelings, kindness"
-        case .tapMind:
-            return "try mind"
-        case .spotlightFocusing:
-            return "tap focusing — you're focused on this text right now. that's enough."
-        case .tapAddToCanvas:
-            return "nice. now tap done"
         case .canvasTrace:
             return "your first trace on the canvas. real things you do become colors here"
         case .goToFeeds:
@@ -72,7 +58,7 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
 
     var requiresSpotlight: Bool {
         switch self {
-        case .categoryExplain, .canvasTrace, .goToFeeds, .allSet:
+        case .canvasTrace, .goToFeeds, .allSet:
             return false
         default:
             return true
@@ -81,8 +67,8 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
 
     var hasNextButton: Bool {
         switch self {
-        case .colorBalance, .categoriesRevealed, .categoryExplain,
-             .canvasTrace, .goToFeeds, .feedsExplain, .unlockSuccess, .allSet:
+        case .colorBalance, .categoriesRevealed, .canvasTrace,
+             .goToFeeds, .feedsExplain, .unlockSuccess, .allSet:
             return true
         default:
             return false
@@ -90,12 +76,7 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
     }
 
     var isSheetStep: Bool {
-        switch self {
-        case .spotlightFocusing, .tapAddToCanvas:
-            return true
-        default:
-            return false
-        }
+        false
     }
 
     /// Steps that only make sense when the user has at least one blocking

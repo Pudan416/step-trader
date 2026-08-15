@@ -65,8 +65,7 @@ struct CoachMarkOverlay: View {
     private func step_needs_passthrough(_ step: CoachMarkStep?) -> Bool {
         guard let step else { return false }
         switch step {
-        case .expandChevron, .tapPlusButton, .tapMind,
-             .tapFeedsTab:
+        case .expandChevron, .tapPlusButton, .tapFeedsTab:
             return true
         default:
             return false
@@ -285,12 +284,7 @@ struct CoachMarkSheetOverlay: View {
     }
 
     private func sheetNeedsPassthrough(_ step: CoachMarkStep) -> Bool {
-        switch step {
-        case .spotlightFocusing, .tapAddToCanvas:
-            return true
-        default:
-            return false
-        }
+        false
     }
 
     private func sheetSpotlight(cutoutRect: CGRect?, passthrough: Bool) -> some View {

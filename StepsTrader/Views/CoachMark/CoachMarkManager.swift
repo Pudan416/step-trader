@@ -54,9 +54,7 @@ final class CoachMarkManager {
     func tabRawValue(for step: CoachMarkStep) -> Int? {
         switch step {
         case .colorBalance, .expandChevron, .categoriesRevealed,
-             .tapPlusButton, .categoryExplain, .tapMind,
-             .spotlightFocusing, .tapAddToCanvas,
-             .canvasTrace, .goToFeeds:
+             .tapPlusButton, .canvasTrace, .goToFeeds:
             return 0
         case .tapFeedsTab:
             return nil

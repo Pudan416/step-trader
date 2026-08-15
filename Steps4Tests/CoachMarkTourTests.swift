@@ -57,6 +57,19 @@ final class CoachMarkTourTests: XCTestCase {
         XCTAssertEqual(manager.currentStep, .allSet)
     }
 
+    func testAddingAHappeningContinuesDirectlyToTheCanvasTrace() {
+        let manager = CoachMarkManager()
+        manager.configure { true }
+        manager.start()
+
+        while manager.currentStep != .tapPlusButton {
+            manager.advance()
+        }
+        manager.completeAction(for: .tapPlusButton)
+
+        XCTAssertEqual(manager.currentStep, .canvasTrace)
+    }
+
     func testClosingTooltip_dropsUnlockCopyWithoutTicketGroups() {
         let without = CoachMarkManager()
         without.configure { false }
@@ -90,9 +103,6 @@ final class CoachMarkTourTests: XCTestCase {
     private static let actionDrivenSteps: Set<CoachMarkStep> = [
         .expandChevron,
         .tapPlusButton,
-        .tapMind,
-        .spotlightFocusing,
-        .tapAddToCanvas,
         .tapFeedsTab
     ]
 

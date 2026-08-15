@@ -213,7 +213,7 @@ extension AppModel {
                 forKey: SharedKeys.lastStartMonitoringLog
             )
             AppLogger.shield.debug("🕛 Late-evening unlock for \(group.name): wall-clock fallback until \(expiry)")
-            return true
+            return nil
         }
 
         // Start-first pattern: avoid calling stopMonitoring before startMonitoring because
