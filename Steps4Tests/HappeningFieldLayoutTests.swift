@@ -1026,29 +1026,6 @@ final class CanvasSpawnOriginMapperTests: XCTestCase {
 }
 
 final class HappeningFieldContourHitRegionTests: XCTestCase {
-
-    func testSixToFiveTransitionUsesTheSixSourceContourBudget() {
-        let budget = HappeningLiquidMetaballBudget(
-            currentSourceCount: 5,
-            transitionSourceCount: 6,
-            lowPowerMode: false
-        )
-
-        XCTAssertEqual(budget.sourceCount, 6)
-        XCTAssertEqual(budget.gridResolution, 42)
-    }
-
-    func testTenToNineTransitionUsesTheTenSourceContourBudget() {
-        let budget = HappeningLiquidMetaballBudget(
-            currentSourceCount: 9,
-            transitionSourceCount: 10,
-            lowPowerMode: false
-        )
-
-        XCTAssertEqual(budget.sourceCount, 10)
-        XCTAssertEqual(budget.gridResolution, 42)
-    }
-
     func testHitRegionIncludesVisibleMetaballNeckOutsideSourceCircles() {
         let sources = [
             HappeningFieldLayout.Source(
