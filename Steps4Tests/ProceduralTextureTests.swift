@@ -12,6 +12,31 @@ final class ProceduralTextureTests: XCTestCase {
             seed: seed, complexity: 0.5, symmetry: 1, time: 0)
     }
 
+    // MARK: - Radial profiles
+
+    func testCircleProfileIsFortyEightUnitRadii() {
+        let profile = RadialTextureProfile.circle(
+            center: CGPoint(x: 12, y: 34), radius: 56, sampleCount: 48)
+        XCTAssertEqual(profile.center, CGPoint(x: 12, y: 34))
+        XCTAssertEqual(profile.outerRadius, 56)
+        XCTAssertEqual(profile.radii.count, 48)
+        XCTAssertTrue(profile.radii.allSatisfy { $0 == 1 })
+    }
+
+    func testProfileNormalisesSourceRadii() {
+        let profile = RadialTextureProfile(
+            center: .zero, sourceRadii: [2, 4, 1, 3], rotation: 0)
+        XCTAssertEqual(profile.outerRadius, 4)
+        XCTAssertEqual(profile.radii.max(), 1)
+        XCTAssertTrue(profile.radii.allSatisfy { $0.isFinite && $0 > 0 })
+    }
+
+    func testQuarterTurnResamplesIntoWorldAngleOrder() {
+        let profile = RadialTextureProfile(
+            center: .zero, sourceRadii: [1, 2, 3, 4], rotation: .pi / 2)
+        XCTAssertEqual(profile.radii, [1, 0.25, 0.5, 0.75])
+    }
+
     // MARK: - Determinism
 
     func testGeometryIsReproducibleFromSeed() {

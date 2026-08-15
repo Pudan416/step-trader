@@ -86,6 +86,48 @@ struct TextureSpec: Codable, Hashable {
 
 // MARK: - Geometry
 
+struct RadialTextureProfile: Hashable {
+    let center: CGPoint
+    let outerRadius: Double
+    let radii: [Double]
+
+    init(center: CGPoint, sourceRadii: [CGFloat], rotation: Double) {
+        precondition(sourceRadii.count >= 3)
+        precondition(sourceRadii.allSatisfy { $0.isFinite && $0 > 0 })
+        self.center = center
+
+        let count = sourceRadii.count
+        let resampled = (0..<count).map { index in
+            let worldAngle = Double(index) / Double(count) * 2 * .pi
+            var localAngle = (worldAngle - rotation)
+                .truncatingRemainder(dividingBy: 2 * .pi)
+            if localAngle < 0 { localAngle += 2 * .pi }
+            let position = localAngle / (2 * .pi) * Double(count)
+            let lower = Int(floor(position)) % count
+            let upper = (lower + 1) % count
+            let fraction = position - floor(position)
+            let value = Double(sourceRadii[lower])
+                + (Double(sourceRadii[upper]) - Double(sourceRadii[lower])) * fraction
+            return value
+        }
+        let outer = resampled.max() ?? 1
+        precondition(outer.isFinite && outer > 0)
+        self.outerRadius = outer
+        self.radii = resampled.map { $0 / outer }
+    }
+
+    static func circle(
+        center: CGPoint,
+        radius: Double,
+        sampleCount: Int = 48
+    ) -> RadialTextureProfile {
+        RadialTextureProfile(
+            center: center,
+            sourceRadii: [CGFloat](repeating: CGFloat(radius), count: sampleCount),
+            rotation: 0)
+    }
+}
+
 /// The cacheable output of a fill, in **unit space**: the contour's radius is
 /// `1.0`, so one cached texture serves the icon, the canvas and a 4K export.
 struct TextureGeometry: Hashable {

@@ -78,6 +78,7 @@ extension ProceduralShapeGenerator {
         let color: Color
         let color2: Color?
         let alpha: Double
+        let textureProfile: RadialTextureProfile
     }
 
     private static let rectMorphN = 64
@@ -119,11 +120,17 @@ extension ProceduralShapeGenerator {
             color2 = nil
         }
 
+        let profile = RadialTextureProfile(
+            center: CGPoint(x: lerped.cx, y: lerped.cy),
+            sourceRadii: lerped.radii,
+            rotation: lerped.rotation)
+
         return RectMorphFrame(
             path: snowflakePath(lerped),
             color: color,
             color2: color2,
-            alpha: 1.0
+            alpha: 1.0,
+            textureProfile: profile
         )
     }
 

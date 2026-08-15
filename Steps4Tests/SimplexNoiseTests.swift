@@ -224,3 +224,38 @@ final class OrganicBlobContourTests: XCTestCase {
         }
     }
 }
+
+// MARK: - Snowflake texture profile
+
+final class SnowflakeTextureProfileTests: XCTestCase {
+    private let rect = CGRect(x: 20, y: 40, width: 200, height: 200)
+
+    func testFrameExposesNormalisedPositiveProfile() {
+        let frame = ProceduralShapeGenerator.rectMorphFrame(
+            seed: 42, time: 3, in: rect)
+        XCTAssertEqual(frame.textureProfile.radii.count, 64)
+        XCTAssertEqual(frame.textureProfile.radii.max() ?? 0, 1, accuracy: 1e-12)
+        XCTAssertTrue(frame.textureProfile.radii.allSatisfy { $0.isFinite && $0 > 0 })
+        XCTAssertGreaterThan(frame.textureProfile.outerRadius, 0)
+    }
+
+    func testProfileIsDeterministic() {
+        let first = ProceduralShapeGenerator.rectMorphFrame(
+            seed: 42, time: 3, in: rect)
+        let second = ProceduralShapeGenerator.rectMorphFrame(
+            seed: 42, time: 3, in: rect)
+        XCTAssertEqual(first.textureProfile, second.textureProfile)
+    }
+
+    func testProfileMovesContinuouslyAcrossSmallTimeStep() {
+        let first = ProceduralShapeGenerator.rectMorphFrame(
+            seed: 42, time: 3, in: rect)
+        let second = ProceduralShapeGenerator.rectMorphFrame(
+            seed: 42, time: 3.01, in: rect)
+        let meanDelta = zip(first.textureProfile.radii, second.textureProfile.radii)
+            .map { abs($0 - $1) }
+            .reduce(0, +) / 64
+        XCTAssertGreaterThan(meanDelta, 0)
+        XCTAssertLessThan(meanDelta, 0.02)
+    }
+}
