@@ -330,6 +330,9 @@ enum SnowflakeShapeRenderer {
                 )
             } else if let textureGeometry {
                 ctx.drawLayer { textureContext in
+                    if spec.kind == .rings {
+                        textureContext.clip(to: currentFrame.path)
+                    }
                     textureContext.opacity = textureStrength
                     ProceduralTexture.draw(
                         textureGeometry,

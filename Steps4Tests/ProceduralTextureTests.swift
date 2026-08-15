@@ -328,6 +328,32 @@ final class RenderCacheTextureTests: XCTestCase {
             seed: seed, complexity: complexity, symmetry: 1, time: 0)
     }
 
+    private func snowflakeElement(optionId: String, seed: UInt64? = nil) -> CanvasElement {
+        var element = CanvasElement.spawn(
+            optionId: optionId, label: optionId, existingElements: [],
+            allowedShapeTypes: [.snowflake], dayKey: "2026-08-10",
+            composition: DayComposition.forDay(
+                dayKey: "2026-08-10", happeningCount: 1))
+        element.shapeSeed = seed
+        return element
+    }
+
+    private func pixelBytes(
+        of image: UIImage
+    ) throws -> (bytes: [UInt8], width: Int, height: Int, bytesPerRow: Int, bytesPerPixel: Int) {
+        let cgImage = try XCTUnwrap(image.cgImage)
+        let data = try XCTUnwrap(cgImage.dataProvider?.data)
+        XCTAssertEqual(cgImage.bitsPerPixel % 8, 0)
+        return (
+            CFDataGetBytePtr(data).map {
+                Array(UnsafeBufferPointer(start: $0, count: CFDataGetLength(data)))
+            } ?? [],
+            cgImage.width,
+            cgImage.height,
+            cgImage.bytesPerRow,
+            cgImage.bitsPerPixel / 8)
+    }
+
     func testDrawingOnlySnowflakeGhostsDoesNotPopulateTextureCache() {
         let cache = RenderCache()
         let element = CanvasElement.spawn(
@@ -346,27 +372,88 @@ final class RenderCacheTextureTests: XCTestCase {
         XCTAssertTrue(cache.textureCache.isEmpty)
     }
 
-    func testDrawingTexturedSnowflakeBodyPopulatesOnlySnowflakeTextureCache() throws {
-        let cache = RenderCache()
-        let element = CanvasElement.spawn(
-            optionId: "body", label: "Body", existingElements: [],
-            allowedShapeTypes: [.snowflake], dayKey: "2026-08-10",
-            composition: DayComposition.forDay(
-                dayKey: "2026-08-10", happeningCount: 1))
+    func testSnowflakeRendererRoutesEveryTextureKindThroughExpectedBranch() throws {
+        let element = snowflakeElement(optionId: "body")
+
+        for kind in TextureKind.allCases {
+            let cache = RenderCache()
+            let spec = TextureSpec(
+                kind: kind, density: 0.7, uniformity: 0.4, angle: 1)
+            let view = Canvas { context, size in
+                SnowflakeShapeRenderer.draw(
+                    element, context: &context, size: size, t: 10,
+                    decay: 0, blendMode: .normal, ampScale: 1,
+                    renderCache: cache, decayedColor: .red, decayedColor2: .blue,
+                    spec: spec)
+            }.frame(width: 200, height: 200)
+
+            _ = ImageRenderer(content: view).uiImage
+
+            if kind == .gradient {
+                XCTAssertTrue(cache.textureCache.isEmpty)
+            } else {
+                XCTAssertEqual(cache.textureCache.count, 1)
+                XCTAssertEqual(
+                    try XCTUnwrap(cache.textureCache.keys.first).family,
+                    .snowflake)
+            }
+        }
+    }
+
+    func testSnowflakeRingsStayInsideCurrentContourAtBucketEdge() throws {
+        let canvasSize = CGSize(width: 400, height: 400)
+        // Seed 100 contributes a 1.0-second texture phase, so 0.499 is the
+        // upper edge of its first 1.5-second cache bucket. It also precedes
+        // the first trail tick, isolating the real current-body renderer.
+        let time = 0.499
+        var element = snowflakeElement(optionId: "bucket-edge", seed: 100)
+        element.basePosition = CGPoint(x: 0.5, y: 0.5)
+        element.phaseOffset = 0
+        element.userSize = 0.38
         let spec = TextureSpec(
-            kind: .rings, density: 0.7, uniformity: 0.4, angle: 1)
-        let view = Canvas { context, size in
+            kind: .rings, density: 1, uniformity: 0, angle: 0)
+
+        let fullCache = RenderCache()
+        let fullView = Canvas { context, size in
             SnowflakeShapeRenderer.draw(
-                element, context: &context, size: size, t: 10,
+                element, context: &context, size: size, t: time,
                 decay: 0, blendMode: .normal, ampScale: 1,
-                renderCache: cache, decayedColor: .red, decayedColor2: .blue,
-                spec: spec)
-        }.frame(width: 200, height: 200)
+                renderCache: fullCache, decayedColor: .white,
+                decayedColor2: .white, spec: spec)
+        }.frame(width: canvasSize.width, height: canvasSize.height)
+        let fullRenderer = ImageRenderer(content: fullView)
+        fullRenderer.scale = 1
+        let full = try pixelBytes(of: XCTUnwrap(fullRenderer.uiImage))
 
-        _ = ImageRenderer(content: view).uiImage
+        let maskCache = RenderCache()
+        let maskView = Canvas { context, size in
+            SnowflakeShapeRenderer.draw(
+                element, context: &context, size: size, t: time,
+                decay: 0, blendMode: .normal, ampScale: 1,
+                renderCache: maskCache, decayedColor: .white,
+                decayedColor2: .white,
+                spec: TextureSpec(
+                    kind: .gradient, density: 1, uniformity: 0, angle: 0))
+        }.frame(width: canvasSize.width, height: canvasSize.height)
+        let maskRenderer = ImageRenderer(content: maskView)
+        maskRenderer.scale = 1
+        let mask = try pixelBytes(of: XCTUnwrap(maskRenderer.uiImage))
 
-        XCTAssertEqual(cache.textureCache.count, 1)
-        XCTAssertEqual(try XCTUnwrap(cache.textureCache.keys.first).family, .snowflake)
+        var escapedPixelCount = 0
+        for y in 0..<full.height {
+            for x in 0..<full.width {
+                let offset = y * full.bytesPerRow + x * full.bytesPerPixel
+                let ringPixel = full.bytes[offset..<(offset + full.bytesPerPixel)].max() ?? 0
+                let maskPixel = mask.bytes[offset..<(offset + mask.bytesPerPixel)].max() ?? 0
+                if ringPixel > 2 && maskPixel <= 2 {
+                    escapedPixelCount += 1
+                }
+            }
+        }
+
+        XCTAssertEqual(
+            escapedPixelCount, 0,
+            "Current-body ring pixels escaped the current Snowflake contour")
     }
 
     /// Removing the cache-hit branch would invoke the provider twice.
