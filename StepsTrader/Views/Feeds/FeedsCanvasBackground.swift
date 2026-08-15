@@ -20,6 +20,7 @@ struct FeedsCanvasBackground: View {
     var body: some View {
         GenerativeCanvasView(
             elements: dayCanvas.elements,
+            dayKey: dayCanvas.dayKey,
             sleepPoints: dayCanvas.sleepPoints,
             stepsPoints: dayCanvas.stepsPoints,
             sleepColor: Color(hex: dayCanvas.sleepColorHex),
