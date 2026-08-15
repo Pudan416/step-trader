@@ -26,6 +26,13 @@ final class RenderCache {
     /// Textures are geometry, not per-frame work. A stipple fill runs a
     /// Poisson sample of up to 90 points; at 20 fps across 15 elements that
     /// would be ~27k samples a second. Generated once per bucket and reused.
+    struct TextureCacheIdentity: Hashable {
+        let family: TextureGeometryFamily
+        let seed: UInt64
+        let spec: TextureSpec
+        let profileKey: Int
+    }
+
     struct TextureCacheKey: Hashable {
         let family: TextureGeometryFamily
         let seed: UInt64
@@ -40,6 +47,14 @@ final class RenderCache {
         /// bucket, which is invisible at this drift rate. This is the
         /// *phased* bucket (see `texturePhase`), not a raw `time` bucket.
         let timeBucket: Int
+
+        var identity: TextureCacheIdentity {
+            TextureCacheIdentity(
+                family: family,
+                seed: seed,
+                spec: spec,
+                profileKey: profileKey)
+        }
     }
 
     /// Seconds per texture bucket. Small enough that a texture never visibly
@@ -64,16 +79,11 @@ final class RenderCache {
         Double(seed % 150) / 100
     }
 
+    private static let textureCacheEntryLimit = 256
+
     var textureCache: [TextureCacheKey: TextureGeometry] = [:]
-    /// The highest bucket a prune has run for. Tracked as a running maximum,
-    /// not "the last bucket we saw" — because different elements' phases
-    /// mean consecutive calls within the same frame can report buckets that
-    /// bounce between two adjacent values (an element on the "ahead" side of
-    /// its phase vs one on the "behind" side). Comparing against the max
-    /// keeps the prune to roughly once per bucket advance regardless of that
-    /// jitter, instead of re-running the full-dictionary filter on almost
-    /// every call.
-    var textureCacheLastPruneBucket: Int = .min
+    private var textureCacheAccessOrder: [TextureCacheKey: UInt64] = [:]
+    private var textureCacheAccessTick: UInt64 = 0
 
     /// Cached lookup. Generates on miss.
     func textureGeometry(
@@ -92,17 +102,12 @@ final class RenderCache {
             spec: spec,
             profileKey: profileKey,
             timeBucket: bucket)
-        if let hit = textureCache[key] { return hit }
-
-        // Drop entries from older buckets so the cache cannot grow unbounded
-        // over a long-running canvas. Keeping `bucket - 1` alongside `bucket`
-        // covers the at-most-one-bucket spread `texturePhase` introduces
-        // across elements, so a phase-behind element's still-current entry
-        // is never evicted early.
-        if bucket > textureCacheLastPruneBucket {
-            textureCache = textureCache.filter { $0.key.timeBucket >= bucket - 1 }
-            textureCacheLastPruneBucket = bucket
+        if let hit = textureCache[key] {
+            recordTextureCacheAccess(for: key)
+            return hit
         }
+
+        pruneTextureCache(identity: key.identity, keepingAround: bucket)
 
         let canonicalTime = (Double(bucket) + 0.5) * Self.textureBucketSeconds - phase
         let geometry = ProceduralTexture.geometry(
@@ -110,6 +115,46 @@ final class RenderCache {
             radii: radiiAtCanonicalTime(canonicalTime),
             seed: seed)
         textureCache[key] = geometry
+        recordTextureCacheAccess(for: key)
+        enforceTextureCacheEntryLimit()
         return geometry
+    }
+
+    /// Keep the current and previous bucket for one stable request identity.
+    /// Other identities may use deliberately offset clocks (OrganicBlob's
+    /// four layers span several buckets), so their bucket numbers are not a
+    /// valid basis for evicting this identity's still-current geometry.
+    private func pruneTextureCache(
+        identity: TextureCacheIdentity,
+        keepingAround bucket: Int
+    ) {
+        let retainedBuckets = [bucket, bucket - 1]
+        let staleKeys = textureCache.keys.filter {
+            $0.identity == identity && !retainedBuckets.contains($0.timeBucket)
+        }
+        for staleKey in staleKeys {
+            removeTextureCacheEntry(for: staleKey)
+        }
+    }
+
+    /// Identity-local retention bounds time history. This global LRU cap also
+    /// bounds changing identities, such as interaction-driven profile keys.
+    private func enforceTextureCacheEntryLimit() {
+        while textureCache.count > Self.textureCacheEntryLimit {
+            guard let leastRecentlyUsed = textureCacheAccessOrder.min(
+                by: { $0.value < $1.value })?.key
+            else { return }
+            removeTextureCacheEntry(for: leastRecentlyUsed)
+        }
+    }
+
+    private func recordTextureCacheAccess(for key: TextureCacheKey) {
+        textureCacheAccessTick &+= 1
+        textureCacheAccessOrder[key] = textureCacheAccessTick
+    }
+
+    private func removeTextureCacheEntry(for key: TextureCacheKey) {
+        textureCache.removeValue(forKey: key)
+        textureCacheAccessOrder.removeValue(forKey: key)
     }
 }

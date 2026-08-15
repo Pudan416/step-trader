@@ -499,6 +499,66 @@ final class RenderCacheTextureTests: XCTestCase {
                                  "Prune should keep the cache bounded to the current and previous bucket")
     }
 
+    /// OrganicBlob renders four layers at `t + layer * 2.3` with seeds spaced
+    /// by 7,919. At t=0 those real clocks span buckets 0, 2, 3, and 4. A
+    /// global highest-bucket prune must not evict another request whose own
+    /// bucket 0 entry is still current.
+    func testOrganicLayerOffsetsDoNotEvictCurrentCircleBucket() {
+        let cache = RenderCache()
+        let spec = TextureSpec(kind: .rings, density: 0.6, uniformity: 0.4, angle: 0)
+        var circleProviderCalls = 0
+
+        func requestCircle() {
+            _ = cache.textureGeometry(
+                family: .circle,
+                seed: 0,
+                spec: spec,
+                profileKey: 0,
+                time: 0,
+                radiiAtCanonicalTime: { _ in
+                    circleProviderCalls += 1
+                    return [Double](repeating: 1, count: 48)
+                })
+        }
+
+        requestCircle()
+        for layer in 0..<4 {
+            let layerSeed = UInt64(layer) &* 7_919
+            _ = cache.textureGeometry(
+                family: .organicBlob,
+                seed: layerSeed,
+                spec: spec,
+                profileKey: 5_000,
+                time: Double(layer) * 2.3,
+                radiiAtCanonicalTime: { _ in self.radii(seed: layerSeed) })
+        }
+        requestCircle()
+
+        XCTAssertEqual(
+            circleProviderCalls,
+            1,
+            "Organic layer clock offsets must not evict a current circle cache entry")
+    }
+
+    /// Identity-local bucket retention must still have an explicit global
+    /// bound when changing profiles create many stable request identities.
+    func testCacheStaysBoundedAcrossManyRequestIdentities() {
+        let cache = RenderCache()
+        let spec = TextureSpec(kind: .rings, density: 0.6, uniformity: 0.4, angle: 0)
+
+        for profileKey in 0..<400 {
+            _ = cache.textureGeometry(
+                family: .circle,
+                seed: 0,
+                spec: spec,
+                profileKey: profileKey,
+                time: 0,
+                radiiAtCanonicalTime: { _ in [Double](repeating: 1, count: 48) })
+        }
+
+        XCTAssertLessThanOrEqual(cache.textureCache.count, 256)
+    }
+
     func testTextureBucketMapsTimeAsIntended() {
         XCTAssertEqual(RenderCache.textureBucket(for: 0), 0)
         XCTAssertEqual(RenderCache.textureBucket(for: 1.49), 0)
@@ -508,10 +568,8 @@ final class RenderCacheTextureTests: XCTestCase {
         XCTAssertEqual(RenderCache.textureBucket(for: -0.1), -1)
     }
 
-    /// Pins Important 1's mechanism: different seeds must land at different
-    /// phases, and the phase must stay within one bucket's width (so any two
-    /// seeds are at most one bucket apart at a given instant — the property
-    /// the prune's `bucket - 1` window relies on).
+    /// Different seeds must land at different deterministic phases, each
+    /// within one bucket's width, so regeneration work remains staggered.
     func testPhaseStaggersDifferentSeeds() {
         XCTAssertNotEqual(RenderCache.texturePhase(for: 0), RenderCache.texturePhase(for: 75))
         for seed: UInt64 in [0, 1, 75, 149, 150, 12_345] {
@@ -521,8 +579,8 @@ final class RenderCacheTextureTests: XCTestCase {
         }
     }
 
-    /// Pins the prune-safety half of Important 1: inserting a phased-ahead
-    /// seed's entry must not evict a phased-behind seed's still-current one.
+    /// Identity-local retention must not let a phased-ahead request evict a
+    /// phased-behind request's still-current entry.
     /// seed 0 has phase 0, seed 75 has phase 0.75 — at real time 0.8 that
     /// puts them one bucket apart (buckets 0 and 1), the maximum spread
     /// `texturePhase` can produce.
