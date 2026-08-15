@@ -6,6 +6,8 @@ import SwiftUI
 @MainActor
 enum SnowflakeShapeRenderer {
 
+    private static let textureStrength = 0.82
+
     // MARK: - Positioning (Lissajous drift)
 
     private static let clampMargin: Double = 0.06
@@ -172,7 +174,7 @@ enum SnowflakeShapeRenderer {
 
     // MARK: - Drawing
 
-    static func draw(
+    static func drawTrailGhosts(
         _ e: CanvasElement,
         context: inout GraphicsContext,
         size: CGSize,
@@ -185,9 +187,8 @@ enum SnowflakeShapeRenderer {
         decayedColor2: Color? = nil
     ) {
         let breathePhase = sin(t * (0.25 + e.phaseOffset * 0.1) + e.phaseOffset * 3.7)
-        let center = center(e, size: size, t: t, ampScale: ampScale, renderCache: renderCache)
         let r = radius(e, size: size, t: t, ampScale: ampScale)
-        let seed = e.shapeSeed ?? UInt64(bitPattern: Int64(e.id.hashValue))
+        let seed = e.shapeSeed ?? CanvasElement.stableSeed(for: e.id)
         let idleOpacity = (0.92 + breathePhase * 0.04) * (1.0 - decay * 0.3)
         let trailLen = 20
         let trailSpacing: Double = 0.7
@@ -252,6 +253,33 @@ enum SnowflakeShapeRenderer {
                 )
             }
         }
+    }
+
+    static func draw(
+        _ e: CanvasElement,
+        context: inout GraphicsContext,
+        size: CGSize,
+        t: Double,
+        decay: Double,
+        blendMode: GraphicsContext.BlendMode,
+        ampScale: Double,
+        renderCache: RenderCache,
+        decayedColor: Color? = nil,
+        decayedColor2: Color? = nil,
+        spec: TextureSpec
+    ) {
+        drawTrailGhosts(
+            e, context: &context, size: size, t: t, decay: decay,
+            blendMode: blendMode, ampScale: ampScale,
+            renderCache: renderCache, decayedColor: decayedColor,
+            decayedColor2: decayedColor2)
+
+        let breathePhase = sin(t * (0.25 + e.phaseOffset * 0.1) + e.phaseOffset * 3.7)
+        let center = center(e, size: size, t: t, ampScale: ampScale, renderCache: renderCache)
+        let r = radius(e, size: size, t: t, ampScale: ampScale)
+        let seed = e.shapeSeed ?? CanvasElement.stableSeed(for: e.id)
+        let idleOpacity = (0.92 + breathePhase * 0.04) * (1.0 - decay * 0.3)
+        let strokeW: CGFloat = 1.2
 
         let morphRect = CGRect(
             x: center.x - r, y: center.y - r,
@@ -266,20 +294,55 @@ enum SnowflakeShapeRenderer {
         let c2 = decayedColor2 ?? currentFrame.color2 ?? c1
 
         let rotAngle = Angle.degrees(t * 8 + e.phaseOffset * 120)
+        let profile = currentFrame.textureProfile
+        let textureGeometry: TextureGeometry?
+        if spec.kind == .gradient {
+            textureGeometry = nil
+        } else {
+            textureGeometry = renderCache.textureGeometry(
+                family: .snowflake,
+                seed: seed,
+                spec: spec,
+                profileKey: 0,
+                time: t,
+                radiiAtCanonicalTime: { canonicalTime in
+                    ProceduralShapeGenerator.rectMorphFrame(
+                        seed: seed, time: canonicalTime, in: morphRect,
+                        elementColor: decayedColor,
+                        elementColor2: decayedColor2
+                    ).textureProfile.radii
+                })
+        }
 
         context.drawLayer { ctx in
             ctx.opacity = idleOpacity
             ctx.blendMode = blendMode
 
-            let fillGrad = Gradient(stops: [
-                .init(color: c1.opacity(0.12), location: 0),
-                .init(color: c2.opacity(0.28), location: 0.5),
-                .init(color: c1.opacity(0.12), location: 1.0),
-            ])
-            ctx.fill(
-                currentFrame.path,
-                with: .conicGradient(fillGrad, center: center, angle: rotAngle)
-            )
+            if spec.kind == .gradient {
+                let fillGrad = Gradient(stops: [
+                    .init(color: c1.opacity(0.12), location: 0),
+                    .init(color: c2.opacity(0.28), location: 0.5),
+                    .init(color: c1.opacity(0.12), location: 1.0),
+                ])
+                ctx.fill(
+                    currentFrame.path,
+                    with: .conicGradient(fillGrad, center: center, angle: rotAngle)
+                )
+            } else if let textureGeometry {
+                ctx.drawLayer { textureContext in
+                    textureContext.opacity = textureStrength
+                    ProceduralTexture.draw(
+                        textureGeometry,
+                        spec: spec,
+                        contour: currentFrame.path,
+                        context: &textureContext,
+                        center: profile.center,
+                        radius: profile.outerRadius,
+                        color: c1,
+                        color2: decayedColor2 ?? currentFrame.color2,
+                        gradientCenter: profile.center)
+                }
+            }
 
             let strokeGrad = Gradient(stops: [
                 .init(color: c1, location: 0),

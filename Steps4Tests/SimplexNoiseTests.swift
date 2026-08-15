@@ -269,6 +269,27 @@ final class SnowflakeTextureProfileTests: XCTestCase {
         XCTAssertLessThan(meanDelta, 0.02)
     }
 
+    func testEveryTextureKindBuildsSnowflakeGeometry() {
+        let frame = ProceduralShapeGenerator.rectMorphFrame(
+            seed: 42, time: 3, in: rect)
+        for kind in TextureKind.allCases {
+            let spec = TextureSpec(
+                kind: kind, density: 0.7, uniformity: 0.4, angle: 1)
+            let geometry = ProceduralTexture.geometry(
+                spec: spec, radii: frame.textureProfile.radii, seed: 42)
+            switch kind {
+            case .flat, .gradient:
+                XCTAssertEqual(geometry, TextureGeometry())
+            case .rings:
+                XCTAssertFalse(geometry.rings.isEmpty)
+            case .hatch:
+                XCTAssertFalse(geometry.lines.isEmpty)
+            case .stipple:
+                XCTAssertFalse(geometry.dots.isEmpty)
+            }
+        }
+    }
+
     func testFramePathPreservesLegacySnowflakeCurveGeometry() {
         let frame = ProceduralShapeGenerator.rectMorphFrame(
             seed: 42, time: 3, in: rect)

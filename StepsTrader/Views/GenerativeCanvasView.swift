@@ -435,7 +435,11 @@ struct GenerativeCanvasView: View {
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
                     renderCache: renderCache,
-                    decayedColor: color, decayedColor2: color2
+                    decayedColor: color, decayedColor2: color2,
+                    spec: CanvasElement.textureSpec(
+                        rank: renderCache.sortedIndexMap[element.id] ?? 0,
+                        dayKey: dayKey,
+                        composition: dayComposition)
                 )
             case .rays:
                 RayShapeRenderer.draw(

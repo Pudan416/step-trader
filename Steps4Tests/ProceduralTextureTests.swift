@@ -328,6 +328,47 @@ final class RenderCacheTextureTests: XCTestCase {
             seed: seed, complexity: complexity, symmetry: 1, time: 0)
     }
 
+    func testDrawingOnlySnowflakeGhostsDoesNotPopulateTextureCache() {
+        let cache = RenderCache()
+        let element = CanvasElement.spawn(
+            optionId: "ghost", label: "Ghost", existingElements: [],
+            allowedShapeTypes: [.snowflake], dayKey: "2026-08-10",
+            composition: DayComposition.forDay(
+                dayKey: "2026-08-10", happeningCount: 1))
+        let view = Canvas { context, size in
+            SnowflakeShapeRenderer.drawTrailGhosts(
+                element, context: &context, size: size, t: 10,
+                decay: 0, blendMode: .normal, ampScale: 1,
+                renderCache: cache, decayedColor: .red, decayedColor2: .blue)
+        }.frame(width: 200, height: 200)
+        let renderer = ImageRenderer(content: view)
+        _ = renderer.uiImage
+        XCTAssertTrue(cache.textureCache.isEmpty)
+    }
+
+    func testDrawingTexturedSnowflakeBodyPopulatesOnlySnowflakeTextureCache() throws {
+        let cache = RenderCache()
+        let element = CanvasElement.spawn(
+            optionId: "body", label: "Body", existingElements: [],
+            allowedShapeTypes: [.snowflake], dayKey: "2026-08-10",
+            composition: DayComposition.forDay(
+                dayKey: "2026-08-10", happeningCount: 1))
+        let spec = TextureSpec(
+            kind: .rings, density: 0.7, uniformity: 0.4, angle: 1)
+        let view = Canvas { context, size in
+            SnowflakeShapeRenderer.draw(
+                element, context: &context, size: size, t: 10,
+                decay: 0, blendMode: .normal, ampScale: 1,
+                renderCache: cache, decayedColor: .red, decayedColor2: .blue,
+                spec: spec)
+        }.frame(width: 200, height: 200)
+
+        _ = ImageRenderer(content: view).uiImage
+
+        XCTAssertEqual(cache.textureCache.count, 1)
+        XCTAssertEqual(try XCTUnwrap(cache.textureCache.keys.first).family, .snowflake)
+    }
+
     /// Removing the cache-hit branch would invoke the provider twice.
     func testRepeatCallWithinOneBucketIsCached() {
         let cache = RenderCache()
