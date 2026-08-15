@@ -288,11 +288,21 @@ final class ProceduralTextureTests: XCTestCase {
                 let spec = TextureSpec(kind: kind, density: 1.0,
                                        uniformity: 0.0, angle: 1.2)
                 let g = ProceduralTexture.geometry(spec: spec, radii: radii(), seed: seed)
-                XCTAssertLessThanOrEqual(g.dots.count, 90, "\(kind) dots")
+                XCTAssertLessThanOrEqual(g.dots.count, 50, "\(kind) dots")
                 XCTAssertLessThanOrEqual(g.lines.count, 40, "\(kind) lines")
                 XCTAssertLessThanOrEqual(g.rings.count, 8, "\(kind) rings")
             }
         }
+    }
+
+    func testHighDensityStippleUsesTheColdGenerationBudget() {
+        let spec = TextureSpec(
+            kind: .stipple, density: 1, uniformity: 1, angle: 1.2)
+        let geometry = ProceduralTexture.geometry(
+            spec: spec, radii: radii(), seed: 73)
+
+        XCTAssertLessThanOrEqual(geometry.dots.count, 50)
+        XCTAssertGreaterThan(geometry.dots.count, 10)
     }
 
     // MARK: - Seeded specs
@@ -402,10 +412,9 @@ final class RenderCacheTextureTests: XCTestCase {
 
     func testSnowflakeRingsStayInsideCurrentContourAtBucketEdge() throws {
         let canvasSize = CGSize(width: 400, height: 400)
-        // Seed 100 contributes a 1.0-second texture phase, so 0.499 is the
-        // upper edge of its first 1.5-second cache bucket. It also precedes
-        // the first trail tick, isolating the real current-body renderer.
-        let time = 0.499
+        // Use the upper edge of the bucket immediately before time zero. It
+        // also precedes the first trail tick, isolating the current body.
+        let time = -RenderCache.texturePhase(for: 100) - 0.001
         var element = snowflakeElement(optionId: "bucket-edge", seed: 100)
         element.basePosition = CGPoint(x: 0.5, y: 0.5)
         element.phaseOffset = 0
@@ -460,6 +469,7 @@ final class RenderCacheTextureTests: XCTestCase {
     func testRepeatCallWithinOneBucketIsCached() {
         let cache = RenderCache()
         let spec = TextureSpec(kind: .stipple, density: 0.7, uniformity: 0.3, angle: 0)
+        let phase = RenderCache.texturePhase(for: 5)
         var providerCalls = 0
 
         let first = cache.textureGeometry(
@@ -467,7 +477,7 @@ final class RenderCacheTextureTests: XCTestCase {
             seed: 5,
             spec: spec,
             profileKey: 5_000,
-            time: 0.2,
+            time: 0.2 - phase,
             radiiAtCanonicalTime: { _ in
                 providerCalls += 1
                 return self.radii(seed: 1)
@@ -477,7 +487,7 @@ final class RenderCacheTextureTests: XCTestCase {
             seed: 5,
             spec: spec,
             profileKey: 5_000,
-            time: 0.9,
+            time: 0.9 - phase,
             radiiAtCanonicalTime: { _ in
                 providerCalls += 1
                 return self.radii(seed: 99)
@@ -543,6 +553,9 @@ final class RenderCacheTextureTests: XCTestCase {
     func testProviderReceivesCanonicalBucketTimeOnlyOnce() {
         let cache = RenderCache()
         let spec = TextureSpec(kind: .rings, density: 0.6, uniformity: 0.4, angle: 0)
+        let phase = RenderCache.texturePhase(for: 75)
+        let firstTime = 0.2 - phase
+        let secondTime = 0.9 - phase
         var received: [Double] = []
 
         _ = cache.textureGeometry(
@@ -550,7 +563,7 @@ final class RenderCacheTextureTests: XCTestCase {
             seed: 75,
             spec: spec,
             profileKey: 0,
-            time: 0.9,
+            time: firstTime,
             radiiAtCanonicalTime: {
                 received.append($0)
                 return [1, 0.5, 1, 0.5]
@@ -560,7 +573,7 @@ final class RenderCacheTextureTests: XCTestCase {
             seed: 75,
             spec: spec,
             profileKey: 0,
-            time: 1.1,
+            time: secondTime,
             radiiAtCanonicalTime: {
                 received.append($0)
                 return [1, 0.2, 1, 0.2]
@@ -568,16 +581,19 @@ final class RenderCacheTextureTests: XCTestCase {
 
         XCTAssertEqual(received.count, 1)
         let bucket = RenderCache.textureBucket(
-            for: 0.9 + RenderCache.texturePhase(for: 75))
+            for: firstTime + phase)
         let expected = (Double(bucket) + 0.5) * RenderCache.textureBucketSeconds
-            - RenderCache.texturePhase(for: 75)
+            - phase
         XCTAssertEqual(received[0], expected, accuracy: 1e-12)
     }
 
     /// Using the first request's render time to build geometry would make the
-    /// winning value depend on whether 0.9 or 1.1 reached an empty cache first.
+    /// winning value depend on which request reached an empty cache first.
     func testCanonicalGeometryIsIndependentOfCallOrderWithinBucket() {
         let spec = TextureSpec(kind: .rings, density: 0.6, uniformity: 0.4, angle: 0)
+        let phase = RenderCache.texturePhase(for: 75)
+        let earlier = 0.2 - phase
+        let later = 0.9 - phase
 
         func geometry(firstTime: Double, secondTime: Double) -> TextureGeometry {
             let cache = RenderCache()
@@ -602,8 +618,8 @@ final class RenderCacheTextureTests: XCTestCase {
         }
 
         XCTAssertEqual(
-            geometry(firstTime: 0.9, secondTime: 1.1),
-            geometry(firstTime: 1.1, secondTime: 0.9))
+            geometry(firstTime: earlier, secondTime: later),
+            geometry(firstTime: later, secondTime: earlier))
     }
 
     /// Pins the prune: repeatedly advancing the bucket must not let the
@@ -707,17 +723,38 @@ final class RenderCacheTextureTests: XCTestCase {
         }
     }
 
+    /// Using only `seed % 150` makes every seed in this arithmetic progression
+    /// regenerate on one 20 fps frame. Full-seed mixing must keep the maximum
+    /// synchronous miss batch small enough for the 55 ms frame budget.
+    func testFullSeedPhaseSpreadsModuloCollisionsAcrossTwentyFPSFrames() {
+        let seeds = (0..<15).map { UInt64($0) * 150 }
+        let frameSlots = seeds.map {
+            Int(RenderCache.texturePhase(for: $0) / 0.05)
+        }
+        let largestBatch = Dictionary(grouping: frameSlots, by: { $0 })
+            .values.map(\.count).max() ?? 0
+
+        XCTAssertLessThanOrEqual(largestBatch, 2)
+    }
+
     /// Identity-local retention must not let a phased-ahead request evict a
-    /// phased-behind request's still-current entry.
-    /// seed 0 has phase 0, seed 75 has phase 0.75 — at real time 0.8 that
-    /// puts them one bucket apart (buckets 0 and 1), the maximum spread
-    /// `texturePhase` can produce.
+    /// phased-behind request's still-current entry. Select the minimum and
+    /// maximum phases from a stable seed set, then place them one bucket apart.
     func testStaggeredPhasesDoNotEvictEachOtherPrematurely() {
         let cache = RenderCache()
         let spec = TextureSpec(kind: .rings, density: 0.5, uniformity: 0.5, angle: 0)
-        let seedBehind: UInt64 = 0
-        let seedAhead: UInt64 = 75
-        let t = 0.8
+        let phasedSeeds = (0..<15).map { rank -> (seed: UInt64, phase: Double) in
+            let seed = UInt64(rank) * 150
+            return (seed, RenderCache.texturePhase(for: seed))
+        }
+        let behind = phasedSeeds.min { $0.phase < $1.phase }!
+        let ahead = phasedSeeds.max { $0.phase < $1.phase }!
+        let seedBehind = behind.seed
+        let seedAhead = ahead.seed
+        let t = RenderCache.textureBucketSeconds - ahead.phase + 0.001
+
+        XCTAssertEqual(RenderCache.textureBucket(for: t + behind.phase), 0)
+        XCTAssertEqual(RenderCache.textureBucket(for: t + ahead.phase), 1)
 
         let firstBehind = cache.textureGeometry(
             family: .organicBlob,

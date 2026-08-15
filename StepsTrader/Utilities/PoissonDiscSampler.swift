@@ -132,6 +132,23 @@ enum PoissonDiscSampler {
         guard maxPoints > 0 else { return [] }
         var points = [firstPoint(in: bounds, weight: weight, using: &rng)]
 
+        // A minDistance-wide cell only needs its eight neighbours checked.
+        // The one-cell border makes those lookups bounds-check-free at the
+        // edges. Store point indices in a flat array: dictionary hashing and
+        // temporary neighbour keys dominated cold stipple generation in
+        // Debug builds even though the accepted geometry is small.
+        let gridWidth = max(1, Int(ceil(Double(bounds.width) / minDistance))) + 2
+        let gridHeight = max(1, Int(ceil(Double(bounds.height) / minDistance))) + 2
+        func gridCoordinates(for point: CGPoint) -> (x: Int, y: Int) {
+            (
+                Int(floor((Double(point.x) - Double(bounds.minX)) / minDistance)) + 1,
+                Int(floor((Double(point.y) - Double(bounds.minY)) / minDistance)) + 1
+            )
+        }
+        var grid = [[Int]](repeating: [], count: gridWidth * gridHeight)
+        let firstCell = gridCoordinates(for: points[0])
+        grid[firstCell.y * gridWidth + firstCell.x].append(0)
+
         // Frontier of points still worth growing from — the active list in
         // Bridson's formulation.
         var active = [0]
@@ -155,16 +172,33 @@ enum PoissonDiscSampler {
                     around: anchor, radius: minDistance, using: &rng)
                 guard bounds.contains(candidate) else { continue }
 
-                let clearance = points
-                    .map { Double(hypot($0.x - candidate.x, $0.y - candidate.y)) }
-                    .min() ?? .infinity
-                guard clearance >= minDistance else { continue }
+                let candidateCell = gridCoordinates(for: candidate)
+                var clearsMinimumDistance = true
+                neighbourSearch: for yOffset in -1...1 {
+                    for xOffset in -1...1 {
+                        let cellIndex = (candidateCell.y + yOffset) * gridWidth
+                            + candidateCell.x + xOffset
+                        for pointIndex in grid[cellIndex] {
+                            let point = points[pointIndex]
+                            let clearance = Double(hypot(
+                                point.x - candidate.x,
+                                point.y - candidate.y))
+                            if clearance < minDistance {
+                                clearsMinimumDistance = false
+                                break neighbourSearch
+                            }
+                        }
+                    }
+                }
+                guard clearsMinimumDistance else { continue }
 
                 // Weight thins the field rather than gating it, so a low-weight
                 // region ends up sparse instead of empty.
                 guard rng.nextDouble() < biased(weight(candidate)) else { continue }
 
                 points.append(candidate)
+                grid[candidateCell.y * gridWidth + candidateCell.x]
+                    .append(points.count - 1)
                 active.append(points.count - 1)
                 placed = true
                 break

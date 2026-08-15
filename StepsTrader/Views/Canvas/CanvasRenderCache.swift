@@ -24,8 +24,8 @@ final class RenderCache {
     var mindPositionCacheElementHash: Int = .min
 
     /// Textures are geometry, not per-frame work. A stipple fill runs a
-    /// Poisson sample of up to 90 points; at 20 fps across 15 elements that
-    /// would be ~27k samples a second. Generated once per bucket and reused.
+    /// Poisson sample of up to 50 points; at 20 fps across 15 elements that
+    /// would be ~15k samples a second. Generated once per bucket and reused.
     struct TextureCacheIdentity: Hashable {
         let family: TextureGeometryFamily
         let seed: UInt64
@@ -68,15 +68,15 @@ final class RenderCache {
     /// Per-seed offset folded into the bucket clock. Without this, every
     /// element's front layer uses the same `layerT` offset, so all buckets
     /// flip on the same frame: one frame in every ~1.5s pays for ~15 Poisson
-    /// fills back to back (each up to 90 points × 20 candidates, plus an
-    /// O(n) clearance scan per candidate) instead of that cost being spread
-    /// out. Folding a seed-derived phase into the bucket desynchronises the
-    /// flips. Deterministic — derived only from `seed`, never wall-clock or
-    /// a counter — so identical replays still land on identical buckets.
+    /// fills back to back instead of that cost being spread out. Folding a
+    /// full-seed-derived phase into the bucket desynchronises the flips.
+    /// Deterministic — derived only from `seed`, never wall-clock or a counter
+    /// — so identical replays still land on identical buckets.
     /// Range `[0, textureBucketSeconds)`, i.e. up to a full bucket width, so
     /// any two seeds land at most one bucket apart at any given instant.
     static func texturePhase(for seed: UInt64) -> Double {
-        Double(seed % 150) / 100
+        var rng = SeededRNG.derived(from: seed, domain: "texturePhase")
+        return rng.nextDouble() * textureBucketSeconds
     }
 
     private static let textureCacheEntryLimit = 256

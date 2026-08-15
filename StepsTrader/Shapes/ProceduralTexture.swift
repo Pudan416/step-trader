@@ -178,7 +178,7 @@ struct TextureGeometry: Hashable {
 enum ProceduralTexture {
 
     // Budget ceilings, enforced by ProceduralTextureTests.
-    private static let maxDots = 90
+    private static let maxDots = 50
     private static let maxLines = 40
     private static let maxRings = 8
 
