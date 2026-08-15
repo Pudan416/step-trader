@@ -1,6 +1,33 @@
 import Foundation
 import SwiftUI
 
+/// Decode-only bridge for canvases written before happenings. It must never
+/// escape into the domain model or be encoded by new builds.
+private enum LegacyCategory: String, Decodable {
+    case body, mind, heart
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        switch raw {
+        case "body", "activity": self = .body
+        case "mind", "creativity", "recovery", "rest": self = .mind
+        case "heart", "joys": self = .heart
+        default:
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "Unknown legacy category: \(raw)")
+            )
+        }
+    }
+
+    var frozenShapeType: CanvasShapeType {
+        switch self {
+        case .body: .circle
+        case .mind: .snowflake
+        case .heart: .rays
+        }
+    }
+}
+
 // MARK: - Element Kind (shape type per category)
 
 enum ElementKind: String, Codable, CaseIterable {
@@ -13,7 +40,6 @@ enum ElementKind: String, Codable, CaseIterable {
 struct CanvasElement: Identifiable, Codable {
     let id: UUID
     var kind: ElementKind
-    let category: EnergyCategory
     let optionId: String
 
     /// Display name shown on the canvas (e.g. "Running", "Reading"). Nil for older saved elements.
@@ -76,17 +102,15 @@ struct CanvasElement: Identifiable, Codable {
     var displayLabel: String { label ?? optionId }
 
     /// The shape type to use for rendering. Returns the frozen value if available,
-    /// otherwise falls back to the user's current preference for that category.
-    /// Always migrates legacy `.blob` → `.circle`.
+    /// Newly spawned and decoded elements always freeze a shape.
     var resolvedShapeType: CanvasShapeType {
-        let shape = frozenShapeType ?? CanvasShapeType.resolved(for: category)
+        let shape = frozenShapeType ?? .circle
         return shape == .blob ? .circle : shape
     }
 
-    init(id: UUID, kind: ElementKind, category: EnergyCategory, optionId: String, label: String?, hexColor: String, hexColor2: String? = nil, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0, shapeSeed: UInt64? = nil, userSize: CGFloat? = nil, activityCount: Int? = nil, lastEditedAt: Date? = nil, frozenShapeType: CanvasShapeType? = nil) {
+    init(id: UUID, kind: ElementKind, optionId: String, label: String?, hexColor: String, hexColor2: String? = nil, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0, shapeSeed: UInt64? = nil, userSize: CGFloat? = nil, activityCount: Int? = nil, lastEditedAt: Date? = nil, frozenShapeType: CanvasShapeType? = nil) {
         self.id = id
         self.kind = kind
-        self.category = category
         self.optionId = optionId
         self.label = label
         self.hexColor = hexColor
@@ -152,8 +176,8 @@ struct CanvasElement: Identifiable, Codable {
         // All categories now use procedural rendering driven by shapeSeed.
         shapeSeed = UInt64.random(in: UInt64.min...UInt64.max)
 
-        // Freeze current shape preference so historical renders stay stable.
-        let resolvedShape = CanvasShapeType.resolved(for: category)
+        // Freeze one currently allowed shape so historical renders stay stable.
+        let resolvedShape = CanvasShapeType.allowedByUser.randomElement() ?? .circle
         frozenShapeType = resolvedShape
         let newSize: CGFloat = switch resolvedShape {
         case .blob:        .random(in: 0.16...0.32)
@@ -181,17 +205,18 @@ struct CanvasElement: Identifiable, Codable {
     }
 
     static func spawn(
+        id: UUID = UUID(),
         optionId: String,
-        category: EnergyCategory,
         color: String,
         color2: String? = nil,
         label: String,
         existingElements: [CanvasElement],
         forcedVariant: Int? = nil,
+        allowedShapeTypes: [CanvasShapeType] = CanvasShapeType.allowedByUser,
         dayKey: String? = nil,
         activityCount: Int? = nil
     ) -> CanvasElement {
-        let shapeType = CanvasShapeType.resolved(for: category)
+        let shapeType = allowedShapeTypes.randomElement() ?? .circle
 
         let kind: ElementKind = switch shapeType {
             case .blob, .organicBlob, .snowflake, .circle, .spirograph: .circle
@@ -221,9 +246,8 @@ struct CanvasElement: Identifiable, Codable {
             ?? UInt64.random(in: UInt64.min...UInt64.max)
 
         return CanvasElement(
-            id: UUID(),
+            id: id,
             kind: kind,
-            category: category,
             optionId: optionId,
             label: label,
             hexColor: color,
@@ -257,7 +281,7 @@ struct CanvasElement: Identifiable, Codable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         kind = try c.decode(ElementKind.self, forKey: .kind)
-        category = try c.decode(EnergyCategory.self, forKey: .category)
+        let legacyCategory = try c.decodeIfPresent(LegacyCategory.self, forKey: .category)
         optionId = try c.decode(String.self, forKey: .optionId)
         label = try c.decodeIfPresent(String.self, forKey: .label)
         let rawHex = try c.decode(String.self, forKey: .hexColor)
@@ -281,7 +305,8 @@ struct CanvasElement: Identifiable, Codable {
         activityCount = try c.decodeIfPresent(Int.self, forKey: .activityCount)
         lastEditedAt = try c.decodeIfPresent(Date.self, forKey: .lastEditedAt)
         frozenShapeType = try c.decodeIfPresent(CanvasShapeType.self, forKey: .frozenShapeType)
-            ?? CanvasShapeType.defaultShape(for: category)
+            ?? legacyCategory?.frozenShapeType
+            ?? .circle
 
         if let h2 = rawHex2 {
             hexColor2 = CanvasColorPalette.migrateLegacyColor(h2)
@@ -296,7 +321,6 @@ struct CanvasElement: Identifiable, Codable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
         try c.encode(kind, forKey: .kind)
-        try c.encode(category, forKey: .category)
         try c.encode(optionId, forKey: .optionId)
         try c.encodeIfPresent(label, forKey: .label)
         try c.encode(hexColor, forKey: .hexColor)

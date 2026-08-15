@@ -1755,26 +1755,30 @@ struct OnboardingStoriesView: View {
 
     private static let onboardingCanvasElements: [CanvasElement] = {
         let palette = CanvasColorPalette.paletteHex
-        let specs: [(cat: EnergyCategory, optionId: String, kind: ElementKind, size: CGFloat, pos: CGPoint, variant: Int)] = [
-            (.body,  "stretching",      .circle, 0.26, CGPoint(x: 0.22, y: 0.08), 0),
-            (.body,  "physical effort",  .circle, 0.24, CGPoint(x: 0.72, y: 0.06), 1),
-            (.mind,  "calm",            .circle, 0.13, CGPoint(x: 0.10, y: 0.30), 0),
-            (.heart, "connection",       .ray,    0.20, CGPoint(x: 0.88, y: 0.28), 1),
-            (.body,  "walking",          .circle, 0.28, CGPoint(x: 0.50, y: 0.42), 2),
-            (.mind,  "focusing",         .circle, 0.12, CGPoint(x: 0.25, y: 0.50), 3),
-            (.heart, "gratitude",        .ray,    0.18, CGPoint(x: 0.75, y: 0.52), 4),
-            (.mind,  "learning",         .circle, 0.14, CGPoint(x: 0.45, y: 0.60), 5),
-            (.heart, "joy",              .ray,    0.16, CGPoint(x: 0.08, y: 0.62), 6),
-            (.body,  "resting",          .circle, 0.22, CGPoint(x: 0.40, y: 0.78), 0),
-            (.mind,  "thinking",         .circle, 0.15, CGPoint(x: 0.42, y: 0.90), 7),
-            (.heart, "observing",        .ray,    0.19, CGPoint(x: 0.88, y: 0.85), 8),
+        // Shapes are frozen per element rather than derived from a category —
+        // the values below are exactly what the old body/mind/heart mapping
+        // produced, so the slides render unchanged. The demo must not read the
+        // user's `allowedCanvasShapes`: an onboarding user has not configured
+        // it, and a random shape would make the slide differ between runs.
+        let specs: [(shape: CanvasShapeType, optionId: String, kind: ElementKind, size: CGFloat, pos: CGPoint, variant: Int)] = [
+            (.circle,    "stretching",      .circle, 0.26, CGPoint(x: 0.22, y: 0.08), 0),
+            (.circle,    "physical effort",  .circle, 0.24, CGPoint(x: 0.72, y: 0.06), 1),
+            (.snowflake, "calm",            .circle, 0.13, CGPoint(x: 0.10, y: 0.30), 0),
+            (.rays,      "connection",       .ray,    0.20, CGPoint(x: 0.88, y: 0.28), 1),
+            (.circle,    "walking",          .circle, 0.28, CGPoint(x: 0.50, y: 0.42), 2),
+            (.snowflake, "focusing",         .circle, 0.12, CGPoint(x: 0.25, y: 0.50), 3),
+            (.rays,      "gratitude",        .ray,    0.18, CGPoint(x: 0.75, y: 0.52), 4),
+            (.snowflake, "learning",         .circle, 0.14, CGPoint(x: 0.45, y: 0.60), 5),
+            (.rays,      "joy",              .ray,    0.16, CGPoint(x: 0.08, y: 0.62), 6),
+            (.circle,    "resting",          .circle, 0.22, CGPoint(x: 0.40, y: 0.78), 0),
+            (.snowflake, "thinking",         .circle, 0.15, CGPoint(x: 0.42, y: 0.90), 7),
+            (.rays,      "observing",        .ray,    0.19, CGPoint(x: 0.88, y: 0.85), 8),
         ]
         let refDate = Date(timeIntervalSinceReferenceDate: 1000)
         return specs.enumerated().map { (i, spec) in
-            CanvasElement(
+            return CanvasElement(
                 id: UUID(),
                 kind: spec.kind,
-                category: spec.cat,
                 optionId: spec.optionId,
                 label: spec.optionId,
                 hexColor: palette[i % palette.count],
@@ -1790,7 +1794,8 @@ struct OnboardingStoriesView: View {
                 createdAt: refDate,
                 assetVariant: spec.variant,
                 shapeSeed: UInt64(i * 7919 + 42),
-                activityCount: Int.random(in: 5...25)
+                activityCount: Int.random(in: 5...25),
+                frozenShapeType: spec.shape
             )
         }
     }()

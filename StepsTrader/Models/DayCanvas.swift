@@ -1,7 +1,7 @@
 import Foundation
 
 struct DayCanvas: Codable {
-    let dayKey: String                          // "2026-02-12"
+    var dayKey: String                          // "2026-02-12"
     var elements: [CanvasElement]               // spawned from activities
     var sleepPoints: Int
     var stepsPoints: Int

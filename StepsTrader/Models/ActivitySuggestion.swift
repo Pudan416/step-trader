@@ -11,46 +11,19 @@ struct DetectedWorkout: Identifiable, Equatable {
     let distance: Double?
 
     var suggestedOptionId: String? { Self.mapToOptionId(activityType: activityType) }
-    var suggestedCategory: EnergyCategory { Self.mapToCategory(activityType: activityType) }
     var activityName: String { Self.displayName(for: activityType) }
 
     private static func mapToOptionId(activityType: UInt) -> String? {
         switch activityType {
-        case 37: return "body_walking"
-        case 52: return "body_walking"
-        case 13: return "body_physical_effort"
-        case 46: return "body_physical_effort"
-        case 50: return "body_physical_effort"
-        case 20: return "body_physical_effort"
-        case 35: return "body_physical_effort"
-        case 16: return "body_physical_effort"
-        case 56: return "body_physical_effort"
-        case 24: return "body_stretching"
-        case 36: return "body_physical_effort"
-        case 57: return "body_stretching"
-        case 63: return "body_stretching"
-        case 38: return "body_physical_effort"
-        case 17: return "body_physical_effort"
-        case 47: return "body_physical_effort"
-        case 62: return "body_resting"
-        case 6:  return "body_physical_effort"
-        case 25: return "body_physical_effort"
-        case 32: return "body_physical_effort"
-        case 10: return "body_physical_effort"
-        case 55: return "body_physical_effort"
-        case 4:  return "body_physical_effort"
+        case 37, 52: return "happening_walk"
+        case 13: return "happening_workout"
+        case 46, 50, 20, 35, 16, 56, 24, 36, 57, 63, 38, 17, 47, 62, 6, 25, 32, 10, 55, 4:
+            return "happening_workout"
         case 15: return nil
         case 3000: return nil
         default:
             AppLogger.app.debug("⚠️ DetectedWorkout.mapToOptionId: no mapping for HKWorkoutActivityType raw=\(activityType, privacy: .public) (name=\(displayName(for: activityType), privacy: .public))")
             return nil
-        }
-    }
-
-    private static func mapToCategory(activityType: UInt) -> EnergyCategory {
-        switch activityType {
-        case 62: .body
-        default: .body
         }
     }
 
@@ -101,7 +74,6 @@ enum SuggestionSource: Equatable {
 struct ActivitySuggestion: Identifiable, Equatable {
     let id: String
     let optionId: String
-    let category: EnergyCategory
     let source: SuggestionSource
     let title: String
     let subtitle: String
@@ -116,7 +88,6 @@ struct ActivitySuggestion: Identifiable, Equatable {
         return ActivitySuggestion(
             id: "workout_\(workout.id.uuidString)",
             optionId: optionId,
-            category: workout.suggestedCategory,
             source: .workout(workout),
             title: workout.activityName,
             subtitle: subtitle,
@@ -128,8 +99,7 @@ struct ActivitySuggestion: Identifiable, Equatable {
         let mins = Int(minutes)
         return ActivitySuggestion(
             id: "mindful_\(mins)",
-            optionId: "body_resting",
-            category: .body,
+            optionId: "happening_did_nothing",
             source: .mindfulSession(minutes: minutes),
             title: "Mindful Session",
             subtitle: "\(mins) min today",
@@ -140,8 +110,7 @@ struct ActivitySuggestion: Identifiable, Equatable {
     static func fromLowScreenTime() -> ActivitySuggestion {
         ActivitySuggestion(
             id: "low_screen_time",
-            optionId: "mind_screen_detox",
-            category: .mind,
+            optionId: "happening_did_nothing",
             source: .lowScreenTime,
             title: "Screen Detoxing",
             subtitle: "Low screen time today",
@@ -152,8 +121,7 @@ struct ActivitySuggestion: Identifiable, Equatable {
     static func fromMorningResting() -> ActivitySuggestion {
         ActivitySuggestion(
             id: "morning_resting",
-            optionId: "body_resting",
-            category: .body,
+            optionId: "happening_slept_well",
             source: .morningResting,
             title: String(localized: "Resting", comment: "Morning resting suggestion – title"),
             subtitle: String(localized: "You slept — add it to your canvas", comment: "Morning resting suggestion – subtitle"),

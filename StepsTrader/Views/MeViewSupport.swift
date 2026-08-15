@@ -2,17 +2,9 @@ import SwiftUI
 
 // MARK: - MeView support types
 //
-// Extracted from `MeView.swift` (§9.2): the week-summary value type, the
-// day-key identifier wrapper, and the two view-modifiers that own MeView's
-// lifecycle (snapshot loading / day-boundary refresh) and sheet presentation.
-
-struct MeWeekSummary {
-    var avgSteps: Int = 0
-    var avgSleep: Double = 0
-    var topBody: [String] = []
-    var topMind: [String] = []
-    var topHeart: [String] = []
-}
+// Extracted from `MeView.swift` (§9.2): the day-key identifier wrapper and the
+// two view-modifiers that own MeView's lifecycle (snapshot loading /
+// day-boundary refresh) and sheet presentation.
 
 struct MeDayKeyWrapper: Identifiable {
     let key: String

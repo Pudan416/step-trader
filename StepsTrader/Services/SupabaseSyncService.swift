@@ -21,7 +21,6 @@ actor SupabaseSyncService {
     
     // MARK: - Debounce Timers
     
-    var customActivitiesSyncTask: Task<Void, Never>?
     var dailySelectionsSyncTask: Task<Void, Never>?
     var dailyStatsSyncTask: Task<Void, Never>?
     var dailySpentSyncTask: Task<Void, Never>?
@@ -102,10 +101,6 @@ actor SupabaseSyncService {
         let dayEndHour: Int
         let dayEndMinute: Int
         let restDayOverride: Bool
-        let preferredBody: [String]
-        let preferredMind: [String]
-        let preferredHeart: [String]
-        let canvasSlots: [DayCanvasSlot]
         let hasWallpaperShortcut: Bool
         let wallpaperShortcutUses: Int
         let notifyOneMinBefore: Bool
@@ -124,9 +119,7 @@ actor SupabaseSyncService {
         let userGradientPalette: String
         let dailyRandomThemeEnabled: Bool
         let canvasOverlayStyle: String
-        let bodyCanvasShape: String
-        let mindCanvasShape: String
-        let heartCanvasShape: String
+        let allowedCanvasShapes: [String]
     }
     
     var pendingDailySelections: DailySelectionsPayload?
@@ -366,10 +359,8 @@ actor SupabaseSyncService {
         let snapshot = await MainActor.run {
             let g = UserDefaults.stepsTrader()
             return (
-                customEnergyOptions: model.customEnergyOptions,
-                dailyBodySelections: model.dailyBodySelections,
-                dailyRestSelections: model.dailyRestSelections,
-                dailyHeartSelections: model.dailyHeartSelections,
+                todayAdditions: model.todayAdditions,
+                customHappenings: model.happeningStore.all.filter { !$0.isBuiltIn },
                 stepsToday: model.healthStore.stepsToday,
                 dailySleepHours: model.healthStore.dailySleepHours,
                 baseEnergyToday: model.healthStore.baseEnergyToday,
@@ -381,10 +372,6 @@ actor SupabaseSyncService {
                 dayEndHour: model.dayEndHour,
                 dayEndMinute: model.dayEndMinute,
                 restDayOverride: model.isRestDayOverrideEnabled,
-                preferredBody: model.preferredBodyOptions,
-                preferredMind: model.preferredRestOptions,
-                preferredHeart: model.preferredHeartOptions,
-                canvasSlots: model.dailyCanvasSlots,
                 ticketGroups: model.ticketGroups
             )
         }
@@ -397,24 +384,12 @@ actor SupabaseSyncService {
             .map { TicketGroupSyncRow.from(group: $0) }
             .sorted { $0.bundleId < $1.bundleId }
 
-        let hasLocalData = !snapshot.dailyBodySelections.isEmpty
-            || !snapshot.dailyRestSelections.isEmpty
-            || !snapshot.dailyHeartSelections.isEmpty
-            || snapshot.stepsToday > 0
+        let hasLocalData = !snapshot.todayAdditions.isEmpty || snapshot.stepsToday > 0
 
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.performCustomActivitiesSync(snapshot.customEnergyOptions) }
+            group.addTask { await self.performEntriesSyncForFullSync(snapshot.todayAdditions) }
+            group.addTask { await self.performCustomHappeningsSync(snapshot.customHappenings) }
             if hasLocalData {
-                group.addTask {
-                    await self.performDailySelectionsSync(
-                        payload: DailySelectionsPayload(
-                            dayKey: today,
-                            activityIds: snapshot.dailyBodySelections,
-                            recoveryIds: snapshot.dailyRestSelections,
-                            joysIds: snapshot.dailyHeartSelections
-                        )
-                    )
-                }
                 group.addTask {
                     await self.performDailyStatsSync(
                         payload: DailyStatsPayload(
@@ -452,10 +427,6 @@ actor SupabaseSyncService {
                         dayEndHour: snapshot.dayEndHour,
                         dayEndMinute: snapshot.dayEndMinute,
                         restDayOverride: snapshot.restDayOverride,
-                        preferredBody: snapshot.preferredBody,
-                        preferredMind: snapshot.preferredMind,
-                        preferredHeart: snapshot.preferredHeart,
-                        canvasSlots: snapshot.canvasSlots,
                         hasWallpaperShortcut: g.bool(forKey: "hasWallpaperShortcut"),
                         wallpaperShortcutUses: g.integer(forKey: "wallpaperShortcutUses"),
                         notifyOneMinBefore: g.object(forKey: SharedKeys.notifyOneMinBefore) as? Bool ?? true,
@@ -474,9 +445,7 @@ actor SupabaseSyncService {
                         userGradientPalette: std.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
                         dailyRandomThemeEnabled: std.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
                         canvasOverlayStyle: g.string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue,
-                        bodyCanvasShape: std.string(forKey: SharedKeys.bodyCanvasShape) ?? CanvasShapeType.circle.rawValue,
-                        mindCanvasShape: std.string(forKey: SharedKeys.mindCanvasShape) ?? CanvasShapeType.snowflake.rawValue,
-                        heartCanvasShape: std.string(forKey: SharedKeys.heartCanvasShape) ?? CanvasShapeType.rays.rawValue
+                        allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue)
                     )
                 )
             }
@@ -502,24 +471,17 @@ actor SupabaseSyncService {
         
         var didRestore = false
         
-        if let customActivities = await loadCustomActivitiesFromServer(), !customActivities.isEmpty {
-            await MainActor.run {
-                model.customEnergyOptions = customActivities
-            }
+        let today = AppModel.dayKey(for: .now)
+        if let happenings = await loadCustomHappeningsFromServer(), !happenings.isEmpty {
+            await MainActor.run { model.happeningStore.mergeRestored(happenings) }
             didRestore = true
         }
-        
-        if let selections = await loadTodaySelectionsFromServer() {
-            let hasData = !selections.body.isEmpty || !selections.mind.isEmpty || !selections.heart.isEmpty
-            if hasData {
-                await MainActor.run {
-                    model.dailyBodySelections = selections.body
-                    model.dailyRestSelections = selections.mind
-                    model.dailyHeartSelections = selections.heart
-                    model.persistDailyEnergyState()
-                }
-                didRestore = true
+        if let additions = await loadOptionEntriesFromServer(dayKey: today), !additions.isEmpty {
+            await MainActor.run {
+                model.todayAdditions = additions
+                model.persistDailyEnergyState()
             }
+            didRestore = true
         }
         
         if let spent = await loadTodaySpentFromServer() {
@@ -561,7 +523,8 @@ actor SupabaseSyncService {
                         dailyRandomThemeEnabled: prefs.dailyRandomThemeEnabled,
                         bodyCanvasShape: prefs.bodyCanvasShape,
                         mindCanvasShape: prefs.mindCanvasShape,
-                        heartCanvasShape: prefs.heartCanvasShape
+                        heartCanvasShape: prefs.heartCanvasShape,
+                        allowedCanvasShapes: prefs.allowedCanvasShapes
                     )
                 )
                 // Day boundary is dual-written: the app-group key (read by
@@ -570,12 +533,6 @@ actor SupabaseSyncService {
                 g.set(prefs.dayEndMinute, forKey: SharedKeys.dayEndMinute)
                 model.dayEndHour = prefs.dayEndHour
                 model.dayEndMinute = prefs.dayEndMinute
-                model.preferredBodyOptions = prefs.preferredBody
-                model.preferredRestOptions = prefs.preferredMind
-                model.preferredHeartOptions = prefs.preferredHeart
-                if !prefs.canvasSlots.isEmpty {
-                    model.dailyCanvasSlots = prefs.canvasSlots
-                }
                 model.persistDailyEnergyState()
             }
             didRestore = true
@@ -596,31 +553,6 @@ actor SupabaseSyncService {
             }
             didRestore = true
             AppLogger.network.debug("📡 Merged \(serverSnapshots.count) day snapshots from server")
-        }
-
-        // Restore option entries (journal notes/colors) for today.
-        // These are persisted locally as individual UserDefaults keys
-        // ("option_entry_<optionId>_<dayKey>") read back by CategoryDetailView.
-        // Fetching without writing them back silently dropped the data on
-        // reinstall/device-switch; mirror the fetched rows into that store so
-        // today's entries actually survive a restore.
-        let today = AppModel.dayKey(for: Date.now)
-        if let entries = await loadOptionEntriesFromServer(dayKey: today), !entries.isEmpty {
-            await MainActor.run {
-                let g = UserDefaults.stepsTrader()
-                let encoder = JSONEncoder()
-                for entry in entries {
-                    // Don't clobber a locally-edited entry the user changed this
-                    // session — only fill in ones we don't already have.
-                    let key = "option_entry_\(entry.id)"
-                    guard g.data(forKey: key) == nil else { continue }
-                    if let data = try? encoder.encode(entry) {
-                        g.set(data, forKey: key)
-                    }
-                }
-            }
-            AppLogger.network.debug("📡 Restored \(entries.count) option entries for today")
-            didRestore = true
         }
 
         // Restore saved routines

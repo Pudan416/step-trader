@@ -7,7 +7,7 @@ extension Notification.Name {
     static let historyThumbnailNeedsRefresh = Notification.Name("historyThumbnailNeedsRefresh")
 }
 
-/// Two-tier (memory + disk PNG) cache of `DayCanvas` thumbnails for HistoryView.
+/// Two-tier (memory + disk PNG) cache of `DayCanvas` thumbnails for the Me calendar.
 ///
 /// Renders a fixed-time composition of `EnergyGradientBackground + GenerativeCanvasView`
 /// at the requested point size and stores it under `caches/HistoryThumbnails/`. Past-day

@@ -70,7 +70,7 @@ class AuthenticationService: NSObject, ObservableObject {
     private var pendingContinuations: [CheckedContinuation<Void, Never>] = []
 
     /// Handle to the background work spawned after a successful sign-in
-    /// (RC link + full Supabase sync). Stored so logout can cancel it
+    /// (full Supabase sync). Stored so logout can cancel it
     /// before the late-arriving sync writes back to a stale `AppModel`.
     /// (§3.1)
     private var postLoginSyncTask: Task<Void, Never>?
@@ -156,11 +156,10 @@ class AuthenticationService: NSObject, ObservableObject {
 
     /// Runs sign-out side-effects against the *previous* session's bearer.
     ///
-    /// Order matters: we must delete the `device_tokens` row before RC logout
-    /// because the DELETE call goes through PostgREST (RLS-checked against the
-    /// captured bearer), while RC logout only touches the RevenueCat SDK.
-    /// Both happen after the keychain has already been wiped — that's fine,
-    /// the bearer JWT is still valid until its server-side expiry. (§5.1, §5.2)
+    /// The DELETE call goes through PostgREST (RLS-checked against the
+    /// captured bearer). This happens after the keychain has already been
+    /// wiped — that's fine, the bearer JWT is still valid until its
+    /// server-side expiry. (§5.1, §5.2)
     private static func performTeardown(_ pending: PendingTeardown?) async {
         if let pending {
             if let tokenHex = pending.deviceTokenHex {
@@ -174,8 +173,6 @@ class AuthenticationService: NSObject, ObservableObject {
         // Clear the cached APNs token regardless — a fresh registration
         // happens on the next launch via UIApplication.registerForRemoteNotifications.
         UserDefaults.standard.removeObject(forKey: pushTokenStorageKey)
-
-        await SubscriptionStore.shared.logOut()
     }
 
     // MARK: - Anonymous Auth
@@ -263,8 +260,8 @@ class AuthenticationService: NSObject, ObservableObject {
         currentUser = nil
         isAuthenticated = false
 
-        // §5.1 / §5.2: remove the push-token row and log out RevenueCat with
-        // the captured bearer. The DELETE may 404 if the server-side cascade
+        // §5.1 / §5.2: remove the push-token row using the captured bearer.
+        // The DELETE may 404 if the server-side cascade
         // (auth.users → public.users / device_tokens) already removed it —
         // that's fine, removeDeviceToken treats non-200 as best-effort.
         await Self.performTeardown(pendingTeardown)
@@ -375,13 +372,10 @@ class AuthenticationService: NSObject, ObservableObject {
 
                 AppLogger.auth.debug("🔐 Sign in complete — isAuthenticated: \(self.isAuthenticated)")
 
-                let uid = self.currentUser?.id ?? session.user.id
                 // Replace any previously-running post-login task (e.g. a
                 // re-sign-in before the previous sync settled). (§3.1)
                 self.postLoginSyncTask?.cancel()
                 self.postLoginSyncTask = Task { [weak self] in
-                    AppLogger.auth.debug("🔐 Post-login — linking RC userId: \(uid.prefix(8))…")
-                    await SubscriptionStore.shared.logIn(supabaseUserID: uid)
                     guard !Task.isCancelled else { return }
                     if let appModel = self?.postLoginSyncModel {
                         AppLogger.auth.debug("🔐 Post-login — starting full Supabase sync")
@@ -685,10 +679,6 @@ class AuthenticationService: NSObject, ObservableObject {
             #if DEBUG
             AppLogger.auth.debug("🔐 Final state: isAuthenticated=\(self.isAuthenticated)")
             #endif
-            // Re-link RC on cold launch when we already have a session.
-            if let uid = currentUser?.id {
-                await SubscriptionStore.shared.logIn(supabaseUserID: uid)
-            }
         } catch {
             if isSessionInvalidatingError(error) {
                 AppLogger.auth.error("🔐 Session invalid — signing out locally: \(error.localizedDescription)")

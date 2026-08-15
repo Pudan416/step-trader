@@ -2,6 +2,12 @@ import XCTest
 import HealthKit
 @testable import Steps4
 
+/// Energy recalculation against the three-part model:
+///
+///     steps(20) + sleep(20) + happenings(60) = 100
+///     happenings = min(additions × 10, 60)
+///
+/// Replaces the five-part per-category assertions this file used to carry.
 @MainActor
 final class EnergyRecalcTests: XCTestCase {
     private var defaults: UserDefaults!
@@ -37,15 +43,29 @@ final class EnergyRecalcTests: XCTestCase {
         defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
         model.stepsToday = 10_000
         model.dailySleepHours = 8.0
-        model.dailyBodySelections = ["a", "b", "c", "d"]
-        model.dailyRestSelections = ["e", "f", "g", "h"]
-        model.dailyHeartSelections = ["i", "j", "k", "l"]
+        addAdditions(to: model, count: 6)
         model.spentStepsToday = 0
 
         model.recalculateDailyEnergy()
 
-        XCTAssertEqual(model.baseEnergyToday, 100, "20 steps + 20 sleep + 20 body + 20 mind + 20 heart")
+        XCTAssertEqual(model.baseEnergyToday, 100, "20 steps + 20 sleep + 60 happenings")
         XCTAssertEqual(model.stepsBalance, 100)
+    }
+
+    /// Acceptance criterion: a day of 2 happenings plus full steps and sleep
+    /// totals 60, not 100. Two additions earn 20, not a whole category's worth.
+    func testRecalculate_twoHappeningsWithFullStepsAndSleepTotalsSixty() {
+        let model = makeModel()
+        defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
+        defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
+        model.stepsToday = 10_000
+        model.dailySleepHours = 8.0
+        addAdditions(to: model, count: 2)
+        model.spentStepsToday = 0
+
+        model.recalculateDailyEnergy()
+
+        XCTAssertEqual(model.baseEnergyToday, 60, "20 steps + 20 sleep + 20 happenings")
     }
 
     func testRecalculate_cappedAt100() {
@@ -54,9 +74,7 @@ final class EnergyRecalcTests: XCTestCase {
         defaults.set(4.0, forKey: SharedKeys.userSleepTarget)
         model.stepsToday = 50_000
         model.dailySleepHours = 20.0
-        model.dailyBodySelections = ["a", "b", "c", "d"]
-        model.dailyRestSelections = ["e", "f", "g", "h"]
-        model.dailyHeartSelections = ["i", "j", "k", "l"]
+        addAdditions(to: model, count: 20)
         model.spentStepsToday = 0
 
         model.recalculateDailyEnergy()
@@ -96,14 +114,14 @@ final class EnergyRecalcTests: XCTestCase {
         defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
         model.stepsToday = 10_000
         model.dailySleepHours = 0
-        model.dailyBodySelections = ["a", "b", "c", "d"]
+        addAdditions(to: model, count: 4)
         model.spentStepsToday = 0
         model.recalculateDailyEnergy()
         let fullBase = model.baseEnergyToday
         _ = model.pay(cost: fullBase)
         XCTAssertEqual(model.stepsBalance, 0)
 
-        model.dailyBodySelections = []
+        model.todayAdditions = []
         model.recalculateDailyEnergy()
 
         XCTAssertEqual(model.spentStepsToday, fullBase,
@@ -123,8 +141,7 @@ final class EnergyRecalcTests: XCTestCase {
         model.dayEndHour = (Calendar.current.component(.hour, from: .now) + 12) % 24
         model.dayEndMinute = 0
 
-        let pts = model.sleepPointsToday
-        XCTAssertEqual(pts, EnergyDefaults.assumedSleepPoints)
+        XCTAssertEqual(model.sleepPointsToday, EnergyDefaults.assumedSleepPoints)
         XCTAssertTrue(model.isSleepAssumed)
     }
 
@@ -133,47 +150,66 @@ final class EnergyRecalcTests: XCTestCase {
         defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
         model.dailySleepHours = 8.0
 
-        let pts = model.sleepPointsToday
-        XCTAssertEqual(pts, EnergyDefaults.sleepMaxPoints)
+        XCTAssertEqual(model.sleepPointsToday, EnergyDefaults.sleepMaxPoints)
         XCTAssertFalse(model.isSleepAssumed)
     }
 
-    // MARK: - Selection points
+    // MARK: - Happening points
 
-    func testSelectionPoints_perCategory() {
+    func testHappeningPoints_tenPerAddition() {
         let model = makeModel()
-        model.dailyBodySelections = ["a", "b"]
-        XCTAssertEqual(model.bodyPointsToday, 2 * EnergyDefaults.selectionPoints)
+        XCTAssertEqual(model.happeningPointsToday, 0)
 
-        model.dailyRestSelections = ["x"]
-        XCTAssertEqual(model.mindPointsToday, 1 * EnergyDefaults.selectionPoints)
+        addAdditions(to: model, count: 1)
+        XCTAssertEqual(model.happeningPointsToday, 10)
 
-        model.dailyHeartSelections = ["p", "q", "r", "s"]
-        XCTAssertEqual(model.heartPointsToday, 4 * EnergyDefaults.selectionPoints)
+        addAdditions(to: model, count: 2)
+        XCTAssertEqual(model.happeningPointsToday, 30, "Three additions total")
+    }
+
+    /// Distinct additions past the sixth still land on the canvas and still
+    /// increment `useCount` — they just stop earning.
+    func testHappeningPoints_capAtSixtyRegardlessOfCount() {
+        let model = makeModel()
+        addAdditions(to: model, count: 6)
+        XCTAssertEqual(model.happeningPointsToday, 60)
+
+        addAdditions(to: model, count: 1)
+        XCTAssertEqual(model.happeningPointsToday, 60, "Seventh addition earns nothing")
+        XCTAssertEqual(model.todayAdditions.count, 7, "But it is still recorded")
+
+        addAdditions(to: model, count: 50)
+        XCTAssertEqual(model.happeningPointsToday, 60)
+    }
+
+    func testHappeningPoints_distinctHappeningsCountSeparately() {
+        let model = makeModel()
+        model.addHappening(id: HappeningDefaults.builtIns[0].id, colorHex: "#CC5050")
+        model.addHappening(id: HappeningDefaults.builtIns[1].id, colorHex: "#CC5050")
+
+        XCTAssertEqual(model.todayAdditions.count, 2)
+        XCTAssertEqual(model.happeningPointsToday, 20)
     }
 
     // MARK: - Routines
 
     func testSaveAndApplyRoutine_roundTrip() {
         let model = makeModel()
-        model.dailyBodySelections = ["body_walking"]
-        model.dailyRestSelections = ["mind_focusing", "mind_learning"]
-        model.dailyHeartSelections = ["heart_joy"]
+        let ids = HappeningDefaults.builtIns.prefix(3).map(\.id)
+        for id in ids {
+            model.addHappening(id: id, colorHex: "#CC5050")
+        }
 
         model.saveCurrentAsRoutine(name: "Morning")
         model.loadSavedRoutines()
         XCTAssertEqual(model.savedRoutines.count, 1)
         XCTAssertEqual(model.savedRoutines[0].name, "Morning")
+        XCTAssertEqual(model.savedRoutines[0].happeningIds, Array(ids))
 
-        model.dailyBodySelections = []
-        model.dailyRestSelections = []
-        model.dailyHeartSelections = []
-
+        model.todayAdditions = []
         model.applyRoutine(model.savedRoutines[0])
 
-        XCTAssertEqual(model.dailyBodySelections, ["body_walking"])
-        XCTAssertEqual(model.dailyRestSelections, ["mind_focusing", "mind_learning"])
-        XCTAssertEqual(model.dailyHeartSelections, ["heart_joy"])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), Array(ids))
     }
 
     func testDeleteRoutine_removes() {
@@ -191,9 +227,17 @@ final class EnergyRecalcTests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// Appends `count` distinct catalog additions so the economy tests exercise
+    /// the one-happening-per-custom-day rule as well as its points cap.
+    private func addAdditions(to model: AppModel, count: Int) {
+        for index in 0..<count {
+            let happening = model.createHappening(title: "Test happening \(index)")
+            model.addHappening(id: happening.id, colorHex: "#CC5050")
+        }
+    }
+
     private func makeModel() -> AppModel {
-        defaults.set(true, forKey: SharedKeys.isGrandfathered)
-        let store = SubscriptionStore(defaults: defaults)
+        let store = SubscriptionStore()
         let model = AppModel(
             healthKitService: MockHealthKitService(),
             familyControlsService: MockFamilyControlsService(),
@@ -202,6 +246,9 @@ final class EnergyRecalcTests: XCTestCase {
             subscriptionStore: store
         )
         model.isBootstrapping = true
+        // Production loads the catalog in `loadDailyEnergyState`. `applyRoutine`
+        // validates ids against it, so without this every routine applies empty.
+        model.happeningStore.load()
         return model
     }
 
@@ -210,7 +257,6 @@ final class EnergyRecalcTests: XCTestCase {
             SharedKeys.userStepsTarget,
             SharedKeys.userSleepTarget,
             SharedKeys.restDayOverrideEnabled,
-            SharedKeys.isGrandfathered,
             SharedKeys.spentStepsToday,
             SharedKeys.stepsBalance,
             SharedKeys.stepsBalanceAnchor,
@@ -218,9 +264,8 @@ final class EnergyRecalcTests: XCTestCase {
             SharedKeys.bonusSteps,
             SharedKeys.savedRoutines,
             SharedKeys.baseEnergyToday,
-            "dailyEnergySelections_v1_body",
-            "dailyEnergySelections_v1_mind",
-            "dailyEnergySelections_v1_heart",
+            SharedKeys.todayAdditions,
+            SharedKeys.happeningCatalog,
         ]
         keys.forEach { defaults.removeObject(forKey: $0) }
         UserDefaults.standard.removeObject(forKey: SharedKeys.restDayOverrideEnabled)

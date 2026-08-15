@@ -4,6 +4,68 @@ import Combine
 import UserNotifications
 import BackgroundTasks
 
+struct Task7UITestAccessibilityConfiguration: Equatable {
+    let dynamicTypeSize: DynamicTypeSize?
+    let usesIncreasedContrast: Bool
+
+    init(arguments: [String], environment: [String: String]) {
+        guard arguments.contains("ui-testing-task7") else {
+            dynamicTypeSize = nil
+            usesIncreasedContrast = false
+            return
+        }
+
+        switch environment["TASK7_DYNAMIC_TYPE_SIZE"] {
+        case "accessibility1": dynamicTypeSize = .accessibility1
+        case "accessibility2": dynamicTypeSize = .accessibility2
+        case "accessibility3": dynamicTypeSize = .accessibility3
+        case "accessibility4": dynamicTypeSize = .accessibility4
+        case "accessibility5": dynamicTypeSize = .accessibility5
+        default: dynamicTypeSize = nil
+        }
+        usesIncreasedContrast = environment["TASK7_INCREASED_CONTRAST"] == "1"
+    }
+
+    static var current: Self {
+        Self(
+            arguments: ProcessInfo.processInfo.arguments,
+            environment: ProcessInfo.processInfo.environment
+        )
+    }
+
+    static func name(for dynamicTypeSize: DynamicTypeSize) -> String {
+        switch dynamicTypeSize {
+        case .xSmall: "xSmall"
+        case .small: "small"
+        case .medium: "medium"
+        case .large: "large"
+        case .xLarge: "xLarge"
+        case .xxLarge: "xxLarge"
+        case .xxxLarge: "xxxLarge"
+        case .accessibility1: "accessibility1"
+        case .accessibility2: "accessibility2"
+        case .accessibility3: "accessibility3"
+        case .accessibility4: "accessibility4"
+        case .accessibility5: "accessibility5"
+        @unknown default: "unknown"
+        }
+    }
+}
+
+private struct Task7UITestAccessibilityModifier: ViewModifier {
+    let configuration: Task7UITestAccessibilityConfiguration
+
+    @Environment(\.dynamicTypeSize) private var inheritedDynamicTypeSize
+
+    func body(content: Content) -> some View {
+        content
+            .environment(
+                \.dynamicTypeSize,
+                configuration.dynamicTypeSize ?? inheritedDynamicTypeSize
+            )
+    }
+}
+
 // MARK: - AppDelegate (Remote Notifications)
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
@@ -42,11 +104,6 @@ struct StepsTraderApp: App {
     @AppStorage("hasRequestedReview_v1") private var hasRequestedReview: Bool = false
     @Environment(\.requestReview) private var requestReview
 
-    /// One-shot post-onboarding paywall. Shown exactly once per device for
-    /// non-Pro users immediately after they complete onboarding. Dismissal
-    /// (purchase OR cancel) marks it as shown so it never reappears.
-    @State private var showPostOnboardingPaywall = false
-
     /// Currently presented feature tip (wallpaper / widgets nudge), or `nil`.
     /// Driven by `presentFeatureTipIfNeeded()` on scenePhase `.active`.
     @State private var activeFeatureTip: FeatureTip?
@@ -67,18 +124,17 @@ struct StepsTraderApp: App {
     }
 
     init() {
+        // Task 7 screenshot scenarios mutate today's additions. Xcode reuses the
+        // installed app container across UI-test methods, so without resetting
+        // this fixture-only state an "all used" test empties the palette for
+        // every test that follows it in the full suite.
+        if ProcessInfo.processInfo.arguments.contains("ui-testing-task7") {
+            UserDefaults.stepsTrader().removeObject(forKey: SharedKeys.todayAdditions)
+            CanvasStorageService.shared.deleteCanvas(
+                for: AppModel.dayKey(for: Date.now)
+            )
+        }
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
-
-        // Configure RevenueCat as early as possible. Reads `REVENUECAT_API_KEY` from
-        // Info.plist (which interpolates from xcconfig at build time). Anonymous user
-        // is fine — we'll `logIn(supabaseUserID:)` once Sign in with Apple completes.
-        //
-        // ORDER NOTE: configure() runs grandfather detection which reads
-        // `appLaunchCount`. The increment below happens AFTER, so the threshold
-        // logic in `SubscriptionStore.detectExistingUser` is order-independent
-        // (it tolerates either ordering). Don't move this around carelessly.
-        let rcKey = Bundle.main.object(forInfoDictionaryKey: "REVENUECAT_API_KEY") as? String ?? ""
-        SubscriptionStore.shared.configure(apiKey: rcKey)
 
         // Register the MetricKit subscriber early so diagnostics aggregated since
         // the last run (crashes/hangs/exceptions) are delivered and reported.
@@ -137,8 +193,7 @@ struct StepsTraderApp: App {
     /// onboarding slide (see `OnboardingStoriesView.finish(wantsTour:)`).
     ///
     /// Blocks until the tour completes (or returns immediately if no tour was
-    /// requested). The caller — the welcome-paywall `.task` — uses this as a
-    /// gate so the paywall never appears over an in-progress coach mark.
+    /// requested). Called from the `.task` on the post-onboarding root view.
     @MainActor
     private func runCoachMarksIfRequested() async {
         let defaults = UserDefaults.standard
@@ -146,7 +201,7 @@ struct StepsTraderApp: App {
 
         // Start the tour if it was requested and not already running. We read
         // & clear `shouldStartCoachMark` here (instead of in `onFinish`) so
-        // the start is sequenced inside the same task that gates the paywall.
+        // the start is sequenced inside the `.task` that calls this function.
         if wantsTour && !coachMarkManager.isActive {
             defaults.removeObject(forKey: "shouldStartCoachMark")
             // Let the canvas render before the first coach mark anchors so
@@ -162,25 +217,6 @@ struct StepsTraderApp: App {
             try? await Task.sleep(for: .milliseconds(300))
             if Task.isCancelled { return }
         }
-
-        // Breathing room between the last coach mark dismissing and whatever
-        // comes next (typically the welcome paywall sliding up).
-        if wantsTour {
-            try? await Task.sleep(for: .milliseconds(400))
-            if Task.isCancelled { return }
-        }
-    }
-
-    /// Decide whether to flip `showPostOnboardingPaywall` to `true`.
-    /// Called only after `runCoachMarksIfRequested()` has returned, so the
-    /// tour (if any) is guaranteed to be finished by this point.
-    @MainActor
-    private func presentPostOnboardingPaywallIfNeeded() async {
-        guard SubscriptionGate.shouldShowPostOnboardingPaywall(isPro: model.isPro) else { return }
-        // Brief cosmetic delay so the welcome screen renders before the paywall.
-        try? await Task.sleep(for: .milliseconds(600))
-        if Task.isCancelled { return }
-        showPostOnboardingPaywall = true
     }
 
     /// Binding for the §5.1 PayGate-failure alert. Extracted so `body` stays
@@ -213,46 +249,14 @@ struct StepsTraderApp: App {
                             MainTabView(model: model, theme: currentTheme)
                         }
                     }
-                    // Welcome paywall — gated to non-Pro users who haven't seen
-                    // it yet. Driven from a `.task` here (not from the
+                    // Run the optional in-app coach mark tour once onboarding
+                    // completes. Driven from a `.task` here (not from the
                     // onboarding-completion closure) so it survives the case
-                    // where the user kills the app between completing onboarding
-                    // and the closure's deferred presentation.
+                    // where the user kills the app between completing
+                    // onboarding and the closure's deferred presentation.
                     .task {
                         guard !isUITest else { return }
-
-                        // 1) Run the optional in-app coach mark tour FIRST.
-                        // The paywall must never appear while the tour is
-                        // active — it would slide up over the coach overlay
-                        // and break the flow. `runCoachMarksIfRequested` is a
-                        // no-op (returns immediately) when the user declined
-                        // the tour, so non-tour users don't pay any latency.
                         await runCoachMarksIfRequested()
-                        if Task.isCancelled { return }
-
-                        // 2) Wait for subscription state to settle off transient
-                        // states (`.unknown` and `.loadingFromCache`) so we
-                        // don't accidentally show paywall to a grandfathered
-                        // or freshly-restored user before RC bootstraps.
-                        // 2s budget is plenty for cached/local resolution;
-                        // if RC is offline we proceed anyway based on cached
-                        // `isPro` (correct: cached==true → no paywall).
-                        // .task cancels when the view disappears — make sure
-                        // sleeps don't keep us "alive" past that point and
-                        // accidentally trigger the paywall on a stale view.
-                        // (§3.7)
-                        for _ in 0..<10 {
-                            switch model.subscriptionStore.state {
-                            case .unknown, .loadingFromCache: break
-                            default:
-                                await presentPostOnboardingPaywallIfNeeded()
-                                return
-                            }
-                            try? await Task.sleep(for: .milliseconds(200))
-                            if Task.isCancelled { return }
-                        }
-                        // Fallback after timeout: respect cached isPro.
-                        await presentPostOnboardingPaywallIfNeeded()
                     }
 
                     // Handoff protection screen (disabled for Instagram flow and UI tests)
@@ -277,16 +281,14 @@ struct StepsTraderApp: App {
                             await model.refreshSleepIfAuthorized()
                         }
 
-                        // NOTE: Post-onboarding paywall AND the optional coach
-                        // mark tour are both triggered from the `.task` on the
-                        // `hasCompletedOnboarding` branch above — that path
-                        // always fires when the root flips, even if the user
-                        // kills the app immediately after onboarding completes
-                        // (the paywall marker is set on dismiss, so a kill-
-                        // before-dismiss still allows it to appear on the next
-                        // cold launch). The `.task` runs the tour first and
-                        // only then evaluates the paywall, so the welcome flow
-                        // is never interrupted mid-tour.
+                        // NOTE: The optional coach mark tour is triggered from
+                        // the `.task` on the `hasCompletedOnboarding` branch
+                        // above — that path always fires when the root flips,
+                        // even if the user kills the app immediately after
+                        // onboarding completes (the tour request is persisted
+                        // via `shouldStartCoachMark`, so a kill right after
+                        // onboarding still lets it run on the next cold
+                        // launch).
                     }
                     .transition(.opacity)
                     .zIndex(3)
@@ -306,18 +308,6 @@ struct StepsTraderApp: App {
             } message: {
                 Text(model.payGateError ?? "")
             }
-            .fullScreenCover(isPresented: $showPostOnboardingPaywall, onDismiss: {
-                // Whether they purchased or skipped, we mark this user as having
-                // seen the welcome paywall — they'll only encounter the paywall
-                // again via in-app feature gates (1-group limit, custom activities, etc.)
-                SubscriptionGate.markPostOnboardingPaywallShown()
-            }) {
-                PaywallView(
-                    model: model,
-                    store: model.subscriptionStore,
-                    source: .promotion
-                )
-            }
             .sheet(item: $activeFeatureTip) { tip in
                 FeatureTipSheet(tip: tip)
             }
@@ -325,6 +315,11 @@ struct StepsTraderApp: App {
             .tint(currentTheme.accentColor)
             .grayscale(0)
             .environment(coachMarkManager)
+            .modifier(
+                Task7UITestAccessibilityModifier(
+                    configuration: .current
+                )
+            )
             .alert(isPresented: $errorManager.showErrorAlert, error: errorManager.currentError) { _ in
                 Button("OK", role: .cancel) {
                     errorManager.dismiss()

@@ -180,7 +180,7 @@ struct FeatureTipSheet: View {
                 Button {
                     dismiss()
                     // Deep-link into the relevant Settings sub-page. MainTabView
-                    // switches to the Settings tab; SettingsSheet pushes the page.
+                    // opens the Settings sheet on Me; SettingsSheet pushes the page.
                     NotificationCenter.default.post(
                         name: .openFeatureTipSettings,
                         object: nil,

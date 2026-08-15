@@ -35,6 +35,28 @@ extension AppModel {
         // debounce window.
         if hour == dayEndHour && minute == dayEndMinute { return }
 
+        let now = Date.now
+        let oldDayKey = DayBoundary.dayKey(
+            for: now,
+            dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute
+        )
+        let newDayKey = DayBoundary.dayKey(
+            for: now,
+            dayEndHour: hour,
+            dayEndMinute: minute
+        )
+        guard CanvasStorageService.shared.rekeyCanvas(
+            from: oldDayKey,
+            to: newDayKey
+        ) else {
+            AppLogger.energy.error(
+                "Day-end change aborted because canvas re-key failed: \(oldDayKey) → \(newDayKey)"
+            )
+            return
+        }
+        rekeyTodayAdditions(from: oldDayKey, to: newDayKey)
+
         dayEndHour = hour
         dayEndMinute = minute
         // Persists SharedKeys.dayEndHour/Minute to the App Group (the single
@@ -44,6 +66,11 @@ extension AppModel {
         budgetEngine.updateDayEnd(hour: hour, minute: minute)
 
         reanchorForDayEndChange()
+
+        if oldDayKey != newDayKey,
+           let movedCanvas = CanvasStorageService.shared.loadCanvas(for: newDayKey) {
+            Task { await SupabaseSyncService.shared.syncDayCanvas(movedCanvas) }
+        }
 
         scheduleDayBoundaryTimer()
         syncUserPreferencesToSupabase()

@@ -260,7 +260,7 @@ Your life is a daily canvas. You paint it with every choice. Screen time is what
 | More notes entries | P1 | e.g. spectacle, imperfection — match existing voice |
 | Internal variable rename | P2 | `totalStepsBalance` → colors naming (dedicated PR) |
 | AppModel forwarding cleanup | P2 | Incremental |
-| Premium / tip jar | P1 | Strategy doc historically floated $3.99/mo. The StoreKit + RevenueCat machinery is in the repo (`PaywallView`, `SubscriptionStore`, `Configuration.storekit`, RevenueCat SPM dep) but is **currently switched off** — `SubscriptionGate.allFeaturesUnlocked` grants Pro to everyone, so the app ships free and no paywall is reachable. Flip that constant to re-enable. Colors were never purchasable either way, keeping the “can’t buy colors” promise |
+| Premium / tip jar | P1 | Strategy doc historically floated $3.99/mo. RevenueCat, `PaywallView`, `SubscriptionStore`'s real implementation, and `Configuration.storekit` have all been **removed from the repo** — the app is free for everyone, full stop. `SubscriptionGate` survives as a stub enum where every gate function hardcodes `true`; only `canUseDailyRandomTheme` still has a production call site (`AppModel+DailyRandomTheme.swift`), the other seven are exercised only by tests. Reintroducing a paywall means rebuilding the purchasing layer from scratch (pick a provider, re-add the SDK, re-add a paywall view) and re-wiring gate call sites into views — there is no constant left to flip. Colors were never purchasable either way, keeping the “can’t buy colors” promise |
 | Landing page | P1 | Hero: canvas + one line pitch |
 
 ### Medium-Term (Months 4-6)

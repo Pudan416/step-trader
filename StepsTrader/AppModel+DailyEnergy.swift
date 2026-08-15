@@ -7,41 +7,150 @@ import WidgetKit
 // any actor context). The previous file-scope `_xxxKey` constants were folded
 // into SharedKeys in CODE_AUDIT.md §9.4.
 extension AppModel {
-    private func dailySelectionsKey(for category: EnergyCategory) -> String {
-        "dailyEnergySelections_v1_\(category.rawValue)"
+    var happeningPointsToday: Int {
+        HappeningEconomy.points(forAdditionCount: todayAdditions.count)
     }
-    
-    private func preferredOptionsKey(for category: EnergyCategory) -> String {
-        "preferredEnergyOptions_v1_\(category.rawValue)"
+
+    /// Adds one occurrence when the happening has not already been added on
+    /// the requested custom day.
+    func canAddHappening(id: String, on date: Date = .now) -> Bool {
+        let dayKey = Self.dayKey(for: date)
+        return !todayAdditions.contains {
+            $0.dayKey == dayKey && $0.optionId == id
+        }
     }
-    
-    // MARK: - Daily energy system
-    func loadEnergyPreferences() {
-        preferredBodyOptions = loadPreferredOptions(for: .body)
-        preferredRestOptions = loadPreferredOptions(for: .mind)
-        preferredHeartOptions = loadPreferredOptions(for: .heart)
+
+    @discardableResult
+    func addHappening(
+        id: String,
+        colorHex: String,
+        at date: Date = .now,
+        recordUse: Bool = true,
+        entryId: String = UUID().uuidString
+    ) -> OptionEntry? {
+        let dayKey = Self.dayKey(for: date)
+        guard canAddHappening(id: id, on: date) else { return nil }
+
+        let entry = OptionEntry(
+            id: entryId,
+            dayKey: dayKey,
+            optionId: id,
+            colorHex: colorHex,
+            timestamp: date,
+            assetVariant: nil
+        )
+        todayAdditions.append(entry)
+        if recordUse { happeningStore.recordUse(id: id, at: date) }
+        recalculateDailyEnergy()
+        persistTodayAdditions()
+        Task { await SupabaseSyncService.shared.syncOptionEntry(entry) }
+        Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
+        return entry
+    }
+
+    func removeAddition(entryId: String) {
+        guard let index = todayAdditions.firstIndex(where: { $0.id == entryId }) else { return }
+        todayAdditions.remove(at: index)
+        recalculateDailyEnergy()
+        persistTodayAdditions()
+        Task { await SupabaseSyncService.shared.deleteOptionEntry(id: entryId) }
+    }
+
+    func createHappening(title: String, at date: Date = .now) -> Happening {
+        happeningStore.create(title: title, at: date)
+    }
+
+    /// Creates a catalog item and installs it into the configured ten without
+    /// logging it to the current day. The user still has to tap its field zone.
+    func createPaletteHappening(
+        title: String,
+        at date: Date = .now,
+        syncCustomHappenings: @escaping ([Happening]) -> Void = { happenings in
+            Task { await SupabaseSyncService.shared.syncCustomHappenings(happenings) }
+        }
+    ) -> Happening? {
+        let happening = createHappening(title: title, at: date)
+        do {
+            try happeningPaletteSelectionStore.insertReplacingLeastUsed(
+                happening.id,
+                catalog: happeningStore.all
+            )
+            objectWillChange.send()
+            syncCustomHappenings(happeningStore.all)
+            return happening
+        } catch {
+            AppLogger.energy.error(
+                "Failed to install created palette happening: \(error.localizedDescription)"
+            )
+            return nil
+        }
+    }
+
+    func paletteHappeningCatalog() -> [Happening] {
+        happeningStore.all
+    }
+
+    func selectedPaletteHappeningIDs() -> [String] {
+        happeningPaletteSelectionStore.ids
+    }
+
+    func savePaletteHappeningSelection(_ ids: [String]) throws {
+        try happeningPaletteSelectionStore.save(ids, catalog: happeningStore.all)
+        objectWillChange.send()
+    }
+
+    func configuredPaletteHappenings() -> [Happening] {
+        happeningPaletteSelectionStore.ids.compactMap { happeningStore.happening(id: $0) }
+    }
+
+    func availablePaletteHappenings(on date: Date = .now) -> [Happening] {
+        let used = Set(todayAdditions.lazy
+            .filter { $0.dayKey == Self.dayKey(for: date) }
+            .map(\.optionId))
+        return configuredPaletteHappenings().filter { !used.contains($0.id) }
+    }
+
+    func rekeyTodayAdditions(from oldDayKey: String, to newDayKey: String) {
+        guard oldDayKey != newDayKey else { return }
+        var didChange = false
+        todayAdditions = todayAdditions.map { entry in
+            guard entry.dayKey == oldDayKey else { return entry }
+            var moved = entry
+            moved.dayKey = newDayKey
+            didChange = true
+            return moved
+        }
+        guard didChange else { return }
+        persistTodayAdditions()
+        let movedEntries = todayAdditions.filter { $0.dayKey == newDayKey }
+        Task { await SupabaseSyncService.shared.syncOptionEntries(movedEntries) }
+    }
+
+    private func persistTodayAdditions() {
+        do {
+            UserDefaults.stepsTrader().set(
+                try JSONEncoder().encode(todayAdditions),
+                forKey: SharedKeys.todayAdditions
+            )
+        } catch {
+            AppLogger.energy.error("Failed to encode today additions: \(error.localizedDescription)")
+        }
     }
 
     func loadDailyEnergyState() {
         let g = UserDefaults.stepsTrader()
+        happeningStore.load()
+        happeningPaletteSelectionStore.load(catalog: happeningStore.all)
+        loadTodayAdditions(from: g)
+        reconstituteHappeningsFromHistory()
         let rawAnchor = g.object(forKey: SharedKeys.dailyEnergyAnchor)
         AppLogger.energy.debug("📥 loadDailyEnergyState: anchor raw=\(String(describing: rawAnchor)), as Date=\(String(describing: rawAnchor as? Date))")
         guard let anchor = rawAnchor as? Date else {
             AppLogger.energy.debug("📥 loadDailyEnergyState: NO anchor — seeding and loading persisted state")
             g.set(currentDayStart(for: Date.now), forKey: SharedKeys.dailyEnergyAnchor)
             dailySleepHours = g.double(forKey: SharedKeys.dailySleepHours)
-            dailyBodySelections = loadStringArray(forKey: dailySelectionsKey(for: .body))
-            dailyRestSelections = loadStringArray(forKey: dailySelectionsKey(for: .mind))
-            dailyHeartSelections = loadStringArray(forKey: dailySelectionsKey(for: .heart))
-            let storedBody = loadStringArray(forKey: preferredOptionsKey(for: .body))
-            let storedMind = loadStringArray(forKey: preferredOptionsKey(for: .mind))
-            let storedHeart = loadStringArray(forKey: preferredOptionsKey(for: .heart))
-            if !storedBody.isEmpty { preferredBodyOptions = storedBody }
-            if !storedMind.isEmpty { preferredRestOptions = storedMind }
-            if !storedHeart.isEmpty { preferredHeartOptions = storedHeart }
             baseEnergyToday = g.integer(forKey: SharedKeys.baseEnergyToday)
             spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
-            loadDailyCanvasSlots()
             recoverSelectionsFromCanvasIfNeeded()
             return
         }
@@ -54,272 +163,103 @@ extension AppModel {
         }
         dailySleepHours = g.double(forKey: SharedKeys.dailySleepHours)
 
-        dailyBodySelections = loadStringArray(forKey: dailySelectionsKey(for: .body))
-        dailyRestSelections = loadStringArray(forKey: dailySelectionsKey(for: .mind))
-        dailyHeartSelections = loadStringArray(forKey: dailySelectionsKey(for: .heart))
-        let storedBody = loadStringArray(forKey: preferredOptionsKey(for: .body))
-        let storedMind = loadStringArray(forKey: preferredOptionsKey(for: .mind))
-        let storedHeart = loadStringArray(forKey: preferredOptionsKey(for: .heart))
-        if !storedBody.isEmpty { preferredBodyOptions = storedBody }
-        if !storedMind.isEmpty { preferredRestOptions = storedMind }
-        if !storedHeart.isEmpty { preferredHeartOptions = storedHeart }
-
         baseEnergyToday = g.integer(forKey: SharedKeys.baseEnergyToday)
         spentStepsToday = g.integer(forKey: SharedKeys.spentStepsToday)
-        dailyMoments = Self.loadSavedMoments(from: g)
 
-        AppLogger.energy.debug("📥 loadDailyEnergyState LOADED: body=\(self.dailyBodySelections), mind=\(self.dailyRestSelections), heart=\(self.dailyHeartSelections), base=\(self.baseEnergyToday), spent=\(self.spentStepsToday)")
-        
-        loadDailyCanvasSlots()
+        AppLogger.energy.debug("📥 loadDailyEnergyState LOADED: additions=\(self.todayAdditions.count), base=\(self.baseEnergyToday), spent=\(self.spentStepsToday)")
         
         recoverSelectionsFromCanvasIfNeeded()
     }
-    
-    func loadCustomEnergyOptions() {
-        if let envJSON = ProcessInfo.processInfo.environment["UITEST_CUSTOM_ENERGY_OPTIONS"],
-           let data = envJSON.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([CustomEnergyOption].self, from: data) {
-            customEnergyOptions = decoded
-            return
-        }
 
-        let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: SharedKeys.customEnergyOptions),
-              let decoded = try? JSONDecoder().decode([CustomEnergyOption].self, from: data) else {
-            customEnergyOptions = []
+    private func reconstituteHappeningsFromHistory() {
+        var ids = Set(todayAdditions.map(\.optionId))
+        for snapshot in loadPastDaySnapshots().values {
+            ids.formUnion(snapshot.happeningIds)
+        }
+        happeningStore.reconstituteOrphans(fromHistoryIds: ids) { id in
+            EnergyDefaults.legacyTitle(for: id) ?? id
+        }
+    }
+
+    private func loadTodayAdditions(from defaults: UserDefaults) {
+        guard let data = defaults.data(forKey: SharedKeys.todayAdditions) else {
+            migrateLegacySelections(from: defaults)
             return
         }
-        customEnergyOptions = decoded
-    }
-    
-    private func saveCustomEnergyOptions() {
-        let g = UserDefaults.stepsTrader()
         do {
-            let data = try JSONEncoder().encode(customEnergyOptions)
-            g.set(data, forKey: SharedKeys.customEnergyOptions)
+            let decoded = try JSONDecoder().decode([OptionEntry].self, from: data)
+            let todayKey = Self.dayKey(for: .now)
+            todayAdditions = decoded.filter { $0.dayKey == todayKey }
+            if todayAdditions.count != decoded.count {
+                persistTodayAdditions()
+            }
         } catch {
-            AppLogger.energy.error("Failed to encode customEnergyOptions: \(error.localizedDescription)")
-            return
+            AppLogger.energy.error("Failed to decode today additions: \(error.localizedDescription)")
+            todayAdditions = []
         }
-        
-        // Sync to Supabase
-        Task { await SupabaseSyncService.shared.syncCustomActivities(customEnergyOptions) }
-    }
-    
-    func addCustomOption(category: EnergyCategory, titleEn: String, icon: String = "pencil") -> String {
-        guard SubscriptionGate.canCreateCustomActivity(isPro: isPro) else {
-            AppLogger.app.debug("⛔ addCustomOption blocked — user is not Pro")
-            return ""
-        }
-
-        let titleEnTrimmed = titleEn.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !titleEnTrimmed.isEmpty else { return "" }
-        let id = "custom_\(category.rawValue)_\(UUID().uuidString.prefix(8))"
-        let custom = CustomEnergyOption(
-            id: id,
-            titleEn: titleEnTrimmed,
-            category: category,
-            icon: icon
-        )
-        customEnergyOptions.append(custom)
-        saveCustomEnergyOptions()
-        appendOptionToOrder(id: id, category: category)
-        objectWillChange.send()
-        return id
-    }
-    
-    func customOptions(for category: EnergyCategory) -> [EnergyOption] {
-        customEnergyOptions
-            .filter { $0.category == category }
-            .map { $0.asEnergyOption() }
-    }
-    
-    func customOptionTitle(for optionId: String, lang: String) -> String? {
-        customEnergyOptions.first(where: { $0.id == optionId })?.title(for: lang)
     }
 
-    /// Resolve the user-facing title for any option ID (built-in or custom).
-    func resolveOptionTitle(for optionId: String) -> String {
-        // Ephemeral moments: label stored in dailyMoments, not in the library.
-        // Moments are filtered at every sync boundary (see EphemeralMoment), so
-        // a `moment_*` ID arriving from server is treated as stale — fall back
-        // to the raw ID just in case, but expect this branch to be local-only.
-        if EphemeralMoment.isMomentId(optionId) {
-            return momentLabel(for: optionId) ?? optionId
+    /// Reads a legacy per-category selection array.
+    ///
+    /// The old build persisted these as **JSON-encoded `Data`** (its private
+    /// `saveStringArray` did `JSONEncoder().encode` then `set(data:)`), so
+    /// `stringArray(forKey:)` returns nil for every real user's stored value.
+    /// Both shapes are accepted here: `Data` is what is actually on disk, and
+    /// the native array form costs one line to tolerate.
+    private func legacySelectionIds(_ defaults: UserDefaults, category: String) -> [String] {
+        let key = "dailyEnergySelections_v1_\(category)"
+        if let data = defaults.data(forKey: key),
+           let decoded = try? JSONDecoder().decode([String].self, from: data) {
+            return decoded
         }
-        let lang = Locale.current.language.languageCode?.identifier ?? "en"
-        return EnergyDefaults.options.first(where: { $0.id == optionId })?.title(for: lang)
-            ?? customOptionTitle(for: optionId, lang: lang)
-            ?? optionId
+        return defaults.stringArray(forKey: key) ?? []
     }
 
-    func updateCustomOption(optionId: String, titleEn: String, icon: String) {
-        let titleEnTrimmed = titleEn.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !titleEnTrimmed.isEmpty else { return }
-        guard let index = customEnergyOptions.firstIndex(where: { $0.id == optionId }) else { return }
-        customEnergyOptions[index].titleEn = titleEnTrimmed
-        customEnergyOptions[index].icon = icon
-        saveCustomEnergyOptions()
-        objectWillChange.send()
-    }
-    
-    func deleteCustomOption(optionId: String) {
-        guard let index = customEnergyOptions.firstIndex(where: { $0.id == optionId }) else { return }
-        let category = customEnergyOptions[index].category
-        customEnergyOptions.remove(at: index)
-        saveCustomEnergyOptions()
-        removeOptionFromOrder(id: optionId, category: category)
-        
-        var currentPreferred = preferredOptionsIds(for: category)
-        currentPreferred.removeAll { $0 == optionId }
-        updatePreferredOptions(currentPreferred, category: category)
-        
-        var currentDaily = dailySelections(for: category)
-        currentDaily.removeAll { $0 == optionId }
-        setDailySelections(currentDaily, category: category)
-        syncFromSelectionsToSlots()
-        recalculateDailyEnergy()
-        persistDailyEnergyState()
-        objectWillChange.send()
-    }
-    
-    func deleteOption(optionId: String) {
-        if optionId.hasPrefix("custom_") {
-            deleteCustomOption(optionId: optionId)
-            return
+    private func migrateLegacySelections(from defaults: UserDefaults) {
+        let legacyIds = ["body", "mind", "heart"].flatMap {
+            legacySelectionIds(defaults, category: $0)
         }
-        
-        guard EnergyDefaults.options.contains(where: { $0.id == optionId }) else { return }
-        guard let option = EnergyDefaults.options.first(where: { $0.id == optionId }) else { return }
-        let category = option.category
-        
-        var hidden = hiddenOptions(for: category)
-        hidden.insert(optionId)
-        saveStringArray(Array(hidden), forKey: hiddenOptionsKey(for: category))
-        removeOptionFromOrder(id: optionId, category: category)
-        
-        var currentPreferred = preferredOptionsIds(for: category)
-        currentPreferred.removeAll { $0 == optionId }
-        updatePreferredOptions(currentPreferred, category: category)
-        
-        var currentDaily = dailySelections(for: category)
-        currentDaily.removeAll { $0 == optionId }
-        setDailySelections(currentDaily, category: category)
-        syncFromSelectionsToSlots()
-        recalculateDailyEnergy()
-        persistDailyEnergyState()
-        objectWillChange.send()
-    }
-    
-    private func loadDailyCanvasSlots() {
-        let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: SharedKeys.dailyCanvasSlots),
-              let decoded = try? JSONDecoder().decode([DayCanvasSlot].self, from: data),
-              decoded.count == 4 else {
-            syncFromSelectionsToSlots()
-            persistDailyCanvasSlots()
-            return
+        let todayKey = Self.dayKey(for: .now)
+        todayAdditions = legacyIds.map { optionId in
+            OptionEntry(
+                id: UUID().uuidString,
+                dayKey: todayKey,
+                optionId: optionId,
+                colorHex: CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex,
+                timestamp: .now,
+                assetVariant: nil
+            )
         }
-        dailyCanvasSlots = decoded
-        // IMPORTANT: daily selections are the source of truth.
-        // Do not rebuild selections from 4 UI slots on launch, otherwise we can
-        // truncate persisted selections and wipe matching canvas elements after restart.
-        // Slots are kept as a UI projection and can legitimately be a subset.
+        guard !todayAdditions.isEmpty else { return }
+        persistTodayAdditions()
+        AppLogger.energy.info("Migrated \(self.todayAdditions.count) legacy selections to happenings")
     }
-    
-    /// If UserDefaults lost selection data (e.g. force-quit before flush), reconstruct
-    /// from today's canvas JSON file which uses atomic file I/O and survives force-quits.
+
     private func recoverSelectionsFromCanvasIfNeeded() {
-        let allEmpty = dailyBodySelections.isEmpty
-            && dailyRestSelections.isEmpty
-            && dailyHeartSelections.isEmpty
-        guard allEmpty else { return }
-        
-        let todayKey = Self.dayKey(for: Date.now)
+        guard todayAdditions.isEmpty else { return }
+        let todayKey = Self.dayKey(for: .now)
         guard let canvas = CanvasStorageService.shared.loadCanvas(for: todayKey),
               !canvas.elements.isEmpty else { return }
-        
-        AppLogger.energy.debug("🔧 recoverSelectionsFromCanvas: UserDefaults selections empty but canvas has \(canvas.elements.count) elements — recovering")
-        
-        var body: [String] = []
-        var mind: [String] = []
-        var heart: [String] = []
-        for el in canvas.elements {
-            switch el.category {
-            case .body:  if !body.contains(el.optionId) { body.append(el.optionId) }
-            case .mind:  if !mind.contains(el.optionId) { mind.append(el.optionId) }
-            case .heart: if !heart.contains(el.optionId) { heart.append(el.optionId) }
-            }
+        todayAdditions = canvas.elements.map { element in
+            OptionEntry(
+                id: element.id.uuidString,
+                dayKey: todayKey,
+                optionId: element.optionId,
+                colorHex: element.hexColor,
+                timestamp: element.createdAt,
+                assetVariant: element.assetVariant
+            )
         }
-        
-        dailyBodySelections = body
-        dailyRestSelections = mind
-        dailyHeartSelections = heart
-        
-        if baseEnergyToday == 0, canvas.inkEarned > 0 {
-            baseEnergyToday = canvas.inkEarned
-        }
-        
-        syncFromSelectionsToSlots()
-        persistDailyEnergyState()
-        
-        AppLogger.energy.debug("🔧 Recovered: body=\(body), mind=\(mind), heart=\(heart), base=\(self.baseEnergyToday)")
+        persistTodayAdditions()
     }
     
-    private func syncFromSelectionsToSlots() {
-        var slots: [DayCanvasSlot] = []
-        for cat in [EnergyCategory.body, .mind, .heart] {
-            let ids = dailySelections(for: cat)
-            for id in ids.prefix(4) {
-                slots.append(DayCanvasSlot(category: cat, optionId: id))
-            }
+    func resolveOptionTitle(for optionId: String) -> String {
+        if let happening = happeningStore.happening(id: optionId) {
+            return happening.localizedTitle()
         }
-        while slots.count < 4 {
-            slots.append(DayCanvasSlot(category: nil, optionId: nil))
-        }
-        dailyCanvasSlots = Array(slots.prefix(4))
+        return EnergyDefaults.legacyTitle(for: optionId) ?? optionId
     }
-    
-    private func syncFromSlotsToSelections() {
-        dailyBodySelections = dailyCanvasSlots.compactMap { $0.category == .body ? $0.optionId : nil }
-        dailyRestSelections = dailyCanvasSlots.compactMap { $0.category == .mind ? $0.optionId : nil }
-        dailyHeartSelections = dailyCanvasSlots.compactMap { $0.category == .heart ? $0.optionId : nil }
-    }
-    
-    func setDailyCanvasSlot(at index: Int, category: EnergyCategory?, optionId: String?) {
-        guard (0..<4).contains(index) else { return }
-        let previous = dailyCanvasSlots[index]
-        dailyCanvasSlots[index] = DayCanvasSlot(category: category, optionId: optionId)
-        syncFromSlotsToSelections()
-        recalculateDailyEnergy()
-        persistDailyEnergyState()
-        
-        if let cat = category, let id = optionId {
-            if previous.optionId != id {
-                Task {
-                    await SupabaseSyncService.shared.trackAnalyticsEvent(
-                        name: "piece_selected",
-                        properties: [
-                            "option_id": id,
-                            "category": cat.rawValue,
-                            "source": "canvas_slot"
-                        ]
-                    )
-                }
-            }
-        }
-    }
-    
-    private func persistDailyCanvasSlots() {
-        let g = UserDefaults.stepsTrader()
-        do {
-            let data = try JSONEncoder().encode(dailyCanvasSlots)
-            g.set(data, forKey: SharedKeys.dailyCanvasSlots)
-        } catch {
-            AppLogger.energy.error("Failed to encode dailyCanvasSlots: \(error.localizedDescription)")
-        }
-    }
-    
+
     func loadPastDaySnapshots() -> [String: PastDaySnapshot] {
         let url = PersistenceManager.pastDaySnapshotsFileURL
         var decoded: [String: PastDaySnapshot] = [:]
@@ -342,9 +282,8 @@ extension AppModel {
         }
 
         // History is retained indefinitely for everyone — no retention prune.
-        // Pro users see all days; Free users see only the last
-        // `SubscriptionGate.freeHistoryDayCount` days (older days are locked,
-        // not deleted). See `HistoryView.unlockedKeys`.
+        // The app is free for all users, so every day of history is unlocked
+        // and visible; nothing here is gated.
         return decoded
     }
 
@@ -377,29 +316,23 @@ extension AppModel {
         let oldAnchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date ?? .distantPast
         let dayKeyToSave = Self.dayKey(for: oldAnchor)
         let savedSpent = g.integer(forKey: SharedKeys.spentStepsToday)
-        let savedBody = loadStringArray(forKey: dailySelectionsKey(for: .body))
-        let savedMind = loadStringArray(forKey: dailySelectionsKey(for: .mind))
-        let savedHeart = loadStringArray(forKey: dailySelectionsKey(for: .heart))
+        let savedHappeningIds = todayAdditions.map(\.optionId)
         let savedSleep = g.double(forKey: SharedKeys.dailySleepHours)
         let cachedSteps = g.double(forKey: SharedKeys.cachedStepsToday)
         let savedSteps: Int = cachedSteps > 0 ? Int(cachedSteps) : Int(stepsToday)
         let savedStepsTarget = userStepsTarget
         let savedSleepTarget = userSleepTarget
         let savedBaseEnergy = g.integer(forKey: SharedKeys.baseEnergyToday)
-        let savedMoments = Self.loadSavedMoments(from: g)
 
         let daySnapshot = buildPastDaySnapshot(
             savedSpent: savedSpent,
-            savedBody: savedBody,
-            savedMind: savedMind,
-            savedHeart: savedHeart,
+            savedHappeningIds: savedHappeningIds,
             savedSleep: savedSleep,
             cachedSteps: cachedSteps,
             savedSteps: savedSteps,
             savedStepsTarget: savedStepsTarget,
             savedSleepTarget: savedSleepTarget,
-            savedBaseEnergy: savedBaseEnergy,
-            savedMoments: savedMoments
+            savedBaseEnergy: savedBaseEnergy
         )
         savePastDaySnapshot(dayKey: dayKeyToSave, daySnapshot)
         
@@ -432,12 +365,8 @@ extension AppModel {
         g.removeObject(forKey: SharedKeys.cachedStepsToday)
         g.set(false, forKey: SharedKeys.hasStepsData)
         g.removeObject(forKey: "cachedSleepHoursToday")
-        dailyBodySelections = []
-        dailyRestSelections = []
-        dailyHeartSelections = []
-        dailyMoments = []
-        g.removeObject(forKey: SharedKeys.dailyMoments)
-        dailyCanvasSlots = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
+        todayAdditions = []
+        g.removeObject(forKey: SharedKeys.todayAdditions)
         baseEnergyToday = 0
         spentStepsToday = 0
         stepsBalance = 0
@@ -450,16 +379,13 @@ extension AppModel {
     /// avoiding any dependency on mutable in-memory or UserDefaults state.
     private func buildPastDaySnapshot(
         savedSpent: Int,
-        savedBody: [String],
-        savedMind: [String],
-        savedHeart: [String],
+        savedHappeningIds: [String],
         savedSleep: Double,
         cachedSteps: Double,
         savedSteps: Int,
         savedStepsTarget: Double,
         savedSleepTarget: Double,
-        savedBaseEnergy: Int,
-        savedMoments: [EphemeralMoment] = []
+        savedBaseEnergy: Int
     ) -> PastDaySnapshot {
         let stepsForInk = cachedSteps > 0 ? cachedSteps : Double(savedSteps)
         let sleepPts = savedSleep > 0
@@ -469,23 +395,18 @@ extension AppModel {
             EnergyDefaults.maxBaseEnergy,
             pointsFromSteps(stepsForInk) +
             sleepPts +
-            pointsFromSelections(savedBody.count) +
-            pointsFromSelections(savedMind.count) +
-            pointsFromSelections(savedHeart.count)
+            HappeningEconomy.points(forAdditionCount: savedHappeningIds.count)
         )
         let inkEarned = computedInkEarned > 0 ? computedInkEarned : savedBaseEnergy
 
         return PastDaySnapshot(
             inkEarned: inkEarned,
             inkSpent: savedSpent,
-            bodyIds: savedBody,
-            mindIds: savedMind,
-            heartIds: savedHeart,
+            happeningIds: savedHappeningIds,
             steps: savedSteps,
             sleepHours: savedSleep,
             stepsTarget: savedStepsTarget,
-            sleepTargetHours: savedSleepTarget,
-            moments: savedMoments
+            sleepTargetHours: savedSleepTarget
         )
     }
 
@@ -493,7 +414,7 @@ extension AppModel {
     func resetDailyEnergyIfNeeded() -> Bool {
         let g = UserDefaults.stepsTrader()
         guard let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date else {
-            AppLogger.energy.debug("⚠️ resetDailyEnergyIfNeeded: anchor missing — seeding, NOT resetting (body=\(self.dailyBodySelections.count), mind=\(self.dailyRestSelections.count), heart=\(self.dailyHeartSelections.count))")
+            AppLogger.energy.debug("⚠️ resetDailyEnergyIfNeeded: anchor missing — seeding, NOT resetting (additions=\(self.todayAdditions.count))")
             g.set(currentDayStart(for: Date.now), forKey: SharedKeys.dailyEnergyAnchor)
             return false
         }
@@ -505,327 +426,15 @@ extension AppModel {
         return false
     }
 
-    private func loadPreferredOptions(for category: EnergyCategory) -> [String] {
-        let stored = loadStringArray(forKey: preferredOptionsKey(for: category))
-        if !stored.isEmpty {
-            return stored
-        }
-        let defaults = EnergyDefaults.coreOptions
-            .filter { $0.category == category }
-            .map(\.id)
-        let fallback = Array(defaults.prefix(EnergyDefaults.maxSelectionsPerCategory))
-        saveStringArray(fallback, forKey: preferredOptionsKey(for: category))
-        return fallback
-    }
-
-    private func optionsOrderKey(for category: EnergyCategory) -> String {
-        "energyOptionsOrder_\(category.rawValue)"
-    }
-    
-    private func hiddenOptionsKey(for category: EnergyCategory) -> String {
-        "energyOptionsHidden_\(category.rawValue)"
-    }
-
-    private func loadStringArray(forKey key: String) -> [String] {
-        let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: key),
-              let decoded = try? JSONDecoder().decode([String].self, from: data) else {
-            return []
-        }
-        return decoded
-    }
-
-    private func saveStringArray(_ value: [String], forKey key: String) {
-        let g = UserDefaults.stepsTrader()
-        do {
-            let data = try JSONEncoder().encode(value)
-            g.set(data, forKey: key)
-        } catch {
-            AppLogger.energy.error("Failed to encode string array for key '\(key)': \(error.localizedDescription)")
-        }
-    }
-
-    private func preferredOptionsIds(for category: EnergyCategory) -> [String] {
-        switch category {
-        case .body: return preferredBodyOptions
-        case .mind: return preferredRestOptions
-        case .heart: return preferredHeartOptions
-        }
-    }
-    
-    private func allOptions(for category: EnergyCategory) -> [EnergyOption] {
-        let defaults = EnergyDefaults.coreOptions.filter { $0.category == category }
-        let custom = customOptions(for: category)
-        let hidden = hiddenOptions(for: category)
-        return (defaults + custom).filter { !hidden.contains($0.id) }
-    }
-    
-    func hiddenOptionIds(for category: EnergyCategory) -> Set<String> {
-        Set(loadStringArray(forKey: hiddenOptionsKey(for: category)))
-    }
-
-    private func hiddenOptions(for category: EnergyCategory) -> Set<String> {
-        hiddenOptionIds(for: category)
-    }
-    
-    func orderedOptions(for category: EnergyCategory) -> [EnergyOption] {
-        let all = allOptions(for: category)
-        let optionsById = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
-        let storedOrder = loadStringArray(forKey: optionsOrderKey(for: category))
-        var ordered: [EnergyOption] = []
-        
-        for id in storedOrder {
-            if let option = optionsById[id] {
-                ordered.append(option)
-            }
-        }
-        
-        let missing = all.filter { option in
-            !ordered.contains(where: { $0.id == option.id })
-        }
-        ordered.append(contentsOf: missing)
-        return ordered
-    }
-    
-    func updateOptionsOrder(_ ids: [String], category: EnergyCategory) {
-        let allIds = Set(allOptions(for: category).map(\.id))
-        let unique = Array(NSOrderedSet(array: ids)) as? [String] ?? ids
-        let filtered = unique.filter { allIds.contains($0) }
-        let missing = allIds.subtracting(filtered)
-        let updated = filtered + Array(missing)
-        saveStringArray(updated, forKey: optionsOrderKey(for: category))
-        objectWillChange.send()
-    }
-    
-    private func appendOptionToOrder(id: String, category: EnergyCategory) {
-        var current = loadStringArray(forKey: optionsOrderKey(for: category))
-        if !current.contains(id) {
-            current.append(id)
-            saveStringArray(current, forKey: optionsOrderKey(for: category))
-        }
-    }
-    
-    private func removeOptionFromOrder(id: String, category: EnergyCategory) {
-        var current = loadStringArray(forKey: optionsOrderKey(for: category))
-        current.removeAll { $0 == id }
-        saveStringArray(current, forKey: optionsOrderKey(for: category))
-    }
-
-    func preferredOptions(for category: EnergyCategory) -> [EnergyOption] {
-        let ids: [String]
-        switch category {
-        case .body: ids = preferredBodyOptions
-        case .mind: ids = preferredRestOptions
-        case .heart: ids = preferredHeartOptions
-        }
-        let all = allOptions(for: category)
-        let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
-        return ids.compactMap { byId[$0] }
-    }
-
-
-    func updatePreferredOptions(_ ids: [String], category: EnergyCategory) {
-        let unique = Array(NSOrderedSet(array: ids)) as? [String] ?? ids
-        let trimmed = Array(unique.prefix(EnergyDefaults.maxSelectionsPerCategory))
-        switch category {
-        case .body: preferredBodyOptions = trimmed
-        case .mind: preferredRestOptions = trimmed
-        case .heart: preferredHeartOptions = trimmed
-        }
-        let filteredDaily = dailySelections(for: category).filter { trimmed.contains($0) }
-        setDailySelections(filteredDaily, category: category)
-        saveStringArray(trimmed, forKey: preferredOptionsKey(for: category))
-        persistDailyEnergyState()
-        recalculateDailyEnergy()
-    }
-
-    func togglePreferredOption(optionId: String, category: EnergyCategory) {
-        var selections: [String]
-        switch category {
-        case .body: selections = preferredBodyOptions
-        case .mind: selections = preferredRestOptions
-        case .heart: selections = preferredHeartOptions
-        }
-        let wasSelected = selections.contains(optionId)
-        if let idx = selections.firstIndex(of: optionId) {
-            selections.remove(at: idx)
-        } else if selections.count < EnergyDefaults.maxSelectionsPerCategory {
-            selections.append(optionId)
-        }
-        updatePreferredOptions(selections, category: category)
-        
-        if !wasSelected && selections.contains(optionId) {
-            Task {
-                await SupabaseSyncService.shared.trackAnalyticsEvent(
-                    name: "piece_selected",
-                    properties: [
-                        "option_id": optionId,
-                        "category": category.rawValue,
-                        "source": "preferred_selection"
-                    ]
-                )
-            }
-        }
-    }
-
-    func isPreferredOptionSelected(_ optionId: String, category: EnergyCategory) -> Bool {
-        switch category {
-        case .body: return preferredBodyOptions.contains(optionId)
-        case .mind: return preferredRestOptions.contains(optionId)
-        case .heart: return preferredHeartOptions.contains(optionId)
-        }
-    }
-
-    func toggleDailySelection(optionId: String, category: EnergyCategory) {
-        var selections = dailySelections(for: category)
-        let wasSelected = selections.contains(optionId)
-        if let idx = selections.firstIndex(of: optionId) {
-            selections.remove(at: idx)
-        } else if selections.count < EnergyDefaults.maxSelectionsPerCategory {
-            selections.append(optionId)
-        }
-        setDailySelections(selections, category: category)
-        syncFromSelectionsToSlots()
-        // Recalculate BEFORE persisting so baseEnergyToday is up-to-date when saved.
-        // Previously, persistDailyEnergyState saved the stale value, and if the app
-        // crashed before recalculate finished, baseEnergyToday would be wrong on reload.
-        recalculateDailyEnergy()
-        persistDailyEnergyState()
-        
-        if !wasSelected && selections.contains(optionId) {
-            Task {
-                await SupabaseSyncService.shared.trackAnalyticsEvent(
-                    name: "piece_selected",
-                    properties: [
-                        "option_id": optionId,
-                        "category": category.rawValue,
-                        "source": "daily_canvas"
-                    ]
-                )
-            }
-        }
-    }
-
-    func isDailySelected(_ optionId: String, category: EnergyCategory) -> Bool {
-        dailySelections(for: category).contains(optionId)
-    }
-
-    // MARK: - Ephemeral Moments
-
-    /// Decode persisted `dailyMoments` from UserDefaults, returning `[]` on
-    /// missing data or decode failure. Centralized so loaders and the
-    /// pre-reset snapshot path stay in sync.
-    static func loadSavedMoments(from defaults: UserDefaults) -> [EphemeralMoment] {
-        guard let data = defaults.data(forKey: SharedKeys.dailyMoments),
-              let decoded = try? JSONDecoder().decode([EphemeralMoment].self, from: data)
-        else { return [] }
-        return decoded
-    }
-
-    /// Add a one-time moment for today.
-    /// The moment's ID is added to the appropriate category selection so the
-    /// energy economy is unaffected — moment counts like a regular activity.
-    @discardableResult
-    func addMoment(label: String, icon: String, category: EnergyCategory) -> EphemeralMoment? {
-        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            AppLogger.energy.debug("⚡️ addMoment: empty label, skipping")
-            return nil
-        }
-        guard dailySelections(for: category).count < EnergyDefaults.maxSelectionsPerCategory else {
-            AppLogger.energy.debug("⚡️ addMoment: category \(category.rawValue) is full, skipping")
-            return nil
-        }
-        let dayKey = AppModel.dayKey(for: Date.now)
-        let moment = EphemeralMoment(label: trimmed, icon: icon, category: category, dayKey: dayKey)
-        dailyMoments.append(moment)
-        // Register the ID in the category selection so it contributes energy
-        var selections = dailySelections(for: category)
-        selections.append(moment.id)
-        setDailySelections(selections, category: category)
-        syncFromSelectionsToSlots()
-        recalculateDailyEnergy()
-        persistDailyEnergyState()
-        AppLogger.energy.debug("✦ addMoment: '\(trimmed)' → \(category.rawValue) [\(moment.id)]")
-        return moment
-    }
-
-    /// Remove a moment logged today (undo support).
-    func removeMoment(id: String) {
-        guard let moment = dailyMoments.first(where: { $0.id == id }) else { return }
-        dailyMoments.removeAll { $0.id == id }
-        var selections = dailySelections(for: moment.category)
-        selections.removeAll { $0 == id }
-        setDailySelections(selections, category: moment.category)
-        syncFromSelectionsToSlots()
-        recalculateDailyEnergy()
-        persistDailyEnergyState()
-    }
-
-    /// Resolve a moment label for a given optionId (used by resolveOptionTitle).
-    func momentLabel(for optionId: String) -> String? {
-        dailyMoments.first(where: { $0.id == optionId })?.label
-    }
-
-    func dailySelectionsCount(for category: EnergyCategory) -> Int {
-        dailySelections(for: category).count
-    }
-
-    /// Whether the per-category daily limit of 4 cards has been reached.
-    func isDailyLimitReached(for category: EnergyCategory) -> Bool {
-        dailySelectionsCount(for: category) >= EnergyDefaults.maxSelectionsPerCategory
-    }
-
-    func dailySelections(for category: EnergyCategory) -> [String] {
-        switch category {
-        case .body: return dailyBodySelections
-        case .mind: return dailyRestSelections
-        case .heart: return dailyHeartSelections
-        }
-    }
-
-    private func setDailySelections(_ selections: [String], category: EnergyCategory) {
-        switch category {
-        case .body: dailyBodySelections = selections
-        case .mind: dailyRestSelections = selections
-        case .heart: dailyHeartSelections = selections
-        }
-    }
-
     func persistDailyEnergyState() {
         let g = UserDefaults.stepsTrader()
+        persistTodayAdditions()
         g.set(dailySleepHours, forKey: SharedKeys.dailySleepHours)
-        saveStringArray(dailyBodySelections, forKey: dailySelectionsKey(for: .body))
-        saveStringArray(dailyRestSelections, forKey: dailySelectionsKey(for: .mind))
-        saveStringArray(dailyHeartSelections, forKey: dailySelectionsKey(for: .heart))
-        if let data = try? JSONEncoder().encode(dailyMoments) {
-            g.set(data, forKey: SharedKeys.dailyMoments)
-        }
         g.set(baseEnergyToday, forKey: SharedKeys.baseEnergyToday)
         g.set(spentStepsToday, forKey: SharedKeys.spentStepsToday)
         g.set(currentDayStart(for: Date.now), forKey: SharedKeys.stepsBalanceAnchor)
-        persistDailyCanvasSlots()
         if g.object(forKey: SharedKeys.dailyEnergyAnchor) == nil {
             g.set(currentDayStart(for: Date.now), forKey: SharedKeys.dailyEnergyAnchor)
-        }
-        // Sync daily selections to Supabase (skip during bootstrap to avoid overwriting server data)
-        guard !isBootstrapping else {
-            AppLogger.energy.debug("🔄 persistDailyEnergyState: skipping sync during bootstrap")
-            return
-        }
-        
-        let today = Self.dayKey(for: Date.now)
-        AppLogger.energy.debug("🔄 persistDailyEnergyState calling syncDailySelections for \(today)")
-        AppLogger.energy.debug("🔄   body: \(self.dailyBodySelections)")
-        AppLogger.energy.debug("🔄   mind: \(self.dailyRestSelections)")
-        AppLogger.energy.debug("🔄   heart: \(self.dailyHeartSelections)")
-        Task {
-            await SupabaseSyncService.shared.syncDailySelections(
-                dayKey: today,
-                activityIds: dailyBodySelections,
-                recoveryIds: dailyRestSelections,
-                joysIds: dailyHeartSelections
-            )
         }
     }
 
@@ -854,18 +463,6 @@ extension AppModel {
 
     var stepsPointsToday: Int {
         pointsFromSteps(stepsToday)
-    }
-
-    var bodyPointsToday: Int {
-        pointsFromSelections(dailyBodySelections.count)
-    }
-
-    var mindPointsToday: Int {
-        pointsFromSelections(dailyRestSelections.count)
-    }
-
-    var heartPointsToday: Int {
-        pointsFromSelections(dailyHeartSelections.count)
     }
 
     private var userSleepTarget: Double {
@@ -925,20 +522,16 @@ extension AppModel {
         return Int(ratio * Double(EnergyDefaults.stepsMaxPoints))
     }
 
-    private func pointsFromSelections(_ count: Int) -> Int {
-        min(count, EnergyDefaults.maxSelectionsPerCategory) * EnergyDefaults.selectionPoints
-    }
-
     @MainActor
     func recalculateDailyEnergy() {
-        // Total = steps(20) + sleep(20) + body(20) + mind(20) + heart(20) = 100 max
+        // Total = steps(20) + sleep(20) + happenings(60) = 100 max
         let stepsForEnergy = stepsToday > 0 ? stepsToday : fallbackCachedSteps()
         let stepsPts = pointsFromSteps(stepsForEnergy)
         let sleepPts = sleepPointsToday
-        let total = stepsPts + sleepPts + bodyPointsToday + mindPointsToday + heartPointsToday
+        let total = stepsPts + sleepPts + happeningPointsToday
 
         AppLogger.energy.info("👣 recalcEnergy: stepsToday=\(Int(self.stepsToday)), stepsForEnergy=\(Int(stepsForEnergy)), stepsPts=\(stepsPts)")
-        AppLogger.energy.debug("⚡️ recalculateDailyEnergy: steps=\(stepsPts) + sleep=\(sleepPts)\(self.isSleepAssumed ? " (assumed)" : "") + body=\(self.bodyPointsToday) + mind=\(self.mindPointsToday) + heart=\(self.heartPointsToday) = \(total)")
+        AppLogger.energy.debug("⚡️ recalculateDailyEnergy: steps=\(stepsPts) + sleep=\(sleepPts)\(self.isSleepAssumed ? " (assumed)" : "") + happenings=\(self.happeningPointsToday) (\(self.todayAdditions.count) additions) = \(total)")
         
         let adjustedTotal = isRestDayOverrideEnabled ? max(total, 30) : total
         
@@ -1008,10 +601,6 @@ extension AppModel {
                 dayEndHour: dayEndHour,
                 dayEndMinute: dayEndMinute,
                 restDayOverride: isRestDayOverrideEnabled,
-                preferredBody: preferredBodyOptions,
-                preferredMind: preferredRestOptions,
-                preferredHeart: preferredHeartOptions,
-                canvasSlots: dailyCanvasSlots,
                 hasWallpaperShortcut: hasWallpaperShortcut,
                 wallpaperShortcutUses: wallpaperShortcutUses,
                 notifyOneMinBefore: g.object(forKey: SharedKeys.notifyOneMinBefore) as? Bool ?? true,
@@ -1030,9 +619,7 @@ extension AppModel {
                 userGradientPalette: std.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
                 dailyRandomThemeEnabled: std.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
                 canvasOverlayStyle: g.string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue,
-                bodyCanvasShape: std.string(forKey: SharedKeys.bodyCanvasShape) ?? CanvasShapeType.circle.rawValue,
-                mindCanvasShape: std.string(forKey: SharedKeys.mindCanvasShape) ?? CanvasShapeType.snowflake.rawValue,
-                heartCanvasShape: std.string(forKey: SharedKeys.heartCanvasShape) ?? CanvasShapeType.rays.rawValue
+                allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue)
             )
         }
     }
@@ -1046,27 +633,28 @@ extension AppModel {
             earned: baseEnergyToday,
             stepsPoints: stepsPointsToday,
             sleepPoints: sleepPointsToday,
-            bodyPoints: bodyPointsToday,
-            mindPoints: mindPointsToday,
-            heartPoints: heartPointsToday,
+            bodyPoints: happeningPointsToday,
+            mindPoints: 0,
+            heartPoints: 0,
             timestamp: Date.now
         ))
     }
 
 
 
-    /// Check if an option ID still exists (built-in or custom, not hidden).
-    private func optionExists(_ id: String, category: EnergyCategory) -> Bool {
-        let all = orderedOptions(for: category)
-        return all.contains { $0.id == id }
-    }
-
-    /// Bulk-set all three category selections, recalculate, and persist.
+    /// Decode-only bridge for old server rows during rollout.
     func applySelections(body: [String], mind: [String], heart: [String]) {
-        dailyBodySelections = Array(body.prefix(EnergyDefaults.maxSelectionsPerCategory))
-        dailyRestSelections = Array(mind.prefix(EnergyDefaults.maxSelectionsPerCategory))
-        dailyHeartSelections = Array(heart.prefix(EnergyDefaults.maxSelectionsPerCategory))
-        syncFromSelectionsToSlots()
+        let todayKey = Self.dayKey(for: .now)
+        todayAdditions = (body + mind + heart).map { optionId in
+            OptionEntry(
+                id: UUID().uuidString,
+                dayKey: todayKey,
+                optionId: optionId,
+                colorHex: CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex,
+                timestamp: .now,
+                assetVariant: nil
+            )
+        }
         recalculateDailyEnergy()
         persistDailyEnergyState()
     }
@@ -1095,15 +683,10 @@ extension AppModel {
     }
 
     /// Save current selections as a named routine.
-    /// Ephemeral moments are stripped — a routine is a reusable template and a
-    /// one-time moment ID would never resolve on a future day (and shouldn't
-    /// leave this device via the routine sync either).
     func saveCurrentAsRoutine(name: String) {
         let routine = EnergyRoutine(
             name: name,
-            bodyIds: EphemeralMoment.filteredOutOfSync(dailyBodySelections),
-            mindIds: EphemeralMoment.filteredOutOfSync(dailyRestSelections),
-            heartIds: EphemeralMoment.filteredOutOfSync(dailyHeartSelections),
+            happeningIds: todayAdditions.map(\.optionId),
             lastUsed: Date.now
         )
         savedRoutines.append(routine)
@@ -1112,10 +695,13 @@ extension AppModel {
 
     /// Apply a saved routine's selections to today.
     func applyRoutine(_ routine: EnergyRoutine) {
-        let validBody = routine.bodyIds.filter { optionExists($0, category: .body) }
-        let validMind = routine.mindIds.filter { optionExists($0, category: .mind) }
-        let validHeart = routine.heartIds.filter { optionExists($0, category: .heart) }
-        applySelections(body: validBody, mind: validMind, heart: validHeart)
+        let known = Set(happeningStore.all.map(\.id))
+        for id in routine.happeningIds where known.contains(id) {
+            _ = addHappening(
+                id: id,
+                colorHex: CanvasColorPalette.paletteHex.randomElement() ?? AppColors.goldFallbackHex
+            )
+        }
 
         if let idx = savedRoutines.firstIndex(where: { $0.id == routine.id }) {
             savedRoutines[idx].lastUsed = Date.now

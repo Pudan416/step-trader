@@ -5,9 +5,9 @@ import Combine
 final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     @Published var tariff: Tariff {
         didSet {
-            let g = UserDefaults.stepsTrader()
+            let g = sharedDefaults
             g.set(tariff.rawValue, forKey: SharedKeys.selectedTariff)
-            UserDefaults.standard.set(tariff.rawValue, forKey: SharedKeys.selectedTariff)
+            standardDefaults.set(tariff.rawValue, forKey: SharedKeys.selectedTariff)
             AppLogger.energy.debug("💰 Tariff updated to: \(self.tariff.displayName) (\(Int(self.tariff.stepsPerMinute)) steps/min)")
         }
     }
@@ -18,26 +18,32 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     @Published private(set) var dayEndHour: Int
     @Published private(set) var dayEndMinute: Int
 
-    private var sharedDefaults: UserDefaults { UserDefaults.stepsTrader() }
+    private let sharedDefaults: UserDefaults
+    private let standardDefaults: UserDefaults
 
-    init() {
-        let g = UserDefaults.stepsTrader()
+    init(
+        sharedDefaults: UserDefaults = .stepsTrader(),
+        standardDefaults: UserDefaults = .standard
+    ) {
+        self.sharedDefaults = sharedDefaults
+        self.standardDefaults = standardDefaults
+        let g = sharedDefaults
         let savedTariffString = g.string(forKey: SharedKeys.selectedTariff)
-            ?? UserDefaults.standard.string(forKey: SharedKeys.selectedTariff)
+            ?? standardDefaults.string(forKey: SharedKeys.selectedTariff)
             ?? Tariff.medium.rawValue
         self.tariff = Tariff(rawValue: savedTariffString) ?? .medium
         
         let savedHour = (g.object(forKey: SharedKeys.dayEndHour) as? Int)
-            ?? (UserDefaults.standard.object(forKey: SharedKeys.dayEndHour) as? Int)
+            ?? (standardDefaults.object(forKey: SharedKeys.dayEndHour) as? Int)
             ?? 0
         let savedMinute = (g.object(forKey: SharedKeys.dayEndMinute) as? Int)
-            ?? (UserDefaults.standard.object(forKey: SharedKeys.dayEndMinute) as? Int)
+            ?? (standardDefaults.object(forKey: SharedKeys.dayEndMinute) as? Int)
             ?? 0
         let dayEndHourValue = max(0, min(23, savedHour))
         let dayEndMinuteValue = max(0, min(59, savedMinute))
         
         let savedAnchor = (g.object(forKey: SharedKeys.todayAnchor) as? Date)
-            ?? (UserDefaults.standard.object(forKey: SharedKeys.todayAnchor) as? Date)
+            ?? (standardDefaults.object(forKey: SharedKeys.todayAnchor) as? Date)
         let resolvedAnchor = savedAnchor
             ?? DayBoundary.currentDayStart(for: Date.now, dayEndHour: dayEndHourValue, dayEndMinute: dayEndMinuteValue)
         
@@ -88,7 +94,7 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
 
     // Force re-read values from App Group (for syncing with snippet/intent)
     func reloadFromStorage() {
-        let g = UserDefaults.stepsTrader()
+        let g = sharedDefaults
         if let anchor = g.object(forKey: SharedKeys.todayAnchor) as? Date {
             todayAnchor = anchor
         }

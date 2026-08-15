@@ -52,12 +52,6 @@ struct SettingsSheet: View {
 
                     accountRow
 
-                    if !SubscriptionGate.allFeaturesUnlocked {
-                        section(header: String(localized: "Membership", comment: "Settings section header")) {
-                            subscriptionRow
-                        }
-                    }
-
                     section(header: String(localized: "General", comment: "Settings section header")) {
                         flatRow(icon: "paintpalette", title: String(localized: "Appearance")) {
                             SettingsAppearancePage(model: model)
@@ -166,58 +160,6 @@ struct SettingsSheet: View {
         }
     }
 
-    // MARK: - Subscription row
-
-    private var subscriptionRow: some View {
-        NavigationLink {
-            SettingsSubscriptionPage(model: model, store: model.subscriptionStore)
-        } label: {
-            HStack(spacing: 14) {
-                rowIcon(subscriptionIcon, color: subscriptionTint)
-                rowTitle(String(localized: "Subscription"))
-                Spacer()
-                Text(subscriptionStatusLabel.uppercased())
-                    .font(.caption2.weight(.semibold))
-                    .tracking(2)
-                    .foregroundStyle(subscriptionTint)
-                rowChevron
-            }
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(MattePressStyle())
-    }
-
-    private var subscriptionIcon: String {
-        switch model.subscriptionStore.state {
-        case .grandfathered:    return "gift.fill"
-        case .lifetime:         return "infinity.circle.fill"
-        case .subscribed:       return "checkmark.seal.fill"
-        case .loadingFromCache: return "ellipsis.circle"
-        case .free:             return "sparkles"
-        case .unknown:          return "ellipsis.circle"
-        }
-    }
-
-    private var subscriptionTint: Color {
-        switch model.subscriptionStore.state {
-        case .grandfathered, .lifetime, .subscribed: return AppColors.brandAccent
-        case .loadingFromCache(let isPro): return isPro ? AppColors.brandAccent : theme.adaptiveSecondaryText
-        case .free, .unknown: return theme.adaptiveSecondaryText
-        }
-    }
-
-    private var subscriptionStatusLabel: String {
-        switch model.subscriptionStore.state {
-        case .grandfathered:       return String(localized: "Gifted")
-        case .lifetime:            return String(localized: "Lifetime")
-        case .subscribed:          return String(localized: "Pro")
-        case .loadingFromCache(let isPro): return isPro ? String(localized: "Pro") : "—"
-        case .free:                return String(localized: "Free")
-        case .unknown:             return "—"
-        }
-    }
-
     // MARK: - Permissions row
 
     private var permissionsRow: some View {
@@ -270,10 +212,10 @@ struct SettingsSheet: View {
         .buttonStyle(MattePressStyle())
     }
 
-    private func rowIcon(_ name: String, color: Color? = nil) -> some View {
+    private func rowIcon(_ name: String) -> some View {
         Image(systemName: name)
             .font(.system(size: 15))
-            .foregroundStyle(color ?? theme.adaptiveSecondaryText)
+            .foregroundStyle(theme.adaptiveSecondaryText)
             .frame(width: 24)
     }
 

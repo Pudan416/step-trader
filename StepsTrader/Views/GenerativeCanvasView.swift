@@ -548,9 +548,9 @@ struct GenerativeCanvasView: View {
 
 #Preview("With Elements") {
     let elements: [CanvasElement] = [
-        .spawn(optionId: "activity_sport", category: .body, color: "#C3143B", label: "Sport", existingElements: []),
-        .spawn(optionId: "creativity_curiosity", category: .mind, color: "#7652AF", label: "Curiosity", existingElements: []),
-        .spawn(optionId: "joys_friends", category: .heart, color: "#FEAAC2", label: "Friends", existingElements: []),
+        .spawn(optionId: "activity_sport", color: "#C3143B", label: "Sport", existingElements: [], allowedShapeTypes: [.circle]),
+        .spawn(optionId: "creativity_curiosity", color: "#7652AF", label: "Curiosity", existingElements: [], allowedShapeTypes: [.snowflake]),
+        .spawn(optionId: "joys_friends", color: "#FEAAC2", label: "Friends", existingElements: [], allowedShapeTypes: [.rays]),
     ]
     GenerativeCanvasView(
         elements: elements,

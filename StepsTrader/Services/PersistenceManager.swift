@@ -9,7 +9,19 @@ actor PersistenceManager {
         Self.ensureStorageDirectoryExists()
     }
     
+    /// Test-only redirection of the persisted-data directory. `nil` in production,
+    /// where the directory is derived from the bundle id.
+    ///
+    /// Tests run inside the app's own process, so without this they read and
+    /// write the container of whatever data the simulator happens to be carrying
+    /// — and `AppModel.loadPastDaySnapshots()` goes further: when the snapshot
+    /// file is missing it migrates the App Group key and then *deletes* it, so a
+    /// test could destroy real history. Point this at a temporary directory in
+    /// `setUp` and clear it in `tearDown`.
+    nonisolated(unsafe) static var storageDirectoryOverride: URL?
+
     private static var storageDirectory: URL {
+        if let storageDirectoryOverride { return storageDirectoryOverride }
         let bundleID = Bundle.main.bundleIdentifier ?? "StepsTrader"
         return URL.applicationSupportDirectory.appending(path: bundleID, directoryHint: .isDirectory)
     }

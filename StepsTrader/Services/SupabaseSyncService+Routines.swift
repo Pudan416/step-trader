@@ -51,9 +51,7 @@ extension SupabaseSyncService {
                     "user_id": userId,
                     "routine_id": routine.id,
                     "name": routine.name,
-                    "body_ids": routine.bodyIds,
-                    "mind_ids": routine.mindIds,
-                    "heart_ids": routine.heartIds
+                    "happening_ids": routine.happeningIds
                 ]
                 if let lastUsed = routine.lastUsed {
                     row["last_used"] = iso8601String(lastUsed)
@@ -132,9 +130,7 @@ extension SupabaseSyncService {
                 EnergyRoutine(
                     id: row.routineId,
                     name: row.name,
-                    bodyIds: row.bodyIds,
-                    mindIds: row.mindIds,
-                    heartIds: row.heartIds,
+                    happeningIds: row.happeningIds,
                     lastUsed: row.lastUsed.flatMap { formatter.date(from: $0) }
                 )
             }
@@ -145,17 +141,16 @@ extension SupabaseSyncService {
     }
 }
 
-private struct RoutineRow: Codable {
+private struct RoutineRow: Decodable {
     let routineId: String
     let name: String
-    let bodyIds: [String]
-    let mindIds: [String]
-    let heartIds: [String]
+    let happeningIds: [String]
     let lastUsed: String?
 
     enum CodingKeys: String, CodingKey {
         case routineId = "routine_id"
         case name
+        case happeningIds = "happening_ids"
         case bodyIds = "body_ids"
         case mindIds = "mind_ids"
         case heartIds = "heart_ids"
@@ -166,9 +161,13 @@ private struct RoutineRow: Codable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         routineId = try c.decode(String.self, forKey: .routineId)
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-        bodyIds = try c.decodeIfPresent([String].self, forKey: .bodyIds) ?? []
-        mindIds = try c.decodeIfPresent([String].self, forKey: .mindIds) ?? []
-        heartIds = try c.decodeIfPresent([String].self, forKey: .heartIds) ?? []
+        if let flat = try c.decodeIfPresent([String].self, forKey: .happeningIds) {
+            happeningIds = flat
+        } else {
+            happeningIds = (try c.decodeIfPresent([String].self, forKey: .bodyIds) ?? [])
+                + (try c.decodeIfPresent([String].self, forKey: .mindIds) ?? [])
+                + (try c.decodeIfPresent([String].self, forKey: .heartIds) ?? [])
+        }
         lastUsed = try c.decodeIfPresent(String.self, forKey: .lastUsed)
     }
 }

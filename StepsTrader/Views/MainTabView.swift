@@ -11,44 +11,59 @@ struct MainTabView: View {
     @ObservedObject var model: AppModel
     // Persisted across process death within the same scene so users return to the
     // tab they last had open after a deep link or relaunch.
-    @SceneStorage("selectedTab") private var selection: Int = Tab.canvas.rawValue
+    @SceneStorage("selectedTab") private var storedSelection: Int = Tab.canvas.rawValue
+
+    /// Every read and write of the current tab goes through `Tab.resolve`, so a
+    /// raw value left behind by a build with more tabs can never select a page
+    /// that no longer exists.
+    private var selection: Int {
+        get { Tab.resolve(storedRawValue: storedSelection).rawValue }
+        nonmutating set { storedSelection = Tab.resolve(storedRawValue: newValue).rawValue }
+    }
+
+    private var selectionBinding: Binding<Int> {
+        Binding(get: { selection }, set: { selection = $0 })
+    }
     // Drives the deterministic deep-link readiness signal for OpenTicketSettings.
     @State private var pendingTicketBundleId: String?
     // Bumped per delivery so repeat-same-bundleId notifications still re-fire `.task(id:)`.
     @State private var ticketDeliveryToken = UUID()
     var theme: AppTheme = .night
-    @State private var selectedCategory: EnergyCategory? = nil
+    @State private var isHappeningPaletteVisible = false
+    @State private var isHappeningPalettePanelVisible = false
+    @State private var paletteRoute = CanvasPaletteRouteState()
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
     @State private var isWideCanvas: Bool = false
-    @State private var uiTestPickerCategory: EnergyCategory? = nil
     @State private var showColorsHelp: Bool = false
-    /// Deep-link route for the Settings tab, driven by feature-tip CTAs.
+    /// Deep-link route for the Settings sheet, driven by feature-tip CTAs.
     @State private var settingsDeepLinkRoute: FeatureTipSettingsPage?
+    /// Settings is a sheet opened from Me. The host owns the flag and the route
+    /// because `TabView` builds its pages lazily — a deep link that arrives
+    /// before Me has ever been opened must not be delivered to a view that does
+    /// not exist yet.
+    @State private var showSettings = false
     @State private var tabBarHeight: CGFloat = 80
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
     // Figma menu tabs (475:64): icon ≈ 2× label height, label ≈ caption.
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @ScaledMetric(relativeTo: .caption2) private var tabIconSize: CGFloat = 24
     @ScaledMetric(relativeTo: .caption2) private var selectedTabIconSize: CGFloat = 26
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Environment(CoachMarkManager.self) private var coachMarkManager
     @State private var coachAnchors: [CoachMarkAnchor] = []
 
-    private enum Tab: Int, CaseIterable {
+    enum Tab: Int, CaseIterable {
         case canvas = 0
         case feeds = 1
         case me = 2
-        case history = 3
-        case settings = 4
 
         var icon: String {
             switch self {
             case .feeds: return "square.grid.2x2"
             case .canvas: return "scribble.variable"
             case .me: return "person.circle"
-            case .history: return "calendar"
-            case .settings: return "gearshape"
             }
         }
 
@@ -57,8 +72,6 @@ struct MainTabView: View {
             case .feeds: return String(localized: "Feeds", comment: "Tab bar title")
             case .canvas: return String(localized: "Canvas", comment: "Tab bar title")
             case .me: return String(localized: "Me", comment: "Tab bar title")
-            case .history: return String(localized: "History", comment: "Tab bar title")
-            case .settings: return String(localized: "Settings", comment: "Tab bar title")
             }
         }
 
@@ -68,13 +81,33 @@ struct MainTabView: View {
             case .feeds: return "tab_feeds"
             case .canvas: return "tab_canvas"
             case .me: return "tab_me"
-            case .history: return "tab_history"
-            case .settings: return "tab_settings"
             }
+        }
+
+        /// `@SceneStorage` persists a raw Int across app updates. Values written
+        /// by builds that had more tabs (3 = History, 4 = Settings) no longer
+        /// resolve, so anything unknown falls back to the canvas.
+        static func resolve(storedRawValue: Int) -> Tab {
+            Tab(rawValue: storedRawValue) ?? .canvas
         }
     }
 
     private var tabTint: Color { AppColors.Night.textPrimary }
+
+    private var hidesSurroundingChromeForPalette: Bool {
+        HappeningPaletteChromeLayout.hidesSurroundingChrome(
+            isPalettePresented: isHappeningPaletteVisible,
+            isPanelPresented: isHappeningPalettePanelVisible,
+            dynamicTypeSize: dynamicTypeSize
+        )
+    }
+
+    private var task7AccessibilityConfigurationValue: String {
+        let contrast = Task7UITestAccessibilityConfiguration.current.usesIncreasedContrast
+            ? "increased-contrast"
+            : "standard-contrast"
+        return "\(Task7UITestAccessibilityConfiguration.name(for: dynamicTypeSize)),\(contrast)"
+    }
 
     // Height preference key for the StepBalanceCard overlay
     private struct TopCardHeightPreferenceKey: PreferenceKey {
@@ -93,38 +126,27 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack {
-            TabView(selection: $selection) {
+            TabView(selection: selectionBinding) {
                 // 0: My Canvas (default) — canvas goes full-bleed behind card
                 Group {
-                    if isUITest {
-                        ZStack {
-                            Color.clear.ignoresSafeArea()
-                            VStack(spacing: 16) {
-                                Spacer()
-                                ForEach(EnergyCategory.allCases) { cat in
-                                    Button(cat.rawValue) {
-                                        uiTestPickerCategory = cat
-                                    }
-                                    .accessibilityIdentifier("uitest_open_\(cat.rawValue)")
+                    NavigationStack {
+                        GalleryView(
+                            model: model,
+                            metricOverlay: $metricOverlay,
+                            isWideCanvas: $isWideCanvas,
+                            paletteRoute: $paletteRoute,
+                            isCanvasSelected: selection == Tab.canvas.rawValue,
+                            onPalettePresentationChange: { isPresented in
+                                isHappeningPaletteVisible = isPresented
+                                if !isPresented {
+                                    isHappeningPalettePanelVisible = false
                                 }
-                                .padding(.bottom, 40)
+                            },
+                            onPalettePanelPresentationChange: { isPresented in
+                                isHappeningPalettePanelVisible = isPresented
                             }
-                        }
-                        .sheet(item: $uiTestPickerCategory) { category in
-                            CategoryDetailView(
-                                model: model,
-                                category: category,
-                                outerWorldSteps: 0,
-                                onActivityConfirmed: { _, _, _, _ in },
-                                onCardUndo: { _, _ in },
-                                onReroll: { _, _ in }
-                            )
-                        }
-                    } else {
-                        NavigationStack {
-                            GalleryView(model: model, metricOverlay: $metricOverlay, isWideCanvas: $isWideCanvas)
-                                .toolbarBackground(.hidden, for: .navigationBar)
-                        }
+                        )
+                            .toolbarBackground(.hidden, for: .navigationBar)
                     }
                 }
                 .safeAreaInset(edge: .top, spacing: 0) {
@@ -153,37 +175,34 @@ struct MainTabView: View {
                     }
 
                 // 2: Me
-                MeView(model: model)
+                MeView(model: model, onOpenSettings: { showSettings = true })
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.me.rawValue)
-
-                // 3: History
-                HistoryView(model: model)
-                    .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.history.rawValue)
-                
-                // 4: Settings
-                SettingsSheet(model: model, embeddedInTab: true, featureTipRouteBinding: $settingsDeepLinkRoute)
-                    .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.settings.rawValue)
             }
+
             .toolbarBackground(.hidden, for: .tabBar)
             .toolbarBackground(.hidden, for: .navigationBar)
             .environment(\.topCardHeight, topCardHeight)
             .environment(\.tabBarHeight, tabBarHeight)
             .animation(.easeInOut(duration: 0.2), value: selection)
-            // Feature-tip CTA deep-link: switch to the Settings tab AND set the
-            // route that SettingsSheet pushes via navigationDestination. Owning
-            // the route here (not in SettingsSheet) means it survives the tab
-            // being lazily created on first visit. Posted by FeatureTipSheet.
+            // Feature-tip CTA deep-link: Settings is a sheet on Me now. Set the
+            // route BEFORE presenting — SettingsSheet reads the binding when it
+            // is first created and pushes via navigationDestination on appear.
+            // Owning both here (not in MeView) means the link works even if Me
+            // has never been visited, since TabView builds its pages lazily.
+            // Posted by FeatureTipSheet.
             .onReceive(NotificationCenter.default.publisher(for: .openFeatureTipSettings)) { note in
-                let page = (note.userInfo?["page"] as? String).flatMap(FeatureTipSettingsPage.init(rawValue:))
-                withAnimation { selection = Tab.settings.rawValue }
-                guard let page else { return }
-                // Defer the push slightly so the tab transition settles first.
+                settingsDeepLinkRoute = (note.userInfo?["page"] as? String)
+                    .flatMap(FeatureTipSettingsPage.init(rawValue:))
+                withAnimation { selection = Tab.me.rawValue }
+                guard !showSettings else { return }
+                // The poster (FeatureTipSheet) is itself a sheet and calls
+                // dismiss() immediately before posting. Presenting on top of a
+                // dismissal already in flight gets dropped by UIKit, so wait for
+                // it to finish — the same reason the tab version deferred its push.
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(350))
-                    settingsDeepLinkRoute = page
+                    showSettings = true
                 }
             }
             // Use overlay (not safeAreaInset) so page content extends fully
@@ -192,8 +211,20 @@ struct MainTabView: View {
             // (or read \.tabBarHeight) on its scrollable content so the last
             // row can scroll past the pill.
             .overlay(alignment: .bottom) {
-                if !isWideCanvas {
+                if !isWideCanvas, !hidesSurroundingChromeForPalette {
                     customTabBar
+                        .allowsHitTesting(
+                            !CanvasPaletteRouteState.blocksTabBar(
+                                isCanvasSelected: selection == Tab.canvas.rawValue,
+                                isPaletteVisible: isHappeningPaletteVisible
+                            )
+                        )
+                        .accessibilityHidden(
+                            CanvasPaletteRouteState.blocksTabBar(
+                                isCanvasSelected: selection == Tab.canvas.rawValue,
+                                isPaletteVisible: isHappeningPaletteVisible
+                            )
+                        )
                         .background(
                             GeometryReader { geo in
                                 Color.clear.preference(key: TabBarHeightPreferenceKey.self, value: geo.size.height)
@@ -204,7 +235,7 @@ struct MainTabView: View {
             }
             .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
             .overlay {
-                if selection == Tab.canvas.rawValue || selection == Tab.feeds.rawValue {
+                if selection == Tab.feeds.rawValue {
                     TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
                         .transaction { $0.animation = nil }
                 }
@@ -213,46 +244,20 @@ struct MainTabView: View {
             .onAppear {
                 model.recalculateDailyEnergy()
             }
-            .sheet(item: $selectedCategory) { category in
-                // Picker is opened from outside the Canvas tab (StepBalanceCard
-                // pills). `GalleryView` owns the canvas state, so we delegate via
-                // notifications it subscribes to. Switching to the Canvas tab will
-                // show the spawned/rerolled/removed elements.
-                CategoryDetailView(
-                    model: model,
-                    category: category,
-                    outerWorldSteps: 0,
-                    onActivityConfirmed: { optionId, cat, color, variant in
-                        var info: [String: Any] = [
-                            "optionId": optionId,
-                            "category": cat.rawValue,
-                            "color": color
-                        ]
-                        if let variant { info["assetVariant"] = variant }
-                        NotificationCenter.default.post(name: .canvasElementSpawnRequested, object: nil, userInfo: info)
-                    },
-                    onCardUndo: { optionId, cat in
-                        NotificationCenter.default.post(
-                            name: .canvasElementRemoveRequested,
-                            object: nil,
-                            userInfo: ["optionId": optionId, "category": cat.rawValue]
-                        )
-                    },
-                    onReroll: { optionId, cat in
-                        NotificationCenter.default.post(
-                            name: .canvasElementRerollRequested,
-                            object: nil,
-                            userInfo: ["optionId": optionId, "category": cat.rawValue]
-                        )
-                    }
-                )
-                .onAppear {
-                    AppLogger.ui.debug("🟢 MainTabView: Showing CategoryDetailView for category: \(category.rawValue)")
-                }
+
+            if ProcessInfo.processInfo.arguments.contains("ui-testing-task7") {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityElement()
+                    .accessibilityIdentifier("task7_accessibility_configuration")
+                    .accessibilityLabel("Task 7 accessibility configuration")
+                    .accessibilityValue(task7AccessibilityConfigurationValue)
             }
         }
         .overlay(alignment: .top) {
-            if !isWideCanvas {
+            // Me is where you look back, not where you check your balance — the
+            // card is drawn on canvas and feeds only.
+            if !isWideCanvas, !hidesSurroundingChromeForPalette, selection != Tab.me.rawValue {
             StepBalanceCard(
                 remainingSteps: model.userEconomyStore.totalStepsBalance,
                 totalSteps: model.healthStore.baseEnergyToday,
@@ -263,9 +268,7 @@ struct MainTabView: View {
                 showDetails: selection == Tab.canvas.rawValue,
                 stepsPoints: model.stepsPointsToday,
                 sleepPoints: model.sleepPointsToday,
-                bodyPoints: model.bodyPointsToday,
-                mindPoints: model.mindPointsToday,
-                heartPoints: model.heartPointsToday,
+                happeningPoints: model.happeningPointsToday,
                 baseEnergyToday: model.healthStore.baseEnergyToday,
                 onStepsTap: {
                     if selection == Tab.canvas.rawValue {
@@ -279,23 +282,9 @@ struct MainTabView: View {
                 },
                 onMoveTap: {
                     if selection == Tab.canvas.rawValue {
-                        metricOverlay = .category(.body)
+                        metricOverlay = .happenings
                     } else {
-                        selectedCategory = .body
-                    }
-                },
-                onRebootTap: {
-                    if selection == Tab.canvas.rawValue {
-                        metricOverlay = .category(.mind)
-                    } else {
-                        selectedCategory = .mind
-                    }
-                },
-                onJoyTap: {
-                    if selection == Tab.canvas.rawValue {
-                        metricOverlay = .category(.heart)
-                    } else {
-                        selectedCategory = .heart
+                        openHappeningPaletteOnCanvas()
                     }
                 },
                 onColorsHelpTap: { showColorsHelp = true }
@@ -316,6 +305,11 @@ struct MainTabView: View {
             if showColorsHelp {
                 colorsHelpOverlay
             }
+        }
+        // Settings left the tab bar; `embeddedInTab` defaults to false, which
+        // drops the topCardHeight inset the tab version needed.
+        .sheet(isPresented: $showSettings) {
+            SettingsSheet(model: model, featureTipRouteBinding: $settingsDeepLinkRoute)
         }
         .onPreferenceChange(CoachMarkAnchorKey.self) { coachAnchors = $0 }
         .overlay {
@@ -359,6 +353,7 @@ struct MainTabView: View {
         .onChange(of: selection) { _, newValue in
             if newValue != Tab.canvas.rawValue {
                 metricOverlay = nil
+                paletteRoute.cancelPendingRequest()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("OpenTicketSettings"))) { notification in
@@ -374,6 +369,13 @@ struct MainTabView: View {
                 // Bump token so consecutive deliveries of the same bundleId still re-fire .task(id:).
                 ticketDeliveryToken = UUID()
             }
+        }
+    }
+
+    private func openHappeningPaletteOnCanvas() {
+        paletteRoute.requestOpen()
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selection = Tab.canvas.rawValue
         }
     }
 
@@ -460,7 +462,10 @@ struct MainTabView: View {
 
     @ViewBuilder
     private func tabBarItems(animated: Bool) -> some View {
-        HStack(spacing: 0) {
+        // Fixed spacing, not a distributed one: with three destinations left,
+        // stretching each item to an equal share of the screen leaves the icons
+        // marooned at the edges of a bar that spans the whole width.
+        HStack(spacing: 4) {
             ForEach(Tab.allCases, id: \.rawValue) { tab in
                 let isSelected = selection == tab.rawValue
                 Button {
@@ -484,7 +489,9 @@ struct MainTabView: View {
                                 // with differing intrinsic heights (and the 24→26pt
                                 // selection bump) don't shift the label baseline.
                                 .frame(height: selectedTabIconSize, alignment: .center)
-                            if tab == .settings && model.hasPermissionIssues {
+                            // Settings is a button on Me now, so the permission
+                            // warning dot follows it there.
+                            if tab == .me && model.hasPermissionIssues {
                                 Circle()
                                     .fill(.orange)
                                     .frame(width: 7, height: 7)
@@ -498,7 +505,10 @@ struct MainTabView: View {
                             .minimumScaleFactor(0.8)
                     }
                     .foregroundStyle(tabTint.opacity(isSelected ? 1.0 : 0.75))
-                    .frame(maxWidth: .infinity)
+                    // A minimum, so the pill hugs its contents while every item
+                    // keeps a tap target wider than the 44pt floor.
+                    .frame(minWidth: 56)
+                    .padding(.horizontal, 4)
                     .padding(.vertical, 4)
                     .contentShape(Rectangle())
                 }
@@ -588,4 +598,3 @@ private struct LiquidGlassControlModifier<S: InsettableShape>: ViewModifier {
         }
     }
 }
-

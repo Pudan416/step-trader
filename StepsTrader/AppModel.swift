@@ -176,18 +176,11 @@ final class AppModel: ObservableObject {
     /// Deferred from bootstrap — HealthKit auth must wait until the scene is active.
     var needsHealthKitAuthorization: Bool = false
     
-    @Published var dailyBodySelections: [String] = []
-    @Published var dailyRestSelections: [String] = []
-    @Published var dailyHeartSelections: [String] = []
-    /// Ephemeral moments logged today. Labels are stored here; IDs also appear
-    /// in the corresponding daily*Selections array for energy accounting.
-    @Published var dailyMoments: [EphemeralMoment] = []
-    /// Canvas tab: 4 slots (category + option each). Synced with daily *Selections.
-    @Published var dailyCanvasSlots: [DayCanvasSlot] = (0..<4).map { _ in DayCanvasSlot(category: nil, optionId: nil) }
-    @Published var preferredBodyOptions: [String] = []
-    @Published var preferredRestOptions: [String] = []
-    @Published var preferredHeartOptions: [String] = []
-    @Published var customEnergyOptions: [CustomEnergyOption] = []
+    /// Every happening added today, in insertion order. Each happening can be
+    /// added once per custom day.
+    @Published var todayAdditions: [OptionEntry] = []
+    let happeningStore = HappeningStore()
+    let happeningPaletteSelectionStore = HappeningPaletteSelectionStore()
     @Published var savedRoutines: [EnergyRoutine] = []
     
     /// Single source of truth: UserEconomyStore.spentSteps (persisted as SharedKeys.spentStepsToday).
@@ -286,7 +279,7 @@ final class AppModel: ObservableObject {
         authService.postLoginSyncModel = self
     }
 
-    /// Convenience: true if user has Pro access (paid OR grandfathered).
+    /// Convenience: always true. The app is free for everyone.
     var isPro: Bool { subscriptionStore.isPro }
 
     func currentDayStart(for date: Date) -> Date {
@@ -325,7 +318,7 @@ final class AppModel: ObservableObject {
         }
         if dayChanged {
             // Custom day boundary flipped (respects `dayEndHour`/`dayEndMinute`) —
-            // give Pro users with Daily Random Theme a fresh palette + style for
+            // give users with Daily Random Theme enabled a fresh palette + style for
             // the new day. Note: `dayChanged` is computed via `AppModel.dayKey(for:)`
             // which is custom-day-aware, so this fires at the user's reset time
             // (e.g. 4am if dayEndHour=4), not at calendar midnight.
@@ -474,11 +467,9 @@ final class AppModel: ObservableObject {
         loadDayPassGrants()
         
         // 1.5 Restore daily energy state and spent balance so colors counts persist across restarts
-        loadEnergyPreferences()
         loadDailyEnergyState()
         AppLogger.energy.debug("📊 AFTER loadDailyEnergyState: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
 
-        loadCustomEnergyOptions()
         loadSavedRoutines()
         loadSpentStepsBalance()
         AppLogger.energy.debug("📊 AFTER loadSpentStepsBalance: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
@@ -502,7 +493,7 @@ final class AppModel: ObservableObject {
         let hasCompletedInitialRestore = g.bool(forKey: SharedKeys.hasCompletedInitialRestore)
         if isAuthenticated && !hasCompletedInitialRestore {
             let hasPriorLocalState = g.object(forKey: SharedKeys.dailyEnergyAnchor) != nil
-                || !customEnergyOptions.isEmpty
+                || !todayAdditions.isEmpty
                 || !ticketGroups.isEmpty
             if hasPriorLocalState {
                 // Existing install predating this flag — mark restored, don't clobber.
@@ -587,8 +578,7 @@ final class AppModel: ObservableObject {
         didCompleteBootstrap = true
 
         // Apply daily random theme on cold launch (no-op when toggle is OFF
-        // or already rolled today). Called after `didCompleteBootstrap = true`
-        // so `isPro` resolution has settled.
+        // or already rolled today).
         applyDailyRandomThemeIfNeeded()
 
         // HealthKit authorization is deferred until the scene is fully active.

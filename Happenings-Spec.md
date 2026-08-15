@@ -257,22 +257,30 @@ columns, so nothing can be dropped in this change. The sequence is:
 `SupabaseSyncService+Entries` and `SupabaseSyncService+Selections` both encode
 and decode `category` and need the field removed from their row structs.
 
-### Repeat additions and the entries primary key
+### Once per happening per day
 
-`user_option_entries` is keyed `PRIMARY KEY (user_id, day_key, option_id)` —
-one row per option per day. That was correct when a category selection was a
-one-shot choice. It is wrong now: the economy counts additions, and a palette
-of everyday things invites logging the same one twice (called mom in the
-morning and again at night).
+**Reversed 2026-08-09, during the liquid-palette redesign.** This section
+originally allowed repeat additions and rejected the once-a-day alternative.
+The palette drove the decision the other way: a happening that has been added
+leaves the cluster, which is what gives the field its "spend the day down"
+shape and the *All added for today* end state. A happening that could be tapped
+forever has nothing to leave.
 
-**Decision:** repeat additions are allowed. The primary key becomes a surrogate
-`id uuid`, with `(user_id, day_key, option_id)` demoted to a plain index. The
-local `OptionEntry` already carries its own `id`, so the client side is
-unchanged.
+**Decision:** each happening can be added at most once per custom day.
+`AppModel.addHappening` returns nil for a happening already logged today, and
+`availablePaletteHappenings` filters used ones out of the cluster.
 
-The alternative — one addition per happening per day — caps a day at ten additions,
-makes the 60-point ceiling reachable only by using six distinct happenings, and
-quietly punishes people whose days repeat. Rejected.
+What this costs, stated plainly because the original text argued against it:
+a day is capped at the ten configured slots plus anything created on the spot,
+the 60-point ceiling needs six **distinct** happenings, and someone who calls
+their mother twice in a day can only log it once.
+
+`user_option_entries` keeps its composite primary key — it is untouched by this
+change (see below). New clients write to `user_happening_additions`, which has a
+surrogate `id uuid` primary key and deliberately no unique constraint on
+`(user_id, day_key, option_id)`. That constraint is now unnecessary rather than
+load-bearing; it is left off so the table does not have to be migrated again if
+repeats ever come back.
 
 ## Fallout
 
@@ -317,8 +325,8 @@ and hardcoding the demo spawn's shape — with no narrative or copy changes.
 - `allowedCanvasShapes` cannot be emptied.
 - Non-Pro user with Organic in `allowedCanvasShapes` never spawns an Organic
   element, and the preference survives.
-- New: the same happening added twice in one day produces two `user_option_entries`
-  rows rather than an upsert collision.
+- New: adding the same happening twice in one day is refused — the second call
+  returns nil and writes nothing — and the happening leaves the palette once used.
 - New: a sync round-trip against a schema where `category` is null decodes
   without falling back to `.body`.
 

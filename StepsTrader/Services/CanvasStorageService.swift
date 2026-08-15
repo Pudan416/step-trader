@@ -81,6 +81,28 @@ final class CanvasStorageService {
         try? fileManager.removeItem(at: url)
     }
 
+    /// Moves the current session to a key produced by a day-end preference
+    /// change. The destination is written atomically before the source is
+    /// removed, so a failed write leaves the original canvas recoverable.
+    @discardableResult
+    func rekeyCanvas(from oldDayKey: String, to newDayKey: String) -> Bool {
+        guard oldDayKey != newDayKey else { return true }
+        guard var source = loadCanvas(for: oldDayKey) else { return true }
+
+        source.dayKey = newDayKey
+        if let destination = loadCanvas(for: newDayKey) {
+            var knownIDs = Set(source.elements.map(\.id))
+            source.elements.append(
+                contentsOf: destination.elements.filter { knownIDs.insert($0.id).inserted }
+            )
+            source.lastModified = max(source.lastModified, destination.lastModified)
+        }
+
+        guard saveCanvas(source) else { return false }
+        deleteCanvas(for: oldDayKey)
+        return true
+    }
+
     // MARK: - Snapshot
 
     @MainActor

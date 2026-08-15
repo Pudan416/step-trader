@@ -36,11 +36,9 @@ final class CanvasEditState {
 
 // MARK: - Canvas Toolbar State
 
-/// Toolbar / sheet state hoisted out of GalleryView. Drives the category
-/// picker, share sheet, save-routine alert, and export progress indicator.
+/// Toolbar / sheet state hoisted out of GalleryView.
 @Observable @MainActor
 final class CanvasToolbarState {
-    var pickerCategory: EnergyCategory? = nil
     var showShareSheet: Bool = false
     var shareImage: UIImage? = nil
     var isExporting: Bool = false

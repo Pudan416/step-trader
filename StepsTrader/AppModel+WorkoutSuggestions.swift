@@ -19,7 +19,7 @@ extension AppModel {
 
     /// Main refresh: gathers signals from all sources and builds the unified suggestion list.
     func refreshActivitySuggestions() async {
-        let alreadyAdded = Set(dailyBodySelections + dailyRestSelections + dailyHeartSelections)
+        let alreadyAdded = Set(todayAdditions.map(\.optionId))
         let dismissed = dismissedSuggestionIds
 
         var suggestions: [ActivitySuggestion] = []
@@ -33,15 +33,13 @@ extension AppModel {
         let mindfulMinutes = await healthStore.fetchTodayMindfulMinutes()
         if mindfulMinutes >= 3,
            !alreadyAdded.contains("body_resting"),
-           !dismissed.contains("mindful_\(Int(mindfulMinutes))"),
-           !isDailyLimitReached(for: .body) {
+           !dismissed.contains("mindful_\(Int(mindfulMinutes))") {
             suggestions.append(.fromMindfulMinutes(mindfulMinutes))
         }
 
         // 3. Morning resting — every new day, suggest adding "Resting" to canvas
         if !alreadyAdded.contains("body_resting"),
-           !dismissed.contains("morning_resting"),
-           !isDailyLimitReached(for: .body) {
+           !dismissed.contains("morning_resting") {
             suggestions.insert(.fromMorningResting(), at: 0)
         }
 
@@ -105,7 +103,6 @@ extension AppModel {
     private func shouldSuggestLowScreenTime(alreadyAdded: Set<String>, dismissed: Set<String>) -> Bool {
         guard !alreadyAdded.contains("mind_screen_detox") else { return false }
         guard !dismissed.contains("low_screen_time") else { return false }
-        guard !isDailyLimitReached(for: .mind) else { return false }
 
         let hour = Calendar.current.component(.hour, from: Date.now)
         guard hour >= 14 else { return false }
@@ -123,14 +120,6 @@ extension AppModel {
     // MARK: - Accept / Dismiss
 
     func acceptActivitySuggestion(_ suggestion: ActivitySuggestion) {
-        let category = suggestion.category
-        let optionId = suggestion.optionId
-
-        if !isDailySelected(optionId, category: category) &&
-           !isDailyLimitReached(for: category) {
-            toggleDailySelection(optionId: optionId, category: category)
-        }
-
         pendingActivitySuggestions.removeAll { $0.id == suggestion.id }
     }
 
