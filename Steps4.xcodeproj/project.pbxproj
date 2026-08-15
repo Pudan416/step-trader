@@ -221,6 +221,7 @@
 		AE00000300000000000000B3 /* GalleryMetricOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE00000300000000000000A3 /* GalleryMetricOverlayView.swift */; };
 		AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */; };
 		UB53000053000053000000B1 /* UsageBudgetScheduleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UB53000053000053000000A1 /* UsageBudgetScheduleTests.swift */; };
+		AL01000053000053000000B1 /* AuthSignInLoadingStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */; };
 		AEF40DC05AB94589A68AB8CD /* BlobShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */; };
 		AEF40DC15AB945890B0B0B01 /* OrganicBlobShapeGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */; };
 		AEF40DC25AB945890B0B0B02 /* OrganicBlobShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */; };
@@ -536,6 +537,7 @@
 		AE00000500000000000000A5 /* Secrets-Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Secrets-Release.xcconfig"; sourceTree = "<group>"; };
 		AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroupRMWConcurrencyTests.swift; sourceTree = "<group>"; };
 		UB53000053000053000000A1 /* UsageBudgetScheduleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBudgetScheduleTests.swift; sourceTree = "<group>"; };
+		AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSignInLoadingStateTests.swift; sourceTree = "<group>"; };
 		AF354BA8B84F3623DFC56E52 /* CanvasRenderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasRenderModels.swift; path = StepsTrader/Views/Canvas/CanvasRenderModels.swift; sourceTree = SOURCE_ROOT; };
 		B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BlobShapeRenderer.swift; path = StepsTrader/Shapes/BlobShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		B0C269980B0B0B010B0B0B01 /* OrganicBlobShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OrganicBlobShapeGenerator.swift; path = StepsTrader/Shapes/OrganicBlobShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
@@ -1107,6 +1109,7 @@
 				AABB004400440044AABB0040 /* SubscriptionStateTests.swift */,
 				AE52000052000052000000A1 /* AppGroupRMWConcurrencyTests.swift */,
 				UB53000053000053000000A1 /* UsageBudgetScheduleTests.swift */,
+				AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */,
 			);
 			path = Steps4Tests;
 			sourceTree = "<group>";
@@ -1635,6 +1638,7 @@
 				AABB004400440044AABB0044 /* SubscriptionStateTests.swift in Sources */,
 				AE52000052000052000000B1 /* AppGroupRMWConcurrencyTests.swift in Sources */,
 				UB53000053000053000000B1 /* UsageBudgetScheduleTests.swift in Sources */,
+				AL01000053000053000000B1 /* AuthSignInLoadingStateTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
