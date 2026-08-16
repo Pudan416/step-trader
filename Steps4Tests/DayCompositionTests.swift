@@ -6,6 +6,13 @@ import XCTest
 /// this, so a canvas reads as one work and two days read as different works.
 final class DayCompositionTests: XCTestCase {
 
+    func testDayCompositionOffersOnlyTheFourApprovedFillKinds() {
+        XCTAssertEqual(
+            Set(TextureKind.allCases.map(\.rawValue)),
+            Set(["flat", "gradient", "rings", "hatch"])
+        )
+    }
+
     // MARK: - Determinism
 
     func testCompositionIsReproducibleFromTheDayKey() {
@@ -308,7 +315,7 @@ final class DayCompositionTests: XCTestCase {
     }
 
     func testTexturePolicyIsDeterministic() {
-        let policy = TexturePolicy(dominant: .stipple, accent: .flat, accentShare: 0.4)
+        let policy = TexturePolicy(dominant: .rings, accent: .flat, accentShare: 0.4)
         XCTAssertEqual((0..<20).map { policy.kind(forRank: $0) },
                        (0..<20).map { policy.kind(forRank: $0) })
     }
