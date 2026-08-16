@@ -1754,7 +1754,7 @@ struct OnboardingStoriesView: View {
 
     // MARK: - Onboarding Canvas Elements (slide 8+)
 
-    /// Fixed so the demo canvas's fill (rings/hatch/stipple mix) is stable
+    /// Fixed so the demo canvas's fill (rings/hatch mix) is stable
     /// across runs — `onboardingCanvasElements` below builds elements by hand
     /// rather than through `spawn`, so this is only consumed by the renderer's
     /// `dayComposition`, not by element placement.
