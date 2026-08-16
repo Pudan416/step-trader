@@ -2,6 +2,47 @@ import XCTest
 @testable import Steps4
 
 final class RichRenderBudgetTests: XCTestCase {
+    func testCadenceStatsDistinguishStableAndSlowIntervals() {
+        let stable = RichCadenceStats.calculate(
+            intervals: Array(repeating: 0.05, count: 30), requestedFPS: 20
+        )
+        let slow = RichCadenceStats.calculate(
+            intervals: [0.05, 0.05, 0.10, 0.05], requestedFPS: 20
+        )
+
+        XCTAssertEqual(stable.observedFPS, 20, accuracy: 0.1)
+        XCTAssertEqual(stable.slowIntervalCount, 0)
+        XCTAssertEqual(slow.slowIntervalCount, 1)
+    }
+
+    func testParticleDistributionUsesStableQuotientAndRemainderShares() {
+        let ids = [
+            UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+            UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+        ]
+
+        let counts = RichParticleDistribution.counts(
+            eligibleIDs: ids,
+            globalParticleCount: 8
+        )
+
+        XCTAssertEqual(counts[ids[0]], 3)
+        XCTAssertEqual(counts[ids[1]], 3)
+        XCTAssertEqual(counts[ids[2]], 2)
+        XCTAssertEqual(counts.values.reduce(0, +), 8)
+    }
+
+    func testParticleDistributionHandlesEmptyEligibilityWithoutAllocating() {
+        XCTAssertEqual(
+            RichParticleDistribution.counts(
+                eligibleIDs: [],
+                globalParticleCount: 24
+            ),
+            [:]
+        )
+    }
+
     func testNoRenderBudgetCanEnableTrails() {
         for count in [1, 5, 10, 20] {
             XCTAssertFalse(
