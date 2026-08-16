@@ -14,7 +14,7 @@ final class RichFigureGeometryTests: XCTestCase {
         )
 
         XCTAssertEqual(a, b)
-        XCTAssertEqual(a.center, RichFigureRenderer.center(for: item, canvasSize: size))
+        assertCenterKeepsEffectsInsideCanvas(a.center, item: item, canvasSize: size)
         XCTAssertEqual(a.rotation, .zero)
         XCTAssertEqual(a.scale, 1)
         XCTAssertTrue(a.deformationTime.isFinite)
@@ -41,8 +41,10 @@ final class RichFigureGeometryTests: XCTestCase {
         let organicB = RichFigureRenderer.motionState(
             for: organicItem, canvasSize: size, time: 57, reduceMotion: false
         )
-        XCTAssertEqual(organicA.center, RichFigureRenderer.center(for: organicItem, canvasSize: size))
         XCTAssertEqual(organicA.center, organicB.center)
+        assertCenterKeepsEffectsInsideCanvas(
+            organicA.center, item: organicItem, canvasSize: size
+        )
         XCTAssertNotEqual(organicA.deformationTime, organicB.deformationTime)
 
         let starItem = byFamily[.crystallineStar]!
@@ -67,7 +69,9 @@ final class RichFigureGeometryTests: XCTestCase {
         let rays = RichFigureRenderer.motionState(
             for: raysItem, canvasSize: size, time: 37, reduceMotion: false
         )
-        XCTAssertEqual(rays.center, RichFigureRenderer.center(for: raysItem, canvasSize: size))
+        assertCenterKeepsEffectsInsideCanvas(
+            rays.center, item: raysItem, canvasSize: size
+        )
         XCTAssertTrue((0.96...1.04).contains(rays.scale))
         XCTAssertTrue((0...1).contains(rays.highlightPhase))
 
@@ -75,9 +79,8 @@ final class RichFigureGeometryTests: XCTestCase {
         let spirograph = RichFigureRenderer.motionState(
             for: spirographItem, canvasSize: size, time: 37, reduceMotion: false
         )
-        XCTAssertEqual(
-            spirograph.center,
-            RichFigureRenderer.center(for: spirographItem, canvasSize: size)
+        assertCenterKeepsEffectsInsideCanvas(
+            spirograph.center, item: spirographItem, canvasSize: size
         )
     }
 
@@ -419,8 +422,8 @@ final class RichFigureGeometryTests: XCTestCase {
         let gradient = RichFillGeometryFactory.make(
             fill: .luminousGradient, base: base, seed: 7, budget: budget
         )
-        XCTAssertTrue(gradient.lines.isEmpty)
-        XCTAssertTrue(gradient.translucentSurfaces.isEmpty)
+        XCTAssertEqual(gradient.lines.count, budget.contourCount)
+        XCTAssertGreaterThanOrEqual(gradient.translucentSurfaces.count, 3)
         XCTAssertEqual(gradient.highlightPoints.count, 1)
         XCTAssertNotEqual(gradient.highlightPoints[0], base.core)
 
@@ -429,7 +432,7 @@ final class RichFigureGeometryTests: XCTestCase {
         )
         XCTAssertEqual(contours.lines.count, budget.contourCount)
         XCTAssertTrue(contours.lines.allSatisfy { $0.isClosed && $0.points.count > 2 })
-        XCTAssertTrue(contours.translucentSurfaces.isEmpty)
+        XCTAssertGreaterThanOrEqual(contours.translucentSurfaces.count, 3)
         XCTAssertTrue(contours.highlightPoints.isEmpty)
 
         let rings = RichFillGeometryFactory.make(
@@ -437,7 +440,7 @@ final class RichFigureGeometryTests: XCTestCase {
         )
         XCTAssertEqual(rings.lines.count, budget.orbitalRingCount)
         XCTAssertTrue(rings.lines.allSatisfy { !$0.isClosed && $0.points.count > 2 })
-        XCTAssertTrue(rings.translucentSurfaces.isEmpty)
+        XCTAssertGreaterThanOrEqual(rings.translucentSurfaces.count, 3)
         XCTAssertTrue(rings.highlightPoints.isEmpty)
 
         let filaments = RichFillGeometryFactory.make(
@@ -445,7 +448,7 @@ final class RichFigureGeometryTests: XCTestCase {
         )
         XCTAssertEqual(filaments.lines.count, budget.filamentCount)
         XCTAssertTrue(filaments.lines.allSatisfy { !$0.isClosed && $0.points.count == 2 })
-        XCTAssertTrue(filaments.translucentSurfaces.isEmpty)
+        XCTAssertGreaterThanOrEqual(filaments.translucentSurfaces.count, 3)
         XCTAssertTrue(filaments.highlightPoints.isEmpty)
 
         let outline = RichFillGeometryFactory.make(
@@ -453,7 +456,7 @@ final class RichFigureGeometryTests: XCTestCase {
         )
         XCTAssertEqual(outline.lines.count, 1)
         XCTAssertTrue(outline.lines[0].isClosed)
-        XCTAssertTrue(outline.translucentSurfaces.isEmpty)
+        XCTAssertGreaterThanOrEqual(outline.translucentSurfaces.count, 3)
         XCTAssertEqual(outline.highlightPoints, [base.core])
 
         let mass = RichFillGeometryFactory.make(
@@ -463,6 +466,83 @@ final class RichFigureGeometryTests: XCTestCase {
         XCTAssertEqual(mass.translucentSurfaces.count, 4)
         XCTAssertTrue(mass.translucentSurfaces.allSatisfy { $0.count > 2 })
         XCTAssertTrue(mass.highlightPoints.isEmpty)
+    }
+
+    func testEveryFillProvidesAVisibleBodyAcrossEveryFamily() {
+        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+
+        for family in RichFigureFamily.allCases {
+            let base = RichFigureGeometryFactory.make(
+                family: family, seed: 19, detailTier: .medium,
+                canonicalTime: 0, budget: budget
+            )
+
+            for fill in RichFillKind.allCases {
+                let geometry = RichFillGeometryFactory.make(
+                    fill: fill, base: base, seed: 91, budget: budget
+                )
+                let widestSurface = geometry.translucentSurfaces
+                    .map { points -> CGFloat in
+                        guard let minimum = points.map(\.x).min(),
+                              let maximum = points.map(\.x).max() else { return 0 }
+                        return maximum - minimum
+                    }
+                    .max() ?? 0
+
+                XCTAssertFalse(
+                    geometry.translucentSurfaces.isEmpty,
+                    "Missing luminous body: \(family) / \(fill)"
+                )
+                XCTAssertGreaterThan(
+                    widestSurface,
+                    base.bounds.width * 0.55,
+                    "Body collapsed into a line or tiny core: \(family) / \(fill)"
+                )
+            }
+        }
+    }
+
+    func testEveryMaterialKeepsBodyBrighterThanItsWireframeBackground() {
+        for fill in RichFillKind.allCases {
+            let profile = RichFigureMaterialProfile.resolve(fill: fill)
+
+            XCTAssertGreaterThanOrEqual(
+                profile.bodyOpacity, fill == .outlineWithCore ? 0.08 : 0.13,
+                "Body is visually empty for \(fill)"
+            )
+            XCTAssertGreaterThanOrEqual(
+                profile.coreScale, 0.55,
+                "Core collapsed to a dot for \(fill)"
+            )
+            XCTAssertLessThanOrEqual(
+                profile.lineOpacity, 0.82,
+                "Wireframe dominates the body for \(fill)"
+            )
+        }
+    }
+
+    func testCrystallineStarHasEnoughCrossBracingToReadAsCrystalNotAsterisk() {
+        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+
+        for seed in UInt64(0)..<UInt64(32) {
+            let star = RichFigureGeometryFactory.make(
+                family: .crystallineStar,
+                seed: seed,
+                detailTier: .medium,
+                canonicalTime: 0,
+                budget: budget
+            )
+            let structure = star.lines.filter { $0.role == .structure }
+
+            XCTAssertGreaterThanOrEqual(
+                structure.count, 16,
+                "Star lacks crystalline chord layers for seed \(seed)"
+            )
+            XCTAssertTrue(
+                structure.contains { $0.isClosed && $0.points.count >= 3 },
+                "Star has rays but no crystalline planes for seed \(seed)"
+            )
+        }
     }
 
     func testFillGeometryHonorsLowPowerCapsAndUsesClosedEnvelopeFallback() {
@@ -573,7 +653,10 @@ final class RichFigureGeometryTests: XCTestCase {
         XCTAssertTrue(starSilhouette.isClosed)
         XCTAssertEqual(starSilhouette.role, .silhouette)
         XCTAssertTrue((8...12).contains(axisCount))
-        XCTAssertEqual(star.lines.filter { $0.role == .structure }.count, axisCount)
+        let starStructure = star.lines.filter { $0.role == .structure }
+        XCTAssertEqual(starStructure.count, axisCount * 2)
+        XCTAssertEqual(starStructure.filter { !$0.isClosed }.count, axisCount)
+        XCTAssertEqual(starStructure.filter(\.isClosed).count, axisCount)
         for (index, point) in starSilhouette.points.enumerated() {
             let radius = hypot(point.x, point.y)
             if index.isMultiple(of: 2) {
@@ -639,6 +722,35 @@ final class RichFigureGeometryTests: XCTestCase {
         geometry.lines.flatMap(\.points)
             + geometry.translucentSurfaces.flatMap { $0 }
             + geometry.highlightPoints
+    }
+
+    private func assertCenterKeepsEffectsInsideCanvas(
+        _ center: CGPoint,
+        item: RichFigurePreviewItem,
+        canvasSize: CGSize,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let envelope = RichFigureLayout.edgeSafeEnvelope(
+            for: item.layout,
+            canvasSize: canvasSize
+        )
+        XCTAssertGreaterThanOrEqual(
+            center.x - envelope.totalRadius, -0.000_001,
+            file: file, line: line
+        )
+        XCTAssertLessThanOrEqual(
+            center.x + envelope.totalRadius, canvasSize.width + 0.000_001,
+            file: file, line: line
+        )
+        XCTAssertGreaterThanOrEqual(
+            center.y - envelope.totalRadius, -0.000_001,
+            file: file, line: line
+        )
+        XCTAssertLessThanOrEqual(
+            center.y + envelope.totalRadius, canvasSize.height + 0.000_001,
+            file: file, line: line
+        )
     }
 
     private func selectedEnvelope(in geometry: RichFigureGeometry) -> [CGPoint] {

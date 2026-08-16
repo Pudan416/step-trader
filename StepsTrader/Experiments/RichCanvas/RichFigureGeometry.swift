@@ -139,7 +139,21 @@ enum RichFigureGeometryFactory {
         let rays = outerPoints.map { tip in
             RichPolyline(points: [.zero, tip], isClosed: false, role: .structure)
         }
-        return geometry(lines: [outline] + rays, core: .zero)
+        let crystallinePlanes = outerPoints.indices.map { index in
+            RichPolyline(
+                points: [
+                    outerPoints[index],
+                    outerPoints[(index + 2) % axisCount],
+                    outerPoints[(index + axisCount / 2) % axisCount]
+                ],
+                isClosed: true,
+                role: .structure
+            )
+        }
+        return geometry(
+            lines: [outline] + rays + crystallinePlanes,
+            core: .zero
+        )
     }
 
     private static func rays(seed: UInt64) -> RichFigureGeometry {

@@ -32,6 +32,29 @@ struct RichResolvedColors: Equatable {
     let secondary: RichRGBA
 }
 
+struct RichFigureMaterialProfile: Equatable {
+    let bodyOpacity: Double
+    let coreScale: Double
+    let lineOpacity: Double
+
+    static func resolve(fill: RichFillKind) -> Self {
+        switch fill {
+        case .luminousGradient:
+            return .init(bodyOpacity: 0.34, coreScale: 1.00, lineOpacity: 0.68)
+        case .nestedContours:
+            return .init(bodyOpacity: 0.20, coreScale: 0.78, lineOpacity: 0.78)
+        case .orbitalLines:
+            return .init(bodyOpacity: 0.18, coreScale: 0.72, lineOpacity: 0.72)
+        case .filamentField:
+            return .init(bodyOpacity: 0.17, coreScale: 0.68, lineOpacity: 0.68)
+        case .outlineWithCore:
+            return .init(bodyOpacity: 0.10, coreScale: 0.62, lineOpacity: 0.82)
+        case .layeredTranslucentMass:
+            return .init(bodyOpacity: 0.26, coreScale: 0.92, lineOpacity: 0.64)
+        }
+    }
+}
+
 enum RichFigureRenderer {
     private enum ContentLayer {
         case base, fill, surface, highlight, particle
@@ -265,8 +288,15 @@ enum RichFigureRenderer {
             motion: motion,
             fittedScale: fittedScale
         )
-        let blendMode: GraphicsContext.BlendMode =
-            context.environment.colorScheme == .dark ? .plusLighter : .normal
+        let outerBodyPath = bodyPath(
+            geometry.fill.translucentSurfaces.first,
+            item: item,
+            geometry: geometry.base,
+            motion: motion,
+            fittedScale: fittedScale
+        )
+        let blendMode: GraphicsContext.BlendMode = .plusLighter
+        let material = RichFigureMaterialProfile.resolve(fill: item.style.fill)
         let effectMetrics = RichFigureLayout.effectMetrics(
             targetDiameter: targetDiameter,
             overscanFraction: item.layout.overscanFraction
@@ -280,9 +310,15 @@ enum RichFigureRenderer {
             context.drawLayer { layer in
                 layer.blendMode = blendMode
                 layer.addFilter(.blur(radius: effectMetrics.outerGlowBlur))
+                layer.fill(
+                    outerBodyPath,
+                    with: .color(
+                        primary.opacity(material.bodyOpacity * 0.62 * glowIntensity)
+                    )
+                )
                 layer.stroke(
                     allLinePath,
-                    with: .color(primary.opacity(0.30 * glowIntensity)),
+                    with: .color(primary.opacity(0.34 * glowIntensity)),
                     style: StrokeStyle(
                         lineWidth: lineWidth * 3,
                         lineCap: .round,
@@ -294,6 +330,7 @@ enum RichFigureRenderer {
 
         if budget.glowPassCount == 2 {
             let diameter = effectMetrics.coreGlowDiameter
+                * CGFloat(material.coreScale)
             let glowPath = Path(ellipseIn: CGRect(
                 x: core.x - diameter / 2,
                 y: core.y - diameter / 2,
@@ -304,8 +341,21 @@ enum RichFigureRenderer {
                 layer.blendMode = blendMode
                 layer.addFilter(.blur(radius: effectMetrics.coreGlowBlur))
                 layer.fill(
+                    outerBodyPath,
+                    with: .radialGradient(
+                        Gradient(colors: [
+                            secondary.opacity(0.58 * glowIntensity),
+                            primary.opacity(0.22 * glowIntensity),
+                            primary.opacity(0.04 * glowIntensity)
+                        ]),
+                        center: core,
+                        startRadius: 0,
+                        endRadius: max(1, targetDiameter * 0.56)
+                    )
+                )
+                layer.fill(
                     glowPath,
-                    with: .color(secondary.opacity(0.55 * glowIntensity))
+                    with: .color(secondary.opacity(0.72 * glowIntensity))
                 )
             }
         }
@@ -319,42 +369,32 @@ enum RichFigureRenderer {
             item: item,
             geometry: geometry.base,
             motion: motion,
-            fittedScale: fittedScale
+            fittedScale: fittedScale,
+            core: core,
+            targetDiameter: targetDiameter,
+            material: material
+        )
+
+        drawRadiantCore(
+            core: core,
+            context: &context,
+            blendMode: blendMode,
+            primary: primary,
+            secondary: secondary,
+            glowIntensity: glowIntensity,
+            effectMetrics: effectMetrics,
+            material: material
         )
 
         context.drawLayer { layer in
             layer.blendMode = blendMode
-            if item.style.fill == .luminousGradient,
-               let envelope = geometry.base.lines.first(where: {
-                   $0.isClosed && $0.points.count > 2
-               }) {
-                let envelopePath = path(
-                    for: [envelope],
-                    layer: .surface,
-                    item: item,
-                    geometry: geometry.base,
-                    motion: motion,
-                    fittedScale: fittedScale
-                )
-                let gradient = Gradient(colors: [
-                    primary.opacity(0.08),
-                    secondary.opacity(0.24),
-                    primary.opacity(0.04)
-                ])
-                layer.fill(
-                    envelopePath,
-                    with: .radialGradient(
-                        gradient,
-                        center: core,
-                        startRadius: 0,
-                        endRadius: max(1, targetDiameter * 0.55)
-                    )
-                )
-            }
             layer.stroke(
                 basePath,
                 with: .linearGradient(
-                    Gradient(colors: [primary, secondary]),
+                    Gradient(colors: [
+                        primary.opacity(material.lineOpacity),
+                        secondary.opacity(min(1, material.lineOpacity + 0.10))
+                    ]),
                     startPoint: CGPoint(
                         x: motion.center.x - targetDiameter / 2,
                         y: motion.center.y - targetDiameter / 2
@@ -372,7 +412,7 @@ enum RichFigureRenderer {
             )
             layer.stroke(
                 fillPath,
-                with: .color(secondary.opacity(0.82)),
+                with: .color(secondary.opacity(material.lineOpacity * 0.82)),
                 style: StrokeStyle(
                     lineWidth: max(0.5, lineWidth * 0.72),
                     lineCap: .round,
@@ -656,13 +696,13 @@ enum RichFigureRenderer {
 
         let lineLimit: Int
         switch fillKind {
-        case .nestedContours:
+        case .luminousGradient, .nestedContours:
             lineLimit = budget.contourCount
         case .orbitalLines:
             lineLimit = budget.orbitalRingCount
         case .filamentField:
             lineLimit = budget.filamentCount
-        case .luminousGradient, .outlineWithCore, .layeredTranslucentMass:
+        case .outlineWithCore, .layeredTranslucentMass:
             lineLimit = geometry.fill.lines.count
         }
         let surfaceLimit = fillKind == .layeredTranslucentMass
@@ -726,6 +766,28 @@ enum RichFigureRenderer {
         var result = first
         result.addPath(second)
         return result
+    }
+
+    private static func bodyPath(
+        _ points: [CGPoint]?,
+        item: RichFigurePreviewItem,
+        geometry: RichFigureGeometry,
+        motion: RichFigureMotionState,
+        fittedScale: CGFloat
+    ) -> Path {
+        guard let points, points.count > 2 else { return Path() }
+        return path(
+            for: [RichPolyline(
+                points: points,
+                isClosed: true,
+                role: .accent
+            )],
+            layer: .surface,
+            item: item,
+            geometry: geometry,
+            motion: motion,
+            fittedScale: fittedScale
+        )
     }
 
     private static func transformed(
@@ -809,7 +871,10 @@ enum RichFigureRenderer {
         item: RichFigurePreviewItem,
         geometry: RichFigureGeometry,
         motion: RichFigureMotionState,
-        fittedScale: CGFloat
+        fittedScale: CGFloat,
+        core: CGPoint,
+        targetDiameter: CGFloat,
+        material: RichFigureMaterialProfile
     ) {
         context.drawLayer { layer in
             layer.blendMode = blendMode
@@ -827,12 +892,62 @@ enum RichFigureRenderer {
                     motion: motion,
                     fittedScale: fittedScale
                 )
-                let color = index.isMultiple(of: 2) ? primary : secondary
+                let centerColor = index.isMultiple(of: 2) ? secondary : primary
+                let edgeColor = index.isMultiple(of: 2) ? primary : secondary
+                let depth = pow(0.72, Double(index))
+                let opacity = material.bodyOpacity * depth
                 layer.fill(
                     surfacePath,
-                    with: .color(color.opacity(max(0.06, 0.22 - Double(index) * 0.025)))
+                    with: .radialGradient(
+                        Gradient(colors: [
+                            centerColor.opacity(min(0.92, opacity * 2.35)),
+                            edgeColor.opacity(opacity),
+                            edgeColor.opacity(opacity * 0.18)
+                        ]),
+                        center: core,
+                        startRadius: 0,
+                        endRadius: max(1, targetDiameter * 0.56)
+                    )
                 )
             }
+        }
+    }
+
+    private static func drawRadiantCore(
+        core: CGPoint,
+        context: inout GraphicsContext,
+        blendMode: GraphicsContext.BlendMode,
+        primary: Color,
+        secondary: Color,
+        glowIntensity: Double,
+        effectMetrics: RichFigureEffectMetrics,
+        material: RichFigureMaterialProfile
+    ) {
+        let diameter = effectMetrics.coreGlowDiameter
+            * CGFloat(material.coreScale) * 0.72
+        guard diameter > 0 else { return }
+        let corePath = Path(ellipseIn: CGRect(
+            x: core.x - diameter / 2,
+            y: core.y - diameter / 2,
+            width: diameter,
+            height: diameter
+        ))
+        context.drawLayer { layer in
+            layer.blendMode = blendMode
+            layer.fill(
+                corePath,
+                with: .radialGradient(
+                    Gradient(colors: [
+                        Color.white.opacity(0.92 * glowIntensity),
+                        secondary.opacity(0.78 * glowIntensity),
+                        primary.opacity(0.18 * glowIntensity),
+                        .clear
+                    ]),
+                    center: core,
+                    startRadius: 0,
+                    endRadius: diameter * 0.5
+                )
+            )
         }
     }
 

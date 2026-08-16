@@ -81,6 +81,10 @@ struct RichCanvasView: View {
                 textureOverride: canvas.textureRaw
             )
 
+            Color.black
+                .opacity(0.22)
+                .allowsHitTesting(false)
+
             richTimeline(items: items, budget: budget)
 
             RichCanvasHUD(
@@ -157,15 +161,45 @@ struct RichCanvasView: View {
                         reduceMotion: reduceMotion,
                         cache: cache
                     )
+                }
+
+                // Labels are a separate foreground pass so later figures never
+                // paint over text belonging to an earlier element.
+                let labelCandidates = items.map { item in
                     let motion = RichFigureRenderer.motionState(
                         for: item,
                         canvasSize: size,
                         time: renderTime,
                         reduceMotion: reduceMotion
                     )
+                    let envelope = RichFigureLayout.edgeSafeEnvelope(
+                        for: item.layout,
+                        canvasSize: size
+                    )
+                    let labelCenter = RichFigureLayout.labelCenter(
+                        figureCenter: motion.center,
+                        contentRadius: envelope.effectiveTargetDiameter
+                            * item.layout.opticalScale * 0.5,
+                        canvasSize: size
+                    )
+                    return RichFigureLabelCandidate(
+                        id: item.id,
+                        preferredCenter: labelCenter,
+                        estimatedWidth: min(
+                            156,
+                            max(36, CGFloat(item.source.displayLabel.count) * 6 + 12)
+                        )
+                    )
+                }
+                let labelCenters = RichFigureLayout.resolvedLabelCenters(
+                    candidates: labelCandidates,
+                    canvasSize: size
+                )
+                for item in items {
+                    guard let labelCenter = labelCenters[item.id] else { continue }
                     drawLabel(
                         item.source.displayLabel,
-                        at: motion.center,
+                        at: labelCenter,
                         context: &context
                     )
                 }
@@ -227,36 +261,53 @@ struct RichCanvasHUD: View {
     let budget: RichRenderBudget
     let items: [RichFigurePreviewItem]
     let lowPowerMode: Bool
+    @State private var isExpanded = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { _ in
             let stats = cache.cadenceSnapshot()
             let detailTiers = RichDetailTierDistribution(items: items)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(
-                    "\(String(format: "%.1f", stats.observedFPS)) FPS · "
-                    + "\(items.count) items · \(detailTiers.compactDescription) · "
-                    + (lowPowerMode ? "Low Power" : "Normal")
-                )
-                Text(
-                    "target: \(budget.requestedFPS) · contours: \(budget.contourCount) · "
-                    + "rings: \(budget.orbitalRingCount)"
-                )
-                Text(
-                    "filaments: \(budget.filamentCount) · "
-                    + "particles: \(budget.globalParticleCount) · "
-                    + "glows: \(budget.glowPassCount) · "
-                    + "slow: \(stats.slowIntervalCount)"
-                )
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                Group {
+                    if isExpanded {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(
+                                "\(String(format: "%.1f", stats.observedFPS)) FPS · "
+                                + "\(items.count) items · \(detailTiers.compactDescription) · "
+                                + (lowPowerMode ? "Low Power" : "Normal")
+                            )
+                            Text(
+                                "target: \(budget.requestedFPS) · contours: \(budget.contourCount) · "
+                                + "rings: \(budget.orbitalRingCount)"
+                            )
+                            Text(
+                                "filaments: \(budget.filamentCount) · "
+                                + "particles: \(budget.globalParticleCount) · "
+                                + "glows: \(budget.glowPassCount) · "
+                                + "slow: \(stats.slowIntervalCount)"
+                            )
+                        }
+                    } else {
+                        Label(
+                            "\(Int(stats.observedFPS.rounded())) FPS",
+                            systemImage: "waveform.path.ecg"
+                        )
+                    }
+                }
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(.black.opacity(0.58), in: RoundedRectangle(cornerRadius: 8))
             }
-            .font(.system(size: 10, weight: .medium, design: .monospaced))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(.black.opacity(0.58), in: RoundedRectangle(cornerRadius: 8))
+            .buttonStyle(.plain)
             .padding(12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .allowsHitTesting(false)
+            .padding(.top, 48)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
     }
 }

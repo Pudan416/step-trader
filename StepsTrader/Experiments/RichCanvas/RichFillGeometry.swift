@@ -15,7 +15,9 @@ enum RichFillGeometryFactory {
     ) -> RichFillGeometry {
         switch fill {
         case .luminousGradient:
-            return luminousGradient(base: base, seed: seed)
+            return luminousGradient(
+                base: base, seed: seed, contourCount: budget.contourCount
+            )
         case .nestedContours:
             return nestedContours(base: base, count: budget.contourCount)
         case .orbitalLines:
@@ -36,7 +38,8 @@ enum RichFillGeometryFactory {
 
     private static func luminousGradient(
         base: RichFigureGeometry,
-        seed: UInt64
+        seed: UInt64,
+        contourCount: Int
     ) -> RichFillGeometry {
         guard let envelope = closedEnvelope(in: base) else { return empty }
         var rng = SeededRNG.derived(from: seed, domain: "richLuminousFill")
@@ -51,8 +54,18 @@ enum RichFillGeometryFactory {
         let highlight = contractedPoint(
             candidate, toward: anchor, polygon: envelope.points
         )
+        let contourLines = nestedContours(
+            base: base,
+            count: max(0, contourCount)
+        ).lines
         return RichFillGeometry(
-            lines: [], translucentSurfaces: [], highlightPoints: [highlight]
+            lines: contourLines,
+            translucentSurfaces: bodySurfaces(
+                envelope: envelope,
+                anchor: anchor,
+                scales: [0.98, 0.78, 0.58]
+            ),
+            highlightPoints: [highlight]
         )
     }
 
@@ -81,7 +94,13 @@ enum RichFillGeometryFactory {
             )
         }
         return RichFillGeometry(
-            lines: lines, translucentSurfaces: [], highlightPoints: []
+            lines: lines,
+            translucentSurfaces: bodySurfaces(
+                envelope: envelope,
+                anchor: anchor,
+                scales: [0.96, 0.80, 0.64]
+            ),
+            highlightPoints: []
         )
     }
 
@@ -128,7 +147,13 @@ enum RichFillGeometryFactory {
         }
 
         return RichFillGeometry(
-            lines: lines, translucentSurfaces: [], highlightPoints: []
+            lines: lines,
+            translucentSurfaces: bodySurfaces(
+                envelope: envelope,
+                anchor: anchor,
+                scales: [0.96, 0.80, 0.64]
+            ),
+            highlightPoints: []
         )
     }
 
@@ -141,6 +166,7 @@ enum RichFillGeometryFactory {
             return empty
         }
         var rng = SeededRNG.derived(from: seed, domain: "richFilamentFill")
+        let anchor = interiorAnchor(of: envelope.points)
         var lines: [RichPolyline] = []
         lines.reserveCapacity(count)
         var attempt = 0
@@ -171,7 +197,13 @@ enum RichFillGeometryFactory {
         }
 
         return RichFillGeometry(
-            lines: lines, translucentSurfaces: [], highlightPoints: []
+            lines: lines,
+            translucentSurfaces: bodySurfaces(
+                envelope: envelope,
+                anchor: anchor,
+                scales: [0.96, 0.80, 0.64]
+            ),
+            highlightPoints: []
         )
     }
 
@@ -194,7 +226,11 @@ enum RichFillGeometryFactory {
                 isClosed: true,
                 role: .silhouette
             )],
-            translucentSurfaces: [],
+            translucentSurfaces: bodySurfaces(
+                envelope: envelope,
+                anchor: anchor,
+                scales: [0.96, 0.80, 0.64]
+            ),
             highlightPoints: [highlight]
         )
     }
@@ -264,6 +300,27 @@ enum RichFillGeometryFactory {
             return CGPoint(
                 x: center.x + x * cosine - y * sine,
                 y: center.y + x * sine + y * cosine
+            )
+        }
+    }
+
+    private static func bodySurfaces(
+        envelope: RichPolyline,
+        anchor: CGPoint,
+        scales: [Double]
+    ) -> [[CGPoint]] {
+        scales.map { scale in
+            contractedUntilContained(
+                transformed(
+                    envelope.points,
+                    around: anchor,
+                    scale: scale,
+                    rotation: 0
+                ),
+                toward: anchor,
+                polygon: envelope.points,
+                closed: true,
+                strictly: scale < 1
             )
         }
     }

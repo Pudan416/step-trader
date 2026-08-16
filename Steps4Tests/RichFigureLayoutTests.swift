@@ -57,7 +57,7 @@ final class RichFigureLayoutTests: XCTestCase {
 
         XCTAssertEqual(envelope.sourceCenter.x, 31.2, accuracy: 0.000_001)
         XCTAssertEqual(envelope.sourceCenter.y, 768.04, accuracy: 0.000_001)
-        XCTAssertLessThan(envelope.effectiveTargetDiameter, 132.6)
+        XCTAssertEqual(envelope.effectiveTargetDiameter, 132.6, accuracy: 0.000_001)
         XCTAssertGreaterThanOrEqual(
             envelope.maximumContentRadius,
             envelope.effectiveTargetDiameter * 1.12 / 2
@@ -117,7 +117,7 @@ final class RichFigureLayoutTests: XCTestCase {
         XCTAssertEqual(firstEnvelopes, shuffledEnvelopes)
     }
 
-    func testEdgeSafeTargetPreservesMonotonicIntentUntilItReachesEdgeCap() {
+    func testEdgeSafeTargetPreservesSizeAtEdgesUntilCanvasItselfIsTooSmall() {
         let canvasSize = CGSize(width: 390, height: 844)
         func envelope(targetFraction: CGFloat) -> RichFigureEdgeEnvelope {
             RichFigureLayout.edgeSafeEnvelope(
@@ -138,13 +138,61 @@ final class RichFigureLayoutTests: XCTestCase {
 
         XCTAssertEqual(small.effectiveTargetDiameter, 39, accuracy: 0.000_001)
         XCTAssertEqual(medium.effectiveTargetDiameter, 78, accuracy: 0.000_001)
-        XCTAssertGreaterThan(large.effectiveTargetDiameter, medium.effectiveTargetDiameter)
-        XCTAssertLessThan(large.effectiveTargetDiameter, 132.6)
-        XCTAssertEqual(
-            large.effectiveTargetDiameter,
-            oversized.effectiveTargetDiameter,
-            accuracy: 0.000_001
+        XCTAssertEqual(large.effectiveTargetDiameter, 132.6, accuracy: 0.000_001)
+        XCTAssertGreaterThan(oversized.effectiveTargetDiameter, large.effectiveTargetDiameter)
+        XCTAssertLessThan(oversized.effectiveTargetDiameter, 265.2)
+    }
+
+    func testEffectMetricsReserveARealLuminousCoreInsteadOfATinyDot() {
+        let metrics = RichFigureLayout.effectMetrics(
+            targetDiameter: 120,
+            overscanFraction: 0.14
         )
+
+        XCTAssertGreaterThanOrEqual(metrics.coreGlowDiameter, 42)
+        XCTAssertGreaterThanOrEqual(metrics.coreGlowBlur, 8)
+        XCTAssertGreaterThanOrEqual(metrics.outerGlowBlur, 5)
+    }
+
+    func testLabelSitsOutsideFigureAndFlipsAboveNearBottomEdge() {
+        let canvasSize = CGSize(width: 390, height: 844)
+        let middle = RichFigureLayout.labelCenter(
+            figureCenter: CGPoint(x: 195, y: 300),
+            contentRadius: 60,
+            canvasSize: canvasSize
+        )
+        let bottom = RichFigureLayout.labelCenter(
+            figureCenter: CGPoint(x: 195, y: 800),
+            contentRadius: 60,
+            canvasSize: canvasSize
+        )
+
+        XCTAssertGreaterThan(middle.y, 370)
+        XCTAssertLessThan(bottom.y, 730)
+        XCTAssertEqual(middle.x, 195, accuracy: 0.000_001)
+        XCTAssertEqual(bottom.x, 195, accuracy: 0.000_001)
+    }
+
+    func testOverlappingLabelsSeparateWithoutMovingUnrelatedLabel() {
+        let firstID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        let secondID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        let thirdID = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+        let resolved = RichFigureLayout.resolvedLabelCenters(
+            candidates: [
+                .init(id: firstID, preferredCenter: CGPoint(x: 170, y: 400), estimatedWidth: 90),
+                .init(id: secondID, preferredCenter: CGPoint(x: 210, y: 400), estimatedWidth: 90),
+                .init(id: thirdID, preferredCenter: CGPoint(x: 320, y: 260), estimatedWidth: 50)
+            ],
+            canvasSize: CGSize(width: 390, height: 844)
+        )
+        let first = try! XCTUnwrap(resolved[firstID])
+        let second = try! XCTUnwrap(resolved[secondID])
+
+        XCTAssertGreaterThanOrEqual(
+            abs(first.y - second.y),
+            18
+        )
+        XCTAssertEqual(resolved[thirdID], CGPoint(x: 320, y: 260))
     }
 
     func testFittedScaleFallsBackForNaNWidth() {

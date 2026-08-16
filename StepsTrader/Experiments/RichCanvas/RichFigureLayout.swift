@@ -7,6 +7,12 @@ struct RichFigureLayoutSpec: Equatable {
     let overscanFraction: CGFloat
 }
 
+struct RichFigureLabelCandidate: Equatable {
+    let id: UUID
+    let preferredCenter: CGPoint
+    let estimatedWidth: CGFloat
+}
+
 struct RichFigureEffectMetrics: Equatable {
     let lineWidth: CGFloat
     let outerGlowBlur: CGFloat
@@ -123,15 +129,9 @@ enum RichFigureLayout {
         let overscanFraction = layout.overscanFraction.isFinite
             ? max(0, layout.overscanFraction)
             : 0
-        let edgeDistance = max(0, min(
-            sourceCenter.x,
-            width - sourceCenter.x,
-            sourceCenter.y,
-            height - sourceCenter.y
-        ))
         let effectiveTarget = edgeSafeTargetDiameter(
             requested: requestedTarget,
-            edgeDistance: edgeDistance,
+            canvasSize: safeCanvasSize,
             overscanFraction: overscanFraction
         )
         let metrics = effectMetrics(
@@ -167,17 +167,95 @@ enum RichFigureLayout {
         }
 
         let lineWidth = max(0.65, min(2.2, target * 0.008))
-        let outerGlowBlur = min(10, max(2, target * overscan * 0.18))
-        let coreGlowDiameter = min(18, max(5, target * 0.08))
+        let outerGlowBlur = min(14, max(3, target * 0.045))
+        let coreGlowDiameter = min(72, max(14, target * 0.36))
         return RichFigureEffectMetrics(
             lineWidth: lineWidth,
             outerGlowBlur: outerGlowBlur,
             coreGlowDiameter: coreGlowDiameter,
-            coreGlowBlur: min(7, coreGlowDiameter * 0.35),
+            coreGlowBlur: min(18, max(5, coreGlowDiameter * 0.24)),
             highlightRadius: min(7, max(1.8, target * 0.018)),
             particleRadius: min(2.4, max(0.7, target * 0.007)),
             overscanRadius: target * overscan * 0.5
         )
+    }
+
+    static func labelCenter(
+        figureCenter: CGPoint,
+        contentRadius: CGFloat,
+        canvasSize: CGSize,
+        bottomReservedInset: CGFloat = 80
+    ) -> CGPoint {
+        let radius = contentRadius.isFinite ? max(0, contentRadius) : 0
+        let width = canvasSize.width.isFinite ? max(0, canvasSize.width) : 0
+        let height = canvasSize.height.isFinite ? max(0, canvasSize.height) : 0
+        let gap = max(12, min(20, radius * 0.16))
+        let labelHalfHeight: CGFloat = 10
+        let usableHeight = max(0, height - max(0, bottomReservedInset))
+        let below = figureCenter.y + radius + gap
+        let above = figureCenter.y - radius - gap
+        let y = below + labelHalfHeight <= usableHeight
+            ? below
+            : max(labelHalfHeight, above)
+        let horizontalMargin = min(width * 0.5, CGFloat(54))
+        return CGPoint(
+            x: min(max(horizontalMargin, figureCenter.x), width - horizontalMargin),
+            y: y
+        )
+    }
+
+    static func resolvedLabelCenters(
+        candidates: [RichFigureLabelCandidate],
+        canvasSize: CGSize,
+        bottomReservedInset: CGFloat = 80
+    ) -> [UUID: CGPoint] {
+        let width = canvasSize.width.isFinite ? max(0, canvasSize.width) : 0
+        let height = canvasSize.height.isFinite ? max(0, canvasSize.height) : 0
+        let usableHeight = max(0, height - max(0, bottomReservedInset))
+        let labelHeight: CGFloat = 16
+        let offsets: [CGFloat] = [0, 20, -20, 40, -40, 60, -60]
+        var occupied: [CGRect] = []
+        var result: [UUID: CGPoint] = [:]
+
+        for candidate in candidates {
+            let labelWidth = min(
+                max(32, candidate.estimatedWidth.isFinite
+                    ? candidate.estimatedWidth : 32),
+                max(32, width - 12)
+            )
+            let halfWidth = labelWidth * 0.5
+            let x = min(max(halfWidth + 6, candidate.preferredCenter.x),
+                        max(halfWidth + 6, width - halfWidth - 6))
+            let baseY = min(max(labelHeight * 0.5, candidate.preferredCenter.y),
+                            max(labelHeight * 0.5, usableHeight - labelHeight * 0.5))
+            var chosen = CGPoint(x: x, y: baseY)
+
+            for offset in offsets {
+                let y = min(max(labelHeight * 0.5, baseY + offset),
+                            max(labelHeight * 0.5, usableHeight - labelHeight * 0.5))
+                let proposed = CGPoint(x: x, y: y)
+                let rect = CGRect(
+                    x: proposed.x - halfWidth,
+                    y: proposed.y - labelHeight * 0.5,
+                    width: labelWidth,
+                    height: labelHeight
+                ).insetBy(dx: -3, dy: -2)
+                if occupied.allSatisfy({ !$0.intersects(rect) }) {
+                    chosen = proposed
+                    break
+                }
+            }
+
+            let chosenRect = CGRect(
+                x: chosen.x - halfWidth,
+                y: chosen.y - labelHeight * 0.5,
+                width: labelWidth,
+                height: labelHeight
+            ).insetBy(dx: -3, dy: -2)
+            occupied.append(chosenRect)
+            result[candidate.id] = chosen
+        }
+        return result
     }
 
     private static var maximumContentScale: CGFloat {
@@ -191,14 +269,15 @@ enum RichFigureLayout {
 
     private static func edgeSafeTargetDiameter(
         requested: CGFloat,
-        edgeDistance: CGFloat,
+        canvasSize: CGSize,
         overscanFraction: CGFloat
     ) -> CGFloat {
-        guard requested > 0, edgeDistance > 0 else { return 0 }
+        let availableRadius = min(canvasSize.width, canvasSize.height) * 0.5
+        guard requested > 0, availableRadius > 0 else { return 0 }
         if requiredRadius(
             targetDiameter: requested,
             overscanFraction: overscanFraction
-        ) <= edgeDistance {
+        ) <= availableRadius {
             return requested
         }
 
@@ -209,7 +288,7 @@ enum RichFigureLayout {
             if requiredRadius(
                 targetDiameter: candidate,
                 overscanFraction: overscanFraction
-            ) <= edgeDistance {
+            ) <= availableRadius {
                 lower = candidate
             } else {
                 upper = candidate
