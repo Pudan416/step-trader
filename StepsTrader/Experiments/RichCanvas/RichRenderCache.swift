@@ -42,6 +42,7 @@ final class RichRenderCache {
     private var previousFrameTime: Double?
     private var frameIntervals: [Double] = []
     private var cadence = RichCadenceStats.zero
+    private var cadenceRequestedFPS: Int?
 
     var geometryCount: Int { geometries.count }
 
@@ -67,7 +68,17 @@ final class RichRenderCache {
         accessTicks.removeAll(keepingCapacity: false)
     }
 
+    func beginCadenceSession(requestedFPS: Int) {
+        previousFrameTime = nil
+        frameIntervals.removeAll(keepingCapacity: true)
+        cadence = .zero
+        cadenceRequestedFPS = requestedFPS
+    }
+
     func recordFrame(time: Double, requestedFPS: Int) {
+        if cadenceRequestedFPS != requestedFPS {
+            beginCadenceSession(requestedFPS: requestedFPS)
+        }
         guard time.isFinite else { return }
         defer { previousFrameTime = time }
 

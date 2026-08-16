@@ -67,6 +67,15 @@ struct RichCanvasView: View {
             )
         }
         .clipped()
+        .onAppear {
+            cache.beginCadenceSession(requestedFPS: budget.requestedFPS)
+        }
+        .onChange(of: shouldAnimate) { _, _ in
+            cache.beginCadenceSession(requestedFPS: budget.requestedFPS)
+        }
+        .onChange(of: budget.requestedFPS) { _, requestedFPS in
+            cache.beginCadenceSession(requestedFPS: requestedFPS)
+        }
         .onReceive(
             NotificationCenter.default.publisher(
                 for: UIApplication.didReceiveMemoryWarningNotification

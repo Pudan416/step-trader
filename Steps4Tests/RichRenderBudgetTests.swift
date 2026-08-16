@@ -118,6 +118,37 @@ final class RichRenderBudgetTests: XCTestCase {
         XCTAssertEqual(stats.slowIntervalCount, 0)
     }
 
+    @MainActor
+    func testCadenceSessionBoundaryExcludesPausedDuration() {
+        let cache = RichRenderCache()
+        cache.recordFrame(time: 0, requestedFPS: 20)
+        cache.recordFrame(time: 0.05, requestedFPS: 20)
+
+        cache.beginCadenceSession(requestedFPS: 20)
+        cache.recordFrame(time: 10.05, requestedFPS: 20)
+        XCTAssertEqual(cache.cadenceSnapshot(), .zero)
+
+        cache.recordFrame(time: 10.10, requestedFPS: 20)
+        let resumed = cache.cadenceSnapshot()
+        XCTAssertEqual(resumed.observedFPS, 20, accuracy: 0.001)
+        XCTAssertEqual(resumed.slowIntervalCount, 0)
+    }
+
+    @MainActor
+    func testCadenceRequestedFPSChangeStartsFreshWindow() {
+        let cache = RichRenderCache()
+        cache.recordFrame(time: 0, requestedFPS: 20)
+        cache.recordFrame(time: 0.05, requestedFPS: 20)
+
+        cache.recordFrame(time: 0.10, requestedFPS: 15)
+        XCTAssertEqual(cache.cadenceSnapshot(), .zero)
+
+        cache.recordFrame(time: 0.10 + 1.0 / 15.0, requestedFPS: 15)
+        let reducedBudget = cache.cadenceSnapshot()
+        XCTAssertEqual(reducedBudget.observedFPS, 15, accuracy: 0.001)
+        XCTAssertEqual(reducedBudget.slowIntervalCount, 0)
+    }
+
     func testTenElementNormalBudgetMatchesApprovedCeilings() {
         let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
 
