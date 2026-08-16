@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000001 /* ExperimentalFeatures.swift */; };
+		A16C90010000000000000002 /* RichFigureModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000002 /* RichFigureModels.swift */; };
+		A16C90010000000000000003 /* RichFigureAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000003 /* RichFigureAssignment.swift */; };
+		A16C90010000000000000004 /* RichFigureAssignmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000004 /* RichFigureAssignmentTests.swift */; };
 		132547AFAA9C80DFE4295A03 /* DayCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8A4067A79B84F980E2699C /* DayCanvas.swift */; };
 		20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */; };
 		200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47A2F0C795D0018004E /* TargetResolver.swift */; };
@@ -363,6 +367,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A16C80010000000000000001 /* ExperimentalFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperimentalFeatures.swift; sourceTree = "<group>"; };
+		A16C80010000000000000002 /* RichFigureModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureModels.swift; sourceTree = "<group>"; };
+		A16C80010000000000000003 /* RichFigureAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureAssignment.swift; sourceTree = "<group>"; };
+		A16C80010000000000000004 /* RichFigureAssignmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureAssignmentTests.swift; sourceTree = "<group>"; };
 		008E480BBB86AEC405B9C2EE /* GradientPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GradientPalette.swift; path = StepsTrader/Models/GradientPalette.swift; sourceTree = SOURCE_ROOT; };
 		1C0D419D1FDF446F850FAE7E /* RayShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RayShapeRenderer.swift; path = StepsTrader/Shapes/RayShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		1D27465EA0680011F9D75A64 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTheme.swift; path = StepsTrader/Theme/AppTheme.swift; sourceTree = SOURCE_ROOT; };
@@ -754,6 +762,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A16C70010000000000000001 /* RichCanvas */ = {
+			isa = PBXGroup;
+			children = (
+				A16C80010000000000000002 /* RichFigureModels.swift */,
+				A16C80010000000000000003 /* RichFigureAssignment.swift */,
+			);
+			path = Experiments/RichCanvas;
+			sourceTree = "<group>";
+		};
 		2089F0AB2E71A18E00ABF5FA = {
 			isa = PBXGroup;
 			children = (
@@ -928,6 +945,7 @@
 		2089F0E82E71AE3400ABF5FA /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				A16C80010000000000000001 /* ExperimentalFeatures.swift */,
 				20F0NT012FFF040000000001 /* Font+Custom.swift */,
 				207AE91A2F32293A00925680 /* DayBoundary+App.swift */,
 				20AA247A2F70BCF5002F2F2C /* SharedKeys.swift */,
@@ -952,6 +970,7 @@
 		2089F0EA2E71AE3400ABF5FA /* StepsTrader */ = {
 			isa = PBXGroup;
 			children = (
+				A16C70010000000000000001 /* RichCanvas */,
 				2089F0E32E71AE3400ABF5FA /* Models */,
 				2089F0E62E71AE3400ABF5FA /* Services */,
 				209424BE2E8593DA00904A0A /* Views */,
@@ -1188,6 +1207,7 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				A16C80010000000000000004 /* RichFigureAssignmentTests.swift */,
 				AA000001AA000001AA000003 /* TestHelpers */,
 				T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */,
 				PREF5702570057005700F002 /* PreferencesStoreTests.swift */,
@@ -1564,6 +1584,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */,
+				A16C90010000000000000002 /* RichFigureModels.swift in Sources */,
+				A16C90010000000000000003 /* RichFigureAssignment.swift in Sources */,
 				20AA24882F70BEE1002F2F2C /* AppUnlockSettings.swift in Sources */,
 				2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */,
 				209424C82E85952D00904A0A /* NotificationManager.swift in Sources */,
@@ -1780,6 +1803,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A16C90010000000000000004 /* RichFigureAssignmentTests.swift in Sources */,
 				AA000001AA000001AA000002 /* SharedMocks.swift in Sources */,
 				201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */,
 				T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */,
