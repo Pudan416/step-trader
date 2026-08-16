@@ -40,4 +40,24 @@ final class RichFigureLayoutTests: XCTestCase {
         XCTAssertGreaterThan(RichFigureLayout.opticalScale(for: .crystallineStar),
                              RichFigureLayout.opticalScale(for: .luminousOrganic))
     }
+
+    func testFittedScaleFallsBackForNaNWidth() {
+        let scale = RichFigureLayout.fittedScale(
+            canonicalBounds: CGRect(x: 0, y: 0, width: CGFloat.nan, height: 4),
+            targetDiameter: 0.4,
+            opticalScale: 1.12
+        )
+
+        XCTAssertEqual(scale, 0.2, accuracy: 0.000_001)
+    }
+
+    func testFittedScaleFallsBackForNaNHeight() {
+        let scale = RichFigureLayout.fittedScale(
+            canonicalBounds: CGRect(x: 0, y: 0, width: 4, height: CGFloat.nan),
+            targetDiameter: 0.4,
+            opticalScale: 1.12
+        )
+
+        XCTAssertEqual(scale, 0.2, accuracy: 0.000_001)
+    }
 }

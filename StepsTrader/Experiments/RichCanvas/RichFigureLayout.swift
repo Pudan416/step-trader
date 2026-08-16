@@ -45,6 +45,9 @@ enum RichFigureLayout {
         targetDiameter: CGFloat,
         opticalScale: CGFloat
     ) -> CGFloat {
+        guard canonicalBounds.width.isFinite, canonicalBounds.height.isFinite else {
+            return targetDiameter * 0.5
+        }
         let extent = max(canonicalBounds.width, canonicalBounds.height)
         guard extent.isFinite, extent > 0 else { return targetDiameter * 0.5 }
         return targetDiameter / extent * opticalScale
