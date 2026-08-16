@@ -302,7 +302,32 @@ struct SettingsAppearancePage: View {
         VStack(alignment: .leading, spacing: 18) {
             canvasShapesSection
             textureSection
+            if ExperimentalFeatures.richCanvasLab {
+                richCanvasLabSection
+            }
         }
+    }
+
+    private var richCanvasLabSection: some View {
+        NavigationLink {
+            RichCanvasLabView(model: model)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "sparkles.rectangle.stack")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Rich Canvas")
+                    Text("Preview today's canvas with experimental figures")
+                        .font(.caption)
+                        .foregroundStyle(theme.adaptiveSecondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Canvas Shapes (compact)

@@ -21,6 +21,8 @@
 		A16C9001000000000000000C /* RichRenderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000C /* RichRenderCache.swift */; };
 		A16C9001000000000000000D /* RichFigureRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000D /* RichFigureRenderer.swift */; };
 		A16C9001000000000000000E /* RichCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000E /* RichCanvasView.swift */; };
+		A16C9001000000000000000F /* RichCanvasLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000F /* RichCanvasLabView.swift */; };
+		A16C90010000000000000010 /* RichCanvasLabIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000010 /* RichCanvasLabIsolationTests.swift */; };
 		132547AFAA9C80DFE4295A03 /* DayCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8A4067A79B84F980E2699C /* DayCanvas.swift */; };
 		20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */; };
 		200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47A2F0C795D0018004E /* TargetResolver.swift */; };
@@ -391,6 +393,8 @@
 		A16C8001000000000000000C /* RichRenderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichRenderCache.swift; sourceTree = "<group>"; };
 		A16C8001000000000000000D /* RichFigureRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureRenderer.swift; sourceTree = "<group>"; };
 		A16C8001000000000000000E /* RichCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichCanvasView.swift; sourceTree = "<group>"; };
+		A16C8001000000000000000F /* RichCanvasLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichCanvasLabView.swift; sourceTree = "<group>"; };
+		A16C80010000000000000010 /* RichCanvasLabIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichCanvasLabIsolationTests.swift; sourceTree = "<group>"; };
 		008E480BBB86AEC405B9C2EE /* GradientPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GradientPalette.swift; path = StepsTrader/Models/GradientPalette.swift; sourceTree = SOURCE_ROOT; };
 		1C0D419D1FDF446F850FAE7E /* RayShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RayShapeRenderer.swift; path = StepsTrader/Shapes/RayShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		1D27465EA0680011F9D75A64 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTheme.swift; path = StepsTrader/Theme/AppTheme.swift; sourceTree = SOURCE_ROOT; };
@@ -794,6 +798,7 @@
 				A16C8001000000000000000C /* RichRenderCache.swift */,
 				A16C8001000000000000000D /* RichFigureRenderer.swift */,
 				A16C8001000000000000000E /* RichCanvasView.swift */,
+				A16C8001000000000000000F /* RichCanvasLabView.swift */,
 			);
 			path = Experiments/RichCanvas;
 			sourceTree = "<group>";
@@ -1234,6 +1239,7 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				A16C80010000000000000010 /* RichCanvasLabIsolationTests.swift */,
 				A16C80010000000000000004 /* RichFigureAssignmentTests.swift */,
 				A16C80010000000000000006 /* RichFigureLayoutTests.swift */,
 				A16C80010000000000000008 /* RichRenderBudgetTests.swift */,
@@ -1624,6 +1630,7 @@
 				A16C9001000000000000000C /* RichRenderCache.swift in Sources */,
 				A16C9001000000000000000D /* RichFigureRenderer.swift in Sources */,
 				A16C9001000000000000000E /* RichCanvasView.swift in Sources */,
+				A16C9001000000000000000F /* RichCanvasLabView.swift in Sources */,
 				20AA24882F70BEE1002F2F2C /* AppUnlockSettings.swift in Sources */,
 				2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */,
 				209424C82E85952D00904A0A /* NotificationManager.swift in Sources */,
@@ -1840,6 +1847,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A16C90010000000000000010 /* RichCanvasLabIsolationTests.swift in Sources */,
 				A16C90010000000000000004 /* RichFigureAssignmentTests.swift in Sources */,
 				A16C90010000000000000006 /* RichFigureLayoutTests.swift in Sources */,
 				A16C90010000000000000008 /* RichRenderBudgetTests.swift in Sources */,
