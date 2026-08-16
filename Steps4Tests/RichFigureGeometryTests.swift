@@ -2,6 +2,144 @@ import XCTest
 @testable import Steps4
 
 final class RichFigureGeometryTests: XCTestCase {
+    func testFillGeometryRespectsTenElementBudget() {
+        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+        let base = RichFigureGeometryFactory.make(
+            family: .luminousOrganic, seed: 7, detailTier: .medium,
+            canonicalTime: 0, budget: budget
+        )
+
+        let contours = RichFillGeometryFactory.make(
+            fill: .nestedContours, base: base, seed: 7, budget: budget
+        )
+        let rings = RichFillGeometryFactory.make(
+            fill: .orbitalLines, base: base, seed: 7, budget: budget
+        )
+        let filaments = RichFillGeometryFactory.make(
+            fill: .filamentField, base: base, seed: 7, budget: budget
+        )
+
+        XCTAssertLessThanOrEqual(contours.lines.count, budget.contourCount)
+        XCTAssertLessThanOrEqual(rings.lines.count, budget.orbitalRingCount)
+        XCTAssertLessThanOrEqual(filaments.lines.count, budget.filamentCount)
+    }
+
+    func testEveryFillIsDeterministicAndFiniteForEveryFamily() {
+        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+        for family in RichFigureFamily.allCases {
+            let base = RichFigureGeometryFactory.make(
+                family: family, seed: 19, detailTier: .medium,
+                canonicalTime: 0, budget: budget
+            )
+
+            for fill in RichFillKind.allCases {
+                let first = RichFillGeometryFactory.make(
+                    fill: fill, base: base, seed: 91, budget: budget
+                )
+                let second = RichFillGeometryFactory.make(
+                    fill: fill, base: base, seed: 91, budget: budget
+                )
+
+                XCTAssertEqual(first, second, "\(family) / \(fill)")
+                XCTAssertFalse(fillPoints(first).isEmpty, "\(family) / \(fill)")
+                XCTAssertTrue(
+                    fillPoints(first).allSatisfy { $0.x.isFinite && $0.y.isFinite },
+                    "\(family) / \(fill)"
+                )
+            }
+        }
+    }
+
+    func testFillKindsHaveTheirRequiredDistinctTopologies() {
+        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+        let base = RichFigureGeometryFactory.make(
+            family: .luminousOrganic, seed: 7, detailTier: .medium,
+            canonicalTime: 0, budget: budget
+        )
+
+        let gradient = RichFillGeometryFactory.make(
+            fill: .luminousGradient, base: base, seed: 7, budget: budget
+        )
+        XCTAssertTrue(gradient.lines.isEmpty)
+        XCTAssertTrue(gradient.translucentSurfaces.isEmpty)
+        XCTAssertEqual(gradient.highlightPoints.count, 1)
+        XCTAssertNotEqual(gradient.highlightPoints[0], base.core)
+
+        let contours = RichFillGeometryFactory.make(
+            fill: .nestedContours, base: base, seed: 7, budget: budget
+        )
+        XCTAssertEqual(contours.lines.count, budget.contourCount)
+        XCTAssertTrue(contours.lines.allSatisfy { $0.isClosed && $0.points.count > 2 })
+        XCTAssertTrue(contours.translucentSurfaces.isEmpty)
+        XCTAssertTrue(contours.highlightPoints.isEmpty)
+
+        let rings = RichFillGeometryFactory.make(
+            fill: .orbitalLines, base: base, seed: 7, budget: budget
+        )
+        XCTAssertEqual(rings.lines.count, budget.orbitalRingCount)
+        XCTAssertTrue(rings.lines.allSatisfy { !$0.isClosed && $0.points.count > 2 })
+        XCTAssertTrue(rings.translucentSurfaces.isEmpty)
+        XCTAssertTrue(rings.highlightPoints.isEmpty)
+
+        let filaments = RichFillGeometryFactory.make(
+            fill: .filamentField, base: base, seed: 7, budget: budget
+        )
+        XCTAssertEqual(filaments.lines.count, budget.filamentCount)
+        XCTAssertTrue(filaments.lines.allSatisfy { !$0.isClosed && $0.points.count == 2 })
+        XCTAssertTrue(filaments.translucentSurfaces.isEmpty)
+        XCTAssertTrue(filaments.highlightPoints.isEmpty)
+
+        let outline = RichFillGeometryFactory.make(
+            fill: .outlineWithCore, base: base, seed: 7, budget: budget
+        )
+        XCTAssertEqual(outline.lines.count, 1)
+        XCTAssertTrue(outline.lines[0].isClosed)
+        XCTAssertTrue(outline.translucentSurfaces.isEmpty)
+        XCTAssertEqual(outline.highlightPoints, [base.core])
+
+        let mass = RichFillGeometryFactory.make(
+            fill: .layeredTranslucentMass, base: base, seed: 7, budget: budget
+        )
+        XCTAssertTrue(mass.lines.isEmpty)
+        XCTAssertEqual(mass.translucentSurfaces.count, 4)
+        XCTAssertTrue(mass.translucentSurfaces.allSatisfy { $0.count > 2 })
+        XCTAssertTrue(mass.highlightPoints.isEmpty)
+    }
+
+    func testFillGeometryHonorsLowPowerCapsAndUsesClosedEnvelopeFallback() {
+        let budget = RichRenderBudget.resolve(elementCount: 3, lowPowerMode: true)
+        let base = RichFigureGeometryFactory.make(
+            family: .orbitalSpirograph, seed: 23, detailTier: .large,
+            canonicalTime: 0, budget: budget
+        )
+        XCTAssertTrue(base.lines.allSatisfy { $0.role != .silhouette })
+
+        for fill in RichFillKind.allCases {
+            let geometry = RichFillGeometryFactory.make(
+                fill: fill, base: base, seed: 31, budget: budget
+            )
+            XCTAssertFalse(fillPoints(geometry).isEmpty, "\(fill)")
+        }
+
+        let contours = RichFillGeometryFactory.make(
+            fill: .nestedContours, base: base, seed: 31, budget: budget
+        )
+        let rings = RichFillGeometryFactory.make(
+            fill: .orbitalLines, base: base, seed: 31, budget: budget
+        )
+        let filaments = RichFillGeometryFactory.make(
+            fill: .filamentField, base: base, seed: 31, budget: budget
+        )
+        let mass = RichFillGeometryFactory.make(
+            fill: .layeredTranslucentMass, base: base, seed: 31, budget: budget
+        )
+
+        XCTAssertLessThanOrEqual(contours.lines.count, budget.contourCount)
+        XCTAssertLessThanOrEqual(rings.lines.count, budget.orbitalRingCount)
+        XCTAssertLessThanOrEqual(filaments.lines.count, budget.filamentCount)
+        XCTAssertEqual(mass.translucentSurfaces.count, 3)
+    }
+
     func testEveryFamilyIsDeterministicFiniteAndNonDegenerate() {
         let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
         for family in RichFigureFamily.allCases {
@@ -136,5 +274,11 @@ final class RichFigureGeometryTests: XCTestCase {
                 accuracy: 0.000_001
             )
         }
+    }
+
+    private func fillPoints(_ geometry: RichFillGeometry) -> [CGPoint] {
+        geometry.lines.flatMap(\.points)
+            + geometry.translucentSurfaces.flatMap { $0 }
+            + geometry.highlightPoints
     }
 }
