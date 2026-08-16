@@ -50,6 +50,77 @@ final class RichFigureGeometryTests: XCTestCase {
         }
     }
 
+    func testEveryFillStaysInsideNormalizedClosedEnvelopeForEveryFamily() {
+        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+        for family in RichFigureFamily.allCases {
+            let base = RichFigureGeometryFactory.make(
+                family: family, seed: 19, detailTier: .medium,
+                canonicalTime: 0, budget: budget
+            )
+            let envelope = selectedEnvelope(in: base)
+
+            for fill in RichFillKind.allCases {
+                let geometry = RichFillGeometryFactory.make(
+                    fill: fill, base: base, seed: 91, budget: budget
+                )
+                for point in fillPoints(geometry) {
+                    XCTAssertTrue(
+                        (-1.0...1.0).contains(point.x)
+                            && (-1.0...1.0).contains(point.y),
+                        "normalized range: \(family) / \(fill) / \(point)"
+                    )
+                    XCTAssertTrue(
+                        pointIsInsideOrOnBoundary(point, polygon: envelope),
+                        "envelope point: \(family) / \(fill) / \(point)"
+                    )
+                }
+                for line in geometry.lines {
+                    assertSegmentsStayInside(
+                        line.points, closed: line.isClosed, polygon: envelope,
+                        message: "\(family) / \(fill)"
+                    )
+                }
+                for surface in geometry.translucentSurfaces {
+                    assertSegmentsStayInside(
+                        surface, closed: true, polygon: envelope,
+                        message: "\(family) / \(fill)"
+                    )
+                }
+            }
+        }
+    }
+
+    func testRayNestedContoursAreStrictInsets() {
+        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+        let base = RichFigureGeometryFactory.make(
+            family: .rays, seed: 19, detailTier: .medium,
+            canonicalTime: 0, budget: budget
+        )
+        let envelope = selectedEnvelope(in: base)
+        let contours = RichFillGeometryFactory.make(
+            fill: .nestedContours, base: base, seed: 91, budget: budget
+        )
+
+        XCTAssertEqual(contours.lines.count, budget.contourCount)
+        for contour in contours.lines {
+            XCTAssertTrue(contour.isClosed)
+            let strictSamples = contour.points.indices.flatMap { index in
+                let point = contour.points[index]
+                let next = contour.points[(index + 1) % contour.points.count]
+                return [point, CGPoint(
+                    x: (point.x + next.x) / 2,
+                    y: (point.y + next.y) / 2
+                )]
+            }
+            for point in strictSamples {
+                XCTAssertTrue(pointIsInside(point, polygon: envelope))
+                XCTAssertGreaterThan(
+                    minimumDistance(point, to: envelope), 0.000_001
+                )
+            }
+        }
+    }
+
     func testFillKindsHaveTheirRequiredDistinctTopologies() {
         let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
         let base = RichFigureGeometryFactory.make(
@@ -280,5 +351,100 @@ final class RichFigureGeometryTests: XCTestCase {
         geometry.lines.flatMap(\.points)
             + geometry.translucentSurfaces.flatMap { $0 }
             + geometry.highlightPoints
+    }
+
+    private func selectedEnvelope(in geometry: RichFigureGeometry) -> [CGPoint] {
+        let closed = geometry.lines.filter { $0.isClosed && $0.points.count > 2 }
+        let silhouettes = closed.filter { $0.role == .silhouette }
+        return (silhouettes.isEmpty ? closed : silhouettes).max {
+            abs(signedArea($0.points)) < abs(signedArea($1.points))
+        }!.points
+    }
+
+    private func assertSegmentsStayInside(
+        _ points: [CGPoint],
+        closed: Bool,
+        polygon: [CGPoint],
+        message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard points.count > 1 else { return }
+        let segmentCount = closed ? points.count : points.count - 1
+        for index in 0..<segmentCount {
+            let start = points[index]
+            let end = points[(index + 1) % points.count]
+            let midpoint = CGPoint(
+                x: (start.x + end.x) / 2,
+                y: (start.y + end.y) / 2
+            )
+            XCTAssertTrue(
+                pointIsInsideOrOnBoundary(midpoint, polygon: polygon),
+                "segment: \(message) / \(midpoint)",
+                file: file,
+                line: line
+            )
+        }
+    }
+
+    private func pointIsInsideOrOnBoundary(
+        _ point: CGPoint,
+        polygon: [CGPoint]
+    ) -> Bool {
+        minimumDistance(point, to: polygon) <= 0.000_001
+            || pointIsInside(point, polygon: polygon)
+    }
+
+    private func pointIsInside(
+        _ point: CGPoint,
+        polygon: [CGPoint]
+    ) -> Bool {
+        var isInside = false
+        var previous = polygon[polygon.count - 1]
+        for current in polygon {
+            let crossesY = (current.y > point.y) != (previous.y > point.y)
+            if crossesY {
+                let crossingX = (previous.x - current.x)
+                    * (point.y - current.y)
+                    / (previous.y - current.y)
+                    + current.x
+                if point.x < crossingX { isInside.toggle() }
+            }
+            previous = current
+        }
+        return isInside
+    }
+
+    private func minimumDistance(
+        _ point: CGPoint,
+        to polygon: [CGPoint]
+    ) -> CGFloat {
+        polygon.indices.map { index in
+            let start = polygon[index]
+            let end = polygon[(index + 1) % polygon.count]
+            let x = end.x - start.x
+            let y = end.y - start.y
+            let lengthSquared = x * x + y * y
+            guard lengthSquared > 0 else {
+                return hypot(point.x - start.x, point.y - start.y)
+            }
+            let progress = max(0, min(1,
+                ((point.x - start.x) * x + (point.y - start.y) * y)
+                    / lengthSquared
+            ))
+            let nearest = CGPoint(
+                x: start.x + progress * x,
+                y: start.y + progress * y
+            )
+            return hypot(point.x - nearest.x, point.y - nearest.y)
+        }.min() ?? .infinity
+    }
+
+    private func signedArea(_ points: [CGPoint]) -> CGFloat {
+        points.indices.reduce(0) { area, index in
+            let point = points[index]
+            let next = points[(index + 1) % points.count]
+            return area + point.x * next.y - next.x * point.y
+        } * 0.5
     }
 }

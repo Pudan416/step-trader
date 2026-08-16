@@ -38,13 +38,18 @@ enum RichFillGeometryFactory {
         base: RichFigureGeometry,
         seed: UInt64
     ) -> RichFillGeometry {
+        guard let envelope = closedEnvelope(in: base) else { return empty }
         var rng = SeededRNG.derived(from: seed, domain: "richLuminousFill")
+        let anchor = interiorAnchor(of: envelope.points)
         let angle = rng.nextDouble(in: 0...(2 * .pi))
         let extent = max(0.1, min(base.bounds.width, base.bounds.height))
         let radius = Double(extent) * rng.nextDouble(in: 0.08...0.16)
-        let highlight = CGPoint(
-            x: base.core.x + radius * cos(angle),
-            y: base.core.y + radius * sin(angle)
+        let candidate = CGPoint(
+            x: anchor.x + radius * cos(angle),
+            y: anchor.y + radius * sin(angle)
+        )
+        let highlight = contractedPoint(
+            candidate, toward: anchor, polygon: envelope.points
         )
         return RichFillGeometry(
             lines: [], translucentSurfaces: [], highlightPoints: [highlight]
@@ -58,13 +63,18 @@ enum RichFillGeometryFactory {
         guard let envelope = closedEnvelope(in: base), count > 0 else {
             return empty
         }
+        let anchor = interiorAnchor(of: envelope.points)
         let lines = (0..<count).map { index in
             let progress = Double(index + 1) / Double(count + 1)
             let scale = 1 - 0.72 * progress
+            let points = transformed(
+                envelope.points, around: anchor,
+                scale: scale, rotation: 0
+            )
             return RichPolyline(
-                points: transformed(
-                    envelope.points, around: base.core,
-                    scale: scale, rotation: 0
+                points: contractedUntilContained(
+                    points, toward: anchor, polygon: envelope.points,
+                    closed: true, strictly: true
                 ),
                 isClosed: true,
                 role: .accent
@@ -84,6 +94,7 @@ enum RichFillGeometryFactory {
             return empty
         }
         var rng = SeededRNG.derived(from: seed, domain: "richOrbitalFill")
+        let anchor = interiorAnchor(of: envelope.points)
         let baseRotation = rng.nextDouble(in: 0...Double.pi)
         var lines: [RichPolyline] = []
         lines.reserveCapacity(count)
@@ -95,7 +106,7 @@ enum RichFillGeometryFactory {
                 + Double(index) * (.pi / Double(max(2, count)))
                 + rng.nextDouble(in: -0.08...0.08)
             let points = transformed(
-                envelope.points, around: base.core,
+                envelope.points, around: anchor,
                 scale: scale, rotation: rotation
             )
             guard points.count > 2 else { continue }
@@ -107,7 +118,10 @@ enum RichFillGeometryFactory {
                 points[(gapStart + gapCount + offset) % points.count]
             }
             lines.append(RichPolyline(
-                points: visiblePoints,
+                points: contractedUntilContained(
+                    visiblePoints, toward: anchor, polygon: envelope.points,
+                    closed: false, strictly: false
+                ),
                 isClosed: false,
                 role: .orbit
             ))
@@ -170,6 +184,10 @@ enum RichFillGeometryFactory {
                 highlightPoints: [base.core]
             )
         }
+        let anchor = interiorAnchor(of: envelope.points)
+        let highlight = pointIsInsideOrOnBoundary(
+            base.core, polygon: envelope.points
+        ) && isNormalized(base.core) ? base.core : anchor
         return RichFillGeometry(
             lines: [RichPolyline(
                 points: envelope.points,
@@ -177,7 +195,7 @@ enum RichFillGeometryFactory {
                 role: .silhouette
             )],
             translucentSurfaces: [],
-            highlightPoints: [base.core]
+            highlightPoints: [highlight]
         )
     }
 
@@ -188,6 +206,7 @@ enum RichFillGeometryFactory {
     ) -> RichFillGeometry {
         guard let envelope = closedEnvelope(in: base) else { return empty }
         var rng = SeededRNG.derived(from: seed, domain: "richLayeredMassFill")
+        let anchor = interiorAnchor(of: envelope.points)
         var surfaces: [[CGPoint]] = []
         surfaces.reserveCapacity(count)
 
@@ -197,18 +216,21 @@ enum RichFillGeometryFactory {
             let frequency = rng.nextInt(in: 2...5)
             let phase = rng.nextDouble(in: 0...(2 * .pi))
             let points = envelope.points.map { point -> CGPoint in
-                let x = Double(point.x - base.core.x)
-                let y = Double(point.y - base.core.y)
+                let x = Double(point.x - anchor.x)
+                let y = Double(point.y - anchor.y)
                 let angle = atan2(y, x)
-                let deformation = 1 + amplitude
-                    * sin(Double(frequency) * angle + phase)
+                let deformation = 1 - amplitude
+                    * (0.5 + 0.5 * sin(Double(frequency) * angle + phase))
                 let factor = scale * deformation
                 return CGPoint(
-                    x: base.core.x + x * factor,
-                    y: base.core.y + y * factor
+                    x: anchor.x + x * factor,
+                    y: anchor.y + y * factor
                 )
             }
-            surfaces.append(points)
+            surfaces.append(contractedUntilContained(
+                points, toward: anchor, polygon: envelope.points,
+                closed: true, strictly: true
+            ))
         }
 
         return RichFillGeometry(
@@ -244,6 +266,214 @@ enum RichFillGeometryFactory {
                 y: center.y + x * sine + y * cosine
             )
         }
+    }
+
+    private static func contractedPoint(
+        _ point: CGPoint,
+        toward anchor: CGPoint,
+        polygon: [CGPoint]
+    ) -> CGPoint {
+        var candidate = point
+        for _ in 0..<32 {
+            if isNormalized(candidate),
+               pointIsInside(candidate, polygon: polygon),
+               minimumDistance(candidate, to: polygon) > 0.000_001 {
+                return candidate
+            }
+            candidate = interpolated(from: anchor, to: candidate, progress: 0.75)
+        }
+        return anchor
+    }
+
+    private static func contractedUntilContained(
+        _ points: [CGPoint],
+        toward anchor: CGPoint,
+        polygon: [CGPoint],
+        closed: Bool,
+        strictly: Bool
+    ) -> [CGPoint] {
+        var candidates = points
+        for _ in 0..<32 {
+            let hasStrictInset = !strictly || candidates.allSatisfy {
+                pointIsInside($0, polygon: polygon)
+                    && minimumDistance($0, to: polygon) > 0.000_001
+            }
+            if hasStrictInset,
+               candidates.allSatisfy(isNormalized),
+               pathIsContained(candidates, closed: closed, polygon: polygon) {
+                return candidates
+            }
+            candidates = candidates.map {
+                interpolated(from: anchor, to: $0, progress: 0.75)
+            }
+        }
+        return candidates
+    }
+
+    private static func interiorAnchor(of polygon: [CGPoint]) -> CGPoint {
+        let area = signedArea(of: polygon)
+        if abs(area) > 0.000_000_001 {
+            var x = 0.0
+            var y = 0.0
+            for index in polygon.indices {
+                let point = polygon[index]
+                let next = polygon[(index + 1) % polygon.count]
+                let cross = Double(point.x * next.y - next.x * point.y)
+                x += Double(point.x + next.x) * cross
+                y += Double(point.y + next.y) * cross
+            }
+            let centroid = CGPoint(
+                x: x / (6 * area),
+                y: y / (6 * area)
+            )
+            if pointIsInside(centroid, polygon: polygon),
+               minimumDistance(centroid, to: polygon) > 0.000_001 {
+                return centroid
+            }
+        }
+
+        let bounds = polygonBounds(polygon)
+        var best = CGPoint(x: bounds.midX, y: bounds.midY)
+        var bestDistance = -Double.infinity
+        for yIndex in 1..<16 {
+            for xIndex in 1..<16 {
+                let point = CGPoint(
+                    x: bounds.minX + bounds.width * Double(xIndex) / 16,
+                    y: bounds.minY + bounds.height * Double(yIndex) / 16
+                )
+                guard pointIsInside(point, polygon: polygon) else { continue }
+                let distance = minimumDistance(point, to: polygon)
+                if distance > bestDistance {
+                    best = point
+                    bestDistance = distance
+                }
+            }
+        }
+        return best
+    }
+
+    private static func pathIsContained(
+        _ points: [CGPoint],
+        closed: Bool,
+        polygon: [CGPoint]
+    ) -> Bool {
+        guard points.allSatisfy({
+            isNormalized($0) && pointIsInsideOrOnBoundary($0, polygon: polygon)
+        }) else { return false }
+        guard points.count > 1 else { return true }
+        let segmentCount = closed ? points.count : points.count - 1
+        return (0..<segmentCount).allSatisfy { index in
+            segmentIsContained(
+                from: points[index],
+                to: points[(index + 1) % points.count],
+                polygon: polygon
+            )
+        }
+    }
+
+    private static func segmentIsContained(
+        from start: CGPoint,
+        to end: CGPoint,
+        polygon: [CGPoint]
+    ) -> Bool {
+        var parameters = [0.0, 1.0]
+        let direction = CGPoint(x: end.x - start.x, y: end.y - start.y)
+        for index in polygon.indices {
+            let edgeStart = polygon[index]
+            let edgeEnd = polygon[(index + 1) % polygon.count]
+            let edge = CGPoint(
+                x: edgeEnd.x - edgeStart.x,
+                y: edgeEnd.y - edgeStart.y
+            )
+            let denominator = cross(direction, edge)
+            guard abs(denominator) > 0.000_000_001 else { continue }
+            let delta = CGPoint(
+                x: edgeStart.x - start.x,
+                y: edgeStart.y - start.y
+            )
+            let progress = cross(delta, edge) / denominator
+            let edgeProgress = cross(delta, direction) / denominator
+            if progress >= 0, progress <= 1,
+               edgeProgress >= 0, edgeProgress <= 1 {
+                parameters.append(progress)
+            }
+        }
+        parameters.sort()
+        var unique: [Double] = []
+        for value in parameters where
+            unique.last.map({ abs($0 - value) > 0.000_000_1 }) ?? true {
+            unique.append(value)
+        }
+        for index in 0..<(unique.count - 1) {
+            let midpoint = interpolated(
+                from: start, to: end,
+                progress: (unique[index] + unique[index + 1]) / 2
+            )
+            if !pointIsInsideOrOnBoundary(midpoint, polygon: polygon) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private static func pointIsInsideOrOnBoundary(
+        _ point: CGPoint,
+        polygon: [CGPoint]
+    ) -> Bool {
+        minimumDistance(point, to: polygon) <= 0.000_001
+            || pointIsInside(point, polygon: polygon)
+    }
+
+    private static func minimumDistance(
+        _ point: CGPoint,
+        to polygon: [CGPoint]
+    ) -> Double {
+        polygon.indices.map { index in
+            let start = polygon[index]
+            let end = polygon[(index + 1) % polygon.count]
+            let x = Double(end.x - start.x)
+            let y = Double(end.y - start.y)
+            let lengthSquared = x * x + y * y
+            guard lengthSquared > 0 else {
+                return hypot(
+                    Double(point.x - start.x), Double(point.y - start.y)
+                )
+            }
+            let progress = max(0, min(1,
+                (Double(point.x - start.x) * x
+                    + Double(point.y - start.y) * y) / lengthSquared
+            ))
+            let nearestX = Double(start.x) + progress * x
+            let nearestY = Double(start.y) + progress * y
+            return hypot(Double(point.x) - nearestX, Double(point.y) - nearestY)
+        }.min() ?? .infinity
+    }
+
+    private static func polygonBounds(_ polygon: [CGPoint]) -> CGRect {
+        polygon.dropFirst().reduce(
+            CGRect(origin: polygon[0], size: .zero)
+        ) { bounds, point in
+            bounds.union(CGRect(origin: point, size: .zero))
+        }
+    }
+
+    private static func interpolated(
+        from start: CGPoint,
+        to end: CGPoint,
+        progress: Double
+    ) -> CGPoint {
+        CGPoint(
+            x: start.x + (end.x - start.x) * progress,
+            y: start.y + (end.y - start.y) * progress
+        )
+    }
+
+    private static func isNormalized(_ point: CGPoint) -> Bool {
+        (-1.0...1.0).contains(point.x) && (-1.0...1.0).contains(point.y)
+    }
+
+    private static func cross(_ lhs: CGPoint, _ rhs: CGPoint) -> Double {
+        Double(lhs.x * rhs.y - lhs.y * rhs.x)
     }
 
     private static func clippedChord(
