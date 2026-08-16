@@ -16,6 +16,30 @@ enum RichParticleDistribution {
     }
 }
 
+struct RichDetailTierDistribution: Equatable {
+    let accent: Int
+    let medium: Int
+    let large: Int
+
+    init(accent: Int, medium: Int, large: Int) {
+        self.accent = accent
+        self.medium = medium
+        self.large = large
+    }
+
+    init(items: [RichFigurePreviewItem]) {
+        self.init(
+            accent: items.filter { $0.style.detailTier == .accent }.count,
+            medium: items.filter { $0.style.detailTier == .medium }.count,
+            large: items.filter { $0.style.detailTier == .large }.count
+        )
+    }
+
+    var compactDescription: String {
+        "\(accent)A · \(medium)M · \(large)L"
+    }
+}
+
 struct RichCanvasView: View {
     let canvas: DayCanvas
     let shuffleNonce: Int
@@ -62,7 +86,7 @@ struct RichCanvasView: View {
             RichCanvasHUD(
                 cache: cache,
                 budget: budget,
-                elementCount: items.count,
+                items: items,
                 lowPowerMode: lowPowerMode
             )
         }
@@ -201,24 +225,27 @@ struct RichCanvasView: View {
 struct RichCanvasHUD: View {
     let cache: RichRenderCache
     let budget: RichRenderBudget
-    let elementCount: Int
+    let items: [RichFigurePreviewItem]
     let lowPowerMode: Bool
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { _ in
             let stats = cache.cadenceSnapshot()
+            let detailTiers = RichDetailTierDistribution(items: items)
             VStack(alignment: .leading, spacing: 2) {
                 Text(
                     "\(String(format: "%.1f", stats.observedFPS)) FPS · "
-                    + "\(elementCount) items · \(budget.contourCount) contours · "
+                    + "\(items.count) items · \(detailTiers.compactDescription) · "
                     + (lowPowerMode ? "Low Power" : "Normal")
                 )
                 Text(
-                    "target: \(budget.requestedFPS) · rings: \(budget.orbitalRingCount) · "
-                    + "filaments: \(budget.filamentCount)"
+                    "target: \(budget.requestedFPS) · contours: \(budget.contourCount) · "
+                    + "rings: \(budget.orbitalRingCount)"
                 )
                 Text(
-                    "particles: \(budget.globalParticleCount) · glows: \(budget.glowPassCount) · "
+                    "filaments: \(budget.filamentCount) · "
+                    + "particles: \(budget.globalParticleCount) · "
+                    + "glows: \(budget.glowPassCount) · "
                     + "slow: \(stats.slowIntervalCount)"
                 )
             }

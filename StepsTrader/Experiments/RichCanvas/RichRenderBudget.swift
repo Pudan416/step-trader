@@ -56,4 +56,12 @@ enum RichTimeBuckets {
     static func bucket(time: Double, seed: UInt64) -> Int {
         Int(floor((time + phase(for: seed)) / bucketSeconds))
     }
+
+    static func geometryBucket(
+        family: RichFigureFamily,
+        time: Double,
+        seed: UInt64
+    ) -> Int {
+        family == .crystallineStar ? bucket(time: time, seed: seed) : 0
+    }
 }

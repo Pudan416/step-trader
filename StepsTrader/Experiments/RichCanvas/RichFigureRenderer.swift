@@ -60,85 +60,98 @@ enum RichFigureRenderer {
         reduceMotion: Bool
     ) -> RichFigureMotionState {
         let baseCenter = center(for: item, canvasSize: canvasSize)
+        let edgeEnvelope = RichFigureLayout.edgeSafeEnvelope(
+            for: item.layout,
+            canvasSize: canvasSize
+        )
         let canonicalTime = canonicalDeformationTime(seed: item.style.geometrySeed)
         let canonicalHighlight = unitPhase(
             Double(item.style.geometrySeed % 10_000) / 10_000
         )
-        guard !reduceMotion else {
-            return RichFigureMotionState(
+        let state: RichFigureMotionState
+        if reduceMotion {
+            state = RichFigureMotionState(
                 center: baseCenter,
                 rotation: .zero,
                 scale: 1,
                 deformationTime: canonicalTime,
                 highlightPhase: canonicalHighlight
             )
+        } else {
+            let safeTime = time.isFinite ? time : canonicalTime
+            let speed = item.style.speedMultiplier.isFinite
+                ? max(0.1, item.style.speedMultiplier)
+                : 1
+            let phase = item.style.animationPhase.isFinite
+                ? item.style.animationPhase
+                : 0
+
+            switch item.style.family {
+            case .circle:
+                state = RichFigureMotionState(
+                    center: baseCenter,
+                    rotation: .zero,
+                    scale: 1 + 0.02 * sin(safeTime * 0.42 * speed + phase),
+                    deformationTime: canonicalTime,
+                    highlightPhase: unitPhase(
+                        safeTime * 0.07 * speed + phase / (2 * .pi) + 0.23
+                    )
+                )
+            case .luminousOrganic:
+                state = RichFigureMotionState(
+                    center: baseCenter,
+                    rotation: .zero,
+                    scale: 1,
+                    deformationTime: canonicalTime + safeTime * 0.16 * speed,
+                    highlightPhase: unitPhase(
+                        safeTime * 0.035 * speed + phase / (2 * .pi)
+                    )
+                )
+            case .crystallineStar:
+                state = RichFigureMotionState(
+                    center: SnowflakeShapeRenderer.driftPosition(
+                        item.source,
+                        size: canvasSize,
+                        t: safeTime,
+                        ampScale: 1
+                    ),
+                    rotation: .radians(safeTime * 0.055 * speed + phase),
+                    scale: 1,
+                    deformationTime: safeTime,
+                    highlightPhase: unitPhase(
+                        safeTime * 0.09 * speed + phase / (2 * .pi)
+                    )
+                )
+            case .rays:
+                state = RichFigureMotionState(
+                    center: baseCenter,
+                    rotation: .zero,
+                    scale: 1 + 0.04 * sin(safeTime * 0.20 * speed + phase),
+                    deformationTime: canonicalTime,
+                    highlightPhase: unitPhase(
+                        safeTime * 0.11 * speed + phase / (2 * .pi)
+                    )
+                )
+            case .orbitalSpirograph:
+                state = RichFigureMotionState(
+                    center: baseCenter,
+                    rotation: .radians(safeTime * 0.035 * speed + phase),
+                    scale: 1,
+                    deformationTime: canonicalTime,
+                    highlightPhase: unitPhase(
+                        safeTime * 0.055 * speed + phase / (2 * .pi)
+                    )
+                )
+            }
         }
 
-        let safeTime = time.isFinite ? time : canonicalTime
-        let speed = item.style.speedMultiplier.isFinite
-            ? max(0.1, item.style.speedMultiplier)
-            : 1
-        let phase = item.style.animationPhase.isFinite
-            ? item.style.animationPhase
-            : 0
-
-        switch item.style.family {
-        case .circle:
-            return RichFigureMotionState(
-                center: baseCenter,
-                rotation: .zero,
-                scale: 1 + 0.02 * sin(safeTime * 0.42 * speed + phase),
-                deformationTime: canonicalTime,
-                highlightPhase: unitPhase(
-                    safeTime * 0.07 * speed + phase / (2 * .pi) + 0.23
-                )
-            )
-        case .luminousOrganic:
-            return RichFigureMotionState(
-                center: baseCenter,
-                rotation: .zero,
-                scale: 1,
-                deformationTime: canonicalTime + safeTime * 0.16 * speed,
-                highlightPhase: unitPhase(
-                    safeTime * 0.035 * speed + phase / (2 * .pi)
-                )
-            )
-        case .crystallineStar:
-            return RichFigureMotionState(
-                center: SnowflakeShapeRenderer.driftPosition(
-                    item.source,
-                    size: canvasSize,
-                    t: safeTime,
-                    ampScale: 1
-                ),
-                rotation: .radians(safeTime * 0.055 * speed + phase),
-                scale: 1,
-                deformationTime: safeTime,
-                highlightPhase: unitPhase(
-                    safeTime * 0.09 * speed + phase / (2 * .pi)
-                )
-            )
-        case .rays:
-            return RichFigureMotionState(
-                center: baseCenter,
-                rotation: .zero,
-                scale: 1 + 0.04 * sin(safeTime * 0.20 * speed + phase),
-                deformationTime: canonicalTime,
-                highlightPhase: unitPhase(
-                    safeTime * 0.11 * speed + phase / (2 * .pi)
-                )
-            )
-        case .orbitalSpirograph:
-            return RichFigureMotionState(
-                center: baseCenter,
-                rotation: .radians(safeTime * 0.035 * speed + phase),
-                scale: 1,
-                deformationTime: canonicalTime,
-                highlightPhase: unitPhase(
-                    safeTime * 0.055 * speed + phase / (2 * .pi)
-                )
-            )
-        }
+        return RichFigureMotionState(
+            center: edgeEnvelope.constrainedCenter(state.center),
+            rotation: state.rotation,
+            scale: state.scale,
+            deformationTime: state.deformationTime,
+            highlightPhase: state.highlightPhase
+        )
     }
 
     @MainActor
@@ -164,7 +177,8 @@ enum RichFigureRenderer {
         let geometryTime = reduceMotion
             ? motion.deformationTime
             : (time.isFinite ? time : motion.deformationTime)
-        let bucket = RichTimeBuckets.bucket(
+        let bucket = RichTimeBuckets.geometryBucket(
+            family: item.style.family,
             time: geometryTime,
             seed: item.style.geometrySeed
         )
@@ -176,8 +190,10 @@ enum RichFigureRenderer {
             timeBucket: bucket
         )
         let cached = cache.geometry(for: key) {
-            let canonicalTime = Double(bucket) * RichTimeBuckets.bucketSeconds
-                - RichTimeBuckets.phase(for: item.style.geometrySeed)
+            let canonicalTime = item.style.family == .crystallineStar
+                ? Double(bucket) * RichTimeBuckets.bucketSeconds
+                    - RichTimeBuckets.phase(for: item.style.geometrySeed)
+                : 0
             let canonicalBudget = RichRenderBudget.resolve(
                 elementCount: 1,
                 lowPowerMode: false
@@ -210,8 +226,11 @@ enum RichFigureRenderer {
         )
         let primary = colors.primary.color
         let secondary = colors.secondary.color
-        let targetDiameter = item.layout.targetDiameterFraction
-            * min(canvasSize.width, canvasSize.height)
+        let edgeEnvelope = RichFigureLayout.edgeSafeEnvelope(
+            for: item.layout,
+            canvasSize: canvasSize
+        )
+        let targetDiameter = edgeEnvelope.effectiveTargetDiameter
         let fittedScale = RichFigureLayout.fittedScale(
             canonicalBounds: geometry.base.bounds,
             targetDiameter: targetDiameter,
@@ -248,16 +267,19 @@ enum RichFigureRenderer {
         )
         let blendMode: GraphicsContext.BlendMode =
             context.environment.colorScheme == .dark ? .plusLighter : .normal
-        let lineWidth = max(0.65, min(2.2, targetDiameter * 0.008))
+        let effectMetrics = RichFigureLayout.effectMetrics(
+            targetDiameter: targetDiameter,
+            overscanFraction: item.layout.overscanFraction
+        )
+        let lineWidth = effectMetrics.lineWidth
         let glowIntensity = item.style.glowIntensity.isFinite
             ? min(1, max(0, item.style.glowIntensity))
             : 0.65
 
         if budget.glowPassCount >= 1 {
-            let blur = min(10, max(2, targetDiameter * item.layout.overscanFraction * 0.18))
             context.drawLayer { layer in
                 layer.blendMode = blendMode
-                layer.addFilter(.blur(radius: blur))
+                layer.addFilter(.blur(radius: effectMetrics.outerGlowBlur))
                 layer.stroke(
                     allLinePath,
                     with: .color(primary.opacity(0.30 * glowIntensity)),
@@ -271,16 +293,16 @@ enum RichFigureRenderer {
         }
 
         if budget.glowPassCount == 2 {
-            let radius = min(18, max(5, targetDiameter * 0.08))
+            let diameter = effectMetrics.coreGlowDiameter
             let glowPath = Path(ellipseIn: CGRect(
-                x: core.x - radius / 2,
-                y: core.y - radius / 2,
-                width: radius,
-                height: radius
+                x: core.x - diameter / 2,
+                y: core.y - diameter / 2,
+                width: diameter,
+                height: diameter
             ))
             context.drawLayer { layer in
                 layer.blendMode = blendMode
-                layer.addFilter(.blur(radius: min(7, radius * 0.35)))
+                layer.addFilter(.blur(radius: effectMetrics.coreGlowBlur))
                 layer.fill(
                     glowPath,
                     with: .color(secondary.opacity(0.55 * glowIntensity))
@@ -370,7 +392,7 @@ enum RichFigureRenderer {
             geometry: geometry.base,
             motion: motion,
             fittedScale: fittedScale,
-            targetDiameter: targetDiameter
+            effectMetrics: effectMetrics
         )
 
         if item.style.particleEligible {
@@ -392,7 +414,7 @@ enum RichFigureRenderer {
                 geometry: geometry.base,
                 motion: motion,
                 fittedScale: fittedScale,
-                targetDiameter: targetDiameter
+                effectMetrics: effectMetrics
             )
         }
     }
@@ -538,33 +560,56 @@ enum RichFigureRenderer {
               base.bounds.width > 0, base.bounds.height > 0,
               base.core.x.isFinite, base.core.y.isFinite,
               !base.lines.isEmpty else { return false }
-        return base.lines.allSatisfy { line in
-            let enoughPoints = line.isClosed
-                ? line.points.count >= 3
-                : line.points.count >= 2
-            return enoughPoints && line.points.allSatisfy(validPoint)
-        }
+        return base.lines.allSatisfy(validLine)
+            && hasPlanarExtent(base.allPoints)
     }
 
     private static func validFill(_ fill: RichFillGeometry) -> Bool {
-        let validLines = fill.lines.allSatisfy { line in
-            let enoughPoints = line.isClosed
-                ? line.points.count >= 3
-                : line.points.count >= 2
-            return enoughPoints && line.points.allSatisfy(validPoint)
-        }
+        let validLines = fill.lines.allSatisfy(validLine)
         let validSurfaces = fill.translucentSurfaces.allSatisfy {
-            $0.count >= 3 && $0.allSatisfy(validPoint)
+            $0.count >= 3
+                && $0.allSatisfy(finitePoint)
+                && hasPlanarExtent($0)
         }
         return validLines
             && validSurfaces
-            && fill.highlightPoints.allSatisfy(validPoint)
+            && fill.highlightPoints.allSatisfy(finitePoint)
     }
 
-    private static func validPoint(_ point: CGPoint) -> Bool {
+    private static func validLine(_ line: RichPolyline) -> Bool {
+        let enoughPoints = line.isClosed
+            ? line.points.count >= 3
+            : line.points.count >= 2
+        guard enoughPoints, line.points.allSatisfy(finitePoint) else {
+            return false
+        }
+        if line.isClosed {
+            return hasPlanarExtent(line.points)
+        }
+        guard let first = line.points.first else { return false }
+        return line.points.dropFirst().contains {
+            hypot($0.x - first.x, $0.y - first.y) > 0.000_000_001
+        }
+    }
+
+    private static func hasPlanarExtent(_ points: [CGPoint]) -> Bool {
+        guard let first = points.first else { return false }
+        var minimumX = first.x
+        var maximumX = first.x
+        var minimumY = first.y
+        var maximumY = first.y
+        for point in points.dropFirst() {
+            minimumX = min(minimumX, point.x)
+            maximumX = max(maximumX, point.x)
+            minimumY = min(minimumY, point.y)
+            maximumY = max(maximumY, point.y)
+        }
+        return maximumX - minimumX > 0.000_000_001
+            && maximumY - minimumY > 0.000_000_001
+    }
+
+    private static func finitePoint(_ point: CGPoint) -> Bool {
         point.x.isFinite && point.y.isFinite
-            && (-1.000_001...1.000_001).contains(point.x)
-            && (-1.000_001...1.000_001).contains(point.y)
     }
 
     private static func fallbackGeometry() -> RichCachedGeometry {
@@ -802,9 +847,9 @@ enum RichFigureRenderer {
         geometry: RichFigureGeometry,
         motion: RichFigureMotionState,
         fittedScale: CGFloat,
-        targetDiameter: CGFloat
+        effectMetrics: RichFigureEffectMetrics
     ) {
-        let radius = min(7, max(1.8, targetDiameter * 0.018))
+        let radius = effectMetrics.highlightRadius
         let familyEffect = highlightEffect(
             for: item.style.family,
             in: geometry,
@@ -882,9 +927,9 @@ enum RichFigureRenderer {
         geometry: RichFigureGeometry,
         motion: RichFigureMotionState,
         fittedScale: CGFloat,
-        targetDiameter: CGFloat
+        effectMetrics: RichFigureEffectMetrics
     ) {
-        let radius = min(2.4, max(0.7, targetDiameter * 0.007))
+        let radius = effectMetrics.particleRadius
         var particlePath = Path()
         for (index, point) in points.enumerated() {
             let transformedPoint = transformed(

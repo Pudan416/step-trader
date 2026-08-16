@@ -49,11 +49,17 @@ final class RichFigureGeometryTests: XCTestCase {
         let star = RichFigureRenderer.motionState(
             for: starItem, canvasSize: size, time: 37, reduceMotion: false
         )
+        let starEnvelope = RichFigureLayout.edgeSafeEnvelope(
+            for: starItem.layout,
+            canvasSize: size
+        )
         XCTAssertEqual(
             star.center,
-            SnowflakeShapeRenderer.driftPosition(
-                starItem.source, size: size, t: 37,
-                ampScale: 1
+            starEnvelope.constrainedCenter(
+                SnowflakeShapeRenderer.driftPosition(
+                    starItem.source, size: size, t: 37,
+                    ampScale: 1
+                )
             )
         )
 
@@ -190,6 +196,70 @@ final class RichFigureGeometryTests: XCTestCase {
         XCTAssertEqual(resolved.base.lines.count, 1)
         XCTAssertTrue(resolved.base.lines[0].isClosed)
         XCTAssertTrue(resolved.base.allPoints.allSatisfy { $0.x.isFinite && $0.y.isFinite })
+    }
+
+    func testFiniteDegenerateGeometryStillUsesUnitCircleFallback() {
+        let degenerate = RichCachedGeometry(
+            base: RichFigureGeometry(
+                lines: [RichPolyline(
+                    points: [.zero, .zero, .zero],
+                    isClosed: true,
+                    role: .silhouette
+                )],
+                core: .zero,
+                bounds: CGRect(x: -1, y: -1, width: 2, height: 2)
+            ),
+            fill: RichFillGeometry(
+                lines: [], translucentSurfaces: [], highlightPoints: []
+            )
+        )
+
+        let resolved = RichFigureRenderer.validatedGeometry(degenerate)
+
+        XCTAssertEqual(resolved.base.bounds, CGRect(x: -1, y: -1, width: 2, height: 2))
+        XCTAssertEqual(resolved.base.lines.count, 1)
+        XCTAssertEqual(resolved.base.lines[0].points.count, 64)
+    }
+
+    func testAnimatedCrystallineStarsSurviveRendererValidationAcrossSeedsAndBuckets() {
+        let budget = RichRenderBudget.resolve(elementCount: 1, lowPowerMode: false)
+
+        for seed in UInt64(0)..<UInt64(64) {
+            for bucket in 1...12 {
+                let canonicalTime = Double(bucket) * RichTimeBuckets.bucketSeconds
+                    - RichTimeBuckets.phase(for: seed)
+                let base = RichFigureGeometryFactory.make(
+                    family: .crystallineStar,
+                    seed: seed,
+                    detailTier: .medium,
+                    canonicalTime: canonicalTime,
+                    budget: budget
+                )
+                let cached = RichCachedGeometry(
+                    base: base,
+                    fill: RichFillGeometryFactory.make(
+                        fill: .outlineWithCore,
+                        base: base,
+                        seed: seed,
+                        budget: budget
+                    )
+                )
+
+                let resolved = RichFigureRenderer.validatedGeometry(cached)
+
+                guard resolved.base == base else {
+                    XCTFail(
+                        "Star became fallback geometry for seed \(seed), bucket \(bucket)"
+                    )
+                    return
+                }
+                XCTAssertGreaterThan(
+                    resolved.base.lines.filter { $0.role == .structure }.count,
+                    1,
+                    "Star topology was lost for seed \(seed), bucket \(bucket)"
+                )
+            }
+        }
     }
 
     func testMalformedSecondaryColorFallsBackToPrimary() {

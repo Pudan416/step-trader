@@ -43,6 +43,18 @@ final class RichRenderBudgetTests: XCTestCase {
         )
     }
 
+    func testDetailTierDistributionCountsVisiblePreviewItemsInStableOrder() {
+        let items = RichAssignmentFixture.previewItems(count: 10, nonce: 7)
+
+        let distribution = RichDetailTierDistribution(items: items)
+
+        XCTAssertEqual(
+            distribution,
+            RichDetailTierDistribution(accent: 1, medium: 6, large: 3)
+        )
+        XCTAssertEqual(distribution.compactDescription, "1A · 6M · 3L")
+    }
+
     func testNoRenderBudgetCanEnableTrails() {
         for count in [1, 5, 10, 20] {
             XCTAssertFalse(
@@ -149,31 +161,147 @@ final class RichRenderBudgetTests: XCTestCase {
         XCTAssertEqual(reducedBudget.slowIntervalCount, 0)
     }
 
-    func testTenElementNormalBudgetMatchesApprovedCeilings() {
-        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+    func testEveryElementCountBandHasExactNormalAndLowPowerBudgets() {
+        let lowPower = RichRenderBudget(
+            contourCount: 5,
+            orbitalRingCount: 5,
+            filamentCount: 12,
+            glowPassCount: 1,
+            globalParticleCount: 8,
+            requestedFPS: 15,
+            trailsEnabled: false
+        )
+        let cases: [(
+            label: String,
+            counts: [Int],
+            normal: RichRenderBudget,
+            lowPower: RichRenderBudget
+        )] = [
+            (
+                "0...5",
+                [0, 1, 5],
+                RichRenderBudget(
+                    contourCount: 10,
+                    orbitalRingCount: 8,
+                    filamentCount: 32,
+                    glowPassCount: 2,
+                    globalParticleCount: 30,
+                    requestedFPS: 20,
+                    trailsEnabled: false
+                ),
+                lowPower
+            ),
+            (
+                "6...10",
+                [6, 8, 10],
+                RichRenderBudget(
+                    contourCount: 8,
+                    orbitalRingCount: 8,
+                    filamentCount: 24,
+                    glowPassCount: 2,
+                    globalParticleCount: 24,
+                    requestedFPS: 20,
+                    trailsEnabled: false
+                ),
+                lowPower
+            ),
+            (
+                "11+",
+                [11, 20, 100],
+                RichRenderBudget(
+                    contourCount: 6,
+                    orbitalRingCount: 6,
+                    filamentCount: 16,
+                    glowPassCount: 1,
+                    globalParticleCount: 16,
+                    requestedFPS: 20,
+                    trailsEnabled: false
+                ),
+                lowPower
+            )
+        ]
 
-        XCTAssertEqual(budget.contourCount, 8)
-        XCTAssertEqual(budget.orbitalRingCount, 8)
-        XCTAssertEqual(budget.filamentCount, 24)
-        XCTAssertEqual(budget.glowPassCount, 2)
-        XCTAssertEqual(budget.globalParticleCount, 24)
-        XCTAssertEqual(budget.requestedFPS, 20)
-        XCTAssertFalse(budget.trailsEnabled)
-    }
-
-    func testLowPowerNeverExceedsNormalBudget() {
-        let normal = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
-        let low = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: true)
-
-        XCTAssertLessThanOrEqual(low.contourCount, normal.contourCount)
-        XCTAssertLessThanOrEqual(low.filamentCount, normal.filamentCount)
-        XCTAssertLessThanOrEqual(low.glowPassCount, normal.glowPassCount)
-        XCTAssertFalse(low.trailsEnabled)
+        for testCase in cases {
+            for count in testCase.counts {
+                XCTAssertEqual(
+                    RichRenderBudget.resolve(
+                        elementCount: count,
+                        lowPowerMode: false
+                    ),
+                    testCase.normal,
+                    "normal \(testCase.label), count \(count)"
+                )
+                XCTAssertEqual(
+                    RichRenderBudget.resolve(
+                        elementCount: count,
+                        lowPowerMode: true
+                    ),
+                    testCase.lowPower,
+                    "Low Power \(testCase.label), count \(count)"
+                )
+            }
+        }
     }
 
     func testSeedPhaseDesynchronizesGeometryUpdates() {
         XCTAssertNotEqual(RichTimeBuckets.phase(for: 1),
                           RichTimeBuckets.phase(for: 2))
+    }
+
+    func testTimeBucketsChangeImmediatelyAroundSeededTransitions() {
+        let epsilon = 0.000_000_001
+        for seed in [UInt64(0), 1, 42, .max] {
+            let phase = RichTimeBuckets.phase(for: seed)
+            for bucket in [-2, 0, 1, 9] {
+                let transition = Double(bucket) * RichTimeBuckets.bucketSeconds - phase
+
+                XCTAssertEqual(
+                    RichTimeBuckets.bucket(time: transition - epsilon, seed: seed),
+                    bucket - 1,
+                    "before transition for seed \(seed), bucket \(bucket)"
+                )
+                XCTAssertEqual(
+                    RichTimeBuckets.bucket(time: transition + epsilon, seed: seed),
+                    bucket,
+                    "after transition for seed \(seed), bucket \(bucket)"
+                )
+            }
+        }
+    }
+
+    func testOnlyCrystallineStarUsesChangingGeometryBuckets() {
+        let seed: UInt64 = 42
+        let phase = RichTimeBuckets.phase(for: seed)
+        let beforeTransition = RichTimeBuckets.bucketSeconds - phase - 0.000_000_001
+        let afterTransition = RichTimeBuckets.bucketSeconds - phase + 0.000_000_001
+
+        for family in RichFigureFamily.allCases where family != .crystallineStar {
+            XCTAssertEqual(
+                RichTimeBuckets.geometryBucket(
+                    family: family,
+                    time: beforeTransition,
+                    seed: seed
+                ),
+                RichTimeBuckets.geometryBucket(
+                    family: family,
+                    time: afterTransition,
+                    seed: seed
+                ),
+                "static geometry churned for \(family)"
+            )
+        }
+        XCTAssertNotEqual(
+            RichTimeBuckets.geometryBucket(
+                family: .crystallineStar,
+                time: beforeTransition,
+                seed: seed
+            ),
+            RichTimeBuckets.geometryBucket(
+                family: .crystallineStar,
+                time: afterTransition,
+                seed: seed
+            )
+        )
     }
 
     private func cacheKey(seed: UInt64) -> RichGeometryCacheKey {
