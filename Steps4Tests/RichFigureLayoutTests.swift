@@ -17,23 +17,19 @@ final class RichFigureLayoutTests: XCTestCase {
         }
     }
 
-    func testOnlySmallestSlotMayBeBelowMediumFloor() {
-        let elements = RichAssignmentFixture.elements(count: 10)
-        let styles = RichFigureAssignment.make(elements: elements, dayKey: "2026-08-16", shuffleNonce: 0)
-        let values = RichFigureLayout.make(elements: elements, styles: styles)
-            .values.map(\.targetDiameterFraction).sorted()
-        XCTAssertEqual(try! XCTUnwrap(values.first), 0.19, accuracy: 0.000_001)
-        XCTAssertTrue(values.dropFirst().allSatisfy { $0 >= 0.22 && $0 <= 0.34 })
-    }
-
-    func testTightlyGroupedSourcesUseUniformSlots() {
-        var elements = RichAssignmentFixture.elements(count: 2)
-        elements[1].size = elements[0].size
+    func testTenNearlyEqualSourcesStillFormStrongCompositionalRoles() {
+        var elements = RichAssignmentFixture.elements(count: 10)
+        for index in elements.indices {
+            elements[index].size = 0.20 + CGFloat(index) * 0.000_1
+        }
         let styles = RichFigureAssignment.make(elements: elements, dayKey: "2026-08-16", shuffleNonce: 0)
         let values = RichFigureLayout.make(elements: elements, styles: styles)
             .values.map(\.targetDiameterFraction).sorted()
 
-        XCTAssertEqual(values, [0.26, 0.26])
+        XCTAssertEqual(
+            values,
+            [0.14, 0.16, 0.17, 0.18, 0.21, 0.23, 0.25, 0.29, 0.32, 0.38]
+        )
     }
 
     func testStarOpticalScaleExceedsOrganicScale() {

@@ -29,7 +29,7 @@ enum RichFigureAssignment {
         )
         var familyRNG = SeededRNG.derived(from: baseSeed, domain: "richFamily")
         var fillRNG = SeededRNG.derived(from: baseSeed, domain: "richFill")
-        let families = repairedDeck(
+        var families = repairedDeck(
             values: RichFigureFamily.allCases,
             count: ordered.count,
             using: &familyRNG
@@ -47,6 +47,11 @@ enum RichFigureAssignment {
         }
         let sizeRank = Dictionary(uniqueKeysWithValues:
             sizeOrdered.enumerated().map { ($0.element.id, $0.offset) }
+        )
+        families = protectingCrystallineStars(
+            in: families,
+            orderedElements: ordered,
+            sizeRank: sizeRank
         )
 
         return Dictionary(uniqueKeysWithValues: ordered.enumerated().map { index, element in
@@ -90,10 +95,41 @@ enum RichFigureAssignment {
         return deck
     }
 
+    private static func protectingCrystallineStars(
+        in families: [RichFigureFamily],
+        orderedElements: [CanvasElement],
+        sizeRank: [UUID: Int]
+    ) -> [RichFigureFamily] {
+        var protected = families
+        let count = orderedElements.count
+        guard protected.count == count else { return protected }
+
+        let nonAccentIndices = protected.indices.filter { index in
+            let rank = sizeRank[orderedElements[index].id] ?? index
+            return detailTier(index: rank, count: count) != .accent
+        }
+
+        for accentIndex in protected.indices where protected[accentIndex] == .crystallineStar {
+            let rank = sizeRank[orderedElements[accentIndex].id] ?? accentIndex
+            guard detailTier(index: rank, count: count) == .accent,
+                  let replacementIndex = nonAccentIndices.first(where: {
+                      protected[$0] != .crystallineStar
+                  })
+            else { continue }
+            protected.swapAt(accentIndex, replacementIndex)
+        }
+        return protected
+    }
+
     private static func detailTier(index: Int, count: Int) -> RichFigureDetailTier {
         guard count > 1 else { return .medium }
-        if index == 0 { return .accent }
-        if index >= Int(ceil(Double(count) * 0.7)) { return .large }
+        let largeCount = max(1, Int((Double(count) * 0.3).rounded()))
+        let accentCount = min(
+            max(1, Int((Double(count) * 0.4).rounded())),
+            count - largeCount
+        )
+        if index < accentCount { return .accent }
+        if index >= count - largeCount { return .large }
         return .medium
     }
 }

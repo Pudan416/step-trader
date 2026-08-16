@@ -309,25 +309,25 @@ enum RichFigureLayout {
     }
 
     private static func targetDiameters(for elements: [CanvasElement]) -> [CGFloat] {
-        let sizes = elements.map { $0.userSize ?? CGFloat($0.size) }
-        if let smallest = sizes.first, let largest = sizes.last,
-           largest - smallest < 0.02 {
-            return Array(repeating: 0.26, count: elements.count)
-        }
+        let compositionalScale: [CGFloat] = [
+            0.14, 0.16, 0.17, 0.18,
+            0.21, 0.23, 0.25,
+            0.29, 0.32,
+            0.38
+        ]
+        guard !elements.isEmpty else { return [] }
+        guard elements.count > 1 else { return [compositionalScale.last ?? 0.38] }
 
-        switch elements.count {
-        case 0:
-            return []
-        case 1:
-            return [0.26]
-        case 2:
-            return [0.22, 0.30]
-        default:
-            return elements.indices.map { index in
-                guard index > 0 else { return 0.19 }
-                let progress = CGFloat(index - 1) / CGFloat(elements.count - 2)
-                return 0.22 + 0.12 * progress
-            }
+        return elements.indices.map { index in
+            let scaledIndex = CGFloat(index)
+                * CGFloat(compositionalScale.count - 1)
+                / CGFloat(elements.count - 1)
+            let lowerIndex = Int(floor(scaledIndex))
+            let upperIndex = min(compositionalScale.count - 1, lowerIndex + 1)
+            let interpolation = scaledIndex - CGFloat(lowerIndex)
+            return compositionalScale[lowerIndex]
+                + (compositionalScale[upperIndex] - compositionalScale[lowerIndex])
+                * interpolation
         }
     }
 }

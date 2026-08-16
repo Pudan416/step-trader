@@ -50,9 +50,9 @@ final class RichRenderBudgetTests: XCTestCase {
 
         XCTAssertEqual(
             distribution,
-            RichDetailTierDistribution(accent: 1, medium: 6, large: 3)
+            RichDetailTierDistribution(accent: 4, medium: 3, large: 3)
         )
-        XCTAssertEqual(distribution.compactDescription, "1A · 6M · 3L")
+        XCTAssertEqual(distribution.compactDescription, "4A · 3M · 3L")
     }
 
     func testNoRenderBudgetCanEnableTrails() {

@@ -45,6 +45,25 @@ final class RichFigureAssignmentTests: XCTestCase {
 
         XCTAssertEqual(Set(specs.keys), Set(elements.map(\.id)))
     }
+
+    func testCrystallineStarNeverOccupiesASmallAccentRoleAcrossShuffles() {
+        let elements = RichAssignmentFixture.elements(count: 10)
+
+        for nonce in 0..<64 {
+            let specs = RichFigureAssignment.make(
+                elements: elements,
+                dayKey: "2026-08-16",
+                shuffleNonce: nonce
+            )
+            let stars = specs.values.filter { $0.family == .crystallineStar }
+
+            XCTAssertFalse(stars.isEmpty, "Expected Crystalline Star at nonce \(nonce)")
+            XCTAssertTrue(
+                stars.allSatisfy { $0.detailTier != .accent },
+                "Crystalline Star used an accent slot at nonce \(nonce)"
+            )
+        }
+    }
 }
 
 enum RichAssignmentFixture {
