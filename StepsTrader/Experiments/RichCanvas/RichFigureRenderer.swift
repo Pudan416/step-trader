@@ -8,6 +8,11 @@ struct RichFigureMotionState: Equatable {
     let highlightPhase: Double
 }
 
+struct RichHighlightEffect: Equatable {
+    let point: CGPoint
+    let intensity: Double
+}
+
 struct RichRGBA: Equatable {
     let red: Double
     let green: Double
@@ -438,6 +443,45 @@ enum RichFigureRenderer {
         }
     }
 
+    static func highlightEffect(
+        for family: RichFigureFamily,
+        in geometry: RichFigureGeometry,
+        phase: Double
+    ) -> RichHighlightEffect? {
+        let safePhase = phase.isFinite ? unitPhase(phase) : 0
+        let cycle = 2 * Double.pi * safePhase
+
+        switch family {
+        case .circle:
+            let radius = min(geometry.bounds.width, geometry.bounds.height) * 0.29
+            return RichHighlightEffect(
+                point: CGPoint(
+                    x: geometry.core.x + radius * CGFloat(cos(cycle)),
+                    y: geometry.core.y + radius * CGFloat(sin(cycle))
+                ),
+                intensity: 0.72 + 0.28 * (0.5 + 0.5 * sin(cycle - .pi / 2))
+            )
+        case .rays:
+            let rays = geometry.lines.filter {
+                $0.role == .structure && $0.points.count >= 2
+            }
+            guard !rays.isEmpty else { return nil }
+            let ray = rays[rays.count / 2]
+            guard let start = ray.points.first,
+                  let end = ray.points.last else { return nil }
+            let progress = 0.5 - 0.5 * cos(cycle)
+            return RichHighlightEffect(
+                point: CGPoint(
+                    x: start.x + (end.x - start.x) * progress,
+                    y: start.y + (end.y - start.y) * progress
+                ),
+                intensity: 0.45 + 0.55 * sin(.pi * progress)
+            )
+        case .luminousOrganic, .crystallineStar, .orbitalSpirograph:
+            return nil
+        }
+    }
+
     private static func canonicalDeformationTime(seed: UInt64) -> Double {
         Double(seed % 65_521) / 997
     }
@@ -761,6 +805,11 @@ enum RichFigureRenderer {
         targetDiameter: CGFloat
     ) {
         let radius = min(7, max(1.8, targetDiameter * 0.018))
+        let familyEffect = highlightEffect(
+            for: item.style.family,
+            in: geometry,
+            phase: motion.highlightPhase
+        )
         var highlightPath = Path(ellipseIn: CGRect(
             x: core.x - radius,
             y: core.y - radius,
@@ -785,6 +834,26 @@ enum RichFigureRenderer {
                 height: radius * 1.3
             ))
         }
+        var familyEffectPath = Path()
+        if let familyEffect {
+            let transformedPoint = transformed(
+                familyEffect.point,
+                lineIndex: 0,
+                role: .accent,
+                layer: .highlight,
+                item: item,
+                geometry: geometry,
+                motion: motion,
+                fittedScale: fittedScale
+            )
+            let effectRadius = radius * (item.style.family == .rays ? 0.82 : 0.95)
+            familyEffectPath.addEllipse(in: CGRect(
+                x: transformedPoint.x - effectRadius,
+                y: transformedPoint.y - effectRadius,
+                width: effectRadius * 2,
+                height: effectRadius * 2
+            ))
+        }
         context.drawLayer { layer in
             layer.blendMode = blendMode
             layer.fill(
@@ -795,6 +864,12 @@ enum RichFigureRenderer {
                     endPoint: CGPoint(x: core.x + radius, y: core.y + radius)
                 )
             )
+            if let familyEffect {
+                layer.fill(
+                    familyEffectPath,
+                    with: .color(secondary.opacity(familyEffect.intensity))
+                )
+            }
         }
     }
 

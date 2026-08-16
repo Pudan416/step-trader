@@ -75,6 +75,99 @@ final class RichFigureGeometryTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testCircleOffsetHighlightMovesWithoutParticlesAndFreezesForReduceMotion() {
+        let item = RichAssignmentFixture.previewItems(count: 10, nonce: 0)
+            .first { $0.style.family == .circle }!
+        let size = CGSize(width: 390, height: 844)
+        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+        let geometry = RichFigureGeometryFactory.make(
+            family: .circle,
+            seed: item.style.geometrySeed,
+            detailTier: item.style.detailTier,
+            canonicalTime: 0,
+            budget: budget
+        )
+        let activeA = RichFigureRenderer.motionState(
+            for: item, canvasSize: size, time: 10, reduceMotion: false
+        )
+        let activeB = RichFigureRenderer.motionState(
+            for: item, canvasSize: size, time: 11, reduceMotion: false
+        )
+        let activeEffectA = RichFigureRenderer.highlightEffect(
+            for: .circle, in: geometry, phase: activeA.highlightPhase
+        )
+        let activeEffectB = RichFigureRenderer.highlightEffect(
+            for: .circle, in: geometry, phase: activeB.highlightPhase
+        )
+
+        XCTAssertNotEqual(activeA.highlightPhase, activeB.highlightPhase)
+        XCTAssertNotEqual(activeEffectA, activeEffectB)
+        XCTAssertNotEqual(activeEffectA?.point, geometry.core)
+        XCTAssertTrue((0...1).contains(try! XCTUnwrap(activeEffectA?.intensity)))
+
+        let reducedA = RichFigureRenderer.motionState(
+            for: item, canvasSize: size, time: 10, reduceMotion: true
+        )
+        let reducedB = RichFigureRenderer.motionState(
+            for: item, canvasSize: size, time: 200, reduceMotion: true
+        )
+        XCTAssertEqual(
+            RichFigureRenderer.highlightEffect(
+                for: .circle, in: geometry, phase: reducedA.highlightPhase
+            ),
+            RichFigureRenderer.highlightEffect(
+                for: .circle, in: geometry, phase: reducedB.highlightPhase
+            )
+        )
+    }
+
+    @MainActor
+    func testRayImpulseMovesWithoutParticlesAndFreezesForReduceMotion() {
+        let item = RichAssignmentFixture.previewItems(count: 10, nonce: 0)
+            .first { $0.style.family == .rays }!
+        let size = CGSize(width: 390, height: 844)
+        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+        let geometry = RichFigureGeometryFactory.make(
+            family: .rays,
+            seed: item.style.geometrySeed,
+            detailTier: item.style.detailTier,
+            canonicalTime: 0,
+            budget: budget
+        )
+        let activeA = RichFigureRenderer.motionState(
+            for: item, canvasSize: size, time: 10, reduceMotion: false
+        )
+        let activeB = RichFigureRenderer.motionState(
+            for: item, canvasSize: size, time: 11, reduceMotion: false
+        )
+        let activeEffectA = RichFigureRenderer.highlightEffect(
+            for: .rays, in: geometry, phase: activeA.highlightPhase
+        )
+        let activeEffectB = RichFigureRenderer.highlightEffect(
+            for: .rays, in: geometry, phase: activeB.highlightPhase
+        )
+
+        XCTAssertNotEqual(activeA.highlightPhase, activeB.highlightPhase)
+        XCTAssertNotEqual(activeEffectA, activeEffectB)
+        XCTAssertTrue((0...1).contains(try! XCTUnwrap(activeEffectA?.intensity)))
+
+        let reducedA = RichFigureRenderer.motionState(
+            for: item, canvasSize: size, time: 10, reduceMotion: true
+        )
+        let reducedB = RichFigureRenderer.motionState(
+            for: item, canvasSize: size, time: 200, reduceMotion: true
+        )
+        XCTAssertEqual(
+            RichFigureRenderer.highlightEffect(
+                for: .rays, in: geometry, phase: reducedA.highlightPhase
+            ),
+            RichFigureRenderer.highlightEffect(
+                for: .rays, in: geometry, phase: reducedB.highlightPhase
+            )
+        )
+    }
+
     func testInvalidGeometryUsesUnitCircleFallback() {
         let invalid = RichCachedGeometry(
             base: RichFigureGeometry(
