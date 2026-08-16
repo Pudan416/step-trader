@@ -2,6 +2,131 @@ import XCTest
 @testable import Steps4
 
 final class RichFigureGeometryTests: XCTestCase {
+    @MainActor
+    func testReduceMotionReturnsCanonicalState() {
+        let item = RichAssignmentFixture.previewItems(count: 1, nonce: 0)[0]
+        let size = CGSize(width: 390, height: 844)
+        let a = RichFigureRenderer.motionState(
+            for: item, canvasSize: size, time: 10, reduceMotion: true
+        )
+        let b = RichFigureRenderer.motionState(
+            for: item, canvasSize: size, time: 200, reduceMotion: true
+        )
+
+        XCTAssertEqual(a, b)
+        XCTAssertEqual(a.center, RichFigureRenderer.center(for: item, canvasSize: size))
+        XCTAssertEqual(a.rotation, .zero)
+        XCTAssertEqual(a.scale, 1)
+        XCTAssertTrue(a.deformationTime.isFinite)
+    }
+
+    @MainActor
+    func testFamilyMotionStaysWithinApprovedBounds() {
+        let items = RichAssignmentFixture.previewItems(count: 10, nonce: 0)
+        let byFamily = items.reduce(into: [RichFigureFamily: RichFigurePreviewItem]()) {
+            if $0[$1.style.family] == nil { $0[$1.style.family] = $1 }
+        }
+        let size = CGSize(width: 390, height: 844)
+
+        let circle = RichFigureRenderer.motionState(
+            for: byFamily[.circle]!, canvasSize: size, time: 37, reduceMotion: false
+        )
+        XCTAssertTrue((0.98...1.02).contains(circle.scale))
+        XCTAssertTrue((0...1).contains(circle.highlightPhase))
+
+        let organicItem = byFamily[.luminousOrganic]!
+        let organicA = RichFigureRenderer.motionState(
+            for: organicItem, canvasSize: size, time: 37, reduceMotion: false
+        )
+        let organicB = RichFigureRenderer.motionState(
+            for: organicItem, canvasSize: size, time: 57, reduceMotion: false
+        )
+        XCTAssertEqual(organicA.center, RichFigureRenderer.center(for: organicItem, canvasSize: size))
+        XCTAssertEqual(organicA.center, organicB.center)
+        XCTAssertNotEqual(organicA.deformationTime, organicB.deformationTime)
+
+        let starItem = byFamily[.crystallineStar]!
+        let star = RichFigureRenderer.motionState(
+            for: starItem, canvasSize: size, time: 37, reduceMotion: false
+        )
+        XCTAssertEqual(
+            star.center,
+            SnowflakeShapeRenderer.driftPosition(
+                starItem.source, size: size, t: 37,
+                ampScale: 1
+            )
+        )
+
+        let raysItem = byFamily[.rays]!
+        let rays = RichFigureRenderer.motionState(
+            for: raysItem, canvasSize: size, time: 37, reduceMotion: false
+        )
+        XCTAssertEqual(rays.center, RichFigureRenderer.center(for: raysItem, canvasSize: size))
+        XCTAssertTrue((0.96...1.04).contains(rays.scale))
+        XCTAssertTrue((0...1).contains(rays.highlightPhase))
+
+        let spirographItem = byFamily[.orbitalSpirograph]!
+        let spirograph = RichFigureRenderer.motionState(
+            for: spirographItem, canvasSize: size, time: 37, reduceMotion: false
+        )
+        XCTAssertEqual(
+            spirograph.center,
+            RichFigureRenderer.center(for: spirographItem, canvasSize: size)
+        )
+    }
+
+    func testInvalidGeometryUsesUnitCircleFallback() {
+        let invalid = RichCachedGeometry(
+            base: RichFigureGeometry(
+                lines: [RichPolyline(
+                    points: [CGPoint(x: CGFloat.nan, y: 0)],
+                    isClosed: false,
+                    role: .structure
+                )],
+                core: .zero,
+                bounds: CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 1)
+            ),
+            fill: RichFillGeometry(
+                lines: [], translucentSurfaces: [], highlightPoints: []
+            )
+        )
+
+        let resolved = RichFigureRenderer.validatedGeometry(invalid)
+
+        XCTAssertEqual(resolved.base.bounds, CGRect(x: -1, y: -1, width: 2, height: 2))
+        XCTAssertEqual(resolved.base.lines.count, 1)
+        XCTAssertTrue(resolved.base.lines[0].isClosed)
+        XCTAssertTrue(resolved.base.allPoints.allSatisfy { $0.x.isFinite && $0.y.isFinite })
+    }
+
+    func testMalformedSecondaryColorFallsBackToPrimary() {
+        let colors = RichFigureRenderer.resolvedColors(
+            primaryHex: "#306090", secondaryHex: "not-a-color"
+        )
+        let nilSecondary = RichFigureRenderer.resolvedColors(
+            primaryHex: "#306090", secondaryHex: nil
+        )
+
+        XCTAssertEqual(colors.secondary, colors.primary)
+        XCTAssertEqual(nilSecondary.secondary, nilSecondary.primary)
+        XCTAssertNotEqual(colors.secondary, .white)
+    }
+
+    func testParticlePositionsHonorExplicitBoundedCount() {
+        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+        let geometry = RichFigureGeometryFactory.make(
+            family: .orbitalSpirograph, seed: 44, detailTier: .medium,
+            canonicalTime: 0, budget: budget
+        )
+
+        XCTAssertTrue(RichFigureRenderer.particlePoints(
+            in: geometry, count: 0, seed: 44, phase: 0.25
+        ).isEmpty)
+        XCTAssertEqual(RichFigureRenderer.particlePoints(
+            in: geometry, count: 7, seed: 44, phase: 0.25
+        ).count, 7)
+    }
+
     func testFillGeometryRespectsTenElementBudget() {
         let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
         let base = RichFigureGeometryFactory.make(
