@@ -48,6 +48,14 @@ final class RichFigureAssignmentTests: XCTestCase {
 }
 
 enum RichAssignmentFixture {
+    static func previewItems(count: Int, nonce: Int) -> [RichFigurePreviewItem] {
+        RichFigureAssignment.previewItems(
+            elements: elements(count: count),
+            dayKey: "2026-08-16",
+            shuffleNonce: nonce
+        )
+    }
+
     static func elements(count: Int) -> [CanvasElement] {
         (0..<count).map { index in
             let id = UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", index))!

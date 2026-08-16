@@ -29,6 +29,7 @@ struct RichFigureStyleSpec: Hashable {
 struct RichFigurePreviewItem: Identifiable {
     let source: CanvasElement
     let style: RichFigureStyleSpec
+    let layout: RichFigureLayoutSpec
 
     var id: UUID { source.id }
 }

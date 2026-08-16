@@ -1,6 +1,19 @@
 import Foundation
 
 enum RichFigureAssignment {
+    static func previewItems(
+        elements: [CanvasElement],
+        dayKey: String,
+        shuffleNonce: Int
+    ) -> [RichFigurePreviewItem] {
+        let styles = make(elements: elements, dayKey: dayKey, shuffleNonce: shuffleNonce)
+        let layouts = RichFigureLayout.make(elements: elements, styles: styles)
+        return elements.compactMap { element in
+            guard let style = styles[element.id], let layout = layouts[element.id] else { return nil }
+            return RichFigurePreviewItem(source: element, style: style, layout: layout)
+        }
+    }
+
     static func make(
         elements: [CanvasElement],
         dayKey: String,
