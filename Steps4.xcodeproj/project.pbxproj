@@ -172,6 +172,7 @@
 		30A1D1B12F3C000100000003 /* DayEndSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */; };
 		30A1D1B32F3C000100000005 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */; };
 		30CA0001300000000000CA01 /* CanvasElement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0002300000000000CA02 /* CanvasElement.swift */; };
+		CA51B0010000000000000001 /* CanvasEnergyStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0010000000000000001 /* CanvasEnergyStatus.swift */; };
 		DA0003000300030003000031 /* Happening.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000030 /* Happening.swift */; };
 		DA0022002200220022000011 /* HappeningShapeAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0022002200220022000010 /* HappeningShapeAssignment.swift */; };
 		DA0004000400040004000041 /* HappeningDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0004000400040004000040 /* HappeningDefaults.swift */; };
@@ -253,6 +254,7 @@
 		AA00NOTE2F3A000100000001 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00NOTE2F3A000100000002 /* Note.swift */; };
 		AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB001100110011AABB0010 /* SubscriptionGateTests.swift */; };
 		ME7A00ME7A00ME7A00F011 /* MainTabSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */; };
+		CA51B0110000000000000011 /* CanvasEnergyStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0110000000000000011 /* CanvasEnergyStatusTests.swift */; };
 		ME7A00ME7A00ME7A00F021 /* MeWeekStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */; };
 		ME7A00ME7A00ME7A00F051 /* RayShapeRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */; };
 		RA0000013005000000000001 /* RenderingActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RA0000023005000000000002 /* RenderingActivityTests.swift */; };
@@ -544,6 +546,7 @@
 		30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayEndSettingsView.swift; sourceTree = "<group>"; };
 		30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		30CA0002300000000000CA02 /* CanvasElement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasElement.swift; sourceTree = "<group>"; };
+		CA51F0010000000000000001 /* CanvasEnergyStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEnergyStatus.swift; sourceTree = "<group>"; };
 		DA0003000300030003000030 /* Happening.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Happening.swift; sourceTree = "<group>"; };
 		DA0022002200220022000010 /* HappeningShapeAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeAssignment.swift; sourceTree = "<group>"; };
 		DA0004000400040004000040 /* HappeningDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningDefaults.swift; sourceTree = "<group>"; };
@@ -624,6 +627,7 @@
 		AA00NOTE2F3A000100000002 /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
 		AABB001100110011AABB0010 /* SubscriptionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionGateTests.swift; sourceTree = "<group>"; };
 		ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabSelectionTests.swift; sourceTree = "<group>"; };
+		CA51F0110000000000000011 /* CanvasEnergyStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEnergyStatusTests.swift; sourceTree = "<group>"; };
 		ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeWeekStatsTests.swift; sourceTree = "<group>"; };
 		ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RayShapeRendererTests.swift; sourceTree = "<group>"; };
 		RA0000023005000000000002 /* RenderingActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderingActivityTests.swift; sourceTree = "<group>"; };
@@ -923,6 +927,7 @@
 				2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */,
 				AA00NOTE2F3A000100000002 /* Note.swift */,
 				30CA0002300000000000CA02 /* CanvasElement.swift */,
+				CA51F0010000000000000001 /* CanvasEnergyStatus.swift */,
 				DA0003000300030003000030 /* Happening.swift */,
 				DA0022002200220022000010 /* HappeningShapeAssignment.swift */,
 				DA0004000400040004000040 /* HappeningDefaults.swift */,
@@ -1265,6 +1270,7 @@
 				BB000002BB000002BB000001 /* OnboardingFlowTests.swift */,
 				AABB001100110011AABB0010 /* SubscriptionGateTests.swift */,
 				ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */,
+				CA51F0110000000000000011 /* CanvasEnergyStatusTests.swift */,
 				ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */,
 				ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */,
 				RA0000023005000000000002 /* RenderingActivityTests.swift */,
@@ -1696,6 +1702,7 @@
 				DD000004DDDD000400000001 /* SettingsSheet.swift in Sources */,
 				2061EBD02F269D30009FEC24 /* GalleryView.swift in Sources */,
 				30CA0001300000000000CA01 /* CanvasElement.swift in Sources */,
+				CA51B0010000000000000001 /* CanvasEnergyStatus.swift in Sources */,
 				DA0003000300030003000031 /* Happening.swift in Sources */,
 				DA0022002200220022000011 /* HappeningShapeAssignment.swift in Sources */,
 				DA0004000400040004000041 /* HappeningDefaults.swift in Sources */,
@@ -1873,6 +1880,7 @@
 				BB000002BB000002BB000002 /* OnboardingFlowTests.swift in Sources */,
 				AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */,
 				ME7A00ME7A00ME7A00F011 /* MainTabSelectionTests.swift in Sources */,
+				CA51B0110000000000000011 /* CanvasEnergyStatusTests.swift in Sources */,
 				ME7A00ME7A00ME7A00F021 /* MeWeekStatsTests.swift in Sources */,
 				ME7A00ME7A00ME7A00F051 /* RayShapeRendererTests.swift in Sources */,
 				RA0000013005000000000001 /* RenderingActivityTests.swift in Sources */,
