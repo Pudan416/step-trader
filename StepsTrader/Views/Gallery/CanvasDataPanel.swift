@@ -37,7 +37,13 @@ struct CanvasDataPanel: View {
 
     private var ink: Color { AppColors.Night.textPrimary }
 
-    /// At most 40% of the space between the status pill and the tab bar.
+    /// A ceiling for growth, not a promise for today's three rows.
+    ///
+    /// SwiftUI's `.frame(maxHeight:)` constrains the PROPOSAL, not the render: a
+    /// child whose own minimum exceeds it simply draws larger. Three 52 pt rows
+    /// plus the header need ~266 pt, which is above 40% of the available space on
+    /// every current iPhone, so the panel is content-sized in practice. The cap
+    /// starts to bite once the row list grows past three.
     static func maxHeight(
         viewportHeight: CGFloat,
         topInset: CGFloat,
@@ -134,14 +140,18 @@ struct CanvasDataPanel: View {
                 let flicked = value.velocity.height > Self.dismissVelocity
                 let pulled = value.translation.height > Self.dismissDistance
                 if flicked || pulled {
+                    // The ancestor's removal transition owns the exit from here.
+                    // Springing `dragOffset` back at the same time would fight it
+                    // and read as a rubber-band on the way out.
                     onHide()
-                }
-                withAnimation(
-                    reduceMotion
-                        ? .easeInOut(duration: 0.15)
-                        : .interactiveSpring(response: 0.32, dampingFraction: 0.86)
-                ) {
-                    dragOffset = 0
+                } else {
+                    withAnimation(
+                        reduceMotion
+                            ? .easeInOut(duration: 0.15)
+                            : .interactiveSpring(response: 0.32, dampingFraction: 0.86)
+                    ) {
+                        dragOffset = 0
+                    }
                 }
             }
     }

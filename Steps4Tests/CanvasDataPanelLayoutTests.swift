@@ -27,11 +27,11 @@ final class CanvasDataPanelLayoutTests: XCTestCase {
         XCTAssertEqual(height, 0, accuracy: 0.001)
     }
 
-    /// A first layout pass reports a zero viewport. The panel must ask for
-    /// nothing then rather than for a nonsense height.
-    func testZeroViewportAsksForNothing() {
+    /// A first layout pass reports a zero viewport while the chrome insets are
+    /// already known. An unclamped formula would hand back a negative height here.
+    func testZeroViewportWithKnownChromeAsksForNothing() {
         XCTAssertEqual(
-            CanvasDataPanel.maxHeight(viewportHeight: 0, topInset: 0, bottomInset: 0),
+            CanvasDataPanel.maxHeight(viewportHeight: 0, topInset: 133, bottomInset: 206),
             0,
             accuracy: 0.001
         )
