@@ -239,11 +239,20 @@ struct CanvasElement: Identifiable, Codable {
     /// request for something new. It still obeys the day: size follows the
     /// archetype's curve and colour stays on the day's palette, so one re-roll
     /// cannot break the canvas's coherence.
-    mutating func reroll(rank: Int, composition: DayComposition) {
+    /// - Parameters:
+    ///   - allowedShapes: injected so a batch Remix and the tests can pin the
+    ///     set instead of reading `UserDefaults` once per element.
+    ///   - date: injected so one Remix stamps every element with one instant.
+    mutating func reroll(
+        rank: Int,
+        composition: DayComposition,
+        allowedShapes: [CanvasShapeType] = CanvasShapeType.allowedByUser,
+        at date: Date = .now
+    ) {
         shapeSeed = UInt64.random(in: UInt64.min...UInt64.max)
 
         // Freeze one currently allowed shape so historical renders stay stable.
-        let resolvedShape = CanvasShapeType.allowedByUser.randomElement() ?? .circle
+        let resolvedShape = allowedShapes.randomElement() ?? .circle
         frozenShapeType = resolvedShape
 
         var rng = SeededRNG(seed: shapeSeed ?? 0)
@@ -283,7 +292,7 @@ struct CanvasElement: Identifiable, Codable {
             driftSpeed = Double.random(in: 0.08...0.2)
         }
 
-        lastEditedAt = .now
+        lastEditedAt = date
     }
 
     static func spawn(
