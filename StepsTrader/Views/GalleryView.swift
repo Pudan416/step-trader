@@ -441,7 +441,7 @@ struct GalleryView: View {
             }
         }
         .overlay {
-            if presentation.isWideCanvas {
+            if presentation.showsFullScreenDock {
                 wideCanvasOverlay
                     .ignoresSafeArea()
             }
@@ -827,10 +827,8 @@ struct GalleryView: View {
                         .foregroundStyle(buttonColor)
                 }
             }
-            .frame(width: 56, height: 56)
-            .liquidGlassControl(in: Circle())
-            .frame(width: 72, height: 72)
-            .contentShape(Circle())
+            .frame(minWidth: 56, minHeight: 56)
+            .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "Share canvas", comment: "GalleryView – share button VoiceOver label"))
@@ -1278,56 +1276,19 @@ struct GalleryView: View {
     private var wideCanvasOverlay: some View {
         VStack {
             Spacer()
-            Group {
-                if #available(iOS 26.0, *) {
-                    GlassEffectContainer(spacing: 0) { wideCanvasOverlayContent }
-                } else {
-                    wideCanvasOverlayContent
-                }
-            }
+            CanvasFullScreenDock(
+                onExit: {
+                    send(.exitFullScreen)
+                    lightHapticTick &+= 1
+                },
+                onEdit: {
+                    send(.beginEditing)
+                    lightHapticTick &+= 1
+                },
+                share: { shareButton }
+            )
             .padding(.horizontal, 8)
             .padding(.bottom, max(safeAreaBottom, 34) + 16)
-        }
-    }
-
-    private var wideCanvasOverlayContent: some View {
-        HStack {
-            Button {
-                send(.exitFullScreen)
-                lightHapticTick &+= 1
-            } label: {
-                Image(systemName: "arrow.down.right.and.arrow.up.left")
-                    .font(.system(size: 20, weight: .ultraLight))
-                    .foregroundStyle(buttonColor.opacity(0.85))
-                    .frame(width: 56, height: 56)
-                    .liquidGlassControl(in: Circle())
-                    .frame(width: 72, height: 72)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "Collapse canvas", comment: "GalleryView – collapse button VoiceOver label"))
-
-            Spacer()
-
-            Button {
-                if presentation.isEditing {
-                    saveCanvasLocally()
-                    send(.endEditing)
-                } else {
-                    send(.beginEditing)
-                }
-                lightHapticTick &+= 1
-            } label: {
-                Image(systemName: presentation.isEditing ? "checkmark" : "hand.draw")
-                    .font(.system(size: 22, weight: .ultraLight))
-                    .foregroundStyle(buttonColor.opacity(0.85))
-                    .frame(width: 56, height: 56)
-                    .liquidGlassControl(in: Circle())
-                    .frame(width: 72, height: 72)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: presentation.isEditing ? "Done editing" : "Edit canvas", comment: "GalleryView – edit button VoiceOver label"))
         }
     }
 
