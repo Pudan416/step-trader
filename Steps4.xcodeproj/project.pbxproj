@@ -141,7 +141,6 @@
 		20F44D508BD0D693DD77251E /* BudgetEngineProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E3143C1B5B277380C445D26 /* BudgetEngineProtocol.swift */; };
 		20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0012FFF000100000001 /* AutomationUIModels.swift */; };
 		20F5A0052FFF000100000005 /* AppsPageSimplified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0062FFF000100000006 /* AppsPageSimplified.swift */; };
-		20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A00F2FFF020000000000 /* StepBalanceCard.swift */; };
 		20F5A0112FFF030000000002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0122FFF030000000003 /* Localization.swift */; };
 		20F5A0162FFF030000000007 /* SeededRNG.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0172FFF030000000008 /* SeededRNG.swift */; };
 		DA0014001400140014001471 /* SimplexNoise.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0014001400140014001481 /* SimplexNoise.swift */; };
@@ -192,6 +191,7 @@
 		30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0004300000000000CA04 /* GenerativeCanvasView.swift */; };
 		30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0008300000000000CA08 /* CanvasStateManagers.swift */; };
 		CA51B0020000000000000002 /* CanvasPresentationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0020000000000000002 /* CanvasPresentationState.swift */; };
+		CA51B0040000000000000004 /* CanvasEnergyStatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0040000000000000004 /* CanvasEnergyStatusPill.swift */; };
 		30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA000A300000000000CA0A /* CanvasStorageService.swift */; };
 		30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EA00013001000000EA0001 /* EnergyGradientBackground.swift */; };
 		31E56CC97BFC4B2EB6CAA2A8 /* AppModel+PayGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E8B78AD65E54737AA7CA90F /* AppModel+PayGate.swift */; };
@@ -518,7 +518,6 @@
 		20F0NT012FFF040000000001 /* Font+Custom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Font+Custom.swift"; sourceTree = "<group>"; };
 		20F5A0012FFF000100000001 /* AutomationUIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationUIModels.swift; sourceTree = "<group>"; };
 		20F5A0062FFF000100000006 /* AppsPageSimplified.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsPageSimplified.swift; sourceTree = "<group>"; };
-		20F5A00F2FFF020000000000 /* StepBalanceCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepBalanceCard.swift; sourceTree = "<group>"; };
 		20F5A0122FFF030000000003 /* Localization.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		20F5A0172FFF030000000008 /* SeededRNG.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SeededRNG.swift; sourceTree = "<group>"; };
 		DA0014001400140014001481 /* SimplexNoise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SimplexNoise.swift; path = StepsTrader/Utilities/SimplexNoise.swift; sourceTree = SOURCE_ROOT; };
@@ -570,6 +569,7 @@
 		30CA0004300000000000CA04 /* GenerativeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeCanvasView.swift; sourceTree = "<group>"; };
 		30CA0008300000000000CA08 /* CanvasStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStateManagers.swift; sourceTree = "<group>"; };
 		CA51F0020000000000000002 /* CanvasPresentationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPresentationState.swift; sourceTree = "<group>"; };
+		CA51F0040000000000000004 /* CanvasEnergyStatusPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEnergyStatusPill.swift; sourceTree = "<group>"; };
 		30CA000A300000000000CA0A /* CanvasStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStorageService.swift; sourceTree = "<group>"; };
 		30EA00013001000000EA0001 /* EnergyGradientBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyGradientBackground.swift; sourceTree = "<group>"; };
 		40IN00012FFF050000000001 /* ExportCanvasWallpaperIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCanvasWallpaperIntent.swift; sourceTree = "<group>"; };
@@ -1055,7 +1055,6 @@
 			isa = PBXGroup;
 			children = (
 				2061ECE82F276FE8009FEC24 /* TimeAccessPickerSheet.swift */,
-				20F5A00F2FFF020000000000 /* StepBalanceCard.swift */,
 				20C7E6132F8BF2A200BD06AA /* CanvasShapePreview.swift */,
 				30EA00013001000000EA0001 /* EnergyGradientBackground.swift */,
 				WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */,
@@ -1197,6 +1196,7 @@
 			children = (
 				30CA0008300000000000CA08 /* CanvasStateManagers.swift */,
 				CA51F0020000000000000002 /* CanvasPresentationState.swift */,
+				CA51F0040000000000000004 /* CanvasEnergyStatusPill.swift */,
 			);
 			path = Gallery;
 			sourceTree = "<group>";
@@ -1706,7 +1706,6 @@
 				20A05E010000000000000002 /* AppUser.swift in Sources */,
 				20A05E020000000000000002 /* AuthSupportTypes.swift in Sources */,
 				20A05E030000000000000002 /* AuthenticationService+SupabaseREST.swift in Sources */,
-				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
 				30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */,
 				WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */,
 				DD000002DDDD000200000001 /* TicketTemplatePickerView.swift in Sources */,
@@ -1734,6 +1733,7 @@
 				30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */,
 				30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */,
 				CA51B0020000000000000002 /* CanvasPresentationState.swift in Sources */,
+				CA51B0040000000000000004 /* CanvasEnergyStatusPill.swift in Sources */,
 				30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */,
 				2061EBF32F269D50009FEC24 /* MeView.swift in Sources */,
 				ME7A00ME7A00ME7A00F031 /* MeWeekStats.swift in Sources */,
