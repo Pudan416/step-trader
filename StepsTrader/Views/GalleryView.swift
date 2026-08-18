@@ -707,105 +707,26 @@ struct GalleryView: View {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Bottom Controls Bar (share, +, wide toggle)
+    // MARK: - Bottom Controls Bar (full screen · show data · +)
     // ═══════════════════════════════════════════════════════════
 
     private var bottomControlsBar: some View {
-        // GlassEffectContainer is required when multiple `.glassEffect(.interactive(), ...)`
-        // siblings live in the same row. Without it, iOS 26 merges their interactive
-        // surfaces and routes every tap to the first glass view in the hierarchy,
-        // silently swallowing taps on the others (here: + and share).
-        // Padding is kept OUTSIDE the container — GlassEffectContainer on iOS 26
-        // can absorb child padding and break the expected insets.
-        Group {
-            if #available(iOS 26.0, *) {
-                GlassEffectContainer(spacing: 0) { bottomControlsContent }
-            } else {
-                bottomControlsContent
-            }
-        }
-        .padding(.horizontal, 24)
-    }
-
-    private var bottomControlsContent: some View {
-        HStack(alignment: .center) {
-            expandCanvasButton
-
-            Spacer()
-
-            Button {
+        CanvasBottomActionRow(
+            isDataExpanded: presentation.showsDataPanel,
+            onFullScreen: {
+                send(.enterFullScreen)
+                lightHapticTick &+= 1
+            },
+            onToggleData: {
+                CoachMarkManager.postAction(for: .expandChevron)
+                send(presentation.showsDataPanel ? .hideData : .showData)
+                lightHapticTick &+= 1
+            },
+            onAdd: {
                 CoachMarkManager.postAction(for: .tapPlusButton)
                 openHappeningPalette()
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .regular))
-                    .foregroundStyle(buttonColor)
-                    .frame(width: 56, height: 56)
-                    .liquidGlassControl(in: Circle())
-                    .frame(width: 72, height: 72)
-                    .contentShape(Circle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "Add happening", comment: "Canvas add button"))
-            .coachMarkAnchor(.tapPlusButton)
-            // The palette overlays these controls and puts its own dock on the
-            // same line, so it needs where this button actually landed rather
-            // than a second copy of the padding arithmetic that positions it.
-            .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: CanvasAddButtonCenterKey.self,
-                        value: proxy.frame(in: .global).midY
-                    )
-                }
-            )
-
-            Spacer()
-
-            // Share button hides while the radial fan is open so the Moment node
-            // at 0° (right) has room to appear without overlapping.
-            //
-            // We can't just use `.opacity(0)` here — on iOS 26 the
-            // `liquidGlassControl` renders the glass capsule as a separate
-            // compositing layer that ignores opacity. So we conditionally
-            // remove the entire view and reserve the slot with a clear frame
-            // of the same size to keep the HStack layout stable.
-            ZStack {
-                if !showHappeningPalette {
-                    shareButton
-                        .transition(reduceMotion
-                                    ? .opacity
-                                    : .scale(scale: 0.85).combined(with: .opacity))
-                }
-            }
-            .frame(width: 72, height: 72)
-            .animation(reduceMotion
-                       ? .easeInOut(duration: 0.15)
-                       : .spring(response: 0.25, dampingFraction: 0.85),
-                       value: showHappeningPalette)
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // MARK: - Expand Canvas Button
-    // ═══════════════════════════════════════════════════════════
-
-    private var expandCanvasButton: some View {
-        Button {
-            send(.enterFullScreen)
-            lightHapticTick &+= 1
-        } label: {
-            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 20, weight: .regular))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(buttonColor)
-                .frame(width: 56, height: 56)
-                .liquidGlassControl(in: Circle())
-                .frame(width: 72, height: 72)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(String(localized: "Expand canvas", comment: "GalleryView – expand button VoiceOver label"))
+        )
     }
 
     // ═══════════════════════════════════════════════════════════
