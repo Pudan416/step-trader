@@ -62,6 +62,9 @@ struct GalleryView: View {
     /// below is now a mirror the tab host reads, never something written
     /// independently — the two used to drift into states the design forbids.
     @State private var presentation: CanvasPresentationState = .canvas
+    /// Deletion is deliberate but hidden: no permanent per-element button, and
+    /// a long press alone never removes anything.
+    @State private var pendingDeleteElementId: UUID? = nil
     @Binding var isWideCanvas: Bool
     @Binding var paletteRoute: CanvasPaletteRouteState
     let isCanvasSelected: Bool
@@ -88,6 +91,11 @@ struct GalleryView: View {
     @AppStorage("addHint_dayKey", store: UserDefaults.stepsTrader()) private var addHintDayKey: String = ""
     /// Comma-joined `AddHintWindow.rawValue`s already shown today.
     @AppStorage("addHint_shownWindows", store: UserDefaults.stepsTrader()) private var addHintShownWindowsRaw: String = ""
+    /// The drag hint earns one appearance per install, then gets out of the way.
+    @AppStorage("canvasEditDragHintShown", store: UserDefaults.stepsTrader())
+    private var editDragHintShown: Bool = false
+    @State private var showsEditDragHint = false
+    @State private var editDragHintTask: Task<Void, Never>? = nil
     @State private var isManuallyExpanded: Bool = false
     @State private var isNaturallyWide: Bool = false
     /// Tracks whether the user explicitly collapsed wide mode so we don't
@@ -450,6 +458,25 @@ struct GalleryView: View {
             }
         }
         .overlay {
+            if presentation.showsEditingChrome {
+                CanvasEditingDock(
+                    showsDragHint: showsEditDragHint,
+                    onDone: {
+                        if editState.isDraggingElement { handleEditDragEnd() }
+                        editState.activeElementId = nil
+                        saveCanvasLocally()
+                        send(.endEditing)
+                        lightHapticTick &+= 1
+                    },
+                    onRemix: { remixCanvas() }
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, max(safeAreaTop, 20))
+                .padding(.bottom, max(safeAreaBottom, 34) + 16)
+                .ignoresSafeArea()
+            }
+        }
+        .overlay {
             if let kind = metricOverlay, !presentation.isWideCanvas {
                 GalleryMetricOverlayView(model: model, kind: kind, onClose: { metricOverlay = nil })
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
@@ -541,7 +568,6 @@ struct GalleryView: View {
         }
         .onChange(of: presentation, initial: true) { old, new in
             if isWideCanvas != new.isWideCanvas { isWideCanvas = new.isWideCanvas }
-            editState.isEditMode = new.isEditing
 
             if !new.isEditing {
                 // Leaving editing commits whatever the finger was doing — on
@@ -557,6 +583,20 @@ struct GalleryView: View {
                 editState.editFreezeTime = Date.now
             }
 
+            if new.isEditing, !editDragHintShown {
+                editDragHintShown = true
+                showsEditDragHint = true
+                editDragHintTask?.cancel()
+                editDragHintTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(2500))
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.easeOut(duration: 0.25)) { showsEditDragHint = false }
+                }
+            } else if !new.isEditing {
+                editDragHintTask?.cancel()
+                showsEditDragHint = false
+            }
+
             if !new.isWideCanvas {
                 isManuallyExpanded = false
             } else {
@@ -570,10 +610,14 @@ struct GalleryView: View {
         .onChange(of: scenePhase) {
             if scenePhase == .background {
                 if editState.isDraggingElement { handleEditDragEnd() }
+                editState.activeElementId = nil
+                if presentation.isEditing { send(.endEditing) }
                 return
             }
             if scenePhase == .inactive {
                 if editState.isDraggingElement { handleEditDragEnd() }
+                editState.activeElementId = nil
+                if presentation.isEditing { send(.endEditing) }
                 return
             }
             guard scenePhase == .active else { return }
@@ -597,6 +641,8 @@ struct GalleryView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             if editState.isDraggingElement { handleEditDragEnd() }
+            editState.activeElementId = nil
+            if presentation.isEditing { send(.endEditing) }
         }
         // Cross-tab canvas mutations: `MainTabView` posts these when the picker
         // is opened from a non-canvas tab (StepBalanceCard pills) and the user
@@ -626,6 +672,21 @@ struct GalleryView: View {
             if let image = toolbar.shareImage {
                 CanvasShareSheet(items: [image])
             }
+        }
+        .confirmationDialog(
+            String(localized: "Remove this happening?", comment: "Canvas editing – delete confirmation title"),
+            isPresented: Binding(
+                get: { pendingDeleteElementId != nil },
+                set: { if !$0 { pendingDeleteElementId = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(String(localized: "Delete"), role: .destructive) {
+                if let id = pendingDeleteElementId { removeElement(id: id) }
+                pendingDeleteElementId = nil
+                editState.activeElementId = nil
+            }
+            Button(String(localized: "Cancel"), role: .cancel) { pendingDeleteElementId = nil }
         }
         .onChange(of: toolbar.showShareSheet) { _, isPresented in
             if !isPresented { toolbar.shareImage = nil }
@@ -1252,6 +1313,31 @@ struct GalleryView: View {
         saveCanvasLocally()
     }
 
+    /// Restyles every element at once: one mutation counter bump, one save, one
+    /// haptic. Positions, identities, energy and the background gradient are
+    /// exactly what they were.
+    private func remixCanvas() {
+        guard !dayCanvas.elements.isEmpty else { return }
+        let composition = DayComposition.forDay(
+            dayKey: dayCanvas.dayKey,
+            happeningCount: dayCanvas.elements.count
+        )
+        let remixed = CanvasRemix.remixed(dayCanvas.elements, composition: composition)
+        // One ease for both motion settings on purpose: replacing the elements
+        // in place *is* the crossfade Reduce Motion asks for — nothing travels
+        // and nothing springs, so there is no motion to reduce.
+        withAnimation(.easeInOut(duration: 0.3)) {
+            dayCanvas.elements = remixed
+        }
+        dayCanvas.lastModified = Date.now
+        localMutationCounter &+= 1
+        saveCanvasLocally()
+        mediumHapticTick &+= 1
+        Task {
+            await SupabaseSyncService.shared.trackAnalyticsEvent(name: "canvas_remixed")
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════
     // MARK: - Wide Canvas Overlay (edit button)
     // ═══════════════════════════════════════════════════════════
@@ -1276,9 +1362,11 @@ struct GalleryView: View {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Edit Mode Element Overlays (circle outlines + dice)
+    // MARK: - Edit Mode Element Overlays (selection outline)
     // ═══════════════════════════════════════════════════════════
 
+    /// Selection feedback only. No bounding box, no resize handles, no delete
+    /// button and no per-element dice — the element itself is the control.
     private var editModeElementOverlays: some View {
         let refSize = GenerativeCanvasView.canonicalPortraitSize
         let dim = min(refSize.width, refSize.height)
@@ -1287,8 +1375,6 @@ struct GalleryView: View {
         return ZStack {
             ForEach(dayCanvas.elements) { element in
                 let center = GenerativeCanvasView.frozenElementCenter(element, size: refSize, at: freezeDate)
-                let cx = center.x
-                let cy = center.y
                 let effectiveSize = Double(element.userSize ?? CGFloat(element.size))
                 let diameter = RayShapeRenderer.editBoundsDiameter(
                     normalizedSize: effectiveSize,
@@ -1297,54 +1383,21 @@ struct GalleryView: View {
                 )
                 let isActive = editState.activeElementId == element.id
 
-                ZStack {
+                if isActive {
                     Circle()
-                        .strokeBorder(
-                            buttonColor.opacity(isActive ? 0.6 : 0.3),
-                            lineWidth: isActive ? 1.5 : 0.75
-                        )
+                        .strokeBorder(buttonColor.opacity(0.55), lineWidth: 1.5)
+                        .shadow(color: AppColors.brandAccent.opacity(0.45), radius: 6)
                         .frame(width: diameter, height: diameter)
-
-                    VStack {
-                        HStack {
-                            Button {
-                                removeElement(id: element.id)
-                                mediumHapticTick &+= 1
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(.red.opacity(0.9))
-                                    .frame(width: 34, height: 34)
-                                    .liquidGlassControl(in: Circle())
-                                    .contentShape(Circle().scale(1.3))
-                            }
-                            .buttonStyle(.plain)
-                            .allowsHitTesting(true)
-
-                            Spacer()
-
-                            Button {
-                                rerollElement(id: element.id)
-                                lightHapticTick &+= 1
-                            } label: {
-                                Image(systemName: "dice")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(buttonColor.opacity(0.85))
-                                    .frame(width: 34, height: 34)
-                                    .liquidGlassControl(in: Circle())
-                                    .contentShape(Circle().scale(1.3))
-                            }
-                            .buttonStyle(.plain)
-                            .allowsHitTesting(true)
-                        }
-                        Spacer()
-                    }
-                    .frame(width: diameter, height: diameter)
+                        .position(x: center.x, y: center.y)
+                        .accessibilityElement()
+                        .accessibilityLabel(
+                            "\(element.displayLabel), \(String(localized: "Selected", comment: "Canvas editing – selected element state"))"
+                        )
+                        .transition(.opacity)
                 }
-                .position(x: cx, y: cy)
-                .transition(.opacity)
             }
         }
+        .allowsHitTesting(false)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: editState.activeElementId)
     }
 
@@ -1366,24 +1419,6 @@ struct GalleryView: View {
                             handleEditDragEnd()
                         }
                 )
-                .simultaneousGesture(
-                    RotationGesture()
-                        .onChanged { angle in
-                            handleEditRotation(angle: angle)
-                        }
-                        .onEnded { _ in
-                            handleEditRotationEnd()
-                        }
-                )
-                .simultaneousGesture(
-                    MagnificationGesture()
-                        .onChanged { scale in
-                            handleEditPinch(scale: scale)
-                        }
-                        .onEnded { _ in
-                            handleEditPinchEnd()
-                        }
-                )
                 .onTapGesture { location in
                     if let hit = findClosestElement(to: location, canvasSize: refSize) {
                         withAnimation(.spring(response: 0.2)) {
@@ -1393,6 +1428,11 @@ struct GalleryView: View {
                     } else {
                         withAnimation(.spring(response: 0.2)) { editState.activeElementId = nil }
                     }
+                }
+                .onLongPressGesture(minimumDuration: 0.45) {
+                    guard let id = editState.activeElementId else { return }
+                    pendingDeleteElementId = id
+                    mediumHapticTick &+= 1
                 }
         }
     }
@@ -1426,62 +1466,16 @@ struct GalleryView: View {
     }
 
     private func handleEditDragEnd() {
+        if showsEditDragHint {
+            editDragHintTask?.cancel()
+            withAnimation(.easeOut(duration: 0.25)) { showsEditDragHint = false }
+        }
         if let id = editState.activeElementId,
            let idx = dayCanvas.elements.firstIndex(where: { $0.id == id }) {
             dayCanvas.elements[idx].lastEditedAt = Date.now
         }
         editState.isDraggingElement = false
         editState.dragStartBasePosition = nil
-        dayCanvas.lastModified = Date.now
-        localMutationCounter &+= 1
-        saveCanvasLocally()
-    }
-
-    // MARK: - Edit Mode Rotation (rays shapes only)
-
-    private func handleEditRotation(angle: Angle) {
-        guard let id = editState.activeElementId,
-              let index = dayCanvas.elements.firstIndex(where: { $0.id == id }),
-              dayCanvas.elements[index].resolvedShapeType == .rays else { return }
-
-        if editState.gestureStartRotation == nil {
-            editState.gestureStartRotation = dayCanvas.elements[index].userRotation
-        }
-        dayCanvas.elements[index].userRotation = (editState.gestureStartRotation ?? 0) + angle.radians
-    }
-
-    private func handleEditRotationEnd() {
-        guard editState.gestureStartRotation != nil else { return }
-        if let id = editState.activeElementId,
-           let idx = dayCanvas.elements.firstIndex(where: { $0.id == id }) {
-            dayCanvas.elements[idx].lastEditedAt = Date.now
-        }
-        editState.gestureStartRotation = nil
-        dayCanvas.lastModified = Date.now
-        localMutationCounter &+= 1
-        saveCanvasLocally()
-    }
-
-    // MARK: - Edit Mode Pinch-to-Resize (all shapes)
-
-    private func handleEditPinch(scale: CGFloat) {
-        guard let id = editState.activeElementId,
-              let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
-
-        if editState.gestureStartSize == nil {
-            editState.gestureStartSize = dayCanvas.elements[index].userSize ?? CGFloat(dayCanvas.elements[index].size)
-        }
-        let startSize = editState.gestureStartSize ?? CGFloat(dayCanvas.elements[index].size)
-        dayCanvas.elements[index].userSize = min(0.65, max(0.02, startSize * scale))
-    }
-
-    private func handleEditPinchEnd() {
-        guard editState.gestureStartSize != nil else { return }
-        if let id = editState.activeElementId,
-           let idx = dayCanvas.elements.firstIndex(where: { $0.id == id }) {
-            dayCanvas.elements[idx].lastEditedAt = Date.now
-        }
-        editState.gestureStartSize = nil
         dayCanvas.lastModified = Date.now
         localMutationCounter &+= 1
         saveCanvasLocally()

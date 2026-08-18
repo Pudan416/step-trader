@@ -190,6 +190,7 @@
 		DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */; };
 		30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0004300000000000CA04 /* GenerativeCanvasView.swift */; };
 		30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0008300000000000CA08 /* CanvasStateManagers.swift */; };
+		CA51B0080000000000000008 /* CanvasEditingDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0080000000000000008 /* CanvasEditingDock.swift */; };
 		CA51B0070000000000000007 /* CanvasDataPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0070000000000000007 /* CanvasDataPanel.swift */; };
 		CA51B0050000000000000005 /* CanvasFullScreenDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0050000000000000005 /* CanvasFullScreenDock.swift */; };
 		CA51B0060000000000000006 /* CanvasBottomActionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0060000000000000006 /* CanvasBottomActionRow.swift */; };
@@ -572,6 +573,7 @@
 		DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFreeTextField.swift; sourceTree = "<group>"; };
 		30CA0004300000000000CA04 /* GenerativeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeCanvasView.swift; sourceTree = "<group>"; };
 		30CA0008300000000000CA08 /* CanvasStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStateManagers.swift; sourceTree = "<group>"; };
+		CA51F0080000000000000008 /* CanvasEditingDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEditingDock.swift; sourceTree = "<group>"; };
 		CA51F0070000000000000007 /* CanvasDataPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasDataPanel.swift; sourceTree = "<group>"; };
 		CA51F0050000000000000005 /* CanvasFullScreenDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasFullScreenDock.swift; sourceTree = "<group>"; };
 		CA51F0060000000000000006 /* CanvasBottomActionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasBottomActionRow.swift; sourceTree = "<group>"; };
@@ -1203,6 +1205,7 @@
 			isa = PBXGroup;
 			children = (
 				30CA0008300000000000CA08 /* CanvasStateManagers.swift */,
+				CA51F0080000000000000008 /* CanvasEditingDock.swift */,
 				CA51F0070000000000000007 /* CanvasDataPanel.swift */,
 				CA51F0050000000000000005 /* CanvasFullScreenDock.swift */,
 				CA51F0060000000000000006 /* CanvasBottomActionRow.swift */,
@@ -1744,6 +1747,7 @@
 				DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */,
 				30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */,
 				30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */,
+				CA51B0080000000000000008 /* CanvasEditingDock.swift in Sources */,
 				CA51B0070000000000000007 /* CanvasDataPanel.swift in Sources */,
 				CA51B0050000000000000005 /* CanvasFullScreenDock.swift in Sources */,
 				CA51B0060000000000000006 /* CanvasBottomActionRow.swift in Sources */,
