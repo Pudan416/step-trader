@@ -58,6 +58,10 @@ struct GalleryView: View {
     /// Edit-mode state (M5 extraction). Backs the five drag/freeze/active
     /// canvas-edit fields hoisted to a separate Observable manager.
     @State private var editState = CanvasEditState()
+    /// The single source of truth for what Canvas is showing. `isWideCanvas`
+    /// below is now a mirror the tab host reads, never something written
+    /// independently — the two used to drift into states the design forbids.
+    @State private var presentation: CanvasPresentationState = .canvas
     @Binding var isWideCanvas: Bool
     @Binding var paletteRoute: CanvasPaletteRouteState
     let isCanvasSelected: Bool
@@ -108,7 +112,7 @@ struct GalleryView: View {
     private var todayKey: String { AppModel.dayKey(for: Date.now) }
 
     private var bottomControlsPadding: CGFloat {
-        if isWideCanvas || editState.isEditMode {
+        if presentation.isWideCanvas || presentation.isEditing {
             return max(safeAreaBottom, 34) + 16
         }
         // Anchor relative to device geometry:
@@ -169,9 +173,20 @@ struct GalleryView: View {
 
     private func openHappeningPalette() {
         metricOverlay = nil
+        send(.openHappeningPalette)
         refreshHappeningPalette()
         withAnimation(.easeInOut(duration: 0.2)) {
             showHappeningPalette = true
+        }
+    }
+
+    /// Every presentation change goes through here, so the mirrored binding and
+    /// the edit-mode flag can never disagree with the state.
+    private func send(_ event: CanvasPresentationEvent) {
+        let next = presentation.applying(event)
+        guard next != presentation else { return }
+        withAnimation(.easeInOut(duration: next.isWideCanvas || presentation.isWideCanvas ? 0.35 : 0.3)) {
+            presentation = next
         }
     }
 
@@ -185,7 +200,7 @@ struct GalleryView: View {
         var route = paletteRoute
         guard route.consumeIfReady(
             isCanvasSelected: isCanvasSelected,
-            canPresent: !isWideCanvas
+            canPresent: !presentation.isWideCanvas
         ) != nil else { return }
         paletteRoute = route
         openHappeningPalette()
@@ -193,7 +208,7 @@ struct GalleryView: View {
 
     @ViewBuilder
     private var happeningPaletteOverlay: some View {
-        if showHappeningPalette, !isWideCanvas {
+        if showHappeningPalette, !presentation.isWideCanvas {
             HappeningPaletteView(
                 happenings: paletteHappenings,
                 figures: model.paletteFigures(),
@@ -253,7 +268,7 @@ struct GalleryView: View {
     /// delay so it doesn't flash during canvas load. It then auto-dismisses.
     private func refreshAddHint() {
         addHintTask?.cancel()
-        guard addHintQualifies, !showHappeningPalette, !isWideCanvas else {
+        guard addHintQualifies, !showHappeningPalette, !presentation.isWideCanvas else {
             if showAddHint {
                 withAnimation(.easeOut(duration: 0.25)) { showAddHint = false }
             }
@@ -280,7 +295,7 @@ struct GalleryView: View {
         guard !hasShownHintWindow(window) else { return }
         addHintTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(1500))
-            guard !Task.isCancelled, addHintQualifies, !showHappeningPalette, !isWideCanvas else { return }
+            guard !Task.isCancelled, addHintQualifies, !showHappeningPalette, !presentation.isWideCanvas else { return }
             activeHintWindow = window
             markHintWindowShown(window)
             withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { showAddHint = true }
@@ -341,7 +356,7 @@ struct GalleryView: View {
                 decayNorm: decayNorm,
                 backgroundColor: canvasBackground,
                 labelColor: labelColor,
-                showLabelsOnCanvas: editState.isEditMode,
+                showLabelsOnCanvas: presentation.isEditing,
                 showsBackgroundGradient: false,
                 hasStepsData: model.hasStepsData,
                 hasSleepData: model.hasSleepData,
@@ -354,7 +369,7 @@ struct GalleryView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            if !editState.isEditMode {
+            if !presentation.isEditing {
                 CanvasAnimationOverlay(
                     elements: renderedCanvasElements,
                     sleepPoints: model.sleepPointsToday,
@@ -374,7 +389,7 @@ struct GalleryView: View {
                 .ignoresSafeArea()
             }
 
-            if editState.isEditMode {
+            if presentation.isEditing {
                 editModeGestureOverlay
                     .frame(
                         width: GenerativeCanvasView.canonicalPortraitSize.width,
@@ -404,7 +419,7 @@ struct GalleryView: View {
         // Controls in overlays — completely decoupled from the canvas/texture
         // ZStack so texture changes never trigger a controls re-layout.
         .overlay {
-            if !isWideCanvas,
+            if !presentation.isWideCanvas,
                HappeningPaletteChromeLayout.showsCanvasControls(
                    isPalettePresented: showHappeningPalette
                ) {
@@ -413,13 +428,13 @@ struct GalleryView: View {
             }
         }
         .overlay {
-            if isWideCanvas {
+            if presentation.isWideCanvas {
                 wideCanvasOverlay
                     .ignoresSafeArea()
             }
         }
         .overlay {
-            if let kind = metricOverlay, !isWideCanvas {
+            if let kind = metricOverlay, !presentation.isWideCanvas {
                 GalleryMetricOverlayView(model: model, kind: kind, onClose: { metricOverlay = nil })
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
             }
@@ -444,7 +459,9 @@ struct GalleryView: View {
                             let wide = size.width > canvasW * 1.15
                             if wide != isNaturallyWide { isNaturallyWide = wide }
                             if wide && !userCollapsedWide && !isManuallyExpanded {
-                                if !isWideCanvas { isWideCanvas = true }
+                                // Naturally wide is a viewing state. It must
+                                // never walk the user into editing.
+                                send(.enterFullScreen)
                             }
                         }
                     }
@@ -493,6 +510,7 @@ struct GalleryView: View {
             } else if selected {
                 consumePaletteOpenRequestIfReady()
             }
+            if !selected { send(.leftCanvasTab) }
         }
         .onChange(of: todayKey) { _, newKey in
             guard newKey != activeDayKey else { return }
@@ -500,14 +518,33 @@ struct GalleryView: View {
             activeDayKey = newKey
             dayCanvas = DayCanvas(dayKey: newKey)
             canvasLoaded = false
-            userCollapsedWide = false
-            isManuallyExpanded = false
             pendingDeletedIds.removeAll()
+            send(.dayBoundary)
             refreshHappeningPalette()
             loadCanvas()
         }
-        .onChange(of: isWideCanvas) { refreshAddHint() }
-        .onChange(of: isWideCanvas) {
+        .onChange(of: presentation, initial: true) { old, new in
+            if isWideCanvas != new.isWideCanvas { isWideCanvas = new.isWideCanvas }
+            editState.isEditMode = new.isEditing
+
+            if !new.isEditing {
+                // Leaving editing commits whatever the finger was doing.
+                if editState.isDraggingElement { handleEditDragEnd() }
+                editState.editFreezeTime = nil
+                editState.activeElementId = nil
+            } else if editState.editFreezeTime == nil {
+                editState.editFreezeTime = Date.now
+            }
+
+            if !new.isWideCanvas {
+                isManuallyExpanded = false
+                userCollapsedWide = old.isWideCanvas
+            } else {
+                userCollapsedWide = false
+                isManuallyExpanded = true
+            }
+
+            refreshAddHint()
             consumePaletteOpenRequestIfReady()
         }
         .onChange(of: scenePhase) {
@@ -527,9 +564,8 @@ struct GalleryView: View {
                 activeDayKey = newKey
                 dayCanvas = DayCanvas(dayKey: newKey)
                 canvasLoaded = false
-                userCollapsedWide = false
-                isManuallyExpanded = false
                 pendingDeletedIds.removeAll()
+                send(.dayBoundary)
                 loadCanvas()
             }
             if showHappeningPalette {
@@ -574,16 +610,7 @@ struct GalleryView: View {
         .onChange(of: toolbar.showShareSheet) { _, isPresented in
             if !isPresented { toolbar.shareImage = nil }
         }
-        .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
-        .animation(.easeInOut(duration: 0.3), value: editState.isEditMode)
-        .onChange(of: isWideCanvas) { _, wide in
-            if !wide {
-                editState.reset()
-                isManuallyExpanded = false
-            } else {
-                userCollapsedWide = false
-            }
-        }
+        .animation(.easeInOut(duration: 0.35), value: presentation)
         .onPreferenceChange(CanvasAddButtonCenterKey.self) { value in
             guard let value, value != canvasAddButtonCenterY else { return }
             canvasAddButtonCenterY = value
@@ -604,14 +631,14 @@ struct GalleryView: View {
 
     private var canvasControls: some View {
         ZStack {
-            if showQuickStartArea && !isWideCanvas {
+            if showQuickStartArea && !presentation.isWideCanvas {
                 emptyStateView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
             // Wide-canvas wallpaper suggestion
-            if isWideCanvas && !model.hasWallpaperShortcut {
+            if presentation.isWideCanvas && !model.hasWallpaperShortcut {
                 VStack {
                     Spacer()
                     wallpaperPromptBanner
@@ -622,7 +649,7 @@ struct GalleryView: View {
             }
 
             // Proactive workout suggestions
-            if !model._pendingActivitySuggestions.isEmpty && !isWideCanvas {
+            if !model._pendingActivitySuggestions.isEmpty && !presentation.isWideCanvas {
                 VStack {
                     ActivitySuggestionBanner(
                         suggestions: model._pendingActivitySuggestions,
@@ -748,11 +775,7 @@ struct GalleryView: View {
 
     private var expandCanvasButton: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.35)) {
-                userCollapsedWide = false
-                isManuallyExpanded = true
-                isWideCanvas = true
-            }
+            send(.enterFullScreen)
             lightHapticTick &+= 1
         } label: {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -1253,12 +1276,7 @@ struct GalleryView: View {
     private var wideCanvasOverlayContent: some View {
         HStack {
             Button {
-                withAnimation(.easeInOut(duration: 0.35)) {
-                    editState.reset()
-                    isManuallyExpanded = false
-                    userCollapsedWide = true
-                    isWideCanvas = false
-                }
+                send(.exitFullScreen)
                 lightHapticTick &+= 1
             } label: {
                 Image(systemName: "arrow.down.right.and.arrow.up.left")
@@ -1275,20 +1293,15 @@ struct GalleryView: View {
             Spacer()
 
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    editState.isEditMode.toggle()
-                    if editState.isEditMode {
-                        editState.editFreezeTime = Date.now
-                    } else {
-                        editState.editFreezeTime = nil
-                        editState.activeElementId = nil
-                        editState.isDraggingElement = false
-                        saveCanvasLocally()
-                    }
+                if presentation.isEditing {
+                    saveCanvasLocally()
+                    send(.endEditing)
+                } else {
+                    send(.beginEditing)
                 }
                 lightHapticTick &+= 1
             } label: {
-                Image(systemName: editState.isEditMode ? "checkmark" : "hand.draw")
+                Image(systemName: presentation.isEditing ? "checkmark" : "hand.draw")
                     .font(.system(size: 22, weight: .ultraLight))
                     .foregroundStyle(buttonColor.opacity(0.85))
                     .frame(width: 56, height: 56)
@@ -1297,7 +1310,7 @@ struct GalleryView: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: editState.isEditMode ? "Done editing" : "Edit canvas", comment: "GalleryView – edit button VoiceOver label"))
+            .accessibilityLabel(String(localized: presentation.isEditing ? "Done editing" : "Edit canvas", comment: "GalleryView – edit button VoiceOver label"))
         }
     }
 
