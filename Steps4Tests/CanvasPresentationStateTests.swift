@@ -91,11 +91,18 @@ final class CanvasPresentationStateTests: XCTestCase {
         }
     }
 
-    /// Raising the canvas must never start an edit by itself.
+    /// Raising the canvas must never START an edit by itself.
     func testEnteringFullScreenNeverStartsEditing() {
-        for state in CanvasPresentationState.allCases {
+        for state in CanvasPresentationState.allCases where state != .editing {
             XCTAssertFalse(state.applying(.enterFullScreen).isEditing, "\(state)")
         }
+    }
+
+    /// It is not a way out of an edit either: from `.editing` the canvas is
+    /// already full screen, so the event has nothing left to do. Ending an edit
+    /// is `.endEditing`'s job, and abandoning one is `.leftCanvasTab`'s.
+    func testEnteringFullScreenIsInertWhileEditing() {
+        XCTAssertEqual(CanvasPresentationState.editing.applying(.enterFullScreen), .editing)
     }
 
     func testExactlyOneDockIsVisiblePerState() {

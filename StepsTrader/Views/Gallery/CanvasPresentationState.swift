@@ -71,10 +71,10 @@ extension CanvasPresentationState {
             return self == .data ? .canvas : self
 
         case .enterFullScreen:
-            // Any non-full-screen state (including a stray application while
-            // already `.editing`) resolves to the plain viewing full screen —
-            // this event alone must never leave an edit in progress.
-            return self == .fullScreen ? self : .fullScreen
+            // Raising the canvas never starts an edit — and never ends one
+            // either. From `.editing` the canvas is already full screen, so
+            // there is nothing left for this event to do.
+            return (self == .canvas || self == .data) ? .fullScreen : self
 
         case .exitFullScreen:
             return isWideCanvas ? .canvas : self
