@@ -35,7 +35,6 @@ struct MainTabView: View {
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
     @State private var isWideCanvas: Bool = false
-    @State private var showColorsHelp: Bool = false
     /// Deep-link route for the Settings sheet, driven by feature-tip CTAs.
     @State private var settingsDeepLinkRoute: FeatureTipSettingsPage?
     /// Settings is a sheet opened from Me. The host owns the flag and the route
@@ -264,54 +263,24 @@ struct MainTabView: View {
         }
         .overlay(alignment: .top) {
             // Me is where you look back, not where you check your balance — the
-            // card is drawn on canvas and feeds only.
+            // pill is drawn on canvas and feeds only.
             if !isWideCanvas, !hidesSurroundingChromeForPalette, selection != Tab.me.rawValue {
-            StepBalanceCard(
-                remainingSteps: model.userEconomyStore.totalStepsBalance,
-                totalSteps: model.healthStore.baseEnergyToday,
-                spentSteps: model.spentStepsToday,
-                healthKitSteps: model.userEconomyStore.stepsBalance,
-                dayEndHour: model.dayEndHour,
-                dayEndMinute: model.dayEndMinute,
-                showDetails: selection == Tab.canvas.rawValue,
-                stepsPoints: model.stepsPointsToday,
-                sleepPoints: model.sleepPointsToday,
-                happeningPoints: model.happeningPointsToday,
-                baseEnergyToday: model.healthStore.baseEnergyToday,
-                onStepsTap: {
-                    if selection == Tab.canvas.rawValue {
-                        metricOverlay = .steps
+                CanvasEnergyStatusPill(
+                    status: CanvasEnergyStatus(
+                        stepsBalance: model.userEconomyStore.stepsBalance,
+                        baseEnergyToday: model.healthStore.baseEnergyToday
+                    )
+                )
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .preference(key: TopCardHeightPreferenceKey.self, value: geo.size.height)
                     }
-                },
-                onSleepTap: {
-                    if selection == Tab.canvas.rawValue {
-                        metricOverlay = .sleep
-                    }
-                },
-                onMoveTap: {
-                    if selection == Tab.canvas.rawValue {
-                        metricOverlay = .happenings
-                    } else {
-                        openHappeningPaletteOnCanvas()
-                    }
-                },
-                onColorsHelpTap: { showColorsHelp = true }
-            )
-            .padding(.horizontal)
-            .padding(.top, 8)
-            .padding(.bottom, 8)
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .preference(key: TopCardHeightPreferenceKey.self, value: geo.size.height)
-                }
-            )
-            .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .overlay {
-            if showColorsHelp {
-                colorsHelpOverlay
+                )
+                .coachMarkAnchor(.colorBalance)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         // Settings left the tab bar; `embeddedInTab` defaults to false, which
@@ -377,50 +346,6 @@ struct MainTabView: View {
                 // Bump token so consecutive deliveries of the same bundleId still re-fire .task(id:).
                 ticketDeliveryToken = UUID()
             }
-        }
-    }
-
-    private func openHappeningPaletteOnCanvas() {
-        paletteRoute.requestOpen()
-        withAnimation(.easeInOut(duration: 0.2)) {
-            selection = Tab.canvas.rawValue
-        }
-    }
-
-    private var colorsHelpOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.35)
-                .ignoresSafeArea()
-                .onTapGesture { showColorsHelp = false }
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text(String(localized: "About colors", comment: "Help overlay title"))
-                        .font(.headline)
-                    Spacer()
-                    Button { showColorsHelp = false } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-                Text(String(localized: "Each of the five areas — steps, sleep, body, mind and heart — contributes up to 20 colors (100 colors total)."))
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                Text(String(localized: "Steps and sleep come from the Health app and are the same for everyone. Body, mind and heart are activities you add by tapping the + button at the bottom of the screen."))
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-            }
-            .padding(16)
-            .frame(maxWidth: 300)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(theme.backgroundSecondary.opacity(0.98))
-                    .shadow(color: Color.black.opacity(0.2), radius: 16, x: 0, y: 8)
-            )
-            .padding(.horizontal, 32)
         }
     }
 
