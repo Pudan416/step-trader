@@ -190,6 +190,7 @@
 		DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */; };
 		30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0004300000000000CA04 /* GenerativeCanvasView.swift */; };
 		30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0008300000000000CA08 /* CanvasStateManagers.swift */; };
+		CA51B0070000000000000007 /* CanvasDataPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0070000000000000007 /* CanvasDataPanel.swift */; };
 		CA51B0050000000000000005 /* CanvasFullScreenDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0050000000000000005 /* CanvasFullScreenDock.swift */; };
 		CA51B0060000000000000006 /* CanvasBottomActionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0060000000000000006 /* CanvasBottomActionRow.swift */; };
 		CA51B0020000000000000002 /* CanvasPresentationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0020000000000000002 /* CanvasPresentationState.swift */; };
@@ -258,6 +259,7 @@
 		AA00NOTE2F3A000100000001 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00NOTE2F3A000100000002 /* Note.swift */; };
 		AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB001100110011AABB0010 /* SubscriptionGateTests.swift */; };
 		ME7A00ME7A00ME7A00F011 /* MainTabSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */; };
+		CA51B0140000000000000014 /* CanvasDataPanelLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0140000000000000014 /* CanvasDataPanelLayoutTests.swift */; };
 		CA51B0130000000000000013 /* CanvasRemixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0130000000000000013 /* CanvasRemixTests.swift */; };
 		CA51B0110000000000000011 /* CanvasEnergyStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0110000000000000011 /* CanvasEnergyStatusTests.swift */; };
 		CA51B0120000000000000012 /* CanvasPresentationStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0120000000000000012 /* CanvasPresentationStateTests.swift */; };
@@ -570,6 +572,7 @@
 		DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFreeTextField.swift; sourceTree = "<group>"; };
 		30CA0004300000000000CA04 /* GenerativeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeCanvasView.swift; sourceTree = "<group>"; };
 		30CA0008300000000000CA08 /* CanvasStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStateManagers.swift; sourceTree = "<group>"; };
+		CA51F0070000000000000007 /* CanvasDataPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasDataPanel.swift; sourceTree = "<group>"; };
 		CA51F0050000000000000005 /* CanvasFullScreenDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasFullScreenDock.swift; sourceTree = "<group>"; };
 		CA51F0060000000000000006 /* CanvasBottomActionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasBottomActionRow.swift; sourceTree = "<group>"; };
 		CA51F0020000000000000002 /* CanvasPresentationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPresentationState.swift; sourceTree = "<group>"; };
@@ -637,6 +640,7 @@
 		AA00NOTE2F3A000100000002 /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
 		AABB001100110011AABB0010 /* SubscriptionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionGateTests.swift; sourceTree = "<group>"; };
 		ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabSelectionTests.swift; sourceTree = "<group>"; };
+		CA51F0140000000000000014 /* CanvasDataPanelLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasDataPanelLayoutTests.swift; sourceTree = "<group>"; };
 		CA51F0130000000000000013 /* CanvasRemixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasRemixTests.swift; sourceTree = "<group>"; };
 		CA51F0110000000000000011 /* CanvasEnergyStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEnergyStatusTests.swift; sourceTree = "<group>"; };
 		CA51F0120000000000000012 /* CanvasPresentationStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPresentationStateTests.swift; sourceTree = "<group>"; };
@@ -1199,6 +1203,7 @@
 			isa = PBXGroup;
 			children = (
 				30CA0008300000000000CA08 /* CanvasStateManagers.swift */,
+				CA51F0070000000000000007 /* CanvasDataPanel.swift */,
 				CA51F0050000000000000005 /* CanvasFullScreenDock.swift */,
 				CA51F0060000000000000006 /* CanvasBottomActionRow.swift */,
 				CA51F0020000000000000002 /* CanvasPresentationState.swift */,
@@ -1286,6 +1291,7 @@
 				BB000002BB000002BB000001 /* OnboardingFlowTests.swift */,
 				AABB001100110011AABB0010 /* SubscriptionGateTests.swift */,
 				ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */,
+				CA51F0140000000000000014 /* CanvasDataPanelLayoutTests.swift */,
 				CA51F0130000000000000013 /* CanvasRemixTests.swift */,
 				CA51F0110000000000000011 /* CanvasEnergyStatusTests.swift */,
 				CA51F0120000000000000012 /* CanvasPresentationStateTests.swift */,
@@ -1738,6 +1744,7 @@
 				DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */,
 				30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */,
 				30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */,
+				CA51B0070000000000000007 /* CanvasDataPanel.swift in Sources */,
 				CA51B0050000000000000005 /* CanvasFullScreenDock.swift in Sources */,
 				CA51B0060000000000000006 /* CanvasBottomActionRow.swift in Sources */,
 				CA51B0020000000000000002 /* CanvasPresentationState.swift in Sources */,
@@ -1902,6 +1909,7 @@
 				BB000002BB000002BB000002 /* OnboardingFlowTests.swift in Sources */,
 				AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */,
 				ME7A00ME7A00ME7A00F011 /* MainTabSelectionTests.swift in Sources */,
+				CA51B0140000000000000014 /* CanvasDataPanelLayoutTests.swift in Sources */,
 				CA51B0130000000000000013 /* CanvasRemixTests.swift in Sources */,
 				CA51B0110000000000000011 /* CanvasEnergyStatusTests.swift in Sources */,
 				CA51B0120000000000000012 /* CanvasPresentationStateTests.swift in Sources */,

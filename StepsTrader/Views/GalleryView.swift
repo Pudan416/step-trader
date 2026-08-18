@@ -441,6 +441,9 @@ struct GalleryView: View {
             }
         }
         .overlay {
+            dataPanelOverlay
+        }
+        .overlay {
             if presentation.showsFullScreenDock {
                 wideCanvasOverlay
                     .ignoresSafeArea()
@@ -703,6 +706,65 @@ struct GalleryView: View {
                 bottomControlsBar
                     .padding(.bottom, bottomControlsPadding)
             }
+        }
+    }
+
+    private var dataPanelRows: [CanvasDataRow] {
+        [
+            CanvasDataRow(
+                kind: .steps,
+                title: String(localized: "Steps", comment: "Canvas data panel – steps row"),
+                systemImage: "shoeprints.fill",
+                value: model.stepsPointsToday,
+                maxValue: EnergyDefaults.stepsMaxPoints
+            ),
+            CanvasDataRow(
+                kind: .sleep,
+                title: String(localized: "Sleep", comment: "Canvas data panel – sleep row"),
+                systemImage: "bed.double.fill",
+                value: model.sleepPointsToday,
+                maxValue: EnergyDefaults.sleepMaxPoints
+            ),
+            CanvasDataRow(
+                kind: .happenings,
+                title: String(localized: "Happenings", comment: "Canvas data panel – happenings row"),
+                systemImage: "sparkles",
+                value: model.happeningPointsToday,
+                maxValue: HappeningDefaults.happeningsMaxPoints
+            )
+        ]
+    }
+
+    /// The sheet sits above the action row, so the row's own hit height counts
+    /// as chrome for both the clearance and the 40% budget.
+    private var dataPanelBottomClearance: CGFloat { bottomControlsPadding + 72 }
+
+    @ViewBuilder
+    private var dataPanelOverlay: some View {
+        if presentation.showsDataPanel {
+            VStack {
+                Spacer(minLength: 0)
+                CanvasDataPanel(
+                    rows: dataPanelRows,
+                    maxHeight: CanvasDataPanel.maxHeight(
+                        viewportHeight: canvasViewportSize.height,
+                        topInset: safeAreaTop + topCardHeight,
+                        bottomInset: dataPanelBottomClearance
+                    ),
+                    onSelect: { metricOverlay = $0 },
+                    onHide: {
+                        send(.hideData)
+                        lightHapticTick &+= 1
+                    }
+                )
+                .padding(.horizontal, 12)
+                .padding(.bottom, dataPanelBottomClearance)
+            }
+            .transition(
+                reduceMotion
+                    ? .opacity
+                    : .move(edge: .bottom).combined(with: .opacity)
+            )
         }
     }
 
