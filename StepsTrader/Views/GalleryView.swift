@@ -183,6 +183,19 @@ struct GalleryView: View {
     /// Every presentation change goes through here, so the mirrored binding and
     /// the edit-mode flag can never disagree with the state.
     private func send(_ event: CanvasPresentationEvent) {
+        // `userCollapsedWide` is decided here rather than in the observer below,
+        // because only the event knows WHY the canvas stopped being wide. The
+        // observer sees just the old and new state, and a day rollover collapsing
+        // the canvas looks identical there to the user collapsing it by hand —
+        // which would wrongly stop the iPad naturally-wide branch from ever
+        // re-expanding. Set ahead of the no-op guard so a rollover clears the flag
+        // whether or not it also changes the state, exactly as the pre-refactor
+        // rollover sites did.
+        switch event {
+        case .exitFullScreen where presentation.isWideCanvas: userCollapsedWide = true
+        case .dayBoundary:                                    userCollapsedWide = false
+        default:                                              break
+        }
         let next = presentation.applying(event)
         guard next != presentation else { return }
         withAnimation(.easeInOut(duration: next.isWideCanvas || presentation.isWideCanvas ? 0.35 : 0.3)) {
@@ -528,7 +541,12 @@ struct GalleryView: View {
             editState.isEditMode = new.isEditing
 
             if !new.isEditing {
-                // Leaving editing commits whatever the finger was doing.
+                // Leaving editing commits whatever the finger was doing — on
+                // EVERY exit, not just Done. Before this plan the collapse button
+                // called `editState.reset()` and silently threw the in-flight
+                // drag away; spec §7.3 wants the position kept (it already says
+                // so for Done and for the app resigning active), and there is no
+                // reason a different exit should lose the user's arrangement.
                 if editState.isDraggingElement { handleEditDragEnd() }
                 editState.editFreezeTime = nil
                 editState.activeElementId = nil
@@ -538,7 +556,6 @@ struct GalleryView: View {
 
             if !new.isWideCanvas {
                 isManuallyExpanded = false
-                userCollapsedWide = old.isWideCanvas
             } else {
                 userCollapsedWide = false
                 isManuallyExpanded = true
