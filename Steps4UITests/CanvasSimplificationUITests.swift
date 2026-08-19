@@ -40,7 +40,7 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["canvas_data_panel"].waitForExistence(timeout: 3))
         XCTAssertEqual(pill.frame.midX, pillFrameBefore.midX, accuracy: 0.5)
 
-        app.buttons["canvas_hide_data_button"].tap()
+        app.buttons["canvas_show_data_button"].tap()
         XCTAssertTrue(app.otherElements["canvas_data_panel"].waitForNonExistence(timeout: 3))
         XCTAssertEqual(pill.frame.midX, pillFrameBefore.midX, accuracy: 0.5)
     }
@@ -97,5 +97,22 @@ final class CanvasSimplificationUITests: XCTestCase {
         app.buttons["canvas_add_button"].tap()
         XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.otherElements["canvas_data_panel"].exists)
+    }
+
+    /// The `?` opens the metric overlay with its explanation, and does so
+    /// without the row's own tap firing as well.
+    func testRowHelpOpensTheExplanation() {
+        let app = launchCanvas()
+
+        app.buttons["canvas_show_data_button"].tap()
+        XCTAssertTrue(app.otherElements["canvas_data_panel"].waitForExistence(timeout: 3))
+
+        app.buttons["canvas_row_help_steps"].tap()
+
+        // SwiftUI's `Link` surfaces to XCUITest as a Button element on this
+        // iOS version, not `.link` — `app.links[...]` never matches it. Match
+        // by identifier across any element type instead, the same pattern
+        // this file already uses for `canvas_energy_pill`.
+        XCTAssertTrue(app.descendants(matching: .any)["metric_research_link_steps"].waitForExistence(timeout: 3))
     }
 }
