@@ -69,6 +69,14 @@ struct CanvasDataPanel: View {
         .glassCard(cornerRadius: 24, style: .lens)
         .offset(y: max(0, dragOffset))
         .gesture(dismissDrag)
+        // `.contain` keeps this container's own identifier addressable while
+        // still exposing its children (Hide data, each metric row) as their
+        // own accessibility elements. Without it, SwiftUI collapses the
+        // panel into a single accessibility element and every descendant
+        // reports this identifier instead of its own — `canvas_hide_data_button`
+        // becomes unreachable to automation even though real touches still
+        // land correctly on the visible control.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("canvas_data_panel")
         .coachMarkAnchor(.categoriesRevealed)
     }
