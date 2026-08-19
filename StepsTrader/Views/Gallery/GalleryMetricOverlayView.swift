@@ -46,6 +46,32 @@ struct GalleryMetricOverlayView: View {
                 }
 
                 overlayContent(for: kind)
+
+                Divider()
+                    .overlay(Color.white.opacity(0.15))
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(explanation(for: kind))
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.8))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(String(localized: "You can change your daily goals in Settings.",
+                                comment: "MetricOverlay – where to adjust goals"))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.55))
+
+                    Link(destination: researchURL(for: kind)) {
+                        HStack(spacing: 4) {
+                            Text(String(localized: "Read the research",
+                                        comment: "MetricOverlay – link to the source study"))
+                            Image(systemName: "arrow.up.right")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppColors.brandAccent)
+                    }
+                    .accessibilityIdentifier("metric_research_link_\(kind.id)")
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 22)
@@ -193,4 +219,40 @@ struct GalleryMetricOverlayView: View {
         }
     }
 
+    /// What this metric contributes to the day, in one breath. The point is to
+    /// answer "why is this number what it is", not to advise.
+    private func explanation(for kind: MetricOverlayKind) -> String {
+        switch kind {
+        case .steps:
+            return String(
+                localized: "Steps fill up to \(EnergyDefaults.stepsMaxPoints) of the day's \(EnergyDefaults.maxBaseEnergy) colors, in proportion to your daily step goal.",
+                comment: "MetricOverlay – how steps contribute"
+            )
+        case .sleep:
+            return String(
+                localized: "Sleep fills up to \(EnergyDefaults.sleepMaxPoints) of the day's \(EnergyDefaults.maxBaseEnergy) colors, in proportion to your sleep goal. A night without data is assumed rather than counted as zero.",
+                comment: "MetricOverlay – how sleep contributes"
+            )
+        case .happenings:
+            return String(
+                localized: "Happenings fill up to \(HappeningDefaults.happeningsMaxPoints) of the day's \(EnergyDefaults.maxBaseEnergy) colors — the largest share, because they are the part of the day you choose. Each happening counts once per day.",
+                comment: "MetricOverlay – how happenings contribute"
+            )
+        }
+    }
+
+    /// The study behind each metric's share of the day. Supplied by the
+    /// product owner; force-unwrapped because these are compile-time literals
+    /// and a malformed one should fail loudly in the first preview, not
+    /// silently render a dead link.
+    private func researchURL(for kind: MetricOverlayKind) -> URL {
+        switch kind {
+        case .steps:
+            return URL(string: "https://pubmed.ncbi.nlm.nih.gov/24749966/")!
+        case .sleep:
+            return URL(string: "https://www.nature.com/articles/nrn2762")!
+        case .happenings:
+            return URL(string: "https://www.sciencedirect.com/science/article/pii/S0022103112000212")!
+        }
+    }
 }
