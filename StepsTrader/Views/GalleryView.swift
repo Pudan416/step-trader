@@ -462,9 +462,6 @@ struct GalleryView: View {
                 CanvasEditingDock(
                     showsDragHint: showsEditDragHint,
                     onDone: {
-                        if editState.isDraggingElement { handleEditDragEnd() }
-                        editState.activeElementId = nil
-                        saveCanvasLocally()
                         send(.endEditing)
                         lightHapticTick &+= 1
                     },
@@ -611,12 +608,14 @@ struct GalleryView: View {
             if scenePhase == .background {
                 if editState.isDraggingElement { handleEditDragEnd() }
                 editState.activeElementId = nil
+                pendingDeleteElementId = nil
                 if presentation.isEditing { send(.endEditing) }
                 return
             }
             if scenePhase == .inactive {
                 if editState.isDraggingElement { handleEditDragEnd() }
                 editState.activeElementId = nil
+                pendingDeleteElementId = nil
                 if presentation.isEditing { send(.endEditing) }
                 return
             }
@@ -642,6 +641,7 @@ struct GalleryView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             if editState.isDraggingElement { handleEditDragEnd() }
             editState.activeElementId = nil
+            pendingDeleteElementId = nil
             if presentation.isEditing { send(.endEditing) }
         }
         // Cross-tab canvas mutations: `MainTabView` posts these when the picker
@@ -1429,11 +1429,39 @@ struct GalleryView: View {
                         withAnimation(.spring(response: 0.2)) { editState.activeElementId = nil }
                     }
                 }
-                .onLongPressGesture(minimumDuration: 0.45) {
-                    guard let id = editState.activeElementId else { return }
-                    pendingDeleteElementId = id
-                    mediumHapticTick &+= 1
-                }
+                // `.onLongPressGesture` gives the handler no location, only
+                // the fact that a press happened — that used to mean it
+                // fired on whatever the last tap had selected, regardless of
+                // where the finger actually was. A standalone
+                // `DragGesture(minimumDistance: 0)` run alongside it to
+                // capture that location was tried and rejected: two
+                // competing recognizers on the same touch stopped the long
+                // press from ever completing under synthetic (and likely
+                // some real) touch input. `sequenced(before:)` avoids that —
+                // only the `LongPressGesture` runs while the finger is
+                // still, and a `DragGesture` only starts, purely to read
+                // `.location`, once the press has already succeeded.
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.45)
+                        .sequenced(before: DragGesture(minimumDistance: 0))
+                        .onEnded { value in
+                            // Guards, in order: the long press must have
+                            // actually completed (not cancelled mid-sequence);
+                            // a drag already in flight for this touch wins
+                            // (no dialog on top of a moving element);
+                            // something must be selected; the resolved
+                            // location must hit-test to the SELECTED element
+                            // specifically — empty canvas or a different
+                            // element does nothing at all.
+                            guard case .second(true, let drag?) = value,
+                                  !editState.isDraggingElement,
+                                  let id = editState.activeElementId,
+                                  let hit = findClosestElement(to: drag.location, canvasSize: refSize),
+                                  hit.element.id == id else { return }
+                            pendingDeleteElementId = id
+                            mediumHapticTick &+= 1
+                        }
+                )
         }
     }
 
