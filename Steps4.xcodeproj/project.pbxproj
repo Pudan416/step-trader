@@ -323,6 +323,7 @@
 		CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */; };
 		T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */; };
 		T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
+		CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */; };
 		WK000001AAAA000100000001 /* AppModel+WorkoutSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */; };
 		WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */; };
 /* End PBXBuildFile section */
@@ -702,6 +703,7 @@
 		CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMarkTourTests.swift; sourceTree = "<group>"; };
 		T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergyLogicTests.swift; sourceTree = "<group>"; };
 		T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
+		CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSimplificationUITests.swift; sourceTree = "<group>"; };
 		WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WorkoutSuggestions.swift"; sourceTree = "<group>"; };
 		WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSuggestionBanner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -1333,6 +1335,7 @@
 			isa = PBXGroup;
 			children = (
 				T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
+				CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */,
 			);
 			path = Steps4UITests;
 			sourceTree = "<group>";
@@ -1952,6 +1955,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */,
+				CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
