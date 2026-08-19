@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Environment key for StepBalanceCard height
+// MARK: - Environment key for the energy pill height
 
 extension EnvironmentValues {
     @Entry var topCardHeight: CGFloat = 0
@@ -108,7 +108,7 @@ struct MainTabView: View {
         return "\(Task7UITestAccessibilityConfiguration.name(for: dynamicTypeSize)),\(contrast)"
     }
 
-    // Height preference key for the StepBalanceCard overlay
+    // Height preference key for the energy pill overlay
     private struct TopCardHeightPreferenceKey: PreferenceKey {
         static let defaultValue: CGFloat = 0
         static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
