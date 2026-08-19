@@ -676,7 +676,7 @@ struct GalleryView: View {
             if presentation.isEditing { send(.endEditing) }
         }
         // Cross-tab canvas mutations: `MainTabView` posts these when the picker
-        // is opened from a non-canvas tab (StepBalanceCard pills) and the user
+        // is opened from a non-canvas tab (the energy pill) and the user
         // confirms / removes / rerolls. We share the same business logic the
         // local radial-menu sheet uses below.
         .onReceive(NotificationCenter.default.publisher(for: .canvasElementSpawnRequested)) { note in
@@ -780,7 +780,10 @@ struct GalleryView: View {
                     )
                     Spacer()
                 }
-                .padding(.top, safeAreaTop + topCardHeight + 24)
+                // `deviceTopSafeAreaInset` (not `safeAreaTop`) — see its doc
+                // comment for why `safeAreaTop` is unreliable this deep in
+                // the overlay stack.
+                .padding(.top, deviceTopSafeAreaInset + topCardHeight + 24)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
@@ -840,7 +843,10 @@ struct GalleryView: View {
                     rows: dataPanelRows,
                     maxHeight: CanvasDataPanel.maxHeight(
                         viewportHeight: canvasViewportSize.height,
-                        topInset: safeAreaTop + topCardHeight,
+                        // `deviceTopSafeAreaInset` (not `safeAreaTop`) — see
+                        // its doc comment for why `safeAreaTop` is unreliable
+                        // this deep in the overlay stack.
+                        topInset: deviceTopSafeAreaInset + topCardHeight,
                         bottomInset: dataPanelBottomClearance
                     ),
                     onSelect: { metricOverlay = $0 },
