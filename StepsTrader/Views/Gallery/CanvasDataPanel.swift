@@ -24,8 +24,8 @@ struct CanvasDataRow: Identifiable, Equatable {
 /// something remains the single yellow `+` on Canvas.
 struct CanvasDataPanel: View {
     let rows: [CanvasDataRow]
-    let maxHeight: CGFloat
     let onSelect: (MetricOverlayKind) -> Void
+    let onExplain: (MetricOverlayKind) -> Void
     let onHide: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -37,21 +37,6 @@ struct CanvasDataPanel: View {
 
     private var ink: Color { AppColors.Night.textPrimary }
 
-    /// A ceiling for growth, not a promise for today's three rows.
-    ///
-    /// SwiftUI's `.frame(maxHeight:)` constrains the PROPOSAL, not the render: a
-    /// child whose own minimum exceeds it simply draws larger. Three 52 pt rows
-    /// plus the header need ~266 pt, which is above 40% of the available space on
-    /// every current iPhone, so the panel is content-sized in practice. The cap
-    /// starts to bite once the row list grows past three.
-    static func maxHeight(
-        viewportHeight: CGFloat,
-        topInset: CGFloat,
-        bottomInset: CGFloat
-    ) -> CGFloat {
-        max(0, (viewportHeight - topInset - bottomInset)) * 0.4
-    }
-
     var body: some View {
         VStack(spacing: 12) {
             header
@@ -60,50 +45,62 @@ struct CanvasDataPanel: View {
                     rowView(row)
                 }
             }
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
         .padding(.bottom, 16)
-        .frame(maxWidth: .infinity, maxHeight: maxHeight, alignment: .top)
+        // No `maxHeight` clamp: it constrained the proposal, not the render, so
+        // the rows drew outside the glass that was supposed to contain them.
+        // The panel is sized by its content and the host gives it room.
+        .frame(maxWidth: .infinity, alignment: .top)
         .glassCard(cornerRadius: 24, style: .lens)
         .offset(y: max(0, dragOffset))
         .gesture(dismissDrag)
         // `.contain` keeps this container's own identifier addressable while
-        // still exposing its children (Hide data, each metric row) as their
-        // own accessibility elements. Without it, SwiftUI collapses the
-        // panel into a single accessibility element and every descendant
-        // reports this identifier instead of its own — `canvas_hide_data_button`
-        // becomes unreachable to automation even though real touches still
-        // land correctly on the visible control.
+        // still exposing its children (each metric row and its help button)
+        // as their own accessibility elements. Without it, SwiftUI collapses
+        // the panel into a single accessibility element and every descendant
+        // reports this identifier instead of its own, making the rows
+        // unreachable to automation even though real touches still land
+        // correctly on the visible controls.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("canvas_data_panel")
         .coachMarkAnchor(.categoriesRevealed)
     }
 
+    /// The bottom action row already carries `Hide data`; a second copy inside
+    /// the panel was the same control twice on one screen. The handle stays —
+    /// it is what makes the sheet feel draggable.
     private var header: some View {
-        VStack(spacing: 10) {
-            Capsule()
-                .fill(ink.opacity(0.45))
-                .frame(width: 36, height: 4)
-                .accessibilityHidden(true)
-
-            Button(action: onHide) {
-                HStack(spacing: 4) {
-                    Text(String(localized: "Hide data", comment: "Canvas – collapse the data panel"))
-                    Image(systemName: "chevron.down")
-                }
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(ink)
-                .frame(maxWidth: .infinity, minHeight: 30)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("canvas_hide_data_button")
-        }
+        Capsule()
+            .fill(ink.opacity(0.45))
+            .frame(width: 36, height: 4)
+            .accessibilityHidden(true)
     }
 
     private func rowView(_ row: CanvasDataRow) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                onExplain(row.kind)
+            } label: {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(ink.opacity(0.35))
+                    .frame(width: 28, height: 28)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                String(localized: "What counts as \(row.title)?",
+                       comment: "Canvas data panel – per-row explanation button")
+            )
+            .accessibilityIdentifier("canvas_row_help_\(row.kind.id)")
+
+            rowButton(row)
+        }
+    }
+
+    private func rowButton(_ row: CanvasDataRow) -> some View {
         Button {
             onSelect(row.kind)
         } label: {
