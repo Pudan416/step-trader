@@ -783,7 +783,9 @@ struct GalleryView: View {
                 // `deviceTopSafeAreaInset` (not `safeAreaTop`) — see its doc
                 // comment for why `safeAreaTop` is unreliable this deep in
                 // the overlay stack.
-                .padding(.top, deviceTopSafeAreaInset + topCardHeight + 24)
+                // Tucked under the pill rather than floating below it: the
+                // suggestion is about the same day the pill is measuring.
+                .padding(.top, deviceTopSafeAreaInset + topCardHeight + 8)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
