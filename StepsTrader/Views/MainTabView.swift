@@ -268,7 +268,8 @@ struct MainTabView: View {
                 CanvasEnergyStatusPill(
                     status: CanvasEnergyStatus(
                         stepsBalance: model.userEconomyStore.stepsBalance,
-                        baseEnergyToday: model.healthStore.baseEnergyToday
+                        baseEnergyToday: model.healthStore.baseEnergyToday,
+                        maximum: EnergyDefaults.maxBaseEnergy
                     )
                 )
                 .padding(.top, 8)
