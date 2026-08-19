@@ -566,6 +566,12 @@ struct GalleryView: View {
         .onChange(of: presentation, initial: true) { old, new in
             if isWideCanvas != new.isWideCanvas { isWideCanvas = new.isWideCanvas }
 
+            // Names only. No energy values, HealthKit values, happening labels
+            // or element IDs ever go into an analytics property.
+            if let event = CanvasPresentationState.analyticsEventName(from: old, to: new) {
+                Task { await SupabaseSyncService.shared.trackAnalyticsEvent(name: event) }
+            }
+
             if !new.isEditing {
                 // Leaving editing commits whatever the finger was doing — on
                 // EVERY exit, not just Done. Before this plan the collapse button
