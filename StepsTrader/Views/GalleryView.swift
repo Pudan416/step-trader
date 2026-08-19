@@ -114,6 +114,26 @@ struct GalleryView: View {
     @State private var safeAreaTop: CGFloat = 0
     @State private var safeAreaBottom: CGFloat = 0
 
+    /// The device's real top safe-area inset (status bar / Dynamic Island),
+    /// read directly from the key window instead of `safeAreaTop`.
+    /// `safeAreaTop` is tracked from a `GeometryReader` nested inside this
+    /// view's own overlay stack, which contains children that call
+    /// `.ignoresSafeArea()` — by the time it reaches the editing-dock
+    /// overlay it reads small/stale (observed 0–26pt instead of the ~59pt
+    /// Dynamic Island inset on this device), which used to place the Done
+    /// control inside the system status-bar strip: overlapping the clock and
+    /// swallowing every tap, since that strip has its own system touch
+    /// handling. This reads the window directly so it can't be contaminated
+    /// by ancestor `.ignoresSafeArea()` calls.
+    private var deviceTopSafeAreaInset: CGFloat {
+        let inset = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets.top
+        return (inset ?? 0) > 0 ? inset! : 59
+    }
+
     private var canvasBackground: Color { theme.backgroundColor }
     private var labelColor: Color { theme.textPrimary }
     private var buttonColor: Color { AppColors.Night.textPrimary }
@@ -468,7 +488,12 @@ struct GalleryView: View {
                     onRemix: { remixCanvas() }
                 )
                 .padding(.horizontal, 16)
-                .padding(.top, max(safeAreaTop, 20))
+                // `deviceTopSafeAreaInset` (not `safeAreaTop`) — see its doc
+                // comment for why: `safeAreaTop` reads unreliably small this
+                // deep in the overlay stack, which used to place Done inside
+                // the system status-bar strip, overlapping the clock and
+                // swallowing every tap.
+                .padding(.top, deviceTopSafeAreaInset)
                 .padding(.bottom, max(safeAreaBottom, 34) + 16)
                 .ignoresSafeArea()
             }
