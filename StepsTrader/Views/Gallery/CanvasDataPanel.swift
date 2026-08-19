@@ -86,8 +86,7 @@ struct CanvasDataPanel: View {
                 Image(systemName: "questionmark.circle")
                     .font(.system(size: 15, weight: .regular))
                     .foregroundStyle(ink.opacity(0.35))
-                    .frame(width: 28, height: 28)
-                    .contentShape(Circle())
+                    .minimumHitTarget()
             }
             .buttonStyle(.plain)
             .accessibilityLabel(
