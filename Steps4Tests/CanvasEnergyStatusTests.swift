@@ -1,58 +1,94 @@
 import XCTest
 @testable import Steps4
 
-/// The Canvas status pill answers one question: how much of what was earned
-/// today is still unspent. Bonus balance and the product-wide 100 ceiling are
-/// deliberately outside it, so the numbers can never disagree with the bar.
+/// The Canvas status pill answers two questions against one fixed ceiling: how
+/// much the day earned, and how much of that is still unspent. The ceiling is
+/// the product's daily maximum, so a full bar means a full day — not merely
+/// that nothing has been spent yet.
 final class CanvasEnergyStatusTests: XCTestCase {
 
-    func testShowsRemainingOutOfEarned() {
-        let status = CanvasEnergyStatus(stepsBalance: 58, baseEnergyToday: 72)
-
-        XCTAssertEqual(status.remaining, 58)
-        XCTAssertEqual(status.earned, 72)
-        XCTAssertEqual(status.progress, 58.0 / 72.0, accuracy: 0.0001)
+    private func status(balance: Int, earned: Int, max: Int = 100) -> CanvasEnergyStatus {
+        CanvasEnergyStatus(stepsBalance: balance, baseEnergyToday: earned, maximum: max)
     }
 
-    func testNothingEarnedYetShowsZeroOverZero() {
-        let status = CanvasEnergyStatus(stepsBalance: 0, baseEnergyToday: 0)
+    func testShowsRemainingEarnedAndCeiling() {
+        let s = status(balance: 40, earned: 60)
 
-        XCTAssertEqual(status.remaining, 0)
-        XCTAssertEqual(status.earned, 0)
-        XCTAssertEqual(status.progress, 0, accuracy: 0.0001)
+        XCTAssertEqual(s.remaining, 40)
+        XCTAssertEqual(s.earned, 60)
+        XCTAssertEqual(s.maximum, 100)
     }
 
-    func testEverythingSpentKeepsTheEarnedTrack() {
-        let status = CanvasEnergyStatus(stepsBalance: 0, baseEnergyToday: 40)
+    /// Both bars measure the ceiling, so a day that earned 60 of 100 reads as
+    /// 60% earned even when none of it has been spent.
+    func testBothProgressesMeasureTheCeiling() {
+        let s = status(balance: 60, earned: 60)
 
-        XCTAssertEqual(status.remaining, 0)
-        XCTAssertEqual(status.earned, 40)
-        XCTAssertEqual(status.progress, 0, accuracy: 0.0001)
+        XCTAssertEqual(s.progress, 0.6, accuracy: 0.0001)
+        XCTAssertEqual(s.earnedProgress, 0.6, accuracy: 0.0001)
+    }
+
+    func testSpendingMovesRemainingButNotEarned() {
+        let s = status(balance: 40, earned: 60)
+
+        XCTAssertEqual(s.progress, 0.4, accuracy: 0.0001)
+        XCTAssertEqual(s.earnedProgress, 0.6, accuracy: 0.0001)
+    }
+
+    func testNothingEarnedYet() {
+        let s = status(balance: 0, earned: 0)
+
+        XCTAssertEqual(s.remaining, 0)
+        XCTAssertEqual(s.earned, 0)
+        XCTAssertEqual(s.progress, 0, accuracy: 0.0001)
+        XCTAssertEqual(s.earnedProgress, 0, accuracy: 0.0001)
+    }
+
+    func testFullDay() {
+        let s = status(balance: 100, earned: 100)
+
+        XCTAssertEqual(s.progress, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(s.earnedProgress, 1.0, accuracy: 0.0001)
     }
 
     /// A stale balance can outrun today's earnings between a recalculation and
-    /// a HealthKit refresh. The pill must never claim more left than gained.
+    /// a HealthKit refresh. Remaining still cannot exceed earned.
     func testStaleBalanceClampsToEarned() {
-        let status = CanvasEnergyStatus(stepsBalance: 90, baseEnergyToday: 72)
+        let s = status(balance: 90, earned: 60)
 
-        XCTAssertEqual(status.remaining, 72)
-        XCTAssertEqual(status.progress, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(s.remaining, 60)
+        XCTAssertEqual(s.progress, 0.6, accuracy: 0.0001)
+    }
+
+    /// Earnings cannot exceed the ceiling either — the formula caps
+    /// `baseEnergyToday` at 100, and the pill must not draw past its track if
+    /// that ever changes.
+    func testEarnedClampsToTheCeiling() {
+        let s = status(balance: 120, earned: 120)
+
+        XCTAssertEqual(s.earned, 100)
+        XCTAssertEqual(s.remaining, 100)
+        XCTAssertEqual(s.earnedProgress, 1.0, accuracy: 0.0001)
     }
 
     func testNegativeInputsFloorAtZero() {
-        let status = CanvasEnergyStatus(stepsBalance: -5, baseEnergyToday: -10)
+        let s = status(balance: -5, earned: -10)
 
-        XCTAssertEqual(status.remaining, 0)
-        XCTAssertEqual(status.earned, 0)
-        XCTAssertEqual(status.progress, 0, accuracy: 0.0001)
+        XCTAssertEqual(s.remaining, 0)
+        XCTAssertEqual(s.earned, 0)
+        XCTAssertEqual(s.progress, 0, accuracy: 0.0001)
     }
 
-    /// The pill takes the daily balance, never `totalStepsBalance` — a bonus
-    /// top-up must not make today look richer than it was.
+    /// A zero or negative ceiling would divide by nothing. Both progresses
+    /// report empty rather than crashing or reporting a full bar.
+    func testNonPositiveCeilingReportsEmpty() {
+        let s = status(balance: 10, earned: 10, max: 0)
+
+        XCTAssertEqual(s.progress, 0, accuracy: 0.0001)
+        XCTAssertEqual(s.earnedProgress, 0, accuracy: 0.0001)
+    }
+
     func testEqualInputsProduceEqualStatuses() {
-        XCTAssertEqual(
-            CanvasEnergyStatus(stepsBalance: 12, baseEnergyToday: 30),
-            CanvasEnergyStatus(stepsBalance: 12, baseEnergyToday: 30)
-        )
+        XCTAssertEqual(status(balance: 12, earned: 30), status(balance: 12, earned: 30))
     }
 }
