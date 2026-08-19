@@ -831,7 +831,7 @@ struct GalleryView: View {
     }
 
     /// The sheet sits above the action row, so the row's own hit height counts
-    /// as chrome for both the clearance and the 40% budget.
+    /// as clearance the panel must be padded above.
     private var dataPanelBottomClearance: CGFloat { bottomControlsPadding + 72 }
 
     @ViewBuilder
@@ -841,15 +841,8 @@ struct GalleryView: View {
                 Spacer(minLength: 0)
                 CanvasDataPanel(
                     rows: dataPanelRows,
-                    maxHeight: CanvasDataPanel.maxHeight(
-                        viewportHeight: canvasViewportSize.height,
-                        // `deviceTopSafeAreaInset` (not `safeAreaTop`) — see
-                        // its doc comment for why `safeAreaTop` is unreliable
-                        // this deep in the overlay stack.
-                        topInset: deviceTopSafeAreaInset + topCardHeight,
-                        bottomInset: dataPanelBottomClearance
-                    ),
                     onSelect: { metricOverlay = $0 },
+                    onExplain: { metricOverlay = $0 },
                     onHide: {
                         send(.hideData)
                         lightHapticTick &+= 1
