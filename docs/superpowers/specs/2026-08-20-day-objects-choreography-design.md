@@ -83,9 +83,9 @@ sceneRoot
     └── member(index)
 ```
 
-The actor seed never includes total actor count or array position. Event IDs are sorted before building the render list, but the event ID itself remains the identity source. Adding or removing one event therefore affects only that event's actor group.
+The actor seed never includes total actor count or array position. Event IDs are de-duplicated while preserving their first input order, which is the caller's chronological insertion order. The event ID itself remains the actor identity source; per-frame depth sorting is separate from allocation order. Adding or removing one event therefore affects only that event's actor group.
 
-The scene supports at most 40 rendered actors. When event groups exceed the budget, each group receives at least one actor before deterministic extra members are allocated. Existing event groups retain their first member; extra members may be omitted at the cap.
+The scene supports at most 40 rendered actors. Stable event-derived groups are appended in chronological insertion order, using as much of the remaining capacity as the group can occupy. When the budget is reached, later additions receive no rendered actor until capacity becomes available; an addition must never displace an existing actor.
 
 ## Daily palette
 
@@ -307,7 +307,7 @@ Measure on a physical supported iPhone at 30 FPS with 1, 10, 24, and 40 actors. 
 1. Every day deterministically produces a new palette, Warp background, and choreography score.
 2. Figures visibly participate in one coordinated, continuously changing composition.
 3. Actors may use different speeds, rotations, paths, depths, and visibility without reading as unrelated particles.
-4. Adding an event enriches the live scene without moving or reseeding existing actors.
+4. Below the 40-actor budget, adding an event enriches the live scene without moving or reseeding existing actors; at the budget, existing actors are preserved.
 5. Low `motionEnergy` makes figures almost still; high energy increases synchronized tempo.
 6. Low `visualClarity` visibly defocuses the complete painted scene while grain remains sharp.
 7. Gradient and figure colors visibly belong to the same daily palette.
