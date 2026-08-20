@@ -22,6 +22,22 @@
 		A16C9001000000000000000D /* RichFigureRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000D /* RichFigureRenderer.swift */; };
 		A16C9001000000000000000E /* RichCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000E /* RichCanvasView.swift */; };
 		A16C9001000000000000000F /* RichCanvasLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000F /* RichCanvasLabView.swift */; };
+		9E5C000200000000000000A1 /* GenerativeSceneShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000A1 /* GenerativeSceneShader.metal */; };
+		9E5C000200000000000000A2 /* GenerativeSceneParams.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000A2 /* GenerativeSceneParams.swift */; };
+		9E5C000200000000000000A3 /* GenerativeSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000A3 /* GenerativeSceneView.swift */; };
+		9E5C000200000000000000A4 /* GenerativeSceneLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000A4 /* GenerativeSceneLabView.swift */; };
+		9E5C000200000000000000A5 /* GenerativeSceneParamsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000A5 /* GenerativeSceneParamsTests.swift */; };
+		9E5C000200000000000000B1 /* CanvasDustShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B1 /* CanvasDustShader.metal */; };
+		9E5C000200000000000000B2 /* CanvasAtmosphere.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B2 /* CanvasAtmosphere.swift */; };
+		9E5C000200000000000000B3 /* CanvasAtmosphereView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B3 /* CanvasAtmosphereView.swift */; };
+		9E5C000200000000000000B4 /* CanvasAtmosphereLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B4 /* CanvasAtmosphereLabView.swift */; };
+		9E5C000200000000000000B5 /* CanvasAtmosphereTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B5 /* CanvasAtmosphereTests.swift */; };
+		9E5C000200000000000000C1 /* DayRaysShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C1 /* DayRaysShader.metal */; };
+		9E5C000200000000000000C2 /* DayRayComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C2 /* DayRayComposition.swift */; };
+		9E5C000200000000000000C3 /* DayRaysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C3 /* DayRaysView.swift */; };
+		9E5C000200000000000000C4 /* DayRaysLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C4 /* DayRaysLabView.swift */; };
+		9E5C000200000000000000C5 /* DayRayCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C5 /* DayRayCompositionTests.swift */; };
+		9E5C000200000000000000D1 /* ExperimentalLabRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000D1 /* ExperimentalLabRoute.swift */; };
 		A16C90010000000000000010 /* RichCanvasLabIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000010 /* RichCanvasLabIsolationTests.swift */; };
 		132547AFAA9C80DFE4295A03 /* DayCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8A4067A79B84F980E2699C /* DayCanvas.swift */; };
 		20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */; };
@@ -405,6 +421,22 @@
 		A16C8001000000000000000D /* RichFigureRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureRenderer.swift; sourceTree = "<group>"; };
 		A16C8001000000000000000E /* RichCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichCanvasView.swift; sourceTree = "<group>"; };
 		A16C8001000000000000000F /* RichCanvasLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichCanvasLabView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000A1 /* GenerativeSceneShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = GenerativeSceneShader.metal; sourceTree = "<group>"; };
+		9E5C000100000000000000A2 /* GenerativeSceneParams.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeSceneParams.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000A3 /* GenerativeSceneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeSceneView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000A4 /* GenerativeSceneLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeSceneLabView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000A5 /* GenerativeSceneParamsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeSceneParamsTests.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000B1 /* CanvasDustShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = CanvasDustShader.metal; sourceTree = "<group>"; };
+		9E5C000100000000000000B2 /* CanvasAtmosphere.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAtmosphere.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000B3 /* CanvasAtmosphereView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAtmosphereView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000B4 /* CanvasAtmosphereLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAtmosphereLabView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000B5 /* CanvasAtmosphereTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAtmosphereTests.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000C1 /* DayRaysShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayRaysShader.metal; sourceTree = "<group>"; };
+		9E5C000100000000000000C2 /* DayRayComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayRayComposition.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000C3 /* DayRaysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayRaysView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000C4 /* DayRaysLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayRaysLabView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000C5 /* DayRayCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayRayCompositionTests.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000D1 /* ExperimentalLabRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ExperimentalLabRoute.swift; path = Experiments/ExperimentalLabRoute.swift; sourceTree = "<group>"; };
 		A16C80010000000000000010 /* RichCanvasLabIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichCanvasLabIsolationTests.swift; sourceTree = "<group>"; };
 		008E480BBB86AEC405B9C2EE /* GradientPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GradientPalette.swift; path = StepsTrader/Models/GradientPalette.swift; sourceTree = SOURCE_ROOT; };
 		1C0D419D1FDF446F850FAE7E /* RayShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RayShapeRenderer.swift; path = StepsTrader/Shapes/RayShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
@@ -825,6 +857,36 @@
 			path = Experiments/RichCanvas;
 			sourceTree = "<group>";
 		};
+		9E5C000300000000000000A0 /* GenerativeScene */ = {
+			isa = PBXGroup;
+			children = (
+				9E5C000100000000000000A2 /* GenerativeSceneParams.swift */,
+				9E5C000100000000000000A3 /* GenerativeSceneView.swift */,
+				9E5C000100000000000000A4 /* GenerativeSceneLabView.swift */,
+			);
+			path = Experiments/GenerativeScene;
+			sourceTree = "<group>";
+		};
+		9E5C000300000000000000B0 /* Atmosphere */ = {
+			isa = PBXGroup;
+			children = (
+				9E5C000100000000000000B2 /* CanvasAtmosphere.swift */,
+				9E5C000100000000000000B3 /* CanvasAtmosphereView.swift */,
+				9E5C000100000000000000B4 /* CanvasAtmosphereLabView.swift */,
+			);
+			path = Experiments/Atmosphere;
+			sourceTree = "<group>";
+		};
+		9E5C000300000000000000C0 /* DayRays */ = {
+			isa = PBXGroup;
+			children = (
+				9E5C000100000000000000C2 /* DayRayComposition.swift */,
+				9E5C000100000000000000C3 /* DayRaysView.swift */,
+				9E5C000100000000000000C4 /* DayRaysLabView.swift */,
+			);
+			path = Experiments/DayRays;
+			sourceTree = "<group>";
+		};
 		2089F0AB2E71A18E00ABF5FA = {
 			isa = PBXGroup;
 			children = (
@@ -1027,6 +1089,10 @@
 			isa = PBXGroup;
 			children = (
 				A16C70010000000000000001 /* RichCanvas */,
+				9E5C000300000000000000A0 /* GenerativeScene */,
+				9E5C000300000000000000B0 /* Atmosphere */,
+				9E5C000300000000000000C0 /* DayRays */,
+				9E5C000100000000000000D1 /* ExperimentalLabRoute.swift */,
 				2089F0E32E71AE3400ABF5FA /* Models */,
 				2089F0E62E71AE3400ABF5FA /* Services */,
 				209424BE2E8593DA00904A0A /* Views */,
@@ -1232,6 +1298,9 @@
 				60SP0002300000000060SP0002 /* ShaderParkShader.metal */,
 				60SP0004300000000060SP0004 /* MetalShaderParkRenderer.swift */,
 				70SL0002300000000070SL0002 /* SpotlightShader.metal */,
+				9E5C000100000000000000A1 /* GenerativeSceneShader.metal */,
+				9E5C000100000000000000B1 /* CanvasDustShader.metal */,
+				9E5C000100000000000000C1 /* DayRaysShader.metal */,
 			);
 			path = Metal;
 			sourceTree = "<group>";
@@ -1269,6 +1338,9 @@
 			isa = PBXGroup;
 			children = (
 				A16C80010000000000000010 /* RichCanvasLabIsolationTests.swift */,
+				9E5C000100000000000000A5 /* GenerativeSceneParamsTests.swift */,
+				9E5C000100000000000000B5 /* CanvasAtmosphereTests.swift */,
+				9E5C000100000000000000C5 /* DayRayCompositionTests.swift */,
 				A16C80010000000000000004 /* RichFigureAssignmentTests.swift */,
 				A16C80010000000000000006 /* RichFigureLayoutTests.swift */,
 				A16C80010000000000000008 /* RichRenderBudgetTests.swift */,
@@ -1664,6 +1736,19 @@
 				A16C9001000000000000000D /* RichFigureRenderer.swift in Sources */,
 				A16C9001000000000000000E /* RichCanvasView.swift in Sources */,
 				A16C9001000000000000000F /* RichCanvasLabView.swift in Sources */,
+				9E5C000200000000000000A1 /* GenerativeSceneShader.metal in Sources */,
+				9E5C000200000000000000A2 /* GenerativeSceneParams.swift in Sources */,
+				9E5C000200000000000000A3 /* GenerativeSceneView.swift in Sources */,
+				9E5C000200000000000000A4 /* GenerativeSceneLabView.swift in Sources */,
+				9E5C000200000000000000B1 /* CanvasDustShader.metal in Sources */,
+				9E5C000200000000000000B2 /* CanvasAtmosphere.swift in Sources */,
+				9E5C000200000000000000B3 /* CanvasAtmosphereView.swift in Sources */,
+				9E5C000200000000000000B4 /* CanvasAtmosphereLabView.swift in Sources */,
+				9E5C000200000000000000C1 /* DayRaysShader.metal in Sources */,
+				9E5C000200000000000000C2 /* DayRayComposition.swift in Sources */,
+				9E5C000200000000000000C3 /* DayRaysView.swift in Sources */,
+				9E5C000200000000000000C4 /* DayRaysLabView.swift in Sources */,
+				9E5C000200000000000000D1 /* ExperimentalLabRoute.swift in Sources */,
 				20AA24882F70BEE1002F2F2C /* AppUnlockSettings.swift in Sources */,
 				2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */,
 				209424C82E85952D00904A0A /* NotificationManager.swift in Sources */,
@@ -1888,6 +1973,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				A16C90010000000000000010 /* RichCanvasLabIsolationTests.swift in Sources */,
+				9E5C000200000000000000A5 /* GenerativeSceneParamsTests.swift in Sources */,
+				9E5C000200000000000000B5 /* CanvasAtmosphereTests.swift in Sources */,
+				9E5C000200000000000000C5 /* DayRayCompositionTests.swift in Sources */,
 				A16C90010000000000000004 /* RichFigureAssignmentTests.swift in Sources */,
 				A16C90010000000000000006 /* RichFigureLayoutTests.swift in Sources */,
 				A16C90010000000000000008 /* RichRenderBudgetTests.swift in Sources */,

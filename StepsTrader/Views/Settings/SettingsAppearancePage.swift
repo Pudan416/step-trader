@@ -305,6 +305,15 @@ struct SettingsAppearancePage: View {
             if ExperimentalFeatures.richCanvasLab {
                 richCanvasLabSection
             }
+            if ExperimentalFeatures.generativeSceneLab {
+                generativeSceneLabSection
+            }
+            if ExperimentalFeatures.canvasAtmosphereLab {
+                canvasAtmosphereLabSection
+            }
+            if ExperimentalFeatures.dayRaysLab {
+                dayRaysLabSection
+            }
         }
     }
 
@@ -317,6 +326,72 @@ struct SettingsAppearancePage: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Rich Canvas")
                     Text("Preview today's canvas with experimental figures")
+                        .font(.caption)
+                        .foregroundStyle(theme.adaptiveSecondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var generativeSceneLabSection: some View {
+        NavigationLink {
+            GenerativeSceneLabView()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "circle.hexagongrid.fill")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Generative Scene")
+                    Text("Volumetric day scene prototype with live parameters")
+                        .font(.caption)
+                        .foregroundStyle(theme.adaptiveSecondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var canvasAtmosphereLabSection: some View {
+        NavigationLink {
+            CanvasAtmosphereLabView()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "camera.aperture")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Atmosphere")
+                    Text("Today's canvas with dust and depth of field")
+                        .font(.caption)
+                        .foregroundStyle(theme.adaptiveSecondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var dayRaysLabSection: some View {
+        NavigationLink {
+            DayRaysLabView()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "rays")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Day Rays")
+                    Text("Generated ray fans — single day or a grid of seeds")
                         .font(.caption)
                         .foregroundStyle(theme.adaptiveSecondaryText)
                 }
