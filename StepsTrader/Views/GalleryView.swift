@@ -106,6 +106,11 @@ struct GalleryView: View {
     /// Global mid-Y of the canvas `+`, reported by the button itself. The
     /// palette's dock lines up with it.
     @State private var canvasAddButtonCenterY: CGFloat?
+    /// The suggestion banner's own measured height, fed by
+    /// `SuggestionBannerHeightKey` — see `dataPanelAvailableHeight`, which
+    /// reserves this much extra room above the data panel so the panel
+    /// doesn't grow up under the banner the way it can under the pill alone.
+    @State private var suggestionBannerHeight: CGFloat = 0
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
@@ -727,6 +732,10 @@ struct GalleryView: View {
             guard let value, value != canvasAddButtonCenterY else { return }
             canvasAddButtonCenterY = value
         }
+        .onPreferenceChange(SuggestionBannerHeightKey.self) { value in
+            guard value != suggestionBannerHeight else { return }
+            suggestionBannerHeight = value
+        }
         .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
     }
@@ -776,6 +785,12 @@ struct GalleryView: View {
                         },
                         onDismissAll: {
                             model.dismissAllActivitySuggestions()
+                        }
+                    )
+                    .background(
+                        GeometryReader { proxy in
+                            Color.clear
+                                .preference(key: SuggestionBannerHeightKey.self, value: proxy.size.height)
                         }
                     )
                     Spacer()
@@ -836,6 +851,24 @@ struct GalleryView: View {
     /// as clearance the panel must be padded above.
     private var dataPanelBottomClearance: CGFloat { bottomControlsPadding + 72 }
 
+    /// The space actually available for the data panel, from just below the
+    /// top chrome — the status pill, the same gap the suggestion banner sits
+    /// behind (see the `deviceTopSafeAreaInset + topCardHeight + 8` padding
+    /// on the banner above), and the banner's own measured height when it's
+    /// showing — down to the bottom action row's own clearance. `nil` until
+    /// `canvasViewportSize` has been measured at least once, so the panel
+    /// isn't clamped to a bogus near-zero height on the first layout pass
+    /// before the host reports its real size.
+    ///
+    /// Deliberately not a fraction of the screen — the product owner retired
+    /// the old 40%-of-available-height clamp along with its tests. This is
+    /// "what's left", not a ratio.
+    private var dataPanelAvailableHeight: CGFloat? {
+        guard canvasViewportSize.height > 0 else { return nil }
+        let topChrome = deviceTopSafeAreaInset + topCardHeight + 8 + suggestionBannerHeight
+        return max(0, canvasViewportSize.height - topChrome - dataPanelBottomClearance)
+    }
+
     @ViewBuilder
     private var dataPanelOverlay: some View {
         if presentation.showsDataPanel {
@@ -848,7 +881,8 @@ struct GalleryView: View {
                     onHide: {
                         send(.hideData)
                         lightHapticTick &+= 1
-                    }
+                    },
+                    availableHeight: dataPanelAvailableHeight
                 )
                 .padding(.horizontal, 12)
                 .padding(.bottom, dataPanelBottomClearance)
@@ -1758,5 +1792,18 @@ struct CanvasAddButtonCenterKey: PreferenceKey {
     static let defaultValue: CGFloat? = nil
     static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
         value = nextValue() ?? value
+    }
+}
+
+/// The suggestion banner's own rendered height, so the data panel below it
+/// knows how much of the top of the screen it actually occupies — not just
+/// the status pill above it. Deliberately *not* sticky (unlike
+/// `CanvasAddButtonCenterKey`): when the banner isn't showing, no descendant
+/// sets this, so `onPreferenceChange` reports back `defaultValue` (0) and
+/// the panel's reserved space above it shrinks back down, correctly.
+struct SuggestionBannerHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

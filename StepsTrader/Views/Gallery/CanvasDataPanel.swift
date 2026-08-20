@@ -27,8 +27,27 @@ struct CanvasDataPanel: View {
     let onSelect: (MetricOverlayKind) -> Void
     let onExplain: (MetricOverlayKind) -> Void
     let onHide: () -> Void
+    /// Space actually available for the panel between the chrome above it
+    /// (status pill, suggestion banner) and the bottom action row below it.
+    /// `nil` (previews, and defensively before the host has measured its own
+    /// viewport) leaves the panel unconstrained — today's "hug the content"
+    /// behavior, unchanged. This is deliberately not a fraction of the
+    /// screen; the product owner retired the old 40%-of-available-height
+    /// clamp, so this is literally "what's left" once the chrome above and
+    /// the action row below are accounted for.
+    var availableHeight: CGFloat? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Whether to cap-and-scroll instead of hugging content, decided from the
+    /// environment rather than a measured row-stack height. This screen's
+    /// canvas redraws continuously (the generative animation), which
+    /// reconstructs this view on every frame and was found — empirically,
+    /// via logging — to reset any `@State` used to remember a
+    /// `GeometryReader`-measured height back to its default before
+    /// `onPreferenceChange` ever got a chance to persist the real value.
+    /// `dynamicTypeSize` carries no such risk: it's read fresh from the
+    /// environment every render, so there's nothing to lose between renders.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var dragOffset: CGFloat = 0
 
     /// Dismiss thresholds: a deliberate pull, or a flick that clearly meant it.
@@ -37,25 +56,62 @@ struct CanvasDataPanel: View {
 
     private var ink: Color { AppColors.Night.textPrimary }
 
+    /// Room left for the rows once the handle, its spacing, and the panel's
+    /// own vertical padding are accounted for.
+    private var rowsMaxHeight: CGFloat? {
+        guard let availableHeight else { return nil }
+        let handleHeight: CGFloat = 4
+        let headerToRowsSpacing: CGFloat = 12
+        let verticalPadding: CGFloat = 10 + 16
+        let overhead = handleHeight + headerToRowsSpacing + verticalPadding
+        return max(80, availableHeight - overhead)
+    }
+
+    /// Whether the rows might outgrow the space actually available. At every
+    /// ordinary Dynamic Type size — including the largest non-accessibility
+    /// size, xxxLarge — this stays false and the panel renders exactly as it
+    /// always has: no `ScrollView`, no cap. Only accessibility text sizes
+    /// (AX1–AX5), where an unwrapped row `Text` can grow past the 52pt row
+    /// minimum enough to matter, switch it on.
+    private var isOverflowing: Bool {
+        rowsMaxHeight != nil && dynamicTypeSize.isAccessibilitySize
+    }
+
     var body: some View {
         VStack(spacing: 12) {
             header
-            VStack(spacing: 8) {
-                ForEach(rows) { row in
-                    rowView(row)
-                }
-            }
+            rowsStack
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
         .padding(.bottom, 16)
-        // No `maxHeight` clamp: it constrained the proposal, not the render, so
-        // the rows drew outside the glass that was supposed to contain them.
-        // The panel is sized by its content and the host gives it room.
+        // No `maxHeight` clamp on the panel itself: it constrained the
+        // proposal, not the render, so the rows drew outside the glass that
+        // was supposed to contain them. The panel is sized by its content —
+        // `rowsStack` below is what actually stops the rows from growing
+        // past `availableHeight`, by switching to an internally scrolling
+        // `ScrollView` once they measure taller than `rowsMaxHeight`.
         .frame(maxWidth: .infinity, alignment: .top)
         .glassCard(cornerRadius: 24, style: .lens)
         .offset(y: max(0, dragOffset))
-        .gesture(dismissDrag)
+        // At ordinary text sizes there is no `ScrollView` anywhere in this
+        // tree (see `rowsStack`), so this is the only thing that can claim a
+        // vertical drag and it fires no matter where on the panel the user
+        // starts — a drag on the rows and a drag on the handle are the same
+        // gesture landing on the same recognizer.
+        //
+        // Once accessibility text sizes push the rows past `rowsMaxHeight`,
+        // `rowsStack` switches to a real `ScrollView`, and a vertical drag
+        // over the rows becomes ambiguous between "scroll" and "dismiss".
+        // `including: .subviews` resolves that explicitly: while overflowing,
+        // this gesture recognizer steps aside entirely so the `ScrollView`'s
+        // own pan gesture owns vertical drags over the rows. Dismissal still
+        // works — via the bottom action row's "Hide data" button, which was
+        // already the panel's second way to close per the `header` doc
+        // comment below — it just isn't a body-wide drag while scrolling is
+        // live, which is exactly what avoids fighting the `ScrollView` for
+        // the same touch.
+        .gesture(dismissDrag, including: isOverflowing ? .subviews : .all)
         // `.contain` keeps this container's own identifier addressable while
         // still exposing its children (each metric row and its help button)
         // as their own accessibility elements. Without it, SwiftUI collapses
@@ -66,6 +122,27 @@ struct CanvasDataPanel: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("canvas_data_panel")
         .coachMarkAnchor(.categoriesRevealed)
+    }
+
+    @ViewBuilder
+    private var rowsStack: some View {
+        if isOverflowing, let rowsMaxHeight {
+            ScrollView {
+                rowsList
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxHeight: rowsMaxHeight)
+        } else {
+            rowsList
+        }
+    }
+
+    private var rowsList: some View {
+        VStack(spacing: 8) {
+            ForEach(rows) { row in
+                rowView(row)
+            }
+        }
     }
 
     /// The bottom action row already carries `Hide data`; a second copy inside
