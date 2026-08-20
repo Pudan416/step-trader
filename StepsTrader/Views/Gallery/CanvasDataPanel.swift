@@ -25,7 +25,6 @@ struct CanvasDataRow: Identifiable, Equatable {
 struct CanvasDataPanel: View {
     let rows: [CanvasDataRow]
     let onSelect: (MetricOverlayKind) -> Void
-    let onExplain: (MetricOverlayKind) -> Void
     let onHide: () -> Void
     /// Space actually available for the panel between the chrome above it
     /// (status pill, suggestion banner) and the bottom action row below it.
@@ -113,12 +112,12 @@ struct CanvasDataPanel: View {
         // the same touch.
         .gesture(dismissDrag, including: isOverflowing ? .subviews : .all)
         // `.contain` keeps this container's own identifier addressable while
-        // still exposing its children (each metric row and its help button)
-        // as their own accessibility elements. Without it, SwiftUI collapses
-        // the panel into a single accessibility element and every descendant
-        // reports this identifier instead of its own, making the rows
-        // unreachable to automation even though real touches still land
-        // correctly on the visible controls.
+        // still exposing its children (each metric row) as their own
+        // accessibility elements. Without it, SwiftUI collapses the panel
+        // into a single accessibility element and every descendant reports
+        // this identifier instead of its own, making the rows unreachable to
+        // automation even though real touches still land correctly on the
+        // visible controls.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("canvas_data_panel")
         .coachMarkAnchor(.categoriesRevealed)
@@ -156,27 +155,6 @@ struct CanvasDataPanel: View {
     }
 
     private func rowView(_ row: CanvasDataRow) -> some View {
-        HStack(spacing: 8) {
-            Button {
-                onExplain(row.kind)
-            } label: {
-                Image(systemName: "questionmark.circle")
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundStyle(ink.opacity(0.35))
-                    .minimumHitTarget()
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(
-                String(localized: "What counts as \(row.title)?",
-                       comment: "Canvas data panel – per-row explanation button")
-            )
-            .accessibilityIdentifier("canvas_row_help_\(row.kind.id)")
-
-            rowButton(row)
-        }
-    }
-
-    private func rowButton(_ row: CanvasDataRow) -> some View {
         Button {
             onSelect(row.kind)
         } label: {
