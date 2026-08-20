@@ -877,7 +877,6 @@ struct GalleryView: View {
                 CanvasDataPanel(
                     rows: dataPanelRows,
                     onSelect: { metricOverlay = $0 },
-                    onExplain: { metricOverlay = $0 },
                     onHide: {
                         send(.hideData)
                         lightHapticTick &+= 1

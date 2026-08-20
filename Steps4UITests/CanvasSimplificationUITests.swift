@@ -99,15 +99,22 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertFalse(app.otherElements["canvas_data_panel"].exists)
     }
 
-    /// The `?` opens the metric overlay with its explanation, and does so
-    /// without the row's own tap firing as well.
-    func testRowHelpOpensTheExplanation() {
+    /// Tapping a row opens the metric overlay with its explanation. The row
+    /// button carries no dedicated identifier — its accessibility label is
+    /// generated as `"<title>, <value> of <max>"` (see `CanvasDataPanel`'s
+    /// `rowView`), so match on the stable "Steps," prefix rather than the
+    /// value/max, which vary with the day's data.
+    func testTappingARowOpensTheExplanation() {
         let app = launchCanvas()
 
         app.buttons["canvas_show_data_button"].tap()
         XCTAssertTrue(app.otherElements["canvas_data_panel"].waitForExistence(timeout: 3))
 
-        app.buttons["canvas_row_help_steps"].tap()
+        let stepsRow = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Steps,'")
+        ).firstMatch
+        XCTAssertTrue(stepsRow.waitForExistence(timeout: 3))
+        stepsRow.tap()
 
         // SwiftUI's `Link` surfaces to XCUITest as a Button element on this
         // iOS version, not `.link` — `app.links[...]` never matches it. Match
