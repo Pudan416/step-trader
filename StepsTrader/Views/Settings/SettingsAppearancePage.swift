@@ -302,10 +302,35 @@ struct SettingsAppearancePage: View {
         VStack(alignment: .leading, spacing: 18) {
             canvasShapesSection
             textureSection
+            if ExperimentalFeatures.dayObjectsLab {
+                dayObjectsLabSection
+            }
         }
     }
 
     // MARK: - Canvas Shapes (compact)
+
+    private var dayObjectsLabSection: some View {
+        NavigationLink {
+            DayObjectsLabView()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "circle.grid.cross")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Day Objects")
+                    Text("Daily choreography with live motion and focus controls")
+                        .font(.caption)
+                        .foregroundStyle(theme.adaptiveSecondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
 
     private var canvasShapesSection: some View {
         VStack(alignment: .leading, spacing: 10) {

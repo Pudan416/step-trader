@@ -524,11 +524,23 @@
     "Daily canvas reminder" : {
 
     },
+    "Daily choreography with live motion and focus controls" : {
+      "comment" : "Debug appearance settings – Day Objects lab description"
+    },
     "Daily random theme" : {
 
     },
     "Daily Steps Goal" : {
 
+    },
+    "Day Objects" : {
+      "comment" : "Day Objects experimental lab title"
+    },
+    "Day Objects canvas" : {
+      "comment" : "Accessibility label for the Day Objects rendered canvas"
+    },
+    "Day Objects grid" : {
+      "comment" : "Accessibility label for the static Day Objects contact sheet"
     },
     "Day reset" : {
       "comment" : "Notification section header"
@@ -690,6 +702,9 @@
     "for me it feels like being stuck in nowhere." : {
 
     },
+    "Focus" : {
+      "comment" : "Day Objects lab control for visual clarity"
+    },
     "Framed" : {
       "comment" : "Poster style name"
     },
@@ -735,6 +750,9 @@
     "GRADIENT STYLE" : {
       "comment" : "Appearance section header"
     },
+    "Grid" : {
+      "comment" : "Day Objects lab button that shows the contact sheet"
+    },
     "Happenings" : {
       "comment" : "Daily happenings metric\nPast-day breakdown row\nStepBalanceCard – happenings chip label"
     },
@@ -743,6 +761,9 @@
     },
     "HERE" : {
 
+    },
+    "Hide controls" : {
+      "comment" : "Day Objects lab accessibility label"
     },
     "hours" : {
       "comment" : "Onboarding – sleep unit label"
@@ -820,6 +841,9 @@
     "Mesh" : {
 
     },
+    "Motion" : {
+      "comment" : "Day Objects lab control for choreography energy"
+    },
     "Museum" : {
       "comment" : "Poster style name"
     },
@@ -846,6 +870,12 @@
     },
     "Next" : {
 
+    },
+    "Next 15" : {
+      "comment" : "Day Objects lab button that advances the contact sheet"
+    },
+    "Next day" : {
+      "comment" : "Day Objects lab button that advances its deterministic day fixture"
     },
     "Nickname" : {
       "comment" : "ProfileEditor – nickname field"
@@ -2173,6 +2203,9 @@
     "Shapes" : {
       "comment" : "Canvas shapes multi-select row label"
     },
+    "Show controls" : {
+      "comment" : "Day Objects lab accessibility label"
+    },
     "Share" : {
       "comment" : "DayCanvasViewer – context menu"
     },
@@ -2199,6 +2232,9 @@
     },
     "Signed in" : {
       "comment" : "Onboarding – Apple sign-in success state"
+    },
+    "Single" : {
+      "comment" : "Day Objects lab button that returns to one canvas"
     },
     "Skip" : {
 
