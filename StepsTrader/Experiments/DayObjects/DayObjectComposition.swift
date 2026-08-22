@@ -115,20 +115,17 @@ struct DayObjectCompositionPlan: Equatable {
         }
         let focalIndex = Int(mixed(seed ^ 0x3C6E_F372_FE94_F82B) % UInt64(usable.count))
         let focal = usable[focalIndex]
-        let supportCandidates = usable.filter {
-            let distance = simd_distance($0, focal)
-            return distance >= 0.22 && distance <= 0.62
+        let clusterAngle = 2 * Double.pi * stableUnit(seed, salt: 0xA54F_F53A_5F1D_36F1)
+        func clusteredAnchor(angle: Double, radius: Double) -> SIMD2<Double> {
+            SIMD2(
+                min(max(focal.x + radius * cos(angle), 0.06), 0.94),
+                min(max(focal.y + radius * sin(angle), 0.06), 0.94)
+            )
         }
-        let supportPool = supportCandidates.isEmpty ? usable : supportCandidates
-        let supportIndex = Int(mixed(seed ^ 0xA54F_F53A_5F1D_36F1) % UInt64(supportPool.count))
-        let support = supportPool[supportIndex]
+        let support = clusteredAnchor(angle: clusterAngle, radius: 0.07)
         let bridge = (focal + support) * 0.5
-        let satellite = usable.max { lhs, rhs in
-            simd_distance(lhs, focal) < simd_distance(rhs, focal)
-        } ?? focal
-        let accent = usable.min { lhs, rhs in
-            simd_distance(lhs, support) < simd_distance(rhs, support)
-        } ?? support
+        let satellite = clusteredAnchor(angle: clusterAngle + .pi, radius: 0.08)
+        let accent = clusteredAnchor(angle: clusterAngle + .pi / 2, radius: 0.075)
 
         return DayObjectCompositionPlan(
             uiExclusionRegion: uiExclusionRegion,
@@ -200,11 +197,11 @@ struct DayObjectCompositionPlan: Equatable {
             )
         }
         let preferred = anchor(for: role) + SIMD2<Double>(
-            0.08 * (2 * Self.stableUnit(actorSeed, salt: 0x510E_527F_ADE6_82D1) - 1),
-            0.08 * (2 * Self.stableUnit(actorSeed, salt: 0x9B05_688C_2B3E_6C1F) - 1)
+            0.018 * (2 * Self.stableUnit(actorSeed, salt: 0x510E_527F_ADE6_82D1) - 1),
+            0.018 * (2 * Self.stableUnit(actorSeed, salt: 0x9B05_688C_2B3E_6C1F) - 1)
         )
         let maximumRawComponent = 0.225
-        let desiredMotionClearance = maximumRawComponent * 0.52
+        let desiredMotionClearance = 0.052
         var best: (
             center: SIMD2<Double>,
             usableMotionClearance: Double,

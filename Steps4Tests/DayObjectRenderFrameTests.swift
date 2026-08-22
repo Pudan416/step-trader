@@ -23,6 +23,57 @@ final class DayObjectRenderFrameTests: XCTestCase {
         ))
     }
 
+    func testRepresentativeSceneUsesApprovedOrbScaleHierarchy() {
+        let scene = fixtureScene(ids: (0..<8).map { "orb-\($0)" })
+        let environment = DayObjectEnvironment(
+            motionEnergy: 1,
+            visualClarity: 1,
+            reduceMotion: false
+        )
+
+        for elapsed in stride(from: 0.0, through: scene.score.duration, by: 0.25) {
+            let frame = DayObjectRenderFrame.make(
+                scene: scene,
+                environment: environment,
+                elapsed: elapsed,
+                insertions: [:]
+            )
+            let diameters = frame.actors.map { Double($0.halfSize.x * 2) }
+            XCTAssertTrue(diameters.contains { (0.26...0.34).contains($0) }, "elapsed=\(elapsed)")
+            XCTAssertTrue(diameters.allSatisfy { (0.08...0.34).contains($0) }, "elapsed=\(elapsed) \(diameters)")
+        }
+    }
+
+    func testVisualLeadershipMovesBetweenActorsWithoutRerollingTheScene() throws {
+        let scene = fixtureScene(ids: (0..<8).map { "orb-\($0)" })
+        let environment = DayObjectEnvironment(
+            motionEnergy: 1,
+            visualClarity: 1,
+            reduceMotion: false
+        )
+        var leaders = Set<DayObjectActorID>()
+
+        for elapsed in stride(from: 0.0, to: scene.score.duration, by: 0.25) {
+            let frame = DayObjectRenderFrame.make(
+                scene: scene,
+                environment: environment,
+                elapsed: elapsed,
+                insertions: [:]
+            )
+            let envelopes = DayObjectRenderFrame.leadershipEnvelopes(
+                for: scene.actors,
+                at: frame.choreographyTime,
+                duration: scene.score.duration
+            )
+            XCTAssertEqual(try XCTUnwrap(envelopes.values.max()), 1, accuracy: 0.000_001)
+            XCTAssertTrue(envelopes.values.allSatisfy { (0...1).contains($0) })
+            leaders.insert(try XCTUnwrap(frame.actors.max { $0.halfSize.x < $1.halfSize.x }).actorID)
+        }
+
+        XCTAssertGreaterThanOrEqual(leaders.count, 3)
+        XCTAssertEqual(scene, fixtureScene(ids: (0..<8).map { "orb-\($0)" }))
+    }
+
     func testMotionEnergyMapsToSpecifiedTempo() {
         XCTAssertEqual(DayObjectEnvironment(motionEnergy: 0, visualClarity: 1, reduceMotion: false).tempoScale, 0.035, accuracy: 0.0001)
         XCTAssertEqual(DayObjectEnvironment(motionEnergy: 1, visualClarity: 1, reduceMotion: false).tempoScale, 1.25, accuracy: 0.0001)

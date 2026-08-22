@@ -50,8 +50,8 @@ struct DayObjectsActorVertexOut {
 };
 
 constant float dayObjectsScallopRadialReach = 1.13;
-constant float dayObjectsTrailSigmaFactor = 0.70;
-constant float dayObjectsTrailSigmaSupport = 3.5;
+constant float dayObjectsTrailSigmaFactor = 0.36;
+constant float dayObjectsTrailSigmaSupport = 3.2;
 
 vertex DayObjectsActorVertexOut dayObjectsActorVertex(
     const device float2 *quadPositions [[buffer(0)]],

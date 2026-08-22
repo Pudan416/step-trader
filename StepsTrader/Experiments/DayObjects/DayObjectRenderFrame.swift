@@ -194,6 +194,11 @@ struct DayObjectRenderFrame: Equatable {
             grainSeed: scene.rootSeed,
             elapsed: elapsed
         )
+        let leadership = leadershipEnvelopes(
+            for: scene.actors,
+            at: choreographyTime,
+            duration: scene.score.duration
+        )
 
         var actors = [DayObjectRenderActor]()
         actors.reserveCapacity(scene.actors.count)
@@ -229,7 +234,12 @@ struct DayObjectRenderFrame: Equatable {
             let envelopeScale = environment.reduceMotion
                 ? 1
                 : insertion.scale * removal.scale
-            let halfSize = bodyHalfSize(for: actor, pose: pose, envelopeScale: envelopeScale)
+            let halfSize = bodyHalfSize(
+                for: actor,
+                pose: pose,
+                leadership: leadership[actor.id] ?? 0,
+                envelopeScale: envelopeScale
+            )
             let depth = Float(Double(pose.depthBand) + actor.zIndex * 0.001)
             let position = SIMD2<Float>(Float(pose.position.x), Float(pose.position.y))
             let direction = SIMD2<Float>(Float(pose.tangent.x), Float(pose.tangent.y))
@@ -265,13 +275,41 @@ struct DayObjectRenderFrame: Equatable {
         0.8 + 0.6 * stableUnit(actor.seed, salt: 0xC6BC_2796_92B5_CC83)
     }
 
+    static func leadershipEnvelopes(
+        for actors: [DayObjectActor],
+        at rawTime: Double,
+        duration rawDuration: Double
+    ) -> [DayObjectActorID: Double] {
+        guard !actors.isEmpty else { return [:] }
+        let duration = rawDuration.isFinite && rawDuration > 0 ? rawDuration : 1
+        let time = rawTime.isFinite ? rawTime : 0
+        let progress = time / duration
+        let candidates = actors.map { actor -> (DayObjectActorID, Double) in
+            let phase = 2 * Double.pi * stableUnit(
+                actor.seed,
+                salt: 0x243F_6A88_85A3_08D3
+            )
+            let value = 0.5 + 0.5 * cos(2 * Double.pi * progress - phase)
+            return (actor.id, value)
+        }
+        let maximum = max(candidates.map(\.1).max() ?? 1, 0.000_001)
+        return Dictionary(uniqueKeysWithValues: candidates.map {
+            ($0.0, min(max($0.1 / maximum, 0), 1))
+        })
+    }
+
     private static func bodyHalfSize(
         for actor: DayObjectActor,
         pose: DayObjectPose,
+        leadership: Double,
         envelopeScale: Double
     ) -> SIMD2<Float> {
         let aspect = DayObjectActorGeometry.aspectRatio(for: actor)
-        let major = pose.scale * 0.5
+        let leaderDiameter = 0.265
+            + 0.07 * stableUnit(actor.seed, salt: 0x1319_8A2E_0370_7344)
+        let influence = pow(min(max(leadership, 0), 1), 2)
+        let renderedDiameter = pose.scale + (leaderDiameter - pose.scale) * influence
+        let major = renderedDiameter * 0.5
         let baseHalfSize = SIMD2<Float>(Float(major), Float(major * aspect))
         return baseHalfSize * Float(envelopeScale)
     }

@@ -19,6 +19,45 @@ final class DayObjectChoreographyTests: XCTestCase {
         }
     }
 
+    func testRepresentativeSceneContainsBothTravelDirections() {
+        let scene = DayObjectScene.make(input: fixtureInput(seed: 19, count: 8))
+        let directions = Set(scene.actors.map { scene.score.travelDirection(for: $0) })
+
+        XCTAssertEqual(directions, [-1, 1])
+    }
+
+    func testDailyRoutesFormADenseOverlappingOrbCluster() {
+        for seed in UInt64(0)..<24 {
+            let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 8))
+            for aspect in [0.46, 1.0, 4.0 / 3.0, 2.16] {
+                for sample in 0..<48 {
+                    let time = scene.score.duration * Double(sample) / 48
+                    let poses = scene.actors.map {
+                        scene.score.pose(
+                            for: $0,
+                            at: time,
+                            canvasAspect: aspect,
+                            compositionPlan: scene.compositionPlan
+                        )
+                    }
+                    let connected = poses.indices.filter { index in
+                        poses.indices.contains { other in
+                            guard other != index else { return false }
+                            let mergeReach = 0.18 * max(poses[index].scale, poses[other].scale)
+                            return simd_distance(poses[index].position, poses[other].position)
+                                <= poses[index].bodyRadius + poses[other].bodyRadius + mergeReach
+                        }
+                    }.count
+                    XCTAssertGreaterThanOrEqual(
+                        Double(connected) / Double(max(poses.count, 1)),
+                        0.65,
+                        "seed=\(seed) aspect=\(aspect) sample=\(sample)"
+                    )
+                }
+            }
+        }
+    }
+
     func testScoresAreDeterministicAndUseTheCuratedDailyStructure() {
         XCTAssertEqual(DayObjectChapter.allCases.count, 6)
         XCTAssertEqual(
@@ -139,9 +178,9 @@ final class DayObjectChoreographyTests: XCTestCase {
         )
         XCTAssertEqual(horizontal.forwardReach, 0.12 * 1.06, accuracy: 0.000_001)
         XCTAssertEqual(horizontal.backwardReach, 0.12 + 0.05, accuracy: 0.000_001)
-        XCTAssertEqual(horizontal.lateralReach, 0.08 * 0.70 * 3.5, accuracy: 0.000_001)
+        XCTAssertEqual(horizontal.lateralReach, 0.08 * 0.36 * 3.2, accuracy: 0.000_001)
         XCTAssertEqual(horizontal.axisAlignedHalfExtents.x, 0.172, accuracy: 0.000_001)
-        XCTAssertEqual(horizontal.axisAlignedHalfExtents.y, 0.198, accuracy: 0.000_001)
+        XCTAssertEqual(horizontal.axisAlignedHalfExtents.y, 0.09416, accuracy: 0.000_001)
 
         let diagonal = DayObjectGeometryFootprint.make(
             halfSize: SIMD2<Double>(0.12, 0.08),
@@ -152,7 +191,7 @@ final class DayObjectChoreographyTests: XCTestCase {
         )
         XCTAssertEqual(
             diagonal.axisAlignedHalfExtents.x,
-            (0.17 + 0.196) / sqrt(2) + 0.002,
+            (0.17 + 0.09216) / sqrt(2) + 0.002,
             accuracy: 0.000_001
         )
         XCTAssertEqual(diagonal.axisAlignedHalfExtents.x, diagonal.axisAlignedHalfExtents.y, accuracy: 0.000_001)
@@ -290,9 +329,10 @@ final class DayObjectChoreographyTests: XCTestCase {
                                     canvasAspect: aspect,
                                     compositionPlan: scene.compositionPlan
                                 )
-                                XCTAssertTrue(pose.isInsideSafeBounds)
-                                XCTAssertFalse(pose.intersectsUIExclusion)
-                                XCTAssertFalse(pose.intersectsNegativeSpace)
+                                let safetyContext = "seed=\(seed) region=\(region) aspect=\(aspect) actor=\(actor.id) chapter=\(chapterIndex) sample=\(sample) position=\(pose.position) footprint=\(pose.footprintHalfExtents)"
+                                XCTAssertTrue(pose.isInsideSafeBounds, safetyContext)
+                                XCTAssertFalse(pose.intersectsUIExclusion, safetyContext)
+                                XCTAssertFalse(pose.intersectsNegativeSpace, safetyContext)
 
                                 if let previous {
                                     let positionStep = simd_distance(previous.position, pose.position)

@@ -12,8 +12,8 @@ enum DayObjectChapter: Int, CaseIterable, Equatable, Hashable {
 
 enum DayObjectActorGeometry {
     static let softBlobRadialReach = 1.06
-    static let trailSigmaFactor = 0.70
-    static let trailSigmaSupport = 3.5
+    static let trailSigmaFactor = 0.36
+    static let trailSigmaSupport = 3.2
 
     static func aspectRatio(for actor: DayObjectActor) -> Double {
         let range = actor.elongation.aspectRange
@@ -143,9 +143,12 @@ struct DayObjectChoreographyScore: Equatable {
         let time = normalizedTime(rawTime)
         let sample = interpolatedSample(for: actor, at: time)
         let rawTangent = timeTangent(for: actor, at: time)
-        let trailReach = 0.032 + 0.012 * actor.speedRatio
+        let trailReach = 0.014 + 0.008 * actor.speedRatio
         let aspect = rawAspect.isFinite && rawAspect > 0 ? rawAspect : 1
-        let renderScale = sample.scale * (compositionPlan == nil ? 1 : 0.68)
+        let renderScale = compositionPlan?.uiExclusionRegion == .dayObjectsLabControls
+            || compositionPlan == nil
+            ? sample.scale
+            : min(sample.scale, DayObjectSizeBand.satellite.diameterRange.upperBound)
         let halfSize = SIMD2<Double>(
             renderScale * 0.5,
             renderScale * 0.5 * DayObjectActorGeometry.aspectRatio(for: actor)
@@ -220,23 +223,20 @@ struct DayObjectChoreographyScore: Equatable {
         plan: DayObjectCompositionPlan
     ) -> SIMD2<Double> {
         let sample = interpolatedSample(for: actor, at: normalizedTime(time))
-        let tangent = timeTangent(for: actor, at: normalizedTime(time))
-        let halfSize = SIMD2<Double>(
-            baseLength(for: actor) * 1.04 * 0.5 * 0.68,
-            baseLength(for: actor) * 1.04 * 0.5 * 0.68
-                * DayObjectActorGeometry.aspectRatio(for: actor)
-        )
-        let footprint = DayObjectGeometryFootprint.make(
-            halfSize: halfSize,
-            direction: tangent,
-            shape: actor.shape,
-            trailLength: 0.032 + 0.012 * actor.speedRatio,
-            shortSidePixels: 128
-        )
-        let orientationIndependentReach = hypot(
-            max(footprint.forwardReach, footprint.backwardReach),
-            footprint.lateralReach
-        ) + 2.0 / 128.0
+        let planningDiameter = plan.uiExclusionRegion == .dayObjectsLabControls
+            ? 0.34
+            : min(
+                baseLength(for: actor),
+                DayObjectSizeBand.satellite.diameterRange.upperBound
+            )
+        let majorHalfSize = planningDiameter * 1.04 * 0.5
+        let bodyMultiplier = actor.shape == .softBlob
+            ? DayObjectActorGeometry.softBlobRadialReach
+            : 1
+        let orientationIndependentReach = majorHalfSize * bodyMultiplier
+            + 0.014 + 0.008 * actor.speedRatio
+            + 0.025
+            + 2.0 / 128.0
         return plan.stableRoutePosition(
             for: actor.role,
             actorSeed: actor.seed,
@@ -396,10 +396,11 @@ struct DayObjectChoreographyScore: Equatable {
                 0.205 * sin(actorAngle)
             )
         case .bloom:
-            let bloom = 0.5 + 0.5 * sin(actorAngle)
-            let radius = 0.045 + 0.165 * bloom
-            let petalAngle = actor.phaseOffset + direction * Self.twoPi * localProgress * 0.5
-            position = SIMD2<Double>(radius * cos(petalAngle), radius * sin(petalAngle))
+            let radius = 0.11 + 0.055 * roleWeight
+            position = SIMD2<Double>(
+                radius * cos(actorAngle),
+                radius * 0.82 * sin(actorAngle)
+            )
         case .drift:
             position = SIMD2<Double>(
                 0.215 * sin(actorAngle),
@@ -407,7 +408,6 @@ struct DayObjectChoreographyScore: Equatable {
             )
         }
 
-        let pulse = 0.96 + 0.08 * (0.5 + 0.5 * sin(actorAngle + Double(chapterIndex)))
         let opacityBase: Double
         switch actor.role {
         case .focal: opacityBase = 1
@@ -429,7 +429,7 @@ struct DayObjectChoreographyScore: Equatable {
 
         return ChapterSample(
             position: position,
-            scale: baseLength(for: actor) * pulse,
+            scale: baseLength(for: actor),
             opacity: opacityBase * visibility,
             depthBand: (actor.depthBand + depthShift) % 4
         )
@@ -442,7 +442,7 @@ struct DayObjectChoreographyScore: Equatable {
                 * stableUnit(actor.seed, salt: 0xA409_3822_299F_31D0)
     }
 
-    private func travelDirection(for actor: DayObjectActor) -> Double {
+    func travelDirection(for actor: DayObjectActor) -> Double {
         mixed(actor.seed ^ 0xD1B5_4A32_D192_ED03).isMultiple(of: 2) ? 1 : -1
     }
 
