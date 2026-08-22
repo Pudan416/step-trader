@@ -545,8 +545,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
             canvasAspect: 201.0 / 437.0
         )
 
-        XCTAssertEqual(scene.actors.count, 16)
-        XCTAssertEqual(frame.actors.count, 16)
+        XCTAssertEqual(scene.actors.count, 8)
+        XCTAssertEqual(frame.actors.count, 8)
         XCTAssertTrue(frame.actors.allSatisfy { $0.opacity > 0 })
         XCTAssertGreaterThanOrEqual(scene.palette.minimumFigureContrast, 1.35)
 
@@ -1033,45 +1033,41 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(duringReplacement.trailLength, 0)
     }
 
-    func testCappedPartialFlockAdmissionsDoNotRestartAlreadyRenderedMembers() throws {
-        let initialIDs = (0..<14).map { "event-\($0)" }
-        let replacementIDs = Array(initialIDs.dropFirst())
+    func testCappedOrbAdmissionDoesNotRestartAlreadyRenderedActors() throws {
+        let initialIDs = (0..<40).map { "event-\($0)" }
+        let replacementIDs = Array(initialIDs.dropFirst()) + ["event-40"]
         let initial = capacityFixtureScene(dayKey: "partial-fixture-1", ids: initialIDs)
         let replacement = capacityFixtureScene(dayKey: "partial-fixture-1", ids: replacementIDs)
-        XCTAssertEqual(initial.composition.flockSize, 3)
+        XCTAssertEqual(initial.composition.flockSize, 1)
         XCTAssertEqual(initial.actors.count, 40)
-        XCTAssertEqual(replacement.actors.count, 39)
+        XCTAssertEqual(replacement.actors.count, 40)
 
         let retainedID = DayObjectActorID(eventID: "event-13", memberIndex: 0)
-        let firstPendingID = DayObjectActorID(eventID: "event-13", memberIndex: 1)
-        let secondPendingID = DayObjectActorID(eventID: "event-13", memberIndex: 2)
+        let pendingID = DayObjectActorID(eventID: "event-40", memberIndex: 0)
         let departureDurations = initial.actors
             .filter { $0.eventID == "event-0" }
             .map(DayObjectRenderFrame.transitionDuration(for:))
             .sorted()
-        XCTAssertEqual(departureDurations.count, 3)
-        XCTAssertLessThan(departureDurations[0], departureDurations[1])
+        XCTAssertEqual(departureDurations.count, 1)
 
         var timeline = DayObjectInsertionTimeline(scene: initial)
         timeline.update(scene: replacement, elapsed: 20)
-        let firstAdmissionTime = 20 + (departureDurations[0] + departureDurations[1]) * 0.5
+        let firstAdmissionTime = 20 + departureDurations[0] + 0.001
         let firstAdmission = timeline.renderState(
             activeScene: replacement,
             elapsed: firstAdmissionTime
         )
         XCTAssertEqual(firstAdmission.scene.actors.count, 40)
         XCTAssertNil(firstAdmission.actorInsertions[retainedID])
-        XCTAssertEqual(firstAdmission.actorInsertions[firstPendingID], firstAdmissionTime)
-        XCTAssertNil(firstAdmission.actorInsertions[secondPendingID])
-        XCTAssertTrue(firstAdmission.scene.actorIDs.contains(firstPendingID))
-        XCTAssertFalse(firstAdmission.scene.actorIDs.contains(secondPendingID))
+        XCTAssertEqual(firstAdmission.actorInsertions[pendingID], firstAdmissionTime)
+        XCTAssertTrue(firstAdmission.scene.actorIDs.contains(pendingID))
 
         timeline.update(scene: replacement, elapsed: firstAdmissionTime + 0.01)
         let repeated = timeline.renderState(
             activeScene: replacement,
             elapsed: firstAdmissionTime + 0.02
         )
-        XCTAssertEqual(repeated.actorInsertions[firstPendingID], firstAdmissionTime)
+        XCTAssertEqual(repeated.actorInsertions[pendingID], firstAdmissionTime)
 
         let environment = DayObjectEnvironment(
             motionEnergy: 0.55,
@@ -1097,7 +1093,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             frame.actors.first { $0.actorID == retainedID },
             reference.actors.first { $0.actorID == retainedID }
         )
-        XCTAssertEqual(frame.actors.first { $0.actorID == firstPendingID }?.opacity, 0)
+        XCTAssertEqual(frame.actors.first { $0.actorID == pendingID }?.opacity, 0)
     }
 
     func testCappedPendingQueueIsDeterministicAcrossConcurrentChangesAndReadd() throws {
@@ -2844,20 +2840,20 @@ private enum DayObjectsPerceptualBaselines {
             width: 180,
             height: 390,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.0596780, 0.2709080, 0.3511906),
-                meanLuminance: 0.2317969,
-                luminanceDeviation: 0.0932965,
-                lowLuminance: 0.1395685,
-                highLuminance: 0.3136127,
-                edgeEnergy: 0.0081614,
-                colorfulness: 0.2915875,
+                meanRGB: SIMD3(0.0586782, 0.2634250, 0.3414791),
+                meanLuminance: 0.2255313,
+                luminanceDeviation: 0.0794455,
+                lowLuminance: 0.1382190,
+                highLuminance: 0.3094268,
+                edgeEnergy: 0.0082018,
+                colorfulness: 0.2828009,
                 coarseLuminance: [
-                    0.1522877, 0.2557371, 0.3572488, 0.3040011,
-                    0.1796755, 0.2140184, 0.2445679, 0.1715763,
-                    0.2500111, 0.2383268, 0.2172702, 0.1968418,
+                    0.1518564, 0.2687296, 0.3085676, 0.2817738,
+                    0.1823705, 0.2169048, 0.2212242, 0.1717899,
+                    0.2501617, 0.2384825, 0.2174592, 0.1970558,
                 ],
-                actorInkFraction: 0.1417521,
-                actorEnergy: 0.0201621,
+                actorInkFraction: 0.0603276,
+                actorEnergy: 0.0074700,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -2868,20 +2864,20 @@ private enum DayObjectsPerceptualBaselines {
             width: 256,
             height: 192,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.0534233, 0.2517306, 0.3355188),
-                meanLuminance: 0.2156200,
-                luminanceDeviation: 0.0946818,
-                lowLuminance: 0.1229345,
-                highLuminance: 0.2961418,
-                edgeEnergy: 0.0084142,
-                colorfulness: 0.2821760,
+                meanRGB: SIMD3(0.0493951, 0.2364840, 0.3201828),
+                meanLuminance: 0.2027520,
+                luminanceDeviation: 0.0760749,
+                lowLuminance: 0.1140938,
+                highLuminance: 0.2841789,
+                edgeEnergy: 0.0083634,
+                colorfulness: 0.2707877,
                 coarseLuminance: [
-                    0.1716348, 0.2272302, 0.3369213, 0.2609871,
-                    0.1691312, 0.1803421, 0.2149625, 0.1599231,
-                    0.2225028, 0.2239499, 0.2427067, 0.1771478,
+                    0.2106625, 0.2037208, 0.2235792, 0.2019335,
+                    0.1842887, 0.1827392, 0.2082788, 0.1507439,
+                    0.2226899, 0.2241475, 0.2428638, 0.1773754,
                 ],
-                actorInkFraction: 0.1463013,
-                actorEnergy: 0.0220959,
+                actorInkFraction: 0.0773519,
+                actorEnergy: 0.0097094,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -2892,39 +2888,39 @@ private enum DayObjectsPerceptualBaselines {
     static let transitionSignatures = [
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-before", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.2332130, edgeEnergy: 0.0060688
+            affectedEnergy: 0, meanLuminance: 0.2334781, edgeEnergy: 0.0073681
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-during", renderedActorCount: 5,
-            affectedEnergy: 0, meanLuminance: 0.2326492, edgeEnergy: 0.0060446
+            affectedEnergy: 0, meanLuminance: 0.2330055, edgeEnergy: 0.0073362
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-after", renderedActorCount: 5,
-            affectedEnergy: 0.0013391, meanLuminance: 0.2334878, edgeEnergy: 0.0060832
+            affectedEnergy: 0.0015230, meanLuminance: 0.2341458, edgeEnergy: 0.0073366
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-before", renderedActorCount: 5,
-            affectedEnergy: 0.0001654, meanLuminance: 0.2353630, edgeEnergy: 0.0060931
+            affectedEnergy: 0.0003307, meanLuminance: 0.2339733, edgeEnergy: 0.0073021
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-during", renderedActorCount: 5,
-            affectedEnergy: 0.0000628, meanLuminance: 0.2353225, edgeEnergy: 0.0061075
+            affectedEnergy: 0.0001015, meanLuminance: 0.2344866, edgeEnergy: 0.0073297
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-after", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.2354934, edgeEnergy: 0.0060887
+            affectedEnergy: 0, meanLuminance: 0.2350607, edgeEnergy: 0.0073204
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-before", renderedActorCount: 40,
-            affectedEnergy: 0, meanLuminance: 0.2451495, edgeEnergy: 0.0061621
+            affectedEnergy: 0, meanLuminance: 0.2380478, edgeEnergy: 0.0073235
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-during", renderedActorCount: 40,
-            affectedEnergy: 0.0000815, meanLuminance: 0.2452528, edgeEnergy: 0.0062020
+            affectedEnergy: 0.0000007, meanLuminance: 0.2382795, edgeEnergy: 0.0073625
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-after", renderedActorCount: 40,
-            affectedEnergy: 0.0000657, meanLuminance: 0.2448970, edgeEnergy: 0.0061434
+            affectedEnergy: 0.0000293, meanLuminance: 0.2389202, edgeEnergy: 0.0073280
         ),
     ]
 

@@ -524,9 +524,6 @@
     "Daily canvas reminder" : {
 
     },
-    "Daily choreography with live motion and focus controls" : {
-      "comment" : "Debug appearance settings – Day Objects lab description"
-    },
     "Daily random theme" : {
 
     },
@@ -809,6 +806,9 @@
     },
     "Keep today's energy canvas on your Home Screen. Long-press an empty area, tap +, search \"Nowhere\", and pick a widget size." : {
       "comment" : "Feature tip body — widget setup steps"
+    },
+    "Large radial-gradient orbs in seeded choreography" : {
+      "comment" : "Debug appearance settings – Day Objects lab description"
     },
     "Larger Type" : {
       "comment" : "A toggle that lets the user choose whether to use larger type.",

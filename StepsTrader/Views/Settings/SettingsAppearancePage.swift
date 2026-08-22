@@ -318,7 +318,7 @@ struct SettingsAppearancePage: View {
                 Image(systemName: "circle.grid.cross")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Day Objects")
-                    Text("Daily choreography with live motion and focus controls")
+                    Text("Large radial-gradient orbs in seeded choreography")
                         .font(.caption)
                         .foregroundStyle(theme.adaptiveSecondaryText)
                 }

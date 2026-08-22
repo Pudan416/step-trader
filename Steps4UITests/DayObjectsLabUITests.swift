@@ -18,6 +18,7 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(happeningsSlider.waitForExistence(timeout: 5))
         XCTAssertTrue(app.sliders["dayObjects.motionEnergy"].exists)
         XCTAssertTrue(app.sliders["dayObjects.visualClarity"].exists)
+        XCTAssertTrue(String(describing: happeningsSlider.value).contains("8 · 8 figures"))
 
         happeningsSlider.adjust(toNormalizedSliderPosition: 0)
         XCTAssertTrue(app.otherElements["dayObjects.canvas"].exists)
@@ -31,7 +32,7 @@ final class DayObjectsLabUITests: XCTestCase {
         zeroEventScreenshot.lifetime = .keepAlways
         add(zeroEventScreenshot)
 
-        happeningsSlider.adjust(toNormalizedSliderPosition: 0.5)
+        happeningsSlider.adjust(toNormalizedSliderPosition: 0.2)
         app.sliders["dayObjects.visualClarity"].adjust(toNormalizedSliderPosition: 1)
 
         XCTAssertTrue(app.otherElements["dayObjects.canvas"].exists)
@@ -43,7 +44,9 @@ final class DayObjectsLabUITests: XCTestCase {
             object: happeningsSlider
         )
         XCTAssertEqual(XCTWaiter.wait(for: [populatedFigureCount], timeout: 5), .completed)
-        XCTAssertGreaterThan(try XCTUnwrap(Self.figureCount(from: happeningsSlider.value)), 0)
+        let populatedCounts = Self.counts(from: happeningsSlider.value)
+        XCTAssertEqual(populatedCounts.count, 2)
+        XCTAssertEqual(populatedCounts.first, populatedCounts.last)
 
         Thread.sleep(forTimeInterval: 1.5)
 
@@ -63,9 +66,12 @@ final class DayObjectsLabUITests: XCTestCase {
     }
 
     private static func figureCount(from accessibilityValue: Any?) -> Int? {
+        counts(from: accessibilityValue).last
+    }
+
+    private static func counts(from accessibilityValue: Any?) -> [Int] {
         String(describing: accessibilityValue ?? "")
             .split(whereSeparator: { !$0.isNumber })
             .compactMap { Int($0) }
-            .last
     }
 }
