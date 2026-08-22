@@ -209,8 +209,8 @@ git commit -m "feat: fix Day Objects grain at textured level"
 
 **Interfaces:**
 - Produces: `DayObjectChoreographyScore.restingDiameter(for:)`.
-- Produces: `DayObjectChoreographyScore.leadershipEnvelope(for:at:)` in `0...1`.
-- Changes: `DayObjectPose.scale` becomes the final orb diameter.
+- Produces: `DayObjectRenderFrame.leadershipEnvelopes(for:at:)`, normalized across the complete admitted scene so at least one actor reaches `1` continuously.
+- Changes: `DayObjectPose.scale` remains the resting orb diameter used for route planning; `DayObjectRenderFrame` computes the final rendered diameter by mixing it toward the leader band.
 - Preserves: exact tangent parity, safe-bounds, exclusion, and loop/chapter continuity.
 
 - [ ] **Step 1: Write failing size, direction, and leadership tests**
@@ -220,10 +220,8 @@ func testRepresentativeSceneUsesApprovedOrbScaleHierarchy() {
     let scene = makeScene(eventCount: 8)
     let samples = stride(from: 0.0, through: scene.score.duration, by: 0.25)
     for time in samples {
-        let diameters = scene.actors.map {
-            scene.score.pose(for: $0, at: time, canvasAspect: 390.0 / 844.0,
-                             compositionPlan: scene.compositionPlan).scale
-        }
+        let frame = DayObjectRenderFrame.make(scene: scene, environment: environment, elapsed: time)
+        let diameters = frame.actors.map { Double($0.halfSize.x * 2) }
         XCTAssertTrue(diameters.contains { (0.26...0.34).contains($0) })
         XCTAssertTrue(diameters.allSatisfy { (0.08...0.34).contains($0) })
     }
@@ -233,10 +231,9 @@ func testVisualLeadershipMovesBetweenActorsWithoutPositionJump() {
     let scene = makeScene(eventCount: 8)
     var leaders = Set<DayObjectActorID>()
     for time in stride(from: 0.0, to: scene.score.duration, by: 0.25) {
-        let leader = scene.actors.max {
-            pose(scene, $0, time).scale < pose(scene, $1, time).scale
-        }
-        leaders.insert(try XCTUnwrap(leader).id)
+        let frame = DayObjectRenderFrame.make(scene: scene, environment: environment, elapsed: time)
+        let leader = frame.actors.max { $0.halfSize.x < $1.halfSize.x }
+        leaders.insert(try XCTUnwrap(leader).actorID)
     }
     XCTAssertGreaterThanOrEqual(leaders.count, 3)
 }
@@ -263,7 +260,7 @@ Expected: legacy size bands, static leader, and dispersed route-anchor selection
 
 - [ ] **Step 4: Implement deterministic leadership and cluster routing**
 
-Derive each actor's resting diameter from its `sizeBand.diameterRange`. Derive a leader diameter in `0.26...0.34`. Use a chapter-continuous raised-cosine envelope phase-shifted by actor seed, then mix resting and leader diameters. Normalize leader phases from stable actor/event seed data; do not use mutable actor count in identity generation.
+Derive each actor's resting diameter from its `sizeBand.diameterRange`. Derive a leader diameter in `0.26...0.34`. In `DayObjectRenderFrame.make`, evaluate chapter-continuous raised-cosine candidates phase-shifted by stable actor seed, divide by the current maximum candidate, and mix each resting diameter toward its leader diameter. The max of continuous candidates is continuous, so the handoff does not jump; actor identity and resting parameters never depend on mutable actor count.
 
 Change composition-plan route scoring to choose safe candidates nearest one daily cluster center, with deterministic small role offsets. Continue using the time-independent route center and continuous raw-path deformation so position/tangent continuity is retained.
 
