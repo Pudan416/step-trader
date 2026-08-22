@@ -284,8 +284,6 @@ final class SnowflakeTextureProfileTests: XCTestCase {
                 XCTAssertFalse(geometry.rings.isEmpty)
             case .hatch:
                 XCTAssertFalse(geometry.lines.isEmpty)
-            case .stipple:
-                XCTAssertFalse(geometry.dots.isEmpty)
             }
         }
     }

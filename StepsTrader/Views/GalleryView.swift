@@ -58,6 +58,13 @@ struct GalleryView: View {
     /// Edit-mode state (M5 extraction). Backs the five drag/freeze/active
     /// canvas-edit fields hoisted to a separate Observable manager.
     @State private var editState = CanvasEditState()
+    /// The single source of truth for what Canvas is showing. `isWideCanvas`
+    /// below is now a mirror the tab host reads, never something written
+    /// independently — the two used to drift into states the design forbids.
+    @State private var presentation: CanvasPresentationState = .canvas
+    /// Deletion is deliberate but hidden: no permanent per-element button, and
+    /// a long press alone never removes anything.
+    @State private var pendingDeleteElementId: UUID? = nil
     @Binding var isWideCanvas: Bool
     @Binding var paletteRoute: CanvasPaletteRouteState
     let isCanvasSelected: Bool
@@ -84,6 +91,11 @@ struct GalleryView: View {
     @AppStorage("addHint_dayKey", store: UserDefaults.stepsTrader()) private var addHintDayKey: String = ""
     /// Comma-joined `AddHintWindow.rawValue`s already shown today.
     @AppStorage("addHint_shownWindows", store: UserDefaults.stepsTrader()) private var addHintShownWindowsRaw: String = ""
+    /// The drag hint earns one appearance per install, then gets out of the way.
+    @AppStorage("canvasEditDragHintShown", store: UserDefaults.stepsTrader())
+    private var editDragHintShown: Bool = false
+    @State private var showsEditDragHint = false
+    @State private var editDragHintTask: Task<Void, Never>? = nil
     @State private var isManuallyExpanded: Bool = false
     @State private var isNaturallyWide: Bool = false
     /// Tracks whether the user explicitly collapsed wide mode so we don't
@@ -94,6 +106,11 @@ struct GalleryView: View {
     /// Global mid-Y of the canvas `+`, reported by the button itself. The
     /// palette's dock lines up with it.
     @State private var canvasAddButtonCenterY: CGFloat?
+    /// The suggestion banner's own measured height, fed by
+    /// `SuggestionBannerHeightKey` — see `dataPanelAvailableHeight`, which
+    /// reserves this much extra room above the data panel so the panel
+    /// doesn't grow up under the banner the way it can under the pill alone.
+    @State private var suggestionBannerHeight: CGFloat = 0
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
@@ -102,13 +119,33 @@ struct GalleryView: View {
     @State private var safeAreaTop: CGFloat = 0
     @State private var safeAreaBottom: CGFloat = 0
 
+    /// The device's real top safe-area inset (status bar / Dynamic Island),
+    /// read directly from the key window instead of `safeAreaTop`.
+    /// `safeAreaTop` is tracked from a `GeometryReader` nested inside this
+    /// view's own overlay stack, which contains children that call
+    /// `.ignoresSafeArea()` — by the time it reaches the editing-dock
+    /// overlay it reads small/stale (observed 0–26pt instead of the ~59pt
+    /// Dynamic Island inset on this device), which used to place the Done
+    /// control inside the system status-bar strip: overlapping the clock and
+    /// swallowing every tap, since that strip has its own system touch
+    /// handling. This reads the window directly so it can't be contaminated
+    /// by ancestor `.ignoresSafeArea()` calls.
+    private var deviceTopSafeAreaInset: CGFloat {
+        let inset = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets.top
+        return (inset ?? 0) > 0 ? inset! : 59
+    }
+
     private var canvasBackground: Color { theme.backgroundColor }
     private var labelColor: Color { theme.textPrimary }
     private var buttonColor: Color { AppColors.Night.textPrimary }
     private var todayKey: String { AppModel.dayKey(for: Date.now) }
 
     private var bottomControlsPadding: CGFloat {
-        if isWideCanvas || editState.isEditMode {
+        if presentation.isWideCanvas || presentation.isEditing {
             return max(safeAreaBottom, 34) + 16
         }
         // Anchor relative to device geometry:
@@ -169,9 +206,33 @@ struct GalleryView: View {
 
     private func openHappeningPalette() {
         metricOverlay = nil
+        send(.openHappeningPalette)
         refreshHappeningPalette()
         withAnimation(.easeInOut(duration: 0.2)) {
             showHappeningPalette = true
+        }
+    }
+
+    /// Every presentation change goes through here, so the mirrored binding and
+    /// the edit-mode flag can never disagree with the state.
+    private func send(_ event: CanvasPresentationEvent) {
+        // `userCollapsedWide` is decided here rather than in the observer below,
+        // because only the event knows WHY the canvas stopped being wide. The
+        // observer sees just the old and new state, and a day rollover collapsing
+        // the canvas looks identical there to the user collapsing it by hand —
+        // which would wrongly stop the iPad naturally-wide branch from ever
+        // re-expanding. Set ahead of the no-op guard so a rollover clears the flag
+        // whether or not it also changes the state, exactly as the pre-refactor
+        // rollover sites did.
+        switch event {
+        case .exitFullScreen where presentation.isWideCanvas: userCollapsedWide = true
+        case .dayBoundary:                                    userCollapsedWide = false
+        default:                                              break
+        }
+        let next = presentation.applying(event)
+        guard next != presentation else { return }
+        withAnimation(.easeInOut(duration: next.isWideCanvas || presentation.isWideCanvas ? 0.35 : 0.3)) {
+            presentation = next
         }
     }
 
@@ -185,7 +246,7 @@ struct GalleryView: View {
         var route = paletteRoute
         guard route.consumeIfReady(
             isCanvasSelected: isCanvasSelected,
-            canPresent: !isWideCanvas
+            canPresent: !presentation.isWideCanvas
         ) != nil else { return }
         paletteRoute = route
         openHappeningPalette()
@@ -193,7 +254,7 @@ struct GalleryView: View {
 
     @ViewBuilder
     private var happeningPaletteOverlay: some View {
-        if showHappeningPalette, !isWideCanvas {
+        if showHappeningPalette, !presentation.isWideCanvas {
             HappeningPaletteView(
                 happenings: paletteHappenings,
                 figures: model.paletteFigures(),
@@ -253,7 +314,7 @@ struct GalleryView: View {
     /// delay so it doesn't flash during canvas load. It then auto-dismisses.
     private func refreshAddHint() {
         addHintTask?.cancel()
-        guard addHintQualifies, !showHappeningPalette, !isWideCanvas else {
+        guard addHintQualifies, !showHappeningPalette, !presentation.isWideCanvas else {
             if showAddHint {
                 withAnimation(.easeOut(duration: 0.25)) { showAddHint = false }
             }
@@ -280,7 +341,7 @@ struct GalleryView: View {
         guard !hasShownHintWindow(window) else { return }
         addHintTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(1500))
-            guard !Task.isCancelled, addHintQualifies, !showHappeningPalette, !isWideCanvas else { return }
+            guard !Task.isCancelled, addHintQualifies, !showHappeningPalette, !presentation.isWideCanvas else { return }
             activeHintWindow = window
             markHintWindowShown(window)
             withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { showAddHint = true }
@@ -341,7 +402,7 @@ struct GalleryView: View {
                 decayNorm: decayNorm,
                 backgroundColor: canvasBackground,
                 labelColor: labelColor,
-                showLabelsOnCanvas: editState.isEditMode,
+                showLabelsOnCanvas: presentation.isEditing,
                 showsBackgroundGradient: false,
                 hasStepsData: model.hasStepsData,
                 hasSleepData: model.hasSleepData,
@@ -354,7 +415,7 @@ struct GalleryView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            if !editState.isEditMode {
+            if !presentation.isEditing {
                 CanvasAnimationOverlay(
                     elements: renderedCanvasElements,
                     sleepPoints: model.sleepPointsToday,
@@ -374,7 +435,7 @@ struct GalleryView: View {
                 .ignoresSafeArea()
             }
 
-            if editState.isEditMode {
+            if presentation.isEditing {
                 editModeGestureOverlay
                     .frame(
                         width: GenerativeCanvasView.canonicalPortraitSize.width,
@@ -404,7 +465,7 @@ struct GalleryView: View {
         // Controls in overlays — completely decoupled from the canvas/texture
         // ZStack so texture changes never trigger a controls re-layout.
         .overlay {
-            if !isWideCanvas,
+            if !presentation.isWideCanvas,
                HappeningPaletteChromeLayout.showsCanvasControls(
                    isPalettePresented: showHappeningPalette
                ) {
@@ -413,13 +474,37 @@ struct GalleryView: View {
             }
         }
         .overlay {
-            if isWideCanvas {
+            dataPanelOverlay
+        }
+        .overlay {
+            if presentation.showsFullScreenDock {
                 wideCanvasOverlay
                     .ignoresSafeArea()
             }
         }
         .overlay {
-            if let kind = metricOverlay, !isWideCanvas {
+            if presentation.showsEditingChrome {
+                CanvasEditingDock(
+                    showsDragHint: showsEditDragHint,
+                    onDone: {
+                        send(.endEditing)
+                        lightHapticTick &+= 1
+                    },
+                    onRemix: { remixCanvas() }
+                )
+                .padding(.horizontal, 16)
+                // `deviceTopSafeAreaInset` (not `safeAreaTop`) — see its doc
+                // comment for why: `safeAreaTop` reads unreliably small this
+                // deep in the overlay stack, which used to place Done inside
+                // the system status-bar strip, overlapping the clock and
+                // swallowing every tap.
+                .padding(.top, deviceTopSafeAreaInset)
+                .padding(.bottom, max(safeAreaBottom, 34) + 16)
+                .ignoresSafeArea()
+            }
+        }
+        .overlay {
+            if let kind = metricOverlay, !presentation.isWideCanvas {
                 GalleryMetricOverlayView(model: model, kind: kind, onClose: { metricOverlay = nil })
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
             }
@@ -444,7 +529,9 @@ struct GalleryView: View {
                             let wide = size.width > canvasW * 1.15
                             if wide != isNaturallyWide { isNaturallyWide = wide }
                             if wide && !userCollapsedWide && !isManuallyExpanded {
-                                if !isWideCanvas { isWideCanvas = true }
+                                // Naturally wide is a viewing state. It must
+                                // never walk the user into editing.
+                                send(.enterFullScreen)
                             }
                         }
                     }
@@ -493,6 +580,7 @@ struct GalleryView: View {
             } else if selected {
                 consumePaletteOpenRequestIfReady()
             }
+            if !selected { send(.leftCanvasTab) }
         }
         .onChange(of: todayKey) { _, newKey in
             guard newKey != activeDayKey else { return }
@@ -500,23 +588,71 @@ struct GalleryView: View {
             activeDayKey = newKey
             dayCanvas = DayCanvas(dayKey: newKey)
             canvasLoaded = false
-            userCollapsedWide = false
-            isManuallyExpanded = false
             pendingDeletedIds.removeAll()
+            send(.dayBoundary)
             refreshHappeningPalette()
             loadCanvas()
         }
-        .onChange(of: isWideCanvas) { refreshAddHint() }
-        .onChange(of: isWideCanvas) {
+        .onChange(of: presentation, initial: true) { old, new in
+            if isWideCanvas != new.isWideCanvas { isWideCanvas = new.isWideCanvas }
+
+            // Names only. No energy values, HealthKit values, happening labels
+            // or element IDs ever go into an analytics property.
+            if let event = CanvasPresentationState.analyticsEventName(from: old, to: new) {
+                Task { await SupabaseSyncService.shared.trackAnalyticsEvent(name: event) }
+            }
+
+            if !new.isEditing {
+                // Leaving editing commits whatever the finger was doing — on
+                // EVERY exit, not just Done. Before this plan the collapse button
+                // called `editState.reset()` and silently threw the in-flight
+                // drag away; spec §7.3 wants the position kept (it already says
+                // so for Done and for the app resigning active), and there is no
+                // reason a different exit should lose the user's arrangement.
+                if editState.isDraggingElement { handleEditDragEnd() }
+                editState.editFreezeTime = nil
+                editState.activeElementId = nil
+            } else if editState.editFreezeTime == nil {
+                editState.editFreezeTime = Date.now
+            }
+
+            if new.isEditing, !editDragHintShown {
+                editDragHintShown = true
+                showsEditDragHint = true
+                editDragHintTask?.cancel()
+                editDragHintTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(2500))
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.easeOut(duration: 0.25)) { showsEditDragHint = false }
+                }
+            } else if !new.isEditing {
+                editDragHintTask?.cancel()
+                showsEditDragHint = false
+            }
+
+            if !new.isWideCanvas {
+                isManuallyExpanded = false
+            } else {
+                userCollapsedWide = false
+                isManuallyExpanded = true
+            }
+
+            refreshAddHint()
             consumePaletteOpenRequestIfReady()
         }
         .onChange(of: scenePhase) {
             if scenePhase == .background {
                 if editState.isDraggingElement { handleEditDragEnd() }
+                editState.activeElementId = nil
+                pendingDeleteElementId = nil
+                if presentation.isEditing { send(.endEditing) }
                 return
             }
             if scenePhase == .inactive {
                 if editState.isDraggingElement { handleEditDragEnd() }
+                editState.activeElementId = nil
+                pendingDeleteElementId = nil
+                if presentation.isEditing { send(.endEditing) }
                 return
             }
             guard scenePhase == .active else { return }
@@ -527,9 +663,8 @@ struct GalleryView: View {
                 activeDayKey = newKey
                 dayCanvas = DayCanvas(dayKey: newKey)
                 canvasLoaded = false
-                userCollapsedWide = false
-                isManuallyExpanded = false
                 pendingDeletedIds.removeAll()
+                send(.dayBoundary)
                 loadCanvas()
             }
             if showHappeningPalette {
@@ -541,9 +676,12 @@ struct GalleryView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             if editState.isDraggingElement { handleEditDragEnd() }
+            editState.activeElementId = nil
+            pendingDeleteElementId = nil
+            if presentation.isEditing { send(.endEditing) }
         }
         // Cross-tab canvas mutations: `MainTabView` posts these when the picker
-        // is opened from a non-canvas tab (StepBalanceCard pills) and the user
+        // is opened from a non-canvas tab (the energy pill) and the user
         // confirms / removes / rerolls. We share the same business logic the
         // local radial-menu sheet uses below.
         .onReceive(NotificationCenter.default.publisher(for: .canvasElementSpawnRequested)) { note in
@@ -571,22 +709,32 @@ struct GalleryView: View {
                 CanvasShareSheet(items: [image])
             }
         }
+        .confirmationDialog(
+            String(localized: "Remove this happening?", comment: "Canvas editing – delete confirmation title"),
+            isPresented: Binding(
+                get: { pendingDeleteElementId != nil },
+                set: { if !$0 { pendingDeleteElementId = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(String(localized: "Delete"), role: .destructive) {
+                if let id = pendingDeleteElementId { removeElement(id: id) }
+                pendingDeleteElementId = nil
+                editState.activeElementId = nil
+            }
+            Button(String(localized: "Cancel"), role: .cancel) { pendingDeleteElementId = nil }
+        }
         .onChange(of: toolbar.showShareSheet) { _, isPresented in
             if !isPresented { toolbar.shareImage = nil }
         }
-        .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
-        .animation(.easeInOut(duration: 0.3), value: editState.isEditMode)
-        .onChange(of: isWideCanvas) { _, wide in
-            if !wide {
-                editState.reset()
-                isManuallyExpanded = false
-            } else {
-                userCollapsedWide = false
-            }
-        }
+        .animation(.easeInOut(duration: 0.35), value: presentation)
         .onPreferenceChange(CanvasAddButtonCenterKey.self) { value in
             guard let value, value != canvasAddButtonCenterY else { return }
             canvasAddButtonCenterY = value
+        }
+        .onPreferenceChange(SuggestionBannerHeightKey.self) { value in
+            guard value != suggestionBannerHeight else { return }
+            suggestionBannerHeight = value
         }
         .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
@@ -604,14 +752,14 @@ struct GalleryView: View {
 
     private var canvasControls: some View {
         ZStack {
-            if showQuickStartArea && !isWideCanvas {
+            if showQuickStartArea && !presentation.isWideCanvas {
                 emptyStateView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
             // Wide-canvas wallpaper suggestion
-            if isWideCanvas && !model.hasWallpaperShortcut {
+            if presentation.isWideCanvas && !model.hasWallpaperShortcut {
                 VStack {
                     Spacer()
                     wallpaperPromptBanner
@@ -622,7 +770,7 @@ struct GalleryView: View {
             }
 
             // Proactive workout suggestions
-            if !model._pendingActivitySuggestions.isEmpty && !isWideCanvas {
+            if !model._pendingActivitySuggestions.isEmpty && !presentation.isWideCanvas {
                 VStack {
                     ActivitySuggestionBanner(
                         suggestions: model._pendingActivitySuggestions,
@@ -639,9 +787,20 @@ struct GalleryView: View {
                             model.dismissAllActivitySuggestions()
                         }
                     )
+                    .background(
+                        GeometryReader { proxy in
+                            Color.clear
+                                .preference(key: SuggestionBannerHeightKey.self, value: proxy.size.height)
+                        }
+                    )
                     Spacer()
                 }
-                .padding(.top, safeAreaTop + topCardHeight + 24)
+                // `deviceTopSafeAreaInset` (not `safeAreaTop`) — see its doc
+                // comment for why `safeAreaTop` is unreliable this deep in
+                // the overlay stack.
+                // Tucked under the pill rather than floating below it: the
+                // suggestion is about the same day the pill is measuring.
+                .padding(.top, deviceTopSafeAreaInset + topCardHeight + 8)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
@@ -662,110 +821,100 @@ struct GalleryView: View {
         }
     }
 
+    private var dataPanelRows: [CanvasDataRow] {
+        [
+            CanvasDataRow(
+                kind: .steps,
+                title: String(localized: "Steps", comment: "Canvas data panel – steps row"),
+                systemImage: "shoeprints.fill",
+                value: model.stepsPointsToday,
+                maxValue: EnergyDefaults.stepsMaxPoints
+            ),
+            CanvasDataRow(
+                kind: .sleep,
+                title: String(localized: "Sleep", comment: "Canvas data panel – sleep row"),
+                systemImage: "bed.double.fill",
+                value: model.sleepPointsToday,
+                maxValue: EnergyDefaults.sleepMaxPoints
+            ),
+            CanvasDataRow(
+                kind: .happenings,
+                title: String(localized: "Happenings", comment: "Canvas data panel – happenings row"),
+                systemImage: "sparkles",
+                value: model.happeningPointsToday,
+                maxValue: HappeningDefaults.happeningsMaxPoints
+            )
+        ]
+    }
+
+    /// The sheet sits above the action row, so the row's own hit height counts
+    /// as clearance the panel must be padded above.
+    private var dataPanelBottomClearance: CGFloat { bottomControlsPadding + 72 }
+
+    /// The space actually available for the data panel, from just below the
+    /// top chrome — the status pill, the same gap the suggestion banner sits
+    /// behind (see the `deviceTopSafeAreaInset + topCardHeight + 8` padding
+    /// on the banner above), and the banner's own measured height when it's
+    /// showing — down to the bottom action row's own clearance. `nil` until
+    /// `canvasViewportSize` has been measured at least once, so the panel
+    /// isn't clamped to a bogus near-zero height on the first layout pass
+    /// before the host reports its real size.
+    ///
+    /// Deliberately not a fraction of the screen — the product owner retired
+    /// the old 40%-of-available-height clamp along with its tests. This is
+    /// "what's left", not a ratio.
+    private var dataPanelAvailableHeight: CGFloat? {
+        guard canvasViewportSize.height > 0 else { return nil }
+        let topChrome = deviceTopSafeAreaInset + topCardHeight + 8 + suggestionBannerHeight
+        return max(0, canvasViewportSize.height - topChrome - dataPanelBottomClearance)
+    }
+
+    @ViewBuilder
+    private var dataPanelOverlay: some View {
+        if presentation.showsDataPanel {
+            VStack {
+                Spacer(minLength: 0)
+                CanvasDataPanel(
+                    rows: dataPanelRows,
+                    onSelect: { metricOverlay = $0 },
+                    onHide: {
+                        send(.hideData)
+                        lightHapticTick &+= 1
+                    },
+                    availableHeight: dataPanelAvailableHeight
+                )
+                .padding(.horizontal, 12)
+                .padding(.bottom, dataPanelBottomClearance)
+            }
+            .transition(
+                reduceMotion
+                    ? .opacity
+                    : .move(edge: .bottom).combined(with: .opacity)
+            )
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Bottom Controls Bar (share, +, wide toggle)
+    // MARK: - Bottom Controls Bar (full screen · show data · +)
     // ═══════════════════════════════════════════════════════════
 
     private var bottomControlsBar: some View {
-        // GlassEffectContainer is required when multiple `.glassEffect(.interactive(), ...)`
-        // siblings live in the same row. Without it, iOS 26 merges their interactive
-        // surfaces and routes every tap to the first glass view in the hierarchy,
-        // silently swallowing taps on the others (here: + and share).
-        // Padding is kept OUTSIDE the container — GlassEffectContainer on iOS 26
-        // can absorb child padding and break the expected insets.
-        Group {
-            if #available(iOS 26.0, *) {
-                GlassEffectContainer(spacing: 0) { bottomControlsContent }
-            } else {
-                bottomControlsContent
-            }
-        }
-        .padding(.horizontal, 24)
-    }
-
-    private var bottomControlsContent: some View {
-        HStack(alignment: .center) {
-            expandCanvasButton
-
-            Spacer()
-
-            Button {
+        CanvasBottomActionRow(
+            isDataExpanded: presentation.showsDataPanel,
+            onFullScreen: {
+                send(.enterFullScreen)
+                lightHapticTick &+= 1
+            },
+            onToggleData: {
+                CoachMarkManager.postAction(for: .expandChevron)
+                send(presentation.showsDataPanel ? .hideData : .showData)
+                lightHapticTick &+= 1
+            },
+            onAdd: {
                 CoachMarkManager.postAction(for: .tapPlusButton)
                 openHappeningPalette()
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .regular))
-                    .foregroundStyle(buttonColor)
-                    .frame(width: 56, height: 56)
-                    .liquidGlassControl(in: Circle())
-                    .frame(width: 72, height: 72)
-                    .contentShape(Circle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "Add happening", comment: "Canvas add button"))
-            .coachMarkAnchor(.tapPlusButton)
-            // The palette overlays these controls and puts its own dock on the
-            // same line, so it needs where this button actually landed rather
-            // than a second copy of the padding arithmetic that positions it.
-            .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: CanvasAddButtonCenterKey.self,
-                        value: proxy.frame(in: .global).midY
-                    )
-                }
-            )
-
-            Spacer()
-
-            // Share button hides while the radial fan is open so the Moment node
-            // at 0° (right) has room to appear without overlapping.
-            //
-            // We can't just use `.opacity(0)` here — on iOS 26 the
-            // `liquidGlassControl` renders the glass capsule as a separate
-            // compositing layer that ignores opacity. So we conditionally
-            // remove the entire view and reserve the slot with a clear frame
-            // of the same size to keep the HStack layout stable.
-            ZStack {
-                if !showHappeningPalette {
-                    shareButton
-                        .transition(reduceMotion
-                                    ? .opacity
-                                    : .scale(scale: 0.85).combined(with: .opacity))
-                }
-            }
-            .frame(width: 72, height: 72)
-            .animation(reduceMotion
-                       ? .easeInOut(duration: 0.15)
-                       : .spring(response: 0.25, dampingFraction: 0.85),
-                       value: showHappeningPalette)
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // MARK: - Expand Canvas Button
-    // ═══════════════════════════════════════════════════════════
-
-    private var expandCanvasButton: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.35)) {
-                userCollapsedWide = false
-                isManuallyExpanded = true
-                isWideCanvas = true
-            }
-            lightHapticTick &+= 1
-        } label: {
-            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 20, weight: .regular))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(buttonColor)
-                .frame(width: 56, height: 56)
-                .liquidGlassControl(in: Circle())
-                .frame(width: 72, height: 72)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(String(localized: "Expand canvas", comment: "GalleryView – expand button VoiceOver label"))
+        )
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -787,10 +936,8 @@ struct GalleryView: View {
                         .foregroundStyle(buttonColor)
                 }
             }
-            .frame(width: 56, height: 56)
-            .liquidGlassControl(in: Circle())
-            .frame(width: 72, height: 72)
-            .contentShape(Circle())
+            .frame(minWidth: 56, minHeight: 56)
+            .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "Share canvas", comment: "GalleryView – share button VoiceOver label"))
@@ -1231,6 +1378,31 @@ struct GalleryView: View {
         saveCanvasLocally()
     }
 
+    /// Restyles every element at once: one mutation counter bump, one save, one
+    /// haptic. Positions, identities, energy and the background gradient are
+    /// exactly what they were.
+    private func remixCanvas() {
+        guard !dayCanvas.elements.isEmpty else { return }
+        let composition = DayComposition.forDay(
+            dayKey: dayCanvas.dayKey,
+            happeningCount: dayCanvas.elements.count
+        )
+        let remixed = CanvasRemix.remixed(dayCanvas.elements, composition: composition)
+        // One ease for both motion settings on purpose: replacing the elements
+        // in place *is* the crossfade Reduce Motion asks for — nothing travels
+        // and nothing springs, so there is no motion to reduce.
+        withAnimation(.easeInOut(duration: 0.3)) {
+            dayCanvas.elements = remixed
+        }
+        dayCanvas.lastModified = Date.now
+        localMutationCounter &+= 1
+        saveCanvasLocally()
+        mediumHapticTick &+= 1
+        Task {
+            await SupabaseSyncService.shared.trackAnalyticsEvent(name: "canvas_remixed")
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════
     // MARK: - Wide Canvas Overlay (edit button)
     // ═══════════════════════════════════════════════════════════
@@ -1238,73 +1410,28 @@ struct GalleryView: View {
     private var wideCanvasOverlay: some View {
         VStack {
             Spacer()
-            Group {
-                if #available(iOS 26.0, *) {
-                    GlassEffectContainer(spacing: 0) { wideCanvasOverlayContent }
-                } else {
-                    wideCanvasOverlayContent
-                }
-            }
+            CanvasFullScreenDock(
+                onExit: {
+                    send(.exitFullScreen)
+                    lightHapticTick &+= 1
+                },
+                onEdit: {
+                    send(.beginEditing)
+                    lightHapticTick &+= 1
+                },
+                share: { shareButton }
+            )
             .padding(.horizontal, 8)
             .padding(.bottom, max(safeAreaBottom, 34) + 16)
         }
     }
 
-    private var wideCanvasOverlayContent: some View {
-        HStack {
-            Button {
-                withAnimation(.easeInOut(duration: 0.35)) {
-                    editState.reset()
-                    isManuallyExpanded = false
-                    userCollapsedWide = true
-                    isWideCanvas = false
-                }
-                lightHapticTick &+= 1
-            } label: {
-                Image(systemName: "arrow.down.right.and.arrow.up.left")
-                    .font(.system(size: 20, weight: .ultraLight))
-                    .foregroundStyle(buttonColor.opacity(0.85))
-                    .frame(width: 56, height: 56)
-                    .liquidGlassControl(in: Circle())
-                    .frame(width: 72, height: 72)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "Collapse canvas", comment: "GalleryView – collapse button VoiceOver label"))
-
-            Spacer()
-
-            Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    editState.isEditMode.toggle()
-                    if editState.isEditMode {
-                        editState.editFreezeTime = Date.now
-                    } else {
-                        editState.editFreezeTime = nil
-                        editState.activeElementId = nil
-                        editState.isDraggingElement = false
-                        saveCanvasLocally()
-                    }
-                }
-                lightHapticTick &+= 1
-            } label: {
-                Image(systemName: editState.isEditMode ? "checkmark" : "hand.draw")
-                    .font(.system(size: 22, weight: .ultraLight))
-                    .foregroundStyle(buttonColor.opacity(0.85))
-                    .frame(width: 56, height: 56)
-                    .liquidGlassControl(in: Circle())
-                    .frame(width: 72, height: 72)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: editState.isEditMode ? "Done editing" : "Edit canvas", comment: "GalleryView – edit button VoiceOver label"))
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Edit Mode Element Overlays (circle outlines + dice)
+    // MARK: - Edit Mode Element Overlays (selection outline)
     // ═══════════════════════════════════════════════════════════
 
+    /// Selection feedback only. No bounding box, no resize handles, no delete
+    /// button and no per-element dice — the element itself is the control.
     private var editModeElementOverlays: some View {
         let refSize = GenerativeCanvasView.canonicalPortraitSize
         let dim = min(refSize.width, refSize.height)
@@ -1313,8 +1440,6 @@ struct GalleryView: View {
         return ZStack {
             ForEach(dayCanvas.elements) { element in
                 let center = GenerativeCanvasView.frozenElementCenter(element, size: refSize, at: freezeDate)
-                let cx = center.x
-                let cy = center.y
                 let effectiveSize = Double(element.userSize ?? CGFloat(element.size))
                 let diameter = RayShapeRenderer.editBoundsDiameter(
                     normalizedSize: effectiveSize,
@@ -1323,54 +1448,21 @@ struct GalleryView: View {
                 )
                 let isActive = editState.activeElementId == element.id
 
-                ZStack {
+                if isActive {
                     Circle()
-                        .strokeBorder(
-                            buttonColor.opacity(isActive ? 0.6 : 0.3),
-                            lineWidth: isActive ? 1.5 : 0.75
-                        )
+                        .strokeBorder(buttonColor.opacity(0.55), lineWidth: 1.5)
+                        .shadow(color: AppColors.brandAccent.opacity(0.45), radius: 6)
                         .frame(width: diameter, height: diameter)
-
-                    VStack {
-                        HStack {
-                            Button {
-                                removeElement(id: element.id)
-                                mediumHapticTick &+= 1
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(.red.opacity(0.9))
-                                    .frame(width: 34, height: 34)
-                                    .liquidGlassControl(in: Circle())
-                                    .contentShape(Circle().scale(1.3))
-                            }
-                            .buttonStyle(.plain)
-                            .allowsHitTesting(true)
-
-                            Spacer()
-
-                            Button {
-                                rerollElement(id: element.id)
-                                lightHapticTick &+= 1
-                            } label: {
-                                Image(systemName: "dice")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(buttonColor.opacity(0.85))
-                                    .frame(width: 34, height: 34)
-                                    .liquidGlassControl(in: Circle())
-                                    .contentShape(Circle().scale(1.3))
-                            }
-                            .buttonStyle(.plain)
-                            .allowsHitTesting(true)
-                        }
-                        Spacer()
-                    }
-                    .frame(width: diameter, height: diameter)
+                        .position(x: center.x, y: center.y)
+                        .accessibilityElement()
+                        .accessibilityLabel(
+                            "\(element.displayLabel), \(String(localized: "Selected", comment: "Canvas editing – selected element state"))"
+                        )
+                        .transition(.opacity)
                 }
-                .position(x: cx, y: cy)
-                .transition(.opacity)
             }
         }
+        .allowsHitTesting(false)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: editState.activeElementId)
     }
 
@@ -1392,24 +1484,6 @@ struct GalleryView: View {
                             handleEditDragEnd()
                         }
                 )
-                .simultaneousGesture(
-                    RotationGesture()
-                        .onChanged { angle in
-                            handleEditRotation(angle: angle)
-                        }
-                        .onEnded { _ in
-                            handleEditRotationEnd()
-                        }
-                )
-                .simultaneousGesture(
-                    MagnificationGesture()
-                        .onChanged { scale in
-                            handleEditPinch(scale: scale)
-                        }
-                        .onEnded { _ in
-                            handleEditPinchEnd()
-                        }
-                )
                 .onTapGesture { location in
                     if let hit = findClosestElement(to: location, canvasSize: refSize) {
                         withAnimation(.spring(response: 0.2)) {
@@ -1420,6 +1494,39 @@ struct GalleryView: View {
                         withAnimation(.spring(response: 0.2)) { editState.activeElementId = nil }
                     }
                 }
+                // `.onLongPressGesture` gives the handler no location, only
+                // the fact that a press happened — that used to mean it
+                // fired on whatever the last tap had selected, regardless of
+                // where the finger actually was. A standalone
+                // `DragGesture(minimumDistance: 0)` run alongside it to
+                // capture that location was tried and rejected: two
+                // competing recognizers on the same touch stopped the long
+                // press from ever completing under synthetic (and likely
+                // some real) touch input. `sequenced(before:)` avoids that —
+                // only the `LongPressGesture` runs while the finger is
+                // still, and a `DragGesture` only starts, purely to read
+                // `.location`, once the press has already succeeded.
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.45)
+                        .sequenced(before: DragGesture(minimumDistance: 0))
+                        .onEnded { value in
+                            // Guards, in order: the long press must have
+                            // actually completed (not cancelled mid-sequence);
+                            // a drag already in flight for this touch wins
+                            // (no dialog on top of a moving element);
+                            // something must be selected; the resolved
+                            // location must hit-test to the SELECTED element
+                            // specifically — empty canvas or a different
+                            // element does nothing at all.
+                            guard case .second(true, let drag?) = value,
+                                  !editState.isDraggingElement,
+                                  let id = editState.activeElementId,
+                                  let hit = findClosestElement(to: drag.location, canvasSize: refSize),
+                                  hit.element.id == id else { return }
+                            pendingDeleteElementId = id
+                            mediumHapticTick &+= 1
+                        }
+                )
         }
     }
 
@@ -1452,62 +1559,16 @@ struct GalleryView: View {
     }
 
     private func handleEditDragEnd() {
+        if showsEditDragHint {
+            editDragHintTask?.cancel()
+            withAnimation(.easeOut(duration: 0.25)) { showsEditDragHint = false }
+        }
         if let id = editState.activeElementId,
            let idx = dayCanvas.elements.firstIndex(where: { $0.id == id }) {
             dayCanvas.elements[idx].lastEditedAt = Date.now
         }
         editState.isDraggingElement = false
         editState.dragStartBasePosition = nil
-        dayCanvas.lastModified = Date.now
-        localMutationCounter &+= 1
-        saveCanvasLocally()
-    }
-
-    // MARK: - Edit Mode Rotation (rays shapes only)
-
-    private func handleEditRotation(angle: Angle) {
-        guard let id = editState.activeElementId,
-              let index = dayCanvas.elements.firstIndex(where: { $0.id == id }),
-              dayCanvas.elements[index].resolvedShapeType == .rays else { return }
-
-        if editState.gestureStartRotation == nil {
-            editState.gestureStartRotation = dayCanvas.elements[index].userRotation
-        }
-        dayCanvas.elements[index].userRotation = (editState.gestureStartRotation ?? 0) + angle.radians
-    }
-
-    private func handleEditRotationEnd() {
-        guard editState.gestureStartRotation != nil else { return }
-        if let id = editState.activeElementId,
-           let idx = dayCanvas.elements.firstIndex(where: { $0.id == id }) {
-            dayCanvas.elements[idx].lastEditedAt = Date.now
-        }
-        editState.gestureStartRotation = nil
-        dayCanvas.lastModified = Date.now
-        localMutationCounter &+= 1
-        saveCanvasLocally()
-    }
-
-    // MARK: - Edit Mode Pinch-to-Resize (all shapes)
-
-    private func handleEditPinch(scale: CGFloat) {
-        guard let id = editState.activeElementId,
-              let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
-
-        if editState.gestureStartSize == nil {
-            editState.gestureStartSize = dayCanvas.elements[index].userSize ?? CGFloat(dayCanvas.elements[index].size)
-        }
-        let startSize = editState.gestureStartSize ?? CGFloat(dayCanvas.elements[index].size)
-        dayCanvas.elements[index].userSize = min(0.65, max(0.02, startSize * scale))
-    }
-
-    private func handleEditPinchEnd() {
-        guard editState.gestureStartSize != nil else { return }
-        if let id = editState.activeElementId,
-           let idx = dayCanvas.elements.firstIndex(where: { $0.id == id }) {
-            dayCanvas.elements[idx].lastEditedAt = Date.now
-        }
-        editState.gestureStartSize = nil
         dayCanvas.lastModified = Date.now
         localMutationCounter &+= 1
         saveCanvasLocally()
@@ -1730,5 +1791,18 @@ struct CanvasAddButtonCenterKey: PreferenceKey {
     static let defaultValue: CGFloat? = nil
     static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
         value = nextValue() ?? value
+    }
+}
+
+/// The suggestion banner's own rendered height, so the data panel below it
+/// knows how much of the top of the screen it actually occupies — not just
+/// the status pill above it. Deliberately *not* sticky (unlike
+/// `CanvasAddButtonCenterKey`): when the banner isn't showing, no descendant
+/// sets this, so `onPreferenceChange` reports back `defaultValue` (0) and
+/// the panel's reserved space above it shrinks back down, correctly.
+struct SuggestionBannerHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

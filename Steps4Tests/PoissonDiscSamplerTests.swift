@@ -195,39 +195,4 @@ final class PoissonDiscSamplerTests: XCTestCase {
         XCTAssertGreaterThan(distance(p, clusterCentre), 0.3,
                              "Fallback \(p) hugged the cluster")
     }
-
-    // MARK: - Bulk fill (stipple)
-
-    func testFillRespectsMaxPoints() {
-        var rng = SeededRNG(seed: 31)
-        let points = PoissonDiscSampler.fill(
-            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-            minDistance: 0.05, maxPoints: 40,
-            weight: { _ in 1 }, using: &rng)
-        XCTAssertLessThanOrEqual(points.count, 40)
-        XCTAssertGreaterThan(points.count, 10, "Should find plenty of room")
-    }
-
-    func testFillIsReproducible() {
-        var rngA = SeededRNG(seed: 41)
-        var rngB = SeededRNG(seed: 41)
-        let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
-        let a = PoissonDiscSampler.fill(bounds: unit, minDistance: 0.08,
-                                        maxPoints: 30, weight: { _ in 1 }, using: &rngA)
-        let b = PoissonDiscSampler.fill(bounds: unit, minDistance: 0.08,
-                                        maxPoints: 30, weight: { _ in 1 }, using: &rngB)
-        XCTAssertEqual(a, b)
-    }
-
-    func testFillRespectsSpacing() {
-        var rng = SeededRNG(seed: 51)
-        let points = PoissonDiscSampler.fill(
-            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-            minDistance: 0.1, maxPoints: 50, weight: { _ in 1 }, using: &rng)
-        for i in points.indices {
-            for j in (i + 1)..<points.count {
-                XCTAssertGreaterThanOrEqual(distance(points[i], points[j]), 0.09)
-            }
-        }
-    }
 }

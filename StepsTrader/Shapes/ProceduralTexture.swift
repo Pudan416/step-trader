@@ -5,15 +5,14 @@ import SwiftUI
 /// How the inside of a form is filled.
 ///
 /// Every element used to get the same radial gradient, which is why a full
-/// canvas read as one object repeated. These five give a canvas forms that are
-/// flat, graded, ringed, hatched or stippled — and `TextureSpec.uniformity`
+/// canvas read as one object repeated. These four let forms read as flat,
+/// graded, ringed or hatched — and `TextureSpec.uniformity`
 /// lets each of them read as even or as strongly graded across the form.
 enum TextureKind: String, Codable, CaseIterable, Hashable {
     case flat       // solid colour, no falloff — the contrast anchor
     case gradient   // the existing radial falloff
     case rings      // concentric copies of the contour, stroked
     case hatch      // parallel lines clipped to the contour
-    case stipple    // Poisson dot field inside the contour
 }
 
 // MARK: - Spec
@@ -22,7 +21,7 @@ enum TextureKind: String, Codable, CaseIterable, Hashable {
 /// quantises: raw `Double` equality would miss the cache on every slider tick.
 struct TextureSpec: Codable, Hashable {
     var kind: TextureKind
-    /// How much of the fill there is — line count, dot count, ring count.
+    /// How much of the fill there is — line count or ring count.
     var density: Double
     /// `1` = even across the form, `0` = strongly graded by a noise field.
     var uniformity: Double
@@ -159,18 +158,12 @@ struct TextureGeometry: Hashable {
     var rings: [[Double]] = []
     /// Hatch segments, unit space.
     var lines: [Line] = []
-    /// Stipple dots: centre and radius, unit space.
-    var dots: [Dot] = []
 
     struct Line: Hashable {
         var start: CGPoint
         var end: CGPoint
     }
 
-    struct Dot: Hashable {
-        var center: CGPoint
-        var radius: Double
-    }
 }
 
 // MARK: - Generator
@@ -178,7 +171,6 @@ struct TextureGeometry: Hashable {
 enum ProceduralTexture {
 
     // Budget ceilings, enforced by ProceduralTextureTests.
-    private static let maxDots = 50
     private static let maxLines = 40
     private static let maxRings = 8
 
@@ -196,8 +188,6 @@ enum ProceduralTexture {
             return TextureGeometry(rings: ringGeometry(spec: spec, radii: radii))
         case .hatch:
             return TextureGeometry(lines: hatchGeometry(spec: spec, radii: radii, seed: seed))
-        case .stipple:
-            return TextureGeometry(dots: stippleGeometry(spec: spec, radii: radii, seed: seed))
         }
     }
 
@@ -243,7 +233,7 @@ enum ProceduralTexture {
         // spanning [0.68, 1.32] the covered fraction was ~40%. The
         // circumscribing radius guarantees every chord still fully covers
         // the star-shaped contour at its angle; `draw` clips the strokes to
-        // the actual contour, the same way `stipple` already does.
+        // the actual contour.
         let outer = radii.max() ?? 1
 
         var lines = [TextureGeometry.Line]()
@@ -274,81 +264,6 @@ enum ProceduralTexture {
             ))
         }
         return lines
-    }
-
-    // MARK: Stipple
-
-    /// A Poisson dot field inside the contour. `uniformity` decides whether the
-    /// density is even or driven by a noise gradient across the form.
-    private static func stippleGeometry(
-        spec: TextureSpec,
-        radii: [Double],
-        seed: UInt64
-    ) -> [TextureGeometry.Dot] {
-        var rng = SeededRNG.derived(from: seed, domain: "stipple")
-        let noise = SimplexNoise2D(seed: seed &+ 0x57)
-
-        // Denser spec → smaller spacing → more dots.
-        let spacing = 0.34 - spec.density * 0.22        // 0.34 … 0.12
-        let bounds = CGRect(x: -1, y: -1, width: 2, height: 2)
-
-        // `fill`'s weight is a Bernoulli accept gate on candidates, and the
-        // loop keeps trying until the active list is exhausted or maxPoints
-        // is hit — a rejected candidate only delays placement, since another
-        // one lands nearby moments later. Final density there is governed by
-        // `minDistance`, not by weight, so gating candidates during
-        // generation cannot produce a density *gradient*. Containment is all
-        // `fill`'s weight does here; the uniformity gradient is a second,
-        // independent thinning pass below, applied after the point set
-        // already exists.
-        let raw = PoissonDiscSampler.fill(
-            bounds: bounds,
-            minDistance: spacing,
-            maxPoints: maxDots,
-            weight: { point in containsPoint(point, radii: radii) ? 1 : 0 },
-            using: &rng
-        )
-
-        // A separate stream so thinning doesn't perturb the placement
-        // sequence above.
-        var thinRng = SeededRNG.derived(from: seed, domain: "stipple-thin")
-
-        return raw
-            .filter { containsPoint($0, radii: radii) }
-            .compactMap { point -> TextureGeometry.Dot? in
-                if spec.uniformity < 1 {
-                    // A dot where the noise field is low survives rarely; one
-                    // where it is high survives outright — this is what
-                    // actually makes the field bunch to one side, which
-                    // gating during generation could not do. The frequency is
-                    // low (0.4, not the 1.3 used elsewhere) on purpose: the
-                    // stipple domain is only ~2 units across, and at 1.3 that
-                    // fits several noise lobes per half, so a left/right split
-                    // averages them out — over 18 calibration seeds it never
-                    // produced a visible bunch. At 0.4 one lobe dominates the
-                    // whole form, which is what "bunches to one side" means.
-                    let n = (noise.value(Double(point.x) * 0.4, Double(point.y) * 0.4) + 1) / 2
-                    let survive = spec.uniformity + (1 - spec.uniformity) * n
-                    guard thinRng.nextDouble() < survive else { return nil }
-                }
-                // Dots shrink towards the rim so the fill has an interior.
-                let distance = Double(hypot(point.x, point.y))
-                let falloff = 1.0 - min(1.0, distance) * 0.55
-                return TextureGeometry.Dot(
-                    center: point,
-                    radius: max(0.008, spacing * 0.28 * falloff)
-                )
-            }
-    }
-
-    /// Star-shaped containment test: compare the point's radius against the
-    /// contour's radius at the point's angle.
-    private static func containsPoint(_ point: CGPoint, radii: [Double]) -> Bool {
-        guard !radii.isEmpty else { return false }
-        let angle = atan2(Double(point.y), Double(point.x))
-        let normalised = angle < 0 ? angle + 2 * .pi : angle
-        let index = Int(normalised / (2 * .pi) * Double(radii.count)) % radii.count
-        return Double(hypot(point.x, point.y)) <= radii[index]
     }
 
     // MARK: - Drawing
@@ -407,8 +322,7 @@ enum ProceduralTexture {
                     y: center.y + line.end.y * radius))
             }
             // Scanlines span the circumscribing circle (see `hatchGeometry`),
-            // so clip to the contour here, the same way `stipple` clips its
-            // dot field below. Scoped to a nested layer so the clip cannot
+            // so clip to the contour here. Scoped to a nested layer so it cannot
             // leak onto the caller's later drawing.
             context.drawLayer { strokeCtx in
                 strokeCtx.clip(to: contour)
@@ -416,27 +330,6 @@ enum ProceduralTexture {
                                  style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
             }
 
-        case .stipple:
-            context.fill(contour, with: .color(color.opacity(0.12)))
-            // One accumulated Path, one fill — 90 separate fills would blow
-            // the frame budget.
-            var field = Path()
-            for dot in geometry.dots {
-                let r = dot.radius * radius
-                field.addEllipse(in: CGRect(
-                    x: center.x + dot.center.x * radius - r,
-                    y: center.y + dot.center.y * radius - r,
-                    width: r * 2, height: r * 2))
-            }
-            // A rim dot's centre is inside the contour but its own radius
-            // can still push part of the ellipse outside it — clip so the
-            // fill never spills past the form. Scoped to a nested layer so
-            // the clip doesn't leak onto the stroke drawn after this call
-            // returns.
-            context.drawLayer { fieldCtx in
-                fieldCtx.clip(to: contour)
-                fieldCtx.fill(field, with: .color(second.opacity(0.75)))
-            }
         }
     }
 }
