@@ -230,8 +230,8 @@ struct StepsTraderApp: App {
 
     var body: some Scene {
         WindowGroup {
-            #if DEBUG
-            // Debug-only shortcut: `-uiLab dayObjects` opens the retained experiment
+            #if DEBUG || INTERNAL_BUILD
+            // Debug/Internal shortcut: `-uiLab dayObjects` opens the retained experiment
             // straight from launch. Driving the settings path with synthetic
             // taps is unreliable enough that verifying a shader visually
             // otherwise costs more than building it.

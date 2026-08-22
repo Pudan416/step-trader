@@ -1,4 +1,4 @@
-#if DEBUG
+#if DEBUG || INTERNAL_BUILD
 import SwiftUI
 
 enum ExperimentalLabRoute: String, CaseIterable {
