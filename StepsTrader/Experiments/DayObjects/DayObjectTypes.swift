@@ -98,7 +98,7 @@ struct DayObjectActor: Equatable {
     let role: DayObjectActorRole
     let shape: DayObjectShape
     let elongation: DayObjectElongation
-    let scale: DayObjectScale
+    let sizeBand: DayObjectSizeBand
     let fill: DayObjectFill
     let trajectory: DayObjectTrajectory
     let spin: DayObjectSpin

@@ -40,6 +40,13 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertEqual(Set(duplicateScene.actorIDs).count, duplicateScene.actors.count)
     }
 
+    func testOneUniqueHappeningProducesOneStableOrb() {
+        let scene = DayObjectScene.make(input: input(["walk", "walk", "sleep", "read"]))
+
+        XCTAssertEqual(scene.actors.map(\.eventID), ["walk", "sleep", "read"])
+        XCTAssertEqual(scene.composition.flockSize, 1)
+    }
+
     func testEmptyEventIDIsDeduplicatedWithoutDisplacingLaterEvents() {
         let withDuplicate = DayObjectScene.make(input: input(["", "", "walk"]))
         let withSingle = DayObjectScene.make(input: input(["", "walk"]))
@@ -97,6 +104,21 @@ final class DayObjectSceneTests: XCTestCase {
 }
 
 final class DayObjectCompositionTests: XCTestCase {
+    func testDayObjectsOnlyExposeCircleDerivedShapes() {
+        XCTAssertEqual(DayObjectShape.allCases, [.sphere, .ellipse, .lens, .softBlob])
+    }
+
+    func testRestingSizeBandsUseApprovedDiameterRanges() {
+        XCTAssertEqual(DayObjectSizeBand.support.diameterRange, 0.14...0.21)
+        XCTAssertEqual(DayObjectSizeBand.satellite.diameterRange, 0.08...0.13)
+    }
+
+    func testOrbElongationNeverProducesThinLegacyParticles() {
+        XCTAssertEqual(DayObjectElongation.allCases, [.round, .oval])
+        XCTAssertEqual(DayObjectElongation.round.aspectRange, 0.92...1.0)
+        XCTAssertEqual(DayObjectElongation.oval.aspectRange, 0.72...0.90)
+    }
+
     func testAllShapeFamiliesAreReachableAcrossBroadDailySample() {
         var reached = Set<DayObjectShape>()
 
@@ -112,13 +134,10 @@ final class DayObjectCompositionTests: XCTestCase {
 
     func testShapeAndFillNumericValuesMatchMetalShaderABI() {
         let expectedShapes: [DayObjectShape: UInt32] = [
-            .capsule: 0,
-            .drop: 1,
-            .slab: 2,
-            .dart: 3,
-            .wedge: 4,
-            .scallop: 5,
-            .burst: 6,
+            .sphere: 0,
+            .ellipse: 1,
+            .lens: 2,
+            .softBlob: 3,
         ]
         let expectedFills: [DayObjectFill: UInt32] = [
             .radialOne: 0,

@@ -11,17 +11,15 @@ enum DayObjectChapter: Int, CaseIterable, Equatable, Hashable {
 }
 
 enum DayObjectActorGeometry {
-    static let scallopRadialReach = 1.13
+    static let softBlobRadialReach = 1.06
     static let trailSigmaFactor = 0.70
     static let trailSigmaSupport = 3.5
 
     static func aspectRatio(for actor: DayObjectActor) -> Double {
-        switch actor.elongation {
-        case .compact:
-            return 0.55 + 0.4 * stableUnit(actor.seed, salt: 0x9E37_79B9_7F4A_7C15)
-        case .stretched:
-            return 0.10 + 0.18 * stableUnit(actor.seed, salt: 0xD1B5_4A32_D192_ED03)
-        }
+        let range = actor.elongation.aspectRange
+        return range.lowerBound
+            + (range.upperBound - range.lowerBound)
+                * stableUnit(actor.seed, salt: 0x9E37_79B9_7F4A_7C15)
     }
 
     private static func stableUnit(_ seed: UInt64, salt: UInt64) -> Double {
@@ -51,8 +49,8 @@ struct DayObjectGeometryFootprint: Equatable {
             halfSize.x.isFinite ? max(halfSize.x, 0) : 0,
             halfSize.y.isFinite ? max(halfSize.y, 0) : 0
         )
-        let bodyMultiplier = shape == .scallop
-            ? DayObjectActorGeometry.scallopRadialReach
+        let bodyMultiplier = shape == .softBlob
+            ? DayObjectActorGeometry.softBlobRadialReach
             : 1
         let forwardReach = safeHalfSize.x * bodyMultiplier
         let backwardReach = max(
@@ -224,8 +222,8 @@ struct DayObjectChoreographyScore: Equatable {
         let sample = interpolatedSample(for: actor, at: normalizedTime(time))
         let tangent = timeTangent(for: actor, at: normalizedTime(time))
         let halfSize = SIMD2<Double>(
-            baseLength(for: actor.scale) * 1.04 * 0.5 * 0.68,
-            baseLength(for: actor.scale) * 1.04 * 0.5 * 0.68
+            baseLength(for: actor) * 1.04 * 0.5 * 0.68,
+            baseLength(for: actor) * 1.04 * 0.5 * 0.68
                 * DayObjectActorGeometry.aspectRatio(for: actor)
         )
         let footprint = DayObjectGeometryFootprint.make(
@@ -287,7 +285,7 @@ struct DayObjectChoreographyScore: Equatable {
         guard !chapters.isEmpty else {
             return ChapterSample(
                 position: .zero,
-                scale: baseLength(for: actor.scale),
+                scale: baseLength(for: actor),
                 opacity: 1,
                 depthBand: actor.depthBand
             )
@@ -431,18 +429,17 @@ struct DayObjectChoreographyScore: Equatable {
 
         return ChapterSample(
             position: position,
-            scale: baseLength(for: actor.scale) * pulse,
+            scale: baseLength(for: actor) * pulse,
             opacity: opacityBase * visibility,
             depthBand: (actor.depthBand + depthShift) % 4
         )
     }
 
-    private func baseLength(for scale: DayObjectScale) -> Double {
-        switch scale {
-        case .small: return 0.045
-        case .medium: return 0.11
-        case .large: return 0.24
-        }
+    private func baseLength(for actor: DayObjectActor) -> Double {
+        let range = actor.sizeBand.diameterRange
+        return range.lowerBound
+            + (range.upperBound - range.lowerBound)
+                * stableUnit(actor.seed, salt: 0xA409_3822_299F_31D0)
     }
 
     private func travelDirection(for actor: DayObjectActor) -> Double {

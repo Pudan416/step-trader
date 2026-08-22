@@ -62,7 +62,7 @@ final class DayObjectChoreographyTests: XCTestCase {
                 role: template.role,
                 shape: template.shape,
                 elongation: template.elongation,
-                scale: template.scale,
+                sizeBand: template.sizeBand,
                 fill: template.fill,
                 trajectory: template.trajectory,
                 spin: spin,
@@ -129,15 +129,15 @@ final class DayObjectChoreographyTests: XCTestCase {
         }
     }
 
-    func testShaderDerivedFootprintUsesScallopAndFullTrailSupport() {
+    func testShaderDerivedFootprintUsesSoftBlobAndFullTrailSupport() {
         let horizontal = DayObjectGeometryFootprint.make(
             halfSize: SIMD2<Double>(0.12, 0.08),
             direction: SIMD2<Double>(1, 0),
-            shape: .scallop,
+            shape: .softBlob,
             trailLength: 0.05,
             shortSidePixels: 1_000
         )
-        XCTAssertEqual(horizontal.forwardReach, 0.12 * 1.13, accuracy: 0.000_001)
+        XCTAssertEqual(horizontal.forwardReach, 0.12 * 1.06, accuracy: 0.000_001)
         XCTAssertEqual(horizontal.backwardReach, 0.12 + 0.05, accuracy: 0.000_001)
         XCTAssertEqual(horizontal.lateralReach, 0.08 * 0.70 * 3.5, accuracy: 0.000_001)
         XCTAssertEqual(horizontal.axisAlignedHalfExtents.x, 0.172, accuracy: 0.000_001)
@@ -146,7 +146,7 @@ final class DayObjectChoreographyTests: XCTestCase {
         let diagonal = DayObjectGeometryFootprint.make(
             halfSize: SIMD2<Double>(0.12, 0.08),
             direction: SIMD2<Double>(1, 1),
-            shape: .scallop,
+            shape: .softBlob,
             trailLength: 0.05,
             shortSidePixels: 1_000
         )

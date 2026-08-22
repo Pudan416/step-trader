@@ -3,45 +3,32 @@ import simd
 
 /// Shape family used by the Day Objects renderer.
 enum DayObjectShape: String, CaseIterable, Hashable {
-    case capsule
-    case drop
-    case slab
-    case dart
-    case wedge
-    case scallop
-    case burst
+    case sphere
+    case ellipse
+    case lens
+    case softBlob
 }
 
 enum DayObjectElongation: String, CaseIterable, Hashable {
-    case compact
-    case stretched
+    case round
+    case oval
 
     var aspectRange: ClosedRange<Double> {
         switch self {
-        case .compact: 0.55...0.95
-        case .stretched: 0.10...0.28
+        case .round: 0.92...1.0
+        case .oval: 0.72...0.90
         }
     }
 }
 
-enum DayObjectScale: String, CaseIterable, Hashable {
-    case small
-    case medium
-    case large
+enum DayObjectSizeBand: String, CaseIterable, Hashable {
+    case support
+    case satellite
 
-    var lengthRange: ClosedRange<Double> {
+    var diameterRange: ClosedRange<Double> {
         switch self {
-        case .small: 0.03...0.06
-        case .medium: 0.08...0.14
-        case .large: 0.18...0.30
-        }
-    }
-
-    var perHappening: ClosedRange<Int> {
-        switch self {
-        case .small: 4...7
-        case .medium: 2...3
-        case .large: 1...1
+        case .support: 0.14...0.21
+        case .satellite: 0.08...0.13
         }
     }
 }
@@ -432,7 +419,6 @@ struct DayObjectCompositionPlan: Equatable {
 struct DayObjectComposition: Equatable {
     let shape: DayObjectShape
     let elongation: DayObjectElongation
-    let scale: DayObjectScale
     let fill: DayObjectFill
     let trajectory: DayObjectTrajectory
     let spin: DayObjectSpin
@@ -453,22 +439,18 @@ struct DayObjectComposition: Equatable {
             return options[rng.nextInt(in: 0...(options.count - 1))]
         }
 
-        let scale = pick(DayObjectScale.allCases, domain: "scale")
-        var flockRNG = SeededRNG.derived(from: seed, domain: "flockSize")
-
         return DayObjectComposition(
             shape: pick(DayObjectShape.allCases, domain: "shape"),
             elongation: pick(DayObjectElongation.allCases, domain: "elongation"),
-            scale: scale,
             fill: pick(DayObjectFill.allCases, domain: "fill"),
             trajectory: pick(DayObjectTrajectory.allCases, domain: "trajectory"),
             spin: pick(DayObjectSpin.allCases, domain: "spin"),
-            flockSize: flockRNG.nextInt(in: scale.perHappening)
+            flockSize: 1
         )
     }
 
     var summary: String {
-        "\(shape.rawValue) · \(elongation.rawValue) · \(scale.rawValue) · \(fill.rawValue) · "
+        "\(shape.rawValue) · \(elongation.rawValue) · \(fill.rawValue) · "
             + "\(trajectory.rawValue) · \(spin.rawValue)"
     }
 }

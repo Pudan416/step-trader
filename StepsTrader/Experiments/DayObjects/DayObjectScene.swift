@@ -136,7 +136,7 @@ struct DayObjectScene: Equatable {
             role: role,
             shape: composition.shape,
             elongation: composition.elongation,
-            scale: composition.scale,
+            sizeBand: pick(DayObjectSizeBand.allCases, domain: "sizeBand"),
             fill: composition.fill,
             trajectory: composition.trajectory,
             spin: composition.spin,
