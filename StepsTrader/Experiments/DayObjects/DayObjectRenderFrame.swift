@@ -326,7 +326,7 @@ struct DayObjectRenderFrame: Equatable {
     }
 
     private static func numericShape(_ shape: DayObjectShape) -> UInt32 {
-        UInt32(DayObjectShape.allCases.firstIndex(of: shape) ?? 0)
+        shape.numericValue
     }
 
     private static func numericFill(_ fill: DayObjectFill) -> UInt32 {

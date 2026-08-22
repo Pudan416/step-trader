@@ -7,6 +7,15 @@ enum DayObjectShape: String, CaseIterable, Hashable {
     case ellipse
     case lens
     case softBlob
+
+    var numericValue: UInt32 {
+        switch self {
+        case .sphere: 0
+        case .ellipse: 1
+        case .lens: 2
+        case .softBlob: 3
+        }
+    }
 }
 
 enum DayObjectElongation: String, CaseIterable, Hashable {

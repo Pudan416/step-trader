@@ -176,11 +176,11 @@ final class DayObjectChoreographyTests: XCTestCase {
             trailLength: 0.05,
             shortSidePixels: 1_000
         )
-        XCTAssertEqual(horizontal.forwardReach, 0.12 * 1.06, accuracy: 0.000_001)
+        XCTAssertEqual(horizontal.forwardReach, 0.12 * (1.06 + 0.18), accuracy: 0.000_001)
         XCTAssertEqual(horizontal.backwardReach, 0.12 + 0.05, accuracy: 0.000_001)
-        XCTAssertEqual(horizontal.lateralReach, 0.08 * 0.36 * 3.2, accuracy: 0.000_001)
+        XCTAssertEqual(horizontal.lateralReach, 0.08 * 1.06 + 0.12 * 0.18, accuracy: 0.000_001)
         XCTAssertEqual(horizontal.axisAlignedHalfExtents.x, 0.172, accuracy: 0.000_001)
-        XCTAssertEqual(horizontal.axisAlignedHalfExtents.y, 0.09416, accuracy: 0.000_001)
+        XCTAssertEqual(horizontal.axisAlignedHalfExtents.y, 0.1084, accuracy: 0.000_001)
 
         let diagonal = DayObjectGeometryFootprint.make(
             halfSize: SIMD2<Double>(0.12, 0.08),
@@ -191,7 +191,7 @@ final class DayObjectChoreographyTests: XCTestCase {
         )
         XCTAssertEqual(
             diagonal.axisAlignedHalfExtents.x,
-            (0.17 + 0.09216) / sqrt(2) + 0.002,
+            (0.17 + 0.1064) / sqrt(2) + 0.002,
             accuracy: 0.000_001
         )
         XCTAssertEqual(diagonal.axisAlignedHalfExtents.x, diagonal.axisAlignedHalfExtents.y, accuracy: 0.000_001)

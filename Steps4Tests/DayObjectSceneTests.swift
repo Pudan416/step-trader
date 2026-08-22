@@ -179,4 +179,11 @@ final class DayObjectCompositionTests: XCTestCase {
         XCTAssertEqual(observedShapes, expectedShapes)
         XCTAssertEqual(observedFills, expectedFills)
     }
+
+    func testOrbShapeNumericValuesAreExplicitAndStable() {
+        XCTAssertEqual(DayObjectShape.sphere.numericValue, 0)
+        XCTAssertEqual(DayObjectShape.ellipse.numericValue, 1)
+        XCTAssertEqual(DayObjectShape.lens.numericValue, 2)
+        XCTAssertEqual(DayObjectShape.softBlob.numericValue, 3)
+    }
 }

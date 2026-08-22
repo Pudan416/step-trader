@@ -97,6 +97,7 @@ struct DayObjectsActorUniforms: Equatable {
     let radialParameters0: SIMD4<Float> // bytes 64...79
     let radialParameters1: SIMD4<Float> // bytes 80...95
     let radialParameters2: SIMD4<Float> // bytes 96...111
+    let radialParameters3: SIMD4<Float> // bytes 112...127
 
     init(
         resolution rawResolution: SIMD2<Float>,
@@ -138,6 +139,12 @@ struct DayObjectsActorUniforms: Equatable {
             Self.finite(Float(radialFillStyle.offset.x)),
             Self.finite(Float(radialFillStyle.offset.y)),
             Float(min(max(radialFillStyle.colors.count, 1), 3))
+        )
+        radialParameters3 = SIMD4(
+            Float(radialFillStyle.preset.rawValue),
+            Self.finite(Float(radialFillStyle.banding)),
+            Float(DayObjectActorGeometry.mergeReachFactor),
+            Float(DayObjectActorGeometry.mergeAlpha)
         )
     }
 

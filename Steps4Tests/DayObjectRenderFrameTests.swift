@@ -1267,8 +1267,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
             XCTAssertEqual(uniforms.shortSidePixels, 1_179)
         }
 
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 112)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 112)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 128)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 128)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.resolution), 0)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.energyNormalization), 8)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.shortSidePixels), 12)
@@ -1290,7 +1290,9 @@ final class DayObjectRenderFrameTests: XCTestCase {
             distortionShift: -0.27,
             distortionFrequency: 7,
             rotation: 0.74,
-            offset: SIMD2(0.12, -0.08)
+            offset: SIMD2(0.12, -0.08),
+            preset: .crossSections,
+            banding: 0.22
         )
         let uniforms = DayObjectsActorUniforms(
             resolution: SIMD2(1_179, 2_556),
@@ -1299,8 +1301,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
         )
 
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.alignment, 16)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 112)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 112)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 128)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 128)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.resolution), 0)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.energyNormalization), 8)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.shortSidePixels), 12)
@@ -1310,12 +1312,14 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.radialParameters0), 64)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.radialParameters1), 80)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.radialParameters2), 96)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.radialParameters3), 112)
         XCTAssertEqual(uniforms.radialColor0, SIMD4(style.colors[0], 1))
         XCTAssertEqual(uniforms.radialColor1, SIMD4(style.colors[1], 1))
         XCTAssertEqual(uniforms.radialColor2, SIMD4(style.colors[2], 1))
         XCTAssertEqual(uniforms.radialParameters0, SIMD4(0.83, 0.42, 1.1, 0.24))
         XCTAssertEqual(uniforms.radialParameters1, SIMD4(0.68, 0.31, -0.27, 7))
         XCTAssertEqual(uniforms.radialParameters2, SIMD4(0.74, 0.12, -0.08, 3))
+        XCTAssertEqual(uniforms.radialParameters3, SIMD4(3, 0.22, 0.18, 0.16))
     }
 
     func testActorRadialVariationIsStableBoundedAndIndependentPerActor() {
@@ -1469,33 +1473,52 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertLessThan(dense[centerX - 12, centerY], sparse[centerX - 12, centerY])
     }
 
-    func testScallopBodyDoesNotClipAtHighResolutionPortraitAndWideAspects() throws {
-        let scallop = DayObjectGPUActor(
-            position: .zero,
-            direction: SIMD2(1, 0),
-            halfSize: SIMD2(0.12, 0.08),
-            color: SIMD4(0.9, 0.3, 0.1, 1),
-            opacity: 1,
-            trailLength: 0,
-            shape: 5,
-            fill: 0,
-            depth: 0
-        )
+    func testActorShaderRendersOnlyCircleDerivedOrbFamilies() throws {
+        let harness = try ActorRenderHarness(width: 192, height: 160)
 
-        for (width, height) in [(1_179, 2_556), (2_556, 1_179)] {
-            let harness = try ActorRenderHarness(width: width, height: height)
-            let alpha = try harness.render([scallop])
-            let centerX = width / 2
+        for shape in UInt32(0)...UInt32(3) {
+            let actor = DayObjectGPUActor(
+                position: .zero,
+                direction: SIMD2(1, 0),
+                halfSize: SIMD2(0.28, 0.22),
+                color: SIMD4(0.9, 0.3, 0.1, 1),
+                opacity: 1,
+                trailLength: 0,
+                shape: shape,
+                fill: 2,
+                depth: 0
+            )
+            let alpha = try harness.render([actor])
+            XCTAssertGreaterThan(alpha[harness.width / 2, harness.height / 2], 0.8)
+            XCTAssertGreaterThan(alpha.nonzeroPixelCount, 2_500)
+            XCTAssertLessThan(alpha[0, 0], 0.01)
+            XCTAssertLessThan(alpha[harness.width - 1, harness.height - 1], 0.01)
+        }
+    }
 
-            // At a 1,179-pixel short side, x offsets 150...153 lie
-            // inside the scallop's analytic 1.10598x major-axis reach,
-            // but beyond the former halfSize + 2-pixel quad boundary.
-            XCTAssertGreaterThan(
-                alpha.maximum(inXRange: (centerX + 150)..<(centerX + 154)),
-                0.5,
-                "scallop clipped for \(width)x\(height)"
+    func testCloseOrbMergeFieldsCreateSoftBridgeWhileSeparatedBodiesStayDistinct() throws {
+        let harness = try ActorRenderHarness(width: 256, height: 128)
+        func actor(x: Float) -> DayObjectGPUActor {
+            DayObjectGPUActor(
+                position: SIMD2(x, 0),
+                direction: SIMD2(1, 0),
+                halfSize: SIMD2(0.16, 0.15),
+                color: SIMD4(0.9, 0.3, 0.1, 1),
+                opacity: 1,
+                trailLength: 0,
+                shape: 0,
+                fill: 2,
+                depth: 0
             )
         }
+
+        let isolated = try harness.render([actor(x: -0.18)])
+        let close = try harness.render([actor(x: -0.18), actor(x: 0.18)])
+        let separated = try harness.render([actor(x: -0.28), actor(x: 0.28)])
+        let midpoint = (x: harness.width / 2, y: harness.height / 2)
+
+        XCTAssertGreaterThan(close[midpoint.x, midpoint.y], isolated[midpoint.x, midpoint.y] + 0.025)
+        XCTAssertLessThan(separated[midpoint.x, midpoint.y], 0.01)
     }
 
     func testActorShaderRendersDeterministicOneTenTwentyFourAndFortyActorFixtures() throws {

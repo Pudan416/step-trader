@@ -12,6 +12,8 @@ enum DayObjectChapter: Int, CaseIterable, Equatable, Hashable {
 
 enum DayObjectActorGeometry {
     static let softBlobRadialReach = 1.06
+    static let mergeReachFactor = 0.18
+    static let mergeAlpha = 0.16
     static let trailSigmaFactor = 0.36
     static let trailSigmaSupport = 3.2
 
@@ -52,7 +54,8 @@ struct DayObjectGeometryFootprint: Equatable {
         let bodyMultiplier = shape == .softBlob
             ? DayObjectActorGeometry.softBlobRadialReach
             : 1
-        let forwardReach = safeHalfSize.x * bodyMultiplier
+        let mergeReach = safeHalfSize.x * DayObjectActorGeometry.mergeReachFactor
+        let forwardReach = safeHalfSize.x * bodyMultiplier + mergeReach
         let backwardReach = max(
             forwardReach,
             safeHalfSize.x + max(trailLength.isFinite ? trailLength : 0, 0)
@@ -63,7 +66,7 @@ struct DayObjectGeometryFootprint: Equatable {
             1.25 / pixels
         )
         let lateralReach = max(
-            safeHalfSize.y * bodyMultiplier,
+            safeHalfSize.y * bodyMultiplier + mergeReach,
             sigma * DayObjectActorGeometry.trailSigmaSupport
         )
         let directionLength = simd_length(rawDirection)
@@ -233,9 +236,12 @@ struct DayObjectChoreographyScore: Equatable {
         let bodyMultiplier = actor.shape == .softBlob
             ? DayObjectActorGeometry.softBlobRadialReach
             : 1
+        let mergePlanningMargin = plan.uiExclusionRegion == .dayObjectsLabControls
+            ? 0.025
+            : majorHalfSize * DayObjectActorGeometry.mergeReachFactor + 0.015
         let orientationIndependentReach = majorHalfSize * bodyMultiplier
             + 0.014 + 0.008 * actor.speedRatio
-            + 0.025
+            + mergePlanningMargin
             + 2.0 / 128.0
         return plan.stableRoutePosition(
             for: actor.role,

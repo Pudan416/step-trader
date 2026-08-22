@@ -30,10 +30,11 @@ struct DayObjectsActorUniforms {
     float4 radialParameters0;
     float4 radialParameters1;
     float4 radialParameters2;
+    float4 radialParameters3;
 };
 
 static_assert(alignof(DayObjectsActorUniforms) == 16, "Actor uniforms require 16-byte alignment");
-static_assert(sizeof(DayObjectsActorUniforms) == 112, "Actor uniforms must match Swift's 112-byte stride");
+static_assert(sizeof(DayObjectsActorUniforms) == 128, "Actor uniforms must match Swift's 128-byte stride");
 
 struct DayObjectsActorVertexOut {
     float4 position [[position]];
@@ -49,7 +50,7 @@ struct DayObjectsActorVertexOut {
     uint fill [[flat]];
 };
 
-constant float dayObjectsScallopRadialReach = 1.13;
+constant float dayObjectsSoftBlobRadialReach = 1.06;
 constant float dayObjectsTrailSigmaFactor = 0.36;
 constant float dayObjectsTrailSigmaSupport = 3.2;
 
@@ -68,15 +69,13 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
         halfSize.y * dayObjectsTrailSigmaFactor,
         1.25 / shortSidePixels
     );
-    // Scallop's modulated radius reaches 1.13 in some directions and its
-    // major-axis support reaches 1.10598. The radial maximum is a conservative
-    // body bound; every other SDF remains inside its nominal major half-size.
+    const float mergeReach = halfSize.x * clamp(uniforms.radialParameters3.z, 0.0, 0.35);
     const float bodyMajorReach = halfSize.x * (
-        actor.shape == 5 ? dayObjectsScallopRadialReach : 1.0
-    );
+        actor.shape == 3 ? dayObjectsSoftBlobRadialReach : 1.0
+    ) + mergeReach;
     const float bodyMinorReach = halfSize.y * (
-        actor.shape == 5 ? dayObjectsScallopRadialReach : 1.0
-    );
+        actor.shape == 3 ? dayObjectsSoftBlobRadialReach : 1.0
+    ) + mergeReach;
     const float trailMinimumX = -halfSize.x - max(actor.trailLength, 0.0);
 
     // The local quad spans the body plus the complete exponential/Gaussian
@@ -124,9 +123,9 @@ static float2 dayObjectsRotate(float2 point, float angle) {
     );
 }
 
-/// A soft, non-banded radial field. Every actor shares the daily palette and
-/// topology; its stable variation only changes the local focal placement and
-/// gradient direction so overlaps do not look like duplicated stickers.
+/// Every actor shares a daily static-radial preset. Actor variation only moves
+/// its focal point and phase, so overlapping orbs feel related without looking
+/// like duplicated stickers.
 static float3 dayObjectsStaticRadialColor(
     DayObjectsActorVertexOut in,
     constant DayObjectsActorUniforms &uniforms,
@@ -152,15 +151,38 @@ static float3 dayObjectsStaticRadialColor(
     const float2 focal = float2(cos(focalAngle), sin(focalAngle)) * focalDistance;
     const float2 focalPoint = point - focal;
     const float polarAngle = atan2(focalPoint.y, focalPoint.x);
-    const float deformation = sin(
+    float deformation = sin(
         polarAngle * distortionFrequency
             + distortionShift * M_PI_F
             + in.radialVariation * 1.7
     ) * distortion * 0.16;
+    const uint preset = uint(clamp(round(uniforms.radialParameters3.x), 0.0, 3.0));
+    const float banding = clamp(uniforms.radialParameters3.y, 0.0, 0.55);
+    if (preset == 1) {
+        deformation *= 0.45;
+    } else if (preset == 3) {
+        const float crossSection = sin(
+            (point.x * 0.78 + point.y) * distortionFrequency * 1.45
+                + distortionShift * M_PI_F
+                + in.radialVariation
+        );
+        deformation += crossSection * distortion * 0.10;
+    }
     const float normalizedRadius = length(focalPoint) / radius + deformation + falloff;
     const float softness = mix(0.10, 0.42, mixing);
     float radialT = smoothstep(-softness, 1.0 + softness, normalizedRadius);
     radialT = clamp(radialT + in.radialVariation * 0.08, 0.0, 1.0);
+    if (preset == 2) {
+        const float steps = mix(5.0, 9.0, 1.0 - banding);
+        const float quantized = floor(radialT * steps + 0.5) / steps;
+        radialT = mix(radialT, quantized, banding * 0.65);
+    } else if (preset == 3) {
+        const float sections = 0.5 + 0.5 * sin(
+            normalizedRadius * distortionFrequency * 2.4
+                + distortionShift * M_PI_F
+        );
+        radialT = clamp(radialT + (sections - 0.5) * banding * 0.18, 0.0, 1.0);
+    }
 
     const float3 color0 = max(uniforms.radialColor0.rgb, 0.0);
     const float3 color1 = max(uniforms.radialColor1.rgb, 0.0);
@@ -179,47 +201,30 @@ static float3 dayObjectsStaticRadialColor(
         : mix(color1, color2, smoothstep(0.5, 1.0, directedT));
 }
 
-/// The seven Day Object body families in local units where the major-axis
-/// half-size is one and `aspect` is the minor/major ratio.
-static float dayObjectsActorBody(uint shape, float2 point, float aspect) {
+/// Four circle-derived bodies in local units. None of the variants can produce
+/// the old triangles, slabs, petals, or thin Figma-like particles.
+static float dayObjectsActorBody(
+    uint shape,
+    float2 point,
+    float aspect,
+    float radialVariation
+) {
+    const float2 ellipsePoint = float2(point.x, point.y / max(aspect, 1e-4));
+    const float radius = length(ellipsePoint);
+    const float angle = atan2(ellipsePoint.y, ellipsePoint.x);
     switch (shape) {
-    case 1: { // drop
-        const float2 ellipsePoint = float2(point.x, point.y / max(aspect, 1e-4));
-        return length(ellipsePoint) - 1.0;
+    case 1: // ellipse
+        return radius - 1.0;
+    case 2: { // softly pinched lens
+        const float lensRadius = 1.0 - 0.055 * pow(abs(sin(angle)), 2.0);
+        return radius - lensRadius;
     }
-    case 2: { // slab
-        const float2 delta = abs(point) - float2(1.0, aspect);
-        return length(max(delta, 0.0)) + min(max(delta.x, delta.y), 0.0);
+    case 3: { // low-amplitude organic orb
+        const float blobRadius = 1.0 + 0.055 * sin(3.0 * angle + radialVariation * 1.8);
+        return radius - blobRadius;
     }
-    case 3: { // dart
-        const float halfWidth = aspect * (1.0 - point.x) * 0.5;
-        return max(abs(point.x) - 1.0, abs(point.y) - halfWidth);
-    }
-    case 4: { // wedge
-        const float halfWidth = aspect * (1.0 + point.x) * 0.5;
-        return max(abs(point.x) - 1.0, abs(point.y) - halfWidth);
-    }
-    case 5: { // scallop
-        const float2 ellipsePoint = float2(point.x, point.y / max(aspect, 1e-4));
-        const float radius = length(ellipsePoint);
-        const float angle = atan2(ellipsePoint.y, ellipsePoint.x);
-        return radius - (1.0 - 0.13 * sin(7.0 * angle));
-    }
-    case 6: { // burst
-        const float2 ellipsePoint = float2(point.x, point.y / max(aspect, 1e-4));
-        const float radius = length(ellipsePoint);
-        const float angle = atan2(ellipsePoint.y, ellipsePoint.x);
-        const float spikes = 0.42 + 0.58 * pow(abs(cos(6.0 * angle)), 0.45);
-        return radius - spikes;
-    }
-    default: { // capsule
-        const float radius = min(aspect * 0.95, 0.42);
-        const float2 delta = abs(point) - float2(
-            1.0 - radius,
-            max(aspect - radius, 0.0)
-        );
-        return length(max(delta, 0.0)) + min(max(delta.x, delta.y), 0.0) - radius;
-    }
+    default: // sphere
+        return radius - 1.0;
     }
 }
 
@@ -233,7 +238,8 @@ fragment float4 dayObjectsActorFragment(
     const float signedBodyDistancePixels = dayObjectsActorBody(
         in.shape,
         bodyPoint,
-        aspect
+        aspect,
+        in.radialVariation
     ) * majorHalfSize * in.shortSidePixels;
 
     // Derivatives are evaluated after conversion to screen pixels, so the
@@ -268,11 +274,22 @@ fragment float4 dayObjectsActorFragment(
     const float bodyAlpha = bodyCoverage * actorOpacity;
     const float trailAlpha = trailCoverage * actorOpacity * in.trailEnergyNormalization;
     const float visibleTrailAlpha = trailAlpha * (1.0 - bodyAlpha);
-    const float alpha = clamp(bodyAlpha + visibleTrailAlpha, 0.0, 1.0);
+    const float mergeReachPixels = max(
+        majorHalfSize * clamp(uniforms.radialParameters3.z, 0.0, 0.35) * in.shortSidePixels,
+        1.0
+    );
+    const float mergeCoverage = (1.0 - bodyCoverage) * (
+        1.0 - smoothstep(0.0, mergeReachPixels, max(signedBodyDistancePixels, 0.0))
+    );
+    const float mergeAlpha = mergeCoverage * actorOpacity
+        * clamp(uniforms.radialParameters3.w, 0.0, 0.3);
+    const float visibleMergeAlpha = mergeAlpha * (1.0 - bodyAlpha) * (1.0 - visibleTrailAlpha);
+    const float alpha = clamp(bodyAlpha + visibleTrailAlpha + visibleMergeAlpha, 0.0, 1.0);
 
     const float3 bodyColor = dayObjectsStaticRadialColor(in, uniforms, bodyPoint, aspect);
     const float3 trailColor = max(in.color.rgb * 0.88, 0.0);
     const float3 premultiplied = bodyColor * bodyAlpha
-        + trailColor * visibleTrailAlpha;
+        + trailColor * visibleTrailAlpha
+        + bodyColor * visibleMergeAlpha;
     return float4(premultiplied, alpha);
 }
