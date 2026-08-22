@@ -227,25 +227,8 @@ struct DayObjectsPostUniforms: Equatable {
         contrast = Self.nonnegativeFinite(Float(postProcess.contrast))
         saturation = Self.nonnegativeFinite(Float(postProcess.saturation))
 
-        let baseGrain = min(
-            max(postProcess.grainIntensity.isFinite ? Float(postProcess.grainIntensity) : 0.035, 0.035),
-            0.075
-        )
-        let paletteLuminance = rawPaletteLuminance.isFinite
-            ? min(max(rawPaletteLuminance, 0), 1)
-            : 0
-        let lightPaletteProgress = Self.smoothstep(
-            min(
-                max(
-                    (paletteLuminance - Self.lightPaletteLuminanceStart)
-                        / Self.lightPaletteLuminanceWidth,
-                    0
-                ),
-                1
-            )
-        )
-        grainIntensity = 0.035
-            + (baseGrain - 0.035) * Float(1 - 0.55 * lightPaletteProgress)
+        _ = rawPaletteLuminance
+        grainIntensity = 0.05
 
         grainPhase = postProcess.grainPhase.isFinite
             ? max(Float(postProcess.grainPhase), 0)
@@ -262,9 +245,6 @@ struct DayObjectsPostUniforms: Equatable {
         value.isFinite ? max(value, 0) : 0
     }
 
-    private static func smoothstep(_ value: Double) -> Double {
-        value * value * (3 - 2 * value)
-    }
 }
 
 /// A depth-sorted frame snapshot ready for a single instanced actor draw.

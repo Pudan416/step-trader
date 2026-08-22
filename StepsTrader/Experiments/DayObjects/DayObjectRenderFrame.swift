@@ -56,12 +56,12 @@ struct DayObjectPostProcess: Equatable {
     let grainIntensity: Double
     let grainPhase: Double
 
-    init(visualClarity rawVisualClarity: Double, reduceMotion: Bool, grainSeed: UInt64, elapsed rawElapsed: Double = 0) {
+    init(visualClarity rawVisualClarity: Double, reduceMotion: Bool, grainSeed _: UInt64, elapsed rawElapsed: Double = 0) {
         let visualClarity = Self.clampedUnit(rawVisualClarity)
         blurRadius = pow(1 - visualClarity, 1.4) * 18
         contrast = 0.84 + 0.16 * visualClarity
         saturation = 0.88 + 0.12 * visualClarity
-        grainIntensity = 0.035 + 0.04 * Self.stableUnit(grainSeed)
+        grainIntensity = 0.05
 
         let elapsed = rawElapsed.isFinite ? max(rawElapsed, 0) : 0
         grainPhase = reduceMotion ? 0 : floor(elapsed * 12) / 12
@@ -72,13 +72,6 @@ struct DayObjectPostProcess: Equatable {
         return min(max(value, 0), 1)
     }
 
-    private static func stableUnit(_ seed: UInt64) -> Double {
-        var value = seed &+ 0x9E37_79B9_7F4A_7C15
-        value = (value ^ (value >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
-        value ^= value >> 31
-        return Double(value >> 11) / Double(UInt64(1) << 53)
-    }
 }
 
 /// The exact Swift counterpart of the Metal `DayObjectGPUActor` struct.

@@ -190,14 +190,14 @@ final class DayObjectRenderFrameTests: XCTestCase {
         )
     }
 
-    func testPostUniformGrainStaysBoundedAndLightPalettesReduceIt() {
+    func testProceduralGrainUsesOneStableTexturedIntensityForEveryDayAndPalette() {
         for seed in UInt64(0)..<64 {
             let postProcess = DayObjectPostProcess(
                 visualClarity: 0.4,
                 reduceMotion: false,
                 grainSeed: seed
             )
-            XCTAssertTrue((0.035...0.075).contains(postProcess.grainIntensity))
+            XCTAssertEqual(postProcess.grainIntensity, 0.05, accuracy: 0.000_001)
 
             let dark = DayObjectsPostUniforms(
                 postProcess: postProcess,
@@ -213,9 +213,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 grainSeed: seed,
                 paletteLuminance: 0.96
             )
-            XCTAssertTrue((0.035...0.075).contains(Double(dark.grainIntensity)))
-            XCTAssertTrue((0.035...0.075).contains(Double(light.grainIntensity)))
-            XCTAssertLessThanOrEqual(light.grainIntensity, dark.grainIntensity)
+            XCTAssertEqual(dark.grainIntensity, 0.05, accuracy: 0.000_001)
+            XCTAssertEqual(light.grainIntensity, 0.05, accuracy: 0.000_001)
         }
 
         let seeded = DayObjectPostProcess(
@@ -237,10 +236,10 @@ final class DayObjectRenderFrameTests: XCTestCase {
             grainSeed: 9,
             paletteLuminance: 0.96
         )
-        XCTAssertLessThan(light.grainIntensity, dark.grainIntensity)
+        XCTAssertEqual(light.grainIntensity, dark.grainIntensity)
     }
 
-    func testLightestAvailableDailyPaletteReducesItsBaseGrainIntensity() throws {
+    func testLightestAvailableDailyPaletteKeepsTheStableTexturedGrainIntensity() throws {
         let scenes = (0..<512).map { index in
             DayObjectScene.make(input: .init(
                 dayKey: "light-palette-\(index)",
@@ -277,7 +276,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
             pointToPixelScale: 2
         )
 
-        XCTAssertLessThan(uniforms.grainIntensity, Float(frame.postProcess.grainIntensity))
+        XCTAssertEqual(uniforms.grainIntensity, 0.05, accuracy: 0.000_001)
+        XCTAssertEqual(uniforms.grainIntensity, Float(frame.postProcess.grainIntensity))
     }
 
     func testGrainPhaseAdvancesAtNoMoreThanTwelveHertzAndReduceMotionFreezesIndependently() {
