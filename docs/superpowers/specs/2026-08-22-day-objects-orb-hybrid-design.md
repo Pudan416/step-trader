@@ -105,4 +105,3 @@ Quad reach and CPU geometry footprints must include the merge-field support so t
 - GPU captures visibly show soft bridges during close contact and distinct bodies outside contact.
 - Grain uniforms and rendered output use a stable intensity of `0.05` across palette luminance and clarity fixtures.
 - Existing deterministic seed, insertion/removal continuity, sRGB presentation, background nonblank, Reduce Motion, safe-bounds, visual matrix, full unit/UI suite, and simulator build gates remain green.
-
