@@ -158,6 +158,7 @@ struct SettingsNavRow: View {
                 .font(.system(size: 15))
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .frame(width: 24)
+                .accessibilityHidden(true)
             Text(title)
                 .font(.subheadline)
                 .foregroundStyle(theme.adaptivePrimaryText)
@@ -170,6 +171,7 @@ struct SettingsNavRow: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
