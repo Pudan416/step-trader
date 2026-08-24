@@ -260,12 +260,9 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["canvas_fullscreen_button"].exists)
     }
 
-    /// Tapping a row opens the metric overlay with its explanation. The row
-    /// button carries no dedicated identifier — its accessibility label is
-    /// generated as `"<title>, <value> of <max>"` (see `CanvasDataPanel`'s
-    /// `rowView`), so match on the stable "Steps," prefix rather than the
-    /// value/max, which vary with the day's data.
-    func testTappingARowOpensTheExplanation() {
+    /// Metric explanations live inside the drawer: tapping the same row
+    /// collapses it, while tapping another row switches the open disclosure.
+    func testMetricRowsToggleInlineExplanations() {
         let app = launchCanvas()
 
         openDataDrawer(in: app)
@@ -276,10 +273,26 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertTrue(stepsRow.waitForExistence(timeout: 3))
         stepsRow.tap()
 
-        // SwiftUI's `Link` surfaces to XCUITest as a Button element on this
-        // iOS version, not `.link` — `app.links[...]` never matches it. Match
-        // by identifier across any element type instead, the same pattern
-        // this file already uses for `canvas_energy_pill`.
-        XCTAssertTrue(app.descendants(matching: .any)["metric_research_link_steps"].waitForExistence(timeout: 3))
+        let stepsDisclosure = app.descendants(matching: .any)["canvas_metric_disclosure_steps"]
+        XCTAssertTrue(stepsDisclosure.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.descendants(matching: .any)["canvas_metric_research_link_steps"].exists)
+
+        stepsRow.tap()
+        XCTAssertTrue(stepsDisclosure.waitForNonExistence(timeout: 3))
+
+        stepsRow.tap()
+        XCTAssertTrue(stepsDisclosure.waitForExistence(timeout: 3))
+
+        let sleepRow = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Sleep,'")
+        ).firstMatch
+        XCTAssertTrue(sleepRow.waitForExistence(timeout: 3))
+        sleepRow.tap()
+
+        XCTAssertTrue(stepsDisclosure.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["canvas_metric_disclosure_sleep"]
+                .waitForExistence(timeout: 3)
+        )
     }
 }
