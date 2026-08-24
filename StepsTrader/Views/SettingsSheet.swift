@@ -19,6 +19,15 @@ struct SettingsSheet: View {
     @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader())
+    private var stepsTarget = EnergyDefaults.stepsTarget
+    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader())
+    private var sleepTarget = EnergyDefaults.sleepTargetHours
+    @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.stepsTrader())
+    private var dayEndHour = 0
+    @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader())
+    private var dayEndMinute = 0
     @State private var showLogin = false
     /// Fallback route storage when no external binding is supplied (preview /
     /// standalone usage). The tab instance uses `featureTipRouteBinding` instead.
@@ -36,64 +45,131 @@ struct SettingsSheet: View {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     }
 
+    private var yourDaySummary: SettingsYourDaySummary {
+        SettingsYourDaySummary(
+            stepsTarget: stepsTarget,
+            sleepTargetHours: sleepTarget,
+            dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute
+        )
+    }
+
+    private var gridColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: 12, alignment: .top),
+            count: SettingsGridLayout.columnCount(for: dynamicTypeSize)
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 24) {
                     Text(String(localized: "Settings", comment: "Settings page title"))
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundStyle(theme.adaptivePrimaryText)
                         .padding(.top, 8)
 
-                    accountRow
+                    accountCard
 
-                    section(header: String(localized: "General", comment: "Settings section header")) {
-                        flatRow(icon: "figure.walk", title: String(localized: "Your day")) {
-                            SettingsEnergyPage(model: model)
-                        }
-                        .accessibilityIdentifier("settings.yourDay")
-                        rowDivider
-                        flatRow(icon: "paintpalette", title: String(localized: "Appearance")) {
-                            SettingsAppearancePage(model: model)
-                        }
-                        rowDivider
-                        flatRow(icon: "bell", title: String(localized: "Notifications")) {
-                            NotificationSettingsView(model: model)
-                        }
+                    NavigationLink {
+                        SettingsEnergyPage(model: model)
+                    } label: {
+                        SettingsYourDayCardLabel(summary: yourDaySummary)
                     }
+                    .buttonStyle(MattePressStyle())
+                    .accessibilityIdentifier("settings.yourDay")
 
-                    section(header: String(localized: "System", comment: "Settings section header")) {
-                        permissionsRow
-                        rowDivider
-                        flatRow(
-                            icon: "square.stack.3d.up",
-                            title: String(localized: "Widgets & wallpaper", comment: "Settings row and combined page title")
-                        ) {
-                            SettingsWidgetsWallpaperPage(model: model)
+                    LazyVGrid(columns: gridColumns, spacing: 12) {
+                        NavigationLink {
+                            SettingsAppearancePage(model: model)
+                        } label: {
+                            SettingsDestinationCardLabel(
+                                icon: "paintpalette",
+                                title: String(localized: "Appearance", comment: "Settings destination title")
+                            )
                         }
+                        .buttonStyle(MattePressStyle())
+                        .accessibilityIdentifier("settings.destination.appearance")
+
+                        NavigationLink {
+                            NotificationSettingsView(model: model)
+                        } label: {
+                            SettingsDestinationCardLabel(
+                                icon: "bell",
+                                title: String(localized: "Notifications", comment: "Settings destination title")
+                            )
+                        }
+                        .buttonStyle(MattePressStyle())
+                        .accessibilityIdentifier("settings.destination.notifications")
+
+                        NavigationLink {
+                            SettingsPermissionsPage(model: model)
+                        } label: {
+                            SettingsDestinationCardLabel(
+                                icon: "lock.shield",
+                                title: String(localized: "Permissions", comment: "Settings destination title"),
+                                warningText: model.hasPermissionIssues
+                                    ? String(localized: "Action needed", comment: "Permissions warning label")
+                                    : nil
+                            )
+                        }
+                        .buttonStyle(MattePressStyle())
+                        .accessibilityIdentifier("settings.destination.permissions")
+
+                        NavigationLink {
+                            SettingsWidgetsWallpaperPage(model: model)
+                        } label: {
+                            SettingsDestinationCardLabel(
+                                icon: "square.stack.3d.up",
+                                title: String(localized: "Widgets & wallpaper", comment: "Settings destination title")
+                            )
+                        }
+                        .buttonStyle(MattePressStyle())
                         .accessibilityIdentifier("settings.destination.widgetsWallpaper")
                     }
 
-                    section(header: String(localized: "Info", comment: "Settings section header")) {
-                        flatRow(icon: "book", title: String(localized: "Notes from Kosta", comment: "Settings row label")) {
+                    SettingsInformationGroup {
+                        NavigationLink {
                             ManualsPage(model: model)
+                        } label: {
+                            SettingsNavRow(
+                                icon: "book",
+                                title: String(localized: "Notes from Kosta", comment: "Settings destination title")
+                            )
+                            .frame(minHeight: 44)
                         }
-                        rowDivider
-                        flatRow(icon: "info.circle", title: String(localized: "About", comment: "Settings row label")) {
+                        .buttonStyle(MattePressStyle())
+                        .accessibilityIdentifier("settings.destination.notes")
+
+                        DetailDivider(inset: 50)
+
+                        NavigationLink {
                             SettingsAboutPage(model: model)
+                        } label: {
+                            SettingsNavRow(
+                                icon: "info.circle",
+                                title: String(localized: "About", comment: "Settings destination title")
+                            )
+                            .frame(minHeight: 44)
                         }
+                        .buttonStyle(MattePressStyle())
+                        .accessibilityIdentifier("settings.destination.about")
                     }
 
                     #if DEBUG
-                    section(header: String(localized: "Developer", comment: "Settings section header")) {
-                        flatRow(
+                    NavigationLink {
+                        SettingsDeveloperPage(model: model)
+                    } label: {
+                        SettingsNavRow(
                             icon: "hammer",
                             title: String(localized: "Developer", comment: "Settings developer destination")
-                        ) {
-                            SettingsDeveloperPage(model: model)
-                        }
-                        .accessibilityIdentifier("settings.destination.developer")
+                        )
+                        .frame(minHeight: 44)
+                        .settingsCardSurface()
                     }
+                    .buttonStyle(MattePressStyle())
+                    .accessibilityIdentifier("settings.destination.developer")
                     #endif
 
                     versionFooter
@@ -126,151 +202,30 @@ struct SettingsSheet: View {
         }
     }
 
-    // MARK: - Section
+    // MARK: - Account card
 
     @ViewBuilder
-    private func section<Content: View>(
-        header: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(header.uppercased())
-                .font(.caption2.weight(.semibold))
-                .tracking(3)
-                .foregroundStyle(theme.adaptiveMutedText)
-                .padding(.leading, 2)
-
-            VStack(spacing: 0) { content() }
-
-            Rectangle()
-                .fill(theme.adaptiveDividerColor.opacity(0.7))
-                .frame(height: 0.5)
-                .padding(.top, 4)
-        }
-    }
-
-    // MARK: - Permissions row
-
-    private var permissionsRow: some View {
-        NavigationLink {
-            SettingsPermissionsPage(model: model)
-        } label: {
-            HStack(spacing: 14) {
-                ZStack(alignment: .topTrailing) {
-                    rowIcon("lock.shield")
-                    if model.hasPermissionIssues {
-                        Circle()
-                            .fill(.orange)
-                            .frame(width: 7, height: 7)
-                            .offset(x: 3, y: -2)
-                    }
-                }
-                rowTitle(String(localized: "Permissions", comment: "Settings row label"))
-                Spacer()
-                if model.hasPermissionIssues {
-                    Text(String(localized: "Action needed", comment: "Permissions warning label").uppercased())
-                        .font(.caption2.weight(.semibold))
-                        .tracking(2)
-                        .foregroundStyle(.orange)
-                }
-                rowChevron
-            }
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(MattePressStyle())
-    }
-
-    // MARK: - Generic flat row
-
-    private func flatRow<Dest: View>(
-        icon: String,
-        title: String,
-        @ViewBuilder destination: () -> Dest
-    ) -> some View {
-        NavigationLink(destination: destination) {
-            HStack(spacing: 14) {
-                rowIcon(icon)
-                rowTitle(title)
-                Spacer()
-                rowChevron
-            }
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(MattePressStyle())
-    }
-
-    private func rowIcon(_ name: String) -> some View {
-        Image(systemName: name)
-            .font(.system(size: 15))
-            .foregroundStyle(theme.adaptiveSecondaryText)
-            .frame(width: 24)
-    }
-
-    private func rowTitle(_ text: String) -> some View {
-        Text(text)
-            .font(.subheadline)
-            .foregroundStyle(theme.adaptivePrimaryText)
-    }
-
-    private var rowChevron: some View {
-        Image(systemName: "chevron.right")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
-    }
-
-    private var rowDivider: some View {
-        Rectangle()
-            .fill(theme.adaptiveDividerColor.opacity(0.5))
-            .frame(height: 0.5)
-            .padding(.leading, 36)
-    }
-
-    // MARK: - Account row
-
-    @ViewBuilder
-    private var accountRow: some View {
+    private var accountCard: some View {
         if authService.hasAppleAccount, let user = authService.currentUser {
             NavigationLink {
                 SettingsAccountPage(authService: authService, model: model)
             } label: {
-                HStack(spacing: 12) {
-                    accountAvatar(user: user)
-                    Text(user.displayName)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(theme.adaptivePrimaryText)
-                    Spacer()
-                    rowChevron
-                }
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
+                SettingsAccountCardLabel(
+                    presentation: .signedIn(
+                        displayName: user.displayName,
+                        initials: SettingsAccountPresentation.initials(for: user.displayName),
+                        avatarData: user.avatarData
+                    )
+                )
             }
             .buttonStyle(MattePressStyle())
+            .accessibilityIdentifier("settings.account")
         } else {
             Button { showLogin = true } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "apple.logo")
-                        .font(.system(size: 16))
-                        .foregroundStyle(theme.adaptivePrimaryText)
-                        .frame(width: 24)
-                    Text(String(localized: "Sign in with Apple"))
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(theme.adaptivePrimaryText)
-                    Spacer()
-                }
-                .padding(.vertical, 14)
-                .padding(.horizontal, 4)
-                .overlay {
-                    Rectangle()
-                        .stroke(
-                            theme.adaptivePrimaryText.opacity(0.45),
-                            style: StrokeStyle(lineWidth: 0.8, dash: [3, 4])
-                        )
-                }
-                .contentShape(Rectangle())
+                SettingsAccountCardLabel(presentation: .signedOut)
             }
             .buttonStyle(MattePressStyle())
+            .accessibilityIdentifier("settings.account")
         }
     }
 
@@ -288,28 +243,6 @@ struct SettingsSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
-    }
-
-    // MARK: - Avatar
-
-    @ViewBuilder
-    private func accountAvatar(user: AppUser) -> some View {
-        if let data = user.avatarData, let uiImage = UIImage(data: data) {
-            Image(uiImage: uiImage)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 40, height: 40)
-                .clipShape(Circle())
-        } else {
-            ZStack {
-                Circle()
-                    .fill(theme.adaptivePrimaryText.opacity(0.08))
-                    .frame(width: 40, height: 40)
-                Text(String(user.displayName.prefix(2)).uppercased())
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(theme.adaptivePrimaryText)
-            }
-        }
     }
 }
 

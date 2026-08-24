@@ -271,6 +271,26 @@ struct MattePressStyle: ButtonStyle {
     }
 }
 
+// MARK: - Card surface
+
+struct SettingsCardSurface: ViewModifier {
+    @Environment(\.appTheme) private var theme
+
+    func body(content: Content) -> some View {
+        content
+            .background(theme.adaptivePrimaryText.opacity(0.055))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(theme.adaptivePrimaryText.opacity(0.16), lineWidth: 0.75)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+extension View {
+    func settingsCardSurface() -> some View { modifier(SettingsCardSurface()) }
+}
+
 // MARK: - Gradient preview config
 
 struct GradientPreviewConfig: Identifiable {

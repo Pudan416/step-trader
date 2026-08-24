@@ -165,6 +165,7 @@
 		20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01052F86000000000005 /* SettingsWidgetPage.swift */; };
 		20CC020E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */; };
 		20CC020F2F86000000000015 /* SettingsDeveloperPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010F2F86000000000015 /* SettingsDeveloperPage.swift */; };
+		20CC02102F86000000000016 /* SettingsHomeCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01102F86000000000016 /* SettingsHomeCards.swift */; };
 		20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01062F86000000000006 /* SettingsAboutPage.swift */; };
 		20CC02072F86000000000007 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01072F86000000000007 /* SettingsComponents.swift */; };
 		20CC020B2F86000000000011 /* SettingsHomePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010B2F86000000000011 /* SettingsHomePresentation.swift */; };
@@ -590,6 +591,7 @@
 		20CC01052F86000000000005 /* SettingsWidgetPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWidgetPage.swift; sourceTree = "<group>"; };
 		20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWidgetsWallpaperPage.swift; sourceTree = "<group>"; };
 		20CC010F2F86000000000015 /* SettingsDeveloperPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDeveloperPage.swift; sourceTree = "<group>"; };
+		20CC01102F86000000000016 /* SettingsHomeCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomeCards.swift; sourceTree = "<group>"; };
 		20CC01062F86000000000006 /* SettingsAboutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutPage.swift; sourceTree = "<group>"; };
 		20CC01072F86000000000007 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		20CC010B2F86000000000011 /* SettingsHomePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomePresentation.swift; sourceTree = "<group>"; };
@@ -1293,6 +1295,7 @@
 				20CC01052F86000000000005 /* SettingsWidgetPage.swift */,
 				20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */,
 				20CC010F2F86000000000015 /* SettingsDeveloperPage.swift */,
+				20CC01102F86000000000016 /* SettingsHomeCards.swift */,
 				20CC01062F86000000000006 /* SettingsAboutPage.swift */,
 				20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */,
 				20CC01072F86000000000007 /* SettingsComponents.swift */,
@@ -2019,6 +2022,7 @@
 				80PV00023005000080PV0002 /* CanvasPosterView.swift in Sources */,
 				20CC020A2F86000000000010 /* SettingsPermissionsPage.swift in Sources */,
 				20CC02072F86000000000007 /* SettingsComponents.swift in Sources */,
+				20CC02102F86000000000016 /* SettingsHomeCards.swift in Sources */,
 				20CC020B2F86000000000011 /* SettingsHomePresentation.swift in Sources */,
 				20CC02082F86000000000008 /* SupabaseSyncDTOs.swift in Sources */,
 				20SS02012F87000000000001 /* SupabaseSyncService+Analytics.swift in Sources */,

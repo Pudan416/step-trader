@@ -34,6 +34,28 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Sign in to continue"].exists)
     }
 
+    func testCardHomePrioritizesAccountThenYourDay() {
+        let app = launchSettings()
+        let account = app.buttons["settings.account"]
+        let yourDay = app.buttons["settings.yourDay"]
+
+        XCTAssertTrue(account.waitForExistence(timeout: 3))
+        XCTAssertTrue(yourDay.exists)
+        XCTAssertLessThan(account.frame.minY, yourDay.frame.minY)
+        XCTAssertGreaterThan(yourDay.frame.height, account.frame.height)
+
+        for id in [
+            "settings.destination.appearance",
+            "settings.destination.notifications",
+            "settings.destination.permissions",
+            "settings.destination.widgetsWallpaper",
+            "settings.destination.notes",
+            "settings.destination.about",
+        ] {
+            XCTAssertTrue(app.buttons[id].exists, "Missing Settings destination: \(id)")
+        }
+    }
+
     func testWidgetsAndWallpaperShareOneDetailPage() {
         let app = launchSettings()
         let combined = app.buttons["settings.destination.widgetsWallpaper"]
