@@ -1,15 +1,56 @@
 import SwiftUI
 
-/// System fonts (SF) as app-wide typography.
+/// App-wide typography: SF Pro Rounded for interface text and Unbounded for
+/// short brand/display moments.
 extension Font {
-    static func systemSerif(
+    static func appRounded(
         _ size: CGFloat,
         weight: Font.Weight = .regular,
         relativeTo textStyle: Font.TextStyle = .body
     ) -> Font {
         let base = UIFont.systemFont(ofSize: size, weight: uiFontWeight(from: weight))
-        let scaled = UIFontMetrics(forTextStyle: uiFontTextStyle(from: textStyle)).scaledFont(for: base)
+        let descriptor = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
+        let rounded = UIFont(descriptor: descriptor, size: size)
+        let scaled = UIFontMetrics(forTextStyle: uiFontTextStyle(from: textStyle)).scaledFont(for: rounded)
         return Font(scaled)
+    }
+
+    /// Fixed-size brand type for canvas/poster compositions whose typography
+    /// scales with the exported artwork rather than Dynamic Type.
+    static func unbounded(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular
+    ) -> Font {
+        .custom(unboundedPostScriptName(for: weight), fixedSize: size)
+    }
+
+    /// Dynamic-Type-aware brand type for short headings in the app UI.
+    static func unbounded(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo textStyle: Font.TextStyle
+    ) -> Font {
+        .custom(
+            unboundedPostScriptName(for: weight),
+            size: size,
+            relativeTo: textStyle
+        )
+    }
+
+    private static let unboundedPostScriptNames: [Font.Weight: String] = [
+        .ultraLight: "Unbounded-Regular_ExtraLight",
+        .thin: "Unbounded-Regular_ExtraLight",
+        .light: "Unbounded-Regular_Light",
+        .regular: "Unbounded-Regular",
+        .medium: "Unbounded-Regular_Medium",
+        .semibold: "Unbounded-Regular_SemiBold",
+        .bold: "Unbounded-Regular_Bold",
+        .heavy: "Unbounded-Regular_ExtraBold",
+        .black: "Unbounded-Regular_Black",
+    ]
+
+    private static func unboundedPostScriptName(for weight: Font.Weight) -> String {
+        unboundedPostScriptNames[weight] ?? "Unbounded-Regular"
     }
 
     private static let fontWeightMap: [Font.Weight: UIFont.Weight] = [
@@ -43,15 +84,15 @@ extension Font {
 /// AppFonts — aliases for consistent typography across the codebase.
 enum AppFonts {
     // MARK: - Headlines
-    static let largeTitle = Font.largeTitle
-    static let title = Font.title
-    static let title2 = Font.title2
-    static let title3 = Font.title3
-    static let headline = Font.headline
+    static let largeTitle = Font.system(.largeTitle, design: .rounded)
+    static let title = Font.system(.title, design: .rounded)
+    static let title2 = Font.system(.title2, design: .rounded)
+    static let title3 = Font.system(.title3, design: .rounded)
+    static let headline = Font.system(.headline, design: .rounded)
 
     // MARK: - Body text
-    static let body = Font.body
-    static let subheadline = Font.subheadline
-    static let caption = Font.caption
-    static let caption2 = Font.caption2
+    static let body = Font.system(.body, design: .rounded)
+    static let subheadline = Font.system(.subheadline, design: .rounded)
+    static let caption = Font.system(.caption, design: .rounded)
+    static let caption2 = Font.system(.caption2, design: .rounded)
 }

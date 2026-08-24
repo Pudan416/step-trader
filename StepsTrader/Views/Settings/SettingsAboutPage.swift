@@ -38,7 +38,7 @@ struct SettingsAboutPage: View {
                     // MARK: - Brand Identity
                     VStack(spacing: 12) {
                         Text(Identity.brandName)
-                            .font(.system(size: 28, weight: .black, design: .serif))
+                            .font(.unbounded(28, weight: .semibold, relativeTo: .title2))
                             .foregroundStyle(theme.adaptivePrimaryText)
 
                         Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))

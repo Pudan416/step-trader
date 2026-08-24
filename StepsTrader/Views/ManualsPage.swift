@@ -78,14 +78,14 @@ struct ManualsPage: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(note.topic)
-                        .font(.system(size: 13, weight: .medium, design: .default))
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
                         .tracking(1.5)
                         .textCase(.uppercase)
                         .foregroundStyle(theme.textSecondary.opacity(0.5))
                         .padding(.bottom, 20)
 
                     Text(note.body)
-                        .font(.system(size: 20, weight: .thin, design: .serif))
+                        .font(.system(size: 20, weight: .light, design: .rounded))
                         .italic()
                         .foregroundStyle(theme.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)

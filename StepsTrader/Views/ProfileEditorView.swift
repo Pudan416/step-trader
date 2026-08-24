@@ -63,7 +63,7 @@ struct ProfileEditorView: View {
                                     .frame(width: 30, height: 30)
                                     .overlay(
                                         Image(systemName: "camera.fill")
-                                            .font(.systemSerif(14))
+                                            .font(.appRounded(14))
                                             .foregroundStyle(.white)
                                     )
                                     .offset(x: 34, y: 34)

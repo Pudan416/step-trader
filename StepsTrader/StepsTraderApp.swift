@@ -230,19 +230,22 @@ struct StepsTraderApp: App {
 
     var body: some Scene {
         WindowGroup {
-            #if DEBUG
-            // Debug-only shortcut: `-uiLab dayRays` opens an experiment
-            // straight from launch. Driving the settings path with synthetic
-            // taps is unreliable enough that verifying a shader visually
-            // otherwise costs more than building it.
-            if let lab = ExperimentalLabRoute.current {
-                NavigationStack { lab.view }
-            } else {
+            Group {
+                #if DEBUG
+                // Debug-only shortcut: `-uiLab dayRays` opens an experiment
+                // straight from launch. Driving the settings path with synthetic
+                // taps is unreliable enough that verifying a shader visually
+                // otherwise costs more than building it.
+                if let lab = ExperimentalLabRoute.current {
+                    NavigationStack { lab.view }
+                } else {
+                    appBody
+                }
+                #else
                 appBody
+                #endif
             }
-            #else
-            appBody
-            #endif
+            .fontDesign(.rounded)
         }
     }
 

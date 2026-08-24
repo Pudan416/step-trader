@@ -125,7 +125,7 @@ struct LoginView: View {
 
                 VStack(spacing: 6) {
                     Text(String(localized: "Nowhere"))
-                        .font(.systemSerif(32, weight: .black, relativeTo: .title))
+                        .font(.unbounded(32, weight: .semibold, relativeTo: .title))
                         .foregroundStyle(appTheme.textPrimary)
 
                     Text(String(localized: "The sense of being present"))

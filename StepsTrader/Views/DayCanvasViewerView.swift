@@ -127,7 +127,7 @@ struct DayCanvasViewerView: View {
                 .font(.system(size: 44, weight: .ultraLight))
                 .foregroundStyle(theme.adaptiveMutedText)
             Text(String(localized: "No data for this day.", comment: "DayCanvasViewer – empty state"))
-                .font(.systemSerif(20, weight: .semibold, relativeTo: .title3))
+                .font(.appRounded(20, weight: .semibold, relativeTo: .title3))
                 .foregroundStyle(theme.adaptiveMutedText)
                 .multilineTextAlignment(.center)
         }

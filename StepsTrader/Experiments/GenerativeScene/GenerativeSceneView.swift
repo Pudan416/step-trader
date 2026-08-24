@@ -65,10 +65,10 @@ struct GenerativeSceneView: View {
     private var dateLabel: some View {
         VStack(spacing: 6) {
             Text(Self.dayString(date))
-                .font(.system(size: 128, weight: .regular, design: .serif))
+                .font(.unbounded(128, weight: .regular))
                 .kerning(2)
             Text(Self.monthString(date))
-                .font(.system(size: 19, weight: .light, design: .serif))
+                .font(.unbounded(19, weight: .light))
                 .kerning(11)
                 .padding(.leading, 11)   // compensate the trailing letter-space
         }
@@ -84,8 +84,7 @@ struct GenerativeSceneView: View {
     /// the sparks use.
     private static let inkColor = Color(red: 1.0, green: 0.965, blue: 0.885)
 
-    /// `design: .serif` resolves to New York on Apple platforms, and at this
-    /// size the system picks the display optical size on its own.
+    /// The short date lockup is a branded display moment, so it uses Unbounded.
     static func dayString(_ date: Date) -> String {
         date.formatted(.dateTime.day(.defaultDigits))
     }

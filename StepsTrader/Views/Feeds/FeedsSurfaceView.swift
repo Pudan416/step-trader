@@ -229,7 +229,7 @@ struct FeedsSurfaceView: View {
                 // gives them their own line so neither has to shrink to make
                 // room for the other.
                 Text(display.digits)
-                    .font(.systemSerif(Self.digitsSize, weight: .bold, relativeTo: .largeTitle))
+                    .font(.appRounded(Self.digitsSize, weight: .bold, relativeTo: .largeTitle))
                     .foregroundStyle(.white)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)

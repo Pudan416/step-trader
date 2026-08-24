@@ -227,7 +227,7 @@ struct RichCanvasView: View {
         let outline: Color = context.environment.colorScheme == .dark
             ? .black
             : .white
-        let font: Font = .system(size: 11, weight: .regular, design: .default)
+        let font: Font = .system(size: 11, weight: .regular, design: .rounded)
         let outlineText = Text(label).font(font).foregroundStyle(outline)
 
         context.drawLayer { layer in

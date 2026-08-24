@@ -153,6 +153,7 @@ struct UnlockWidgetEntryView: View {
                 mediumWidget
             }
         }
+        .fontDesign(.rounded)
         .containerBackground(for: .widget) {
             widgetBackground
         }
@@ -545,6 +546,7 @@ struct ComboWidgetEntryView: View {
             comboFooter
         }
         .padding(12)
+        .fontDesign(.rounded)
         .containerBackground(for: .widget) {
             if let wallpaper = entry.wallpaperBackground {
                 Image(uiImage: wallpaper)

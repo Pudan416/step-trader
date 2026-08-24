@@ -62,10 +62,10 @@ struct CanvasFullBleedPoster<Content: View>: View {
                     .frame(width: w, height: h)
                     .clipped()
 
-                // User name — top-left, 20px New York Semibold
+                // User name — top-left, 20px Unbounded Medium
                 if let name = userName, !name.isEmpty {
                     Text(name)
-                        .font(.system(size: max(6, w * Self.nameSizeR), weight: .semibold, design: .serif))
+                        .font(.unbounded(max(6, w * Self.nameSizeR), weight: .medium))
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
                         .lineLimit(1)
@@ -80,9 +80,9 @@ struct CanvasFullBleedPoster<Content: View>: View {
                     .padding(.trailing, w * Self.statsRightR)
                     .padding(.top, h * Self.statsTopR)
 
-                // Date — bottom area, 96px New York Black, centered
+                // Date — bottom area, 96px Unbounded Bold, centered
                 Text(formattedDate)
-                    .font(.system(size: max(10, w * Self.nowhereSizeR), weight: .black, design: .serif))
+                    .font(.unbounded(max(10, w * Self.nowhereSizeR), weight: .black))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
                     .lineLimit(1)
@@ -90,9 +90,9 @@ struct CanvasFullBleedPoster<Content: View>: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, h * Self.nowhereTopR)
 
-                // "NOWHERE" — bottom-left, 12px New York Black
+                // "NOWHERE" — bottom-left, 12px Unbounded Bold
                 Text("NOWHERE")
-                    .font(.system(size: max(5, w * Self.dateSizeR), weight: .black, design: .serif))
+                    .font(.unbounded(max(5, w * Self.dateSizeR), weight: .black))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
                     .lineLimit(1)
@@ -153,8 +153,7 @@ struct CanvasFullBleedPoster<Content: View>: View {
                 .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
                 .lineLimit(1)
             Text("by Kosta Pudan")
-                .font(.system(size: fontSize, weight: .regular, design: .serif))
-                .italic()
+                .font(.system(size: fontSize, weight: .medium, design: .rounded))
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
                 .lineLimit(1)
