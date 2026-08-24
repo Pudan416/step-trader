@@ -53,4 +53,82 @@ final class FeedRowModelTests: XCTestCase {
     func testCustomGroupWithOneAppRendersAsPlainIcon() {
         XCTAssertEqual(FeedRowModel.kind(templateApp: nil, appTokenCount: 1), .single(.systemLabel))
     }
+
+    // MARK: - Access state
+
+    func testZeroRemainingMinutesRendersLockedState() {
+        XCTAssertEqual(
+            FeedRowModel.accessState(remainingMinutes: 0, initialMinutes: 30),
+            .locked
+        )
+    }
+
+    func testFreshWindowFillsTheWholeRow() {
+        XCTAssertEqual(
+            FeedRowModel.accessState(remainingMinutes: 30, initialMinutes: 30),
+            .active(remainingMinutes: 30, fillFraction: 1)
+        )
+    }
+
+    func testSpentWindowUsesRemainingShareAsRowFill() {
+        XCTAssertEqual(
+            FeedRowModel.accessState(remainingMinutes: 18, initialMinutes: 30),
+            .active(remainingMinutes: 18, fillFraction: 0.6)
+        )
+    }
+
+    func testRemainingMinutesCannotOverfillTheRow() {
+        XCTAssertEqual(
+            FeedRowModel.accessState(remainingMinutes: 40, initialMinutes: 30),
+            .active(remainingMinutes: 40, fillFraction: 1)
+        )
+    }
+
+    func testMissingInitialBudgetTreatsCurrentValueAsFreshWindow() {
+        XCTAssertEqual(
+            FeedRowModel.accessState(remainingMinutes: 10, initialMinutes: 0),
+            .active(remainingMinutes: 10, fillFraction: 1)
+        )
+    }
+
+    // MARK: - Row action
+
+    func testLockedRowOpensDurationPicker() {
+        XCTAssertEqual(
+            FeedRowModel.tapAction(for: .locked, canOpen: true),
+            .chooseDuration
+        )
+    }
+
+    func testActiveLaunchableRowOpensItsApp() {
+        XCTAssertEqual(
+            FeedRowModel.tapAction(
+                for: .active(remainingMinutes: 18, fillFraction: 0.6),
+                canOpen: true
+            ),
+            .openApp
+        )
+    }
+
+    func testActiveCustomRowFallsBackToSettings() {
+        XCTAssertEqual(
+            FeedRowModel.tapAction(
+                for: .active(remainingMinutes: 18, fillFraction: 0.6),
+                canOpen: false
+            ),
+            .openSettings
+        )
+    }
+
+    // MARK: - Ticket shape
+
+    func testTicketShapeCarvesSpaceForTheTrailingMenu() {
+        let bounds = CGRect(x: 0, y: 0, width: 320, height: 82)
+        let path = FeedTicketShape().path(in: bounds)
+
+        XCTAssertTrue(path.contains(CGPoint(x: 258, y: 41)), "The timer body must remain tappable before the notch")
+        XCTAssertFalse(path.contains(CGPoint(x: 300, y: 41)), "The trailing menu needs a concave cutout")
+        XCTAssertTrue(path.contains(CGPoint(x: 300, y: 12)), "Only the middle of the trailing edge should be cut out")
+    }
+
 }

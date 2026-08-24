@@ -42,19 +42,16 @@ struct AppsPageSimplified: View {
     @State private var selectedGroupId: TicketGroupId? = nil
     @State private var showTemplatePicker = false
     @State private var expandedSheetGroupId: TicketGroupId? = nil
-    /// Which group's tile is selected in the dock. Distinct from
-    /// `selectedGroupId`, which tracks the group being edited via the
-    /// `FamilyActivityPicker` sheet — conflating the two breaks group editing.
-    @State private var selectedFeedGroupId: String? = nil
+    @State private var unlockSheetGroupId: TicketGroupId? = nil
     /// Unspent minutes per group id, for groups whose window is open.
     ///
-    /// One poll for the whole page. The tile and the surface used to keep
-    /// their own 15s loops, which drifted: after a purchase the surface showed
-    /// a running timer above a tile that still looked locked, for up to 15
-    /// seconds. They now read this, and it refreshes on `.active` so returning
-    /// from the blocked app — the most common transition in the app — shows
-    /// the current number immediately.
+    /// One poll for the whole page. Every row reads this same observation, and
+    /// it refreshes on `.active` so returning from the blocked app — the most
+    /// common transition in the app — shows the current number immediately.
     @State private var unspentMinutes: [String: Int] = [:]
+    /// Purchased size of each active window. Together with `unspentMinutes`
+    /// this determines how much yellow remains in the row.
+    @State private var initialMinutes: [String: Int] = [:]
 
     private var buttonTint: Color { AppColors.Night.textPrimary }
     @State private var showCustomNamePrompt = false
@@ -73,16 +70,19 @@ struct AppsPageSimplified: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // The canvas is the page's background, edge to edge behind the
-                // dock and the tab bar — there is no card. It is also the only
-                // title this page needs, so the "My Feeds" header is gone: the
-                // reference has none, and it was being printed twice.
+                // The canvas stays edge to edge behind the rows and tab bar;
+                // the feeds are controls on the artwork, not a card within it.
                 FeedsCanvasBackground()
                     .zIndex(-1)
 
                 VStack(spacing: 0) {
                     HStack {
-                        Spacer()
+                        Text(String(localized: "Feeds"))
+                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .foregroundStyle(buttonTint)
+
+                        Spacer(minLength: 16)
+
                         Button {
                             attemptCreateGroup()
                         } label: {
@@ -96,43 +96,16 @@ struct AppsPageSimplified: View {
                         .coachMarkAnchor(.unlockSuccess)
                         #endif
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 32)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 18)
 
-                    if model.blockingStore.ticketGroups.isEmpty {
-                        // Nothing connected yet: the canvas fills the page and
-                        // the dock below shows what the shape of this screen
-                        // will be. No copy, no illustration — the empty slots
-                        // and the one "+" say it.
-                        Color.clear
+                    if visibleGroups.isEmpty {
+                        emptyState
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                        emptyDock
-                            .padding(.top, 7)
                             .padding(.bottom, max(tabBarHeight, 50) + 20)
                     } else {
-                        FeedsSurfaceView(
-                            model: model,
-                            selectedGroup: selectedFeedGroupId,
-                            unspentMinutes: selectedFeedGroupId.flatMap { unspentMinutes[$0] } ?? 0,
-                            onBudgetChanged: refreshUnspentMinutes,
-                            onSettings: { groupId in
-                                expandedSheetGroupId = TicketGroupId(id: groupId)
-                            },
-                            onDelete: { groupId in
-                                groupIdToDelete = groupId
-                            }
-                        )
-                        // No card and no fixed size any more: the surface is
-                        // content laid over the page's canvas, so it simply
-                        // takes the room between the energy card and the dock.
-                        .padding(.horizontal, 20)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                        dock
-                            .padding(.top, 7)
-                            .padding(.bottom, max(tabBarHeight, 50) + 20)
+                        feedsList
                     }
                 }
                 .zIndex(0)
@@ -154,6 +127,15 @@ struct AppsPageSimplified: View {
                 Color.clear.frame(height: topCardHeight)
             }
             .toolbar(.hidden, for: .navigationBar)
+            .sheet(item: $unlockSheetGroupId) { groupId in
+                if let group = model.blockingStore.ticketGroups.first(where: { $0.id == groupId.id }) {
+                    FeedDurationSheet(
+                        model: model,
+                        group: group,
+                        onPurchased: refreshUsageBudgets
+                    )
+                }
+            }
             .sheet(item: $expandedSheetGroupId, onDismiss: {
                 if showPickerAfterDismiss {
                     showPickerAfterDismiss = false
@@ -230,16 +212,16 @@ struct AppsPageSimplified: View {
                 // extension's per-minute tick). Poll a little faster so
                 // nothing on the page is badly stale; never interpolate
                 // between ticks.
-                refreshUnspentMinutes()
+                refreshUsageBudgets()
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(15))
-                    refreshUnspentMinutes()
+                    refreshUsageBudgets()
                 }
             }
             .onChange(of: scenePhase) { _, phase in
                 // Coming back from the blocked app is the transition that
                 // matters most here, and it does not wait for the poll.
-                if phase == .active { refreshUnspentMinutes() }
+                if phase == .active { refreshUsageBudgets() }
             }
             .alert(String(localized: "Name your feed"), isPresented: $showCustomNamePrompt) {
                 TextField(String(localized: "e.g. Social, Games…", comment: "Placeholder for feed name"), text: $customTicketName)
@@ -274,47 +256,73 @@ struct AppsPageSimplified: View {
         .sensoryFeedback(.warning, trigger: deleteHapticTick)
     }
 
-    // MARK: - Dock
+    // MARK: - Feed rows
 
-    /// A horizontal row of one tile per group, plus a trailing add tile.
-    /// Scrolls when the tiles overflow the width; the add tile is always last.
-    /// The dock before any feed exists: the add slot first, then empty ones.
-    /// `emptyDockSlots` is the reference's rhythm of four circles across the
-    /// width — enough to read as a row rather than a stray button.
-    private static let emptyDockSlots = 4
-
-    private var emptyDock: some View {
-        HStack(spacing: 8) {
-            FeedAddTileView(onTap: attemptCreateGroup)
-            ForEach(1..<Self.emptyDockSlots, id: \.self) { _ in
-                FeedPlaceholderTileView()
-            }
-        }
-        .padding(.horizontal, 9)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var dock: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+    private var feedsList: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
                 ForEach(visibleGroups) { group in
-                    FeedTileView(
-                        group: group,
-                        isSelected: selectedFeedGroupId == group.id,
+                    let state = FeedRowModel.accessState(
                         remainingMinutes: unspentMinutes[group.id] ?? 0,
-                        onTap: { selectedFeedGroupId = group.id }
+                        initialMinutes: initialMinutes[group.id] ?? 0
+                    )
+                    let canOpen = group.templateApp.map {
+                        TargetResolver.canOpen(bundleId: $0)
+                    } ?? false
+
+                    FeedRowView(
+                        group: group,
+                        accessState: state,
+                        canOpen: canOpen,
+                        onTap: { handleRowTap(group: group, state: state, canOpen: canOpen) },
+                        onSettings: {
+                            expandedSheetGroupId = TicketGroupId(id: group.id)
+                        },
+                        onDelete: {
+                            groupIdToDelete = group.id
+                        }
                     )
                     #if DEBUG
                     .modifier(FirstFeedAnchor(groupId: group.id, firstId: visibleGroups.first?.id))
                     #endif
                 }
-                FeedAddTileView(onTap: attemptCreateGroup)
             }
-            .padding(.horizontal, 9)
+            .padding(.horizontal, 20)
+            .padding(.bottom, max(tabBarHeight, 50) + 28)
         }
+        .scrollIndicators(.hidden)
     }
 
-    // MARK: - Empty state
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "rectangle.stack.badge.plus")
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(AppColors.brandAccent)
+                .frame(width: 72, height: 72)
+                .background(Circle().fill(Color.white.opacity(0.1)))
+
+            VStack(spacing: 6) {
+                Text(String(localized: "No feeds yet"))
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                Text(String(localized: "Add an app to unlock it with your colors"))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(buttonTint.opacity(0.68))
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(action: attemptCreateGroup) {
+                Label(String(localized: "Add a feed"), systemImage: "plus")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.black.opacity(0.82))
+                    .padding(.horizontal, 22)
+                    .frame(height: 50)
+                    .background(Capsule().fill(AppColors.brandAccent))
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(buttonTint)
+        .padding(.horizontal, 40)
+    }
 
     /// Sheet for full ticket settings
     private func ticketSettingsSheet(group: Binding<TicketGroup>, onDismiss: @escaping () -> Void) -> some View {
@@ -348,13 +356,41 @@ struct AppsPageSimplified: View {
 
     /// Re-reads every group's open window. Only groups with an open window get
     /// an entry, so the map stays small and `?? 0` is the locked case.
-    private func refreshUnspentMinutes() {
+    private func refreshUsageBudgets() {
         var latest: [String: Int] = [:]
+        var latestInitial: [String: Int] = [:]
+        let defaults = UserDefaults.stepsTrader()
         for group in model.blockingStore.ticketGroups {
             let minutes = model.unspentUsageBudgetMatchingShield(for: group.id)
-            if minutes > 0 { latest[group.id] = minutes }
+            guard minutes > 0 else { continue }
+            latest[group.id] = minutes
+            latestInitial[group.id] = max(
+                defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(group.id)),
+                minutes
+            )
         }
         if latest != unspentMinutes { unspentMinutes = latest }
+        if latestInitial != initialMinutes { initialMinutes = latestInitial }
+    }
+
+    private func handleRowTap(
+        group: TicketGroup,
+        state: FeedRowAccessState,
+        canOpen: Bool
+    ) {
+        switch FeedRowModel.tapAction(for: state, canOpen: canOpen) {
+        case .chooseDuration:
+            unlockSheetGroupId = TicketGroupId(id: group.id)
+        case .openApp:
+            if let bundleId = group.templateApp {
+                AppLauncher.open(bundleId: bundleId)
+            }
+        case .openSettings:
+            // A custom multi-app feed has no single URL scheme to launch. Its
+            // row is still the timer; settings is the useful destination we
+            // can address directly.
+            expandedSheetGroupId = TicketGroupId(id: group.id)
+        }
     }
 
     private var visibleGroups: [TicketGroup] {
@@ -365,7 +401,7 @@ struct AppsPageSimplified: View {
 
     private func deleteAndCleanup(_ groupId: String) {
         if expandedSheetGroupId?.id == groupId { expandedSheetGroupId = nil }
-        if selectedFeedGroupId == groupId { selectedFeedGroupId = nil }
+        if unlockSheetGroupId?.id == groupId { unlockSheetGroupId = nil }
         model.deleteTicketGroup(groupId)
     }
 }

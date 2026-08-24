@@ -18,6 +18,19 @@ enum FeedRowKind: Equatable, Sendable {
     case cluster(sources: [FeedIconSource], total: Int)
 }
 
+/// The row is the timer: once access is bought, its yellow fill shows the
+/// exact share of purchased usage that remains.
+enum FeedRowAccessState: Equatable, Sendable {
+    case locked
+    case active(remainingMinutes: Int, fillFraction: Double)
+}
+
+enum FeedRowTapAction: Equatable, Sendable {
+    case chooseDuration
+    case openApp
+    case openSettings
+}
+
 enum FeedRowModel {
 
     /// Overlapping icons beyond this add noise without adding information.
@@ -46,5 +59,36 @@ enum FeedRowModel {
             sources: Array(repeating: .systemLabel, count: shown),
             total: appTokenCount
         )
+    }
+
+    static func accessState(
+        remainingMinutes: Int,
+        initialMinutes: Int
+    ) -> FeedRowAccessState {
+        guard remainingMinutes > 0 else { return .locked }
+
+        // Older windows may not have an initial value persisted. In that
+        // recovery case, treat the current observation as a fresh full row.
+        let effectiveInitial = max(initialMinutes, remainingMinutes, 1)
+        let fillFraction = min(
+            1,
+            max(0, Double(remainingMinutes) / Double(effectiveInitial))
+        )
+        return .active(
+            remainingMinutes: remainingMinutes,
+            fillFraction: fillFraction
+        )
+    }
+
+    static func tapAction(
+        for accessState: FeedRowAccessState,
+        canOpen: Bool
+    ) -> FeedRowTapAction {
+        switch accessState {
+        case .locked:
+            return .chooseDuration
+        case .active:
+            return canOpen ? .openApp : .openSettings
+        }
     }
 }
