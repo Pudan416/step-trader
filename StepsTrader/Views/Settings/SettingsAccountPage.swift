@@ -21,24 +21,30 @@ struct SettingsAccountPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    DetailHeader(title: "Account")
+                    DetailHeader(title: String(localized: "Account", comment: "Settings account page title"))
                         .padding(.horizontal, 16)
 
                     profileSummary
 
-                    accountSection("PROFILE") {
-                        DetailInfoRow(label: "Display name", value: user?.displayName ?? "User")
+                    accountSection(String(localized: "PROFILE", comment: "Settings account section header")) {
+                        DetailInfoRow(
+                            label: String(localized: "Display name", comment: "Settings account profile label"),
+                            value: user?.displayName ?? String(localized: "User", comment: "Settings account fallback name")
+                        )
                         DetailDivider()
-                        DetailInfoRow(label: "Email", value: user?.email ?? "—")
+                        DetailInfoRow(
+                            label: String(localized: "Email", comment: "Settings account profile label"),
+                            value: user?.email ?? String(localized: "—", comment: "Settings account unavailable email")
+                        )
                     }
 
-                    accountSection("SYNC") {
+                    accountSection(String(localized: "SYNC", comment: "Settings account section header")) {
                         HStack {
-                            Text("Automatic sync")
+                            Text(String(localized: "Automatic sync", comment: "Settings account sync status label"))
                                 .font(.subheadline)
                                 .foregroundStyle(theme.adaptivePrimaryText)
                             Spacer()
-                            Text("On")
+                            Text(String(localized: "On", comment: "Settings account sync status value"))
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(theme.adaptiveSecondaryText)
                         }
@@ -46,22 +52,22 @@ struct SettingsAccountPage: View {
                         .padding(.vertical, 13)
                         .accessibilityIdentifier("settings.account.automaticSync")
                     } footer: {
-                        SettingsFooter(text: "Settings and history sync automatically across your devices.")
+                        SettingsFooter(text: String(localized: "Settings and history sync automatically across your devices.", comment: "Settings account sync footer"))
                     }
 
-                    accountSection("ACCOUNT") {
+                    accountSection(String(localized: "ACCOUNT", comment: "Settings account section header")) {
                         Button {
                             authService.signOut()
                             dismiss()
                         } label: {
-                            accountActionLabel("Sign out")
+                            accountActionLabel(String(localized: "Sign out", comment: "Settings account sign-out button"))
                         }
                         .buttonStyle(MattePressStyle())
                         .disabled(isDeleting)
                         .accessibilityIdentifier("settings.account.signOut")
                     }
 
-                    accountSection("DANGER ZONE") {
+                    accountSection(String(localized: "DANGER ZONE", comment: "Settings account section header")) {
                         Button(role: .destructive) {
                             showDeleteConfirmation = true
                         } label: {
@@ -69,7 +75,7 @@ struct SettingsAccountPage: View {
                                 if isDeleting {
                                     ProgressView()
                                 } else {
-                                    Text("Delete account")
+                                    Text(String(localized: "Delete account", comment: "Settings account delete button"))
                                         .font(.subheadline.weight(.semibold))
                                 }
                                 Spacer()
@@ -123,13 +129,13 @@ struct SettingsAccountPage: View {
         HStack(spacing: 14) {
             accountAvatar
 
-            Text(user?.displayName ?? "User")
+            Text(user?.displayName ?? String(localized: "User", comment: "Settings account fallback name"))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(theme.adaptivePrimaryText)
 
             Spacer()
 
-            Button("Edit profile") {
+            Button(String(localized: "Edit profile", comment: "Settings account edit profile button")) {
                 showProfileEditor = true
             }
             .font(.subheadline.weight(.semibold))
@@ -155,7 +161,7 @@ struct SettingsAccountPage: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                    Text(SettingsAccountPresentation.initials(for: user?.displayName ?? "User"))
+                    Text(SettingsAccountPresentation.initials(for: user?.displayName ?? String(localized: "User", comment: "Settings account fallback name")))
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(.white)
                 }
