@@ -141,3 +141,4 @@ output/
 # Local agent workspaces and visual brainstorming state
 .worktrees/
 .superpowers/
+.impeccable/
