@@ -58,14 +58,15 @@ struct GalleryView: View {
     /// Edit-mode state (M5 extraction). Backs the five drag/freeze/active
     /// canvas-edit fields hoisted to a separate Observable manager.
     @State private var editState = CanvasEditState()
-    /// The single source of truth for what Canvas is showing. `isWideCanvas`
-    /// below is now a mirror the tab host reads, never something written
-    /// independently — the two used to drift into states the design forbids.
-    @State private var presentation: CanvasPresentationState = .canvas
+    /// The single source of truth for what Canvas is showing lives in the tab
+    /// host so the energy pill can drive this drawer directly.
+    @Binding var presentation: CanvasPresentationState
+    /// Live downward distance reported by a drag that began on the energy pill.
+    /// The drawer uses it to grow with the finger before the state commits.
+    let externalDataPanelPullDistance: CGFloat
     /// Deletion is deliberate but hidden: no permanent per-element button, and
     /// a long press alone never removes anything.
     @State private var pendingDeleteElementId: UUID? = nil
-    @Binding var isWideCanvas: Bool
     @Binding var paletteRoute: CanvasPaletteRouteState
     let isCanvasSelected: Bool
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
@@ -101,8 +102,6 @@ struct GalleryView: View {
     /// Tracks whether the user explicitly collapsed wide mode so we don't
     /// re-expand just because the geometry still qualifies as "naturally wide".
     @State private var userCollapsedWide: Bool = false
-    @Environment(\.tabBarHeight) private var tabBarHeight
-
     /// Global mid-Y of the canvas `+`, reported by the button itself. The
     /// palette's dock lines up with it.
     @State private var canvasAddButtonCenterY: CGFloat?
@@ -148,13 +147,10 @@ struct GalleryView: View {
         if presentation.isWideCanvas || presentation.isEditing {
             return max(safeAreaBottom, 34) + 16
         }
-        // Anchor relative to device geometry:
-        // safeAreaBottom covers the home indicator (34pt on Face ID, 0 on SE),
-        // tabBarHeight is the measured custom tab bar (~80pt),
-        // +20 is visual breathing room above the tab bar.
-        // max() guards against the first layout pass where the preference
-        // hasn't reported the real tab bar height yet.
-        return max(safeAreaBottom, 34) + max(tabBarHeight, 50) + 20
+        // The Canvas actions now flank the tab bar in one shared 60pt row.
+        // Gallery's full-bleed overlay and MainTabView's safe-area overlay have
+        // different bottom origins; this inset resolves them to the same mid-Y.
+        return max(safeAreaBottom, 34) + 22
     }
 
     private struct CanvasSyncState: Equatable {
@@ -231,7 +227,11 @@ struct GalleryView: View {
         }
         let next = presentation.applying(event)
         guard next != presentation else { return }
-        withAnimation(.easeInOut(duration: next.isWideCanvas || presentation.isWideCanvas ? 0.35 : 0.3)) {
+        withAnimation(
+            reduceMotion
+                ? nil
+                : .easeInOut(duration: next.isWideCanvas || presentation.isWideCanvas ? 0.35 : 0.3)
+        ) {
             presentation = next
         }
     }
@@ -462,6 +462,13 @@ struct GalleryView: View {
         // can derive `$`-bindings for the .sheet / .alert APIs below.
         @Bindable var toolbar = toolbar
         let visualCanvas = canvasLayers
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard presentation.showsDataPanel else { return }
+                metricOverlay = nil
+                send(.hideData)
+                lightHapticTick &+= 1
+            }
         // Controls in overlays — completely decoupled from the canvas/texture
         // ZStack so texture changes never trigger a controls re-layout.
         .overlay {
@@ -504,12 +511,6 @@ struct GalleryView: View {
             }
         }
         .overlay {
-            if let kind = metricOverlay, !presentation.isWideCanvas {
-                GalleryMetricOverlayView(model: model, kind: kind, onClose: { metricOverlay = nil })
-                    .transition(.opacity.combined(with: .scale(scale: 0.92)))
-            }
-        }
-        .overlay {
             TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
                 .transaction { $0.animation = nil }
         }
@@ -541,7 +542,7 @@ struct GalleryView: View {
                     }
             }
         )
-        .animation(.easeInOut(duration: 0.2), value: metricOverlay != nil)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: metricOverlay)
         .animation(.easeInOut(duration: 0.35), value: showQuickStartArea)
 
         let observingCanvas = visualCanvas
@@ -594,7 +595,9 @@ struct GalleryView: View {
             loadCanvas()
         }
         .onChange(of: presentation, initial: true) { old, new in
-            if isWideCanvas != new.isWideCanvas { isWideCanvas = new.isWideCanvas }
+            if !new.showsDataPanel {
+                metricOverlay = nil
+            }
 
             // Names only. No energy values, HealthKit values, happening labels
             // or element IDs ever go into an analytics property.
@@ -727,7 +730,7 @@ struct GalleryView: View {
         .onChange(of: toolbar.showShareSheet) { _, isPresented in
             if !isPresented { toolbar.shareImage = nil }
         }
-        .animation(.easeInOut(duration: 0.35), value: presentation)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: presentation)
         .onPreferenceChange(CanvasAddButtonCenterKey.self) { value in
             guard let value, value != canvasAddButtonCenterY else { return }
             canvasAddButtonCenterY = value
@@ -769,9 +772,12 @@ struct GalleryView: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            // Proactive workout suggestions
-            if !model._pendingActivitySuggestions.isEmpty && !presentation.isWideCanvas {
-                VStack {
+            // Bottom section — notifications and controls share one vertical
+            // stack so new-event suggestions arrive where the action lives.
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                if !model._pendingActivitySuggestions.isEmpty && !presentation.isWideCanvas {
                     ActivitySuggestionBanner(
                         suggestions: model._pendingActivitySuggestions,
                         onAccept: { suggestion in
@@ -791,23 +797,14 @@ struct GalleryView: View {
                         GeometryReader { proxy in
                             Color.clear
                                 .preference(key: SuggestionBannerHeightKey.self, value: proxy.size.height)
+                                .accessibilityElement()
+                                .accessibilityLabel("Activity suggestions")
+                                .accessibilityIdentifier("canvas_activity_suggestions")
                         }
                     )
-                    Spacer()
-                }
-                // `deviceTopSafeAreaInset` (not `safeAreaTop`) — see its doc
-                // comment for why `safeAreaTop` is unreliable this deep in
-                // the overlay stack.
-                // Tucked under the pill rather than floating below it: the
-                // suggestion is about the same day the pill is measuring.
-                .padding(.top, deviceTopSafeAreaInset + topCardHeight + 8)
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
-
-            // Bottom section — always visible, sits above tab bar
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
-                if showAddHint {
+                    .padding(.bottom, 14)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if showAddHint {
                     addActivityHint
                         .padding(.bottom, 14)
                         .transition(
@@ -847,67 +844,104 @@ struct GalleryView: View {
         ]
     }
 
-    /// The sheet sits above the action row, so the row's own hit height counts
-    /// as clearance the panel must be padded above.
-    private var dataPanelBottomClearance: CGFloat { bottomControlsPadding + 72 }
+    /// The drawer no longer sits above the action row — it hangs off the
+    /// pill at the top — but it must still stop short of the row's own hit
+    /// height at the bottom, so this remains the lower bound of its budget.
+    private var dataPanelBottomClearance: CGFloat {
+        let suggestionClearance = model._pendingActivitySuggestions.isEmpty
+            ? 0
+            : suggestionBannerHeight + 14
+        return bottomControlsPadding + 72 + suggestionClearance
+    }
 
-    /// The space actually available for the data panel, from just below the
-    /// top chrome — the status pill, the same gap the suggestion banner sits
-    /// behind (see the `deviceTopSafeAreaInset + topCardHeight + 8` padding
-    /// on the banner above), and the banner's own measured height when it's
-    /// showing — down to the bottom action row's own clearance. `nil` until
-    /// `canvasViewportSize` has been measured at least once, so the panel
-    /// isn't clamped to a bogus near-zero height on the first layout pass
-    /// before the host reports its real size.
+    private var dataPanelTopOffset: CGFloat {
+        // `topCardHeight` already includes the pill's 8pt bottom breathing
+        // room. The overlay's local coordinate space has already consumed
+        // `safeAreaTop`, so subtract that local origin from the window inset
+        // before positioning the handle. Otherwise part of the safe area is
+        // counted twice and the grabber lands visibly too low.
+        // The visible 4pt grabber is vertically centred in its new 16pt
+        // footer. Pull the drawer up by that 6pt inner inset so the line itself
+        // keeps the established 8pt gap below the energy pill.
+        max(0, deviceTopSafeAreaInset - safeAreaTop) + topCardHeight - 6
+    }
+
+    /// The space actually available for the data drawer's rows, from just
+    /// below the top chrome (see `dataPanelTopOffset`) down to the bottom
+    /// action row's own clearance. `nil` until `canvasViewportSize` has been
+    /// measured at least once, so the drawer isn't clamped to a bogus
+    /// near-zero height on the first layout pass before the host reports its
+    /// real size.
     ///
     /// Deliberately not a fraction of the screen — the product owner retired
     /// the old 40%-of-available-height clamp along with its tests. This is
-    /// "what's left", not a ratio.
+    /// "what's left", not a ratio. It is the same span whether the drawer
+    /// hangs from the top or rises from the bottom — only where it starts
+    /// eating that span changed with the anchor.
     private var dataPanelAvailableHeight: CGFloat? {
         guard canvasViewportSize.height > 0 else { return nil }
-        let topChrome = deviceTopSafeAreaInset + topCardHeight + 8 + suggestionBannerHeight
-        return max(0, canvasViewportSize.height - topChrome - dataPanelBottomClearance)
+        return max(0, canvasViewportSize.height - dataPanelTopOffset - dataPanelBottomClearance)
     }
 
+    /// The strip lives here, directly under the pill, for as long as the
+    /// bottom action row would itself be showing — not only while the drawer
+    /// is open. Collapsed, it is just the grabber and its gesture area;
+    /// `CanvasDataPanel` grows its own rows in beneath that same handle once
+    /// `presentation.showsDataPanel` is true, so this is a single persistent
+    /// view rather than a sheet that gets mounted and torn down.
     @ViewBuilder
     private var dataPanelOverlay: some View {
-        if presentation.showsDataPanel {
-            VStack {
-                Spacer(minLength: 0)
+        // Same gate as `canvasControls`: the strip lived inside that overlay
+        // before it moved up to the pill, and it must still disappear
+        // whenever the happening palette is presented, not just when the
+        // canvas goes wide.
+        if presentation.showsBottomActionRow,
+           HappeningPaletteChromeLayout.showsCanvasControls(isPalettePresented: showHappeningPalette) {
+            VStack(spacing: 0) {
                 CanvasDataPanel(
+                    isExpanded: presentation.showsDataPanel,
                     rows: dataPanelRows,
-                    onSelect: { metricOverlay = $0 },
-                    onHide: {
-                        send(.hideData)
+                    externalPullDistance: externalDataPanelPullDistance,
+                    selectedKind: metricOverlay,
+                    onSelect: { kind in
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                            metricOverlay = CanvasDataPanelSelection.toggling(
+                                kind,
+                                current: metricOverlay
+                            )
+                        }
+                    },
+                    onToggle: {
+                        CoachMarkManager.postAction(for: .expandChevron)
+                        if presentation.showsDataPanel {
+                            metricOverlay = nil
+                        }
+                        send(presentation.showsDataPanel ? .hideData : .showData)
                         lightHapticTick &+= 1
                     },
                     availableHeight: dataPanelAvailableHeight
                 )
                 .padding(.horizontal, 12)
-                .padding(.bottom, dataPanelBottomClearance)
+                Spacer(minLength: 0)
             }
+            .padding(.top, dataPanelTopOffset)
             .transition(
                 reduceMotion
                     ? .opacity
-                    : .move(edge: .bottom).combined(with: .opacity)
+                    : .move(edge: .top).combined(with: .opacity)
             )
         }
     }
 
     // ═══════════════════════════════════════════════════════════
-    // MARK: - Bottom Controls Bar (full screen · show data · +)
+    // MARK: - Bottom Controls Bar (full screen · +)
     // ═══════════════════════════════════════════════════════════
 
     private var bottomControlsBar: some View {
         CanvasBottomActionRow(
-            isDataExpanded: presentation.showsDataPanel,
+            isDataPanelOpen: presentation.showsDataPanel,
             onFullScreen: {
                 send(.enterFullScreen)
-                lightHapticTick &+= 1
-            },
-            onToggleData: {
-                CoachMarkManager.postAction(for: .expandChevron)
-                send(presentation.showsDataPanel ? .hideData : .showData)
                 lightHapticTick &+= 1
             },
             onAdd: {
@@ -1778,7 +1812,8 @@ private struct BubbleWithTail: InsettableShape {
         GalleryView(
             model: DIContainer.shared.makeAppModel(),
             metricOverlay: .constant(nil),
-            isWideCanvas: .constant(false),
+            presentation: .constant(.canvas),
+            externalDataPanelPullDistance: 0,
             paletteRoute: .constant(CanvasPaletteRouteState()),
             isCanvasSelected: true
         )

@@ -1,15 +1,22 @@
 import SwiftUI
 
-/// The three Canvas actions, in a fixed order: raise the canvas, show the data
-/// behind it, add something that happened.
+/// The two Canvas actions that flank the data drawer: raise the canvas, add
+/// something that happened.
+///
+/// "Show data" no longer lives here — it moved up to a strip under the
+/// energy pill (`CanvasDataPanel`'s own handle), which is the drawer's
+/// control as well as its top edge. This row keeps its left/right anchors
+/// so the corner controls stay where a finger already expects them, with
+/// the centre now empty.
 ///
 /// The order is spatial, not linguistic — these are utility controls anchored
-/// to corners of the screen — so it is pinned left-to-right even in RTL. Only
-/// the text inside "Show data" localises.
+/// to corners of the screen — so it is pinned left-to-right even in RTL.
 struct CanvasBottomActionRow: View {
-    let isDataExpanded: Bool
+    /// True while the data drawer is open. The circle and the `+` are then
+    /// removed from the tree entirely, not merely covered — a panel the user
+    /// can't see through must not leave a live hit region under it.
+    let isDataPanelOpen: Bool
     let onFullScreen: () -> Void
-    let onToggleData: () -> Void
     let onAdd: () -> Void
 
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
@@ -31,17 +38,25 @@ struct CanvasBottomActionRow: View {
                 content
             }
         }
-        .padding(.horizontal, 24)
+        // GalleryView already supplies the 16pt screen guard rail. Four more
+        // points land the circular controls at the Figma frame's 20pt edge.
+        .padding(.horizontal, 4)
     }
 
     private var content: some View {
         HStack(alignment: .center, spacing: 0) {
-            fullScreenControl
+            if !isDataPanelOpen {
+                fullScreenControl
+            }
             Spacer(minLength: 8)
-            showDataControl
-            Spacer(minLength: 8)
-            addControl
+            if !isDataPanelOpen {
+                addControl
+            }
         }
+        // Keep the row's layout slot when its controls are hidden. The
+        // suggestion banner shares this VStack, so collapsing the row used to
+        // pull Resting down underneath the floating tab bar.
+        .frame(height: 52)
         .environment(\.layoutDirection, .leftToRight)
     }
 
@@ -52,11 +67,10 @@ struct CanvasBottomActionRow: View {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 20, weight: .regular))
                 .foregroundStyle(ink)
-                .frame(width: 56, height: 56)
+                .frame(width: 48, height: 48)
                 // Outline, not glass: the canvas is the subject here, and a
                 // filled pill in the corner competes with it.
                 .overlay(Circle().strokeBorder(ink.opacity(outlineOpacity), lineWidth: 1))
-                .frame(width: 72, height: 72)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -70,41 +84,6 @@ struct CanvasBottomActionRow: View {
         .accessibilityIdentifier("canvas_fullscreen_button")
     }
 
-    // MARK: - Center: show / hide data
-
-    private var showDataControl: some View {
-        Button(action: onToggleData) {
-            HStack(spacing: 4) {
-                Text(
-                    isDataExpanded
-                        ? String(localized: "Hide data", comment: "Canvas – collapse the data panel")
-                        : String(localized: "Show data", comment: "Canvas – expand the data panel")
-                )
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-
-                Image(systemName: isDataExpanded ? "chevron.down" : "chevron.up")
-            }
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(ink)
-            .padding(.horizontal, 16)
-            .frame(minWidth: 128, minHeight: 56)
-            .liquidGlassControl(in: Capsule(style: .continuous), style: .lens)
-            .contentShape(Capsule(style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(
-            String(localized: "Show canvas data", comment: "Canvas – data panel VoiceOver label")
-        )
-        .accessibilityValue(
-            isDataExpanded
-                ? String(localized: "Expanded", comment: "Canvas – data panel VoiceOver value")
-                : String(localized: "Collapsed", comment: "Canvas – data panel VoiceOver value")
-        )
-        .accessibilityIdentifier("canvas_show_data_button")
-        .coachMarkAnchor(.expandChevron)
-    }
-
     // MARK: - Right: add
 
     private var addControl: some View {
@@ -112,9 +91,8 @@ struct CanvasBottomActionRow: View {
             Image(systemName: "plus")
                 .font(.system(size: 22, weight: .regular))
                 .foregroundStyle(AppAccentInk.primary)
-                .frame(width: 56, height: 56)
+                .frame(width: 52, height: 52)
                 .background(AppColors.brandAccent, in: Circle())
-                .frame(width: 72, height: 72)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

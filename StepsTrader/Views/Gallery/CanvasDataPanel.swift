@@ -1,6 +1,78 @@
 import SwiftUI
 
-/// One metric line in the data sheet.
+private struct DrawerSurface: ViewModifier {
+    let isVisible: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isVisible {
+            content.glassCard(cornerRadius: 24, style: .lens)
+        } else {
+            content
+        }
+    }
+}
+
+enum CanvasDataPanelSelection {
+    static func toggling(
+        _ tapped: MetricOverlayKind,
+        current: MetricOverlayKind?
+    ) -> MetricOverlayKind? {
+        current == tapped ? nil : tapped
+    }
+}
+
+private enum CanvasMetricDisclosure {
+    static func explanation(for kind: MetricOverlayKind) -> String {
+        switch kind {
+        case .steps:
+            return String(localized: "This part grows with your steps. As you move toward your daily goal, it adds up to 20 colors to the canvas.", comment: "Canvas data panel – inline steps explanation")
+        case .sleep:
+            return String(localized: "This part grows with your sleep. As you move toward your sleep goal, it adds up to 20 colors to the canvas. When sleep data is missing, Nowhere leaves room for it instead of calling it zero.", comment: "Canvas data panel – inline sleep explanation")
+        case .happenings:
+            return String(localized: "This part is shaped by the things you chose to notice today. Each different happening adds color once, up to 60 colors.", comment: "Canvas data panel – inline happenings explanation")
+        }
+    }
+
+    static func researchURL(for kind: MetricOverlayKind) -> URL {
+        switch kind {
+        case .steps:
+            return URL(string: "https://pubmed.ncbi.nlm.nih.gov/24749966/")!
+        case .sleep:
+            return URL(string: "https://www.nature.com/articles/nrn2762")!
+        case .happenings:
+            return URL(string: "https://www.sciencedirect.com/science/article/pii/S0022103112000212")!
+        }
+    }
+}
+
+enum CanvasDataPanelGesture {
+    static let toggleDistance: CGFloat = 60
+    static let toggleVelocity: CGFloat = 700
+
+    static func shouldOpen(translation: CGFloat, velocity: CGFloat) -> Bool {
+        velocity > toggleVelocity || translation > toggleDistance
+    }
+
+    static func shouldClose(translation: CGFloat, velocity: CGFloat) -> Bool {
+        velocity < -toggleVelocity || translation < -toggleDistance
+    }
+
+    static func revealProgress(
+        isExpanded: Bool,
+        expandedHeight: CGFloat,
+        externalPullDistance: CGFloat,
+        handleDragDistance: CGFloat
+    ) -> CGFloat {
+        let height = max(expandedHeight, 1)
+        if isExpanded {
+            return max(0, 1 - handleDragDistance / height)
+        }
+        let pull = max(externalPullDistance, handleDragDistance)
+        return min(1, max(0, pull / height))
+    }
+}
+
 struct CanvasDataRow: Identifiable, Equatable {
     let kind: MetricOverlayKind
     let title: String
@@ -16,111 +88,135 @@ struct CanvasDataRow: Identifiable, Equatable {
     }
 }
 
-/// The data behind today's canvas, as a sheet over the canvas rather than a
-/// card that pushes it down.
-///
-/// Steps and Sleep come from HealthKit and are read-only here — the exploratory
-/// mockups' small trailing `+` glyphs are not part of the product. Adding
-/// something remains the single yellow `+` on Canvas.
+/// The data behind today's canvas. Its grabber is always the drawer's lower
+/// edge: collapsed it rests just under the energy pill; pulling down stretches
+/// the glass and carries the grabber to the bottom of the revealed rows.
 struct CanvasDataPanel: View {
+    let isExpanded: Bool
     let rows: [CanvasDataRow]
+    /// A drag that started on the energy pill, owned by `MainTabView` because
+    /// the pill lives above the tab content. A drag that starts on the grabber
+    /// is tracked locally; both feed the same reveal geometry.
+    var externalPullDistance: CGFloat = 0
+    let selectedKind: MetricOverlayKind?
     let onSelect: (MetricOverlayKind) -> Void
-    let onHide: () -> Void
-    /// Space actually available for the panel between the chrome above it
-    /// (status pill, suggestion banner) and the bottom action row below it.
-    /// `nil` (previews, and defensively before the host has measured its own
-    /// viewport) leaves the panel unconstrained — today's "hug the content"
-    /// behavior, unchanged. This is deliberately not a fraction of the
-    /// screen; the product owner retired the old 40%-of-available-height
-    /// clamp, so this is literally "what's left" once the chrome above and
-    /// the action row below are accounted for.
+    let onToggle: () -> Void
     var availableHeight: CGFloat? = nil
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Whether to cap-and-scroll instead of hugging content, decided from the
-    /// environment rather than a measured row-stack height. This screen's
-    /// canvas redraws continuously (the generative animation), which
-    /// reconstructs this view on every frame and was found — empirically,
-    /// via logging — to reset any `@State` used to remember a
-    /// `GeometryReader`-measured height back to its default before
-    /// `onPreferenceChange` ever got a chance to persist the real value.
-    /// `dynamicTypeSize` carries no such risk: it's read fresh from the
-    /// environment every render, so there's nothing to lose between renders.
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var dragOffset: CGFloat = 0
+    @GestureState private var localDragDistance: CGFloat = 0
 
-    /// Dismiss thresholds: a deliberate pull, or a flick that clearly meant it.
-    private static let dismissDistance: CGFloat = 60
-    private static let dismissVelocity: CGFloat = 700
+    private static let rowSpacing: CGFloat = 6
+    private static let topPadding: CGFloat = 14
+    private static let rowsToHandleSpacing: CGFloat = 8
+    private static let handleVisualHeight: CGFloat = 16
+    private static let handleHitHeight: CGFloat = 44
+    private static let handleHitExtension = handleHitHeight - handleVisualHeight
 
     private var ink: Color { AppColors.Night.textPrimary }
 
-    /// Room left for the rows once the handle, its spacing, and the panel's
-    /// own vertical padding are accounted for.
     private var rowsMaxHeight: CGFloat? {
         guard let availableHeight else { return nil }
-        let handleHeight: CGFloat = 4
-        let headerToRowsSpacing: CGFloat = 12
-        let verticalPadding: CGFloat = 10 + 16
-        let overhead = handleHeight + headerToRowsSpacing + verticalPadding
+        let overhead = Self.topPadding + Self.rowsToHandleSpacing + Self.handleVisualHeight
         return max(80, availableHeight - overhead)
     }
 
-    /// Whether the rows might outgrow the space actually available. At every
-    /// ordinary Dynamic Type size — including the largest non-accessibility
-    /// size, xxxLarge — this stays false and the panel renders exactly as it
-    /// always has: no `ScrollView`, no cap. Only accessibility text sizes
-    /// (AX1–AX5), where an unwrapped row `Text` can grow past the 52pt row
-    /// minimum enough to matter, switch it on.
     private var isOverflowing: Bool {
-        rowsMaxHeight != nil && dynamicTypeSize.isAccessibilitySize
+        guard let rowsMaxHeight else { return false }
+        return dynamicTypeSize.isAccessibilitySize || estimatedRowsHeight > rowsMaxHeight
+    }
+
+    private var estimatedRowsHeight: CGFloat {
+        let rowHeight: CGFloat = dynamicTypeSize.isAccessibilitySize ? 64 : 44
+        let gaps = CGFloat(max(0, rows.count - 1)) * Self.rowSpacing
+        let disclosureHeight: CGFloat
+        if selectedKind == nil {
+            disclosureHeight = 0
+        } else {
+            disclosureHeight = dynamicTypeSize.isAccessibilitySize ? 240 : 126
+        }
+        return CGFloat(rows.count) * rowHeight + gaps + disclosureHeight
+    }
+
+    private var expandedRowsHeight: CGFloat {
+        if isOverflowing, let rowsMaxHeight {
+            return rowsMaxHeight
+        }
+        return estimatedRowsHeight
+    }
+
+    private var expandedHeight: CGFloat {
+        Self.topPadding
+            + expandedRowsHeight
+            + Self.rowsToHandleSpacing
+            + Self.handleVisualHeight
+    }
+
+    private var revealProgress: CGFloat {
+        CanvasDataPanelGesture.revealProgress(
+            isExpanded: isExpanded,
+            expandedHeight: expandedHeight,
+            externalPullDistance: externalPullDistance,
+            handleDragDistance: localDragDistance
+        )
+    }
+
+    private var currentHeight: CGFloat {
+        Self.handleVisualHeight
+            + (expandedHeight - Self.handleVisualHeight) * revealProgress
+    }
+
+    private var rowsOpacity: Double {
+        Double(min(1, max(0, (revealProgress - 0.12) / 0.55)))
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            header
-            rowsStack
+        Group {
+            if isExpanded {
+                drawerContent
+                    .accessibilityIdentifier("canvas_data_panel")
+                    .coachMarkAnchor(.categoriesRevealed)
+            } else {
+                drawerContent
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 16)
-        // No `maxHeight` clamp on the panel itself: it constrained the
-        // proposal, not the render, so the rows drew outside the glass that
-        // was supposed to contain them. The panel is sized by its content —
-        // `rowsStack` below is what actually stops the rows from growing
-        // past `availableHeight`, by switching to an internally scrolling
-        // `ScrollView` once they measure taller than `rowsMaxHeight`.
-        .frame(maxWidth: .infinity, alignment: .top)
-        .glassCard(cornerRadius: 24, style: .lens)
-        .offset(y: max(0, dragOffset))
-        // At ordinary text sizes there is no `ScrollView` anywhere in this
-        // tree (see `rowsStack`), so this is the only thing that can claim a
-        // vertical drag and it fires no matter where on the panel the user
-        // starts — a drag on the rows and a drag on the handle are the same
-        // gesture landing on the same recognizer.
-        //
-        // Once accessibility text sizes push the rows past `rowsMaxHeight`,
-        // `rowsStack` switches to a real `ScrollView`, and a vertical drag
-        // over the rows becomes ambiguous between "scroll" and "dismiss".
-        // `including: .subviews` resolves that explicitly: while overflowing,
-        // this gesture recognizer steps aside entirely so the `ScrollView`'s
-        // own pan gesture owns vertical drags over the rows. Dismissal still
-        // works — via the bottom action row's "Hide data" button, which was
-        // already the panel's second way to close per the `header` doc
-        // comment below — it just isn't a body-wide drag while scrolling is
-        // live, which is exactly what avoids fighting the `ScrollView` for
-        // the same touch.
-        .gesture(dismissDrag, including: isOverflowing ? .subviews : .all)
-        // `.contain` keeps this container's own identifier addressable while
-        // still exposing its children (each metric row) as their own
-        // accessibility elements. Without it, SwiftUI collapses the panel
-        // into a single accessibility element and every descendant reports
-        // this identifier instead of its own, making the rows unreachable to
-        // automation even though real touches still land correctly on the
-        // visible controls.
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("canvas_data_panel")
-        .coachMarkAnchor(.categoriesRevealed)
+    }
+
+    private var drawerContent: some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: currentHeight)
+            .background {
+                Color.clear
+                    .modifier(DrawerSurface(isVisible: revealProgress > 0.001))
+                    .allowsHitTesting(false)
+            }
+            .overlay(alignment: .top) {
+                rowsStack
+                    .padding(.horizontal, 14)
+                    .padding(.top, Self.topPadding)
+                    .frame(
+                        height: max(0, currentHeight - Self.handleVisualHeight),
+                        alignment: .top
+                    )
+                    .clipped()
+                    .opacity(rowsOpacity)
+                    .allowsHitTesting(isExpanded)
+                    .accessibilityHidden(!isExpanded)
+            }
+            .overlay(alignment: .bottom) {
+                handle
+            }
+            // The visible footer stays 16pt, while transparent padding below
+            // it makes the physical target 44pt without covering the last row.
+            .padding(.bottom, Self.handleHitExtension)
+            .contentShape(Rectangle())
+            // The recognizer observes the stable outer container. It only
+            // updates for drags beginning in the footer target, and remains
+            // simultaneous so row buttons and accessibility ScrollViews keep
+            // their own gestures.
+            .simultaneousGesture(toggleDrag)
+            .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
@@ -137,81 +233,165 @@ struct CanvasDataPanel: View {
     }
 
     private var rowsList: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Self.rowSpacing) {
             ForEach(rows) { row in
-                rowView(row)
+                VStack(alignment: .leading, spacing: 0) {
+                    rowView(row)
+
+                    if selectedKind == row.kind {
+                        metricDisclosure(for: row.kind)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
             }
         }
     }
 
-    /// The bottom action row already carries `Hide data`; a second copy inside
-    /// the panel was the same control twice on one screen. The handle stays —
-    /// it is what makes the sheet feel draggable.
-    private var header: some View {
-        Capsule()
-            .fill(ink.opacity(0.45))
-            .frame(width: 36, height: 4)
-            .accessibilityHidden(true)
+    /// Visually this is only a 16pt footer, about one third of the former
+    /// empty header. The negative inset preserves a forgiving 44pt gesture
+    /// target without making the glass block look thick.
+    private var handle: some View {
+        ZStack {
+            Color.clear
+            Capsule()
+                .fill(ink.opacity(0.45))
+                .frame(width: 36, height: 4)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: Self.handleVisualHeight)
+        .accessibilityElement()
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(
+            isExpanded
+                ? String(localized: "Hide canvas data", comment: "Canvas – data panel VoiceOver label")
+                : String(localized: "Show canvas data", comment: "Canvas – data panel VoiceOver label")
+        )
+        .accessibilityValue(
+            isExpanded
+                ? String(localized: "Expanded", comment: "Canvas – data panel VoiceOver value")
+                : String(localized: "Collapsed", comment: "Canvas – data panel VoiceOver value")
+        )
+        .accessibilityHint(
+            isExpanded
+                ? String(localized: "Double-tap or pull up to collapse", comment: "Canvas – data panel VoiceOver hint")
+                : String(localized: "Double-tap or pull down to expand", comment: "Canvas – data panel VoiceOver hint")
+        )
+        .accessibilityAction {
+            onToggle()
+        }
+        .accessibilityAction(
+            named: isExpanded
+                ? String(localized: "Collapse canvas data", comment: "Canvas – data panel VoiceOver action")
+                : String(localized: "Expand canvas data", comment: "Canvas – data panel VoiceOver action")
+        ) {
+            onToggle()
+        }
+        .accessibilityIdentifier("canvas_show_data_button")
+        .coachMarkAnchor(.expandChevron)
     }
 
     private func rowView(_ row: CanvasDataRow) -> some View {
         Button {
             onSelect(row.kind)
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Image(systemName: row.systemImage)
-                    .font(.footnote)
+                    .font(.caption)
                 Text(row.title)
-                    .font(.footnote.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                 Spacer(minLength: 8)
                 Text("\(row.value)/\(row.maxValue)")
-                    .font(.footnote.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .monospacedDigit()
+                Image(systemName: selectedKind == row.kind ? "chevron.up" : "chevron.down")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(ink.opacity(0.65))
             }
             .foregroundStyle(ink)
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .background {
                 GeometryReader { proxy in
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(AppColors.brandAccent.opacity(0.85))
                         .frame(width: max(0, proxy.size.width * row.fill))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(ink.opacity(0.08))
             )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(row.title), \(row.value) of \(row.maxValue)")
+        .accessibilityValue(
+            selectedKind == row.kind
+                ? String(localized: "Expanded", comment: "Canvas metric disclosure – VoiceOver value")
+                : String(localized: "Collapsed", comment: "Canvas metric disclosure – VoiceOver value")
+        )
+        .accessibilityHint(
+            selectedKind == row.kind
+                ? String(localized: "Double-tap to hide how this part is formed", comment: "Canvas metric disclosure – VoiceOver hint")
+                : String(localized: "Double-tap to learn how this part is formed", comment: "Canvas metric disclosure – VoiceOver hint")
+        )
     }
 
-    private var dismissDrag: some Gesture {
+    private func metricDisclosure(for kind: MetricOverlayKind) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(CanvasMetricDisclosure.explanation(for: kind))
+                .font(.footnote)
+                .foregroundStyle(ink.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Link(destination: CanvasMetricDisclosure.researchURL(for: kind)) {
+                HStack(spacing: 4) {
+                    Text(String(localized: "Why this matters", comment: "Canvas metric disclosure – research link"))
+                    Image(systemName: "arrow.up.right")
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(AppColors.brandAccent)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .accessibilityIdentifier("canvas_metric_research_link_\(kind.id)")
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .accessibilityIdentifier("canvas_metric_disclosure_\(kind.id)")
+    }
+
+    private var toggleDrag: some Gesture {
         DragGesture(minimumDistance: 8)
-            .onChanged { value in
-                // Downward only — dragging up must not detach the sheet.
-                dragOffset = max(0, value.translation.height)
+            .updating($localDragDistance) { value, distance, _ in
+                guard dragStartsOnHandle(at: value.startLocation.y) else { return }
+                distance = isExpanded
+                    ? max(0, -value.translation.height)
+                    : max(0, value.translation.height)
             }
             .onEnded { value in
-                let flicked = value.velocity.height > Self.dismissVelocity
-                let pulled = value.translation.height > Self.dismissDistance
-                if flicked || pulled {
-                    // The ancestor's removal transition owns the exit from here.
-                    // Springing `dragOffset` back at the same time would fight it
-                    // and read as a rubber-band on the way out.
-                    onHide()
-                } else {
-                    withAnimation(
-                        reduceMotion
-                            ? .easeInOut(duration: 0.15)
-                            : .interactiveSpring(response: 0.32, dampingFraction: 0.86)
-                    ) {
-                        dragOffset = 0
-                    }
+                guard dragStartsOnHandle(at: value.startLocation.y) else { return }
+                let crossedThreshold = isExpanded
+                    ? CanvasDataPanelGesture.shouldClose(
+                        translation: value.translation.height,
+                        velocity: value.velocity.height
+                    )
+                    : CanvasDataPanelGesture.shouldOpen(
+                        translation: value.translation.height,
+                        velocity: value.velocity.height
+                    )
+
+                if crossedThreshold {
+                    onToggle()
                 }
             }
+    }
+
+    private func dragStartsOnHandle(at localY: CGFloat) -> Bool {
+        let restingHeight = isExpanded ? expandedHeight : Self.handleVisualHeight
+        return localY >= restingHeight - Self.handleVisualHeight
+            && localY <= restingHeight + Self.handleHitExtension
     }
 }

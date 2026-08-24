@@ -10,6 +10,9 @@ import SwiftUI
 /// line the user reads without stopping.
 struct CanvasEnergyStatusPill: View {
     let status: CanvasEnergyStatus
+    var canPullDataPanel = false
+    var onPullChanged: (CGFloat) -> Void = { _ in }
+    var onPullEnded: (_ distance: CGFloat, _ velocity: CGFloat) -> Void = { _, _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -39,7 +42,19 @@ struct CanvasEnergyStatusPill: View {
                 comment: "Canvas status pill – VoiceOver value"
             )
         )
+        .accessibilityHint(
+            canPullDataPanel
+                ? String(localized: "Pull down to show canvas data", comment: "Canvas status pill – VoiceOver hint")
+                : ""
+        )
         .accessibilityIdentifier("canvas_energy_pill")
+        .overlay {
+            if canPullDataPanel {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(pullGesture)
+            }
+        }
     }
 
     private var numbers: some View {
@@ -98,6 +113,21 @@ struct CanvasEnergyStatusPill: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: status)
         // The numbers above already say this; VoiceOver should not repeat it.
         .accessibilityHidden(true)
+    }
+
+    private var pullGesture: some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                guard canPullDataPanel else { return }
+                onPullChanged(max(0, value.translation.height))
+            }
+            .onEnded { value in
+                guard canPullDataPanel else { return }
+                onPullEnded(
+                    max(0, value.translation.height),
+                    max(0, value.velocity.height)
+                )
+            }
     }
 }
 

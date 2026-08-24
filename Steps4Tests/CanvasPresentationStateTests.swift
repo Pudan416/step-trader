@@ -128,4 +128,54 @@ final class CanvasPresentationStateTests: XCTestCase {
             XCTAssertNil(CanvasPresentationState.analyticsEventName(from: state, to: state), "\(state)")
         }
     }
+
+    // MARK: - Interactive data drawer geometry
+
+    func testCollapsedDataDrawerRevealTracksPartialPull() {
+        XCTAssertEqual(
+            CanvasDataPanelGesture.revealProgress(
+                isExpanded: false,
+                expandedHeight: 180,
+                externalPullDistance: 45,
+                handleDragDistance: 0
+            ),
+            0.25,
+            accuracy: 0.001
+        )
+    }
+
+    func testExpandedDataDrawerRevealTracksUpwardHandleDrag() {
+        XCTAssertEqual(
+            CanvasDataPanelGesture.revealProgress(
+                isExpanded: true,
+                expandedHeight: 180,
+                externalPullDistance: 0,
+                handleDragDistance: 45
+            ),
+            0.75,
+            accuracy: 0.001
+        )
+    }
+
+    // MARK: - Inline metric disclosure
+
+    func testTappingMetricRowOpensItsDisclosure() {
+        XCTAssertEqual(
+            CanvasDataPanelSelection.toggling(.steps, current: nil),
+            .steps
+        )
+    }
+
+    func testTappingOpenMetricRowCollapsesItsDisclosure() {
+        XCTAssertNil(
+            CanvasDataPanelSelection.toggling(.sleep, current: .sleep)
+        )
+    }
+
+    func testTappingAnotherMetricRowSwitchesDisclosure() {
+        XCTAssertEqual(
+            CanvasDataPanelSelection.toggling(.happenings, current: .steps),
+            .happenings
+        )
+    }
 }

@@ -31,4 +31,10 @@ final class MainTabSelectionTests: XCTestCase {
     func testRetiredHistoryRawValueResolvesToCanvas() {
         XCTAssertEqual(MainTabView.Tab.resolve(storedRawValue: 3), .canvas)
     }
+
+    func testTabsUseRequestedContourSymbols() {
+        XCTAssertEqual(MainTabView.Tab.canvas.icon, "scribble.variable")
+        XCTAssertEqual(MainTabView.Tab.feeds.icon, "line.3.horizontal")
+        XCTAssertEqual(MainTabView.Tab.me.icon, "person.circle")
+    }
 }
