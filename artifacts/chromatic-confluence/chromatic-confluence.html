@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<!--
+    Built from the algorithmic-art viewer template.
+    Fixed: Anthropic interface language, sidebar structure, seed navigation,
+    action controls, and a self-contained p5.js artifact.
+    Variable: the Gesture Field algorithm and its parameters.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gesture Field</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --anthropic-dark: #141413;
+            --anthropic-light: #faf9f5;
+            --anthropic-mid-gray: #b0aea5;
+            --anthropic-light-gray: #e8e6dc;
+            --anthropic-orange: #d97757;
+            --anthropic-blue: #6a9bcc;
+            --anthropic-green: #788c5d;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, var(--anthropic-light) 0%, #f5f3ee 100%);
+            min-height: 100vh;
+            color: var(--anthropic-dark);
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .sidebar {
+            width: 320px;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(20, 20, 19, 0.1);
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .sidebar h1 {
+            font-family: 'Lora', serif;
+            font-size: 24px;
+            font-weight: 500;
+            color: var(--anthropic-dark);
+            margin-bottom: 8px;
+        }
+
+        .sidebar .subtitle {
+            color: var(--anthropic-mid-gray);
+            font-size: 14px;
+            margin-bottom: 32px;
+            line-height: 1.4;
+        }
+
+        .control-section { margin-bottom: 32px; }
+
+        .control-section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--anthropic-dark);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-section h3::before {
+            content: '•';
+            color: var(--anthropic-orange);
+            font-weight: bold;
+        }
+
+        .seed-input {
+            width: 100%;
+            background: var(--anthropic-light);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-bottom: 12px;
+            border: 1px solid var(--anthropic-light-gray);
+            text-align: center;
+        }
+
+        .seed-input:focus {
+            outline: none;
+            border-color: var(--anthropic-orange);
+            box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.1);
+            background: white;
+        }
+
+        .seed-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .regen-button { margin-bottom: 0; }
+        .control-group { margin-bottom: 20px; }
+
+        .control-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--anthropic-dark);
+            margin-bottom: 8px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .slider-container input[type="range"] {
+            flex: 1;
+            height: 4px;
+            background: var(--anthropic-light-gray);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--anthropic-orange);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            background: #c86641;
+        }
+
+        .slider-container input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: var(--anthropic-orange);
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+        }
+
+        .value-display {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--anthropic-mid-gray);
+            min-width: 60px;
+            text-align: right;
+        }
+
+        .color-group { margin-bottom: 16px; }
+        .color-group label { display: block; font-size: 12px; color: var(--anthropic-mid-gray); margin-bottom: 4px; }
+        .color-picker-container { display: flex; align-items: center; gap: 8px; }
+        .color-picker-container input[type="color"] { width: 32px; height: 32px; border: none; border-radius: 6px; cursor: pointer; background: none; padding: 0; }
+        .color-value { font-family: 'Courier New', monospace; font-size: 12px; color: var(--anthropic-mid-gray); }
+
+        .button {
+            background: var(--anthropic-orange);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+
+        .button:hover { background: #c86641; transform: translateY(-1px); }
+        .button:active { transform: translateY(0); }
+        .button.secondary { background: var(--anthropic-blue); }
+        .button.secondary:hover { background: #5a8bb8; }
+        .button.tertiary { background: var(--anthropic-green); }
+        .button.tertiary:hover { background: #6b7b52; }
+        .button-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        .button-row .button { flex: 1; }
+
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+        }
+
+        #canvas-container {
+            width: min(100%, calc((100vh - 40px) * 9 / 16));
+            max-width: 608px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(20, 20, 19, 0.15);
+            background: #101a39;
+        }
+
+        #canvas-container canvas { display: block; width: 100% !important; height: auto !important; }
+        .loading { aspect-ratio: 9 / 16; display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--anthropic-mid-gray); }
+
+        @media (max-width: 740px) {
+            .container { flex-direction: column; }
+            .sidebar { width: 100%; }
+            .canvas-area { padding: 20px; }
+            #canvas-container { width: min(100%, 540px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h1>Gesture Field</h1>
+            <div class="subtitle">Ten kinetic brushes remember their motion. Encounters become interference drawings.</div>
+
+            <div class="control-section">
+                <h3>Seed</h3>
+                <input type="number" id="seed-input" class="seed-input" value="42017" onchange="updateSeed()">
+                <div class="seed-controls">
+                    <button class="button secondary" onclick="previousSeed()">← Prev</button>
+                    <button class="button secondary" onclick="nextSeed()">Next →</button>
+                </div>
+                <button class="button tertiary regen-button" onclick="randomSeedAndUpdate()">↻ Random</button>
+            </div>
+
+            <div class="control-section">
+                <h3>Parameters</h3>
+                <div class="control-group">
+                    <label>Tempo</label>
+                    <div class="slider-container">
+                        <input type="range" id="tempo" min="0.08" max="0.8" step="0.01" value="0.22" oninput="updateParam('tempo', this.value)">
+                        <span class="value-display" id="tempo-value">0.22</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Orbit Width</label>
+                    <div class="slider-container">
+                        <input type="range" id="orbitWidth" min="0.55" max="1" step="0.01" value="0.92" oninput="updateParam('orbitWidth', this.value)">
+                        <span class="value-display" id="orbitWidth-value">0.92</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Trail Memory</label>
+                    <div class="slider-container">
+                        <input type="range" id="trailLength" min="18" max="120" step="2" value="54" oninput="updateParam('trailLength', this.value)">
+                        <span class="value-display" id="trailLength-value">54</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Turbulence</label>
+                    <div class="slider-container">
+                        <input type="range" id="turbulence" min="0" max="1.5" step="0.05" value="0.70" oninput="updateParam('turbulence', this.value)">
+                        <span class="value-display" id="turbulence-value">0.70</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Line Weight</label>
+                    <div class="slider-container">
+                        <input type="range" id="lineWeight" min="0.6" max="3.2" step="0.1" value="1.6" oninput="updateParam('lineWeight', this.value)">
+                        <span class="value-display" id="lineWeight-value">1.60</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Encounter Radius</label>
+                    <div class="slider-container">
+                        <input type="range" id="interactionRadius" min="110" max="300" step="5" value="195" oninput="updateParam('interactionRadius', this.value)">
+                        <span class="value-display" id="interactionRadius-value">195</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>Colors</h3>
+                <div class="color-group">
+                    <label>Midnight Base</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="bottomColor" value="#07162f" onchange="updateColor('bottomColor', this.value)">
+                        <span class="color-value" id="bottomColor-value">#07162f</span>
+                    </div>
+                </div>
+                <div class="color-group">
+                    <label>Violet Passage</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="middleColor" value="#75406f" onchange="updateColor('middleColor', this.value)">
+                        <span class="color-value" id="middleColor-value">#75406f</span>
+                    </div>
+                </div>
+                <div class="color-group">
+                    <label>Apricot Light</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="topColor" value="#ffd29c" onchange="updateColor('topColor', this.value)">
+                        <span class="color-value" id="topColor-value">#ffd29c</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>Actions</h3>
+                <div class="button-row">
+                    <button class="button" onclick="initializeSystem()">Regenerate</button>
+                    <button class="button" onclick="resetParameters()">Reset</button>
+                </div>
+                <div class="button-row">
+                    <button id="pause-button" class="button secondary" onclick="togglePause()">Pause</button>
+                    <button id="download-button" class="button tertiary" onclick="downloadArtwork()">Download PNG</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="canvas-area">
+            <div id="canvas-container">
+                <div class="loading">Initializing generative art…</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const OBJECT_COUNT = 10;
+        const TAU = Math.PI * 2;
+        const palettes = [
+            ['#ff5f86', '#ffc36d', '#fff1bc'],
+            ['#ff7a5c', '#ffca78', '#f8f0d0'],
+            ['#b66cff', '#ff73ad', '#ffc46e'],
+            ['#47d7d0', '#63a9ff', '#d6efff'],
+            ['#6f7dff', '#ad74ff', '#f5b1ff'],
+            ['#23c9a9', '#8ee06f', '#fff09a'],
+            ['#f3e55b', '#ff945d', '#ff6f91'],
+            ['#5bc0ff', '#796dff', '#df9cff'],
+            ['#ff8fd8', '#a77bff', '#68cbff'],
+            ['#ffb15e', '#ff667e', '#da67d4']
+        ];
+
+        let params = {
+            seed: 42017,
+            tempo: 0.22,
+            orbitWidth: 0.92,
+            trailLength: 54,
+            turbulence: 0.70,
+            lineWeight: 1.6,
+            interactionRadius: 195,
+            bottomColor: '#07162f',
+            middleColor: '#75406f',
+            topColor: '#ffd29c'
+        };
+
+        const defaultParams = { ...params };
+        let bodies = [];
+        let sceneTime = 0;
+        let previousClock = 0;
+        let isPaused = false;
+        let backgroundLayer;
+        let currentScene = { positions: [], interactions: [] };
+        let currentTrails = [];
+
+        function setup() {
+            pixelDensity(1);
+            const canvas = createCanvas(1080, 1920);
+            canvas.parent('canvas-container');
+            frameRate(30);
+            initializeSystem();
+            document.querySelector('.loading').style.display = 'none';
+            window.chromaticConfluence.ready = true;
+        }
+
+        function initializeSystem() {
+            randomSeed(params.seed);
+            noiseSeed(params.seed);
+            const rng = mulberry32(params.seed);
+            const paletteOffset = Math.floor(rng() * palettes.length);
+
+            bodies = Array.from({ length: OBJECT_COUNT }, (_, index) => {
+                const palette = palettes[(index + paletteOffset) % palettes.length];
+                return {
+                    index,
+                    phase: index * TAU / OBJECT_COUNT + (rng() - 0.5) * 0.035,
+                    lane: (rng() - 0.5) * 34,
+                    wave: rng() * TAU,
+                    strandPhase: rng() * TAU,
+                    strokeScale: 0.82 + rng() * 0.42,
+                    orbitScaleX: 0.86 + rng() * 0.28,
+                    orbitScaleY: 0.88 + rng() * 0.24,
+                    curlScale: 0.72 + rng() * 0.56,
+                    zPhase: rng() * TAU,
+                    colors: palette
+                };
+            });
+
+            sceneTime = 0;
+            previousClock = millis() / 1000;
+            buildBackground();
+            renderScene();
+        }
+
+        function draw() {
+            const clock = millis() / 1000;
+            const delta = Math.min(0.08, Math.max(0, clock - previousClock));
+            previousClock = clock;
+            if (!isPaused) sceneTime += delta * params.tempo;
+            renderScene();
+        }
+
+        function renderScene() {
+            if (!backgroundLayer || bodies.length !== OBJECT_COUNT) return;
+            image(backgroundLayer, 0, 0);
+            currentScene = computeScene(sceneTime);
+            currentTrails = buildGestureTrails(sceneTime);
+            drawFlowField(sceneTime);
+            drawGestureTrails(currentTrails, sceneTime);
+            drawInteractions(currentScene);
+            drawBrushHeads(currentScene, sceneTime);
+            drawOpticalVeil(sceneTime);
+        }
+
+        function positionAt(body, time) {
+            const u = time * 0.64 + body.phase;
+            const wave = pathWave(u);
+            const ahead = pathWave(u + 0.002);
+            const dx = ahead.x - wave.x;
+            const dy = ahead.y - wave.y;
+            const magnitude = Math.max(0.0001, Math.hypot(dx, dy));
+            const normalX = -dy / magnitude;
+            const normalY = dx / magnitude;
+            const curlX = Math.sin(5 * u + body.wave + 0.35 * Math.sin(2 * u)) * width * 0.042 * params.turbulence * body.curlScale;
+            const curlY = Math.cos(4 * u - body.wave + 0.22 * Math.cos(3 * u)) * height * 0.027 * params.turbulence * body.curlScale;
+            const x = width * 0.5 + width * 0.365 * params.orbitWidth * body.orbitScaleX * wave.x + body.lane * normalX + curlX;
+            const y = height * 0.5 + height * 0.405 * body.orbitScaleY * wave.y + body.lane * normalY + curlY;
+            return { x, y, u };
+        }
+
+        function pathWave(u) {
+            return {
+                x: 0.61 * Math.sin(u) + 0.23 * Math.sin(2 * u + 0.65) + 0.12 * Math.cos(3 * u - 0.4) + 0.04 * Math.sin(5 * u),
+                y: 0.69 * Math.cos(u) + 0.18 * Math.sin(3 * u - 0.25) + 0.09 * Math.cos(4 * u + 0.8)
+            };
+        }
+
+        function computeScene(time) {
+            const positions = bodies.map(body => {
+                const point = positionAt(body, time);
+                const ahead = positionAt(body, time + 0.014);
+                return {
+                    ...body,
+                    x: point.x,
+                    y: point.y,
+                    angle: Math.atan2(ahead.y - point.y, ahead.x - point.x),
+                    depth: Math.sin(point.u + body.zPhase) + point.y / height * 0.4,
+                    interaction: 0,
+                    colorBorrow: null
+                };
+            });
+
+            const interactions = [];
+            for (let i = 0; i < positions.length; i++) {
+                for (let j = i + 1; j < positions.length; j++) {
+                    const a = positions[i];
+                    const b = positions[j];
+                    const distance = Math.hypot(b.x - a.x, b.y - a.y);
+                    const threshold = params.interactionRadius;
+                    const proximity = clamp01((threshold - distance) / threshold);
+                    const strength = proximity * proximity * (3 - 2 * proximity);
+                    if (strength > 0.018) {
+                        interactions.push({ a, b, distance, strength });
+                        if (strength > a.interaction) {
+                            a.interaction = strength;
+                            a.colorBorrow = b.colors[1];
+                        }
+                        if (strength > b.interaction) {
+                            b.interaction = strength;
+                            b.colorBorrow = a.colors[1];
+                        }
+                    }
+                }
+            }
+            return { positions, interactions };
+        }
+
+        function buildGestureTrails(time) {
+            const sampleCount = Math.max(2, Math.round(params.trailLength));
+            const step = 0.034;
+            return bodies.map(body => {
+                const points = [];
+                for (let index = 0; index < sampleCount; index++) {
+                    const age = (sampleCount - 1 - index) / Math.max(1, sampleCount - 1);
+                    const point = positionAt(body, time - age * sampleCount * step);
+                    points.push({ ...point, age, progress: 1 - age });
+                }
+                return { body, points };
+            });
+        }
+
+        function buildBackground() {
+            backgroundLayer = createGraphics(1080, 1920);
+            backgroundLayer.pixelDensity(1);
+            const ctx = backgroundLayer.drawingContext;
+            const gradient = ctx.createLinearGradient(0, backgroundLayer.height, 0, 0);
+            gradient.addColorStop(0, params.bottomColor);
+            gradient.addColorStop(0.27, '#173b73');
+            gradient.addColorStop(0.51, params.middleColor);
+            gradient.addColorStop(0.73, '#d56871');
+            gradient.addColorStop(1, params.topColor);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, backgroundLayer.width, backgroundLayer.height);
+
+            const bloom = ctx.createRadialGradient(820, 360, 20, 820, 360, 620);
+            bloom.addColorStop(0, 'rgba(255,240,205,0.24)');
+            bloom.addColorStop(0.48, 'rgba(255,157,126,0.08)');
+            bloom.addColorStop(1, 'rgba(255,120,100,0)');
+            ctx.fillStyle = bloom;
+            ctx.fillRect(0, 0, backgroundLayer.width, backgroundLayer.height);
+
+            const coolBloom = ctx.createRadialGradient(230, 1440, 30, 230, 1440, 680);
+            coolBloom.addColorStop(0, 'rgba(74,139,255,0.14)');
+            coolBloom.addColorStop(1, 'rgba(20,50,110,0)');
+            ctx.fillStyle = coolBloom;
+            ctx.fillRect(0, 0, backgroundLayer.width, backgroundLayer.height);
+
+            const vignette = ctx.createRadialGradient(540, 900, 360, 540, 900, 1120);
+            vignette.addColorStop(0, 'rgba(0,0,0,0)');
+            vignette.addColorStop(0.7, 'rgba(5,8,27,0.04)');
+            vignette.addColorStop(1, 'rgba(3,8,24,0.33)');
+            ctx.fillStyle = vignette;
+            ctx.fillRect(0, 0, backgroundLayer.width, backgroundLayer.height);
+
+            const rng = mulberry32(params.seed ^ 0x6d2b79f5);
+            ctx.save();
+            for (let i = 0; i < 10500; i++) {
+                const alpha = 0.018 + rng() * 0.042;
+                const shade = rng() > 0.48 ? 255 : 8;
+                ctx.fillStyle = `rgba(${shade},${shade},${shade},${alpha})`;
+                const size = rng() > 0.96 ? 1.6 : 0.8;
+                ctx.fillRect(rng() * 1080, rng() * 1920, size, size);
+            }
+            ctx.restore();
+        }
+
+        function drawFlowField(time) {
+            const ctx = drawingContext;
+            ctx.save();
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.lineCap = 'round';
+            for (let y = 80; y < height; y += 92) {
+                for (let x = 58; x < width; x += 96) {
+                    const angle = 1.6 * Math.sin(x * 0.0041 + time * 0.05) - 1.15 * Math.cos(y * 0.0032 - time * 0.04);
+                    const length = 8 + 12 * (0.5 + 0.5 * Math.sin(x * 0.011 + y * 0.006 + params.seed));
+                    ctx.beginPath();
+                    ctx.moveTo(x - Math.cos(angle) * length * 0.5, y - Math.sin(angle) * length * 0.5);
+                    ctx.quadraticCurveTo(x, y, x + Math.cos(angle) * length * 0.5, y + Math.sin(angle) * length * 0.5);
+                    ctx.strokeStyle = y < height * 0.46 ? 'rgba(50,48,91,0.045)' : 'rgba(224,236,255,0.038)';
+                    ctx.lineWidth = 0.8;
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawInteractions(scene) {
+            const ctx = drawingContext;
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            ctx.lineCap = 'round';
+            for (const interaction of scene.interactions) {
+                const { a, b, strength } = interaction;
+                if (strength < 0.045) continue;
+                const dx = b.x - a.x;
+                const dy = b.y - a.y;
+                const distance = Math.max(1, Math.hypot(dx, dy));
+                const nx = -dy / distance;
+                const ny = dx / distance;
+                const gradient = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+                gradient.addColorStop(0, rgba(a.colors[0], 0.12 + strength * 0.48));
+                gradient.addColorStop(0.5, `rgba(255,247,226,${0.18 + strength * 0.6})`);
+                gradient.addColorStop(1, rgba(b.colors[1], 0.12 + strength * 0.48));
+
+                for (let strand = 0; strand < 9; strand++) {
+                    ctx.beginPath();
+                    for (let step = 0; step <= 28; step++) {
+                        const progress = step / 28;
+                        const envelope = Math.sin(progress * Math.PI);
+                        const frequency = 2 + (strand % 3);
+                        const offset = Math.sin(progress * TAU * frequency + sceneTime * 1.7 + strand * 0.74) * (8 + strand * 2.2) * strength * envelope;
+                        const spread = (strand - 4) * 2.4 * envelope;
+                        const x = a.x + dx * progress + nx * (offset + spread);
+                        const y = a.y + dy * progress + ny * (offset + spread);
+                        if (step === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    }
+                    ctx.strokeStyle = gradient;
+                    ctx.globalAlpha = 0.28 + strength * 0.52;
+                    ctx.lineWidth = params.lineWeight * (0.35 + (strand % 3) * 0.18);
+                    ctx.stroke();
+                }
+
+                const middleX = (a.x + b.x) * 0.5;
+                const middleY = (a.y + b.y) * 0.5;
+                for (let ring = 0; ring < 5; ring++) {
+                    ctx.beginPath();
+                    ctx.arc(middleX, middleY, 8 + ring * 7 + strength * 18, sceneTime + ring * 0.8, sceneTime + ring * 0.8 + Math.PI * (0.7 + strength));
+                    ctx.strokeStyle = ring % 2 ? rgba(a.colors[1], 0.34 * strength) : rgba(b.colors[0], 0.34 * strength);
+                    ctx.lineWidth = params.lineWeight * 0.7;
+                    ctx.stroke();
+                }
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+        }
+
+        function drawGestureTrails(trails, time) {
+            const ctx = drawingContext;
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            for (const trail of trails) {
+                const { body, points } = trail;
+                if (points.length < 2) continue;
+                const oldest = points[0];
+                const newest = points[points.length - 1];
+                const haze = ctx.createLinearGradient(oldest.x, oldest.y, newest.x, newest.y);
+                haze.addColorStop(0, rgba(body.colors[0], 0));
+                haze.addColorStop(0.55, rgba(body.colors[1], 0.05));
+                haze.addColorStop(1, rgba(body.colors[2], 0.12));
+                drawSmoothPath(ctx, points, body, 0);
+                ctx.strokeStyle = haze;
+                ctx.lineWidth = params.lineWeight * 10 * body.strokeScale;
+                ctx.shadowColor = rgba(body.colors[1], 0.32);
+                ctx.shadowBlur = 18;
+                ctx.stroke();
+
+                for (let filament = -3; filament <= 3; filament++) {
+                    const offsetPoints = offsetTrailPoints(points, body, filament, time);
+                    const gradient = ctx.createLinearGradient(oldest.x, oldest.y, newest.x, newest.y);
+                    gradient.addColorStop(0, rgba(body.colors[0], 0.01));
+                    gradient.addColorStop(0.28, rgba(body.colors[0], 0.28));
+                    gradient.addColorStop(0.66, rgba(body.colors[1], 0.74));
+                    gradient.addColorStop(1, rgba(body.colors[2], 0.96));
+                    drawSmoothPath(ctx, offsetPoints, body, filament);
+                    ctx.strokeStyle = gradient;
+                    ctx.lineWidth = params.lineWeight * body.strokeScale * (filament === 0 ? 1.35 : 0.52 + (Math.abs(filament) % 2) * 0.22);
+                    ctx.shadowBlur = filament === 0 ? 7 : 0;
+                    ctx.shadowColor = rgba(body.colors[1], 0.55);
+                    ctx.stroke();
+                }
+
+                ctx.shadowBlur = 0;
+                for (let index = 4; index < points.length; index += 7) {
+                    const point = points[index];
+                    const alpha = 0.04 + point.progress * 0.26;
+                    const radius = (0.8 + point.progress * 2.5) * body.strokeScale * params.lineWeight;
+                    ctx.beginPath();
+                    ctx.arc(point.x, point.y, radius, 0, TAU);
+                    ctx.fillStyle = rgba(mixHex(body.colors[0], body.colors[2], point.progress), alpha);
+                    ctx.fill();
+                }
+            }
+            ctx.restore();
+        }
+
+        function offsetTrailPoints(points, body, filament, time) {
+            return points.map((point, index) => {
+                const previous = points[Math.max(0, index - 1)];
+                const next = points[Math.min(points.length - 1, index + 1)];
+                const dx = next.x - previous.x;
+                const dy = next.y - previous.y;
+                const magnitude = Math.max(0.001, Math.hypot(dx, dy));
+                const normalX = -dy / magnitude;
+                const normalY = dx / magnitude;
+                const breathing = Math.sin(index * 0.31 + body.strandPhase + time * 0.35 + filament * 0.9);
+                const offset = filament * 3.6 * params.lineWeight + breathing * params.turbulence * 3.2;
+                return { x: point.x + normalX * offset, y: point.y + normalY * offset };
+            });
+        }
+
+        function drawSmoothPath(ctx, points) {
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let index = 1; index < points.length - 1; index++) {
+                const middleX = (points[index].x + points[index + 1].x) * 0.5;
+                const middleY = (points[index].y + points[index + 1].y) * 0.5;
+                ctx.quadraticCurveTo(points[index].x, points[index].y, middleX, middleY);
+            }
+            const last = points[points.length - 1];
+            ctx.lineTo(last.x, last.y);
+        }
+
+        function drawBrushHeads(scene, time) {
+            const ctx = drawingContext;
+            ctx.save();
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.lineCap = 'round';
+            for (const body of scene.positions) {
+                const pulse = 1 + body.interaction * 0.9;
+                ctx.save();
+                ctx.translate(body.x, body.y);
+                ctx.rotate(body.angle);
+                for (let orbit = 0; orbit < 5; orbit++) {
+                    const radiusX = (14 + orbit * 7) * body.strokeScale * pulse;
+                    const radiusY = (8 + orbit * 4.2) * body.strokeScale / pulse;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, radiusX, radiusY, time * 0.32 + body.wave + orbit * 0.62, 0.18 + orbit * 0.28, TAU - 0.25 * orbit);
+                    ctx.strokeStyle = rgba(body.colors[orbit % 3], 0.48 + body.interaction * 0.3);
+                    ctx.lineWidth = params.lineWeight * (0.58 + orbit * 0.09);
+                    ctx.stroke();
+                }
+                ctx.beginPath();
+                ctx.arc(0, 0, 4.5 + body.interaction * 5, 0, TAU);
+                ctx.fillStyle = rgba(body.colors[1], 0.92);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(0, 0, 1.8, 0, TAU);
+                ctx.fillStyle = 'rgba(255,255,248,0.92)';
+                ctx.fill();
+                for (let spark = 0; spark < 11; spark++) {
+                    const angle = spark / 11 * TAU + time * (0.18 + body.index * 0.006) + body.wave;
+                    const radius = 12 + (spark % 4) * 7 + body.interaction * 18;
+                    ctx.beginPath();
+                    ctx.arc(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.62, 1.2 + (spark % 3) * 0.55, 0, TAU);
+                    ctx.fillStyle = rgba(body.colors[(spark + 1) % 3], 0.48);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        function drawOpticalVeil(time) {
+            const ctx = drawingContext;
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            const y = height * (0.48 + 0.04 * Math.sin(time * 0.12));
+            const veil = ctx.createRadialGradient(width * 0.5, y, 10, width * 0.5, y, width * 0.72);
+            veil.addColorStop(0, 'rgba(255,220,210,0.035)');
+            veil.addColorStop(0.5, 'rgba(155,130,255,0.018)');
+            veil.addColorStop(1, 'rgba(80,110,255,0)');
+            ctx.fillStyle = veil;
+            ctx.fillRect(0, 0, width, height);
+            ctx.restore();
+        }
+
+        function updateParam(paramName, value) {
+            params[paramName] = Number(value);
+            document.getElementById(`${paramName}-value`).textContent = formatParam(paramName, params[paramName]);
+            if (isPaused) renderScene();
+        }
+
+        function updateColor(colorId, value) {
+            params[colorId] = value;
+            document.getElementById(`${colorId}-value`).textContent = value;
+            buildBackground();
+        }
+
+        function updateSeedDisplay() {
+            document.getElementById('seed-input').value = params.seed;
+        }
+
+        function updateSeed() {
+            const input = document.getElementById('seed-input');
+            const newSeed = parseInt(input.value, 10);
+            if (newSeed && newSeed > 0) {
+                params.seed = newSeed;
+                initializeSystem();
+            } else {
+                updateSeedDisplay();
+            }
+        }
+
+        function previousSeed() {
+            params.seed = Math.max(1, params.seed - 1);
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function nextSeed() {
+            params.seed += 1;
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function randomSeedAndUpdate() {
+            params.seed = Math.floor(Math.random() * 999999) + 1;
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function resetParameters() {
+            params = { ...defaultParams };
+            updateSeedDisplay();
+            for (const name of ['tempo', 'orbitWidth', 'trailLength', 'turbulence', 'lineWeight', 'interactionRadius']) {
+                document.getElementById(name).value = params[name];
+                document.getElementById(`${name}-value`).textContent = formatParam(name, params[name]);
+            }
+            for (const name of ['bottomColor', 'middleColor', 'topColor']) {
+                document.getElementById(name).value = params[name];
+                document.getElementById(`${name}-value`).textContent = params[name];
+            }
+            isPaused = false;
+            updatePauseButton();
+            initializeSystem();
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            updatePauseButton();
+        }
+
+        function updatePauseButton() {
+            document.getElementById('pause-button').textContent = isPaused ? 'Resume' : 'Pause';
+        }
+
+        function downloadArtwork() {
+            saveCanvas(`gesture-field-seed-${params.seed}`, 'png');
+        }
+
+        function formatParam(name, value) {
+            return ['trailLength', 'interactionRadius'].includes(name) ? String(Math.round(value)) : Number(value).toFixed(2);
+        }
+
+        function clamp01(value) { return Math.max(0, Math.min(1, value)); }
+
+        function mulberry32(seed) {
+            return function() {
+                let value = seed += 0x6D2B79F5;
+                value = Math.imul(value ^ value >>> 15, value | 1);
+                value ^= value + Math.imul(value ^ value >>> 7, value | 61);
+                return ((value ^ value >>> 14) >>> 0) / 4294967296;
+            };
+        }
+
+        function rgba(hex, alpha) {
+            const value = parseInt(hex.slice(1), 16);
+            return `rgba(${value >> 16},${(value >> 8) & 255},${value & 255},${alpha})`;
+        }
+
+        function mixHex(a, b, amount) {
+            const av = parseInt(a.slice(1), 16);
+            const bv = parseInt(b.slice(1), 16);
+            const mix = channel => Math.round(channel(av) + (channel(bv) - channel(av)) * amount);
+            const r = mix(value => value >> 16);
+            const g = mix(value => (value >> 8) & 255);
+            const bl = mix(value => value & 255);
+            return `#${[r, g, bl].map(value => value.toString(16).padStart(2, '0')).join('')}`;
+        }
+
+        window.chromaticConfluence = {
+            ready: false,
+            pause() {
+                isPaused = true;
+                updatePauseButton();
+            },
+            resume() {
+                isPaused = false;
+                updatePauseButton();
+            },
+            setTime(value) {
+                sceneTime = Number(value);
+                renderScene();
+            },
+            probe(value) {
+                const scene = computeScene(Number(value));
+                return {
+                    interactionCount: scene.interactions.filter(item => item.strength > 0.025).length,
+                    positions: scene.positions.map(body => [Number(body.x.toFixed(2)), Number(body.y.toFixed(2))])
+                };
+            },
+            snapshot() {
+                return {
+                    canvas: { width, height },
+                    objectCount: bodies.length,
+                    trailPointCount: currentTrails.reduce((total, trail) => total + trail.points.length, 0),
+                    interactionCount: currentScene.interactions.filter(item => item.strength > 0.025).length,
+                    positions: currentScene.positions.map(body => [Number(body.x.toFixed(2)), Number(body.y.toFixed(2))])
+                };
+            }
+        };
+
+        window.addEventListener('load', updateSeedDisplay);
+    </script>
+</body>
+</html>
