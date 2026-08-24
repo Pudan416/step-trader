@@ -744,7 +744,7 @@ struct MeSheetsModifier: ViewModifier {
                 LoginView(authService: authService)
             }
             .sheet(isPresented: $showProfileEditor) {
-                ProfileEditorView(authService: authService, model: model)
+                ProfileEditorView(authService: authService)
             }
             .fullScreenCover(item: fullScreenDestination) { destination in
                 switch destination {

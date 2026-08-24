@@ -53,6 +53,11 @@ struct SettingsSheet: View {
                     accountRow
 
                     section(header: String(localized: "General", comment: "Settings section header")) {
+                        flatRow(icon: "figure.walk", title: String(localized: "Your day")) {
+                            SettingsEnergyPage(model: model)
+                        }
+                        .accessibilityIdentifier("settings.yourDay")
+                        rowDivider
                         flatRow(icon: "paintpalette", title: String(localized: "Appearance")) {
                             SettingsAppearancePage(model: model)
                         }
@@ -118,7 +123,7 @@ struct SettingsSheet: View {
                 LoginView(authService: authService)
             }
             .sheet(isPresented: $showProfileEditor) {
-                ProfileEditorView(authService: authService, model: model)
+                ProfileEditorView(authService: authService)
             }
             #if DEBUG
             .fullScreenCover(isPresented: $showOnboardingDemo) {
