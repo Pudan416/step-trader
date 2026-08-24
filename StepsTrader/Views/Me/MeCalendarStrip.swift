@@ -1,110 +1,205 @@
 import SwiftUI
 import UIKit
 
+enum MeCalendarTimeline {
+    static func logicalToday(
+        now: Date = .now,
+        dayEndHour: Int,
+        dayEndMinute: Int,
+        calendar: Calendar = .current
+    ) -> Date {
+        let key = DayBoundary.dayKey(
+            for: now,
+            dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute,
+            calendar: calendar
+        )
+        return date(for: key, calendar: calendar) ?? calendar.startOfDay(for: now)
+    }
+
+    static func shouldAttemptRemoteRecovery(
+        hasTrackedSnapshot: Bool,
+        localCanvasMissing: Bool
+    ) -> Bool {
+        hasTrackedSnapshot && localCanvasMissing
+    }
+
+    static func dayKeys(
+        trackedDayKeys _: Set<String>,
+        today: Date = .now,
+        calendar: Calendar = .current
+    ) -> [String] {
+        let todayStart = calendar.startOfDay(for: today)
+        let start = calendar.date(byAdding: .day, value: -6, to: todayStart) ?? todayStart
+
+        var result: [String] = []
+        var currentDate = start
+        while currentDate <= todayStart {
+            result.append(dayKey(for: currentDate, calendar: calendar))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
+            currentDate = next
+        }
+        return result
+    }
+
+    static func dayKey(for date: Date, calendar: Calendar = .current) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d",
+            components.year ?? 0,
+            components.month ?? 0,
+            components.day ?? 0
+        )
+    }
+
+    static func date(for dayKey: String, calendar: Calendar = .current) -> Date? {
+        let values = dayKey.split(separator: "-").compactMap { Int($0) }
+        guard values.count == 3 else { return nil }
+        return calendar.date(from: DateComponents(
+            year: values[0],
+            month: values[1],
+            day: values[2]
+        ))
+    }
+
+    static func monthDays(
+        containing date: Date,
+        calendar: Calendar = .current
+    ) -> [Date?] {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: date),
+              let dayRange = calendar.range(of: .day, in: .month, for: date)
+        else { return [] }
+
+        let firstDay = monthInterval.start
+        let weekday = calendar.component(.weekday, from: firstDay)
+        let leadingEmptyDays = (weekday - calendar.firstWeekday + 7) % 7
+        var result = Array<Date?>(repeating: nil, count: leadingEmptyDays)
+        result.append(contentsOf: dayRange.compactMap { day in
+            calendar.date(byAdding: .day, value: day - 1, to: firstDay)
+        })
+        return result
+    }
+}
+
 // MARK: - Me calendar
 //
-// Past days as a horizontal strip, newest first, scrolling back into the past.
-// Tapping a day opens `DayCanvasViewerView` — a pixel-faithful render of the
-// persisted canvas at its frozen lastModified time.
-//
-// Every day is open — the app is free and there is no history gate.
+// A chronological seven-day strip: older days are on the left and today is
+// on the right. Earlier saved posters belong to the full archive calendar.
+// Tapping any of the seven days selects it in the large poster above, including
+// honest empty days that have no saved canvas.
 struct MeCalendarStrip: View {
     let pastDays: [String: PastDaySnapshot]
+    let selectedDayKey: String
     let onSelect: (String) -> Void
+    let posterCount: Int
+    let onOpenArchive: () -> Void
 
     @Environment(\.appTheme) private var theme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// 3:4, matching the poster the tile opens.
-    private static let tileSize = CGSize(width: 96, height: 128)
+    private static let tileSpacing: CGFloat = 6
+    private static let compactTileHeight: CGFloat = 76
+    private static let accessibleTileSize = CGSize(width: 64, height: 96)
 
-    /// Short month name for a day key, e.g. "Aug" — localised, and abbreviated
-    /// by the locale's own rules rather than by truncation.
-    private func monthLabel(for dayKey: String) -> String? {
-        guard let date = CachedFormatters.dayKey.date(from: dayKey) else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.setLocalizedDateFormatFromTemplate("LLL")
-        return formatter.string(from: date)
+    private var todayKey: String {
+        AppModel.dayKey(for: .now)
     }
 
-    /// Newest first. Today is always present, even before it has a snapshot.
-    private var dayKeysSorted: [String] {
-        var keys = Set(pastDays.keys)
-        keys.insert(AppModel.dayKey(for: Date.now))
-        return keys.sorted(by: >)
+    private var dayKeys: [String] {
+        let today = CachedFormatters.dayKey.date(from: todayKey) ?? .now
+        return MeCalendarTimeline.dayKeys(
+            trackedDayKeys: Set(pastDays.keys),
+            today: today
+        )
     }
 
     var body: some View {
-        let keys = dayKeysSorted
+        let keys = dayKeys
+        let tileHeight = dynamicTypeSize >= .accessibility1
+            ? Self.accessibleTileSize.height
+            : Self.compactTileHeight
 
         return VStack(alignment: .leading, spacing: 10) {
-            // The header is a fixed-size label and the count scales, so side by
-            // side they collide at accessibility sizes. Stack them there.
-            let header = Text(String(localized: "CALENDAR", comment: "MeView – calendar section header"))
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(theme.textSecondary.opacity(0.55))
-                .tracking(0.6)
-            let count = Group {
-                if !pastDays.isEmpty {
-                    Text(String(localized: "\(keys.count) days tracked", comment: "MeView – tracked count"))
-                        .font(.caption)
-                        .foregroundStyle(theme.textSecondary.opacity(0.5))
-                }
-            }
+            recentDaysHeader
+                .zIndex(1)
 
-            if dynamicTypeSize >= .accessibility1 {
-                VStack(alignment: .leading, spacing: 2) {
-                    header
-                    count
-                }
-            } else {
-                HStack(alignment: .firstTextBaseline) {
-                    header
-                    Spacer(minLength: 8)
-                    count
-                }
-            }
+            GeometryReader { geometry in
+                let fittedWidth = floor(
+                    (geometry.size.width - Self.tileSpacing * 6) / 7
+                )
+                let tileWidth = dynamicTypeSize >= .accessibility1
+                    ? Self.accessibleTileSize.width
+                    // Keep every day a valid touch target. Seven tiles still
+                    // fit on current full-width iPhones; very narrow layouts
+                    // may reveal the last tile with a tiny horizontal scroll.
+                    : max(44, fittedWidth)
 
-            // On a first run the strip still holds today's tile, so it never
-            // looks broken — but nothing explains what it is going to become.
-            if pastDays.isEmpty {
-                Text(String(localized: "Your days will collect here.",
-                            comment: "Me calendar – empty state"))
-                    .font(.subheadline)
-                    .foregroundStyle(theme.textSecondary.opacity(0.6))
-            }
-
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: 10) {
-                    ForEach(Array(keys.enumerated()), id: \.element) { index, key in
-                        // Name a month the first time you reach it, so scrolling
-                        // back reads as travel rather than as more of the same.
-                        if index == 0 || monthLabel(for: key) != monthLabel(for: keys[index - 1]),
-                           let month = monthLabel(for: key) {
-                            Text(month)
-                                .font(.caption2)
-                                .foregroundStyle(theme.textSecondary.opacity(0.5))
-                                .fixedSize()
-                                .rotationEffect(.degrees(-90))
-                                .frame(width: 16, height: Self.tileSize.height)
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: Self.tileSpacing) {
+                        ForEach(keys, id: \.self) { key in
+                            DayHistoryTile(
+                                dayKey: key,
+                                snapshot: pastDays[key],
+                                isSelected: key == selectedDayKey,
+                                onTap: { onSelect(key) }
+                            )
+                            .frame(width: tileWidth, height: tileHeight)
+                            .id(key)
                         }
-
-                        DayHistoryTile(
-                            dayKey: key,
-                            snapshot: pastDays[key],
-                            onTap: { onSelect(key) }
-                        )
-                        .frame(width: Self.tileSize.width, height: Self.tileSize.height)
                     }
+                    .scrollTargetLayout()
                 }
+                .scrollIndicators(.hidden)
+                .scrollTargetBehavior(.viewAligned)
             }
-            // Without an explicit height the scroll view claims every point the
-            // VStack has left, floating the tiles in the middle of it and
-            // pushing whatever follows off the bottom of the screen.
-            .frame(height: Self.tileSize.height)
-            .scrollIndicators(.hidden)
+            .frame(height: tileHeight)
         }
+    }
+
+    @ViewBuilder
+    private var recentDaysHeader: some View {
+        if dynamicTypeSize >= .accessibility1 {
+            VStack(alignment: .leading, spacing: 0) {
+                recentDaysTitle
+                archiveButton
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        } else {
+            HStack(spacing: 12) {
+                recentDaysTitle
+                Spacer(minLength: 8)
+                archiveButton
+            }
+        }
+    }
+
+    private var recentDaysTitle: some View {
+        Text(String(localized: "LAST 7 CALENDAR DAYS", comment: "MeView – recent calendar section header"))
+            .font(.caption.weight(.medium))
+            .foregroundStyle(theme.textSecondary.opacity(0.72))
+            .tracking(1.1)
+    }
+
+    private var archiveButton: some View {
+        Button(action: onOpenArchive) {
+            HStack(spacing: 4) {
+                Text(String(localized: "Archive · \(posterCount)", comment: "Me archive – compact saved-poster count"))
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(AppColors.brandAccent)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        // Keep the 44pt target in the parent's layout, rather than expanding
+        // only the label's accessibility frame over the first calendar tile.
+        .frame(minHeight: 44)
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("me_archive_button")
+        .accessibilityLabel(
+            String(localized: "Archive, \(posterCount) posters", comment: "Me archive – compact action accessibility label")
+        )
     }
 }
 
@@ -113,6 +208,7 @@ struct MeCalendarStrip: View {
 struct DayHistoryTile: View {
     let dayKey: String
     let snapshot: PastDaySnapshot?
+    let isSelected: Bool
     let onTap: () -> Void
 
     @Environment(\.appTheme) private var theme
@@ -125,16 +221,15 @@ struct DayHistoryTile: View {
         CachedFormatters.dayKey.date(from: dayKey) ?? Date.now
     }
 
-    private var isToday: Bool {
-        dayKey == AppModel.dayKey(for: Date.now)
-    }
-
     private var dayNumber: String {
         String(Calendar.current.component(.day, from: date))
     }
 
-    private var userName: String? {
-        AuthenticationService.shared.currentUser?.displayName
+    private var weekdayLabel: String {
+        let weekday = Calendar.current.component(.weekday, from: date)
+        let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
+        guard symbols.indices.contains(weekday - 1) else { return localizedShortWeekday }
+        return symbols[weekday - 1]
     }
 
     var body: some View {
@@ -142,6 +237,7 @@ struct DayHistoryTile: View {
             tileBody
         }
         .buttonStyle(ScaleButtonStyle())
+        .accessibilityIdentifier("me_calendar_day_\(dayKey)")
         .accessibilityLabel(accessibilityLabel)
     }
 
@@ -161,22 +257,37 @@ struct DayHistoryTile: View {
                 theme.textPrimary.opacity(0.10)
             }
 
-            Text(dayNumber)
-                .font(.system(size: 20, weight: .semibold, design: .serif))
-                .foregroundStyle(isToday ? AppColors.brandAccent : theme.textPrimary.opacity(0.75))
-                .padding(8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            LinearGradient(
+                colors: [.black.opacity(0.05), .black.opacity(0.38)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
 
-            if isToday {
-                todayBadge
-                    .padding(6)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            VStack(spacing: 4) {
+                Text(weekdayLabel)
+                    .font(.caption2.weight(isSelected ? .bold : .medium))
+                    .foregroundStyle(isSelected ? AppColors.brandAccent : theme.textPrimary.opacity(0.75))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Spacer(minLength: 0)
+
+                Text(dayNumber)
+                    .font(.unbounded(18, weight: .medium, relativeTo: .title3))
+                    .foregroundStyle(isSelected ? AppColors.brandAccent : theme.textPrimary.opacity(0.9))
             }
+            .padding(.horizontal, 5)
+            .padding(.vertical, 7)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(theme.stroke.opacity(theme.strokeOpacity * 0.5), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(
+                    isSelected
+                        ? AppColors.brandAccent.opacity(0.95)
+                        : theme.stroke.opacity(theme.strokeOpacity * 0.5),
+                    lineWidth: isSelected ? 1.5 : 0.5
+                )
         )
         .task {
             guard !hasLoaded else { return }
@@ -185,23 +296,17 @@ struct DayHistoryTile: View {
         }
     }
 
-    private var todayBadge: some View {
-        Text(String(localized: "Today", comment: "Me calendar – today badge"))
-            .font(.system(size: 8, weight: .bold))
-            .tracking(0.6)
-            .foregroundStyle(AppColors.brandAccent)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(.ultraThinMaterial, in: Capsule())
-    }
-
     private var accessibilityLabel: String {
-        let dayName = CachedFormatters.shortWeekday.string(from: date)
+        let dayName = localizedShortWeekday
         let monthDay = CachedFormatters.monthDay.string(from: date)
         if let snap = snapshot {
             return String(localized: "\(dayName), \(monthDay), \(snap.inkEarned) colors earned", comment: "Me calendar – tile a11y, with data")
         }
         return String(localized: "\(dayName), \(monthDay), no data", comment: "Me calendar – tile a11y, empty")
+    }
+
+    private var localizedShortWeekday: String {
+        date.formatted(.dateTime.weekday(.abbreviated))
     }
 
     // MARK: - Thumbnail loading
@@ -212,7 +317,10 @@ struct DayHistoryTile: View {
             CanvasStorageService.shared.loadCanvas(for: key)
         }.value
 
-        if canvas == nil {
+        if MeCalendarTimeline.shouldAttemptRemoteRecovery(
+            hasTrackedSnapshot: snapshot != nil,
+            localCanvasMissing: canvas == nil
+        ) {
             if let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: key) {
                 CanvasStorageService.shared.saveCanvas(remote)
                 canvas = remote
@@ -239,12 +347,257 @@ struct DayHistoryTile: View {
     }
 }
 
+// MARK: - Full calendar
+
+struct MeFullCalendarView: View {
+    @ObservedObject var model: AppModel
+    let pastDays: [String: PastDaySnapshot]
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
+
+    @State private var visibleMonth: Date
+    @State private var selectedDayKey: String?
+
+    init(model: AppModel, pastDays: [String: PastDaySnapshot]) {
+        self.model = model
+        self.pastDays = pastDays
+        let boundary = AppModel.storedDayEnd()
+        _visibleMonth = State(initialValue: MeCalendarTimeline.logicalToday(
+            dayEndHour: boundary.hour,
+            dayEndMinute: boundary.minute
+        ))
+    }
+
+    private var calendar: Calendar {
+        var calendar = Calendar.current
+        calendar.locale = Locale.current
+        return calendar
+    }
+
+    private var todayKey: String {
+        AppModel.dayKey(for: .now)
+    }
+
+    private var logicalToday: Date {
+        MeCalendarTimeline.date(for: todayKey, calendar: calendar)
+            ?? calendar.startOfDay(for: .now)
+    }
+
+    private var monthCells: [Date?] {
+        MeCalendarTimeline.monthDays(containing: visibleMonth, calendar: calendar)
+    }
+
+    private var weekdaySymbols: [String] {
+        let symbols = calendar.veryShortStandaloneWeekdaySymbols
+        let first = max(0, calendar.firstWeekday - 1)
+        return Array(symbols[first...] + symbols[..<first])
+    }
+
+    private var canMoveForward: Bool {
+        guard let visible = calendar.dateInterval(of: .month, for: visibleMonth)?.start,
+              let current = calendar.dateInterval(of: .month, for: logicalToday)?.start
+        else { return false }
+        return visible < current
+    }
+
+    var body: some View {
+        ZStack {
+            theme.backgroundColor.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                topBar
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                ScrollView {
+                    VStack(spacing: 24) {
+                        monthHeader
+                        weekdayHeader
+                        monthGrid
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 24)
+                    .padding(.bottom, 40)
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
+        .energyGradientBackground(model: model, showGrain: false)
+        .preferredColorScheme(theme.colorScheme)
+        .fullScreenCover(item: Binding(
+            get: { selectedDayKey.map { MeDayKeyWrapper(key: $0) } },
+            set: { selectedDayKey = $0?.key }
+        )) { wrapper in
+            DayCanvasViewerView(model: model, dayKey: wrapper.key)
+        }
+    }
+
+    private var topBar: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(localized: "Calendar", comment: "Full calendar – title"))
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(theme.textPrimary)
+                Text(String(localized: "\(pastDays.count) days tracked", comment: "Full calendar – tracked count"))
+                    .font(.caption)
+                    .foregroundStyle(theme.textSecondary.opacity(0.6))
+            }
+
+            Spacer()
+
+            Button {
+                visibleMonth = logicalToday
+            } label: {
+                Text(String(localized: "Today", comment: "Full calendar – jump to today"))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(theme.textPrimary.opacity(0.9))
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+            .buttonStyle(ScaleButtonStyle())
+
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(theme.textPrimary.opacity(0.9))
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel(String(localized: "Close", comment: "Full calendar – close"))
+        }
+    }
+
+    private var monthHeader: some View {
+        HStack {
+            Button { moveMonth(by: -1) } label: {
+                Image(systemName: "chevron.left")
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Previous month", comment: "Full calendar – previous month"))
+
+            Spacer()
+
+            Text(visibleMonth.formatted(.dateTime.month(.wide).year()))
+                .font(.headline)
+                .foregroundStyle(theme.textPrimary)
+                .contentTransition(.numericText())
+
+            Spacer()
+
+            Button { moveMonth(by: 1) } label: {
+                Image(systemName: "chevron.right")
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canMoveForward)
+            .opacity(canMoveForward ? 1 : 0.25)
+            .accessibilityLabel(String(localized: "Next month", comment: "Full calendar – next month"))
+        }
+        .foregroundStyle(theme.textSecondary)
+    }
+
+    private var weekdayHeader: some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7),
+            spacing: 0
+        ) {
+            ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
+                Text(symbol.uppercased())
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(theme.textSecondary.opacity(0.5))
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private var monthGrid: some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7),
+            spacing: 8
+        ) {
+            ForEach(Array(monthCells.enumerated()), id: \.offset) { _, date in
+                if let date {
+                    dayCell(date)
+                } else {
+                    Color.clear
+                        .aspectRatio(1, contentMode: .fit)
+                }
+            }
+        }
+    }
+
+    private func dayCell(_ date: Date) -> some View {
+        let key = MeCalendarTimeline.dayKey(for: date, calendar: calendar)
+        let isToday = key == todayKey
+        let isTracked = pastDays[key] != nil
+        let isFuture = date > logicalToday
+        let day = calendar.component(.day, from: date)
+
+        return Button {
+            guard isTracked else { return }
+            selectedDayKey = key
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(
+                        isToday
+                            ? theme.accentColor.opacity(0.18)
+                            : theme.textPrimary.opacity(isTracked ? 0.07 : 0.025)
+                    )
+
+                Text(day.formatted())
+                    .font(.unbounded(15, weight: isToday ? .bold : .medium, relativeTo: .body))
+                    .monospacedDigit()
+                    .foregroundStyle(
+                        isToday
+                            ? theme.accentColor
+                            : theme.textPrimary.opacity(isFuture ? 0.25 : 0.85)
+                    )
+
+                if isTracked {
+                    Circle()
+                        .fill(theme.accentColor.opacity(0.9))
+                        .frame(width: 4, height: 4)
+                        .padding(.bottom, 6)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                }
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(
+                        isToday ? theme.accentColor.opacity(0.8) : .clear,
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(ScaleButtonStyle())
+        .disabled(isFuture || !isTracked)
+        .accessibilityLabel(CachedFormatters.longDate.string(from: date))
+        .accessibilityValue(isTracked ? String(localized: "Tracked", comment: "Full calendar – tracked day") : "")
+    }
+
+    private func moveMonth(by value: Int) {
+        guard let next = calendar.date(byAdding: .month, value: value, to: visibleMonth) else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            visibleMonth = next
+        }
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
     MeCalendarStrip(
         pastDays: [:],
-        onSelect: { _ in }
+        selectedDayKey: AppModel.dayKey(for: .now),
+        onSelect: { _ in },
+        posterCount: 0,
+        onOpenArchive: {}
     )
     .padding()
 }

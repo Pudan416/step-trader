@@ -13,13 +13,18 @@ struct MeView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @State private var pastDays: [String: PastDaySnapshot] = [:]
+    @State private var selectedPosterDayKey = AppModel.dayKey(for: .now)
     @State private var selectedDayKey: String? = nil
     @State private var showLogin = false
     @State private var showProfileEditor = false
+    @State private var showFullCalendar = false
     @State private var cachedDayKeys: [String] = []
     @State private var hasLoadedSnapshots = false
     @State private var cachedTopApps: [(name: String, spent: Int)] = []
     @State private var cachedTxNames: [String: String] = [:]
+    @State private var unlockRecords: [MePosterUnlockRecord] = []
+    @State private var selectedPosterCanShare = false
+    @State private var shareRequestID = 0
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
 
@@ -28,6 +33,10 @@ struct MeView: View {
     // stay off the SwiftUI hot path.
     @State private var cachedSnaps: [PastDaySnapshot] = []
     @State private var cachedSummary = MeWeekStats.Summary()
+    @State private var cachedComparison = MeWeekStats.Comparison(
+        sleepHoursDelta: nil,
+        stepsPercentDelta: nil
+    )
 
     var body: some View {
         NavigationStack {
@@ -53,35 +62,14 @@ struct MeView: View {
 
     @ViewBuilder
     private var mainScrollContent: some View {
-        if useTightMeLayout {
-            GeometryReader { geo in
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        contentSection
-                            .padding(.bottom, 40)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 16)
-                    .frame(width: geo.size.width)
-                    .frame(minHeight: geo.size.height, alignment: .topLeading)
-                }
-                .scrollIndicators(.hidden)
-                .scrollBounceBehavior(.basedOnSize)
-                // The tab bar is an overlay, not a safe-area inset, so the last
-                // row would otherwise scroll under the pill and stop there.
-                .safeAreaPadding(.bottom, tabBarHeight)
-            }
-        } else {
-            ScrollView(.vertical) {
-                VStack(spacing: 0) {
-                    contentSection
-                        .padding(.bottom, 40)
-                }
+        ScrollView(.vertical) {
+            contentSection
                 .padding(.horizontal, 20)
-            }
-            .scrollIndicators(.hidden)
-            .safeAreaPadding(.bottom, tabBarHeight)
+                .padding(.bottom, 20)
         }
+        .scrollIndicators(.hidden)
+        .defaultScrollAnchor(.top)
+        .safeAreaPadding(.bottom, tabBarHeight)
     }
 
     private var meLifecycle: MeLifecycleModifier {
@@ -103,7 +91,9 @@ struct MeView: View {
             authService: authService,
             showLogin: $showLogin,
             showProfileEditor: $showProfileEditor,
-            selectedDayKey: $selectedDayKey
+            showFullCalendar: $showFullCalendar,
+            selectedDayKey: $selectedDayKey,
+            pastDays: pastDays
         )
     }
 
@@ -116,75 +106,78 @@ struct MeView: View {
 
 
     private var contentSection: some View {
-        let sectionSpacing: CGFloat = useTightMeLayout ? 20 : 28
-
-        return VStack(alignment: .leading, spacing: sectionSpacing) {
-
-            // ── Greeting ──────────────────────────────────────────────────────
-            // No subtitle: it claimed "the last 7 days" over a screen that now
-            // ends in a calendar of every day ever recorded. Each section names
-            // its own window instead.
+        VStack(alignment: .leading, spacing: useTightMeLayout ? 14 : 24) {
             greetingRow
-                .padding(.top, useTightMeLayout ? 18 : 24)
+                .padding(.top, useTightMeLayout ? 14 : 22)
 
-            // ── This week, in three numbers ───────────────────────────────────
-            weekSummarySection(cachedSummary)
-
-            // ── Connected apps ────────────────────────────────────────────────
-            if !cachedTopApps.isEmpty {
-                connectedAppsSection(apps: Array(cachedTopApps.prefix(5)))
-            }
-
-            // ── The calendar ──────────────────────────────────────────────────
-            // `pastDays` is every persisted day, not just this week's window, so
-            // the strip needs no loader of its own.
-            MeCalendarStrip(
-                pastDays: pastDays,
-                onSelect: { selectedDayKey = $0 }
+            MeSelectedDayPoster(
+                model: model,
+                dayKey: selectedPosterDayKey,
+                snapshot: pastDays[selectedPosterDayKey],
+                unlockRecords: unlockRecords,
+                shareRequestID: shareRequestID,
+                onShareAvailabilityChange: { selectedPosterCanShare = $0 }
             )
+            // Keep the seven-day gallery rail clear of the floating tab bar on
+            // shorter iPhones. Because this is an inset rather than a fixed
+            // width, the poster still grows naturally on Pro Max layouts.
+            .padding(.horizontal, 21)
+
+            calendarSection
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var calendarSection: some View {
+        MeCalendarStrip(
+            pastDays: pastDays,
+            selectedDayKey: selectedPosterDayKey,
+            onSelect: { key in
+                selectedPosterCanShare = false
+                withAnimation(.easeInOut(duration: 0.24)) {
+                    selectedPosterDayKey = key
+                }
+            },
+            posterCount: pastDays.count,
+            onOpenArchive: { showFullCalendar = true }
+        )
     }
 
 
     // MARK: - This week, in three numbers
     //
-    // Sleep, steps, happenings — the three things a day is made of, one reading
-    // each. A reading with nothing behind it is omitted rather than shown as a
-    // zero, so a quiet week reads as quiet instead of as failure.
+    // Sleep and steps stay visible before HealthKit has delivered data;
+    // happenings form a compact visual frequency field beneath them.
 
     @ViewBuilder
     private func weekSummarySection(_ summary: MeWeekStats.Summary) -> some View {
-        if summary.avgSleepHours > 0 || summary.avgSteps > 0 || !summary.topHappeningIds.isEmpty {
-            VStack(alignment: .leading, spacing: useTightMeLayout ? 10 : 14) {
-                sectionHeader(String(localized: "THIS WEEK", comment: "MeView – week summary section header"))
+        VStack(alignment: .leading, spacing: useTightMeLayout ? 10 : 14) {
+            sectionHeader(String(localized: "THIS WEEK", comment: "MeView – week summary section header"))
 
-                if summary.avgSleepHours > 0 {
-                    summaryRow(
-                        icon: "moon.zzz.fill",
-                        value: summary.avgSleepHours.formatted(.number.precision(.fractionLength(1))) + "h",
-                        label: String(localized: "sleep a night", comment: "MeView – average sleep label")
-                    )
-                }
+            summaryRow(
+                icon: "moon.zzz.fill",
+                value: summary.avgSleepHours.formatted(.number.precision(.fractionLength(1))) + "h",
+                label: String(localized: "sleep a night", comment: "MeView – average sleep label"),
+                trend: cachedComparison.sleepHoursDelta.map { String(format: "%+.1fh", $0) },
+                accessibilityIdentifier: "me_week_sleep_average"
+            )
 
-                if summary.avgSteps > 0 {
-                    summaryRow(
-                        icon: "figure.walk",
-                        value: summary.avgSteps.formatted(),
-                        label: String(localized: "steps a day", comment: "MeView – average steps label")
-                    )
-                }
+            summaryRow(
+                icon: "figure.walk",
+                value: summary.avgSteps.formatted(),
+                label: String(localized: "steps a day", comment: "MeView – average steps label"),
+                trend: cachedComparison.stepsPercentDelta.map { String(format: "%+d%%", $0) },
+                accessibilityIdentifier: "me_week_steps_average"
+            )
 
-                if !summary.topHappeningIds.isEmpty {
-                    let titles = summary.topHappeningIds.map { model.resolveOptionTitle(for: $0) }
-                    summaryRow(
-                        icon: "sparkles",
-                        value: titles.joined(separator: ", "),
-                        label: String(localized: "came up most", comment: "MeView – frequent happenings label"),
-                        monospaced: false,
-                        lineLimit: nil
-                    )
-                }
+            if !summary.topHappenings.isEmpty {
+                Divider()
+                    .overlay(theme.stroke.opacity(theme.strokeOpacity))
+
+                MeWeekHappeningsView(
+                    happenings: summary.topHappenings,
+                    resolveTitle: { model.resolveOptionTitle(for: $0) }
+                )
             }
         }
     }
@@ -193,33 +186,57 @@ struct MeView: View {
         icon: String,
         value: String,
         label: String,
-        monospaced: Bool = true,
-        lineLimit: Int? = 1
+        trend: String?,
+        accessibilityIdentifier: String
     ) -> some View {
         // Digits line up column-wise; happening titles are prose and must not.
         let valueFont = Font.system(useTightMeLayout ? .title3 : .title2, design: .rounded)
             .weight(.semibold)
+        let trendAccessibilityLabel = trend.map {
+            $0 + ", " + String(localized: "vs last week", comment: "MeView – comparison period")
+        }
         return HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 13))
                 .foregroundStyle(theme.textSecondary)
-                .frame(width: 18, alignment: .center)
+                .frame(width: 34, height: 34)
+                .background(theme.textPrimary.opacity(0.055), in: Circle())
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(value)
-                    .font(monospaced ? valueFont.monospacedDigit() : valueFont)
+                    .font(valueFont.monospacedDigit())
                     .foregroundStyle(theme.textPrimary)
-                    // A number never needs a second line. The happenings list is
-                    // prose and gets none: at accessibility sizes a cap turns
-                    // the reading into "made_somethi…".
-                    .lineLimit(lineLimit)
+                    .lineLimit(1)
                 Text(label)
                     .font(.caption)
                     .foregroundStyle(theme.textSecondary.opacity(0.6))
             }
+
+            if let trend {
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(trend)
+                        .font(.subheadline.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(theme.accentColor.opacity(0.9))
+                    Text(String(localized: "vs last week", comment: "MeView – comparison period"))
+                        .font(.caption2)
+                        .foregroundStyle(theme.textSecondary.opacity(0.5))
+                }
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(value), \(label)")
+        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityLabel(
+            [
+                value,
+                label,
+                trendAccessibilityLabel
+            ]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+        )
     }
 
     // MARK: - Greeting
@@ -246,6 +263,19 @@ struct MeView: View {
             .accessibilityLabel(String(localized: "Profile, \(userName). Double tap to edit.", comment: "MeView – profile pill VoiceOver label"))
 
             Spacer(minLength: 12)
+
+            Button { shareRequestID &+= 1 } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 17, weight: .regular))
+                    .foregroundStyle(theme.textPrimary.opacity(0.7))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!selectedPosterCanShare)
+            .opacity(selectedPosterCanShare ? 1 : 0.28)
+            .accessibilityIdentifier("me_share_selected_day")
+            .accessibilityLabel(String(localized: "Share this day", comment: "Me poster – share action"))
 
             Button { onOpenSettings() } label: {
                 ZStack(alignment: .topTrailing) {
@@ -290,7 +320,7 @@ struct MeView: View {
     private func connectedAppsSection(apps: [(name: String, spent: Int)]) -> some View {
         let maxSpent = max(1, apps.map(\.spent).max() ?? 1)
         return VStack(alignment: .leading, spacing: useTightMeLayout ? 8 : 12) {
-            sectionHeader(String(localized: "CONNECTED APPS", comment: "MeView – connected apps section header"))
+            sectionHeader(String(localized: "COLORS SPENT THIS WEEK", comment: "MeView – connected apps section header"))
 
             VStack(alignment: .leading, spacing: useTightMeLayout ? 10 : 12) {
                 ForEach(Array(apps.enumerated()), id: \.offset) { _, app in
@@ -370,6 +400,24 @@ struct MeView: View {
     private func rebuildWeekModel() {
         cachedSnaps = cachedDayKeys.compactMap { pastDays[$0] }
         cachedSummary = MeWeekStats.summary(snapshots: cachedSnaps)
+
+        let previousKeys: [String]
+        if let firstKey = cachedDayKeys.first,
+           let firstDate = CachedFormatters.dayKey.date(from: firstKey) {
+            previousKeys = (1...7).reversed().compactMap { offset in
+                Calendar.current.date(byAdding: .day, value: -offset, to: firstDate)
+                    .map { CachedFormatters.dayKey.string(from: $0) }
+            }
+        } else {
+            previousKeys = []
+        }
+        let previousSummary = MeWeekStats.summary(
+            snapshots: previousKeys.compactMap { pastDays[$0] }
+        )
+        cachedComparison = MeWeekStats.comparison(
+            current: cachedSummary,
+            previous: previousSummary
+        )
     }
 
     private func refreshDayKeysAndReload() {
@@ -389,9 +437,15 @@ struct MeView: View {
         loadTask = Task { @MainActor in
             // The payment log is read only for display names now — targets that
             // are no longer in a ticket group would otherwise show a raw key.
-            let names = await Task.detached { Self.loadTransactionNameMap() }.value
+            let paymentData = await Task.detached {
+                (
+                    Self.loadTransactionNameMap(),
+                    Self.loadUnlockRecords()
+                )
+            }.value
             guard !Task.isCancelled else { return }
-            cachedTxNames = names
+            cachedTxNames = paymentData.0
+            unlockRecords = paymentData.1
             rebuildTopConsumers()
         }
 
@@ -460,6 +514,20 @@ struct MeView: View {
             if let name = tx.targetName, !name.isEmpty { map[tx.target] = name }
         }
         return map
+    }
+
+    private nonisolated static func loadUnlockRecords() -> [MePosterUnlockRecord] {
+        let url = PersistenceManager.paymentTransactionsFileURL
+        if let data = try? Data(contentsOf: url),
+           let records = try? JSONDecoder().decode([MePosterUnlockRecord].self, from: data) {
+            return records
+        }
+
+        let defaults = UserDefaults.stepsTrader()
+        guard let data = defaults.data(forKey: "paymentTransactions_v1"),
+              let records = try? JSONDecoder().decode([MePosterUnlockRecord].self, from: data)
+        else { return [] }
+        return records
     }
 
     private struct TransactionNameEntry: Decodable {

@@ -15,6 +15,101 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         app.launch()
     }
 
+    func testMeCalendarAllButtonKeepsTheFullCalendarPresented() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing"]
+        app.launch()
+
+        let meTab = app.buttons["tab_me"]
+        XCTAssertTrue(meTab.waitForExistence(timeout: 8))
+        meTab.tap()
+
+        let allButton = app.buttons["me_archive_button"]
+        XCTAssertTrue(allButton.waitForExistence(timeout: 8))
+        allButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+
+        let calendarTitle = app.staticTexts["Calendar"]
+        XCTAssertTrue(calendarTitle.waitForExistence(timeout: 3))
+        XCTAssertTrue(calendarTitle.isHittable)
+        XCTAssertTrue(app.buttons["Previous month"].isHittable)
+        XCTAssertFalse(app.buttons["tab_me"].isHittable)
+        attachScreenshot(named: "me-full-calendar")
+    }
+
+    func testMeKeepsRecentDaysAboveTabBar() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing"]
+        app.launch()
+
+        let meTab = app.buttons["tab_me"]
+        XCTAssertTrue(meTab.waitForExistence(timeout: 8))
+        meTab.tap()
+
+        let archive = app.buttons["me_archive_button"]
+        XCTAssertTrue(archive.waitForExistence(timeout: 8))
+        let settingsButton = app.buttons["me_settings_button"]
+        XCTAssertTrue(settingsButton.exists)
+        XCTAssertLessThan(
+            settingsButton.frame.minY,
+            archive.frame.minY,
+            "Opening Me should keep the page header above the recent-days section"
+        )
+
+        let dayButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'me_calendar_day_'")
+        )
+        XCTAssertEqual(
+            dayButtons.count,
+            7,
+            "The compact strip should expose only the latest seven days; older history belongs in All"
+        )
+        let visibleBottom = (0..<dayButtons.count)
+            .map { dayButtons.element(boundBy: $0) }
+            .map { $0.frame.maxY }
+            .max()
+        let calendarBottom = try XCTUnwrap(visibleBottom)
+        let calendarGap = meTab.frame.minY - calendarBottom
+        XCTAssertGreaterThan(
+            calendarGap,
+            0,
+            "Calendar should not sit underneath the floating tab bar"
+        )
+        XCTAssertLessThan(
+            calendarGap,
+            120,
+            "Calendar should finish immediately above the floating tab bar"
+        )
+        attachScreenshot(named: "me-layout")
+    }
+
+    func testMeArchiveActionLivesInTheRecentDaysHeader() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing"]
+        app.launch()
+
+        let meTab = app.buttons["tab_me"]
+        XCTAssertTrue(meTab.waitForExistence(timeout: 8))
+        meTab.tap()
+
+        let archive = app.buttons["me_archive_button"]
+        XCTAssertTrue(archive.waitForExistence(timeout: 8))
+
+        let dayButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'me_calendar_day_'")
+        )
+        XCTAssertEqual(dayButtons.count, 7)
+        let firstDay = dayButtons.element(boundBy: 0)
+        XCTAssertTrue(firstDay.exists)
+        XCTAssertLessThan(
+            archive.frame.maxY,
+            firstDay.frame.minY,
+            "Archive should read as a lightweight action in the recent-days header, not as a second bar above the tab bar"
+        )
+
+        archive.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["Calendar"].waitForExistence(timeout: 3))
+    }
+
     func testTask7FixRoundOneDefaultScreenshots() throws {
         let app = launchTask7App()
         openPalette(in: app)
