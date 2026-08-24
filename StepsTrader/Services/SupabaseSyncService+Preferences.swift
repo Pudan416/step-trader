@@ -28,6 +28,7 @@ extension SupabaseSyncService {
         userGradientStyle: String = GradientStyle.radial.rawValue,
         userGradientPalette: String = GradientPalette.warmSunset.rawValue,
         dailyRandomThemeEnabled: Bool = false,
+        modernPaletteCategories: [String] = ModernPaletteCategory.allCases.map(\.rawValue),
         canvasOverlayStyle: String = CanvasOverlayStyle.smudge.rawValue,
         allowedCanvasShapes: [String] = CanvasShapeType.selectableCases.map(\.rawValue)
     ) {
@@ -54,6 +55,7 @@ extension SupabaseSyncService {
             userGradientStyle: userGradientStyle,
             userGradientPalette: userGradientPalette,
             dailyRandomThemeEnabled: dailyRandomThemeEnabled,
+            modernPaletteCategories: modernPaletteCategories,
             canvasOverlayStyle: canvasOverlayStyle,
             allowedCanvasShapes: allowedCanvasShapes
         )
@@ -175,6 +177,7 @@ extension SupabaseSyncService {
                 "user_gradient_style": payload.userGradientStyle,
                 "user_gradient_palette": payload.userGradientPalette,
                 "daily_random_theme_enabled": payload.dailyRandomThemeEnabled,
+                "modern_palette_categories": payload.modernPaletteCategories,
                 "canvas_overlay_style": payload.canvasOverlayStyle,
                 "allowed_canvas_shapes": payload.allowedCanvasShapes,
                 "updated_at": iso8601String(Date.now)
@@ -214,6 +217,7 @@ extension SupabaseSyncService {
         gradientStyle: String, gradientPalette: String,
         userGradientStyle: String, userGradientPalette: String,
         dailyRandomThemeEnabled: Bool,
+        modernPaletteCategories: [String],
         canvasOverlayStyle: String,
         bodyCanvasShape: String,
         mindCanvasShape: String,
@@ -273,6 +277,7 @@ extension SupabaseSyncService {
                 userGradientStyle: row.userGradientStyle,
                 userGradientPalette: row.userGradientPalette,
                 dailyRandomThemeEnabled: row.dailyRandomThemeEnabled,
+                modernPaletteCategories: row.modernPaletteCategories,
                 canvasOverlayStyle: row.canvasOverlayStyle,
                 bodyCanvasShape: row.bodyCanvasShape,
                 mindCanvasShape: row.mindCanvasShape,

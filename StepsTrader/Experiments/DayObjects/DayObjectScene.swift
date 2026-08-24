@@ -48,7 +48,10 @@ struct DayObjectScene: Equatable {
             seed: rootSeed,
             uiExclusionRegion: input.uiExclusionRegion
         )
-        let palette = DayObjectPalette.make(seed: rootSeed)
+        let palette = DayObjectPalette.make(
+            seed: rootSeed,
+            categories: input.paletteCategories
+        )
         let radialFillStyle = DayObjectRadialFillStyle.make(
             seed: rootSeed,
             palette: palette,
@@ -92,7 +95,8 @@ struct DayObjectScene: Equatable {
             motionEnergy: normalizedUnitValue(input.motionEnergy),
             visualClarity: normalizedUnitValue(input.visualClarity),
             reduceMotion: input.reduceMotion,
-            uiExclusionRegion: input.uiExclusionRegion
+            uiExclusionRegion: input.uiExclusionRegion,
+            paletteCategories: input.paletteCategories
         )
     }
 

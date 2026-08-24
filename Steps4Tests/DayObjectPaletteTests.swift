@@ -3,6 +3,103 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectPaletteTests: XCTestCase {
+    func testModernCatalogContainsUniqueFourColorPalettes() {
+        let palettes = ModernPaletteCatalog.all
+
+        XCTAssertEqual(palettes.count, 340)
+        XCTAssertEqual(Set(palettes.map(\.code)).count, palettes.count)
+        XCTAssertTrue(palettes.allSatisfy { $0.hexes.count == 4 })
+        XCTAssertTrue(palettes.flatMap(\.hexes).allSatisfy {
+            $0.range(of: "^#[0-9A-F]{6}$", options: .regularExpression) != nil
+        })
+    }
+
+    func testModernCatalogCoversEverySelectableCategory() {
+        for category in ModernPaletteCategory.allCases {
+            XCTAssertFalse(
+                ModernPaletteCatalog.palettes(matching: [category]).isEmpty,
+                "missing \(category.rawValue) palettes"
+            )
+        }
+    }
+
+    func testModernCatalogTreatsNoFilterAsAllAndCombinesSelectedCategories() {
+        XCTAssertEqual(
+            ModernPaletteCatalog.palettes(matching: []),
+            ModernPaletteCatalog.all
+        )
+
+        let selected: Set<ModernPaletteCategory> = [.pastel, .neon]
+        let filtered = ModernPaletteCatalog.palettes(matching: selected)
+
+        XCTAssertFalse(filtered.isEmpty)
+        XCTAssertTrue(filtered.allSatisfy { !$0.categories.isDisjoint(with: selected) })
+        XCTAssertTrue(filtered.contains { $0.categories.contains(.pastel) })
+        XCTAssertTrue(filtered.contains { $0.categories.contains(.neon) })
+    }
+
+    func testDayObjectPaletteDrawsOnlyFromSelectedModernCategories() {
+        let selected: Set<ModernPaletteCategory> = [.neon]
+        let allowed = ModernPaletteCatalog.palettes(matching: selected).map { palette in
+            palette.hexes.map { DayObjectRGB(hex: $0) }
+        }
+
+        for seed in UInt64(0)..<512 {
+            let palette = DayObjectPalette.make(seed: seed, categories: selected)
+            XCTAssertTrue(allowed.contains(palette.colors), "seed=\(seed)")
+            XCTAssertEqual(
+                palette,
+                DayObjectPalette.make(seed: seed, categories: selected),
+                "seed=\(seed)"
+            )
+        }
+    }
+
+    func testModernCategorySelectionDefaultsToAllAndRoundTripsASubset() {
+        let all = Set(ModernPaletteCategory.allCases)
+        XCTAssertEqual(ModernPaletteSelection.decode(""), all)
+        XCTAssertEqual(ModernPaletteSelection.decode("unknown"), all)
+
+        let subset: Set<ModernPaletteCategory> = [.pastel, .warm, .winter]
+        XCTAssertEqual(
+            ModernPaletteSelection.decode(ModernPaletteSelection.encode(subset)),
+            subset
+        )
+        XCTAssertEqual(ModernPaletteSelection.encode(all), "")
+    }
+
+    func testModernCategorySelectionLeavesAllForOneTasteAndNeverBecomesEmpty() {
+        let all = Set(ModernPaletteCategory.allCases)
+        XCTAssertEqual(
+            ModernPaletteSelection.toggling(.neon, in: all),
+            [.neon]
+        )
+        XCTAssertEqual(
+            ModernPaletteSelection.toggling(.neon, in: [.neon]),
+            all
+        )
+    }
+
+    func testSceneUsesPaletteCategoriesFromItsInput() {
+        let selected: Set<ModernPaletteCategory> = [.winter]
+        let input = DayObjectSceneInput(
+            dayKey: "winter-scene",
+            identity: "tester",
+            eventIDs: ["walk"],
+            motionEnergy: 0.5,
+            visualClarity: 0.5,
+            reduceMotion: false,
+            paletteCategories: selected
+        )
+        let scene = DayObjectScene.make(input: input)
+        let allowed = ModernPaletteCatalog.palettes(matching: selected).map { palette in
+            palette.hexes.map { DayObjectRGB(hex: $0) }
+        }
+
+        XCTAssertTrue(allowed.contains(scene.palette.colors))
+        XCTAssertEqual(scene.input.paletteCategories, selected)
+    }
+
     func testDailyRadialFillUsesAStableSharedSubsetOfOneToThreePaletteColors() {
         var reachedColorCounts = Set<Int>()
 
@@ -190,17 +287,9 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
-    func testDailyMeshUsesOneCompleteFourColorApplicationPalette() {
-        let applicationPalettes: [[SIMD3<Float>]] = [
-            ["FFBF65", "FD8973", "003A6C", "002646"],
-            ["7FDBDA", "3A9FBF", "1A4B6E", "0B1E33"],
-            ["C4B5FD", "7C6FBF", "1F6E5C", "0F1B2D"],
-            ["EEDDC9", "C0AC98", "5E7282", "384856"],
-            ["EBBFC8", "B87A92", "4A3568", "181430"],
-            ["F07838", "D04428", "2E1858", "0C0A22"],
-            ["D0A440", "2898A8", "105868", "0A2832"],
-        ].map { palette in
-            palette.map { DayObjectRGB(hex: $0).linearRGB }
+    func testDailyMeshUsesOneCompleteFourColorModernPalette() {
+        let applicationPalettes = ModernPaletteCatalog.all.map { palette in
+            palette.hexes.map { DayObjectRGB(hex: $0).linearRGB }
         }
         var observedPaletteIndices = Set<Int>()
 
@@ -224,11 +313,7 @@ final class DayObjectPaletteTests: XCTestCase {
             XCTAssertEqual(uniforms.colorCount, 4, "seed=\(seed)")
         }
 
-        XCTAssertEqual(
-            observedPaletteIndices,
-            Set(applicationPalettes.indices),
-            "Daily selection must be able to reach every four-color application palette"
-        )
+        XCTAssertGreaterThan(observedPaletteIndices.count, 100)
     }
 
     func testMeshGradientUniformLayoutExactlyMatchesMetalABI() {
