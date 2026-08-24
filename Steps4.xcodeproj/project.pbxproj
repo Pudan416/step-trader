@@ -164,6 +164,8 @@
 		20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01052F86000000000005 /* SettingsWidgetPage.swift */; };
 		20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01062F86000000000006 /* SettingsAboutPage.swift */; };
 		20CC02072F86000000000007 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01072F86000000000007 /* SettingsComponents.swift */; };
+		20CC020B2F86000000000011 /* SettingsHomePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010B2F86000000000011 /* SettingsHomePresentation.swift */; };
+		20CC020C2F86000000000012 /* SettingsHomePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010C2F86000000000012 /* SettingsHomePresentationTests.swift */; };
 		20CC02082F86000000000008 /* SupabaseSyncDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01082F86000000000008 /* SupabaseSyncDTOs.swift */; };
 		20CC020A2F86000000000010 /* SettingsPermissionsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */; };
 		20DB000B2F85000000000002 /* DayBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DB000A2F85000000000001 /* DayBoundary.swift */; };
@@ -583,6 +585,8 @@
 		20CC01052F86000000000005 /* SettingsWidgetPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWidgetPage.swift; sourceTree = "<group>"; };
 		20CC01062F86000000000006 /* SettingsAboutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutPage.swift; sourceTree = "<group>"; };
 		20CC01072F86000000000007 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
+		20CC010B2F86000000000011 /* SettingsHomePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomePresentation.swift; sourceTree = "<group>"; };
+		20CC010C2F86000000000012 /* SettingsHomePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomePresentationTests.swift; sourceTree = "<group>"; };
 		20CC01082F86000000000008 /* SupabaseSyncDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseSyncDTOs.swift; sourceTree = "<group>"; };
 		20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPermissionsPage.swift; sourceTree = "<group>"; };
 		20DB000A2F85000000000001 /* DayBoundary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBoundary.swift; sourceTree = "<group>"; };
@@ -1282,6 +1286,7 @@
 				20CC01062F86000000000006 /* SettingsAboutPage.swift */,
 				20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */,
 				20CC01072F86000000000007 /* SettingsComponents.swift */,
+				20CC010B2F86000000000011 /* SettingsHomePresentation.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -1466,6 +1471,7 @@
 				UB53000053000053000000A1 /* UsageBudgetScheduleTests.swift */,
 				AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */,
 				60OR0002300000000060OR0002 /* CanvasOverlayStyleTests.swift */,
+				20CC010C2F86000000000012 /* SettingsHomePresentationTests.swift */,
 			);
 			path = Steps4Tests;
 			sourceTree = "<group>";
@@ -1998,6 +2004,7 @@
 				80PV00023005000080PV0002 /* CanvasPosterView.swift in Sources */,
 				20CC020A2F86000000000010 /* SettingsPermissionsPage.swift in Sources */,
 				20CC02072F86000000000007 /* SettingsComponents.swift in Sources */,
+				20CC020B2F86000000000011 /* SettingsHomePresentation.swift in Sources */,
 				20CC02082F86000000000008 /* SupabaseSyncDTOs.swift in Sources */,
 				20SS02012F87000000000001 /* SupabaseSyncService+Analytics.swift in Sources */,
 				20SS02022F87000000000002 /* SupabaseSyncService+Selections.swift in Sources */,
@@ -2122,6 +2129,7 @@
 				UB53000053000053000000B1 /* UsageBudgetScheduleTests.swift in Sources */,
 				AL01000053000053000000B1 /* AuthSignInLoadingStateTests.swift in Sources */,
 				60OR0001300000000060OR0001 /* CanvasOverlayStyleTests.swift in Sources */,
+				20CC020C2F86000000000012 /* SettingsHomePresentationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
