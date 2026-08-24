@@ -93,8 +93,11 @@ struct DayObjectPalette: Equatable {
         )
     }
 
-    static func make(seed: UInt64) -> DayObjectPalette {
-        let colors = selectedColors(seed: seed)
+    static func make(
+        seed: UInt64,
+        categories: Set<ModernPaletteCategory> = []
+    ) -> DayObjectPalette {
+        let colors = selectedColors(seed: seed, categories: categories)
         let baseIndex = colors.indices.min {
             relativeLuminance(colors[$0].linearRGB) < relativeLuminance(colors[$1].linearRGB)
         } ?? colors.startIndex
@@ -117,11 +120,14 @@ struct DayObjectPalette: Equatable {
         )
     }
 
-    private static func selectedColors(seed: UInt64) -> [DayObjectRGB] {
+    private static func selectedColors(
+        seed: UInt64,
+        categories: Set<ModernPaletteCategory>
+    ) -> [DayObjectRGB] {
         var rng = SeededRNG.derived(from: seed, domain: "dayObjectPalette")
-        let palettes = GradientPalette.allCases
+        let palettes = ModernPaletteCatalog.palettes(matching: categories)
         let palette = palettes[rng.nextInt(in: 0...(palettes.count - 1))]
-        return palette.colorHexes.map(DayObjectRGB.init(hex:))
+        return palette.hexes.map(DayObjectRGB.init(hex:))
     }
 }
 

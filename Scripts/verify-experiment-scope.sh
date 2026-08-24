@@ -29,6 +29,7 @@ StepsTrader/Experiments/DayObjects/DayObjectsLabView.swift
 StepsTrader/Experiments/DayObjects/DayObjectsMetalView.swift
 StepsTrader/Experiments/DayObjects/DayObjectsRenderer.swift
 StepsTrader/Experiments/DayObjects/DayObjectsView.swift
+StepsTrader/Experiments/DayObjects/ModernPaletteCatalog.swift
 StepsTrader/Experiments/ExperimentalLabRoute.swift
 EOF
 )"

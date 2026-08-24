@@ -373,6 +373,7 @@ struct UserPreferencesRow: Decodable {
     let userGradientStyle: String
     let userGradientPalette: String
     let dailyRandomThemeEnabled: Bool
+    let modernPaletteCategories: [String]
     let canvasOverlayStyle: String
     let bodyCanvasShape: String
     let mindCanvasShape: String
@@ -407,6 +408,7 @@ struct UserPreferencesRow: Decodable {
         case userGradientStyle = "user_gradient_style"
         case userGradientPalette = "user_gradient_palette"
         case dailyRandomThemeEnabled = "daily_random_theme_enabled"
+        case modernPaletteCategories = "modern_palette_categories"
         case canvasOverlayStyle = "canvas_overlay_style"
         case bodyCanvasShape = "body_canvas_shape"
         case mindCanvasShape = "mind_canvas_shape"
@@ -443,6 +445,10 @@ struct UserPreferencesRow: Decodable {
         userGradientStyle = try c.decodeIfPresent(String.self, forKey: .userGradientStyle) ?? GradientStyle.radial.rawValue
         userGradientPalette = try c.decodeIfPresent(String.self, forKey: .userGradientPalette) ?? GradientPalette.warmSunset.rawValue
         dailyRandomThemeEnabled = try c.decodeIfPresent(Bool.self, forKey: .dailyRandomThemeEnabled) ?? false
+        modernPaletteCategories = try c.decodeIfPresent(
+            [String].self,
+            forKey: .modernPaletteCategories
+        ) ?? ModernPaletteCategory.allCases.map(\.rawValue)
         canvasOverlayStyle = try c.decodeIfPresent(String.self, forKey: .canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue
         bodyCanvasShape = try c.decodeIfPresent(String.self, forKey: .bodyCanvasShape) ?? CanvasShapeType.circle.rawValue
         mindCanvasShape = try c.decodeIfPresent(String.self, forKey: .mindCanvasShape) ?? CanvasShapeType.snowflake.rawValue

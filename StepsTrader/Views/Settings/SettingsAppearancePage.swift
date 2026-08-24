@@ -6,6 +6,7 @@ struct SettingsAppearancePage: View {
     @AppStorage(SharedKeys.gradientPalette) private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
     @AppStorage(SharedKeys.dailyRandomThemeEnabled) private var dailyRandomThemeEnabled: Bool = false
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
+    @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
     /// Mirrors `SharedKeys.allowedCanvasShapes` only to trigger redraws —
     /// `CanvasShapeType.allowedByUser` stays the single source of truth, since
     /// it also seeds from the legacy keys. There is no gate: every shape is
@@ -32,6 +33,10 @@ struct SettingsAppearancePage: View {
 
     private var isDailyRandomActive: Bool {
         dailyRandomThemeEnabled
+    }
+
+    private var selectedModernPaletteCategories: Set<ModernPaletteCategory> {
+        ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
     }
 
     var body: some View {
@@ -303,9 +308,122 @@ struct SettingsAppearancePage: View {
             canvasShapesSection
             textureSection
             if ExperimentalFeatures.dayObjectsLab {
+                modernPaletteCategoriesSection
                 dayObjectsLabSection
             }
         }
+    }
+
+    // MARK: - Modern Palettes
+
+    private var modernPaletteCategoriesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("MODERN PALETTES")
+                .padding(.horizontal, 16)
+
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    modernPaletteAllChip
+                    ForEach(ModernPaletteCategory.allCases, id: \.rawValue) { category in
+                        modernPaletteCategoryChip(category)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
+            }
+            .scrollIndicators(.hidden)
+
+            Text("Choose one or more styles for Day Objects. All styles are enabled by default.")
+                .font(.caption)
+                .foregroundStyle(theme.adaptiveMutedText)
+                .padding(.horizontal, 16)
+        }
+    }
+
+    private var modernPaletteAllChip: some View {
+        let isSelected = selectedModernPaletteCategories == ModernPaletteSelection.all
+
+        return Button {
+            updateModernPaletteCategories(ModernPaletteSelection.all)
+        } label: {
+            modernPaletteChipLabel(title: "All", isSelected: isSelected, colors: [])
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("modernPalette.all")
+    }
+
+    private func modernPaletteCategoryChip(_ category: ModernPaletteCategory) -> some View {
+        let isSelected = selectedModernPaletteCategories != ModernPaletteSelection.all
+            && selectedModernPaletteCategories.contains(category)
+        let colors = ModernPaletteCatalog.palettes(matching: [category]).first?.hexes ?? []
+
+        return Button {
+            updateModernPaletteCategories(
+                ModernPaletteSelection.toggling(category, in: selectedModernPaletteCategories)
+            )
+        } label: {
+            modernPaletteChipLabel(
+                title: category.displayName,
+                isSelected: isSelected,
+                colors: colors
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("modernPalette.\(category.rawValue)")
+    }
+
+    private func modernPaletteChipLabel(
+        title: String,
+        isSelected: Bool,
+        colors: [String]
+    ) -> some View {
+        HStack(spacing: 6) {
+            if colors.isEmpty {
+                Image(systemName: "circle.grid.2x2.fill")
+                    .font(.system(size: 10, weight: .semibold))
+            } else {
+                HStack(spacing: -3) {
+                    ForEach(Array(colors.prefix(4).enumerated()), id: \.offset) { _, hex in
+                        Circle()
+                            .fill(Color(hex: hex))
+                            .frame(width: 12, height: 12)
+                            .overlay(Circle().strokeBorder(.white.opacity(0.35), lineWidth: 0.5))
+                    }
+                }
+            }
+
+            Text(title)
+                .font(.system(size: 12, weight: isSelected ? .bold : .medium, design: .rounded))
+
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+            }
+        }
+        .foregroundStyle(isSelected ? AppColors.brandAccent : theme.adaptiveSecondaryText)
+        .padding(.horizontal, 10)
+        .frame(height: 34)
+        .background(
+            Capsule()
+                .fill(isSelected ? AppColors.brandAccent.opacity(0.12) : theme.adaptivePrimaryText.opacity(0.05))
+        )
+        .overlay {
+            Capsule()
+                .strokeBorder(
+                    isSelected ? AppColors.brandAccent : theme.adaptivePrimaryText.opacity(0.08),
+                    lineWidth: isSelected ? 1.5 : 0.5
+                )
+        }
+        .accessibilityLabel(title)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+    }
+
+    private func updateModernPaletteCategories(_ categories: Set<ModernPaletteCategory>) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            modernPaletteCategoriesRaw = ModernPaletteSelection.encode(categories)
+        }
+        lightHapticTick &+= 1
+        model.syncUserPreferencesToSupabase()
     }
 
     // MARK: - Canvas Shapes (compact)

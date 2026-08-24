@@ -52,6 +52,7 @@ struct DayObjectSceneInput: Equatable {
     let visualClarity: Double
     let reduceMotion: Bool
     let uiExclusionRegion: DayObjectNormalizedRect
+    let paletteCategories: Set<ModernPaletteCategory>
 
     init(
         dayKey: String,
@@ -60,7 +61,8 @@ struct DayObjectSceneInput: Equatable {
         motionEnergy: Double,
         visualClarity: Double,
         reduceMotion: Bool,
-        uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls
+        uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls,
+        paletteCategories: Set<ModernPaletteCategory> = []
     ) {
         self.dayKey = dayKey
         self.identity = identity
@@ -69,6 +71,7 @@ struct DayObjectSceneInput: Equatable {
         self.visualClarity = visualClarity
         self.reduceMotion = reduceMotion
         self.uiExclusionRegion = uiExclusionRegion
+        self.paletteCategories = paletteCategories
     }
 }
 
