@@ -3,6 +3,101 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectPaletteTests: XCTestCase {
+    func testDailyPaletteSetUsesThreeDistinctAllowedCatalogEntries() {
+        let allowed: Set<ModernPaletteCategory> = [.pastel, .cold]
+
+        for seed in UInt64(0)..<128 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: allowed
+            )
+            let palettes = [
+                paletteSet.background,
+                paletteSet.primaryObjects,
+                paletteSet.secondaryObjects,
+            ]
+
+            XCTAssertEqual(Set(palettes.map(\.code)).count, 3, "seed=\(seed)")
+            XCTAssertTrue(palettes.allSatisfy { !$0.categories.isDisjoint(with: allowed) })
+            XCTAssertTrue(palettes.allSatisfy { $0.hexes.count == 4 })
+            XCTAssertEqual(
+                paletteSet,
+                DayObjectPaletteSet.make(rootSeed: seed, categories: allowed),
+                "seed=\(seed)"
+            )
+        }
+    }
+
+    func testDailyPaletteSetTreatsEmptyCategorySelectionAsAllCategories() {
+        for seed in UInt64(0)..<32 {
+            XCTAssertEqual(
+                DayObjectPaletteSet.make(rootSeed: seed, categories: []),
+                DayObjectPaletteSet.make(
+                    rootSeed: seed,
+                    categories: ModernPaletteSelection.all
+                )
+            )
+        }
+    }
+
+    func testDailyPaletteSelectionStaysBoundedForTheFullCatalog() {
+        let startedAt = ProcessInfo.processInfo.systemUptime
+
+        for seed in UInt64(0)..<8 {
+            _ = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
+        }
+
+        XCTAssertLessThan(
+            ProcessInfo.processInfo.systemUptime - startedAt,
+            2,
+            "eight daily selections must not score every pair in the 340-palette catalog"
+        )
+    }
+
+    func testObjectPaletteAllocationUsesApprovedRatioAndUniqueSubsets() {
+        let expectedCounts = [
+            (primary: 1, secondary: 0),
+            (primary: 1, secondary: 1),
+            (primary: 2, secondary: 1),
+            (primary: 2, secondary: 2),
+            (primary: 3, secondary: 2),
+            (primary: 4, secondary: 2),
+            (primary: 4, secondary: 3),
+            (primary: 5, secondary: 3),
+            (primary: 5, secondary: 4),
+            (primary: 6, secondary: 4),
+        ]
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: 44,
+            categories: [.pastel, .cold, .warm]
+        )
+
+        for count in 1...10 {
+            let eventIDs = (0..<count).map { "event-\($0)" }
+            let assignments = DayObjectColorAllocator.assignments(
+                eventIDs: eventIDs,
+                rootSeed: 44,
+                paletteSet: paletteSet
+            )
+            let values = Array(assignments.values)
+            let primary = values.filter { $0.paletteSlot == .primary }.count
+            let secondary = values.filter { $0.paletteSlot == .secondary }.count
+            let subsetKeys = values.map {
+                "\($0.paletteSlot.rawValue):\($0.sourceIndices.sorted())"
+            }
+
+            XCTAssertEqual(assignments.count, count)
+            XCTAssertEqual(primary, expectedCounts[count - 1].primary, "count=\(count)")
+            XCTAssertEqual(secondary, expectedCounts[count - 1].secondary, "count=\(count)")
+            XCTAssertEqual(Set(subsetKeys).count, count, "count=\(count)")
+            XCTAssertTrue(values.allSatisfy { (1...3).contains($0.colors.count) })
+            XCTAssertTrue(values.allSatisfy { $0.colors.count == $0.sourceIndices.count })
+        }
+    }
+
     func testDailyRadialPresetsAreDeterministicBoundedAndReachable() {
         var reached = Set<DayObjectRadialPreset>()
 

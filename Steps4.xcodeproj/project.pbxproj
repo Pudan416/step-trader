@@ -275,6 +275,7 @@
 		D0B100000000000000000023 /* DayObjectComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000013 /* DayObjectComposition.swift */; };
 		D0B100000000000000000024 /* DayObjectPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000014 /* DayObjectPalette.swift */; };
 		C0110A000000000000000002 /* ModernPaletteCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0110A000000000000000001 /* ModernPaletteCatalog.swift */; };
+		C0110A000000000000000004 /* DayObjectPaletteSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0110A000000000000000003 /* DayObjectPaletteSet.swift */; };
 		D0B100000000000000000025 /* DayObjectChoreography.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000015 /* DayObjectChoreography.swift */; };
 		D0B100000000000000000026 /* DayObjectRenderFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000016 /* DayObjectRenderFrame.swift */; };
 		D0B100000000000000000028 /* DayObjectsRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000018 /* DayObjectsRenderer.swift */; };
@@ -662,6 +663,7 @@
 		D0B100000000000000000013 /* DayObjectComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectComposition.swift; sourceTree = "<group>"; };
 		D0B100000000000000000014 /* DayObjectPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPalette.swift; sourceTree = "<group>"; };
 		C0110A000000000000000001 /* ModernPaletteCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModernPaletteCatalog.swift; sourceTree = "<group>"; };
+		C0110A000000000000000003 /* DayObjectPaletteSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPaletteSet.swift; sourceTree = "<group>"; };
 		D0B100000000000000000015 /* DayObjectChoreography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectChoreography.swift; sourceTree = "<group>"; };
 		D0B100000000000000000016 /* DayObjectRenderFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectRenderFrame.swift; sourceTree = "<group>"; };
 		D0B100000000000000000018 /* DayObjectsRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsRenderer.swift; sourceTree = "<group>"; };
@@ -824,6 +826,7 @@
 				D0B100000000000000000013 /* DayObjectComposition.swift */,
 				D0B100000000000000000014 /* DayObjectPalette.swift */,
 				C0110A000000000000000001 /* ModernPaletteCatalog.swift */,
+				C0110A000000000000000003 /* DayObjectPaletteSet.swift */,
 				D0B100000000000000000015 /* DayObjectChoreography.swift */,
 				D0B100000000000000000016 /* DayObjectRenderFrame.swift */,
 				D0B100000000000000000018 /* DayObjectsRenderer.swift */,
@@ -1672,6 +1675,7 @@
 				D0B100000000000000000023 /* DayObjectComposition.swift in Sources */,
 				D0B100000000000000000024 /* DayObjectPalette.swift in Sources */,
 				C0110A000000000000000002 /* ModernPaletteCatalog.swift in Sources */,
+				C0110A000000000000000004 /* DayObjectPaletteSet.swift in Sources */,
 				D0B100000000000000000025 /* DayObjectChoreography.swift in Sources */,
 				D0B100000000000000000026 /* DayObjectRenderFrame.swift in Sources */,
 				D0B10000000000000000002B /* DayObjectsMeshGradientShader.metal in Sources */,
