@@ -42,6 +42,18 @@ final class SettingsHomePresentationTests: XCTestCase {
         XCTAssertEqual(SettingsAccountPresentation.initials(for: "  "), "U")
     }
 
+    func testSignedInPresentationCarriesIdentityButNoSyncControl() {
+        let state = SettingsAccountPresentation.signedIn(
+            displayName: "Konstantin",
+            initials: "KO",
+            avatarData: nil
+        )
+        XCTAssertEqual(
+            state,
+            .signedIn(displayName: "Konstantin", initials: "KO", avatarData: nil)
+        )
+    }
+
     func testAccessibilityTypeUsesOneGridColumn() {
         XCTAssertEqual(SettingsGridLayout.columnCount(for: .large), 2)
         XCTAssertEqual(SettingsGridLayout.columnCount(for: .accessibility1), 1)

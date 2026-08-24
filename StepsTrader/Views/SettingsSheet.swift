@@ -24,7 +24,6 @@ struct SettingsSheet: View {
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
     @State private var showLogin = false
-    @State private var showProfileEditor = false
     /// Fallback route storage when no external binding is supplied (preview /
     /// standalone usage). The tab instance uses `featureTipRouteBinding` instead.
     @State private var localFeatureTipRoute: FeatureTipSettingsPage?
@@ -121,9 +120,6 @@ struct SettingsSheet: View {
             }
             .sheet(isPresented: $showLogin) {
                 LoginView(authService: authService)
-            }
-            .sheet(isPresented: $showProfileEditor) {
-                ProfileEditorView(authService: authService)
             }
             #if DEBUG
             .fullScreenCover(isPresented: $showOnboardingDemo) {
@@ -248,7 +244,9 @@ struct SettingsSheet: View {
     @ViewBuilder
     private var accountRow: some View {
         if authService.hasAppleAccount, let user = authService.currentUser {
-            Button { showProfileEditor = true } label: {
+            NavigationLink {
+                SettingsAccountPage(authService: authService, model: model)
+            } label: {
                 HStack(spacing: 12) {
                     accountAvatar(user: user)
                     Text(user.displayName)
