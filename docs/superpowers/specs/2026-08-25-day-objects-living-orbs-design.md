@@ -1,7 +1,7 @@
 # Day Objects Living Orbs Design
 
 Date: 2026-08-25
-Status: Awaiting user review
+Status: Approved
 Branch: `codex/day-objects-living-orbs`
 
 ## 1. Purpose
