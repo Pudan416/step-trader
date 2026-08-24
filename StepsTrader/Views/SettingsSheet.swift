@@ -69,13 +69,13 @@ struct SettingsSheet: View {
                     section(header: String(localized: "System", comment: "Settings section header")) {
                         permissionsRow
                         rowDivider
-                        flatRow(icon: "photo.on.rectangle.angled", title: String(localized: "Wallpaper")) {
-                            SettingsShortcutPage(model: model)
+                        flatRow(
+                            icon: "square.stack.3d.up",
+                            title: String(localized: "Widgets & wallpaper", comment: "Settings row and combined page title")
+                        ) {
+                            SettingsWidgetsWallpaperPage(model: model)
                         }
-                        rowDivider
-                        flatRow(icon: "square.stack.3d.up", title: String(localized: "Widget")) {
-                            SettingsWidgetPage(model: model)
-                        }
+                        .accessibilityIdentifier("settings.destination.widgetsWallpaper")
                     }
 
                     section(header: String(localized: "Info", comment: "Settings section header")) {

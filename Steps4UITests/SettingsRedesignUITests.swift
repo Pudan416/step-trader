@@ -33,4 +33,16 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["settings.yourDay.boundary"].exists)
         XCTAssertFalse(app.staticTexts["Sign in to continue"].exists)
     }
+
+    func testWidgetsAndWallpaperShareOneDetailPage() {
+        let app = launchSettings()
+        let combined = app.buttons["settings.destination.widgetsWallpaper"]
+        XCTAssertTrue(combined.waitForExistence(timeout: 3))
+        combined.tap()
+
+        XCTAssertTrue(app.staticTexts["Widgets & wallpaper"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.otherElements["settings.widgets.controls"].exists)
+        app.swipeUp()
+        XCTAssertTrue(app.otherElements["settings.wallpaper.controls"].exists)
+    }
 }

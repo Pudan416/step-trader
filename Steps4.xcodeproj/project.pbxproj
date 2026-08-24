@@ -163,6 +163,7 @@
 		20CC02032F86000000000003 /* SettingsEnergyPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01032F86000000000003 /* SettingsEnergyPage.swift */; };
 		20CC02042F86000000000004 /* SettingsShortcutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01042F86000000000004 /* SettingsShortcutPage.swift */; };
 		20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01052F86000000000005 /* SettingsWidgetPage.swift */; };
+		20CC020E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */; };
 		20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01062F86000000000006 /* SettingsAboutPage.swift */; };
 		20CC02072F86000000000007 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01072F86000000000007 /* SettingsComponents.swift */; };
 		20CC020B2F86000000000011 /* SettingsHomePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010B2F86000000000011 /* SettingsHomePresentation.swift */; };
@@ -586,6 +587,7 @@
 		20CC01032F86000000000003 /* SettingsEnergyPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsEnergyPage.swift; sourceTree = "<group>"; };
 		20CC01042F86000000000004 /* SettingsShortcutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsShortcutPage.swift; sourceTree = "<group>"; };
 		20CC01052F86000000000005 /* SettingsWidgetPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWidgetPage.swift; sourceTree = "<group>"; };
+		20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWidgetsWallpaperPage.swift; sourceTree = "<group>"; };
 		20CC01062F86000000000006 /* SettingsAboutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutPage.swift; sourceTree = "<group>"; };
 		20CC01072F86000000000007 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		20CC010B2F86000000000011 /* SettingsHomePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomePresentation.swift; sourceTree = "<group>"; };
@@ -1287,6 +1289,7 @@
 				20CC01032F86000000000003 /* SettingsEnergyPage.swift */,
 				20CC01042F86000000000004 /* SettingsShortcutPage.swift */,
 				20CC01052F86000000000005 /* SettingsWidgetPage.swift */,
+				20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */,
 				20CC01062F86000000000006 /* SettingsAboutPage.swift */,
 				20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */,
 				20CC01072F86000000000007 /* SettingsComponents.swift */,
@@ -2001,6 +2004,7 @@
 				20CC02032F86000000000003 /* SettingsEnergyPage.swift in Sources */,
 				20CC02042F86000000000004 /* SettingsShortcutPage.swift in Sources */,
 				20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */,
+				20CC020E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift in Sources */,
 				20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */,
 				20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */,
 				20C7E6142F8BF2A200BD06AA /* CanvasShapePreview.swift in Sources */,

@@ -433,6 +433,9 @@
     "Auto-wallpaper" : {
 
     },
+    "Widgets & wallpaper" : {
+      "comment" : "Settings row and combined page title"
+    },
     "Back" : {
       "comment" : "SettingsComponents – back button label"
     },
