@@ -6,6 +6,31 @@ import SwiftUI
 /// Everything here is geometry in unit space — colour and scale are applied at
 /// draw time, so one cached texture serves every size.
 final class ProceduralTextureTests: XCTestCase {
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: SharedKeys.allowedCanvasFills)
+        super.tearDown()
+    }
+
+    func testOutlineIsAnAvailableCanvasFill() {
+        XCTAssertNotNil(TextureKind(rawValue: "outline"))
+    }
+
+    func testAllowedCanvasFillsDefaultToEveryFillAndNeverBecomeEmpty() {
+        UserDefaults.standard.removeObject(forKey: SharedKeys.allowedCanvasFills)
+        XCTAssertEqual(TextureKind.allowedByUser, TextureKind.allCases)
+
+        XCTAssertFalse(TextureKind.setAllowed([]))
+        XCTAssertEqual(TextureKind.allowedByUser, TextureKind.allCases)
+    }
+
+    func testAllowedCanvasFillsPersistInStablePickerOrder() {
+        XCTAssertTrue(TextureKind.setAllowed([.outline, .flat]))
+        XCTAssertEqual(TextureKind.allowedByUser, [.flat, .outline])
+        XCTAssertEqual(
+            UserDefaults.standard.stringArray(forKey: SharedKeys.allowedCanvasFills),
+            ["flat", "outline"]
+        )
+    }
 
     private func radii(seed: UInt64 = 1) -> [Double] {
         ProceduralShapeGenerator.organicBlobRadiusFactor(
@@ -735,7 +760,7 @@ final class CircleTextureTests: XCTestCase {
             let geometry = ProceduralTexture.geometry(
                 spec: spec, radii: radii, seed: 7)
             switch kind {
-            case .flat, .gradient:
+            case .flat, .gradient, .outline:
                 XCTAssertEqual(geometry, TextureGeometry())
             case .rings:
                 XCTAssertFalse(geometry.rings.isEmpty)

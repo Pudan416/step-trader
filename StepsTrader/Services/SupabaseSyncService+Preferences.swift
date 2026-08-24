@@ -29,7 +29,8 @@ extension SupabaseSyncService {
         userGradientPalette: String = GradientPalette.warmSunset.rawValue,
         dailyRandomThemeEnabled: Bool = false,
         canvasOverlayStyle: String = CanvasOverlayStyle.smudge.rawValue,
-        allowedCanvasShapes: [String] = CanvasShapeType.selectableCases.map(\.rawValue)
+        allowedCanvasShapes: [String] = CanvasShapeType.selectableCases.map(\.rawValue),
+        allowedCanvasFills: [String] = TextureKind.allCases.map(\.rawValue)
     ) {
         let payload = UserPreferencesPayload(
             stepsTarget: stepsTarget,
@@ -55,7 +56,8 @@ extension SupabaseSyncService {
             userGradientPalette: userGradientPalette,
             dailyRandomThemeEnabled: dailyRandomThemeEnabled,
             canvasOverlayStyle: canvasOverlayStyle,
-            allowedCanvasShapes: allowedCanvasShapes
+            allowedCanvasShapes: allowedCanvasShapes,
+            allowedCanvasFills: allowedCanvasFills
         )
         
         if payload == pendingPreferences { return }
@@ -177,6 +179,7 @@ extension SupabaseSyncService {
                 "daily_random_theme_enabled": payload.dailyRandomThemeEnabled,
                 "canvas_overlay_style": payload.canvasOverlayStyle,
                 "allowed_canvas_shapes": payload.allowedCanvasShapes,
+                "allowed_canvas_fills": payload.allowedCanvasFills,
                 "updated_at": iso8601String(Date.now)
             ]
             if let lastOpened = payload.lastOpenedAt {
@@ -218,7 +221,8 @@ extension SupabaseSyncService {
         bodyCanvasShape: String,
         mindCanvasShape: String,
         heartCanvasShape: String,
-        allowedCanvasShapes: [String]
+        allowedCanvasShapes: [String],
+        allowedCanvasFills: [String]
     )? {
         guard let auth = await authenticatedContext() else { return nil }
         let token = auth.token
@@ -277,7 +281,8 @@ extension SupabaseSyncService {
                 bodyCanvasShape: row.bodyCanvasShape,
                 mindCanvasShape: row.mindCanvasShape,
                 heartCanvasShape: row.heartCanvasShape,
-                allowedCanvasShapes: row.allowedCanvasShapes
+                allowedCanvasShapes: row.allowedCanvasShapes,
+                allowedCanvasFills: row.allowedCanvasFills
             )
         } catch {
             AppLogger.network.error("📡 Failed to load preferences: \(error.localizedDescription)")

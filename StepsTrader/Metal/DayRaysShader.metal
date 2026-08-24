@@ -27,8 +27,8 @@ using namespace metal;
 
 constant int kRayStride = 12;
 
-// Silhouettes, matching `RayBladeShape`'s case order.
-constant int kShapeSpike     = 0;
+// Non-default silhouettes, matching `RayBladeShape`'s case order.
+// Spike is raw value 0 and intentionally uses the base profile below.
 constant int kShapePetal     = 1;
 constant int kShapeTrapezoid = 2;
 constant int kShapeSlab      = 3;

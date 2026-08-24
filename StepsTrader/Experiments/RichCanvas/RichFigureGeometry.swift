@@ -29,6 +29,12 @@ enum RichFigureGeometryFactory {
         switch family {
         case .circle:
             return circle(seed: seed)
+        case .spindle:
+            return spindle(
+                seed: seed,
+                detailTier: detailTier,
+                budget: budget
+            )
         case .luminousOrganic:
             return luminousOrganic(seed: seed)
         case .crystallineStar:
@@ -66,6 +72,76 @@ enum RichFigureGeometryFactory {
                 radiusY: minorRadius,
                 rotation: rotation,
                 sampleCount: 64,
+                role: .structure
+            ))
+        }
+
+        return geometry(lines: lines, core: .zero)
+    }
+
+    /// A mobile-sized adaptation of the polar Brownian walks used by
+    /// creative-matplotlib's "spindles" study. Geometry is generated once
+    /// from a seed; animation only transforms these cached paths.
+    private static func spindle(
+        seed: UInt64,
+        detailTier: RichFigureDetailTier,
+        budget: RichRenderBudget
+    ) -> RichFigureGeometry {
+        var rng = SeededRNG.derived(from: seed, domain: "richSpindleGeometry")
+        let profile = SpindleProfile.resolve(index: Int(seed % 3))
+        let lineCount = min(
+            spindleLineCount(for: detailTier),
+            max(1, budget.filamentCount)
+        )
+        let sampleCount = spindleSampleCount(for: detailTier)
+        let envelope = RichPolyline(
+            points: polarPoints(count: 96, radius: { _ in 0.98 }),
+            isClosed: true,
+            role: .silhouette
+        )
+        var lines = [envelope]
+        lines.reserveCapacity(lineCount + 1)
+
+        for lineIndex in 0..<lineCount {
+            let lineProgress = lineCount > 1
+                ? Double(lineIndex) / Double(lineCount - 1) - 0.5
+                : 0
+            let baseRadius = profile.baseRadius
+                + lineProgress * profile.bandWidth
+                + rng.nextDouble(in: -0.018...0.018)
+            let startAngle = rng.nextDouble(in: 0...(2 * .pi))
+            let wavePhase = rng.nextDouble(in: 0...(2 * .pi))
+            var brownianRadius = 0.0
+            var points: [CGPoint] = []
+            points.reserveCapacity(sampleCount)
+
+            for sampleIndex in 0..<sampleCount {
+                let progress = Double(sampleIndex) / Double(sampleCount - 1)
+                brownianRadius += gaussian(using: &rng)
+                    * profile.volatility / sqrt(Double(sampleCount))
+                let rawWaveProgress: Double
+                if profile.facetCount > 0 {
+                    rawWaveProgress = floor(progress * Double(profile.facetCount))
+                        / Double(profile.facetCount)
+                } else {
+                    rawWaveProgress = progress
+                }
+                let wave = profile.waveAmplitude * sin(
+                    2 * .pi * Double(profile.waveFrequency) * rawWaveProgress
+                        + wavePhase
+                )
+                let radius = (
+                    baseRadius + brownianRadius + wave
+                ).clamped(to: 0.18...0.94)
+                let angle = startAngle
+                    + progress * profile.turns * 2 * .pi
+                    + 0.035 * sin(progress * 4 * .pi + wavePhase)
+                points.append(point(radius: radius, angle: angle))
+            }
+
+            lines.append(RichPolyline(
+                points: points,
+                isClosed: false,
                 role: .structure
             ))
         }
@@ -325,6 +401,61 @@ enum RichFigureGeometryFactory {
         case .accent: 96
         case .medium: 144
         case .large: 192
+        }
+    }
+
+    private static func spindleLineCount(for detailTier: RichFigureDetailTier) -> Int {
+        switch detailTier {
+        case .accent: 8
+        case .medium: 16
+        case .large: 24
+        }
+    }
+
+    private static func spindleSampleCount(for detailTier: RichFigureDetailTier) -> Int {
+        switch detailTier {
+        case .accent: 80
+        case .medium: 120
+        case .large: 160
+        }
+    }
+
+    private static func gaussian(using rng: inout SeededRNG) -> Double {
+        let first = max(rng.nextDouble(), Double.leastNonzeroMagnitude)
+        let second = rng.nextDouble()
+        return sqrt(-2 * log(first)) * cos(2 * .pi * second)
+    }
+}
+
+private struct SpindleProfile {
+    let turns: Double
+    let baseRadius: Double
+    let bandWidth: Double
+    let volatility: Double
+    let waveAmplitude: Double
+    let waveFrequency: Int
+    let facetCount: Int
+
+    static func resolve(index: Int) -> Self {
+        switch index {
+        case 0:
+            return .init(
+                turns: 5.4, baseRadius: 0.61, bandWidth: 0.24,
+                volatility: 0.075, waveAmplitude: 0.045,
+                waveFrequency: 2, facetCount: 0
+            )
+        case 1:
+            return .init(
+                turns: 3.6, baseRadius: 0.58, bandWidth: 0.28,
+                volatility: 0.15, waveAmplitude: 0.075,
+                waveFrequency: 3, facetCount: 18
+            )
+        default:
+            return .init(
+                turns: 7.2, baseRadius: 0.62, bandWidth: 0.20,
+                volatility: 0.055, waveAmplitude: 0.03,
+                waveFrequency: 5, facetCount: 0
+            )
         }
     }
 }

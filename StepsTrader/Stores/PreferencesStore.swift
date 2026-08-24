@@ -49,6 +49,7 @@ enum PreferencesStore {
         /// The shape set that replaces the three above. Empty means the device
         /// has no server-side value yet; seeding from the legacy keys handles it.
         var allowedCanvasShapes: [String] = []
+        var allowedCanvasFills: [String] = []
     }
 
     // Keys stored as bare string literals elsewhere in the codebase (not yet in
@@ -98,6 +99,9 @@ enum PreferencesStore {
         // path in `CanvasShapeType.allowedByUser`.
         if !s.allowedCanvasShapes.isEmpty {
             standard.set(s.allowedCanvasShapes, forKey: SharedKeys.allowedCanvasShapes)
+        }
+        if !s.allowedCanvasFills.isEmpty {
+            standard.set(s.allowedCanvasFills, forKey: SharedKeys.allowedCanvasFills)
         }
 
         // Mirror the active theme into the app group so widgets/extensions match.

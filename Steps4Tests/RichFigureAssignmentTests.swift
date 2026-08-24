@@ -14,6 +14,19 @@ final class RichFigureAssignmentTests: XCTestCase {
         XCTAssertEqual(Set(specs.values.map(\.fill)), Set(RichFillKind.allCases))
     }
 
+    func testTenElementsKeepCircleAndSpindleAsSeparateFamilies() {
+        let elements = RichAssignmentFixture.elements(count: 10)
+        let specs = RichFigureAssignment.make(
+            elements: elements,
+            dayKey: "2026-08-16",
+            shuffleNonce: 0
+        )
+        let families = specs.values.map(\.family)
+
+        XCTAssertEqual(families.filter { $0 == .circle }.count, 2)
+        XCTAssertEqual(families.filter { $0 == .spindle }.count, 2)
+    }
+
     func testSameNonceProducesIdenticalSpecsAndNewNonceChangesBothDecks() {
         let elements = RichAssignmentFixture.elements(count: 10)
         let a = RichFigureAssignment.make(elements: elements, dayKey: "2026-08-16", shuffleNonce: 3)

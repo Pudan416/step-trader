@@ -111,6 +111,10 @@ enum SharedKeys {
     /// strings. Replaces the three keys above. Never empty.
     static let allowedCanvasShapes = "allowedCanvasShapes_v1"
 
+    /// Fill styles eligible for the day's single deterministic canvas style.
+    /// Stored in `TextureKind.allCases` order and never empty.
+    static let allowedCanvasFills = "allowedCanvasFills_v1"
+
     // MARK: - Happenings
 
     /// JSON-encoded `[Happening]` — the ten built-ins plus everything the user

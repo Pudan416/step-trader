@@ -477,7 +477,11 @@ struct GenerativeCanvasView: View {
                 RayShapeRenderer.draw(
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
-                    interaction: interaction
+                    interaction: interaction,
+                    spec: CanvasElement.textureSpec(
+                        rank: renderCache.sortedIndexMap[element.id] ?? 0,
+                        dayKey: dayKey,
+                        composition: dayComposition)
                 )
             case .circle:
                 CircleShapeRenderer.draw(
@@ -547,7 +551,7 @@ struct GenerativeCanvasView: View {
     private func drawLabel(_ element: CanvasElement, at point: CGPoint, context: inout GraphicsContext, labelColor: Color, shadowColor: Color) {
         let raw = element.displayLabel
         let labelText = raw.prefix(1).uppercased() + raw.dropFirst().lowercased()
-        let font: Font = .system(size: 11, weight: .regular, design: .default)
+        let font: Font = .system(size: 11, weight: .regular, design: .rounded)
         if showsOutlinedLabels {
             // 4 diagonal offsets give the same visual halo as 8 at 1pt,
             // cutting drawLayer + Text resolution calls in half.

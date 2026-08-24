@@ -19,7 +19,9 @@ struct HappeningShapeTile: View {
         angle: 0
     )
 
-    /// Per shape type, because one number does not work for all four.
+    /// Closed shapes share one preview scale so they read as peers. Rays keep
+    /// a separate value because their tall-canvas composition is scaled down
+    /// into the square tile.
     ///
     /// The renderers read `size` as a fraction of the canvas dimension but each
     /// interprets it differently — `spawn` already compensates with a different
@@ -33,7 +35,7 @@ struct HappeningShapeTile: View {
     static func previewSize(for shapeType: CanvasShapeType) -> CGFloat {
         switch shapeType {
         case .circle, .blob, .spirograph: 0.24
-        case .snowflake:                  0.34
+        case .snowflake:                  0.24
         // The blob's contour reaches well past its nominal radius, so it
         // clips into a square block sooner than the others.
         case .organicBlob:                0.24
@@ -41,6 +43,18 @@ struct HappeningShapeTile: View {
         // and is clipped into a hard-edged block rather than reading as light.
         case .rays:                       0.42
         }
+    }
+
+    /// Snowflakes carry seeded scale, folds and rotation inside their production
+    /// path generator. Compensate the resulting path bounds at preview time so
+    /// a narrow seed does not look like a speck beside circle/blob. This changes
+    /// only the element's size; the shared renderer and silhouette stay intact.
+    static func previewSize(for shapeType: CanvasShapeType, seed: UInt64) -> CGFloat {
+        guard shapeType == .snowflake else { return previewSize(for: shapeType) }
+        let pathDiameter = ProceduralShapeGenerator.rectMorphBoundingDiameterFraction(seed: seed)
+        let targetDiameterFraction: CGFloat = 0.56
+        return targetDiameterFraction
+            / (2 * CGFloat(SnowflakeShapeRenderer.sizeScale) * pathDiameter)
     }
 
     let element: CanvasElement
@@ -63,7 +77,7 @@ struct HappeningShapeTile: View {
             label: label,
             hexColor: colorHex,
             hexColor2: nil,
-            size: previewSize(for: shapeType),
+            size: previewSize(for: shapeType, seed: seed),
             basePosition: CGPoint(x: 0.5, y: 0.5),
             // A preview is a still frame: every animated term is zeroed so the
             // tile cannot drift away from the figure it is promising.

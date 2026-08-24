@@ -120,6 +120,14 @@ enum RichFigureRenderer {
                         safeTime * 0.07 * speed + phase / (2 * .pi) + 0.23
                     )
                 )
+            case .spindle:
+                state = RichFigureMotionState(
+                    center: baseCenter,
+                    rotation: .radians(safeTime * 0.025 * speed + phase),
+                    scale: 1 + 0.012 * sin(safeTime * 0.30 * speed + phase),
+                    deformationTime: canonicalTime,
+                    highlightPhase: canonicalHighlight
+                )
             case .luminousOrganic:
                 state = RichFigureMotionState(
                     center: baseCenter,
@@ -240,6 +248,7 @@ enum RichFigureRenderer {
         }
         let geometry = applyingBudget(
             budget,
+            family: item.style.family,
             fillKind: item.style.fill,
             to: validatedGeometry(cached)
         )
@@ -539,7 +548,7 @@ enum RichFigureRenderer {
                 ),
                 intensity: 0.45 + 0.55 * sin(.pi * progress)
             )
-        case .luminousOrganic, .crystallineStar, .orbitalSpirograph:
+        case .spindle, .luminousOrganic, .crystallineStar, .orbitalSpirograph:
             return nil
         }
     }
@@ -677,13 +686,21 @@ enum RichFigureRenderer {
         )
     }
 
-    private static func applyingBudget(
+    static func applyingBudget(
         _ budget: RichRenderBudget,
+        family: RichFigureFamily,
         fillKind: RichFillKind,
         to geometry: RichCachedGeometry
     ) -> RichCachedGeometry {
         let baseLines: [RichPolyline]
-        if geometry.base.lines.contains(where: { $0.role == .orbit }) {
+        if family == .spindle {
+            var structureCount = 0
+            baseLines = geometry.base.lines.filter { line in
+                guard line.role == .structure else { return true }
+                defer { structureCount += 1 }
+                return structureCount < max(0, budget.filamentCount)
+            }
+        } else if geometry.base.lines.contains(where: { $0.role == .orbit }) {
             var orbitCount = 0
             baseLines = geometry.base.lines.filter { line in
                 guard line.role == .orbit else { return true }
@@ -807,6 +824,11 @@ enum RichFigureRenderer {
         switch item.style.family {
         case .circle:
             uniformScale = Double(motion.scale)
+        case .spindle:
+            uniformScale = Double(motion.scale)
+            if role == .structure {
+                rotation = motion.rotation.radians
+            }
         case .luminousOrganic:
             let x = Double(point.x - geometry.core.x)
             let y = Double(point.y - geometry.core.y)

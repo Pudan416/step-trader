@@ -120,6 +120,7 @@ actor SupabaseSyncService {
         let dailyRandomThemeEnabled: Bool
         let canvasOverlayStyle: String
         let allowedCanvasShapes: [String]
+        let allowedCanvasFills: [String]
     }
     
     var pendingDailySelections: DailySelectionsPayload?
@@ -445,7 +446,8 @@ actor SupabaseSyncService {
                         userGradientPalette: std.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
                         dailyRandomThemeEnabled: std.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
                         canvasOverlayStyle: g.string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue,
-                        allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue)
+                        allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue),
+                        allowedCanvasFills: TextureKind.allowedByUser.map(\.rawValue)
                     )
                 )
             }
@@ -524,7 +526,8 @@ actor SupabaseSyncService {
                         bodyCanvasShape: prefs.bodyCanvasShape,
                         mindCanvasShape: prefs.mindCanvasShape,
                         heartCanvasShape: prefs.heartCanvasShape,
-                        allowedCanvasShapes: prefs.allowedCanvasShapes
+                        allowedCanvasShapes: prefs.allowedCanvasShapes,
+                        allowedCanvasFills: prefs.allowedCanvasFills
                     )
                 )
                 // Day boundary is dual-written: the app-group key (read by

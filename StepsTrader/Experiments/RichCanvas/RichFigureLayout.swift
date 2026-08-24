@@ -89,6 +89,7 @@ enum RichFigureLayout {
     static func opticalScale(for family: RichFigureFamily) -> CGFloat {
         switch family {
         case .circle: 1.00
+        case .spindle: 1.04
         case .luminousOrganic: 0.92
         case .crystallineStar: 1.12
         case .rays: 1.00

@@ -34,6 +34,20 @@ final class RichFigureGeometryTests: XCTestCase {
         XCTAssertTrue((0.98...1.02).contains(circle.scale))
         XCTAssertTrue((0...1).contains(circle.highlightPhase))
 
+        let spindleItem = byFamily[.spindle]!
+        let spindleA = RichFigureRenderer.motionState(
+            for: spindleItem, canvasSize: size, time: 37, reduceMotion: false
+        )
+        let spindleB = RichFigureRenderer.motionState(
+            for: spindleItem, canvasSize: size, time: 57, reduceMotion: false
+        )
+        XCTAssertTrue((0.988...1.012).contains(spindleA.scale))
+        XCTAssertNotEqual(spindleA.rotation, spindleB.rotation)
+        XCTAssertEqual(spindleA.center, spindleB.center)
+        assertCenterKeepsEffectsInsideCanvas(
+            spindleA.center, item: spindleItem, canvasSize: size
+        )
+
         let organicItem = byFamily[.luminousOrganic]!
         let organicA = RichFigureRenderer.motionState(
             for: organicItem, canvasSize: size, time: 37, reduceMotion: false
@@ -596,6 +610,78 @@ final class RichFigureGeometryTests: XCTestCase {
             XCTAssertGreaterThan(a.bounds.width, 0.5)
             XCTAssertGreaterThan(a.bounds.height, 0.5)
         }
+    }
+
+    func testSpindleUsesTieredOpenBrownianFilamentsInsideClosedEnvelope() {
+        let budget = RichRenderBudget.resolve(elementCount: 10, lowPowerMode: false)
+        let expectations: [(RichFigureDetailTier, Int, Int)] = [
+            (.accent, 8, 80),
+            (.medium, 16, 120),
+            (.large, 24, 160)
+        ]
+
+        for (tier, expectedLineCount, expectedPointCount) in expectations {
+            let spindle = RichFigureGeometryFactory.make(
+                family: .spindle,
+                seed: 42,
+                detailTier: tier,
+                canonicalTime: 0,
+                budget: budget
+            )
+            let envelopes = spindle.lines.filter {
+                $0.role == .silhouette && $0.isClosed
+            }
+            let filaments = spindle.lines.filter { $0.role == .structure }
+
+            XCTAssertEqual(envelopes.count, 1, "Missing fill envelope for \(tier)")
+            XCTAssertEqual(envelopes[0].points.count, 96)
+            XCTAssertEqual(filaments.count, expectedLineCount, "Wrong line budget for \(tier)")
+            XCTAssertTrue(filaments.allSatisfy { !$0.isClosed })
+            XCTAssertTrue(filaments.allSatisfy { $0.points.count == expectedPointCount })
+            XCTAssertTrue(filaments.flatMap(\.points).allSatisfy { point in
+                (0.18...0.94).contains(hypot(point.x, point.y))
+            })
+        }
+    }
+
+    func testLowPowerBudgetCapsCachedSpindleFilamentsWithoutDroppingEnvelope() {
+        let canonicalBudget = RichRenderBudget.resolve(
+            elementCount: 1,
+            lowPowerMode: false
+        )
+        let lowPowerBudget = RichRenderBudget.resolve(
+            elementCount: 10,
+            lowPowerMode: true
+        )
+        let base = RichFigureGeometryFactory.make(
+            family: .spindle,
+            seed: 42,
+            detailTier: .large,
+            canonicalTime: 0,
+            budget: canonicalBudget
+        )
+        let cached = RichCachedGeometry(
+            base: base,
+            fill: RichFillGeometry(
+                lines: [], translucentSurfaces: [], highlightPoints: []
+            )
+        )
+
+        let resolved = RichFigureRenderer.applyingBudget(
+            lowPowerBudget,
+            family: .spindle,
+            fillKind: .outlineWithCore,
+            to: cached
+        )
+
+        XCTAssertEqual(
+            resolved.base.lines.filter { $0.role == .structure }.count,
+            12
+        )
+        XCTAssertEqual(
+            resolved.base.lines.filter { $0.role == .silhouette && $0.isClosed }.count,
+            1
+        )
     }
 
     func testCrystallineStarSeedsRemainReadableAfterMeasuredFitting() {

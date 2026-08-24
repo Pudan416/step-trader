@@ -662,7 +662,8 @@ extension AppModel {
                 userGradientPalette: std.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
                 dailyRandomThemeEnabled: std.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
                 canvasOverlayStyle: g.string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue,
-                allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue)
+                allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue),
+                allowedCanvasFills: TextureKind.allowedByUser.map(\.rawValue)
             )
         }
     }

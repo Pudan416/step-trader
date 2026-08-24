@@ -8,11 +8,53 @@ import SwiftUI
 /// canvas read as one object repeated. These four let forms read as flat,
 /// graded, ringed or hatched — and `TextureSpec.uniformity`
 /// lets each of them read as even or as strongly graded across the form.
-enum TextureKind: String, Codable, CaseIterable, Hashable {
+enum TextureKind: String, Codable, CaseIterable, Hashable, Identifiable {
     case flat       // solid colour, no falloff — the contrast anchor
     case gradient   // the existing radial falloff
     case rings      // concentric copies of the contour, stroked
     case hatch      // parallel lines clipped to the contour
+    case outline    // no interior fill, only the outer contour
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .flat: String(localized: "Solid", comment: "Canvas fill style")
+        case .gradient: String(localized: "Gradient", comment: "Canvas fill style")
+        case .rings: String(localized: "Rings", comment: "Canvas fill style")
+        case .hatch: String(localized: "Hatch", comment: "Canvas fill style")
+        case .outline: String(localized: "Outline", comment: "Canvas fill style")
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .flat: "circle.fill"
+        case .gradient: "circle.lefthalf.filled"
+        case .rings: "circle.dotted.circle"
+        case .hatch: "line.3.horizontal"
+        case .outline: "circle"
+        }
+    }
+
+    static var allowedByUser: [TextureKind] {
+        guard let raw = UserDefaults.standard.stringArray(forKey: SharedKeys.allowedCanvasFills)
+        else { return allCases }
+        let selected = Set(raw.compactMap(TextureKind.init(rawValue:)))
+        let ordered = allCases.filter(selected.contains)
+        return ordered.isEmpty ? allCases : ordered
+    }
+
+    @discardableResult
+    static func setAllowed(_ kinds: Set<TextureKind>) -> Bool {
+        let ordered = allCases.filter(kinds.contains)
+        guard !ordered.isEmpty else { return false }
+        UserDefaults.standard.set(
+            ordered.map(\.rawValue),
+            forKey: SharedKeys.allowedCanvasFills
+        )
+        return true
+    }
 }
 
 // MARK: - Spec
@@ -182,7 +224,7 @@ enum ProceduralTexture {
         seed: UInt64
     ) -> TextureGeometry {
         switch spec.kind {
-        case .flat, .gradient:
+        case .flat, .gradient, .outline:
             return TextureGeometry()
         case .rings:
             return TextureGeometry(rings: ringGeometry(spec: spec, radii: radii))
@@ -329,6 +371,13 @@ enum ProceduralTexture {
                 strokeCtx.stroke(strokes, with: .color(second.opacity(0.6)),
                                  style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
             }
+
+        case .outline:
+            context.stroke(
+                contour,
+                with: .color(second.opacity(0.78)),
+                style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round)
+            )
 
         }
     }

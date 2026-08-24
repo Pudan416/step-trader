@@ -126,12 +126,10 @@ struct TexturePolicy: Codable, Hashable {
         self.accentShare = min(max(accentShare, 0), 0.45)
     }
 
-    /// Deterministic per-rank assignment. Spreads accents evenly rather than
-    /// clustering them, which a per-element coin flip would not.
+    /// Every figure in a day shares one fill style, so the canvas reads as one
+    /// painting rather than a collection of independently styled objects.
     func kind(forRank rank: Int) -> TextureKind {
-        guard accentShare > 0 else { return dominant }
-        let stride = max(2, Int((1.0 / accentShare).rounded()))
-        return rank % stride == stride - 1 ? accent : dominant
+        dominant
     }
 }
 
@@ -162,7 +160,11 @@ struct DayComposition: Codable, Hashable {
     /// choosing a low-key, sparse composition is what would make the canvas a
     /// portrait of the day rather than decoration. Left out of this task so it
     /// stays testable without HealthKit.
-    static func forDay(dayKey: String, happeningCount: Int) -> DayComposition {
+    static func forDay(
+        dayKey: String,
+        happeningCount: Int,
+        allowedTextureKinds: [TextureKind] = TextureKind.allowedByUser
+    ) -> DayComposition {
         let seed = CanvasElement.makeSeed(optionId: "composition", dayKey: dayKey, index: 0)
 
         var archetypeRng = SeededRNG.derived(from: seed, domain: "archetype")
@@ -177,7 +179,7 @@ struct DayComposition: Codable, Hashable {
             archetype: archetype,
             palette: makePalette(seed: seed),
             contrastKey: contrastKey,
-            texturePolicy: makeTexturePolicy(seed: seed),
+            texturePolicy: makeTexturePolicy(seed: seed, allowedKinds: allowedTextureKinds),
             hatchAngle: makeHatchAngle(seed: seed)
         )
     }
@@ -226,16 +228,16 @@ struct DayComposition: Codable, Hashable {
         return picked
     }
 
-    private static func makeTexturePolicy(seed: UInt64) -> TexturePolicy {
+    private static func makeTexturePolicy(seed: UInt64, allowedKinds: [TextureKind]) -> TexturePolicy {
         var rng = SeededRNG.derived(from: seed, domain: "texturePolicy")
-        let kinds = TextureKind.allCases          // CaseIterable order is stable
+        let allowed = Set(allowedKinds)
+        let filtered = TextureKind.allCases.filter(allowed.contains)
+        let kinds = filtered.isEmpty ? TextureKind.allCases : filtered
         let dominant = kinds[rng.nextInt(in: 0...(kinds.count - 1))]
-        var others = kinds.filter { $0 != dominant }
-        let accent = others[rng.nextInt(in: 0...(others.count - 1))]
         return TexturePolicy(
             dominant: dominant,
-            accent: accent,
-            accentShare: rng.nextDouble(in: 0.15...0.4)
+            accent: dominant,
+            accentShare: 0
         )
     }
 

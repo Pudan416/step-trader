@@ -1,7 +1,7 @@
 import Foundation
 
 enum RichFigureFamily: String, CaseIterable, Hashable {
-    case circle, luminousOrganic, crystallineStar, rays, orbitalSpirograph
+    case circle, spindle, luminousOrganic, crystallineStar, rays, orbitalSpirograph
 }
 
 enum RichFillKind: String, CaseIterable, Hashable {
