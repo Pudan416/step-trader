@@ -9,6 +9,7 @@ struct DayObjectsLabView: View {
     static let uiExclusionRegion = DayObjectNormalizedRect.dayObjectsLabControls
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
 
     @State private var dayOffset = 0
     @State private var happenings: Double = 8
@@ -206,7 +207,8 @@ struct DayObjectsLabView: View {
             motionEnergy: motionEnergy,
             visualClarity: visualClarity,
             reduceMotion: reduceMotion,
-            uiExclusionRegion: Self.uiExclusionRegion
+            uiExclusionRegion: Self.uiExclusionRegion,
+            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
         )
     }
 
