@@ -45,4 +45,14 @@ final class SettingsRedesignUITests: XCTestCase {
         app.swipeUp()
         XCTAssertTrue(app.otherElements["settings.wallpaper.controls"].exists)
     }
+
+    func testDeveloperDiagnosticsHaveOneDestination() {
+        let app = launchSettings()
+
+        let developer = app.buttons["settings.destination.developer"]
+        XCTAssertTrue(developer.exists)
+        developer.tap()
+        XCTAssertTrue(app.staticTexts["Developer"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Copy Shield Diagnostics"].exists)
+    }
 }

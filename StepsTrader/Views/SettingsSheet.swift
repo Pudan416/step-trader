@@ -1,8 +1,4 @@
 import SwiftUI
-import WidgetKit
-#if canImport(DeviceActivity)
-import DeviceActivity
-#endif
 
 // MARK: - Settings Sheet (matte tactile hub — no liquid glass)
 /// The settings page intentionally drops the liquid-glass treatment used by
@@ -89,8 +85,14 @@ struct SettingsSheet: View {
                     }
 
                     #if DEBUG
-                    section(header: "Developer") {
-                        shieldDiagnosticsRows
+                    section(header: String(localized: "Developer", comment: "Settings section header")) {
+                        flatRow(
+                            icon: "hammer",
+                            title: String(localized: "Developer", comment: "Settings developer destination")
+                        ) {
+                            SettingsDeveloperPage(model: model)
+                        }
+                        .accessibilityIdentifier("settings.destination.developer")
                     }
                     #endif
 
@@ -121,20 +123,6 @@ struct SettingsSheet: View {
             .sheet(isPresented: $showLogin) {
                 LoginView(authService: authService)
             }
-            #if DEBUG
-            .fullScreenCover(isPresented: $showOnboardingDemo) {
-                OnboardingDemoView()
-            }
-            .fullScreenCover(isPresented: $replayOnboardingLive) {
-                OnboardingFlowView(
-                    model: model,
-                    authService: authService,
-                    showsDebugSkip: true
-                ) {
-                    replayOnboardingLive = false
-                }
-            }
-            #endif
         }
     }
 
@@ -301,256 +289,6 @@ struct SettingsSheet: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
     }
-
-    // MARK: - Shield Diagnostics (DEBUG only)
-
-    #if DEBUG
-    @State private var diagCopied = false
-    @State private var budgetsReset = false
-    @State private var colorsRestored = false
-    @State private var healthReset = false
-    @State private var showOnboardingDemo = false
-    @State private var replayOnboardingLive = false
-    @State private var debugFeatureTip: FeatureTip?
-    @State private var featureTipsReset = false
-    @Environment(CoachMarkManager.self) private var coachMarkManager
-
-    @State private var shieldActionLogs: [String] = []
-    @State private var showShieldActionLogs = false
-
-    @ViewBuilder
-    private var shieldDiagnosticsRows: some View {
-        Button {
-            let text = model.blockingStore.dumpShieldDiagnostics()
-            UIPasteboard.general.string = text
-            diagCopied = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
-                diagCopied = false
-            }
-        } label: {
-            diagButton(
-                icon: "shield.lefthalf.filled",
-                text: diagCopied ? "Copied to clipboard!" : "Copy Shield Diagnostics",
-                highlight: diagCopied,
-                trailing: "doc.on.clipboard"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            let defaults = UserDefaults(suiteName: SharedKeys.appGroupId)
-            shieldActionLogs = defaults?.stringArray(forKey: SharedKeys.shieldActionLogs) ?? ["(no logs yet)"]
-            showShieldActionLogs = true
-        } label: {
-            diagButton(
-                icon: "bell.badge",
-                text: "View ShieldAction Logs",
-                trailing: "list.bullet.rectangle"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-        .sheet(isPresented: $showShieldActionLogs) {
-            NavigationStack {
-                List(shieldActionLogs, id: \.self) { log in
-                    Text(log).font(.caption2).textSelection(.enabled)
-                }
-                .navigationTitle("ShieldAction Logs")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Copy All") {
-                            UIPasteboard.general.string = shieldActionLogs.joined(separator: "\n")
-                        }
-                    }
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("Clear") {
-                            UserDefaults(suiteName: SharedKeys.appGroupId)?.removeObject(forKey: SharedKeys.shieldActionLogs)
-                            shieldActionLogs = ["(cleared)"]
-                        }
-                    }
-                }
-            }
-        }
-
-        rowDivider
-
-        Button {
-            let defaults = UserDefaults.stepsTrader()
-            for group in model.blockingStore.ticketGroups {
-                defaults.removeObject(forKey: SharedKeys.usageBudgetKey(group.id))
-                defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
-                defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
-                defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
-            }
-            #if canImport(DeviceActivity)
-            let center = DeviceActivityCenter()
-            let budgetActivities = center.activities.filter { $0.rawValue.hasPrefix("usageBudget_") }
-            center.stopMonitoring(budgetActivities)
-            #endif
-            model.rebuildFamilyControlsShield()
-            budgetsReset = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
-                budgetsReset = false
-            }
-        } label: {
-            diagButton(
-                icon: "clock.arrow.circlepath",
-                text: budgetsReset ? "All budgets cleared!" : "Reset All Usage Budgets",
-                highlight: budgetsReset,
-                trailing: "trash"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            model.spentStepsToday = 0
-            model.persistDailyEnergyState()
-            model.recalculateDailyEnergy()
-            colorsRestored = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
-                colorsRestored = false
-            }
-        } label: {
-            diagButton(
-                icon: "paintpalette",
-                text: colorsRestored ? "Colors restored!" : "Restore Colors to Max",
-                highlight: colorsRestored,
-                trailing: "arrow.counterclockwise"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            Task {
-                await model.debugForceHealthReset()
-                healthReset = true
-                try? await Task.sleep(for: .seconds(2))
-                healthReset = false
-            }
-        } label: {
-            diagButton(
-                icon: "heart.text.clipboard",
-                text: healthReset ? "Health data refreshed!" : "Force Health Reset (New Day)",
-                highlight: healthReset,
-                trailing: "arrow.clockwise"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            showOnboardingDemo = true
-        } label: {
-            diagButton(
-                icon: "play.rectangle",
-                text: "Preview Onboarding (Demo)",
-                trailing: "eye"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            replayOnboardingLive = true
-        } label: {
-            diagButton(
-                icon: "arrow.counterclockwise.circle",
-                text: "Replay Onboarding (Live)",
-                trailing: "restart"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            coachMarkManager.start()
-        } label: {
-            diagButton(
-                icon: "hand.point.up.left",
-                text: "Preview Coach Marks",
-                trailing: "questionmark.circle"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            debugFeatureTip = .widgets
-        } label: {
-            diagButton(
-                icon: "square.stack.3d.up",
-                text: "Preview Widget Tip",
-                trailing: "eye"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            debugFeatureTip = .wallpaper
-        } label: {
-            diagButton(
-                icon: "photo.on.rectangle.angled",
-                text: "Preview Wallpaper Tip",
-                trailing: "eye"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            FeatureTip.resetAllSeenFlags()
-            featureTipsReset = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
-                featureTipsReset = false
-            }
-        } label: {
-            diagButton(
-                icon: "arrow.counterclockwise",
-                text: featureTipsReset ? "Feature tip flags cleared!" : "Reset Feature Tip Flags",
-                highlight: featureTipsReset,
-                trailing: "trash"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-        .sheet(item: $debugFeatureTip) { tip in
-            FeatureTipSheet(tip: tip)
-        }
-    }
-
-    private func diagButton(icon: String, text: String, highlight: Bool = false, trailing: String? = nil) -> some View {
-        HStack(spacing: 12) {
-            rowIcon(icon)
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(highlight ? .green : theme.adaptivePrimaryText)
-            Spacer()
-            if let trailing {
-                Image(systemName: trailing)
-                    .font(.caption2)
-                    .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
-            }
-        }
-        .padding(.vertical, 12)
-        .contentShape(Rectangle())
-    }
-    #endif
 
     // MARK: - Avatar
 
