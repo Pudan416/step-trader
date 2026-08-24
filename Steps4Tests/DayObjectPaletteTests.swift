@@ -98,6 +98,115 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
+    func testDailyVisualLanguageUsesCuratedMaterialDistribution() {
+        for seed in UInt64(0)..<128 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: [.pastel, .cold, .warm]
+            )
+            let language = DayObjectVisualLanguage.make(
+                rootSeed: seed,
+                paletteSet: paletteSet
+            )
+
+            XCTAssertTrue((3...4).contains(language.enabledMaterials.count))
+            XCTAssertEqual(
+                Set(language.enabledMaterials).count,
+                language.enabledMaterials.count
+            )
+            XCTAssertTrue(language.enabledMaterials.contains(language.dominantMaterial))
+            XCTAssertEqual(language.grainIntensity, 0.05)
+
+            for count in 4...10 {
+                let ids = (0..<count).map { "event-\($0)" }
+                let appearances = language.appearances(
+                    eventIDs: ids,
+                    rootSeed: seed
+                )
+                let materials = appearances.values.map(\.material)
+                let dominantCount = materials.filter {
+                    $0 == language.dominantMaterial
+                }.count
+
+                XCTAssertGreaterThanOrEqual(
+                    Double(dominantCount) / Double(count),
+                    0.5,
+                    "seed=\(seed) count=\(count)"
+                )
+                XCTAssertLessThanOrEqual(
+                    Double(dominantCount) / Double(count),
+                    0.7,
+                    "seed=\(seed) count=\(count)"
+                )
+                XCTAssertTrue(materials.allSatisfy(language.enabledMaterials.contains))
+                if count >= 8 {
+                    XCTAssertGreaterThanOrEqual(Set(materials).count, 3)
+                }
+            }
+        }
+    }
+
+    func testPerEventAppearancesAreStableBoundedAndVisuallyReachable() {
+        var reachedMaterials = Set<DayObjectMaterialFamily>()
+        var reachedShapes = Set<DayObjectShape>()
+        var reachedColorCounts = Set<Int>()
+        var sawShiftedFocalCenter = false
+        var sawTransparentBody = false
+        var sawInnerGlow = false
+        var sawOuterGlow = false
+
+        for seed in UInt64(0)..<128 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
+            let language = DayObjectVisualLanguage.make(
+                rootSeed: seed,
+                paletteSet: paletteSet
+            )
+            let ids = (0..<10).map { "event-\($0)" }
+            let appearances = language.appearances(eventIDs: ids, rootSeed: seed)
+            let repeated = language.appearances(eventIDs: ids, rootSeed: seed)
+
+            XCTAssertEqual(appearances, repeated)
+            for appearance in appearances.values {
+                XCTAssertTrue((1...3).contains(appearance.colorAssignment.colors.count))
+                XCTAssertTrue((0.04...0.30).contains(appearance.distortion))
+                XCTAssertTrue((2...8).contains(appearance.distortionFrequency))
+                XCTAssertTrue((0...1).contains(appearance.localDepthSoftness))
+                XCTAssertTrue((0...1).contains(appearance.bodyOpacity))
+                XCTAssertTrue((0...1).contains(appearance.centerOpacity))
+                XCTAssertTrue((0...1).contains(appearance.rimOpacity))
+                if appearance.material == .glass {
+                    XCTAssertTrue((0.006...0.028).contains(appearance.refractionStrength))
+                } else {
+                    XCTAssertEqual(appearance.refractionStrength, 0)
+                }
+                if appearance.material == .membrane {
+                    XCTAssertTrue((2...3).contains(appearance.membraneLayerCount))
+                } else {
+                    XCTAssertEqual(appearance.membraneLayerCount, 1)
+                }
+
+                reachedMaterials.insert(appearance.material)
+                reachedShapes.insert(appearance.shape)
+                reachedColorCounts.insert(appearance.colorAssignment.colors.count)
+                sawShiftedFocalCenter = sawShiftedFocalCenter || appearance.focalDistance > 0.2
+                sawTransparentBody = sawTransparentBody || appearance.bodyOpacity < 0.5
+                sawInnerGlow = sawInnerGlow || appearance.innerGlow > 0.3
+                sawOuterGlow = sawOuterGlow || appearance.outerGlow > 0.15
+            }
+        }
+
+        XCTAssertEqual(reachedMaterials, Set(DayObjectMaterialFamily.allCases))
+        XCTAssertEqual(reachedShapes, Set(DayObjectShape.allCases))
+        XCTAssertEqual(reachedColorCounts, [1, 2, 3])
+        XCTAssertTrue(sawShiftedFocalCenter)
+        XCTAssertTrue(sawTransparentBody)
+        XCTAssertTrue(sawInnerGlow)
+        XCTAssertTrue(sawOuterGlow)
+    }
+
     func testDailyRadialPresetsAreDeterministicBoundedAndReachable() {
         var reached = Set<DayObjectRadialPreset>()
 
