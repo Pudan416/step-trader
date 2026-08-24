@@ -11,6 +11,7 @@ struct SettingsAppearancePage: View {
     /// it also seeds from the legacy keys. There is no gate: every shape is
     /// available to every user.
     @State private var allowedShapes: Set<CanvasShapeType> = []
+    @State private var allowedFills: Set<TextureKind> = []
 
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.appTheme) private var theme
@@ -301,6 +302,7 @@ struct SettingsAppearancePage: View {
     private var manualGroup: some View {
         VStack(alignment: .leading, spacing: 18) {
             canvasShapesSection
+            canvasFillsSection
             textureSection
             if ExperimentalFeatures.richCanvasLab {
                 richCanvasLabSection
@@ -313,6 +315,9 @@ struct SettingsAppearancePage: View {
             }
             if ExperimentalFeatures.dayRaysLab {
                 dayRaysLabSection
+            }
+            if ExperimentalFeatures.dayObjectsLab {
+                dayObjectsLabSection
             }
         }
     }
@@ -403,6 +408,90 @@ struct SettingsAppearancePage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private var dayObjectsLabSection: some View {
+        NavigationLink {
+            DayObjectsLabView()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "wind")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Day Objects")
+                    Text("Large radial-gradient orbs in seeded choreography")
+                        .font(.caption)
+                        .foregroundStyle(theme.adaptiveSecondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var canvasFillsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel(String(localized: "CANVAS FILLS", comment: "Appearance section header"))
+                .padding(.horizontal, 16)
+
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(TextureKind.allCases) { fill in
+                        fillChipButton(fill)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .onAppear { allowedFills = Set(TextureKind.allowedByUser) }
+    }
+
+    private func fillChipButton(_ fill: TextureKind) -> some View {
+        let isSelected = allowedFills.contains(fill)
+        let isLastSelected = isSelected && allowedFills.count == 1
+
+        return Button {
+            var next = allowedFills
+            if isSelected { next.remove(fill) } else { next.insert(fill) }
+            guard TextureKind.setAllowed(next) else { return }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                allowedFills = next
+            }
+            lightHapticTick &+= 1
+            HistoryThumbnailCache.shared.invalidateAll()
+            model.objectWillChange.send()
+            model.syncUserPreferencesToSupabase()
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: fill.iconName)
+                    .font(.system(size: 20, weight: .medium))
+                    .frame(width: 52, height: 42)
+                    .foregroundStyle(isSelected ? AppColors.brandAccent : theme.adaptiveSecondaryText)
+                    .background(
+                        RoundedRectangle(cornerRadius: 9)
+                            .fill(theme.adaptivePrimaryText.opacity(isSelected ? 0.10 : 0.04))
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 9)
+                            .strokeBorder(
+                                isSelected ? AppColors.brandAccent : theme.adaptivePrimaryText.opacity(0.06),
+                                lineWidth: isSelected ? 2 : 0.5
+                            )
+                    }
+                Text(fill.displayName)
+                    .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                    .foregroundStyle(isSelected ? theme.adaptivePrimaryText : theme.adaptiveSecondaryText)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isLastSelected)
+        .opacity(isLastSelected ? 0.75 : 1)
+        .accessibilityLabel(fill.displayName)
     }
 
     // MARK: - Canvas Shapes (compact)

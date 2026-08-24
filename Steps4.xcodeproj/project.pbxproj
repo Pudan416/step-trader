@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000001 /* DayObjectSceneTests.swift */; };
+		91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F0A0013100000000000001 /* AppTypographyTests.swift */; };
+		91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0033100000000000003 /* Unbounded[wght].ttf */; };
+		91F0A0063100000000000006 /* Unbounded-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0053100000000000005 /* Unbounded-OFL.txt */; };
 		A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000001 /* ExperimentalFeatures.swift */; };
 		A16C90010000000000000002 /* RichFigureModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000002 /* RichFigureModels.swift */; };
 		A16C90010000000000000003 /* RichFigureAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000003 /* RichFigureAssignment.swift */; };
@@ -16,6 +20,9 @@
 		A16C90010000000000000007 /* RichRenderBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000007 /* RichRenderBudget.swift */; };
 		A16C90010000000000000008 /* RichRenderBudgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000008 /* RichRenderBudgetTests.swift */; };
 		A16C90010000000000000009 /* RichFigureGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000009 /* RichFigureGeometry.swift */; };
+		DA0BDO010000000000000002 /* DayObjectComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0BDO010000000000000001 /* DayObjectComposition.swift */; };
+		DA0BDO020000000000000002 /* DayObjectsLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0BDO020000000000000001 /* DayObjectsLabView.swift */; };
+		DA0BDO030000000000000002 /* DayObjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0BDO030000000000000001 /* DayObjectsView.swift */; };
 		A16C9001000000000000000A /* RichFigureGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000A /* RichFigureGeometryTests.swift */; };
 		A16C9001000000000000000B /* RichFillGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000B /* RichFillGeometry.swift */; };
 		A16C9001000000000000000C /* RichRenderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000C /* RichRenderCache.swift */; };
@@ -33,6 +40,20 @@
 		9E5C000200000000000000B4 /* CanvasAtmosphereLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B4 /* CanvasAtmosphereLabView.swift */; };
 		9E5C000200000000000000B5 /* CanvasAtmosphereTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B5 /* CanvasAtmosphereTests.swift */; };
 		9E5C000200000000000000C1 /* DayRaysShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C1 /* DayRaysShader.metal */; };
+		D0B100000000000000000004 /* DayObjectPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000003 /* DayObjectPaletteTests.swift */; };
+		D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000005 /* DayObjectChoreographyTests.swift */; };
+		D0B100000000000000000008 /* DayObjectRenderFrameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */; };
+		D0B100000000000000000009 /* DayObjectsLabUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000000A /* DayObjectsLabUITests.swift */; };
+		D0B100000000000000000021 /* DayObjectTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000011 /* DayObjectTypes.swift */; };
+		D0B100000000000000000022 /* DayObjectScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000012 /* DayObjectScene.swift */; };
+		D0B100000000000000000024 /* DayObjectPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000014 /* DayObjectPalette.swift */; };
+		D0B100000000000000000025 /* DayObjectChoreography.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000015 /* DayObjectChoreography.swift */; };
+		D0B100000000000000000026 /* DayObjectRenderFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000016 /* DayObjectRenderFrame.swift */; };
+		D0B100000000000000000028 /* DayObjectsRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000018 /* DayObjectsRenderer.swift */; };
+		D0B100000000000000000029 /* DayObjectsMetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000019 /* DayObjectsMetalView.swift */; };
+		D0B10000000000000000002B /* DayObjectsMeshGradientShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000001B /* DayObjectsMeshGradientShader.metal */; };
+		D0B10000000000000000002C /* DayObjectsActorShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000001C /* DayObjectsActorShader.metal */; };
+		D0B10000000000000000002D /* DayObjectsPostShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000001D /* DayObjectsPostShader.metal */; };
 		9E5C000200000000000000C2 /* DayRayComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C2 /* DayRayComposition.swift */; };
 		9E5C000200000000000000C3 /* DayRaysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C3 /* DayRaysView.swift */; };
 		9E5C000200000000000000C4 /* DayRaysLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C4 /* DayRaysLabView.swift */; };
@@ -406,6 +427,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		D0B100000000000000000001 /* DayObjectSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectSceneTests.swift; sourceTree = "<group>"; };
+		91F0A0013100000000000001 /* AppTypographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTypographyTests.swift; path = Steps4Tests/AppTypographyTests.swift; sourceTree = SOURCE_ROOT; };
+		91F0A0033100000000000003 /* Unbounded[wght].ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded[wght].ttf"; sourceTree = "<group>"; };
+		91F0A0053100000000000005 /* Unbounded-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Unbounded-OFL.txt"; sourceTree = "<group>"; };
 		A16C80010000000000000001 /* ExperimentalFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperimentalFeatures.swift; sourceTree = "<group>"; };
 		A16C80010000000000000002 /* RichFigureModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureModels.swift; sourceTree = "<group>"; };
 		A16C80010000000000000003 /* RichFigureAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureAssignment.swift; sourceTree = "<group>"; };
@@ -415,6 +440,9 @@
 		A16C80010000000000000007 /* RichRenderBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichRenderBudget.swift; sourceTree = "<group>"; };
 		A16C80010000000000000008 /* RichRenderBudgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichRenderBudgetTests.swift; sourceTree = "<group>"; };
 		A16C80010000000000000009 /* RichFigureGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureGeometry.swift; sourceTree = "<group>"; };
+		DA0BDO010000000000000001 /* DayObjectComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectComposition.swift; sourceTree = "<group>"; };
+		DA0BDO020000000000000001 /* DayObjectsLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabView.swift; sourceTree = "<group>"; };
+		DA0BDO030000000000000001 /* DayObjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsView.swift; sourceTree = "<group>"; };
 		A16C8001000000000000000A /* RichFigureGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureGeometryTests.swift; sourceTree = "<group>"; };
 		A16C8001000000000000000B /* RichFillGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFillGeometry.swift; sourceTree = "<group>"; };
 		A16C8001000000000000000C /* RichRenderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichRenderCache.swift; sourceTree = "<group>"; };
@@ -432,6 +460,20 @@
 		9E5C000100000000000000B4 /* CanvasAtmosphereLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAtmosphereLabView.swift; sourceTree = "<group>"; };
 		9E5C000100000000000000B5 /* CanvasAtmosphereTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAtmosphereTests.swift; sourceTree = "<group>"; };
 		9E5C000100000000000000C1 /* DayRaysShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayRaysShader.metal; sourceTree = "<group>"; };
+		D0B100000000000000000003 /* DayObjectPaletteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPaletteTests.swift; sourceTree = "<group>"; };
+		D0B100000000000000000005 /* DayObjectChoreographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectChoreographyTests.swift; sourceTree = "<group>"; };
+		D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectRenderFrameTests.swift; sourceTree = "<group>"; };
+		D0B10000000000000000000A /* DayObjectsLabUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabUITests.swift; sourceTree = "<group>"; };
+		D0B100000000000000000011 /* DayObjectTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectTypes.swift; sourceTree = "<group>"; };
+		D0B100000000000000000012 /* DayObjectScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectScene.swift; sourceTree = "<group>"; };
+		D0B100000000000000000014 /* DayObjectPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPalette.swift; sourceTree = "<group>"; };
+		D0B100000000000000000015 /* DayObjectChoreography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectChoreography.swift; sourceTree = "<group>"; };
+		D0B100000000000000000016 /* DayObjectRenderFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectRenderFrame.swift; sourceTree = "<group>"; };
+		D0B100000000000000000018 /* DayObjectsRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsRenderer.swift; sourceTree = "<group>"; };
+		D0B100000000000000000019 /* DayObjectsMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMetalView.swift; sourceTree = "<group>"; };
+		D0B10000000000000000001B /* DayObjectsMeshGradientShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayObjectsMeshGradientShader.metal; sourceTree = "<group>"; };
+		D0B10000000000000000001C /* DayObjectsActorShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayObjectsActorShader.metal; sourceTree = "<group>"; };
+		D0B10000000000000000001D /* DayObjectsPostShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayObjectsPostShader.metal; sourceTree = "<group>"; };
 		9E5C000100000000000000C2 /* DayRayComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayRayComposition.swift; sourceTree = "<group>"; };
 		9E5C000100000000000000C3 /* DayRaysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayRaysView.swift; sourceTree = "<group>"; };
 		9E5C000100000000000000C4 /* DayRaysLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayRaysLabView.swift; sourceTree = "<group>"; };
@@ -840,6 +882,23 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		DA0BG0010000000000000001 /* DayObjects */ = {
+			isa = PBXGroup;
+			children = (
+				DA0BDO010000000000000001 /* DayObjectComposition.swift */,
+				D0B100000000000000000014 /* DayObjectPalette.swift */,
+				D0B100000000000000000015 /* DayObjectChoreography.swift */,
+				D0B100000000000000000016 /* DayObjectRenderFrame.swift */,
+				D0B100000000000000000018 /* DayObjectsRenderer.swift */,
+				D0B100000000000000000019 /* DayObjectsMetalView.swift */,
+				DA0BDO020000000000000001 /* DayObjectsLabView.swift */,
+				DA0BDO030000000000000001 /* DayObjectsView.swift */,
+				D0B100000000000000000011 /* DayObjectTypes.swift */,
+				D0B100000000000000000012 /* DayObjectScene.swift */,
+			);
+			path = Experiments/DayObjects;
+			sourceTree = "<group>";
+		};
 		A16C70010000000000000001 /* RichCanvas */ = {
 			isa = PBXGroup;
 			children = (
@@ -1089,6 +1148,7 @@
 			isa = PBXGroup;
 			children = (
 				A16C70010000000000000001 /* RichCanvas */,
+				DA0BG0010000000000000001 /* DayObjects */,
 				9E5C000300000000000000A0 /* GenerativeScene */,
 				9E5C000300000000000000B0 /* Atmosphere */,
 				9E5C000300000000000000C0 /* DayRays */,
@@ -1255,6 +1315,8 @@
 		20F0NT032FFF040000000003 /* Fonts */ = {
 			isa = PBXGroup;
 			children = (
+				91F0A0033100000000000003 /* Unbounded[wght].ttf */,
+				91F0A0053100000000000005 /* Unbounded-OFL.txt */,
 			);
 			path = Fonts;
 			sourceTree = "<group>";
@@ -1301,6 +1363,9 @@
 				9E5C000100000000000000A1 /* GenerativeSceneShader.metal */,
 				9E5C000100000000000000B1 /* CanvasDustShader.metal */,
 				9E5C000100000000000000C1 /* DayRaysShader.metal */,
+				D0B10000000000000000001B /* DayObjectsMeshGradientShader.metal */,
+				D0B10000000000000000001C /* DayObjectsActorShader.metal */,
+				D0B10000000000000000001D /* DayObjectsPostShader.metal */,
 			);
 			path = Metal;
 			sourceTree = "<group>";
@@ -1337,6 +1402,11 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				D0B100000000000000000001 /* DayObjectSceneTests.swift */,
+				D0B100000000000000000003 /* DayObjectPaletteTests.swift */,
+				D0B100000000000000000005 /* DayObjectChoreographyTests.swift */,
+				D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */,
+				91F0A0013100000000000001 /* AppTypographyTests.swift */,
 				A16C80010000000000000010 /* RichCanvasLabIsolationTests.swift */,
 				9E5C000100000000000000A5 /* GenerativeSceneParamsTests.swift */,
 				9E5C000100000000000000B5 /* CanvasAtmosphereTests.swift */,
@@ -1405,6 +1475,7 @@
 			children = (
 				T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
 				CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */,
+				D0B10000000000000000000A /* DayObjectsLabUITests.swift */,
 			);
 			path = Steps4UITests;
 			sourceTree = "<group>";
@@ -1665,6 +1736,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */,
+				91F0A0063100000000000006 /* Unbounded-OFL.txt in Resources */,
 				2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */,
 				20E3AE142F3F6C1C007CF1EC /* Assets.xcassets in Resources */,
 				20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */,
@@ -1731,6 +1804,16 @@
 				A16C90010000000000000005 /* RichFigureLayout.swift in Sources */,
 				A16C90010000000000000007 /* RichRenderBudget.swift in Sources */,
 				A16C90010000000000000009 /* RichFigureGeometry.swift in Sources */,
+				DA0BDO010000000000000002 /* DayObjectComposition.swift in Sources */,
+				D0B100000000000000000024 /* DayObjectPalette.swift in Sources */,
+				D0B100000000000000000025 /* DayObjectChoreography.swift in Sources */,
+				D0B100000000000000000026 /* DayObjectRenderFrame.swift in Sources */,
+				D0B100000000000000000028 /* DayObjectsRenderer.swift in Sources */,
+				D0B100000000000000000029 /* DayObjectsMetalView.swift in Sources */,
+				DA0BDO020000000000000002 /* DayObjectsLabView.swift in Sources */,
+				DA0BDO030000000000000002 /* DayObjectsView.swift in Sources */,
+				D0B100000000000000000021 /* DayObjectTypes.swift in Sources */,
+				D0B100000000000000000022 /* DayObjectScene.swift in Sources */,
 				A16C9001000000000000000B /* RichFillGeometry.swift in Sources */,
 				A16C9001000000000000000C /* RichRenderCache.swift in Sources */,
 				A16C9001000000000000000D /* RichFigureRenderer.swift in Sources */,
@@ -1745,6 +1828,9 @@
 				9E5C000200000000000000B3 /* CanvasAtmosphereView.swift in Sources */,
 				9E5C000200000000000000B4 /* CanvasAtmosphereLabView.swift in Sources */,
 				9E5C000200000000000000C1 /* DayRaysShader.metal in Sources */,
+				D0B10000000000000000002B /* DayObjectsMeshGradientShader.metal in Sources */,
+				D0B10000000000000000002C /* DayObjectsActorShader.metal in Sources */,
+				D0B10000000000000000002D /* DayObjectsPostShader.metal in Sources */,
 				9E5C000200000000000000C2 /* DayRayComposition.swift in Sources */,
 				9E5C000200000000000000C3 /* DayRaysView.swift in Sources */,
 				9E5C000200000000000000C4 /* DayRaysLabView.swift in Sources */,
@@ -1972,6 +2058,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */,
+				D0B100000000000000000004 /* DayObjectPaletteTests.swift in Sources */,
+				D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */,
+				D0B100000000000000000008 /* DayObjectRenderFrameTests.swift in Sources */,
+				91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */,
 				A16C90010000000000000010 /* RichCanvasLabIsolationTests.swift in Sources */,
 				9E5C000200000000000000A5 /* GenerativeSceneParamsTests.swift in Sources */,
 				9E5C000200000000000000B5 /* CanvasAtmosphereTests.swift in Sources */,
@@ -2040,6 +2131,7 @@
 			files = (
 				T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */,
 				CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */,
+				D0B100000000000000000009 /* DayObjectsLabUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

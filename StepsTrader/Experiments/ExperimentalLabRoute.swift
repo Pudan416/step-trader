@@ -10,6 +10,7 @@ import SwiftUI
 /// compile this file's call site.
 enum ExperimentalLabRoute: String, CaseIterable {
     case dayRays
+    case dayObjects
     case atmosphere
     case generativeScene
 
@@ -32,6 +33,7 @@ enum ExperimentalLabRoute: String, CaseIterable {
     var view: some View {
         switch self {
         case .dayRays:         DayRaysLabView()
+        case .dayObjects:      DayObjectsLabView()
         case .atmosphere:      CanvasAtmosphereLabView()
         case .generativeScene: GenerativeSceneLabView()
         }
