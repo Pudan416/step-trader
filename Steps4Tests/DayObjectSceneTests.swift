@@ -112,13 +112,10 @@ final class DayObjectCompositionTests: XCTestCase {
 
     func testShapeAndFillNumericValuesMatchMetalShaderABI() {
         let expectedShapes: [DayObjectShape: UInt32] = [
-            .capsule: 0,
-            .drop: 1,
-            .slab: 2,
-            .dart: 3,
-            .wedge: 4,
-            .scallop: 5,
-            .burst: 6,
+            .sphere: 0,
+            .ellipse: 1,
+            .lens: 2,
+            .softBlob: 3,
         ]
         let expectedFills: [DayObjectFill: UInt32] = [
             .radialOne: 0,

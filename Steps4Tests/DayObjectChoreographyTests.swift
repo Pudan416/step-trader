@@ -129,30 +129,30 @@ final class DayObjectChoreographyTests: XCTestCase {
         }
     }
 
-    func testShaderDerivedFootprintUsesScallopAndFullTrailSupport() {
+    func testShaderDerivedFootprintUsesSoftBlobAndFullTrailSupport() {
         let horizontal = DayObjectGeometryFootprint.make(
             halfSize: SIMD2<Double>(0.12, 0.08),
             direction: SIMD2<Double>(1, 0),
-            shape: .scallop,
+            shape: .softBlob,
             trailLength: 0.05,
             shortSidePixels: 1_000
         )
-        XCTAssertEqual(horizontal.forwardReach, 0.12 * 1.13, accuracy: 0.000_001)
+        XCTAssertEqual(horizontal.forwardReach, 0.1488, accuracy: 0.000_001)
         XCTAssertEqual(horizontal.backwardReach, 0.12 + 0.05, accuracy: 0.000_001)
-        XCTAssertEqual(horizontal.lateralReach, 0.08 * 0.70 * 3.5, accuracy: 0.000_001)
+        XCTAssertEqual(horizontal.lateralReach, 0.1064, accuracy: 0.000_001)
         XCTAssertEqual(horizontal.axisAlignedHalfExtents.x, 0.172, accuracy: 0.000_001)
-        XCTAssertEqual(horizontal.axisAlignedHalfExtents.y, 0.198, accuracy: 0.000_001)
+        XCTAssertEqual(horizontal.axisAlignedHalfExtents.y, 0.1084, accuracy: 0.000_001)
 
         let diagonal = DayObjectGeometryFootprint.make(
             halfSize: SIMD2<Double>(0.12, 0.08),
             direction: SIMD2<Double>(1, 1),
-            shape: .scallop,
+            shape: .softBlob,
             trailLength: 0.05,
             shortSidePixels: 1_000
         )
         XCTAssertEqual(
             diagonal.axisAlignedHalfExtents.x,
-            (0.17 + 0.196) / sqrt(2) + 0.002,
+            (0.17 + 0.1064) / sqrt(2) + 0.002,
             accuracy: 0.000_001
         )
         XCTAssertEqual(diagonal.axisAlignedHalfExtents.x, diagonal.axisAlignedHalfExtents.y, accuracy: 0.000_001)
