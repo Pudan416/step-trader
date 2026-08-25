@@ -231,13 +231,18 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 3))
     }
 
-    func testAddOpensTheExistingHappeningPalette() {
+    func testAddReplacesTheTabBarWithTheHappeningDock() {
         let app = launchCanvas()
+        let tabBar = app.descendants(matching: .any)["canvas_tab_bar"]
+
+        XCTAssertTrue(tabBar.exists)
 
         app.buttons["canvas_add_button"].tap()
 
         XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Choose happenings"].exists)
+        XCTAssertTrue(app.buttons["Add a happening"].exists)
+        XCTAssertTrue(tabBar.waitForNonExistence(timeout: 3))
     }
 
     /// The `+` and the full-screen circle are removed from the tree while
@@ -275,7 +280,10 @@ final class CanvasSimplificationUITests: XCTestCase {
 
         let stepsDisclosure = app.descendants(matching: .any)["canvas_metric_disclosure_steps"]
         XCTAssertTrue(stepsDisclosure.waitForExistence(timeout: 3))
-        XCTAssertTrue(app.descendants(matching: .any)["canvas_metric_research_link_steps"].exists)
+        let researchLink = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label == 'Why this matters'")
+        ).firstMatch
+        XCTAssertTrue(researchLink.waitForExistence(timeout: 3))
 
         stepsRow.tap()
         XCTAssertTrue(stepsDisclosure.waitForNonExistence(timeout: 3))

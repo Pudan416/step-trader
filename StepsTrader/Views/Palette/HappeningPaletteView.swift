@@ -54,13 +54,8 @@ enum HappeningPaletteChromeLayout {
             : max(compactInset, tabBarHeight + chromeSpacing)
     }
 
-    static func hidesSurroundingChrome(
-        isPalettePresented: Bool,
-        isPanelPresented: Bool,
-        dynamicTypeSize: DynamicTypeSize
-    ) -> Bool {
+    static func hidesSurroundingChrome(isPalettePresented: Bool) -> Bool {
         isPalettePresented
-            && (isPanelPresented || HappeningFieldLayout.usesExpandedLayout(for: dynamicTypeSize))
     }
 
     static func showsCanvasControls(isPalettePresented: Bool) -> Bool {
@@ -145,9 +140,7 @@ struct HappeningPaletteView: View {
                 dynamicTypeSize: dynamicTypeSize
             )
             let hidesSurroundingChrome = HappeningPaletteChromeLayout.hidesSurroundingChrome(
-                isPalettePresented: true,
-                isPanelPresented: activePanel != nil,
-                dynamicTypeSize: dynamicTypeSize
+                isPalettePresented: true
             )
             // Line the dock up with the canvas `+` it sits on top of — the
             // button reports its own position, so this never drifts from the

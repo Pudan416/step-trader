@@ -893,9 +893,7 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
     func testOpenPanelHidesChromeAndUsesCompactInsetsAtStandardType() {
         XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
-                isPalettePresented: true,
-                isPanelPresented: true,
-                dynamicTypeSize: .large
+                isPalettePresented: true
             )
         )
         XCTAssertEqual(
@@ -917,9 +915,7 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
     func testAccessibilityTypeHidesSurroundingChromeAndUsesCompactInsets() {
         XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
-                isPalettePresented: true,
-                isPanelPresented: false,
-                dynamicTypeSize: .accessibility2
+                isPalettePresented: true
             )
         )
         XCTAssertEqual(
@@ -951,9 +947,7 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         ] {
             XCTAssertTrue(
                 HappeningPaletteChromeLayout.hidesSurroundingChrome(
-                    isPalettePresented: true,
-                    isPanelPresented: false,
-                    dynamicTypeSize: typeSize
+                    isPalettePresented: true
                 ),
                 "\(typeSize) uses expanded field geometry and must hide surrounding chrome"
             )
@@ -969,12 +963,10 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         }
     }
 
-    func testPaletteWithoutPanelKeepsStandardChrome() {
-        XCTAssertFalse(
+    func testPresentedPaletteHidesStandardChromeBeforeAChildPanelOpens() {
+        XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
-                isPalettePresented: true,
-                isPanelPresented: false,
-                dynamicTypeSize: .large
+                isPalettePresented: true
             )
         )
     }

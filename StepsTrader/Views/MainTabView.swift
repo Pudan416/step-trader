@@ -96,9 +96,7 @@ struct MainTabView: View {
 
     private var hidesSurroundingChromeForPalette: Bool {
         HappeningPaletteChromeLayout.hidesSurroundingChrome(
-            isPalettePresented: isHappeningPaletteVisible,
-            isPanelPresented: isHappeningPalettePanelVisible,
-            dynamicTypeSize: dynamicTypeSize
+            isPalettePresented: isHappeningPaletteVisible
         )
     }
 
