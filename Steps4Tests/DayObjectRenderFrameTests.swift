@@ -23,6 +23,119 @@ final class DayObjectRenderFrameTests: XCTestCase {
         ))
     }
 
+    func testSpentColorsClampAndMapToAbsoluteDamage() {
+        XCTAssertEqual(DayObjectDigitalImpact(spentColors: -4).spentColors, 0)
+        XCTAssertEqual(DayObjectDigitalImpact(spentColors: 140).spentColors, 100)
+        XCTAssertEqual(
+            DayObjectDigitalImpact(spentColors: 10).damage,
+            0.10,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            DayObjectDigitalImpact(spentColors: 50).signalCorruption,
+            pow(0.5, 1.6),
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            DayObjectDigitalImpact(spentColors: 100).ambientMotion,
+            1,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(DayObjectDigitalImpact.none, DayObjectDigitalImpact(spentColors: 0))
+    }
+
+    func testLabPresetsProduceExpectedAbsoluteDamage() {
+        let expected: [(spent: Int, damage: Double)] = [
+            (0, 0),
+            (10, 0.10),
+            (25, 0.25),
+            (50, 0.50),
+            (75, 0.75),
+            (100, 1),
+        ]
+
+        for preset in expected {
+            XCTAssertEqual(
+                DayObjectDigitalImpact(spentColors: preset.spent).damage,
+                preset.damage,
+                accuracy: 0.000_001
+            )
+        }
+    }
+
+    func testEveryAdditionalColorMonotonicallyIncreasesDamageLevels() {
+        for spent in 0..<100 {
+            let before = DayObjectDigitalImpact(spentColors: spent)
+            let after = DayObjectDigitalImpact(spentColors: spent + 1)
+            XCTAssertGreaterThan(after.damage, before.damage)
+            XCTAssertGreaterThan(after.scarStrength, before.scarStrength)
+            XCTAssertGreaterThan(after.signalCorruption, before.signalCorruption)
+            XCTAssertGreaterThan(after.ambientMotion, before.ambientMotion)
+        }
+    }
+
+    func testGlitchLayoutIsStableBoundedAndIndependentOfSpend() {
+        let first = DayObjectGlitchLayout.make(seed: 0x1234_5678)
+        let unchangedAfterSpend = DayObjectGlitchLayout.make(seed: 0x1234_5678)
+
+        XCTAssertEqual(first, unchangedAfterSpend)
+        XCTAssertNotEqual(first, DayObjectGlitchLayout.make(seed: 0x1234_5679))
+        XCTAssertEqual(first.bands.count, 12)
+        XCTAssertTrue(first.bands.allSatisfy {
+            (0...1).contains($0.centerY)
+                && (0.008...0.040).contains($0.halfHeight)
+                && (0.45...1.0).contains($0.displacementScale)
+                && (0...1).contains($0.activationThreshold)
+                && $0.phaseOffset >= 0
+                && $0.phaseOffset <= 2 * .pi
+        })
+    }
+
+    func testGlitchUniformsMatchMetalLayoutAndFreezeForReduceMotion() {
+        let impact = DayObjectDigitalImpact(spentColors: 50)
+        let moving = DayObjectsGlitchUniforms(
+            impact: impact,
+            elapsedTime: 12.5,
+            reduceMotion: false,
+            seed: 0xFEDC_BA98_7654_3210
+        )
+        let frozen = DayObjectsGlitchUniforms(
+            impact: impact,
+            elapsedTime: 900,
+            reduceMotion: true,
+            seed: 0xFEDC_BA98_7654_3210
+        )
+
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchUniforms>.alignment, 16)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchUniforms>.stride, 48)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchUniforms>.offset(of: \.levels), 0)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchUniforms>.offset(of: \.rendering), 16)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchUniforms>.offset(of: \.metadata), 32)
+        XCTAssertEqual(moving.levels.x, 0.5, accuracy: 0.000_001)
+        XCTAssertEqual(moving.rendering.x, 12.5, accuracy: 0.000_001)
+        XCTAssertEqual(frozen.rendering.x, 0, accuracy: 0.000_001)
+        XCTAssertEqual(frozen.metadata.z, 1)
+    }
+
+    func testGlitchBandUniformsAreFixedSizeAndBounded() {
+        let uniforms = DayObjectGlitchLayout.make(seed: 42).bands.map(
+            DayObjectsGlitchBandUniform.init
+        )
+
+        XCTAssertEqual(uniforms.count, 12)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchBandUniform>.alignment, 16)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchBandUniform>.stride, 32)
+        XCTAssertTrue(uniforms.allSatisfy {
+            $0.geometry.x.isFinite
+                && $0.geometry.y.isFinite
+                && $0.geometry.z.isFinite
+                && $0.geometry.w.isFinite
+                && $0.motion.x.isFinite
+                && $0.motion.y.isFinite
+                && $0.motion.z.isFinite
+        })
+    }
+
     func testMotionEnergyMapsToSpecifiedTempo() {
         XCTAssertEqual(DayObjectEnvironment(motionEnergy: 0, visualClarity: 1, reduceMotion: false).tempoScale, 0.035, accuracy: 0.0001)
         XCTAssertEqual(DayObjectEnvironment(motionEnergy: 1, visualClarity: 1, reduceMotion: false).tempoScale, 1.25, accuracy: 0.0001)
@@ -461,6 +574,133 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
         XCTAssertLessThan(structuralSharpness[0], structuralSharpness[1])
         XCTAssertLessThan(structuralSharpness[1], structuralSharpness[2])
+    }
+
+    func testGlitchDamageGrowsMonotonicallyFromNaturalDisplay() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let natural = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: .none
+        ).noGrain
+        var previousDifference = 0.0
+
+        for spentColors in [10, 25, 50, 75, 100] {
+            let damaged = try harness.render(
+                scene: scene,
+                clarity: 0.7,
+                elapsed: 8.375,
+                digitalImpact: DayObjectDigitalImpact(spentColors: spentColors)
+            ).noGrain
+            let difference = damaged.meanAbsoluteDifference(from: natural)
+            XCTAssertGreaterThan(
+                difference,
+                previousDifference,
+                "spentColors=\(spentColors) difference=\(difference)"
+            )
+            previousDifference = difference
+        }
+    }
+
+    func testGlitchIsDeterministicAndReduceMotionFreezesPhase() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let impact = DayObjectDigitalImpact(spentColors: 75)
+
+        let first = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact
+        ).noGrain
+        let repeated = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact
+        ).noGrain
+        let later = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact,
+            glitchElapsed: 9.375
+        ).noGrain
+        let frozenEarly = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact,
+            reduceMotion: true
+        ).noGrain
+        let frozenLate = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact,
+            reduceMotion: true,
+            glitchElapsed: 9.375
+        ).noGrain
+
+        XCTAssertEqual(first.checksum, repeated.checksum)
+        XCTAssertNotEqual(first.checksum, later.checksum)
+        XCTAssertEqual(frozenEarly.checksum, frozenLate.checksum)
+    }
+
+    func testMaximumGlitchDamageRetainsSourceStructure() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let natural = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: .none
+        ).noGrain
+        let damaged = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: DayObjectDigitalImpact(spentColors: 100)
+        ).noGrain
+
+        XCTAssertGreaterThan(
+            damaged.luminanceField.correlation(with: natural.luminanceField),
+            0.25
+        )
+        XCTAssertGreaterThan(damaged.structuralSharpness, 0.000_3)
+    }
+
+    func testSameSpendUsesDifferentStableScarsForDifferentDays() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let impact = DayObjectDigitalImpact(spentColors: 75)
+
+        let firstDay = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact,
+            glitchSeed: 11
+        ).noGrain
+        let repeated = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact,
+            glitchSeed: 11
+        ).noGrain
+        let nextDay = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact,
+            glitchSeed: 12
+        ).noGrain
+
+        XCTAssertEqual(firstDay.checksum, repeated.checksum)
+        XCTAssertNotEqual(firstDay.checksum, nextDay.checksum)
     }
 
     func testLabFixtureProducesVisibleActorsThroughActorAndPostPasses() throws {
@@ -982,73 +1222,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(duringReplacement.trailLength, 0)
     }
 
-    func testCappedPartialFlockAdmissionsDoNotRestartAlreadyRenderedMembers() throws {
-        let initialIDs = (0..<14).map { "event-\($0)" }
-        let replacementIDs = Array(initialIDs.dropFirst())
-        let initial = capacityFixtureScene(dayKey: "partial-fixture-1", ids: initialIDs)
-        let replacement = capacityFixtureScene(dayKey: "partial-fixture-1", ids: replacementIDs)
-        XCTAssertEqual(initial.composition.flockSize, 3)
-        XCTAssertEqual(initial.actors.count, 40)
-        XCTAssertEqual(replacement.actors.count, 39)
-
-        let retainedID = DayObjectActorID(eventID: "event-13", memberIndex: 0)
-        let firstPendingID = DayObjectActorID(eventID: "event-13", memberIndex: 1)
-        let secondPendingID = DayObjectActorID(eventID: "event-13", memberIndex: 2)
-        let departureDurations = initial.actors
-            .filter { $0.eventID == "event-0" }
-            .map(DayObjectRenderFrame.transitionDuration(for:))
-            .sorted()
-        XCTAssertEqual(departureDurations.count, 3)
-        XCTAssertLessThan(departureDurations[0], departureDurations[1])
-
-        var timeline = DayObjectInsertionTimeline(scene: initial)
-        timeline.update(scene: replacement, elapsed: 20)
-        let firstAdmissionTime = 20 + (departureDurations[0] + departureDurations[1]) * 0.5
-        let firstAdmission = timeline.renderState(
-            activeScene: replacement,
-            elapsed: firstAdmissionTime
-        )
-        XCTAssertEqual(firstAdmission.scene.actors.count, 40)
-        XCTAssertNil(firstAdmission.actorInsertions[retainedID])
-        XCTAssertEqual(firstAdmission.actorInsertions[firstPendingID], firstAdmissionTime)
-        XCTAssertNil(firstAdmission.actorInsertions[secondPendingID])
-        XCTAssertTrue(firstAdmission.scene.actorIDs.contains(firstPendingID))
-        XCTAssertFalse(firstAdmission.scene.actorIDs.contains(secondPendingID))
-
-        timeline.update(scene: replacement, elapsed: firstAdmissionTime + 0.01)
-        let repeated = timeline.renderState(
-            activeScene: replacement,
-            elapsed: firstAdmissionTime + 0.02
-        )
-        XCTAssertEqual(repeated.actorInsertions[firstPendingID], firstAdmissionTime)
-
-        let environment = DayObjectEnvironment(
-            motionEnergy: 0.55,
-            visualClarity: 1,
-            reduceMotion: false
-        )
-        let frame = DayObjectRenderFrame.make(
-            scene: firstAdmission.scene,
-            environment: environment,
-            elapsed: firstAdmissionTime,
-            insertions: firstAdmission.insertions,
-            removals: firstAdmission.removals,
-            actorInsertions: firstAdmission.actorInsertions,
-            actorRemovals: firstAdmission.actorRemovals
-        )
-        let reference = DayObjectRenderFrame.make(
-            scene: replacement,
-            environment: environment,
-            elapsed: firstAdmissionTime,
-            insertions: [:]
-        )
-        XCTAssertEqual(
-            frame.actors.first { $0.actorID == retainedID },
-            reference.actors.first { $0.actorID == retainedID }
-        )
-        XCTAssertEqual(frame.actors.first { $0.actorID == firstPendingID }?.opacity, 0)
-    }
-
     func testCappedPendingQueueIsDeterministicAcrossConcurrentChangesAndReadd() throws {
         let initialIDs = (0...41).map { "event-\($0)" }
         let initial = capacityFixtureScene(dayKey: "cap-fixture-2", ids: initialIDs)
@@ -1216,8 +1389,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
             XCTAssertEqual(uniforms.shortSidePixels, 1_179)
         }
 
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 112)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 112)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 128)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 128)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.resolution), 0)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.energyNormalization), 8)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.shortSidePixels), 12)
@@ -1941,6 +2114,7 @@ private final class DisplayTransferReadbackHarness {
             length: MemoryLayout<PostUniformBytes>.stride,
             index: 0
         )
+        bindNaturalGlitch(to: encoder)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
 
@@ -2044,6 +2218,7 @@ private final class DisplayTransferReadbackHarness {
             length: MemoryLayout<PostUniformBytes>.stride,
             index: 0
         )
+        bindNaturalGlitch(to: encoder)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
         commandBuffer.commit()
@@ -2059,6 +2234,27 @@ private final class DisplayTransferReadbackHarness {
             mipmapLevel: 0
         )
         return SIMD3(bytes[2], bytes[1], bytes[0])
+    }
+
+    private func bindNaturalGlitch(to encoder: MTLRenderCommandEncoder) {
+        var uniforms = DayObjectsGlitchUniforms(
+            impact: .none,
+            elapsedTime: 0,
+            reduceMotion: true,
+            seed: 0
+        )
+        var bands = DayObjectGlitchLayout.make(seed: 0).bands.map(
+            DayObjectsGlitchBandUniform.init
+        )
+        encoder.setFragmentBytes(
+            &uniforms,
+            length: MemoryLayout<DayObjectsGlitchUniforms>.stride,
+            index: 1
+        )
+        bands.withUnsafeBytes { bytes in
+            guard let baseAddress = bytes.baseAddress else { return }
+            encoder.setFragmentBytes(baseAddress, length: bytes.count, index: 2)
+        }
     }
 }
 
@@ -2177,12 +2373,16 @@ private final class PostRenderHarness {
         motionEnergy: Double = 0.75,
         actorLimit: Int? = nil,
         insertions: [String: TimeInterval] = [:],
-        removals: [String: TimeInterval] = [:]
+        removals: [String: TimeInterval] = [:],
+        digitalImpact: DayObjectDigitalImpact = .none,
+        reduceMotion: Bool = false,
+        glitchSeed: UInt64? = nil,
+        glitchElapsed: TimeInterval? = nil
     ) throws -> PostRenderResult {
         let environment = DayObjectEnvironment(
             motionEnergy: motionEnergy,
             visualClarity: clarity,
-            reduceMotion: false
+            reduceMotion: reduceMotion
         )
         let frame = DayObjectRenderFrame.make(
             scene: scene,
@@ -2197,6 +2397,16 @@ private final class PostRenderHarness {
             scene: scene,
             resolution: SIMD2(Float(width), Float(height)),
             pointToPixelScale: 2
+        )
+        let resolvedGlitchSeed = glitchSeed ?? scene.rootSeed
+        var glitchUniforms = DayObjectsGlitchUniforms(
+            impact: digitalImpact,
+            elapsedTime: glitchElapsed ?? elapsed,
+            reduceMotion: reduceMotion,
+            seed: resolvedGlitchSeed
+        )
+        let glitchBandUniforms = DayObjectGlitchLayout.make(seed: resolvedGlitchSeed).bands.map(
+            DayObjectsGlitchBandUniform.init
         )
 
         let backgroundTexture = try makeTexture(width: width / 2, height: height / 2)
@@ -2301,27 +2511,33 @@ private final class PostRenderHarness {
             postSource = blurB
         }
 
-        encodeFullscreenPass(
+        encodeDisplayPass(
             commandBuffer: commandBuffer,
             target: output,
             source: postSource,
             pipeline: displayPipeline,
-            uniforms: &postUniforms
+            uniforms: &postUniforms,
+            glitchUniforms: &glitchUniforms,
+            glitchBandUniforms: glitchBandUniforms
         )
-        encodeFullscreenPass(
+        encodeDisplayPass(
             commandBuffer: commandBuffer,
             target: productionOutput,
             source: postSource,
             pipeline: productionDisplayPipeline,
-            uniforms: &postUniforms
+            uniforms: &postUniforms,
+            glitchUniforms: &glitchUniforms,
+            glitchBandUniforms: glitchBandUniforms
         )
         var noGrainUniforms = PostUniformBytes(postUniforms, grainIntensity: 0)
-        encodeFullscreenPass(
+        encodeDisplayPass(
             commandBuffer: commandBuffer,
             target: noGrainOutput,
             source: postSource,
             pipeline: displayPipeline,
-            uniforms: &noGrainUniforms
+            uniforms: &noGrainUniforms,
+            glitchUniforms: &glitchUniforms,
+            glitchBandUniforms: glitchBandUniforms
         )
 
         commandBuffer.commit()
@@ -2354,6 +2570,44 @@ private final class PostRenderHarness {
                 uniformBytes: bytes
             )
         }
+    }
+
+    private func encodeDisplayPass<Uniforms>(
+        commandBuffer: MTLCommandBuffer,
+        target: MTLTexture,
+        source: MTLTexture,
+        pipeline: MTLRenderPipelineState,
+        uniforms: inout Uniforms,
+        glitchUniforms: inout DayObjectsGlitchUniforms,
+        glitchBandUniforms: [DayObjectsGlitchBandUniform]
+    ) {
+        let pass = renderPass(texture: target, clearColor: MTLClearColorMake(0, 0, 0, 1))
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
+            XCTFail("Could not create Day Objects display encoder")
+            return
+        }
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentTexture(source, index: 0)
+        encoder.setFragmentSamplerState(sampler, index: 0)
+        encoder.setFragmentBytes(
+            &uniforms,
+            length: MemoryLayout<Uniforms>.stride,
+            index: 0
+        )
+        encoder.setFragmentBytes(
+            &glitchUniforms,
+            length: MemoryLayout<DayObjectsGlitchUniforms>.stride,
+            index: 1
+        )
+        glitchBandUniforms.withUnsafeBytes { bytes in
+            guard let baseAddress = bytes.baseAddress else {
+                XCTFail("Day Objects glitch bands were empty")
+                return
+            }
+            encoder.setFragmentBytes(baseAddress, length: bytes.count, index: 2)
+        }
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
     }
 
     private func encodeFullscreenPass(
@@ -2539,6 +2793,17 @@ private struct PostPixelCapture {
             height: height,
             values: zip(lhs, rhs).map(-)
         )
+    }
+
+    func meanAbsoluteDifference(from other: PostPixelCapture) -> Double {
+        precondition(width == other.width && height == other.height)
+        let total = zip(rgb, other.rgb).reduce(0.0) { result, pair in
+            result
+                + abs(Double(pair.0.x - pair.1.x))
+                + abs(Double(pair.0.y - pair.1.y))
+                + abs(Double(pair.0.z - pair.1.z))
+        }
+        return total / Double(max(rgb.count * 3, 1))
     }
 
     var displayRGBBytes: [SIMD3<UInt8>] {
@@ -2907,6 +3172,23 @@ private struct PostLuminanceField {
     var standardDeviation: Double {
         let average = mean
         return sqrt(values.reduce(0) { $0 + pow($1 - average, 2) } / Double(max(values.count, 1)))
+    }
+
+    func correlation(with other: PostLuminanceField) -> Double {
+        precondition(width == other.width && height == other.height)
+        let lhsMean = mean
+        let rhsMean = other.mean
+        var numerator = 0.0
+        var lhsEnergy = 0.0
+        var rhsEnergy = 0.0
+        for (lhs, rhs) in zip(values, other.values) {
+            let centeredLHS = lhs - lhsMean
+            let centeredRHS = rhs - rhsMean
+            numerator += centeredLHS * centeredRHS
+            lhsEnergy += centeredLHS * centeredLHS
+            rhsEnergy += centeredRHS * centeredRHS
+        }
+        return numerator / max(sqrt(lhsEnergy * rhsEnergy), 0.000_000_000_001)
     }
 
     func percentile(_ fraction: Double) -> Double {

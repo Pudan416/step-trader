@@ -62,6 +62,49 @@ final class DayObjectsLabUITests: XCTestCase {
         add(gridScreenshot)
     }
 
+    func testLabControlsAbsoluteSpentColorsInSingleAndGridModes() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-uiLab", "dayObjects",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let spentSlider = app.sliders["dayObjects.spentColors"]
+        XCTAssertTrue(spentSlider.waitForExistence(timeout: 5))
+        XCTAssertTrue(String(describing: spentSlider.value).contains("Spent colors 0"))
+        attachScreenshot(named: "day-objects-glitch-spent-0")
+
+        app.buttons["dayObjects.spend.plus10"].tap()
+        XCTAssertTrue(String(describing: spentSlider.value).contains("Spent colors 10"))
+        XCTAssertTrue(
+            String(describing: app.otherElements["dayObjects.canvas"].value)
+                .contains("Spent colors 10")
+        )
+
+        app.buttons["dayObjects.spend.preset.100"].tap()
+        XCTAssertTrue(String(describing: spentSlider.value).contains("Spent colors 100"))
+        XCTAssertTrue(
+            String(describing: app.otherElements["dayObjects.canvas"].value)
+                .contains("Spent colors 100")
+        )
+        attachScreenshot(named: "day-objects-glitch-spent-100")
+
+        app.buttons["dayObjects.gridToggle"].tap()
+        let grid = app.otherElements["dayObjects.grid"]
+        XCTAssertTrue(grid.waitForExistence(timeout: 5))
+        XCTAssertTrue(String(describing: grid.value).contains("Spent colors 100"))
+        attachScreenshot(named: "day-objects-glitch-grid-spent-100")
+    }
+
+    private func attachScreenshot(named name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private static func figureCount(from accessibilityValue: Any?) -> Int? {
         String(describing: accessibilityValue ?? "")
             .split(whereSeparator: { !$0.isNumber })

@@ -14,6 +14,7 @@ struct DayObjectsLabView: View {
     @State private var happenings: Double = 8
     @State private var motionEnergy = 0.55
     @State private var visualClarity = 0.55
+    @State private var spentColors: Double = 0
     @State private var showsGrid = false
     @State private var showControls = true
 
@@ -29,6 +30,14 @@ struct DayObjectsLabView: View {
         sceneInput(for: dayKey)
     }
 
+    private var spentColorCount: Int {
+        min(max(Int(spentColors.rounded()), 0), DayObjectDigitalImpact.maximumSpentColors)
+    }
+
+    private var digitalImpact: DayObjectDigitalImpact {
+        DayObjectDigitalImpact(spentColors: spentColorCount)
+    }
+
     private var currentScene: DayObjectScene {
         DayObjectScene.make(input: currentSceneInput)
     }
@@ -42,7 +51,10 @@ struct DayObjectsLabView: View {
             if showsGrid {
                 grid
             } else {
-                DayObjectsView(sceneInput: currentSceneInput)
+                DayObjectsView(
+                    sceneInput: currentSceneInput,
+                    digitalImpact: digitalImpact
+                )
                     .ignoresSafeArea()
             }
 
@@ -75,6 +87,7 @@ struct DayObjectsLabView: View {
                             let index = dayOffset + row * columns + column
                             DayObjectsView(
                                 sceneInput: sceneInput(for: Self.dayKey(for: index)),
+                                digitalImpact: digitalImpact,
                                 isAnimating: false
                             )
                             .frame(width: width, height: height)
@@ -88,6 +101,7 @@ struct DayObjectsLabView: View {
         .ignoresSafeArea()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Day Objects grid")
+        .accessibilityValue("Spent colors \(spentColorCount)")
         .accessibilityIdentifier("dayObjects.grid")
     }
 
@@ -139,6 +153,7 @@ struct DayObjectsLabView: View {
                 readout: visualClarity.formatted(.number.precision(.fractionLength(2))),
                 identifier: "dayObjects.visualClarity"
             )
+            digitalImpactControls
 
             if !showsGrid {
                 Text("\(dayKey) · \(currentScene.composition.summary)")
@@ -152,6 +167,57 @@ struct DayObjectsLabView: View {
         .padding(.horizontal, 12)
         .padding(.bottom, 60)
         .tint(AppColors.brandAccent)
+    }
+
+    private var digitalImpactControls: some View {
+        VStack(spacing: 7) {
+            slider(
+                "Spent colors",
+                value: $spentColors,
+                range: 0...Double(DayObjectDigitalImpact.maximumSpentColors),
+                step: 1,
+                readout: "Spent colors \(spentColorCount)",
+                identifier: "dayObjects.spentColors"
+            )
+
+            HStack(spacing: 6) {
+                impactStepButton("−10", amount: -10, identifier: "minus10")
+                impactStepButton("+1", amount: 1, identifier: "plus1")
+                impactStepButton("+5", amount: 5, identifier: "plus5")
+                impactStepButton("+10", amount: 10, identifier: "plus10")
+            }
+
+            HStack(spacing: 5) {
+                ForEach([0, 10, 25, 50, 75, 100], id: \.self) { preset in
+                    Button("\(preset)") {
+                        spentColors = Double(preset)
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("Set spent colors to \(preset)")
+                    .accessibilityIdentifier("dayObjects.spend.preset.\(preset)")
+                }
+            }
+        }
+        .controlSize(.small)
+    }
+
+    private func impactStepButton(
+        _ title: String,
+        amount: Int,
+        identifier: String
+    ) -> some View {
+        Button(title) {
+            let adjusted = min(
+                max(spentColorCount + amount, 0),
+                DayObjectDigitalImpact.maximumSpentColors
+            )
+            spentColors = Double(adjusted)
+        }
+        .buttonStyle(.bordered)
+        .frame(maxWidth: .infinity)
+        .accessibilityLabel("Adjust spent colors by \(amount)")
+        .accessibilityIdentifier("dayObjects.spend.\(identifier)")
     }
 
     private func slider(
