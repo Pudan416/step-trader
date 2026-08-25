@@ -25,8 +25,7 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(initialLanguage.contains(" · "))
         XCTAssertEqual(initialLanguage.split(separator: "/").count, 3)
 
-        happeningsSlider.adjust(toNormalizedSliderPosition: 1)
-        XCTAssertTrue(String(describing: happeningsSlider.value).contains("10 · 10 figures"))
+        setHappenings(10, on: happeningsSlider)
         XCTAssertTrue(app.otherElements["dayObjects.canvas"].exists)
 
         Thread.sleep(forTimeInterval: 1.5)
@@ -35,19 +34,19 @@ final class DayObjectsLabUITests: XCTestCase {
         maximumScreenshot.lifetime = .keepAlways
         add(maximumScreenshot)
 
-        happeningsSlider.adjust(toNormalizedSliderPosition: 0)
+        for count in [7, 4, 1] {
+            setHappenings(count, on: happeningsSlider)
+        }
+
+        setHappenings(0, on: happeningsSlider)
         XCTAssertTrue(app.otherElements["dayObjects.canvas"].exists)
-        XCTAssertTrue(
-            String(describing: happeningsSlider.value)
-                .contains("0 · 0 figures")
-        )
 
         let zeroEventScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         zeroEventScreenshot.name = "task-10-day-objects-zero-events"
         zeroEventScreenshot.lifetime = .keepAlways
         add(zeroEventScreenshot)
 
-        happeningsSlider.adjust(toNormalizedSliderPosition: 0.2)
+        setHappenings(4, on: happeningsSlider)
         app.sliders["dayObjects.visualClarity"].adjust(toNormalizedSliderPosition: 1)
 
         XCTAssertTrue(app.otherElements["dayObjects.canvas"].exists)
@@ -85,6 +84,27 @@ final class DayObjectsLabUITests: XCTestCase {
 
     private static func figureCount(from accessibilityValue: Any?) -> Int? {
         counts(from: accessibilityValue).last
+    }
+
+    private func setHappenings(_ target: Int, on slider: XCUIElement) {
+        var lower = 0.0
+        var upper = 1.0
+        var position = Double(target) / 10
+        for _ in 0..<20 {
+            slider.adjust(toNormalizedSliderPosition: min(max(position, 0), 1))
+            let current = Self.figureCount(from: slider.value) ?? -1
+            if current == target {
+                XCTAssertTrue(String(describing: slider.value).contains("\(target) · \(target) figures"))
+                return
+            }
+            if current < target {
+                lower = position
+            } else {
+                upper = position
+            }
+            position = (lower + upper) * 0.5
+        }
+        XCTFail("Could not set Day Objects happenings to \(target); value=\(slider.value ?? "nil")")
     }
 
     private static func counts(from accessibilityValue: Any?) -> [Int] {
