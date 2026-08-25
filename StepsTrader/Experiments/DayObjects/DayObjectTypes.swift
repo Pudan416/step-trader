@@ -98,6 +98,7 @@ enum DayObjectActorRole: String, CaseIterable, Equatable {
 struct DayObjectActor: Equatable {
     let id: DayObjectActorID
     let seed: UInt64
+    let appearance: DayObjectAppearance
     let role: DayObjectActorRole
     let shape: DayObjectShape
     let elongation: DayObjectElongation

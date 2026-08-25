@@ -588,8 +588,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
     }
 
     func testDeterministicVisualAcceptanceMatrix() throws {
-        let scene = fixtureScene(ids: (0..<40).map { "matrix-event-\($0)" })
-        XCTAssertEqual(scene.actors.count, 40)
+        let scene = fixtureScene(ids: (0..<10).map { "matrix-event-\($0)" })
+        XCTAssertEqual(scene.actors.count, 10)
 
         let layouts = [
             (name: "phone-portrait", width: 402, height: 874),
@@ -606,7 +606,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
                         motionEnergy: motionEnergy,
                         actorLimit: 0
                     )
-                    for actorCount in [1, 10, 24, 40] {
+                    for actorCount in [1, 4, 7, 10] {
                         let result = try harness.render(
                             scene: scene,
                             clarity: clarity,
@@ -657,7 +657,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
     }
 
     func testCommittedPerceptualSignaturesCoverProductionTransferCompositionAndPalette() throws {
-        let scene = fixtureScene(ids: (0..<40).map { "signature-event-\($0)" })
+        let scene = fixtureScene(ids: (0..<10).map { "signature-event-\($0)" })
         for fixture in DayObjectsPerceptualBaselines.fixtures {
             let harness = try PostRenderHarness(width: fixture.width, height: fixture.height)
             let populated = try harness.render(
@@ -725,8 +725,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let removalDuring = removalTimeline.renderState(activeScene: base, elapsed: 30.55)
         let removalAfter = removalTimeline.renderState(activeScene: base, elapsed: 31.5)
 
-        let capped = fixtureScene(ids: (0..<40).map { "capped-\($0)" })
-        let cappedReplacement = fixtureScene(ids: (1...40).map { "capped-\($0)" })
+        let capped = fixtureScene(ids: (0..<10).map { "capped-\($0)" })
+        let cappedReplacement = fixtureScene(ids: (1...10).map { "capped-\($0)" })
         var cappedTimeline = DayObjectInsertionTimeline(scene: capped)
         let cappedBefore = cappedTimeline.renderState(activeScene: capped, elapsed: 39.9)
         cappedTimeline.update(scene: cappedReplacement, elapsed: 40)
@@ -954,16 +954,16 @@ final class DayObjectRenderFrameTests: XCTestCase {
     }
 
     func testCappedReplacementWaitsForDepartureThenStartsInsertionOnItsFirstRenderedFrame() throws {
-        let initialIDs = (0...40).map { "event-\($0)" }
+        let initialIDs = (0...10).map { "event-\($0)" }
         let replacementIDs = Array(initialIDs.dropFirst())
         let initial = capacityFixtureScene(dayKey: "cap-fixture-2", ids: initialIDs)
         let replacement = capacityFixtureScene(dayKey: "cap-fixture-2", ids: replacementIDs)
         XCTAssertEqual(initial.composition.flockSize, 1)
-        XCTAssertEqual(initial.actors.count, 40)
-        XCTAssertEqual(replacement.actors.count, 40)
+        XCTAssertEqual(initial.actors.count, 10)
+        XCTAssertEqual(replacement.actors.count, 10)
 
         let departingID = DayObjectActorID(eventID: "event-0", memberIndex: 0)
-        let replacementID = DayObjectActorID(eventID: "event-40", memberIndex: 0)
+        let replacementID = DayObjectActorID(eventID: "event-10", memberIndex: 0)
         let departingActor = try XCTUnwrap(initial.actors.first { $0.id == departingID })
         let departureDuration = DayObjectRenderFrame.transitionDuration(for: departingActor)
         var timeline = DayObjectInsertionTimeline(scene: initial)
@@ -971,7 +971,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
         let waitingTime = 10 + departureDuration * 0.5
         let waiting = timeline.renderState(activeScene: replacement, elapsed: waitingTime)
-        XCTAssertEqual(waiting.scene.actors.count, 40)
+        XCTAssertEqual(waiting.scene.actors.count, 10)
         XCTAssertTrue(waiting.scene.actorIDs.contains(departingID))
         XCTAssertFalse(waiting.scene.actorIDs.contains(replacementID))
         XCTAssertNil(waiting.actorInsertions[replacementID])
@@ -979,7 +979,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
         let admittedAt = 10 + departureDuration + 0.001
         let admitted = timeline.renderState(activeScene: replacement, elapsed: admittedAt)
-        XCTAssertEqual(admitted.scene.actors.count, 40)
+        XCTAssertEqual(admitted.scene.actors.count, 10)
         XCTAssertFalse(admitted.scene.actorIDs.contains(departingID))
         XCTAssertTrue(admitted.scene.actorIDs.contains(replacementID))
         XCTAssertEqual(admitted.actorInsertions[replacementID], admittedAt)
@@ -1034,16 +1034,16 @@ final class DayObjectRenderFrameTests: XCTestCase {
     }
 
     func testCappedOrbAdmissionDoesNotRestartAlreadyRenderedActors() throws {
-        let initialIDs = (0..<40).map { "event-\($0)" }
-        let replacementIDs = Array(initialIDs.dropFirst()) + ["event-40"]
+        let initialIDs = (0..<10).map { "event-\($0)" }
+        let replacementIDs = Array(initialIDs.dropFirst()) + ["event-10"]
         let initial = capacityFixtureScene(dayKey: "partial-fixture-1", ids: initialIDs)
         let replacement = capacityFixtureScene(dayKey: "partial-fixture-1", ids: replacementIDs)
         XCTAssertEqual(initial.composition.flockSize, 1)
-        XCTAssertEqual(initial.actors.count, 40)
-        XCTAssertEqual(replacement.actors.count, 40)
+        XCTAssertEqual(initial.actors.count, 10)
+        XCTAssertEqual(replacement.actors.count, 10)
 
-        let retainedID = DayObjectActorID(eventID: "event-13", memberIndex: 0)
-        let pendingID = DayObjectActorID(eventID: "event-40", memberIndex: 0)
+        let retainedID = DayObjectActorID(eventID: "event-3", memberIndex: 0)
+        let pendingID = DayObjectActorID(eventID: "event-10", memberIndex: 0)
         let departureDurations = initial.actors
             .filter { $0.eventID == "event-0" }
             .map(DayObjectRenderFrame.transitionDuration(for:))
@@ -1057,7 +1057,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             activeScene: replacement,
             elapsed: firstAdmissionTime
         )
-        XCTAssertEqual(firstAdmission.scene.actors.count, 40)
+        XCTAssertEqual(firstAdmission.scene.actors.count, 10)
         XCTAssertNil(firstAdmission.actorInsertions[retainedID])
         XCTAssertEqual(firstAdmission.actorInsertions[pendingID], firstAdmissionTime)
         XCTAssertTrue(firstAdmission.scene.actorIDs.contains(pendingID))
@@ -1097,15 +1097,15 @@ final class DayObjectRenderFrameTests: XCTestCase {
     }
 
     func testCappedPendingQueueIsDeterministicAcrossConcurrentChangesAndReadd() throws {
-        let initialIDs = (0...41).map { "event-\($0)" }
+        let initialIDs = (0...11).map { "event-\($0)" }
         let initial = capacityFixtureScene(dayKey: "cap-fixture-2", ids: initialIDs)
         let firstReplacementIDs = Array(initialIDs.dropFirst(2))
         let firstReplacement = capacityFixtureScene(
             dayKey: "cap-fixture-2",
             ids: firstReplacementIDs
         )
-        let replacement40 = DayObjectActorID(eventID: "event-40", memberIndex: 0)
-        let replacement41 = DayObjectActorID(eventID: "event-41", memberIndex: 0)
+        let replacement10 = DayObjectActorID(eventID: "event-10", memberIndex: 0)
+        let replacement11 = DayObjectActorID(eventID: "event-11", memberIndex: 0)
         let departures = initial.actors
             .filter { $0.eventID == "event-0" || $0.eventID == "event-1" }
             .map { ($0.id, DayObjectRenderFrame.transitionDuration(for: $0)) }
@@ -1116,20 +1116,20 @@ final class DayObjectRenderFrameTests: XCTestCase {
         timeline.update(scene: firstReplacement, elapsed: 30)
         let oneSlotTime = 30 + (departures[0].1 + departures[1].1) * 0.5
         let oneSlot = timeline.renderState(activeScene: firstReplacement, elapsed: oneSlotTime)
-        XCTAssertEqual(oneSlot.scene.actors.count, 40)
-        XCTAssertEqual(oneSlot.actorInsertions[replacement40], oneSlotTime)
-        XCTAssertNil(oneSlot.actorInsertions[replacement41])
+        XCTAssertEqual(oneSlot.scene.actors.count, 10)
+        XCTAssertEqual(oneSlot.actorInsertions[replacement10], oneSlotTime)
+        XCTAssertNil(oneSlot.actorInsertions[replacement11])
 
-        let concurrentIDs = Array(initialIDs.dropFirst(2).dropLast()) + ["event-42"]
+        let concurrentIDs = Array(initialIDs.dropFirst(2).dropLast()) + ["event-12"]
         let concurrent = capacityFixtureScene(dayKey: "cap-fixture-2", ids: concurrentIDs)
-        let replacement42 = DayObjectActorID(eventID: "event-42", memberIndex: 0)
+        let replacement12 = DayObjectActorID(eventID: "event-12", memberIndex: 0)
         timeline.update(scene: concurrent, elapsed: oneSlotTime + 0.01)
         let allSlotsTime = 30 + departures[1].1 + 0.001
         let allSlots = timeline.renderState(activeScene: concurrent, elapsed: allSlotsTime)
-        XCTAssertEqual(allSlots.scene.actors.count, 40)
-        XCTAssertEqual(allSlots.actorInsertions[replacement40], oneSlotTime)
-        XCTAssertNil(allSlots.actorInsertions[replacement41])
-        XCTAssertEqual(allSlots.actorInsertions[replacement42], allSlotsTime)
+        XCTAssertEqual(allSlots.scene.actors.count, 10)
+        XCTAssertEqual(allSlots.actorInsertions[replacement10], oneSlotTime)
+        XCTAssertNil(allSlots.actorInsertions[replacement11])
+        XCTAssertEqual(allSlots.actorInsertions[replacement12], allSlotsTime)
 
         var readdTimeline = DayObjectInsertionTimeline(scene: initial)
         readdTimeline.update(scene: firstReplacement, elapsed: 40)
@@ -1138,7 +1138,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         readdTimeline.update(scene: initial, elapsed: readdTime)
         let restored = readdTimeline.renderState(activeScene: initial, elapsed: readdTime)
         XCTAssertEqual(restored.scene.actors, initial.actors)
-        XCTAssertEqual(restored.scene.actors.count, 40)
+        XCTAssertEqual(restored.scene.actors.count, 10)
         XCTAssertTrue(restored.actorInsertions.isEmpty)
         XCTAssertTrue(restored.actorRemovals.isEmpty)
     }
@@ -1245,8 +1245,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
             (0, 0),
             (1, 1),
             (4, 0.5),
-            (16, 0.25),
-            (40, 0.158_113_88),
+            (9, 0.333_333_34),
+            (10, 0.316_227_76),
         ]
 
         for fixture in fixtures {
@@ -1461,7 +1461,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let harness = try ActorRenderHarness(width: 128, height: 64)
         let actor = gpuActor(direction: SIMD2(1, 0), trailLength: 0.22)
         let sparse = try harness.render([actor], visibleActorCount: 1)
-        let dense = try harness.render([actor], visibleActorCount: 40)
+        let dense = try harness.render([actor], visibleActorCount: 10)
         let centerX = harness.width / 2
         let centerY = harness.height / 2
 
@@ -1517,8 +1517,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertLessThan(separated[midpoint.x, midpoint.y], 0.01)
     }
 
-    func testActorShaderRendersDeterministicOneTenTwentyFourAndFortyActorFixtures() throws {
-        let scene = fixtureScene(ids: (0..<40).map { "fixture-\($0)" })
+    func testActorShaderRendersDeterministicOneFourSevenAndTenActorFixtures() throws {
+        let scene = fixtureScene(ids: (0..<10).map { "fixture-\($0)" })
         let environment = DayObjectEnvironment(
             motionEnergy: 0.8,
             visualClarity: 1,
@@ -1531,12 +1531,12 @@ final class DayObjectRenderFrameTests: XCTestCase {
             insertions: [:],
             canvasAspect: 1.5
         )
-        XCTAssertEqual(frame.actors.count, 40)
+        XCTAssertEqual(frame.actors.count, 10)
 
         let harness = try ActorRenderHarness(width: 192, height: 128)
         var coverages = [Int]()
         var alphaEnergies = [Double]()
-        for count in [1, 10, 24, 40] {
+        for count in [1, 4, 7, 10] {
             let prefix = Array(frame.actors.prefix(count))
             let upload = DayObjectsActorUpload(
                 actors: prefix,
@@ -1594,7 +1594,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             actorCapacity: DayObjectScene.maxActors
         ))
         XCTAssertEqual(ring.slotCount, 3)
-        XCTAssertEqual(ring.bufferLength, DayObjectGPUActor.metalStride * 40)
+        XCTAssertEqual(ring.bufferLength, DayObjectGPUActor.metalStride * 10)
 
         let leases = try (0..<3).map { _ in
             try XCTUnwrap(ring.acquire())
@@ -2911,15 +2911,15 @@ private enum DayObjectsPerceptualBaselines {
             affectedEnergy: 0, meanLuminance: 0.2350607, edgeEnergy: 0.0073204
         ),
         DayObjectsTransitionPerceptualSignature(
-            name: "capped-replacement-before", renderedActorCount: 40,
+            name: "capped-replacement-before", renderedActorCount: 10,
             affectedEnergy: 0, meanLuminance: 0.2380478, edgeEnergy: 0.0073235
         ),
         DayObjectsTransitionPerceptualSignature(
-            name: "capped-replacement-during", renderedActorCount: 40,
+            name: "capped-replacement-during", renderedActorCount: 10,
             affectedEnergy: 0.0000007, meanLuminance: 0.2382795, edgeEnergy: 0.0073625
         ),
         DayObjectsTransitionPerceptualSignature(
-            name: "capped-replacement-after", renderedActorCount: 40,
+            name: "capped-replacement-after", renderedActorCount: 10,
             affectedEnergy: 0.0000293, meanLuminance: 0.2389202, edgeEnergy: 0.0073280
         ),
     ]

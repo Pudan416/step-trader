@@ -98,6 +98,7 @@ final class DayObjectChoreographyTests: XCTestCase {
             DayObjectActor(
                 id: template.id,
                 seed: template.seed,
+                appearance: template.appearance,
                 role: template.role,
                 shape: template.shape,
                 elongation: template.elongation,
@@ -127,7 +128,7 @@ final class DayObjectChoreographyTests: XCTestCase {
     }
 
     func testPlannedProductionPathIsContinuousAcrossChapterAndLoopBoundaries() {
-        let scene = DayObjectScene.make(input: fixtureInput(seed: 7, count: 40))
+        let scene = DayObjectScene.make(input: fixtureInput(seed: 7, count: 10))
         for aspect in [0.46, 1.0, 4.0 / 3.0, 2.16] {
             for actor in scene.actors {
                 for boundary in scene.score.boundaryTimes + [scene.score.duration] {
@@ -152,7 +153,7 @@ final class DayObjectChoreographyTests: XCTestCase {
     }
 
     func testPathsRemainInsideShortSideBounds() {
-        let scene = DayObjectScene.make(input: fixtureInput(seed: 11, count: 40))
+        let scene = DayObjectScene.make(input: fixtureInput(seed: 11, count: 10))
         for aspect in [0.46, 0.75, 1.0, 1.5, 2.16] {
             for sample in 0..<240 {
                 let time = scene.score.duration * Double(sample) / 240
@@ -199,7 +200,7 @@ final class DayObjectChoreographyTests: XCTestCase {
 
     func testDailyPlanTargetsNegativeSpaceAndKeepsRoleAnchorsCoherent() {
         for seed in UInt64(0)..<64 {
-            let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 40))
+            let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 10))
             let plan = scene.compositionPlan
             XCTAssertTrue((0.35...0.55).contains(plan.targetNegativeSpaceFraction))
             XCTAssertTrue((0.35...0.55).contains(plan.negativeSpaceRegion.area))
@@ -217,7 +218,7 @@ final class DayObjectChoreographyTests: XCTestCase {
 
     func testPlannedFootprintsStayInsideBordersAndOutsideUIAndNegativeSpace() {
         for seed in UInt64(0)..<24 {
-            let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 40))
+            let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 10))
             for aspect in [0.46, 0.75, 1.0, 4.0 / 3.0, 2.16] {
                 for sample in 0..<48 {
                     let time = scene.score.duration * Double(sample) / 48
@@ -254,7 +255,7 @@ final class DayObjectChoreographyTests: XCTestCase {
         ]
         for seed in UInt64(0)..<8 {
             for region in regions {
-                var input = fixtureInput(seed: seed, count: 40)
+                var input = fixtureInput(seed: seed, count: 10)
                 input = DayObjectSceneInput(
                     dayKey: input.dayKey,
                     identity: input.identity,
@@ -303,7 +304,7 @@ final class DayObjectChoreographyTests: XCTestCase {
 
         for seed in UInt64(0)..<8 {
             for region in regions {
-                var input = fixtureInput(seed: seed, count: 40)
+                var input = fixtureInput(seed: seed, count: 10)
                 input = DayObjectSceneInput(
                     dayKey: input.dayKey,
                     identity: input.identity,
@@ -372,8 +373,8 @@ final class DayObjectChoreographyTests: XCTestCase {
 
     func testAtLeastFiftyFivePercentOfActorsStayVisibleAcrossSampledScores() {
         for seed in UInt64(0)..<48 {
-            let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 40))
-            XCTAssertEqual(scene.actors.count, 40)
+            let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 10))
+            XCTAssertEqual(scene.actors.count, 10)
 
             for sample in 0..<96 {
                 let time = scene.score.duration * Double(sample) / 96
@@ -393,7 +394,7 @@ final class DayObjectChoreographyTests: XCTestCase {
     }
 
     func testTangentFollowsActualTravelInBothDirections() {
-        let scene = DayObjectScene.make(input: fixtureInput(seed: 19, count: 40))
+        let scene = DayObjectScene.make(input: fixtureInput(seed: 19, count: 10))
         var sawPositiveX = false
         var sawNegativeX = false
 
@@ -419,7 +420,7 @@ final class DayObjectChoreographyTests: XCTestCase {
     }
 
     func testActorUploadPreservesActualTimeDerivativeInBothDirections() throws {
-        let scene = DayObjectScene.make(input: fixtureInput(seed: 19, count: 40))
+        let scene = DayObjectScene.make(input: fixtureInput(seed: 19, count: 10))
         let environment = DayObjectEnvironment(
             motionEnergy: 1,
             visualClarity: 1,

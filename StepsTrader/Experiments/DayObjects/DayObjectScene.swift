@@ -1,12 +1,14 @@
 import Foundation
 
 struct DayObjectScene: Equatable {
-    static let maxActors = 40
+    static let maxActors = 10
 
     let input: DayObjectSceneInput
     let rootSeed: UInt64
     let composition: DayObjectComposition
     let compositionPlan: DayObjectCompositionPlan
+    let paletteSet: DayObjectPaletteSet
+    let visualLanguage: DayObjectVisualLanguage
     let palette: DayObjectPalette
     let radialFillStyle: DayObjectRadialFillStyle
     let meshGradientStyle: DayObjectMeshGradientStyle
@@ -18,13 +20,15 @@ struct DayObjectScene: Equatable {
     func replacingActors(_ actors: [DayObjectActor]) -> DayObjectScene {
         precondition(
             actors.count <= Self.maxActors,
-            "Day Objects transition admission exceeded the 40-actor render capacity"
+            "Day Objects transition admission exceeded the ten-actor render capacity"
         )
         return DayObjectScene(
             input: input,
             rootSeed: rootSeed,
             composition: composition,
             compositionPlan: compositionPlan,
+            paletteSet: paletteSet,
+            visualLanguage: visualLanguage,
             palette: palette,
             radialFillStyle: radialFillStyle,
             meshGradientStyle: meshGradientStyle,
@@ -48,30 +52,43 @@ struct DayObjectScene: Equatable {
             seed: rootSeed,
             uiExclusionRegion: input.uiExclusionRegion
         )
-        let palette = DayObjectPalette.make(
-            seed: rootSeed,
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: rootSeed,
             categories: input.paletteCategories
+        )
+        let visualLanguage = DayObjectVisualLanguage.make(
+            rootSeed: rootSeed,
+            paletteSet: paletteSet
+        )
+        let palette = DayObjectPalette.make(modernPalette: paletteSet.background)
+        let primaryObjectPalette = DayObjectPalette.make(
+            modernPalette: paletteSet.primaryObjects
         )
         let radialFillStyle = DayObjectRadialFillStyle.make(
             seed: rootSeed,
-            palette: palette,
+            palette: primaryObjectPalette,
             colorCount: composition.fill.colorCount
         )
         let meshGradientStyle = DayObjectMeshGradientStyle.make(seed: rootSeed, palette: palette)
         let score = DayObjectChoreographyScore.make(seed: rootSeed)
 
-        var actorIDs = Set<DayObjectActorID>()
+        let eventIDs = Array(chronologicalUniqueEventIDs(from: input.eventIDs).prefix(maxActors))
+        let appearances = visualLanguage.appearances(
+            eventIDs: eventIDs,
+            rootSeed: rootSeed
+        )
         var actors = [DayObjectActor]()
         actors.reserveCapacity(maxActors)
 
-        for eventID in chronologicalUniqueEventIDs(from: input.eventIDs) {
-            for memberIndex in 0..<composition.flockSize where actors.count < maxActors {
-                let id = DayObjectActorID(eventID: eventID, memberIndex: memberIndex)
-                guard actorIDs.insert(id).inserted else { continue }
-                actors.append(makeActor(id: id, input: input, composition: composition))
-            }
-
-            guard actors.count < maxActors else { break }
+        for eventID in eventIDs {
+            guard let appearance = appearances[eventID] else { continue }
+            let id = DayObjectActorID(eventID: eventID, memberIndex: 0)
+            actors.append(makeActor(
+                id: id,
+                input: input,
+                composition: composition,
+                appearance: appearance
+            ))
         }
 
         return DayObjectScene(
@@ -79,6 +96,8 @@ struct DayObjectScene: Equatable {
             rootSeed: rootSeed,
             composition: composition,
             compositionPlan: compositionPlan,
+            paletteSet: paletteSet,
+            visualLanguage: visualLanguage,
             palette: palette,
             radialFillStyle: radialFillStyle,
             meshGradientStyle: meshGradientStyle,
@@ -113,7 +132,8 @@ struct DayObjectScene: Equatable {
     private static func makeActor(
         id: DayObjectActorID,
         input: DayObjectSceneInput,
-        composition: DayObjectComposition
+        composition: DayObjectComposition,
+        appearance: DayObjectAppearance
     ) -> DayObjectActor {
         let actorIdentity = "\(input.identity.utf8.count):\(input.identity):\(id.eventID.utf8.count):\(id.eventID)"
         let seed = CanvasElement.makeSeed(
@@ -137,6 +157,7 @@ struct DayObjectScene: Equatable {
         return DayObjectActor(
             id: id,
             seed: seed,
+            appearance: appearance,
             role: role,
             shape: composition.shape,
             elongation: composition.elongation,

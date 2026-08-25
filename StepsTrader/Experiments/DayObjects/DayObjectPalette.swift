@@ -98,6 +98,15 @@ struct DayObjectPalette: Equatable {
         categories: Set<ModernPaletteCategory> = []
     ) -> DayObjectPalette {
         let colors = selectedColors(seed: seed, categories: categories)
+        return make(colors: colors)
+    }
+
+    static func make(modernPalette: ModernPalette) -> DayObjectPalette {
+        make(colors: modernPalette.hexes.map(DayObjectRGB.init(hex:)))
+    }
+
+    private static func make(colors: [DayObjectRGB]) -> DayObjectPalette {
+        precondition(colors.count >= 3, "Day Objects palettes require at least three colors")
         let baseIndex = colors.indices.min {
             relativeLuminance(colors[$0].linearRGB) < relativeLuminance(colors[$1].linearRGB)
         } ?? colors.startIndex

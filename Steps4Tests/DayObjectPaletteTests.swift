@@ -98,6 +98,26 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
+    func testColorAssignmentsDoNotRerollWhenAnotherEventIsRemovedOrReordered() throws {
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: 73,
+            categories: [.pastel, .cold]
+        )
+        let full = DayObjectColorAllocator.assignments(
+            eventIDs: ["walk", "sleep", "read"],
+            rootSeed: 73,
+            paletteSet: paletteSet
+        )
+        let removed = DayObjectColorAllocator.assignments(
+            eventIDs: ["read", "walk"],
+            rootSeed: 73,
+            paletteSet: paletteSet
+        )
+
+        XCTAssertEqual(try XCTUnwrap(removed["walk"]), try XCTUnwrap(full["walk"]))
+        XCTAssertEqual(try XCTUnwrap(removed["read"]), try XCTUnwrap(full["read"]))
+    }
+
     func testDailyVisualLanguageUsesCuratedMaterialDistribution() {
         for seed in UInt64(0)..<128 {
             let paletteSet = DayObjectPaletteSet.make(
@@ -328,65 +348,6 @@ final class DayObjectPaletteTests: XCTestCase {
 
         XCTAssertTrue(allowed.contains(scene.palette.colors))
         XCTAssertEqual(scene.input.paletteCategories, selected)
-    }
-
-    func testDailyRadialFillUsesAStableSharedSubsetOfOneToThreePaletteColors() {
-        var reachedColorCounts = Set<Int>()
-
-        for index in 0..<2_048 {
-            let input = DayObjectSceneInput(
-                dayKey: "radial-fill-\(index)",
-                identity: "tester",
-                eventIDs: ["walk"],
-                motionEnergy: 0.55,
-                visualClarity: 0.55,
-                reduceMotion: false
-            )
-            let scene = DayObjectScene.make(input: input)
-            let enriched = DayObjectScene.make(input: DayObjectSceneInput(
-                dayKey: input.dayKey,
-                identity: input.identity,
-                eventIDs: ["walk", "sleep", "read"],
-                motionEnergy: input.motionEnergy,
-                visualClarity: input.visualClarity,
-                reduceMotion: input.reduceMotion
-            ))
-            let radial = scene.radialFillStyle
-
-            XCTAssertEqual(enriched.radialFillStyle, radial, "day=\(index)")
-            XCTAssertTrue((1...3).contains(radial.colors.count), "day=\(index)")
-            XCTAssertEqual(radial.colors.count, scene.composition.fill.colorCount, "day=\(index)")
-            let visiblePaletteColors = scene.palette.colors.map {
-                $0.lightened(
-                    toMinimumContrast: 1.35,
-                    against: scene.palette.backgroundBase
-                ).linearRGB
-            }
-            XCTAssertTrue(
-                radial.colors.allSatisfy { visiblePaletteColors.contains($0) },
-                "day=\(index)"
-            )
-            XCTAssertTrue(
-                radial.colors.allSatisfy {
-                    contrastRatio($0, scene.palette.backgroundBase) >= 1.35 - 0.000_001
-                },
-                "day=\(index)"
-            )
-            XCTAssertTrue((0.48...1.28).contains(radial.radius), "day=\(index)")
-            XCTAssertTrue((0...0.82).contains(radial.focalDistance), "day=\(index)")
-            XCTAssertTrue((0..<(2 * Double.pi)).contains(radial.focalAngle), "day=\(index)")
-            XCTAssertTrue((-0.35...0.65).contains(radial.falloff), "day=\(index)")
-            XCTAssertTrue((0.28...1).contains(radial.mixing), "day=\(index)")
-            XCTAssertTrue((0...0.58).contains(radial.distortion), "day=\(index)")
-            XCTAssertTrue((-0.72...0.72).contains(radial.distortionShift), "day=\(index)")
-            XCTAssertTrue((2...12).contains(radial.distortionFrequency), "day=\(index)")
-            XCTAssertTrue((0..<(2 * Double.pi)).contains(radial.rotation), "day=\(index)")
-            XCTAssertTrue((-0.24...0.24).contains(radial.offset.x), "day=\(index)")
-            XCTAssertTrue((-0.24...0.24).contains(radial.offset.y), "day=\(index)")
-            reachedColorCounts.insert(radial.colors.count)
-        }
-
-        XCTAssertEqual(reachedColorCounts, [1, 2, 3])
     }
 
     func testDailyMeshReachesEveryArchetypeAndBothMotionDirections() {

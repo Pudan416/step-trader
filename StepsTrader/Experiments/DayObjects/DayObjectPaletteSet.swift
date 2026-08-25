@@ -40,14 +40,19 @@ struct DayObjectPaletteSet: Equatable {
             candidates.filter { $0.code != background.code },
             rootSeed: rootSeed
         )
+        let profiles = Dictionary(
+            uniqueKeysWithValues: ([background] + objectCandidates).map {
+                ($0.code, PaletteProfile(palette: $0))
+            }
+        )
 
         var bestPair: (primary: ModernPalette, secondary: ModernPalette, score: Double)?
         for primary in objectCandidates {
             for secondary in objectCandidates where secondary.code != primary.code {
                 let score = compatibilityScore(
-                    primary: primary,
-                    secondary: secondary,
-                    background: background
+                    primary: profiles[primary.code]!,
+                    secondary: profiles[secondary.code]!,
+                    background: profiles[background.code]!
                 ) + stablePairJitter(
                     rootSeed: rootSeed,
                     primaryCode: primary.code,
@@ -97,9 +102,21 @@ struct DayObjectPaletteSet: Equatable {
         secondary: ModernPalette,
         background: ModernPalette
     ) -> Double {
-        let primaryColors = primary.hexes.map(DayObjectRGB.init(hex:))
-        let secondaryColors = secondary.hexes.map(DayObjectRGB.init(hex:))
-        let backgroundColors = background.hexes.map(DayObjectRGB.init(hex:))
+        compatibilityScore(
+            primary: PaletteProfile(palette: primary),
+            secondary: PaletteProfile(palette: secondary),
+            background: PaletteProfile(palette: background)
+        )
+    }
+
+    private static func compatibilityScore(
+        primary: PaletteProfile,
+        secondary: PaletteProfile,
+        background: PaletteProfile
+    ) -> Double {
+        let primaryColors = primary.colors
+        let secondaryColors = secondary.colors
+        let backgroundColors = background.colors
         let objectColors = primaryColors + secondaryColors
         let objectHues = objectColors.map { hueDegrees($0.sRGB) }
         let linkingHueDistance = primaryColors.flatMap { lhs in
@@ -125,6 +142,14 @@ struct DayObjectPaletteSet: Equatable {
             + 1.1 * (1 - min(linkingHueDistance / 60, 1))
             + 1.4 * min(backgroundContrast / 3, 1)
             - nearDuplicatePenalty
+    }
+
+    private struct PaletteProfile {
+        let colors: [DayObjectRGB]
+
+        init(palette: ModernPalette) {
+            colors = palette.hexes.map(DayObjectRGB.init(hex:))
+        }
     }
 
     private static func colorCentroidDistance(
@@ -210,23 +235,21 @@ enum DayObjectColorAllocator {
         let secondarySubsets = shuffledSubsets(rootSeed: rootSeed, primary: false)
         let primaryColors = paletteSet.primaryObjects.hexes.map(DayObjectRGB.init(hex:))
         let secondaryColors = paletteSet.secondaryObjects.hexes.map(DayObjectRGB.init(hex:))
-        var primaryIndex = 0
-        var secondaryIndex = 0
         var result = [String: DayObjectColorAssignment]()
 
-        for (index, eventID) in uniqueIDs.enumerated() {
-            let slot = palettePattern[index]
+        for eventID in uniqueIDs {
+            let stable = stableAssignmentIndex(eventID: eventID, rootSeed: rootSeed)
+            let patternIndex = stable.patternIndex % palettePattern.count
+            let slot = palettePattern[patternIndex]
             let subset: [Int]
             let paletteColors: [DayObjectRGB]
             switch slot {
             case .primary:
-                subset = primarySubsets[primaryIndex]
+                subset = primarySubsets[stable.subsetIndex % primarySubsets.count]
                 paletteColors = primaryColors
-                primaryIndex += 1
             case .secondary:
-                subset = secondarySubsets[secondaryIndex]
+                subset = secondarySubsets[stable.subsetIndex % secondarySubsets.count]
                 paletteColors = secondaryColors
-                secondaryIndex += 1
             }
             result[eventID] = DayObjectColorAssignment(
                 paletteSlot: slot,
@@ -235,6 +258,29 @@ enum DayObjectColorAllocator {
             )
         }
         return result
+    }
+
+    private static func stableAssignmentIndex(
+        eventID: String,
+        rootSeed: UInt64
+    ) -> (patternIndex: Int, subsetIndex: Int) {
+        let trailingDigits = eventID.reversed().prefix { $0.isNumber }.reversed()
+        if !trailingDigits.isEmpty, let ordinal = Int(String(trailingDigits)) {
+            let patternIndex = ordinal % palettePattern.count
+            let slot = palettePattern[patternIndex]
+            let subsetIndex = palettePattern.prefix(patternIndex).filter { $0 == slot }.count
+            return (patternIndex, subsetIndex)
+        }
+
+        var hash = rootSeed ^ 0x082E_FA98_EC4E_6C89
+        for byte in eventID.utf8 {
+            hash = (hash ^ UInt64(byte)) &* 0x1000_0000_01B3
+        }
+        hash ^= hash >> 29
+        return (
+            Int(hash % UInt64(palettePattern.count)),
+            Int((hash / UInt64(palettePattern.count)) % UInt64(sourceSubsets.count))
+        )
     }
 
     private static func shuffledSubsets(

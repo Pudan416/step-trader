@@ -36,8 +36,46 @@ final class DayObjectSceneTests: XCTestCase {
         let duplicateScene = DayObjectScene.make(input: input(duplicateIDs))
 
         XCTAssertEqual(duplicateScene.actors, uniqueScene.actors)
-        XCTAssertLessThanOrEqual(duplicateScene.actors.count, 40)
+        XCTAssertEqual(duplicateScene.actors.count, 10)
+        XCTAssertEqual(DayObjectScene.maxActors, 10)
         XCTAssertEqual(Set(duplicateScene.actorIDs).count, duplicateScene.actors.count)
+    }
+
+    func testSceneOwnsThreeDailyPalettesAndOneAppearancePerActor() {
+        let scene = DayObjectScene.make(input: .init(
+            dayKey: "2026-08-20",
+            identity: "tester",
+            eventIDs: (0..<10).map { "event-\($0)" },
+            motionEnergy: 0.55,
+            visualClarity: 0.55,
+            reduceMotion: false,
+            paletteCategories: [.pastel, .cold]
+        ))
+
+        XCTAssertEqual(
+            Set([
+                scene.paletteSet.background.code,
+                scene.paletteSet.primaryObjects.code,
+                scene.paletteSet.secondaryObjects.code,
+            ]).count,
+            3
+        )
+        XCTAssertEqual(scene.visualLanguage.paletteSet, scene.paletteSet)
+        XCTAssertEqual(
+            scene.palette.colors,
+            scene.paletteSet.background.hexes.map(DayObjectRGB.init(hex:))
+        )
+        XCTAssertEqual(scene.actors.count, 10)
+        XCTAssertEqual(
+            scene.actors.map(\.appearance),
+            scene.actors.compactMap {
+                scene.visualLanguage.appearances(
+                    eventIDs: scene.input.eventIDs,
+                    rootSeed: scene.rootSeed
+                )[$0.eventID]
+            }
+        )
+        XCTAssertTrue(scene.actors.allSatisfy { $0.id.memberIndex == 0 })
     }
 
     func testOneUniqueHappeningProducesOneStableOrb() {

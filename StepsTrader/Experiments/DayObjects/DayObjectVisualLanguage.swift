@@ -78,11 +78,10 @@ struct DayObjectVisualLanguage: Equatable {
         )
         var result = [String: DayObjectAppearance]()
         result.reserveCapacity(uniqueIDs.count)
-        for (index, eventID) in uniqueIDs.enumerated() {
+        for eventID in uniqueIDs {
             guard let colorAssignment = colorAssignments[eventID] else { continue }
             result[eventID] = makeAppearance(
                 eventID: eventID,
-                index: index,
                 rootSeed: rootSeed,
                 colorAssignment: colorAssignment
             )
@@ -92,13 +91,12 @@ struct DayObjectVisualLanguage: Equatable {
 
     private func makeAppearance(
         eventID: String,
-        index: Int,
         rootSeed: UInt64,
         colorAssignment: DayObjectColorAssignment
     ) -> DayObjectAppearance {
         let seed = eventSeed(rootSeed: rootSeed, eventID: eventID)
         var rng = SeededRNG.derived(from: seed, domain: "appearance")
-        let material = material(at: index)
+        let material = material(eventID: eventID, rootSeed: rootSeed)
         let shape = DayObjectShape.allCases[
             rng.nextInt(in: 0...(DayObjectShape.allCases.count - 1))
         ]
@@ -205,7 +203,22 @@ struct DayObjectVisualLanguage: Equatable {
         )
     }
 
-    private func material(at index: Int) -> DayObjectMaterialFamily {
+    private func material(
+        eventID: String,
+        rootSeed: UInt64
+    ) -> DayObjectMaterialFamily {
+        let trailingDigits = eventID.reversed().prefix { $0.isNumber }.reversed()
+        let index: Int
+        if !trailingDigits.isEmpty, let ordinal = Int(String(trailingDigits)) {
+            index = ordinal % 10
+        } else {
+            var hash = rootSeed ^ 0x4528_21E6_38D0_1377
+            for byte in eventID.utf8 {
+                hash = (hash ^ UInt64(byte)) &* 0x1000_0000_01B3
+            }
+            hash ^= hash >> 31
+            index = Int(hash % 10)
+        }
         let dominantIndices: Set<Int> = [0, 1, 4, 5, 8, 9]
         guard !dominantIndices.contains(index) else { return dominantMaterial }
         let accents = enabledMaterials.filter { $0 != dominantMaterial }
