@@ -220,6 +220,71 @@ struct DayObjectsPostUniforms: Equatable {
 
 }
 
+/// One immutable daily glitch band in the exact layout consumed by Metal.
+struct DayObjectsGlitchBandUniform: Equatable {
+    static let metalAlignment = 16
+    static let metalStride = 32
+
+    let geometry: SIMD4<Float>
+    let motion: SIMD4<Float>
+
+    init(_ band: DayObjectGlitchBand) {
+        geometry = SIMD4(
+            Float(band.centerY),
+            Float(band.halfHeight),
+            Float(band.displacementScale),
+            Float(band.activationThreshold)
+        )
+        motion = SIMD4(
+            Float(band.displacementDirection),
+            Float(band.rgbDirection),
+            Float(band.phaseOffset),
+            0
+        )
+    }
+}
+
+/// Per-frame cumulative digital-impact values for the final display pass.
+struct DayObjectsGlitchUniforms: Equatable {
+    static let metalAlignment = 16
+    static let metalStride = 48
+    static let maximumDisplacementPixels: Float = 42
+    static let maximumColorShiftPixels: Float = 14
+    static let maximumScanLineStrength: Float = 0.35
+
+    let levels: SIMD4<Float>
+    let rendering: SIMD4<Float>
+    let metadata: SIMD4<UInt32>
+
+    init(
+        impact: DayObjectDigitalImpact,
+        elapsedTime: TimeInterval,
+        reduceMotion: Bool,
+        seed: UInt64
+    ) {
+        levels = SIMD4(
+            Float(impact.damage),
+            Float(impact.scarStrength),
+            Float(impact.signalCorruption),
+            Float(impact.ambientMotion)
+        )
+        let elapsed = elapsedTime.isFinite ? max(elapsedTime, 0) : 0
+        rendering = SIMD4(
+            reduceMotion ? 0 : Float(elapsed),
+            Self.maximumDisplacementPixels,
+            Self.maximumColorShiftPixels,
+            Self.maximumScanLineStrength
+        )
+        let foldedSeed = seed ^ (seed >> 32)
+        metadata = SIMD4(
+            UInt32(truncatingIfNeeded: foldedSeed),
+            UInt32(DayObjectGlitchLayout.bandCount),
+            reduceMotion ? 1 : 0,
+            0
+        )
+    }
+}
+
 /// A depth-sorted frame snapshot ready for a single instanced actor draw.
 struct DayObjectsActorUpload: Equatable {
     let actors: [DayObjectGPUActor]
@@ -751,6 +816,9 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
 
     private var scene: DayObjectScene
     private var environment: DayObjectEnvironment
+    private var digitalImpact: DayObjectDigitalImpact
+    private var glitchBandSeed: UInt64
+    private var glitchBandUniforms: [DayObjectsGlitchBandUniform]
     private var insertionTimeline: DayObjectInsertionTimeline
     private var attemptedTargetPlan: DayObjectsRenderTargetPlan?
     private var renderTargets: RenderTargets?
@@ -781,7 +849,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         actorBufferRing: DayObjectsActorBufferRing,
         clock: DayObjectsClock,
         scene: DayObjectScene,
-        environment: DayObjectEnvironment
+        environment: DayObjectEnvironment,
+        digitalImpact: DayObjectDigitalImpact
     ) {
         self.device = device
         self.commandQueue = commandQueue
@@ -797,6 +866,11 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         self.clock = clock
         self.scene = scene
         self.environment = environment
+        self.digitalImpact = digitalImpact
+        glitchBandSeed = scene.rootSeed
+        glitchBandUniforms = DayObjectGlitchLayout.make(seed: scene.rootSeed).bands.map(
+            DayObjectsGlitchBandUniform.init
+        )
         insertionTimeline = DayObjectInsertionTimeline(scene: scene)
         super.init()
     }
@@ -804,6 +878,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     static func create(
         scene: DayObjectScene,
         environment: DayObjectEnvironment,
+        digitalImpact: DayObjectDigitalImpact = .none,
         clock: DayObjectsClock = DayObjectsClock()
     ) -> DayObjectsRenderer? {
         guard let device = MTLCreateSystemDefaultDevice(),
@@ -916,14 +991,26 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             actorBufferRing: actorBufferRing,
             clock: clock,
             scene: scene,
-            environment: environment
+            environment: environment,
+            digitalImpact: digitalImpact
         )
     }
 
-    func update(scene: DayObjectScene, environment: DayObjectEnvironment) {
+    func update(
+        scene: DayObjectScene,
+        environment: DayObjectEnvironment,
+        digitalImpact: DayObjectDigitalImpact = .none
+    ) {
         insertionTimeline.update(scene: scene, elapsed: clock.elapsedTime)
+        if scene.rootSeed != glitchBandSeed {
+            glitchBandSeed = scene.rootSeed
+            glitchBandUniforms = DayObjectGlitchLayout.make(seed: scene.rootSeed).bands.map(
+                DayObjectsGlitchBandUniform.init
+            )
+        }
         self.scene = scene
         self.environment = environment
+        self.digitalImpact = digitalImpact
     }
 
     func setAnimating(_ isAnimating: Bool) {
@@ -1116,6 +1203,25 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             length: MemoryLayout<DayObjectsPostUniforms>.stride,
             index: 0
         )
+        var glitchUniforms = DayObjectsGlitchUniforms(
+            impact: digitalImpact,
+            elapsedTime: elapsedTime,
+            reduceMotion: environment.reduceMotion,
+            seed: renderScene.rootSeed
+        )
+        presentEncoder.setFragmentBytes(
+            &glitchUniforms,
+            length: MemoryLayout<DayObjectsGlitchUniforms>.stride,
+            index: 1
+        )
+        glitchBandUniforms.withUnsafeBytes { bytes in
+            guard let baseAddress = bytes.baseAddress else { return }
+            presentEncoder.setFragmentBytes(
+                baseAddress,
+                length: bytes.count,
+                index: 2
+            )
+        }
         presentEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         presentEncoder.endEncoding()
 

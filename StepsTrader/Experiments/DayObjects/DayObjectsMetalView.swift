@@ -4,10 +4,15 @@ import SwiftUI
 struct DayObjectsMetalView: UIViewRepresentable {
     let scene: DayObjectScene
     let environment: DayObjectEnvironment
+    let digitalImpact: DayObjectDigitalImpact
     let isAnimating: Bool
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(scene: scene, environment: environment)
+        Coordinator(
+            scene: scene,
+            environment: environment,
+            digitalImpact: digitalImpact
+        )
     }
 
     func makeUIView(context: Context) -> MTKView {
@@ -40,7 +45,11 @@ struct DayObjectsMetalView: UIViewRepresentable {
             return
         }
 
-        renderer.update(scene: scene, environment: environment)
+        renderer.update(
+            scene: scene,
+            environment: environment,
+            digitalImpact: digitalImpact
+        )
         renderer.setAnimating(isAnimating)
         uiView.enableSetNeedsDisplay = !isAnimating
         uiView.isPaused = !isAnimating
@@ -60,8 +69,16 @@ struct DayObjectsMetalView: UIViewRepresentable {
         let renderer: DayObjectsRenderer?
         weak var mtkView: MTKView?
 
-        init(scene: DayObjectScene, environment: DayObjectEnvironment) {
-            renderer = DayObjectsRenderer.create(scene: scene, environment: environment)
+        init(
+            scene: DayObjectScene,
+            environment: DayObjectEnvironment,
+            digitalImpact: DayObjectDigitalImpact
+        ) {
+            renderer = DayObjectsRenderer.create(
+                scene: scene,
+                environment: environment,
+                digitalImpact: digitalImpact
+            )
         }
     }
 }

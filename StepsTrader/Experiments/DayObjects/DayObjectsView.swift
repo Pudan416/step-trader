@@ -4,13 +4,19 @@ struct DayObjectsView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     let sceneInput: DayObjectSceneInput
+    let digitalImpact: DayObjectDigitalImpact
     let isAnimating: Bool
 
     private let scene: DayObjectScene
     private let environment: DayObjectEnvironment
 
-    init(sceneInput: DayObjectSceneInput, isAnimating: Bool = true) {
+    init(
+        sceneInput: DayObjectSceneInput,
+        digitalImpact: DayObjectDigitalImpact = .none,
+        isAnimating: Bool = true
+    ) {
         self.sceneInput = sceneInput
+        self.digitalImpact = digitalImpact
         self.isAnimating = isAnimating
         scene = DayObjectScene.make(input: sceneInput)
         environment = DayObjectEnvironment(
@@ -30,12 +36,14 @@ struct DayObjectsView: View {
             DayObjectsMetalView(
                 scene: scene,
                 environment: environment,
+                digitalImpact: digitalImpact,
                 isAnimating: isAnimating && scenePhase == .active
             )
         }
         .clipped()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Day Objects canvas")
+        .accessibilityValue("Spent colors \(digitalImpact.spentColors)")
         .accessibilityIdentifier("dayObjects.canvas")
     }
 
