@@ -98,6 +98,62 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
+    func testArbitraryEventIDsStillReceiveSixFourUniqueColorAssignments() {
+        let eventIDs = [
+            "id-0x", "id-1x", "id-2x", "id-4x", "id-8x",
+            "id-9x", "id-10x", "id-16x", "id-24x", "id-58x",
+        ]
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: 44,
+            categories: [.pastel, .cold, .warm]
+        )
+
+        let assignments = DayObjectColorAllocator.assignments(
+            eventIDs: eventIDs,
+            rootSeed: 44,
+            paletteSet: paletteSet
+        )
+        let values = eventIDs.compactMap { assignments[$0] }
+        let uniqueSubsets = Set(values.map {
+            "\($0.paletteSlot.rawValue):\($0.sourceIndices.sorted())"
+        })
+
+        XCTAssertEqual(values.filter { $0.paletteSlot == .primary }.count, 6)
+        XCTAssertEqual(values.filter { $0.paletteSlot == .secondary }.count, 4)
+        XCTAssertEqual(uniqueSubsets.count, 10)
+    }
+
+    func testAssignedObjectColorsRemainReadableAgainstTheRenderedBackgroundPalette() {
+        for seed in UInt64(0)..<128 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
+            let renderedBackground = DayObjectPalette.make(
+                modernPalette: paletteSet.background
+            )
+            let backgroundColors = [renderedBackground.backgroundBase]
+                + renderedBackground.backgroundFields
+            let assignments = DayObjectColorAllocator.assignments(
+                eventIDs: (0..<10).map { "uuid-\($0)-x" },
+                rootSeed: seed,
+                paletteSet: paletteSet
+            )
+
+            for assignment in assignments.values {
+                for color in assignment.colors {
+                    XCTAssertGreaterThanOrEqual(
+                        backgroundColors.map {
+                            contrastRatio(color.linearRGB, $0)
+                        }.min() ?? 0,
+                        1.35 - 0.000_001,
+                        "seed=\(seed) color=\(color.sRGB) background=\(backgroundColors)"
+                    )
+                }
+            }
+        }
+    }
+
     func testColorAssignmentsDoNotRerollWhenAnotherEventIsRemovedOrReordered() throws {
         let paletteSet = DayObjectPaletteSet.make(
             rootSeed: 73,
@@ -164,6 +220,29 @@ final class DayObjectPaletteTests: XCTestCase {
                 }
             }
         }
+    }
+
+    func testArbitraryEventIDsStillUseTheDailyMaterialDistribution() {
+        let eventIDs = [
+            "id-0x", "id-1x", "id-2x", "id-4x", "id-8x",
+            "id-9x", "id-10x", "id-16x", "id-24x", "id-58x",
+        ]
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: 44,
+            categories: [.pastel, .cold, .warm]
+        )
+        let language = DayObjectVisualLanguage.make(
+            rootSeed: 44,
+            paletteSet: paletteSet
+        )
+        let materials = eventIDs.compactMap {
+            language.appearances(eventIDs: eventIDs, rootSeed: 44)[$0]?.material
+        }
+        let dominantCount = materials.filter { $0 == language.dominantMaterial }.count
+
+        XCTAssertTrue((5...7).contains(dominantCount))
+        XCTAssertGreaterThanOrEqual(Set(materials).count, 3)
+        XCTAssertTrue(materials.allSatisfy(language.enabledMaterials.contains))
     }
 
     func testPerEventAppearancesAreStableBoundedAndVisuallyReachable() {

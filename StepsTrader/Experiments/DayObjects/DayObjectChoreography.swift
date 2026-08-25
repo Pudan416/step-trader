@@ -194,7 +194,9 @@ struct DayObjectChoreographyScore: Equatable {
             opacity: 0.62 + 0.38 * depth,
             depth: depth,
             depthBand: min(max(Int(depth * 4), 0), 3),
-            localDepthSoftness: 0.008 + 0.055 * depth,
+            // Distant actors lose high-frequency definition while near actors
+            // remain crisp. The per-material softness is added in the shader.
+            localDepthSoftness: 0.008 + 0.18 * (1 - depth),
             materialPhase: normalizedPhase(
                 actor.appearance.radialPhase + time / 120
             ),
@@ -236,22 +238,28 @@ struct DayObjectChoreographyScore: Equatable {
             }
             let envelope = encounterEnvelope(for: actor.encounter, at: time)
             guard envelope > 0 else { return base }
-            let angle = Double(actor.encounter.channel) * 2 * Double.pi / 3 + 0.35
-            let sign = encounterSide(for: actor)
-            let target = compositionPlan.distributedRoutePosition(
-                sector: actor.route.sector,
-                actorSeed: actor.seed,
-                localPosition: SIMD2(cos(angle), sin(angle))
-                    * (renderDiameter(for: actor, compositionPlan: compositionPlan) * 0.42 * sign),
-                footprintReach: planningReach,
+            let memberCount = max(actor.encounter.memberCount, 2)
+            let memberAngle = Double(actor.encounter.memberOrdinal)
+                * 2 * Double.pi / Double(memberCount)
+            let bodyRadius = encounterBodyRadius(
+                for: actor,
+                at: time,
+                compositionPlan: compositionPlan
+            )
+            let ringDenominator = max(sin(Double.pi / Double(memberCount)), 0.35)
+            let ringRadius = bodyRadius
+                * (1 - actor.encounter.overlapFraction)
+                / ringDenominator
+            let rawTarget = compositionPlan.encounterCenter(
+                channel: actor.encounter.channel,
+                canvasAspect: canvasAspect
+            ) + SIMD2(cos(memberAngle), sin(memberAngle)) * ringRadius
+            let target = compositionPlan.constrainedPosition(
+                rawTarget,
+                footprintHalfExtents: SIMD2(repeating: planningReach),
                 canvasAspect: canvasAspect
             )
-            let displacement = target - base
-            let distance = simd_length(displacement)
-            let boundedTarget = distance > 0.18
-                ? base + displacement / distance * 0.18
-                : target
-            return base + (boundedTarget - base) * envelope
+            return base + (target - base) * envelope
         }
         return unplannedPosition(for: actor, at: time, canvasAspect: canvasAspect)
     }
@@ -274,13 +282,6 @@ struct DayObjectChoreographyScore: Equatable {
             return smoothstep((1 - progress) / 0.25)
         }
         return 1
-    }
-
-    private func encounterSide(for actor: DayObjectActor) -> Double {
-        if let suffix = Int(actor.eventID.split(separator: "-").last ?? "") {
-            return suffix.isMultiple(of: 2) ? -1 : 1
-        }
-        return actor.seed.isMultiple(of: 2) ? -1 : 1
     }
 
     private func smoothstep(_ rawValue: Double) -> Double {
@@ -338,6 +339,28 @@ struct DayObjectChoreographyScore: Equatable {
 
     private func baseDiameter(for actor: DayObjectActor) -> Double {
         0.16 + 0.035 * stableUnit(actor.seed, salt: 0xA409_3822_299F_31D0)
+    }
+
+    private func encounterBodyRadius(
+        for actor: DayObjectActor,
+        at time: Double,
+        compositionPlan: DayObjectCompositionPlan?
+    ) -> Double {
+        let depth = depthValue(for: actor, at: time)
+        let diameter = renderDiameter(for: actor, compositionPlan: compositionPlan)
+            * (0.75 + 0.50 * depth)
+        let halfSize = SIMD2<Double>(
+            diameter * 0.5,
+            diameter * 0.5 * DayObjectActorGeometry.aspectRatio(for: actor)
+        )
+        let footprint = DayObjectGeometryFootprint.make(
+            halfSize: halfSize,
+            direction: SIMD2(1, 0),
+            shape: actor.appearance.shape,
+            trailLength: 0.008,
+            shortSidePixels: 128
+        )
+        return max(footprint.forwardReach, footprint.lateralReach)
     }
 
     private func depthValue(for actor: DayObjectActor, at time: Double) -> Double {

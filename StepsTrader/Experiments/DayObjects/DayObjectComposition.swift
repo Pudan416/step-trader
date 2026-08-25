@@ -182,6 +182,25 @@ struct DayObjectCompositionPlan: Equatable {
         return anchorPosition + rawPosition * 0.52
     }
 
+    func encounterCenter(channel: Int, canvasAspect rawAspect: Double) -> SIMD2<Double> {
+        let span = canvasSpan(for: rawAspect)
+        // Each time-staggered pair meets inside one of the distributed lanes
+        // it already owns. A brief overlap therefore does not collapse the
+        // rest of the canvas into a single central pile.
+        let centers = [
+            SIMD2<Double>(0.50, 0.25),
+            SIMD2<Double>(0.32, 0.25),
+            SIMD2<Double>(0.32, 0.38),
+            SIMD2<Double>(0.68, 0.38),
+            SIMD2<Double>(0.68, 0.25),
+        ]
+        let normalized = centers[((channel % centers.count) + centers.count) % centers.count]
+        return SIMD2(
+            (normalized.x - 0.5) * span.x,
+            (0.5 - normalized.y) * span.y
+        )
+    }
+
     /// Selects one time-independent route center for an actor, then deforms
     /// the raw choreography continuously within the clearance around it. The
     /// finite candidate set is created with the daily plan; only a small,

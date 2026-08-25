@@ -71,6 +71,23 @@ final class DayObjectChoreographyTests: XCTestCase {
         }
     }
 
+    func testArbitraryEventIDsStillReceiveDistributedRoutesAndBothDirections() {
+        var idsByPreferredSector = [Int: [String]]()
+        for index in 0..<1_000 {
+            let eventID = "uuid-like-\(index)-x"
+            let route = DayObjectMotionPlan.make(
+                rootSeed: 44,
+                eventIDs: [eventID]
+            ).routes[eventID]!
+            idsByPreferredSector[route.sector, default: []].append(eventID)
+        }
+        let eventIDs = Array(idsByPreferredSector.values.first { $0.count >= 10 }!.prefix(10))
+        let plan = DayObjectMotionPlan.make(rootSeed: 44, eventIDs: eventIDs)
+
+        XCTAssertGreaterThanOrEqual(Set(plan.routes.values.map(\.sector)).count, 5)
+        XCTAssertEqual(Set(plan.routes.values.map(\.direction)), [-1, 1])
+    }
+
     func testRepresentativeSceneContainsBothTravelDirections() {
         let scene = DayObjectScene.make(input: fixtureInput(seed: 19, count: 10))
         XCTAssertEqual(Set(scene.actors.map { scene.score.travelDirection(for: $0) }), [-1, 1])
@@ -133,6 +150,44 @@ final class DayObjectChoreographyTests: XCTestCase {
         XCTAssertTrue(sawSeparatedFrame)
     }
 
+    func testSoftEncounterChannelConvergesOnItsDeclaredSharedOverlap() throws {
+        let scene = try XCTUnwrap((UInt64(0)..<256).lazy.map {
+            DayObjectScene.make(input: self.fixtureInput(seed: $0, count: 10))
+        }.first { scene in
+            scene.motionPlan.family == .softEncounters
+                && Dictionary(grouping: scene.actors, by: { $0.encounter.channel })
+                    .values.contains { $0.count >= 2 }
+        })
+        let group = try XCTUnwrap(
+            Dictionary(grouping: scene.actors, by: { $0.encounter.channel })
+                .values.first { $0.count >= 2 }
+        )
+        let orderedGroup = group.sorted {
+            $0.encounter.memberOrdinal < $1.encounter.memberOrdinal
+        }
+        let lhsActor = orderedGroup[0]
+        let rhsActor = orderedGroup[1]
+        let encounter = lhsActor.encounter
+        let midpoint = (encounter.phase + encounter.durationFraction * 0.5) * 90
+        let lhs = scene.score.pose(
+            for: lhsActor, at: midpoint, canvasAspect: 1,
+            compositionPlan: scene.compositionPlan
+        )
+        let rhs = scene.score.pose(
+            for: rhsActor, at: midpoint, canvasAspect: 1,
+            compositionPlan: scene.compositionPlan
+        )
+        let overlap = max(
+            0,
+            1 - simd_distance(lhs.position, rhs.position)
+                / max(lhs.bodyRadius + rhs.bodyRadius, 0.000_001)
+        )
+
+        XCTAssertEqual(lhsActor.encounter.phase, rhsActor.encounter.phase)
+        XCTAssertEqual(lhsActor.encounter.overlapFraction, rhsActor.encounter.overlapFraction)
+        XCTAssertEqual(overlap, encounter.overlapFraction, accuracy: 0.10)
+    }
+
     func testDepthSchedulesAreContinuousAndMapNearMidFarAppearance() {
         let scene = DayObjectScene.make(input: fixtureInput(seed: 27, count: 10))
         XCTAssertTrue(scene.actors.allSatisfy { (60...140).contains($0.depthSchedule.period) })
@@ -149,7 +204,7 @@ final class DayObjectChoreographyTests: XCTestCase {
         let far = poses.min { $0.depth < $1.depth }!
         let near = poses.max { $0.depth < $1.depth }!
         XCTAssertGreaterThan(near.scale, far.scale)
-        XCTAssertGreaterThan(near.localDepthSoftness, far.localDepthSoftness)
+        XCTAssertGreaterThan(far.localDepthSoftness, near.localDepthSoftness)
         XCTAssertGreaterThan(near.opacity, far.opacity)
 
         for actor in scene.actors {

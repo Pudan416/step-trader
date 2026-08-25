@@ -83,7 +83,8 @@ struct DayObjectVisualLanguage: Equatable {
             result[eventID] = makeAppearance(
                 eventID: eventID,
                 rootSeed: rootSeed,
-                colorAssignment: colorAssignment
+                colorAssignment: colorAssignment,
+                material: material(eventID: eventID, rootSeed: rootSeed)
             )
         }
         return result
@@ -92,11 +93,11 @@ struct DayObjectVisualLanguage: Equatable {
     private func makeAppearance(
         eventID: String,
         rootSeed: UInt64,
-        colorAssignment: DayObjectColorAssignment
+        colorAssignment: DayObjectColorAssignment,
+        material: DayObjectMaterialFamily
     ) -> DayObjectAppearance {
         let seed = eventSeed(rootSeed: rootSeed, eventID: eventID)
         var rng = SeededRNG.derived(from: seed, domain: "appearance")
-        let material = material(eventID: eventID, rootSeed: rootSeed)
         let shape = DayObjectShape.allCases[
             rng.nextInt(in: 0...(DayObjectShape.allCases.count - 1))
         ]
@@ -207,29 +208,39 @@ struct DayObjectVisualLanguage: Equatable {
         eventID: String,
         rootSeed: UInt64
     ) -> DayObjectMaterialFamily {
-        let trailingDigits = eventID.reversed().prefix { $0.isNumber }.reversed()
-        let index: Int
-        if !trailingDigits.isEmpty, let ordinal = Int(String(trailingDigits)) {
-            index = ordinal % 10
-        } else {
-            var hash = rootSeed ^ 0x4528_21E6_38D0_1377
-            for byte in eventID.utf8 {
-                hash = (hash ^ UInt64(byte)) &* 0x1000_0000_01B3
-            }
-            hash ^= hash >> 31
-            index = Int(hash % 10)
-        }
-        let dominantIndices: Set<Int> = [0, 1, 4, 5, 8, 9]
-        guard !dominantIndices.contains(index) else { return dominantMaterial }
+        let index = materialIndex(eventID: eventID, rootSeed: rootSeed)
+        let dominantIndices: Set<Int> = [0, 2, 4, 6, 8, 9]
+        if dominantIndices.contains(index) { return dominantMaterial }
         let accents = enabledMaterials.filter { $0 != dominantMaterial }
-        let accentOrdinal: Int
-        switch index {
-        case 2: accentOrdinal = 0
-        case 3: accentOrdinal = 1
-        case 6: accentOrdinal = 2
-        default: accentOrdinal = 3
+        return accents[accentOrdinal(for: index) % accents.count]
+    }
+
+    private func materialIndex(eventID: String, rootSeed: UInt64) -> Int {
+        let trailingDigits = eventID.reversed().prefix { $0.isNumber }.reversed()
+        if !trailingDigits.isEmpty, let ordinal = Int(String(trailingDigits)) {
+            return ordinal % 10
         }
-        return accents[accentOrdinal % accents.count]
+
+        return Int(materialPriority(eventID, rootSeed: rootSeed) % 10)
+    }
+
+    private func accentOrdinal(for index: Int) -> Int {
+        switch index {
+        case 1: return 0
+        case 3: return 1
+        case 5: return 2
+        case 7: return 3
+        default: return 3
+        }
+    }
+
+    private func materialPriority(_ eventID: String, rootSeed: UInt64) -> UInt64 {
+        var hash = rootSeed ^ 0x4528_21E6_38D0_1377
+        for byte in eventID.utf8 {
+            hash = (hash ^ UInt64(byte)) &* 0x1000_0000_01B3
+        }
+        hash ^= hash >> 31
+        return hash
     }
 
     private func eventSeed(rootSeed: UInt64, eventID: String) -> UInt64 {

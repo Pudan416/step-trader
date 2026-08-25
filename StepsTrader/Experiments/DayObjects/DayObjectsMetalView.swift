@@ -14,7 +14,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
         let renderer = context.coordinator.renderer
         let view = MTKView(frame: .zero, device: renderer?.device)
         view.delegate = renderer
-        view.preferredFramesPerSecond = 30
+        Self.configureAnimationFrameRate(view)
         DayObjectsRenderer.configureDisplay(view)
         view.framebufferOnly = true
         view.enableSetNeedsDisplay = !isAnimating
@@ -28,6 +28,10 @@ struct DayObjectsMetalView: UIViewRepresentable {
         renderer?.setAnimating(isAnimating)
         context.coordinator.mtkView = view
         return view
+    }
+
+    static func configureAnimationFrameRate(_ view: MTKView) {
+        view.preferredFramesPerSecond = 60
     }
 
     func updateUIView(_ uiView: MTKView, context: Context) {

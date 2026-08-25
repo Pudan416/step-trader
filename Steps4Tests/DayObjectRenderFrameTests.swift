@@ -551,6 +551,14 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(readback.sRGBBytes, SIMD3<UInt8>(118, 188, 231))
     }
 
+    func testAnimatedMetalViewTargetsSixtyFramesPerSecond() {
+        let view = MTKView(frame: .zero)
+
+        DayObjectsMetalView.configureAnimationFrameRate(view)
+
+        XCTAssertEqual(view.preferredFramesPerSecond, 60)
+    }
+
     func testPostGPUDefocusesCompleteSceneMonotonicallyWhileGrainStaysSharp() throws {
         let scene = fixtureScene(ids: (0..<12).map { "gpu-event-\($0)" })
         let harness = try PostRenderHarness(width: 160, height: 112)
@@ -1586,7 +1594,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let rim = (x: 128, y: 80)
         let outside = (x: 134, y: 80)
 
-        XCTAssertGreaterThan(try XCTUnwrap(captures[.satin])[center.x, center.y], 0.65)
+        XCTAssertGreaterThan(try XCTUnwrap(captures[.satin])[center.x, center.y], 0.55)
         XCTAssertGreaterThan(
             try XCTUnwrap(captures[.innerGlow]).luminance(x: center.x, y: center.y),
             try XCTUnwrap(captures[.innerGlow]).luminance(x: rim.x, y: rim.y)
@@ -1622,6 +1630,111 @@ final class DayObjectRenderFrameTests: XCTestCase {
         for capture in captures.values {
             XCTAssertTrue(capture.isFinitePremultiplied)
         }
+    }
+
+    func testGlassSamplesBackgroundAtItsUnmirroredScreenPosition() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: SIMD2(0, 0.25),
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.22, 0.22),
+            opacity: 1,
+            trailLength: 0,
+            shape: 0,
+            appearanceIndex: 0,
+            depth: 0.5,
+            materialPhase: 0,
+            localDepthSoftness: 0
+        )
+        let glass = DayObjectGPUAppearance(
+            color0: .zero,
+            color1: .zero,
+            color2: .zero,
+            radial0: SIMD4(0, 0, 1, 0),
+            radial1: SIMD4(0.5, 0, 0, 2),
+            optical0: SIMD4(0, 0, 1, 1),
+            optical1: SIMD4(0, 0, 0, 0),
+            membrane: .zero,
+            light: .zero,
+            metadata: SIMD4(DayObjectMaterialFamily.glass.rawValue, 1, 2, 0)
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: glass,
+            topBackgroundColor: SIMD3(1, 0, 0),
+            bottomBackgroundColor: SIMD3(0, 0, 1)
+        )
+        let sampled = capture.color(x: 80, y: 60)
+
+        XCTAssertGreaterThan(sampled.x, sampled.z + 0.10)
+    }
+
+    func testCenterOpacityAndLocalAndSharedSoftnessChangeRenderedOrbs() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.34, 0.34),
+            opacity: 1,
+            trailLength: 0,
+            shape: 3,
+            appearanceIndex: 0,
+            depth: 0.5,
+            materialPhase: 0.38,
+            localDepthSoftness: 0
+        )
+        func appearance(centerOpacity: Float, localSoftness: Float) -> DayObjectGPUAppearance {
+            DayObjectGPUAppearance(
+                color0: SIMD4(0.95, 0.12, 0.25, 1),
+                color1: SIMD4(0.12, 0.80, 0.95, 1),
+                color2: SIMD4(0.75, 0.22, 0.95, 1),
+                radial0: SIMD4(0.28, 0.8, 0.92, 0.03),
+                radial1: SIMD4(0.78, 0.68, 0.22, 12),
+                optical0: SIMD4(0.35, 0.12, 1, centerOpacity),
+                optical1: SIMD4(0.25, 0, 0, localSoftness),
+                membrane: .zero,
+                light: SIMD4(0.9, 0, 0, 0),
+                metadata: SIMD4(DayObjectMaterialFamily.satin.rawValue, 3, 1, 0)
+            )
+        }
+
+        let opaqueCenter = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0),
+            backgroundColor: .zero
+        )
+        let translucentCenter = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 0.18, localSoftness: 0),
+            backgroundColor: .zero
+        )
+        XCTAssertGreaterThan(opaqueCenter[80, 80], translucentCenter[80, 80] + 0.35)
+
+        let soft = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0.85),
+            backgroundColor: .zero
+        )
+        XCTAssertGreaterThan(soft.partialAlphaPixelCount, opaqueCenter.partialAlphaPixelCount)
+        XCTAssertGreaterThan(
+            opaqueCenter.horizontalRGBVariation(y: 80, fromX: 40, throughX: 120),
+            soft.horizontalRGBVariation(y: 80, fromX: 40, throughX: 120) * 1.05
+        )
+
+        let hardLight = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0),
+            backgroundColor: .zero,
+            lightSoftness: 0.05
+        )
+        let softLight = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0),
+            backgroundColor: .zero,
+            lightSoftness: 0.95
+        )
+        XCTAssertGreaterThan(hardLight.meanAbsoluteRGBDifference(from: softLight), 0.002)
     }
 
     func testActorPipelineUsesPremultipliedAlphaAndExactShaderABI() throws {
@@ -1998,7 +2111,27 @@ private final class ActorRenderHarness {
     func render(
         actor: DayObjectGPUActor,
         appearance: DayObjectGPUAppearance,
-        backgroundColor: SIMD3<Float>
+        backgroundColor: SIMD3<Float>,
+        lightSoftness: Float = 0.6
+    ) throws -> ActorAlphaCapture {
+        let uniforms = DayObjectsActorUniforms(
+            resolution: SIMD2(Float(width), Float(height)),
+            visibleActorCount: 1,
+            lightSoftness: lightSoftness
+        )
+        return try render(
+            actors: [actor],
+            appearances: [appearance],
+            uniforms: uniforms,
+            backgroundColor: backgroundColor
+        )
+    }
+
+    func render(
+        actor: DayObjectGPUActor,
+        appearance: DayObjectGPUAppearance,
+        topBackgroundColor: SIMD3<Float>,
+        bottomBackgroundColor: SIMD3<Float>
     ) throws -> ActorAlphaCapture {
         let uniforms = DayObjectsActorUniforms(
             resolution: SIMD2(Float(width), Float(height)),
@@ -2008,7 +2141,8 @@ private final class ActorRenderHarness {
             actors: [actor],
             appearances: [appearance],
             uniforms: uniforms,
-            backgroundColor: backgroundColor
+            backgroundColor: topBackgroundColor,
+            bottomBackgroundColor: bottomBackgroundColor
         )
     }
 
@@ -2043,7 +2177,8 @@ private final class ActorRenderHarness {
         actors: [DayObjectGPUActor],
         appearances: [DayObjectGPUAppearance],
         uniforms rawUniforms: DayObjectsActorUniforms,
-        backgroundColor: SIMD3<Float> = .zero
+        backgroundColor: SIMD3<Float> = .zero,
+        bottomBackgroundColor: SIMD3<Float>? = nil
     ) throws -> ActorAlphaCapture {
         let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .rgba16Float,
@@ -2083,13 +2218,17 @@ private final class ActorRenderHarness {
         backgroundDescriptor.storageMode = .shared
         backgroundDescriptor.usage = .shaderRead
         let background = try XCTUnwrap(device.makeTexture(descriptor: backgroundDescriptor))
-        let backgroundPixel = [
-            Float16(backgroundColor.x).bitPattern,
-            Float16(backgroundColor.y).bitPattern,
-            Float16(backgroundColor.z).bitPattern,
-            Float16(1).bitPattern,
-        ]
-        let backgroundPixels = Array(repeating: backgroundPixel, count: 4).flatMap { $0 }
+        func backgroundPixel(_ color: SIMD3<Float>) -> [UInt16] {
+            [
+                Float16(color.x).bitPattern,
+                Float16(color.y).bitPattern,
+                Float16(color.z).bitPattern,
+                Float16(1).bitPattern,
+            ]
+        }
+        let topPixel = backgroundPixel(backgroundColor)
+        let bottomPixel = backgroundPixel(bottomBackgroundColor ?? backgroundColor)
+        let backgroundPixels = [topPixel, topPixel, bottomPixel, bottomPixel].flatMap { $0 }
         backgroundPixels.withUnsafeBytes { bytes in
             background.replace(
                 region: MTLRegionMake2D(0, 0, 2, 2),
@@ -2195,6 +2334,24 @@ private struct ActorAlphaCapture {
     func luminance(x: Int, y: Int) -> Float {
         let color = rgb[y * width + x]
         return color.x * 0.2126 + color.y * 0.7152 + color.z * 0.0722
+    }
+
+    func color(x: Int, y: Int) -> SIMD3<Float> {
+        rgb[y * width + x]
+    }
+
+    func horizontalRGBVariation(y: Int, fromX: Int, throughX: Int) -> Double {
+        guard y >= 0, y < height, fromX >= 0, throughX < width, fromX < throughX else {
+            return 0
+        }
+        return (fromX..<throughX).reduce(0.0) { result, x in
+            let lhs = rgb[y * width + x]
+            let rhs = rgb[y * width + x + 1]
+            return result
+                + Double(abs(lhs.x - rhs.x))
+                + Double(abs(lhs.y - rhs.y))
+                + Double(abs(lhs.z - rhs.z))
+        } / Double((throughX - fromX) * 3)
     }
 
     func horizontalAlphaPeakCount(y: Int) -> Int {
@@ -3365,39 +3522,39 @@ private enum DayObjectsPerceptualBaselines {
     static let transitionSignatures = [
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-before", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.5386156, edgeEnergy: 0.0077697
+            affectedEnergy: 0, meanLuminance: 0.5385323, edgeEnergy: 0.0077557
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-during", renderedActorCount: 5,
-            affectedEnergy: 0, meanLuminance: 0.5382534, edgeEnergy: 0.0077410
+            affectedEnergy: 0, meanLuminance: 0.5381732, edgeEnergy: 0.0077274
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-after", renderedActorCount: 5,
-            affectedEnergy: 0.0018379, meanLuminance: 0.5360799, edgeEnergy: 0.0077674
+            affectedEnergy: 0.0023051, meanLuminance: 0.5352046, edgeEnergy: 0.0077548
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-before", renderedActorCount: 5,
-            affectedEnergy: 0.0020266, meanLuminance: 0.5225682, edgeEnergy: 0.0077338
+            affectedEnergy: 0.0027182, meanLuminance: 0.5218322, edgeEnergy: 0.0077268
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-during", renderedActorCount: 5,
-            affectedEnergy: 0.0007245, meanLuminance: 0.5224576, edgeEnergy: 0.0077116
+            affectedEnergy: 0.0009576, meanLuminance: 0.5221745, edgeEnergy: 0.0076985
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-after", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.5209764, edgeEnergy: 0.0076838
+            affectedEnergy: 0, meanLuminance: 0.5209207, edgeEnergy: 0.0076698
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-before", renderedActorCount: 10,
-            affectedEnergy: 0, meanLuminance: 0.5002460, edgeEnergy: 0.0078357
+            affectedEnergy: 0, meanLuminance: 0.4994210, edgeEnergy: 0.0077897
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-during", renderedActorCount: 10,
-            affectedEnergy: 0.0003897, meanLuminance: 0.4994779, edgeEnergy: 0.0078650
+            affectedEnergy: 0.0006502, meanLuminance: 0.4989645, edgeEnergy: 0.0078191
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-after", renderedActorCount: 10,
-            affectedEnergy: 0.0006805, meanLuminance: 0.4965881, edgeEnergy: 0.0078614
+            affectedEnergy: 0.0006868, meanLuminance: 0.4962758, edgeEnergy: 0.0078178
         ),
     ]
 

@@ -230,25 +230,66 @@ enum DayObjectColorAllocator {
         paletteSet: DayObjectPaletteSet
     ) -> [String: DayObjectColorAssignment] {
         var seen = Set<String>()
-        let uniqueIDs = eventIDs.filter { seen.insert($0).inserted }.prefix(10)
+        let uniqueIDs = Array(eventIDs.filter { seen.insert($0).inserted }.prefix(10))
         let primarySubsets = shuffledSubsets(rootSeed: rootSeed, primary: true)
         let secondarySubsets = shuffledSubsets(rootSeed: rootSeed, primary: false)
-        let primaryColors = paletteSet.primaryObjects.hexes.map(DayObjectRGB.init(hex:))
-        let secondaryColors = paletteSet.secondaryObjects.hexes.map(DayObjectRGB.init(hex:))
+        let renderedBackground = DayObjectPalette.make(modernPalette: paletteSet.background)
+        let brightestBackground = ([renderedBackground.backgroundBase]
+            + renderedBackground.backgroundFields).max {
+                relativeLuminance($0) < relativeLuminance($1)
+            } ?? renderedBackground.backgroundBase
+        let primaryColors = paletteSet.primaryObjects.hexes
+            .map(DayObjectRGB.init(hex:))
+            .map { $0.lightened(toMinimumContrast: 1.35, against: brightestBackground) }
+        let secondaryColors = paletteSet.secondaryObjects.hexes
+            .map(DayObjectRGB.init(hex:))
+            .map { $0.lightened(toMinimumContrast: 1.35, against: brightestBackground) }
         var result = [String: DayObjectColorAssignment]()
 
+        let records = uniqueIDs.map { eventID in
+            (eventID: eventID, stable: stableAssignmentIndex(eventID: eventID, rootSeed: rootSeed))
+        }
+        let targetPrimaryCount = palettePattern.prefix(uniqueIDs.count).filter {
+            $0 == .primary
+        }.count
+        let preferredPrimary = records.filter {
+            palettePattern[$0.stable.patternIndex % palettePattern.count] == .primary
+        }
+        var primaryIDs = Set(preferredPrimary
+            .sorted { stablePriority($0.eventID, rootSeed: rootSeed) < stablePriority($1.eventID, rootSeed: rootSeed) }
+            .prefix(targetPrimaryCount)
+            .map(\.eventID))
+        if primaryIDs.count < targetPrimaryCount {
+            let promoted = records
+                .filter { !primaryIDs.contains($0.eventID) }
+                .sorted { stablePriority($0.eventID, rootSeed: rootSeed) < stablePriority($1.eventID, rootSeed: rootSeed) }
+                .prefix(targetPrimaryCount - primaryIDs.count)
+            primaryIDs.formUnion(promoted.map(\.eventID))
+        }
+
+        let primarySubsetByID = uniqueSubsetIndices(
+            for: records.filter { primaryIDs.contains($0.eventID) },
+            subsetCount: primarySubsets.count,
+            rootSeed: rootSeed
+        )
+        let secondarySubsetByID = uniqueSubsetIndices(
+            for: records.filter { !primaryIDs.contains($0.eventID) },
+            subsetCount: secondarySubsets.count,
+            rootSeed: rootSeed
+        )
+
         for eventID in uniqueIDs {
-            let stable = stableAssignmentIndex(eventID: eventID, rootSeed: rootSeed)
-            let patternIndex = stable.patternIndex % palettePattern.count
-            let slot = palettePattern[patternIndex]
+            let slot: DayObjectObjectPaletteSlot = primaryIDs.contains(eventID)
+                ? .primary
+                : .secondary
             let subset: [Int]
             let paletteColors: [DayObjectRGB]
             switch slot {
             case .primary:
-                subset = primarySubsets[stable.subsetIndex % primarySubsets.count]
+                subset = primarySubsets[primarySubsetByID[eventID] ?? 0]
                 paletteColors = primaryColors
             case .secondary:
-                subset = secondarySubsets[stable.subsetIndex % secondarySubsets.count]
+                subset = secondarySubsets[secondarySubsetByID[eventID] ?? 0]
                 paletteColors = secondaryColors
             }
             result[eventID] = DayObjectColorAssignment(
@@ -258,6 +299,47 @@ enum DayObjectColorAllocator {
             )
         }
         return result
+    }
+
+    private static func uniqueSubsetIndices(
+        for records: [(eventID: String, stable: (patternIndex: Int, subsetIndex: Int))],
+        subsetCount: Int,
+        rootSeed: UInt64
+    ) -> [String: Int] {
+        guard subsetCount > 0 else { return [:] }
+        let preferredCounts = Dictionary(grouping: records) {
+            $0.stable.subsetIndex % subsetCount
+        }.mapValues(\.count)
+        let ordered = records.sorted { lhs, rhs in
+            let lhsPreferred = lhs.stable.subsetIndex % subsetCount
+            let rhsPreferred = rhs.stable.subsetIndex % subsetCount
+            let lhsCount = preferredCounts[lhsPreferred, default: 0]
+            let rhsCount = preferredCounts[rhsPreferred, default: 0]
+            if lhsCount != rhsCount { return lhsCount < rhsCount }
+            return stablePriority(lhs.eventID, rootSeed: rootSeed)
+                < stablePriority(rhs.eventID, rootSeed: rootSeed)
+        }
+        var used = Set<Int>()
+        var result = [String: Int]()
+        for record in ordered {
+            let preferred = record.stable.subsetIndex % subsetCount
+            let selected = (0..<subsetCount).lazy
+                .map { (preferred + $0) % subsetCount }
+                .first { !used.contains($0) } ?? preferred
+            used.insert(selected)
+            result[record.eventID] = selected
+        }
+        return result
+    }
+
+    private static func stablePriority(_ eventID: String, rootSeed: UInt64) -> UInt64 {
+        var hash = rootSeed ^ 0xD6E8_FEB8_6659_FD93
+        for byte in eventID.utf8 {
+            hash = (hash ^ UInt64(byte)) &* 0x1000_0000_01B3
+        }
+        hash ^= hash >> 32
+        hash &*= 0xD6E8_FEB8_6659_FD93
+        return hash ^ (hash >> 32)
     }
 
     private static func stableAssignmentIndex(

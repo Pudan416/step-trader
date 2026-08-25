@@ -83,6 +83,8 @@ struct DayObjectEncounter: Equatable {
     let phase: Double
     let durationFraction: Double
     let overlapFraction: Double
+    let memberOrdinal: Int
+    let memberCount: Int
 }
 
 struct DayObjectMotionPlan: Equatable {
@@ -102,17 +104,60 @@ struct DayObjectMotionPlan: Equatable {
         var depths = [String: DayObjectDepthSchedule]()
         var encounters = [String: DayObjectEncounter]()
 
+        let routeRecords = ids.map { eventID -> (eventID: String, seed: UInt64) in
+            (eventID, eventSeed(rootSeed: rootSeed, eventID: eventID))
+        }
+        var sectorByID = Dictionary(uniqueKeysWithValues: routeRecords.map {
+            ($0.eventID, sector(for: $0.eventID, seed: $0.seed, family: family))
+        })
+        if routeRecords.count >= 8, Set(sectorByID.values).count < 5 {
+            var counts = Dictionary(grouping: sectorByID.values, by: { $0 }).mapValues(\.count)
+            var missing = (0..<9).filter { counts[$0] == nil }
+            let movable = routeRecords.sorted {
+                mixed($0.seed ^ 0xD6E8_FEB8_6659_FD93)
+                    < mixed($1.seed ^ 0xD6E8_FEB8_6659_FD93)
+            }
+            for record in movable where Set(sectorByID.values).count < 5 {
+                guard let current = sectorByID[record.eventID],
+                      counts[current, default: 0] > 1,
+                      !missing.isEmpty else { continue }
+                let selected = missing.removeFirst()
+                counts[current, default: 0] -= 1
+                counts[selected, default: 0] += 1
+                sectorByID[record.eventID] = selected
+            }
+        }
+        var directionByID = Dictionary(uniqueKeysWithValues: routeRecords.map {
+            ($0.eventID, direction(for: $0.eventID, seed: $0.seed))
+        })
+        if routeRecords.count >= 2, Set(directionByID.values).count == 1,
+           let selected = routeRecords.min(by: {
+               mixed($0.seed ^ 0xA409_3822_299F_31D0)
+                   < mixed($1.seed ^ 0xA409_3822_299F_31D0)
+           }) {
+            directionByID[selected.eventID] = -(directionByID[selected.eventID] ?? 1)
+        }
         for eventID in ids {
             let seed = eventSeed(rootSeed: rootSeed, eventID: eventID)
             let depthOrdinal = numericSuffix(eventID)
                 ?? Int(mixed(seed ^ 0x1319_8A2E_0370_7344) % 10)
-            let encounterOrdinal = numericSuffix(eventID)
+            // Ten stable encounter slots map to five shared pair channels. The
+            // slot is derived only from the event ID, so removing another
+            // happening never rerolls an existing orb's meeting geometry.
+            let encounterSlot = numericSuffix(eventID).map { $0 % 10 }
                 ?? Int(mixed(seed ^ 0xBE54_66CF_34E9_0C6C) % 10)
-            let encounterChannel = (encounterOrdinal / 2) % 3
+            let encounterChannel = encounterSlot / 2
+            let encounterMemberOrdinal = encounterSlot % 2
+            let encounterMemberCount = 2
             let encounterSeed = mixed(
                 rootSeed ^ UInt64(encounterChannel) &* 0x9E37_79B9_7F4A_7C15
             )
-            routes[eventID] = makeRoute(seed: seed, family: family, eventID: eventID)
+            routes[eventID] = makeRoute(
+                seed: seed,
+                family: family,
+                direction: directionByID[eventID] ?? 1,
+                sector: sectorByID[eventID] ?? 0
+            )
             depths[eventID] = DayObjectDepthSchedule(
                 baseDepth: 0.5,
                 amplitude: 0.38 + 0.08 * stableUnit(seed, salt: 0xA409_3822_299F_31D0),
@@ -124,9 +169,14 @@ struct DayObjectMotionPlan: Equatable {
             )
             encounters[eventID] = DayObjectEncounter(
                 channel: encounterChannel,
-                phase: stableUnit(encounterSeed, salt: 0xC0AC_29B7_C97C_50DD),
+                phase: normalizedPhase(
+                    stableUnit(rootSeed, salt: 0xC0AC_29B7_C97C_50DD)
+                        + Double(encounterChannel) / 5
+                ),
                 durationFraction: 0.05 + 0.13 * stableUnit(encounterSeed, salt: 0x3F84_D5B5_B547_0917),
-                overlapFraction: 0.15 + 0.25 * stableUnit(encounterSeed, salt: 0x9216_D5D9_8979_FB1B)
+                overlapFraction: 0.15 + 0.25 * stableUnit(encounterSeed, salt: 0x9216_D5D9_8979_FB1B),
+                memberOrdinal: encounterMemberOrdinal,
+                memberCount: encounterMemberCount
             )
         }
 
@@ -146,7 +196,8 @@ struct DayObjectMotionPlan: Equatable {
     private static func makeRoute(
         seed: UInt64,
         family: DayObjectChoreographyFamily,
-        eventID: String
+        direction: Double,
+        sector: Int
     ) -> DayObjectRoute {
         let pointCount = 4 + Int(mixed(seed ^ 0xD131_0BA6_98DF_B5AC) % 3)
         let baseAngle = 2 * Double.pi * stableUnit(seed, salt: 0x2FFD_72DB_D01A_DFB7)
@@ -160,7 +211,7 @@ struct DayObjectMotionPlan: Equatable {
         case .crossCurrent:
             major = 0.25 + 0.05 * stableUnit(seed, salt: 0x24A1_9947_B391_6CF7)
             minor = 0.10 + 0.04 * stableUnit(seed, salt: 0x0801_F2E2_858E_FC16)
-            rotation = direction(for: eventID, seed: seed) > 0 ? 0.12 : -0.12
+            rotation = direction > 0 ? 0.12 : -0.12
         case .tidalSweep:
             major = 0.24 + 0.05 * stableUnit(seed, salt: 0x6369_20D8_7157_4E69)
             minor = 0.10 + 0.04 * stableUnit(seed, salt: 0xA458_FEA3_F493_3D7E)
@@ -198,8 +249,8 @@ struct DayObjectMotionPlan: Equatable {
             controlPoints: points,
             period: 45 + 75 * stableUnit(seed, salt: 0xF6BB_4B60_9FBC_CEAE),
             phase: stableUnit(seed, salt: 0x2D7E_9E3B_0912_1F40),
-            direction: direction(for: eventID, seed: seed),
-            sector: sector(for: eventID, seed: seed, family: family)
+            direction: direction,
+            sector: sector
         )
     }
 

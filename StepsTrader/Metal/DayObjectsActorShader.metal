@@ -113,7 +113,13 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
 
     DayObjectsActorVertexOut out;
     out.position = float4(shortSidePosition * 2.0 / canvasSpan, 0.0, 1.0);
-    out.screenUV = shortSidePosition / canvasSpan + 0.5;
+    // Clip-space +Y is presented toward the top of the Metal viewport, while
+    // texture UV +Y points down. Preserve the same top-left screen position
+    // when glass samples the already-rendered background.
+    out.screenUV = float2(
+        shortSidePosition.x / canvasSpan.x + 0.5,
+        0.5 - shortSidePosition.y / canvasSpan.y
+    );
     out.localPosition = local;
     out.halfSize = halfSize;
     out.opacity = clamp(actor.opacity, 0.0, 1.0);
@@ -154,6 +160,11 @@ static float3 dayObjectsStaticRadialColor(
     const float distortion = clamp(appearance.radial1.y, 0.0, 0.7);
     const float distortionShift = clamp(appearance.radial1.z, -1.0, 1.0);
     const float distortionFrequency = clamp(appearance.radial1.w, 2.0, 12.0);
+    const float localSoftness = clamp(
+        in.localDepthSoftness + appearance.optical1.w,
+        0.0,
+        1.0
+    );
     const uint colorCount = clamp(appearance.metadata.y, 1u, 3u);
 
     float2 point = float2(bodyPoint.x, bodyPoint.y / max(aspect, 1e-4));
@@ -165,9 +176,9 @@ static float3 dayObjectsStaticRadialColor(
         polarAngle * distortionFrequency
             + distortionShift * M_PI_F
             + variation * 1.7
-    ) * distortion * 0.16;
+    ) * distortion * mix(0.16, 0.02, localSoftness);
     const float normalizedRadius = length(focalPoint) / radius + deformation + falloff;
-    const float softness = mix(0.10, 0.42, mixing);
+    const float softness = mix(0.10, 0.42, mixing) + localSoftness * 0.24;
     float radialT = smoothstep(-softness, 1.0 + softness, normalizedRadius);
     radialT = clamp(radialT + variation * 0.05, 0.0, 1.0);
 
@@ -228,6 +239,11 @@ fragment float4 dayObjectsActorFragment(
     const float2 bodyPoint = in.localPosition / majorHalfSize;
     const float2 ellipticalPoint = float2(bodyPoint.x, bodyPoint.y / max(aspect, 1e-4));
     const float radialDistance = length(ellipticalPoint);
+    const float combinedLocalSoftness = clamp(
+        in.localDepthSoftness + appearance.optical1.w,
+        0.0,
+        1.0
+    );
     const float signedBodyDistancePixels = dayObjectsActorBody(
         in.shape,
         bodyPoint,
@@ -239,7 +255,7 @@ fragment float4 dayObjectsActorFragment(
     // transition width remains a physical-pixel quantity on every canvas.
     const float antialiasPixels = max(
         fwidth(signedBodyDistancePixels),
-        0.70 + in.localDepthSoftness * 12.0
+        0.70 + combinedLocalSoftness * 12.0
     );
     const float bodyCoverage = 1.0 - smoothstep(
         -antialiasPixels,
@@ -300,6 +316,12 @@ fragment float4 dayObjectsActorFragment(
         sphereNormal,
         normalize(uniforms.lightDirection + float2(1e-5, 0.0))
     );
+    const float lightHalfWidth = max(clamp(uniforms.lightSoftness, 0.0, 1.0) * 0.48, 0.04);
+    const float softenedLight = smoothstep(
+        0.5 - lightHalfWidth,
+        0.5 + lightHalfWidth,
+        light
+    );
     const float lightResponse = clamp(appearance.light.x, 0.0, 1.0);
     const uint material = min(appearance.metadata.x, 5u);
     float haloAlpha = 0.0;
@@ -308,7 +330,7 @@ fragment float4 dayObjectsActorFragment(
     switch (material) {
     case 1u: { // Inner Glow
         const float glow = clamp(appearance.optical0.x, 0.0, 1.0);
-        bodyColor *= 0.62 + glow * 0.75 * centerMask + 0.16 * light;
+        bodyColor *= 0.62 + glow * 0.75 * centerMask + 0.16 * softenedLight;
         bodyAlpha *= mix(0.78, 1.0, centerMask);
         break;
     }
@@ -381,12 +403,21 @@ fragment float4 dayObjectsActorFragment(
         break;
     }
     default: { // Satin
-        const float broadHighlight = smoothstep(0.05, 0.95, light);
+        const float broadHighlight = softenedLight;
         bodyColor *= 0.68 + lightResponse * 0.42 * broadHighlight
             + appearance.optical0.x * 0.10 * centerMask;
         break;
     }
     }
+
+    // Center opacity is independent from overall body opacity: daily presets
+    // can produce hollow, translucent-core, and solid variants without
+    // changing the silhouette or the actor's entrance/exit envelope.
+    bodyAlpha *= mix(
+        1.0,
+        clamp(appearance.optical0.w, 0.0, 1.0),
+        centerMask
+    );
 
     const float visibleHaloAlpha = haloAlpha * (1.0 - bodyAlpha)
         * (1.0 - visibleTrailAlpha) * (1.0 - visibleMergeAlpha);
