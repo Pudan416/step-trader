@@ -38,6 +38,19 @@ struct DayObjectsLabView: View {
         relativeLuminance(currentScene.palette.backgroundBase) > 0.45 ? .light : .dark
     }
 
+    private var languageSummary: String {
+        let family = String(describing: currentScene.motionPlan.family)
+        let materials = currentScene.visualLanguage.enabledMaterials
+            .map { String(describing: $0) }
+            .joined(separator: ",")
+        let palettes = [
+            currentScene.paletteSet.background.code,
+            currentScene.paletteSet.primaryObjects.code,
+            currentScene.paletteSet.secondaryObjects.code,
+        ].joined(separator: "/")
+        return "\(family) · \(materials) · \(palettes)"
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             if showsGrid {
@@ -142,10 +155,12 @@ struct DayObjectsLabView: View {
             )
 
             if !showsGrid {
-                Text("\(dayKey) · \(currentScene.composition.summary)")
+                Text(languageSummary)
                     .font(.caption2.monospaced())
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.6))
+                    .accessibilityIdentifier("dayObjects.language")
+                    .accessibilityValue(languageSummary)
             }
         }
         .padding(16)

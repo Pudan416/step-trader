@@ -19,6 +19,21 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(app.sliders["dayObjects.motionEnergy"].exists)
         XCTAssertTrue(app.sliders["dayObjects.visualClarity"].exists)
         XCTAssertTrue(String(describing: happeningsSlider.value).contains("8 · 8 figures"))
+        let language = app.staticTexts["dayObjects.language"]
+        XCTAssertTrue(language.waitForExistence(timeout: 5))
+        let initialLanguage = String(describing: language.value)
+        XCTAssertTrue(initialLanguage.contains(" · "))
+        XCTAssertEqual(initialLanguage.split(separator: "/").count, 3)
+
+        happeningsSlider.adjust(toNormalizedSliderPosition: 1)
+        XCTAssertTrue(String(describing: happeningsSlider.value).contains("10 · 10 figures"))
+        XCTAssertTrue(app.otherElements["dayObjects.canvas"].exists)
+
+        Thread.sleep(forTimeInterval: 1.5)
+        let maximumScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        maximumScreenshot.name = "task-11-day-objects-ten-living-orbs"
+        maximumScreenshot.lifetime = .keepAlways
+        add(maximumScreenshot)
 
         happeningsSlider.adjust(toNormalizedSliderPosition: 0)
         XCTAssertTrue(app.otherElements["dayObjects.canvas"].exists)
@@ -54,6 +69,9 @@ final class DayObjectsLabUITests: XCTestCase {
         screenshot.name = "task-10-day-objects-lab"
         screenshot.lifetime = .keepAlways
         add(screenshot)
+
+        app.buttons["dayObjects.nextDay"].tap()
+        XCTAssertNotEqual(String(describing: language.value), initialLanguage)
 
         app.buttons["dayObjects.gridToggle"].tap()
         XCTAssertTrue(app.otherElements["dayObjects.grid"].waitForExistence(timeout: 5))

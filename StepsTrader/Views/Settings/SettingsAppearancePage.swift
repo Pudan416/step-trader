@@ -436,7 +436,7 @@ struct SettingsAppearancePage: View {
                 Image(systemName: "circle.grid.cross")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Day Objects")
-                    Text("Large radial-gradient orbs in seeded choreography")
+                    Text("Living procedural orbs with daily palettes and slow choreography")
                         .font(.caption)
                         .foregroundStyle(theme.adaptiveSecondaryText)
                 }
