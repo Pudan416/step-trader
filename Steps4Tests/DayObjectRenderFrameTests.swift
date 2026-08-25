@@ -1251,19 +1251,99 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
     func testGPUActorHasStableExplicitMetalLayout() {
         XCTAssertEqual(DayObjectGPUActor.metalAlignment, 16)
-        XCTAssertEqual(DayObjectGPUActor.metalStride, 80)
+        XCTAssertEqual(DayObjectGPUActor.metalStride, 64)
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.alignment, DayObjectGPUActor.metalAlignment)
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.size, DayObjectGPUActor.metalStride)
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.stride, DayObjectGPUActor.metalStride)
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.position), 0)
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.direction), 8)
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.halfSize), 16)
-        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.color), 32)
-        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.opacity), 48)
-        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.trailLength), 52)
-        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.shape), 56)
-        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.fill), 60)
-        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.depth), 64)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.opacity), 32)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.trailLength), 36)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.shape), 40)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.appearanceIndex), 44)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.depth), 48)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.materialPhase), 52)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.localDepthSoftness), 56)
+    }
+
+    func testGPUAppearanceHasStableExplicitMetalLayout() {
+        XCTAssertEqual(DayObjectGPUAppearance.metalAlignment, 16)
+        XCTAssertEqual(DayObjectGPUAppearance.metalStride, 160)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.alignment, 16)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.size, 160)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.stride, 160)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.color0), 0)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.color1), 16)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.color2), 32)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.radial0), 48)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.radial1), 64)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.optical0), 80)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.optical1), 96)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.membrane), 112)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.light), 128)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.metadata), 144)
+    }
+
+    func testPoseAndAppearanceUploadsClampNonFiniteAndUnsupportedValues() {
+        let actor = DayObjectGPUActor(
+            position: SIMD2(.nan, .infinity),
+            direction: SIMD2(-.infinity, .nan),
+            halfSize: SIMD2(.nan, -.infinity),
+            opacity: .nan,
+            trailLength: .infinity,
+            shape: .max,
+            appearanceIndex: 7,
+            depth: .nan,
+            materialPhase: .infinity,
+            localDepthSoftness: -.infinity
+        )
+        XCTAssertEqual(actor.position, .zero)
+        XCTAssertEqual(actor.direction, SIMD2(1, 0))
+        XCTAssertEqual(actor.halfSize, .zero)
+        XCTAssertEqual(actor.opacity, 0)
+        XCTAssertEqual(actor.trailLength, 0)
+        XCTAssertEqual(actor.depth, 0)
+        XCTAssertEqual(actor.materialPhase, 0)
+        XCTAssertEqual(actor.localDepthSoftness, 0)
+
+        let invalid = SIMD4<Float>(.nan, .infinity, -.infinity, .nan)
+        let appearance = DayObjectGPUAppearance(
+            color0: invalid, color1: invalid, color2: invalid,
+            radial0: invalid, radial1: invalid, optical0: invalid,
+            optical1: invalid, membrane: invalid, light: invalid,
+            metadata: SIMD4(.max, .max, 0, 9)
+        )
+        let floatVectors = [
+            appearance.color0, appearance.color1, appearance.color2,
+            appearance.radial0, appearance.radial1, appearance.optical0,
+            appearance.optical1, appearance.membrane, appearance.light,
+        ]
+        XCTAssertTrue(floatVectors.flatMap { [$0.x, $0.y, $0.z, $0.w] }.allSatisfy(\.isFinite))
+        XCTAssertEqual(appearance.metadata.x, DayObjectMaterialFamily.satin.rawValue)
+        XCTAssertEqual(appearance.metadata.y, 3)
+        XCTAssertEqual(appearance.metadata.z, 1)
+        XCTAssertEqual(appearance.metadata.w, 9)
+    }
+
+    func testDepthSortKeepsPoseAndAppearanceOneToOne() {
+        let scene = fixtureScene(ids: (0..<10).map { "event-\($0)" })
+        let frame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: .init(motionEnergy: 1, visualClarity: 1, reduceMotion: false),
+            elapsed: 27,
+            insertions: [:]
+        )
+        let byID = Dictionary(uniqueKeysWithValues: scene.actors.map { ($0.id, $0.appearance) })
+
+        XCTAssertEqual(frame.actors.count, 10)
+        for (index, record) in frame.actors.enumerated() {
+            XCTAssertEqual(record.gpuActor.appearanceIndex, UInt32(index))
+            XCTAssertEqual(
+                record.gpuAppearance,
+                DayObjectGPUAppearance(appearance: try! XCTUnwrap(byID[record.actorID]))
+            )
+        }
     }
 
     func testActorUniformsUseInverseSquareRootEnergyAndScreenPixelScale() {
@@ -1289,62 +1369,37 @@ final class DayObjectRenderFrameTests: XCTestCase {
             XCTAssertEqual(uniforms.shortSidePixels, 1_179)
         }
 
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 128)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 128)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 32)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 32)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.resolution), 0)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.energyNormalization), 8)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.shortSidePixels), 12)
     }
 
-    func testStaticRadialActorUniformsMatchMetalABIAndPreserveDailyParameters() {
-        let style = DayObjectRadialFillStyle(
-            colors: [
-                DayObjectRGB(hex: "ff3355").linearRGB,
-                DayObjectRGB(hex: "33ddaa").linearRGB,
-                DayObjectRGB(hex: "4455ff").linearRGB,
-            ],
-            radius: 0.83,
-            focalDistance: 0.42,
-            focalAngle: 1.1,
-            falloff: 0.24,
-            mixing: 0.68,
-            distortion: 0.31,
-            distortionShift: -0.27,
-            distortionFrequency: 7,
-            rotation: 0.74,
-            offset: SIMD2(0.12, -0.08),
-            preset: .crossSections,
-            banding: 0.22
-        )
+    func testActorUniformsContainOnlyFiniteSharedDailyValues() {
         let uniforms = DayObjectsActorUniforms(
             resolution: SIMD2(1_179, 2_556),
             visibleActorCount: 4,
-            radialFillStyle: style
+            lightDirection: SIMD2(.nan, .infinity),
+            lightSoftness: .infinity,
+            globalTime: .nan
         )
 
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.alignment, 16)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 128)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 128)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.alignment, 8)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 32)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 32)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.resolution), 0)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.energyNormalization), 8)
         XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.shortSidePixels), 12)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.radialColor0), 16)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.radialColor1), 32)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.radialColor2), 48)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.radialParameters0), 64)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.radialParameters1), 80)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.radialParameters2), 96)
-        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.radialParameters3), 112)
-        XCTAssertEqual(uniforms.radialColor0, SIMD4(style.colors[0], 1))
-        XCTAssertEqual(uniforms.radialColor1, SIMD4(style.colors[1], 1))
-        XCTAssertEqual(uniforms.radialColor2, SIMD4(style.colors[2], 1))
-        XCTAssertEqual(uniforms.radialParameters0, SIMD4(0.83, 0.42, 1.1, 0.24))
-        XCTAssertEqual(uniforms.radialParameters1, SIMD4(0.68, 0.31, -0.27, 7))
-        XCTAssertEqual(uniforms.radialParameters2, SIMD4(0.74, 0.12, -0.08, 3))
-        XCTAssertEqual(uniforms.radialParameters3, SIMD4(3, 0.22, 0.18, 0.16))
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.lightDirection), 16)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.lightSoftness), 24)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.globalTime), 28)
+        XCTAssertEqual(uniforms.lightDirection, SIMD2(1, 0))
+        XCTAssertEqual(uniforms.lightSoftness, 0.6)
+        XCTAssertEqual(uniforms.globalTime, 0)
     }
 
-    func testActorRadialVariationIsStableBoundedAndIndependentPerActor() {
+    func testActorMaterialPhaseAndAppearanceIndexAreStableAndIndependent() {
         let ids = (0..<24).map { "event-\($0)" }
         let scene = DayObjectScene.make(input: DayObjectSceneInput(
             dayKey: "radial-actor-variation",
@@ -1366,13 +1421,13 @@ final class DayObjectRenderFrameTests: XCTestCase {
             elapsed: 12,
             insertions: [:]
         )
-        let variations = frame.actors.map(\.gpuActor.radialVariation)
+        let phases = frame.actors.map(\.gpuActor.materialPhase)
 
         XCTAssertEqual(frame, repeated)
-        XCTAssertTrue(variations.allSatisfy { (-1...1).contains($0) })
-        XCTAssertGreaterThan(Set(variations).count, 8)
-        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \.radialVariation), 68)
-        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.stride, 80)
+        XCTAssertTrue(phases.allSatisfy { (0..<1).contains($0) })
+        XCTAssertGreaterThan(Set(phases).count, 8)
+        XCTAssertEqual(frame.actors.map(\.gpuActor.appearanceIndex), (0..<10).map(UInt32.init))
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.stride, 64)
     }
 
     func testStaticRadialGPUUsesOneTwoAndThreeColorsWithoutChangingTheBodyMask() throws {
@@ -1621,11 +1676,19 @@ final class DayObjectRenderFrameTests: XCTestCase {
         ))
         XCTAssertEqual(ring.slotCount, 3)
         XCTAssertEqual(ring.bufferLength, DayObjectGPUActor.metalStride * 10)
+        XCTAssertEqual(
+            ring.appearanceBufferLength,
+            DayObjectGPUAppearance.metalStride * 10
+        )
 
         let leases = try (0..<3).map { _ in
             try XCTUnwrap(ring.acquire())
         }
         XCTAssertEqual(Set(leases.map { ObjectIdentifier($0.buffer) }).count, 3)
+        XCTAssertEqual(
+            Set(leases.map { ObjectIdentifier($0.appearanceBuffer) }).count,
+            3
+        )
         XCTAssertNil(ring.acquire())
 
         let commandBuffers = try leases.map { lease -> MTLCommandBuffer in
@@ -1804,7 +1867,11 @@ private final class ActorRenderHarness {
             resolution: SIMD2(Float(width), Float(height)),
             visibleActorCount: visibleActorCount
         )
-        return try render(actors: actors, uniforms: uniforms)
+        return try render(
+            actors: actors,
+            appearances: [.fallback],
+            uniforms: uniforms
+        )
     }
 
     func render(
@@ -1816,15 +1883,46 @@ private final class ActorRenderHarness {
             visibleActorCount: actors.filter { $0.opacity > 0 }.count,
             radialFillStyle: radialFillStyle
         )
-        return try render(actors: actors, uniforms: uniforms)
+        let colors = radialFillStyle.colors.prefix(3).map { SIMD4($0, 1) }
+        let fallback = colors.last ?? SIMD4<Float>(1, 1, 1, 1)
+        let padded = colors + Array(repeating: fallback, count: 3 - colors.count)
+        let appearance = DayObjectGPUAppearance(
+            color0: padded[0], color1: padded[1], color2: padded[2],
+            radial0: SIMD4(
+                Float(radialFillStyle.focalDistance), Float(radialFillStyle.focalAngle),
+                Float(radialFillStyle.radius), Float(radialFillStyle.falloff)
+            ),
+            radial1: SIMD4(
+                Float(radialFillStyle.mixing), Float(radialFillStyle.distortion),
+                Float(radialFillStyle.distortionShift), Float(radialFillStyle.distortionFrequency)
+            ),
+            optical0: SIMD4(0, 0, 1, 1),
+            optical1: SIMD4(0.1, 0, 0, 0),
+            membrane: .zero,
+            light: SIMD4(0.7, 0, 0, 0),
+            metadata: SIMD4(
+                DayObjectMaterialFamily.satin.rawValue,
+                UInt32(max(colors.count, 1)), 1, 0
+            )
+        )
+        return try render(
+            actors: actors,
+            appearances: [appearance],
+            uniforms: uniforms
+        )
     }
 
     func render(_ upload: DayObjectsActorUpload) throws -> ActorAlphaCapture {
-        try render(actors: upload.actors, uniforms: upload.uniforms)
+        try render(
+            actors: upload.actors,
+            appearances: upload.appearances,
+            uniforms: upload.uniforms
+        )
     }
 
     private func render(
         actors: [DayObjectGPUActor],
+        appearances: [DayObjectGPUAppearance],
         uniforms rawUniforms: DayObjectsActorUniforms
     ) throws -> ActorAlphaCapture {
         let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
@@ -1839,6 +1937,16 @@ private final class ActorRenderHarness {
         let actorBuffer = try XCTUnwrap(actors.withUnsafeBytes { bytes -> MTLBuffer? in
             guard let baseAddress = bytes.baseAddress, !bytes.isEmpty else {
                 return device.makeBuffer(length: DayObjectGPUActor.metalStride)
+            }
+            return device.makeBuffer(
+                bytes: baseAddress,
+                length: bytes.count,
+                options: .storageModeShared
+            )
+        })
+        let appearanceBuffer = try XCTUnwrap(appearances.withUnsafeBytes { bytes -> MTLBuffer? in
+            guard let baseAddress = bytes.baseAddress, !bytes.isEmpty else {
+                return device.makeBuffer(length: DayObjectGPUAppearance.metalStride)
             }
             return device.makeBuffer(
                 bytes: baseAddress,
@@ -1862,12 +1970,13 @@ private final class ActorRenderHarness {
         encoder.setVertexBytes(
             &uniforms,
             length: MemoryLayout<DayObjectsActorUniforms>.stride,
-            index: 2
+            index: 3
         )
+        encoder.setFragmentBuffer(appearanceBuffer, offset: 0, index: 2)
         encoder.setFragmentBytes(
             &uniforms,
             length: MemoryLayout<DayObjectsActorUniforms>.stride,
-            index: 2
+            index: 3
         )
         if !actors.isEmpty {
             encoder.drawPrimitives(
@@ -2347,6 +2456,18 @@ private final class PostRenderHarness {
                 options: .storageModeShared
             )
         })
+        let appearanceBuffer = try XCTUnwrap(
+            upload.appearances.withUnsafeBytes { bytes -> MTLBuffer? in
+                guard let baseAddress = bytes.baseAddress, !bytes.isEmpty else {
+                    return device.makeBuffer(length: DayObjectGPUAppearance.metalStride)
+                }
+                return device.makeBuffer(
+                    bytes: baseAddress,
+                    length: bytes.count,
+                    options: .storageModeShared
+                )
+            }
+        )
         let scenePass = renderPass(texture: sceneTexture, clearColor: MTLClearColorMake(0, 0, 0, 1))
         let sceneEncoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: scenePass))
         sceneEncoder.setRenderPipelineState(sceneUpscalePipeline)
@@ -2362,12 +2483,13 @@ private final class PostRenderHarness {
             sceneEncoder.setVertexBytes(
                 &actorUniforms,
                 length: MemoryLayout<DayObjectsActorUniforms>.stride,
-                index: 2
+                index: 3
             )
+            sceneEncoder.setFragmentBuffer(appearanceBuffer, offset: 0, index: 2)
             sceneEncoder.setFragmentBytes(
                 &actorUniforms,
                 length: MemoryLayout<DayObjectsActorUniforms>.stride,
-                index: 2
+                index: 3
             )
             sceneEncoder.drawPrimitives(
                 type: .triangleStrip,

@@ -1,53 +1,64 @@
 #include <metal_stdlib>
 using namespace metal;
 
-struct DayObjectGPUActor {
+struct alignas(16) DayObjectGPUActor {
     float2 position;
     float2 direction;
     float2 halfSize;
-    float2 positionPadding;
-    float4 color;
+    float2 quadPadding;
     float opacity;
     float trailLength;
     uint shape;
-    uint fill;
+    uint appearanceIndex;
     float depth;
-    float radialVariation;
-    float tailPadding1;
-    float tailPadding2;
+    float materialPhase;
+    float localDepthSoftness;
+    float tailPadding;
 };
 
 static_assert(alignof(DayObjectGPUActor) == 16, "GPU actors require 16-byte alignment");
-static_assert(sizeof(DayObjectGPUActor) == 80, "GPU actors must match Swift's 80-byte stride");
+static_assert(sizeof(DayObjectGPUActor) == 64, "GPU actors must match Swift's 64-byte stride");
+
+struct DayObjectGPUAppearance {
+    float4 color0;
+    float4 color1;
+    float4 color2;
+    float4 radial0;
+    float4 radial1;
+    float4 optical0;
+    float4 optical1;
+    float4 membrane;
+    float4 light;
+    uint4 metadata;
+};
+
+static_assert(alignof(DayObjectGPUAppearance) == 16, "GPU appearances require 16-byte alignment");
+static_assert(sizeof(DayObjectGPUAppearance) == 160, "GPU appearances must match Swift's 160-byte stride");
 
 struct DayObjectsActorUniforms {
     float2 resolution;
     float energyNormalization;
     float shortSidePixels;
-    float4 radialColor0;
-    float4 radialColor1;
-    float4 radialColor2;
-    float4 radialParameters0;
-    float4 radialParameters1;
-    float4 radialParameters2;
-    float4 radialParameters3;
+    float2 lightDirection;
+    float lightSoftness;
+    float globalTime;
 };
 
-static_assert(alignof(DayObjectsActorUniforms) == 16, "Actor uniforms require 16-byte alignment");
-static_assert(sizeof(DayObjectsActorUniforms) == 128, "Actor uniforms must match Swift's 128-byte stride");
+static_assert(alignof(DayObjectsActorUniforms) == 8, "Actor uniforms require 8-byte alignment");
+static_assert(sizeof(DayObjectsActorUniforms) == 32, "Actor uniforms must match Swift's 32-byte stride");
 
 struct DayObjectsActorVertexOut {
     float4 position [[position]];
     float2 localPosition;
     float2 halfSize;
-    float4 color;
     float opacity;
     float trailEnergyNormalization;
     float trailLength;
     float shortSidePixels;
-    float radialVariation;
+    float materialPhase;
+    float localDepthSoftness;
     uint shape [[flat]];
-    uint fill [[flat]];
+    uint appearanceIndex [[flat]];
 };
 
 constant float dayObjectsSoftBlobRadialReach = 1.06;
@@ -57,7 +68,7 @@ constant float dayObjectsTrailSigmaSupport = 3.2;
 vertex DayObjectsActorVertexOut dayObjectsActorVertex(
     const device float2 *quadPositions [[buffer(0)]],
     const device DayObjectGPUActor *actors [[buffer(1)]],
-    constant DayObjectsActorUniforms &uniforms [[buffer(2)]],
+    constant DayObjectsActorUniforms &uniforms [[buffer(3)]],
     uint vertexID [[vertex_id]],
     uint instanceID [[instance_id]]
 ) {
@@ -69,7 +80,7 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
         halfSize.y * dayObjectsTrailSigmaFactor,
         1.25 / shortSidePixels
     );
-    const float mergeReach = halfSize.x * clamp(uniforms.radialParameters3.z, 0.0, 0.35);
+    const float mergeReach = halfSize.x * 0.18;
     const float bodyMajorReach = halfSize.x * (
         actor.shape == 3 ? dayObjectsSoftBlobRadialReach : 1.0
     ) + mergeReach;
@@ -103,14 +114,14 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
     out.position = float4(shortSidePosition * 2.0 / canvasSpan, 0.0, 1.0);
     out.localPosition = local;
     out.halfSize = halfSize;
-    out.color = actor.color;
     out.opacity = clamp(actor.opacity, 0.0, 1.0);
     out.trailEnergyNormalization = clamp(uniforms.energyNormalization, 0.0, 1.0);
     out.trailLength = max(actor.trailLength, 0.0);
     out.shortSidePixels = shortSidePixels;
-    out.radialVariation = clamp(actor.radialVariation, -1.0, 1.0);
+    out.materialPhase = fract(max(actor.materialPhase, 0.0));
+    out.localDepthSoftness = clamp(actor.localDepthSoftness, 0.0, 1.0);
     out.shape = actor.shape;
-    out.fill = actor.fill;
+    out.appearanceIndex = actor.appearanceIndex;
     return out;
 }
 
@@ -128,70 +139,44 @@ static float2 dayObjectsRotate(float2 point, float angle) {
 /// like duplicated stickers.
 static float3 dayObjectsStaticRadialColor(
     DayObjectsActorVertexOut in,
-    constant DayObjectsActorUniforms &uniforms,
+    DayObjectGPUAppearance appearance,
     float2 bodyPoint,
     float aspect
 ) {
-    const float radius = max(uniforms.radialParameters0.x, 0.05);
-    const float focalDistance = clamp(uniforms.radialParameters0.y, 0.0, 0.95);
-    const float focalAngle = uniforms.radialParameters0.z + in.radialVariation * 0.45;
-    const float falloff = clamp(uniforms.radialParameters0.w, -0.5, 0.8);
-    const float mixing = clamp(uniforms.radialParameters1.x, 0.0, 1.0);
-    const float distortion = clamp(uniforms.radialParameters1.y, 0.0, 0.7);
-    const float distortionShift = clamp(uniforms.radialParameters1.z, -1.0, 1.0);
-    const float distortionFrequency = clamp(uniforms.radialParameters1.w, 2.0, 12.0);
-    const float rotation = uniforms.radialParameters2.x + in.radialVariation * 0.35;
-    const float2 offset = uniforms.radialParameters2.yz
-        + float2(in.radialVariation, -in.radialVariation) * 0.055;
-    const uint requestedColorCount = uint(clamp(round(uniforms.radialParameters2.w), 1.0, 3.0));
-    const uint colorCount = min(requestedColorCount, in.fill + 1);
+    const float variation = in.materialPhase * 2.0 - 1.0;
+    const float focalDistance = clamp(appearance.radial0.x, 0.0, 0.95);
+    const float focalAngle = appearance.radial0.y + variation * 0.20;
+    const float radius = max(appearance.radial0.z, 0.05);
+    const float falloff = clamp(appearance.radial0.w, -0.5, 0.8);
+    const float mixing = clamp(appearance.radial1.x, 0.0, 1.0);
+    const float distortion = clamp(appearance.radial1.y, 0.0, 0.7);
+    const float distortionShift = clamp(appearance.radial1.z, -1.0, 1.0);
+    const float distortionFrequency = clamp(appearance.radial1.w, 2.0, 12.0);
+    const uint colorCount = clamp(appearance.metadata.y, 1u, 3u);
 
     float2 point = float2(bodyPoint.x, bodyPoint.y / max(aspect, 1e-4));
-    point = dayObjectsRotate(point, rotation) - offset;
+    point = dayObjectsRotate(point, variation * 0.12);
     const float2 focal = float2(cos(focalAngle), sin(focalAngle)) * focalDistance;
     const float2 focalPoint = point - focal;
     const float polarAngle = atan2(focalPoint.y, focalPoint.x);
     float deformation = sin(
         polarAngle * distortionFrequency
             + distortionShift * M_PI_F
-            + in.radialVariation * 1.7
+            + variation * 1.7
     ) * distortion * 0.16;
-    const uint preset = uint(clamp(round(uniforms.radialParameters3.x), 0.0, 3.0));
-    const float banding = clamp(uniforms.radialParameters3.y, 0.0, 0.55);
-    if (preset == 1) {
-        deformation *= 0.45;
-    } else if (preset == 3) {
-        const float crossSection = sin(
-            (point.x * 0.78 + point.y) * distortionFrequency * 1.45
-                + distortionShift * M_PI_F
-                + in.radialVariation
-        );
-        deformation += crossSection * distortion * 0.10;
-    }
     const float normalizedRadius = length(focalPoint) / radius + deformation + falloff;
     const float softness = mix(0.10, 0.42, mixing);
     float radialT = smoothstep(-softness, 1.0 + softness, normalizedRadius);
-    radialT = clamp(radialT + in.radialVariation * 0.08, 0.0, 1.0);
-    if (preset == 2) {
-        const float steps = mix(5.0, 9.0, 1.0 - banding);
-        const float quantized = floor(radialT * steps + 0.5) / steps;
-        radialT = mix(radialT, quantized, banding * 0.65);
-    } else if (preset == 3) {
-        const float sections = 0.5 + 0.5 * sin(
-            normalizedRadius * distortionFrequency * 2.4
-                + distortionShift * M_PI_F
-        );
-        radialT = clamp(radialT + (sections - 0.5) * banding * 0.18, 0.0, 1.0);
-    }
+    radialT = clamp(radialT + variation * 0.05, 0.0, 1.0);
 
-    const float3 color0 = max(uniforms.radialColor0.rgb, 0.0);
-    const float3 color1 = max(uniforms.radialColor1.rgb, 0.0);
-    const float3 color2 = max(uniforms.radialColor2.rgb, 0.0);
+    const float3 color0 = max(appearance.color0.rgb, 0.0);
+    const float3 color1 = max(appearance.color1.rgb, 0.0);
+    const float3 color2 = max(appearance.color2.rgb, 0.0);
     if (colorCount <= 1) {
         return color0 * mix(1.08, 0.72, radialT);
     }
 
-    const float directedT = in.radialVariation < 0.0 ? 1.0 - radialT : radialT;
+    const float directedT = variation < 0.0 ? 1.0 - radialT : radialT;
     if (colorCount == 2) {
         return mix(color0, color1, directedT);
     }
@@ -230,8 +215,10 @@ static float dayObjectsActorBody(
 
 fragment float4 dayObjectsActorFragment(
     DayObjectsActorVertexOut in [[stage_in]],
-    constant DayObjectsActorUniforms &uniforms [[buffer(2)]]
+    const device DayObjectGPUAppearance *appearances [[buffer(2)]],
+    constant DayObjectsActorUniforms &uniforms [[buffer(3)]]
 ) {
+    const DayObjectGPUAppearance appearance = appearances[in.appearanceIndex];
     const float majorHalfSize = max(in.halfSize.x, 1e-5);
     const float aspect = in.halfSize.y / majorHalfSize;
     const float2 bodyPoint = in.localPosition / majorHalfSize;
@@ -239,12 +226,15 @@ fragment float4 dayObjectsActorFragment(
         in.shape,
         bodyPoint,
         aspect,
-        in.radialVariation
+        in.materialPhase * 2.0 - 1.0
     ) * majorHalfSize * in.shortSidePixels;
 
     // Derivatives are evaluated after conversion to screen pixels, so the
     // transition width remains a physical-pixel quantity on every canvas.
-    const float antialiasPixels = max(fwidth(signedBodyDistancePixels), 0.70);
+    const float antialiasPixels = max(
+        fwidth(signedBodyDistancePixels),
+        0.70 + in.localDepthSoftness * 12.0
+    );
     const float bodyCoverage = 1.0 - smoothstep(
         -antialiasPixels,
         antialiasPixels,
@@ -270,24 +260,24 @@ fragment float4 dayObjectsActorFragment(
     const float lateral = exp(-0.5 * lateralRatio * lateralRatio) * lateralSupport;
     const float trailCoverage = trailEnabled * behindBody * longitudinal * lateral * 0.72;
 
-    const float actorOpacity = clamp(in.opacity * in.color.a, 0.0, 1.0);
+    const float actorOpacity = clamp(in.opacity * appearance.optical0.z, 0.0, 1.0);
     const float bodyAlpha = bodyCoverage * actorOpacity;
     const float trailAlpha = trailCoverage * actorOpacity * in.trailEnergyNormalization;
     const float visibleTrailAlpha = trailAlpha * (1.0 - bodyAlpha);
     const float mergeReachPixels = max(
-        majorHalfSize * clamp(uniforms.radialParameters3.z, 0.0, 0.35) * in.shortSidePixels,
+        majorHalfSize * 0.18 * in.shortSidePixels,
         1.0
     );
     const float mergeCoverage = (1.0 - bodyCoverage) * (
         1.0 - smoothstep(0.0, mergeReachPixels, max(signedBodyDistancePixels, 0.0))
     );
     const float mergeAlpha = mergeCoverage * actorOpacity
-        * clamp(uniforms.radialParameters3.w, 0.0, 0.3);
+        * 0.16;
     const float visibleMergeAlpha = mergeAlpha * (1.0 - bodyAlpha) * (1.0 - visibleTrailAlpha);
     const float alpha = clamp(bodyAlpha + visibleTrailAlpha + visibleMergeAlpha, 0.0, 1.0);
 
-    const float3 bodyColor = dayObjectsStaticRadialColor(in, uniforms, bodyPoint, aspect);
-    const float3 trailColor = max(in.color.rgb * 0.88, 0.0);
+    const float3 bodyColor = dayObjectsStaticRadialColor(in, appearance, bodyPoint, aspect);
+    const float3 trailColor = max(appearance.color0.rgb * 0.88, 0.0);
     const float3 premultiplied = bodyColor * bodyAlpha
         + trailColor * visibleTrailAlpha
         + bodyColor * visibleMergeAlpha;
