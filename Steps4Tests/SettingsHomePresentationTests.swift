@@ -42,6 +42,19 @@ final class SettingsHomePresentationTests: XCTestCase {
         XCTAssertEqual(SettingsAccountPresentation.initials(for: "  "), "U")
     }
 
+    func testAccountInitialsUseTurkishLocaleRules() {
+        let turkish = Locale(identifier: "tr_TR")
+
+        XCTAssertEqual(
+            SettingsAccountPresentation.initials(for: "ipek öz", locale: turkish),
+            "İÖ"
+        )
+        XCTAssertEqual(
+            SettingsAccountPresentation.initials(for: "izin", locale: turkish),
+            "İZ"
+        )
+    }
+
     func testSignedInPresentationCarriesIdentityButNoSyncControl() {
         let state = SettingsAccountPresentation.signedIn(
             displayName: "Konstantin",
@@ -66,7 +79,7 @@ final class SettingsHomePresentationTests: XCTestCase {
         XCTAssertTrue(SettingsYourDayLayout.stacksMetrics(for: .accessibility5))
     }
 
-    func testSettingsCardCasingUsesTheCurrentLocaleRules() {
+    func testSettingsSharedCasingUsesTurkishLocaleRules() {
         let turkish = Locale(identifier: "tr_TR")
 
         XCTAssertEqual(SettingsLocalizedCasing.uppercase("izin", locale: turkish), "İZİN")

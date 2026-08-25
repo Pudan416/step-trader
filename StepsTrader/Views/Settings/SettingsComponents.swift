@@ -102,7 +102,7 @@ struct SettingsSectionLabel: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        Text(text.uppercased())
+        Text(SettingsLocalizedCasing.uppercase(text))
             .font(.caption2.weight(.semibold))
             .tracking(3)
             .foregroundStyle(theme.adaptiveMutedText)

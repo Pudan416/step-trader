@@ -6,12 +6,20 @@ enum SettingsAccountPresentation: Equatable {
     case signedIn(displayName: String, initials: String, avatarData: Data?)
 
     static func initials(for displayName: String) -> String {
+        initials(for: displayName, locale: .current)
+    }
+
+    static func initials(for displayName: String, locale: Locale) -> String {
         let words = displayName.split(whereSeparator: \Character.isWhitespace)
         guard !words.isEmpty else { return "U" }
         if words.count == 1 {
-            return String(words[0].prefix(2)).uppercased()
+            return SettingsLocalizedCasing.uppercase(
+                String(words[0].prefix(2)),
+                locale: locale
+            )
         }
-        return words.prefix(2).compactMap(\.first).map(String.init).joined().uppercased()
+        let initials = words.prefix(2).compactMap(\.first).map(String.init).joined()
+        return SettingsLocalizedCasing.uppercase(initials, locale: locale)
     }
 }
 
