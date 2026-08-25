@@ -206,6 +206,45 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(clear.saturation, 1, accuracy: 0.0001)
         XCTAssertEqual(tired.saturation, 0.88, accuracy: 0.0001)
         XCTAssertEqual(clear.grainIntensity, tired.grainIntensity)
+
+        let scene = fixtureScene(ids: ["focus-fixture"])
+        let still = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: .init(motionEnergy: 0, visualClarity: 0.5, reduceMotion: false),
+            elapsed: 9,
+            insertions: [:]
+        )
+        let active = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: .init(motionEnergy: 1, visualClarity: 0.5, reduceMotion: false),
+            elapsed: 9,
+            insertions: [:]
+        )
+        XCTAssertEqual(still.postProcess, active.postProcess)
+    }
+
+    func testLocalDepthSoftnessRemainsVisibleAtFullGlobalClarity() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        func actor(softness: Float) -> DayObjectGPUActor {
+            DayObjectGPUActor(
+                position: .zero,
+                direction: SIMD2(1, 0),
+                halfSize: SIMD2(0.30, 0.30),
+                opacity: 1,
+                trailLength: 0,
+                shape: 0,
+                appearanceIndex: 0,
+                depth: softness,
+                materialPhase: 0,
+                localDepthSoftness: softness
+            )
+        }
+        let crisp = try harness.render([actor(softness: 0)])
+        let soft = try harness.render([actor(softness: 0.25)])
+
+        XCTAssertGreaterThan(soft.partialAlphaPixelCount, crisp.partialAlphaPixelCount)
+        XCTAssertGreaterThan(crisp[80, 80], 0.8)
+        XCTAssertGreaterThan(soft[80, 80], 0.8)
     }
 
     func testPostUniformsUseExactMetalLayoutAndBoundPointScaledBlur() {
@@ -2172,6 +2211,10 @@ private struct ActorAlphaCapture {
 
     var nonzeroPixelCount: Int {
         alpha.filter { $0 > 0.002 }.count
+    }
+
+    var partialAlphaPixelCount: Int {
+        alpha.filter { $0 > 0.03 && $0 < 0.75 }.count
     }
 
     func meanAbsoluteRGBDifference(from other: ActorAlphaCapture) -> Double {
