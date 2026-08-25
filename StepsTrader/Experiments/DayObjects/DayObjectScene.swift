@@ -9,6 +9,7 @@ struct DayObjectScene: Equatable {
     let compositionPlan: DayObjectCompositionPlan
     let paletteSet: DayObjectPaletteSet
     let visualLanguage: DayObjectVisualLanguage
+    let motionPlan: DayObjectMotionPlan
     let palette: DayObjectPalette
     let radialFillStyle: DayObjectRadialFillStyle
     let meshGradientStyle: DayObjectMeshGradientStyle
@@ -29,6 +30,7 @@ struct DayObjectScene: Equatable {
             compositionPlan: compositionPlan,
             paletteSet: paletteSet,
             visualLanguage: visualLanguage,
+            motionPlan: motionPlan,
             palette: palette,
             radialFillStyle: radialFillStyle,
             meshGradientStyle: meshGradientStyle,
@@ -60,6 +62,11 @@ struct DayObjectScene: Equatable {
             rootSeed: rootSeed,
             paletteSet: paletteSet
         )
+        let eventIDs = Array(chronologicalUniqueEventIDs(from: input.eventIDs).prefix(maxActors))
+        let motionPlan = DayObjectMotionPlan.make(
+            rootSeed: rootSeed,
+            eventIDs: eventIDs
+        )
         let palette = DayObjectPalette.make(modernPalette: paletteSet.background)
         let primaryObjectPalette = DayObjectPalette.make(
             modernPalette: paletteSet.primaryObjects
@@ -71,8 +78,6 @@ struct DayObjectScene: Equatable {
         )
         let meshGradientStyle = DayObjectMeshGradientStyle.make(seed: rootSeed, palette: palette)
         let score = DayObjectChoreographyScore.make(seed: rootSeed)
-
-        let eventIDs = Array(chronologicalUniqueEventIDs(from: input.eventIDs).prefix(maxActors))
         let appearances = visualLanguage.appearances(
             eventIDs: eventIDs,
             rootSeed: rootSeed
@@ -81,13 +86,19 @@ struct DayObjectScene: Equatable {
         actors.reserveCapacity(maxActors)
 
         for eventID in eventIDs {
-            guard let appearance = appearances[eventID] else { continue }
+            guard let appearance = appearances[eventID],
+                  let route = motionPlan.routes[eventID],
+                  let depthSchedule = motionPlan.depths[eventID],
+                  let encounter = motionPlan.encounters[eventID] else { continue }
             let id = DayObjectActorID(eventID: eventID, memberIndex: 0)
             actors.append(makeActor(
                 id: id,
                 input: input,
                 composition: composition,
-                appearance: appearance
+                appearance: appearance,
+                route: route,
+                depthSchedule: depthSchedule,
+                encounter: encounter
             ))
         }
 
@@ -98,6 +109,7 @@ struct DayObjectScene: Equatable {
             compositionPlan: compositionPlan,
             paletteSet: paletteSet,
             visualLanguage: visualLanguage,
+            motionPlan: motionPlan,
             palette: palette,
             radialFillStyle: radialFillStyle,
             meshGradientStyle: meshGradientStyle,
@@ -133,7 +145,10 @@ struct DayObjectScene: Equatable {
         id: DayObjectActorID,
         input: DayObjectSceneInput,
         composition: DayObjectComposition,
-        appearance: DayObjectAppearance
+        appearance: DayObjectAppearance,
+        route: DayObjectRoute,
+        depthSchedule: DayObjectDepthSchedule,
+        encounter: DayObjectEncounter
     ) -> DayObjectActor {
         let actorIdentity = "\(input.identity.utf8.count):\(input.identity):\(id.eventID.utf8.count):\(id.eventID)"
         let seed = CanvasElement.makeSeed(
@@ -158,6 +173,9 @@ struct DayObjectScene: Equatable {
             id: id,
             seed: seed,
             appearance: appearance,
+            route: route,
+            depthSchedule: depthSchedule,
+            encounter: encounter,
             role: role,
             shape: composition.shape,
             elongation: composition.elongation,

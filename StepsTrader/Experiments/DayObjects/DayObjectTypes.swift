@@ -99,6 +99,9 @@ struct DayObjectActor: Equatable {
     let id: DayObjectActorID
     let seed: UInt64
     let appearance: DayObjectAppearance
+    let route: DayObjectRoute
+    let depthSchedule: DayObjectDepthSchedule
+    let encounter: DayObjectEncounter
     let role: DayObjectActorRole
     let shape: DayObjectShape
     let elongation: DayObjectElongation
