@@ -11,7 +11,6 @@ struct DayObjectScene: Equatable {
     let visualLanguage: DayObjectVisualLanguage
     let motionPlan: DayObjectMotionPlan
     let palette: DayObjectPalette
-    let radialFillStyle: DayObjectRadialFillStyle
     let meshGradientStyle: DayObjectMeshGradientStyle
     let score: DayObjectChoreographyScore
     let actors: [DayObjectActor]
@@ -32,7 +31,6 @@ struct DayObjectScene: Equatable {
             visualLanguage: visualLanguage,
             motionPlan: motionPlan,
             palette: palette,
-            radialFillStyle: radialFillStyle,
             meshGradientStyle: meshGradientStyle,
             score: score,
             actors: actors
@@ -68,14 +66,6 @@ struct DayObjectScene: Equatable {
             eventIDs: eventIDs
         )
         let palette = DayObjectPalette.make(modernPalette: paletteSet.background)
-        let primaryObjectPalette = DayObjectPalette.make(
-            modernPalette: paletteSet.primaryObjects
-        )
-        let radialFillStyle = DayObjectRadialFillStyle.make(
-            seed: rootSeed,
-            palette: primaryObjectPalette,
-            colorCount: composition.fill.colorCount
-        )
         let meshGradientStyle = DayObjectMeshGradientStyle.make(seed: rootSeed, palette: palette)
         let score = DayObjectChoreographyScore.make(seed: rootSeed)
         let appearances = visualLanguage.appearances(
@@ -111,7 +101,6 @@ struct DayObjectScene: Equatable {
             visualLanguage: visualLanguage,
             motionPlan: motionPlan,
             palette: palette,
-            radialFillStyle: radialFillStyle,
             meshGradientStyle: meshGradientStyle,
             score: score,
             actors: actors

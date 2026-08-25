@@ -100,8 +100,7 @@ struct DayObjectsActorUniforms: Equatable {
         visibleActorCount: Int,
         lightDirection rawLightDirection: SIMD2<Float> = SIMD2(1, 0),
         lightSoftness rawLightSoftness: Float = 0.6,
-        globalTime rawGlobalTime: Float = 0,
-        radialFillStyle _: DayObjectRadialFillStyle = .fallback
+        globalTime rawGlobalTime: Float = 0
     ) {
         let resolution = SIMD2(
             Self.positiveFinite(rawResolution.x),
@@ -232,8 +231,7 @@ struct DayObjectsActorUpload: Equatable {
         resolution: SIMD2<Float>,
         lightDirection: SIMD2<Float> = SIMD2(1, 0),
         lightSoftness: Float = 0.6,
-        globalTime: Float = 0,
-        radialFillStyle: DayObjectRadialFillStyle = .fallback
+        globalTime: Float = 0
     ) {
         let boundedActors = Array(renderActors.prefix(DayObjectScene.maxActors))
         self.init(
@@ -243,8 +241,7 @@ struct DayObjectsActorUpload: Equatable {
             resolution: resolution,
             lightDirection: lightDirection,
             lightSoftness: lightSoftness,
-            globalTime: globalTime,
-            radialFillStyle: radialFillStyle
+            globalTime: globalTime
         )
     }
 
@@ -255,8 +252,7 @@ struct DayObjectsActorUpload: Equatable {
         resolution: SIMD2<Float>,
         lightDirection: SIMD2<Float>,
         lightSoftness: Float,
-        globalTime: Float,
-        radialFillStyle: DayObjectRadialFillStyle
+        globalTime: Float
     ) {
         actors = Array(gpuActors.prefix(DayObjectScene.maxActors))
         appearances = Array(gpuAppearances.prefix(actors.count))
@@ -265,8 +261,7 @@ struct DayObjectsActorUpload: Equatable {
             visibleActorCount: min(max(visibleActorCount, 0), actors.count),
             lightDirection: lightDirection,
             lightSoftness: lightSoftness,
-            globalTime: globalTime,
-            radialFillStyle: radialFillStyle
+            globalTime: globalTime
         )
     }
 }
@@ -1016,8 +1011,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 Float(renderScene.visualLanguage.lightDirection.y)
             ),
             lightSoftness: Float(renderScene.visualLanguage.lightSoftness),
-            globalTime: Float(frame.choreographyTime),
-            radialFillStyle: renderScene.radialFillStyle
+            globalTime: Float(frame.choreographyTime)
         )
         guard let actorBufferLease = actorBufferRing.acquire() else { return }
         var submittedActorBuffer = false

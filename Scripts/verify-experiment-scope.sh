@@ -21,10 +21,13 @@ done
 expected_experiment_files="$(cat <<'EOF'
 StepsTrader/Experiments/DayObjects/DayObjectChoreography.swift
 StepsTrader/Experiments/DayObjects/DayObjectComposition.swift
+StepsTrader/Experiments/DayObjects/DayObjectMotionPlan.swift
 StepsTrader/Experiments/DayObjects/DayObjectPalette.swift
+StepsTrader/Experiments/DayObjects/DayObjectPaletteSet.swift
 StepsTrader/Experiments/DayObjects/DayObjectRenderFrame.swift
 StepsTrader/Experiments/DayObjects/DayObjectScene.swift
 StepsTrader/Experiments/DayObjects/DayObjectTypes.swift
+StepsTrader/Experiments/DayObjects/DayObjectVisualLanguage.swift
 StepsTrader/Experiments/DayObjects/DayObjectsLabView.swift
 StepsTrader/Experiments/DayObjects/DayObjectsMetalView.swift
 StepsTrader/Experiments/DayObjects/DayObjectsRenderer.swift

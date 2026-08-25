@@ -624,8 +624,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let actorHarness = try ActorRenderHarness(width: 201, height: 437)
         let actorCapture = try actorHarness.render(DayObjectsActorUpload(
             actors: frame.actors,
-            resolution: SIMD2(201, 437),
-            radialFillStyle: scene.radialFillStyle
+            resolution: SIMD2(201, 437)
         ))
         XCTAssertGreaterThan(actorCapture.nonzeroPixelCount, 0)
         XCTAssertGreaterThan(actorCapture.total, 0)
@@ -1625,81 +1624,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
         }
     }
 
-    func testStaticRadialGPUUsesOneTwoAndThreeColorsWithoutChangingTheBodyMask() throws {
-        let harness = try ActorRenderHarness(width: 128, height: 128)
-        let actor = DayObjectGPUActor(
-            position: .zero,
-            direction: SIMD2(1, 0),
-            halfSize: SIMD2(0.34, 0.27),
-            color: SIMD4(1, 1, 1, 1),
-            opacity: 1,
-            trailLength: 0,
-            shape: 1,
-            fill: 2,
-            depth: 0,
-            radialVariation: 0.63
-        )
-        let sourceColors = [
-            DayObjectRGB(hex: "ff3355").linearRGB,
-            DayObjectRGB(hex: "33ddaa").linearRGB,
-            DayObjectRGB(hex: "4455ff").linearRGB,
-        ]
-        let captures = try (1...3).map { count in
-            try harness.render(
-                [actor],
-                radialFillStyle: DayObjectRadialFillStyle(
-                    colors: Array(sourceColors.prefix(count)),
-                    radius: 0.83,
-                    focalDistance: 0.42,
-                    focalAngle: 1.1,
-                    falloff: 0.24,
-                    mixing: 0.68,
-                    distortion: 0.31,
-                    distortionShift: -0.27,
-                    distortionFrequency: 7,
-                    rotation: 0.74,
-                    offset: SIMD2(0.12, -0.08)
-                )
-            )
-        }
-
-        XCTAssertEqual(captures[0].alpha, captures[1].alpha)
-        XCTAssertEqual(captures[1].alpha, captures[2].alpha)
-        XCTAssertGreaterThan(captures[0].meanAbsoluteRGBDifference(from: captures[1]), 0.01)
-        XCTAssertGreaterThan(captures[1].meanAbsoluteRGBDifference(from: captures[2]), 0.01)
-
-        let alternateActor = DayObjectGPUActor(
-            position: .zero,
-            direction: SIMD2(1, 0),
-            halfSize: SIMD2(0.34, 0.27),
-            color: SIMD4(1, 1, 1, 1),
-            opacity: 1,
-            trailLength: 0,
-            shape: 1,
-            fill: 2,
-            depth: 0,
-            radialVariation: -0.63
-        )
-        let alternate = try harness.render(
-            [alternateActor],
-            radialFillStyle: DayObjectRadialFillStyle(
-                colors: sourceColors,
-                radius: 0.83,
-                focalDistance: 0.42,
-                focalAngle: 1.1,
-                falloff: 0.24,
-                mixing: 0.68,
-                distortion: 0.31,
-                distortionShift: -0.27,
-                distortionFrequency: 7,
-                rotation: 0.74,
-                offset: SIMD2(0.12, -0.08)
-            )
-        )
-        XCTAssertEqual(captures[2].alpha, alternate.alpha)
-        XCTAssertGreaterThan(captures[2].meanAbsoluteRGBDifference(from: alternate), 0.005)
-    }
-
     func testActorPipelineUsesPremultipliedAlphaAndExactShaderABI() throws {
         let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
         let library = try XCTUnwrap(device.makeDefaultLibrary())
@@ -2103,44 +2027,6 @@ private final class ActorRenderHarness {
         return try render(
             actors: actors,
             appearances: [.fallback],
-            uniforms: uniforms
-        )
-    }
-
-    func render(
-        _ actors: [DayObjectGPUActor],
-        radialFillStyle: DayObjectRadialFillStyle
-    ) throws -> ActorAlphaCapture {
-        let uniforms = DayObjectsActorUniforms(
-            resolution: SIMD2(Float(width), Float(height)),
-            visibleActorCount: actors.filter { $0.opacity > 0 }.count,
-            radialFillStyle: radialFillStyle
-        )
-        let colors = radialFillStyle.colors.prefix(3).map { SIMD4($0, 1) }
-        let fallback = colors.last ?? SIMD4<Float>(1, 1, 1, 1)
-        let padded = colors + Array(repeating: fallback, count: 3 - colors.count)
-        let appearance = DayObjectGPUAppearance(
-            color0: padded[0], color1: padded[1], color2: padded[2],
-            radial0: SIMD4(
-                Float(radialFillStyle.focalDistance), Float(radialFillStyle.focalAngle),
-                Float(radialFillStyle.radius), Float(radialFillStyle.falloff)
-            ),
-            radial1: SIMD4(
-                Float(radialFillStyle.mixing), Float(radialFillStyle.distortion),
-                Float(radialFillStyle.distortionShift), Float(radialFillStyle.distortionFrequency)
-            ),
-            optical0: SIMD4(0, 0, 1, 1),
-            optical1: SIMD4(0.1, 0, 0, 0),
-            membrane: .zero,
-            light: SIMD4(0.7, 0, 0, 0),
-            metadata: SIMD4(
-                DayObjectMaterialFamily.satin.rawValue,
-                UInt32(max(colors.count, 1)), 1, 0
-            )
-        )
-        return try render(
-            actors: actors,
-            appearances: [appearance],
             uniforms: uniforms
         )
     }
@@ -2737,8 +2623,7 @@ private final class PostRenderHarness {
         } ?? frame.actors
         let upload = DayObjectsActorUpload(
             actors: renderActors,
-            resolution: SIMD2(Float(width), Float(height)),
-            radialFillStyle: scene.radialFillStyle
+            resolution: SIMD2(Float(width), Float(height))
         )
         let actorBuffer = try XCTUnwrap(upload.actors.withUnsafeBytes { bytes -> MTLBuffer? in
             guard let baseAddress = bytes.baseAddress, !bytes.isEmpty else {

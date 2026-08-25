@@ -227,32 +227,6 @@ final class DayObjectPaletteTests: XCTestCase {
         XCTAssertTrue(sawOuterGlow)
     }
 
-    func testDailyRadialPresetsAreDeterministicBoundedAndReachable() {
-        var reached = Set<DayObjectRadialPreset>()
-
-        for index in 0..<512 {
-            let scene = DayObjectScene.make(input: DayObjectSceneInput(
-                dayKey: "orb-preset-\(index)",
-                identity: "tester",
-                eventIDs: ["walk"],
-                motionEnergy: 0.55,
-                visualClarity: 0.55,
-                reduceMotion: false
-            ))
-            let repeated = DayObjectScene.make(input: scene.input)
-            let radial = scene.radialFillStyle
-
-            XCTAssertEqual(radial, repeated.radialFillStyle, "day=\(index)")
-            XCTAssertTrue((1...3).contains(radial.colors.count), "day=\(index)")
-            XCTAssertTrue((0...0.65).contains(radial.distortion), "day=\(index)")
-            XCTAssertTrue((2...10).contains(radial.distortionFrequency), "day=\(index)")
-            XCTAssertTrue((0...0.55).contains(radial.banding), "day=\(index)")
-            reached.insert(radial.preset)
-        }
-
-        XCTAssertEqual(reached, Set(DayObjectRadialPreset.allCases))
-    }
-
     func testModernCatalogContainsUniqueFourColorPalettes() {
         let palettes = ModernPaletteCatalog.all
 
