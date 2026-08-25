@@ -49,6 +49,7 @@ static_assert(sizeof(DayObjectsActorUniforms) == 32, "Actor uniforms must match 
 
 struct DayObjectsActorVertexOut {
     float4 position [[position]];
+    float2 screenUV;
     float2 localPosition;
     float2 halfSize;
     float opacity;
@@ -112,6 +113,7 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
 
     DayObjectsActorVertexOut out;
     out.position = float4(shortSidePosition * 2.0 / canvasSpan, 0.0, 1.0);
+    out.screenUV = shortSidePosition / canvasSpan + 0.5;
     out.localPosition = local;
     out.halfSize = halfSize;
     out.opacity = clamp(actor.opacity, 0.0, 1.0);
@@ -216,12 +218,16 @@ static float dayObjectsActorBody(
 fragment float4 dayObjectsActorFragment(
     DayObjectsActorVertexOut in [[stage_in]],
     const device DayObjectGPUAppearance *appearances [[buffer(2)]],
-    constant DayObjectsActorUniforms &uniforms [[buffer(3)]]
+    constant DayObjectsActorUniforms &uniforms [[buffer(3)]],
+    texture2d<float> backgroundTexture [[texture(0)]],
+    sampler linearSampler [[sampler(0)]]
 ) {
     const DayObjectGPUAppearance appearance = appearances[in.appearanceIndex];
     const float majorHalfSize = max(in.halfSize.x, 1e-5);
     const float aspect = in.halfSize.y / majorHalfSize;
     const float2 bodyPoint = in.localPosition / majorHalfSize;
+    const float2 ellipticalPoint = float2(bodyPoint.x, bodyPoint.y / max(aspect, 1e-4));
+    const float radialDistance = length(ellipticalPoint);
     const float signedBodyDistancePixels = dayObjectsActorBody(
         in.shape,
         bodyPoint,
@@ -239,6 +245,11 @@ fragment float4 dayObjectsActorFragment(
         -antialiasPixels,
         antialiasPixels,
         signedBodyDistancePixels
+    );
+    const float outsideDistancePixels = max(signedBodyDistancePixels, 0.0);
+    const float haloReachPixels = max(majorHalfSize * 0.18 * in.shortSidePixels, 1.0);
+    const float haloCoverage = (1.0 - bodyCoverage) * (
+        1.0 - smoothstep(0.0, haloReachPixels, outsideDistancePixels)
     );
 
     const float trailSigma = max(
@@ -260,9 +271,11 @@ fragment float4 dayObjectsActorFragment(
     const float lateral = exp(-0.5 * lateralRatio * lateralRatio) * lateralSupport;
     const float trailCoverage = trailEnabled * behindBody * longitudinal * lateral * 0.72;
 
-    const float actorOpacity = clamp(in.opacity * appearance.optical0.z, 0.0, 1.0);
-    const float bodyAlpha = bodyCoverage * actorOpacity;
-    const float trailAlpha = trailCoverage * actorOpacity * in.trailEnergyNormalization;
+    const float actorOpacity = clamp(in.opacity, 0.0, 1.0);
+    const float materialBodyOpacity = clamp(appearance.optical0.z, 0.0, 1.0);
+    float bodyAlpha = bodyCoverage * actorOpacity * materialBodyOpacity;
+    const float trailAlpha = trailCoverage * actorOpacity * materialBodyOpacity
+        * in.trailEnergyNormalization * 0.32;
     const float visibleTrailAlpha = trailAlpha * (1.0 - bodyAlpha);
     const float mergeReachPixels = max(
         majorHalfSize * 0.18 * in.shortSidePixels,
@@ -271,15 +284,121 @@ fragment float4 dayObjectsActorFragment(
     const float mergeCoverage = (1.0 - bodyCoverage) * (
         1.0 - smoothstep(0.0, mergeReachPixels, max(signedBodyDistancePixels, 0.0))
     );
-    const float mergeAlpha = mergeCoverage * actorOpacity
+    const float mergeAlpha = mergeCoverage * actorOpacity * materialBodyOpacity
         * 0.16;
-    const float visibleMergeAlpha = mergeAlpha * (1.0 - bodyAlpha) * (1.0 - visibleTrailAlpha);
-    const float alpha = clamp(bodyAlpha + visibleTrailAlpha + visibleMergeAlpha, 0.0, 1.0);
+    const float visibleMergeAlpha = mergeAlpha * (1.0 - bodyAlpha)
+        * (1.0 - visibleTrailAlpha);
 
-    const float3 bodyColor = dayObjectsStaticRadialColor(in, appearance, bodyPoint, aspect);
+    float3 bodyColor = dayObjectsStaticRadialColor(in, appearance, bodyPoint, aspect);
     const float3 trailColor = max(appearance.color0.rgb * 0.88, 0.0);
-    const float3 premultiplied = bodyColor * bodyAlpha
+    const float centerMask = 1.0 - smoothstep(0.08, 0.78, radialDistance);
+    const float rimMask = smoothstep(0.55, 1.0, radialDistance);
+    const float2 sphereNormal = radialDistance > 1e-5
+        ? ellipticalPoint / radialDistance
+        : float2(0.0, 0.0);
+    const float light = 0.5 + 0.5 * dot(
+        sphereNormal,
+        normalize(uniforms.lightDirection + float2(1e-5, 0.0))
+    );
+    const float lightResponse = clamp(appearance.light.x, 0.0, 1.0);
+    const uint material = min(appearance.metadata.x, 5u);
+    float haloAlpha = 0.0;
+    float3 haloColor = appearance.color1.rgb;
+
+    switch (material) {
+    case 1u: { // Inner Glow
+        const float glow = clamp(appearance.optical0.x, 0.0, 1.0);
+        bodyColor *= 0.62 + glow * 0.75 * centerMask + 0.16 * light;
+        bodyAlpha *= mix(0.78, 1.0, centerMask);
+        break;
+    }
+    case 2u: { // Rim Glow
+        const float rim = clamp(appearance.optical1.x, 0.0, 1.0);
+        bodyColor *= 0.38 + rim * 1.15 * rimMask;
+        haloAlpha = haloCoverage * actorOpacity
+            * clamp(appearance.optical0.y, 0.0, 1.0) * 0.85;
+        haloColor = mix(appearance.color1.rgb, appearance.color2.rgb, 0.5);
+        break;
+    }
+    case 3u: { // Glass
+        const float refraction = clamp(appearance.optical1.y, 0.0, 0.08);
+        const float angle = appearance.optical1.z;
+        const float2 refractionDirection = normalize(
+            sphereNormal + float2(cos(angle), sin(angle)) * 0.35 + float2(1e-5, 0.0)
+        );
+        const float3 refracted = backgroundTexture.sample(
+            linearSampler,
+            clamp(in.screenUV + refractionDirection * refraction, 0.0, 1.0)
+        ).rgb;
+        const float3 tint = mix(appearance.color0.rgb, appearance.color1.rgb, 0.5);
+        bodyColor = mix(refracted, tint, 0.18 + 0.18 * centerMask)
+            + appearance.color2.rgb * rimMask * 0.22;
+        bodyAlpha = bodyCoverage * actorOpacity
+            * clamp(materialBodyOpacity + rimMask * appearance.optical1.x * 0.22, 0.0, 1.0);
+        haloAlpha = haloCoverage * actorOpacity * appearance.optical0.y * 0.28;
+        haloColor = appearance.color2.rgb;
+        break;
+    }
+    case 4u: { // Membrane
+        const uint layerCount = clamp(appearance.metadata.z, 2u, 3u);
+        const float2 offset = appearance.membrane.xy;
+        const float layer1 = 1.0 - smoothstep(
+            -antialiasPixels,
+            antialiasPixels,
+            dayObjectsActorBody(in.shape, bodyPoint - offset, aspect, in.materialPhase * 2.0 - 1.0)
+                * majorHalfSize * in.shortSidePixels
+        );
+        const float layer2 = 1.0 - smoothstep(
+            -antialiasPixels,
+            antialiasPixels,
+            dayObjectsActorBody(in.shape, bodyPoint + offset, aspect, in.materialPhase * 2.0 - 1.0)
+                * majorHalfSize * in.shortSidePixels
+        );
+        const float layer3 = layerCount == 3u ? bodyCoverage : 0.0;
+        const float a0 = layer1 * actorOpacity * materialBodyOpacity * 0.48;
+        const float a1 = layer2 * actorOpacity * materialBodyOpacity * 0.48;
+        const float a2 = layer3 * actorOpacity * materialBodyOpacity * 0.36;
+        const float composite = 1.0 - (1.0 - a0) * (1.0 - a1) * (1.0 - a2);
+        bodyAlpha = composite;
+        const float weight = max(a0 + a1 + a2, 1e-5);
+        bodyColor = (
+            appearance.color0.rgb * a0
+                + appearance.color1.rgb * a1
+                + appearance.color2.rgb * a2
+        ) / weight;
+        haloAlpha = haloCoverage * actorOpacity * appearance.optical0.y * 0.30;
+        break;
+    }
+    case 5u: { // Spectral
+        const float angle = atan2(ellipticalPoint.y, ellipticalPoint.x) / (2.0 * M_PI_F);
+        const float migration = fract(angle + in.materialPhase + appearance.radial1.z * 0.1);
+        bodyColor = migration < 0.5
+            ? mix(appearance.color0.rgb, appearance.color1.rgb, smoothstep(0.0, 0.5, migration))
+            : mix(appearance.color1.rgb, appearance.color2.rgb, smoothstep(0.5, 1.0, migration));
+        bodyColor *= 0.72 + 0.28 * centerMask + appearance.optical0.x * 0.16;
+        haloAlpha = haloCoverage * actorOpacity * appearance.optical0.y * 0.42;
+        haloColor = appearance.color2.rgb;
+        break;
+    }
+    default: { // Satin
+        const float broadHighlight = smoothstep(0.05, 0.95, light);
+        bodyColor *= 0.68 + lightResponse * 0.42 * broadHighlight
+            + appearance.optical0.x * 0.10 * centerMask;
+        break;
+    }
+    }
+
+    const float visibleHaloAlpha = haloAlpha * (1.0 - bodyAlpha)
+        * (1.0 - visibleTrailAlpha) * (1.0 - visibleMergeAlpha);
+    const float alpha = clamp(
+        bodyAlpha + visibleTrailAlpha + visibleMergeAlpha + visibleHaloAlpha,
+        0.0,
+        1.0
+    );
+    float3 premultiplied = bodyColor * bodyAlpha
         + trailColor * visibleTrailAlpha
-        + bodyColor * visibleMergeAlpha;
+        + bodyColor * visibleMergeAlpha
+        + haloColor * visibleHaloAlpha;
+    premultiplied = min(max(premultiplied, 0.0), alpha);
     return float4(premultiplied, alpha);
 }

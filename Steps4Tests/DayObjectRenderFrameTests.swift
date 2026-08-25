@@ -1430,6 +1430,84 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.stride, 64)
     }
 
+    func testAllSixProceduralOrbMaterialsHaveDistinctApprovedResponses() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.32, 0.32),
+            opacity: 1,
+            trailLength: 0,
+            shape: 0,
+            appearanceIndex: 0,
+            depth: 0.5,
+            materialPhase: 0.31,
+            localDepthSoftness: 0.02
+        )
+        func appearance(_ material: DayObjectMaterialFamily) -> DayObjectGPUAppearance {
+            DayObjectGPUAppearance(
+                color0: SIMD4(0.95, 0.12, 0.22, 1),
+                color1: SIMD4(0.10, 0.75, 0.95, 1),
+                color2: SIMD4(0.75, 0.20, 0.95, 1),
+                radial0: SIMD4(0.24, 0.7, 0.95, 0.05),
+                radial1: SIMD4(0.78, 0.16, 0.12, 5),
+                optical0: SIMD4(0.68, 0.28, 0.82, 0.75),
+                optical1: SIMD4(0.62, 0.025, 1.2, 0.08),
+                membrane: SIMD4(0.08, 0.055, 0, 0),
+                light: SIMD4(0.85, 0, 0, 0),
+                metadata: SIMD4(material.rawValue, 3, 3, 0)
+            )
+        }
+
+        let captures = try Dictionary(uniqueKeysWithValues: DayObjectMaterialFamily.allCases.map {
+            ($0, try harness.render(
+                actor: actor,
+                appearance: appearance($0),
+                backgroundColor: SIMD3(0.06, 0.14, 0.28)
+            ))
+        })
+        let center = (x: 80, y: 80)
+        let rim = (x: 128, y: 80)
+        let outside = (x: 134, y: 80)
+
+        XCTAssertGreaterThan(try XCTUnwrap(captures[.satin])[center.x, center.y], 0.65)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(captures[.innerGlow]).luminance(x: center.x, y: center.y),
+            try XCTUnwrap(captures[.innerGlow]).luminance(x: rim.x, y: rim.y)
+        )
+        XCTAssertGreaterThan(
+            try XCTUnwrap(captures[.rimGlow]).luminance(x: rim.x, y: rim.y),
+            try XCTUnwrap(captures[.rimGlow]).luminance(x: center.x, y: center.y)
+        )
+        XCTAssertGreaterThan(try XCTUnwrap(captures[.rimGlow])[outside.x, outside.y], 0.005)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(captures[.membrane]).horizontalAlphaPeakCount(y: center.y),
+            1
+        )
+        XCTAssertGreaterThan(
+            try XCTUnwrap(captures[.spectral]).meanAbsoluteRGBDifference(
+                from: try XCTUnwrap(captures[.satin])
+            ),
+            0.005
+        )
+
+        let glassDark = try harness.render(
+            actor: actor,
+            appearance: appearance(.glass),
+            backgroundColor: SIMD3(0.02, 0.04, 0.08)
+        )
+        let glassLight = try harness.render(
+            actor: actor,
+            appearance: appearance(.glass),
+            backgroundColor: SIMD3(0.65, 0.85, 0.95)
+        )
+        XCTAssertGreaterThan(glassDark.meanAbsoluteRGBDifference(from: glassLight), 0.02)
+
+        for capture in captures.values {
+            XCTAssertTrue(capture.isFinitePremultiplied)
+        }
+    }
+
     func testStaticRadialGPUUsesOneTwoAndThreeColorsWithoutChangingTheBodyMask() throws {
         let harness = try ActorRenderHarness(width: 128, height: 128)
         let actor = DayObjectGPUActor(
@@ -1534,8 +1612,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
         XCTAssertGreaterThan(forwardAlpha[centerX, harness.height / 2], 0.5)
         XCTAssertGreaterThan(reversedAlpha[centerX, harness.height / 2], 0.5)
-        XCTAssertLessThan(forwardAlpha.weightedMeanX, Double(centerX) - 0.75)
-        XCTAssertGreaterThan(reversedAlpha.weightedMeanX, Double(centerX) + 0.75)
+        XCTAssertLessThan(forwardAlpha.weightedMeanX, Double(centerX) - 0.35)
+        XCTAssertGreaterThan(reversedAlpha.weightedMeanX, Double(centerX) + 0.35)
     }
 
     func testActorEnergyNormalizationPreservesBodiesWhileDimmingTrails() throws {
@@ -1822,6 +1900,7 @@ private final class ActorRenderHarness {
     private let commandQueue: MTLCommandQueue
     private let pipeline: MTLRenderPipelineState
     private let quadBuffer: MTLBuffer
+    private let sampler: MTLSamplerState
 
     init(width: Int, height: Int) throws {
         self.width = width
@@ -1853,6 +1932,29 @@ private final class ActorRenderHarness {
         commandQueue = renderCommandQueue
         pipeline = renderPipeline
         quadBuffer = renderQuadBuffer
+        let samplerDescriptor = MTLSamplerDescriptor()
+        samplerDescriptor.minFilter = .linear
+        samplerDescriptor.magFilter = .linear
+        samplerDescriptor.sAddressMode = .clampToEdge
+        samplerDescriptor.tAddressMode = .clampToEdge
+        sampler = try XCTUnwrap(renderDevice.makeSamplerState(descriptor: samplerDescriptor))
+    }
+
+    func render(
+        actor: DayObjectGPUActor,
+        appearance: DayObjectGPUAppearance,
+        backgroundColor: SIMD3<Float>
+    ) throws -> ActorAlphaCapture {
+        let uniforms = DayObjectsActorUniforms(
+            resolution: SIMD2(Float(width), Float(height)),
+            visibleActorCount: 1
+        )
+        return try render(
+            actors: [actor],
+            appearances: [appearance],
+            uniforms: uniforms,
+            backgroundColor: backgroundColor
+        )
     }
 
     func render(_ actors: [DayObjectGPUActor]) throws -> ActorAlphaCapture {
@@ -1923,7 +2025,8 @@ private final class ActorRenderHarness {
     private func render(
         actors: [DayObjectGPUActor],
         appearances: [DayObjectGPUAppearance],
-        uniforms rawUniforms: DayObjectsActorUniforms
+        uniforms rawUniforms: DayObjectsActorUniforms,
+        backgroundColor: SIMD3<Float> = .zero
     ) throws -> ActorAlphaCapture {
         let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .rgba16Float,
@@ -1954,6 +2057,30 @@ private final class ActorRenderHarness {
                 options: .storageModeShared
             )
         })
+        let backgroundDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba16Float,
+            width: 2,
+            height: 2,
+            mipmapped: false
+        )
+        backgroundDescriptor.storageMode = .shared
+        backgroundDescriptor.usage = .shaderRead
+        let background = try XCTUnwrap(device.makeTexture(descriptor: backgroundDescriptor))
+        let backgroundPixel = [
+            Float16(backgroundColor.x).bitPattern,
+            Float16(backgroundColor.y).bitPattern,
+            Float16(backgroundColor.z).bitPattern,
+            Float16(1).bitPattern,
+        ]
+        let backgroundPixels = Array(repeating: backgroundPixel, count: 4).flatMap { $0 }
+        backgroundPixels.withUnsafeBytes { bytes in
+            background.replace(
+                region: MTLRegionMake2D(0, 0, 2, 2),
+                mipmapLevel: 0,
+                withBytes: bytes.baseAddress!,
+                bytesPerRow: 2 * 4 * MemoryLayout<UInt16>.stride
+            )
+        }
 
         let renderPass = MTLRenderPassDescriptor()
         renderPass.colorAttachments[0].texture = texture
@@ -1973,6 +2100,8 @@ private final class ActorRenderHarness {
             index: 3
         )
         encoder.setFragmentBuffer(appearanceBuffer, offset: 0, index: 2)
+        encoder.setFragmentTexture(background, index: 0)
+        encoder.setFragmentSamplerState(sampler, index: 0)
         encoder.setFragmentBytes(
             &uniforms,
             length: MemoryLayout<DayObjectsActorUniforms>.stride,
@@ -2040,6 +2169,35 @@ private struct ActorAlphaCapture {
                 + Double(abs(pair.0.z - pair.1.z))
         }
         return total / Double(rgb.count * 3)
+    }
+
+    func luminance(x: Int, y: Int) -> Float {
+        let color = rgb[y * width + x]
+        return color.x * 0.2126 + color.y * 0.7152 + color.z * 0.0722
+    }
+
+    func horizontalAlphaPeakCount(y: Int) -> Int {
+        guard y > 0, y < height else { return 0 }
+        let row = (0..<width).map { self[$0, y] }
+        return (1..<(width - 1)).filter {
+            row[$0] > 0.05 && row[$0] > row[$0 - 1] && row[$0] >= row[$0 + 1]
+        }.count
+    }
+
+    var isFinitePremultiplied: Bool {
+        for index in rgb.indices {
+            let color = rgb[index]
+            let pixelAlpha = alpha[index]
+            let finite = pixelAlpha.isFinite
+                && color.x.isFinite && color.y.isFinite && color.z.isFinite
+            let nonnegative = color.x >= -0.002
+                && color.y >= -0.002 && color.z >= -0.002
+            let premultiplied = color.x <= pixelAlpha + 0.012
+                && color.y <= pixelAlpha + 0.012
+                && color.z <= pixelAlpha + 0.012
+            if !finite || !nonnegative || !premultiplied { return false }
+        }
+        return true
     }
 
     var weightedMeanX: Double {

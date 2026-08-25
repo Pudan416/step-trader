@@ -1051,6 +1051,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             sceneEncoder.setRenderPipelineState(actorPipeline)
             sceneEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
             sceneEncoder.setVertexBuffer(actorBufferLease.poseBuffer, offset: 0, index: 1)
+            sceneEncoder.setFragmentTexture(renderTargets.background, index: 0)
+            sceneEncoder.setFragmentSamplerState(linearSampler, index: 0)
             sceneEncoder.setVertexBytes(
                 &actorUniforms,
                 length: MemoryLayout<DayObjectsActorUniforms>.stride,
