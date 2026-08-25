@@ -187,19 +187,15 @@ struct DayObjectRenderFrame: Equatable {
     ) -> DayObjectRenderFrame {
         let elapsed = rawElapsed.isFinite ? max(rawElapsed, 0) : 0
         let canvasAspect = rawCanvasAspect.isFinite && rawCanvasAspect > 0 ? rawCanvasAspect : 1
-        let choreographyTime = elapsed * baseTempo * environment.tempoScale
+        let choreographyTime = environment.reduceMotion
+            ? 0
+            : elapsed * baseTempo * environment.tempoScale
         let postProcess = DayObjectPostProcess(
             visualClarity: environment.visualClarity,
             reduceMotion: environment.reduceMotion,
             grainSeed: scene.rootSeed,
             elapsed: elapsed
         )
-        let leadership = leadershipEnvelopes(
-            for: scene.actors,
-            at: choreographyTime,
-            duration: scene.score.duration
-        )
-
         var actors = [DayObjectRenderActor]()
         actors.reserveCapacity(scene.actors.count)
         for actor in scene.actors {
@@ -237,10 +233,10 @@ struct DayObjectRenderFrame: Equatable {
             let halfSize = bodyHalfSize(
                 for: actor,
                 pose: pose,
-                leadership: leadership[actor.id] ?? 0,
+                leadership: 0,
                 envelopeScale: envelopeScale
             )
-            let depth = Float(Double(pose.depthBand) + actor.zIndex * 0.001)
+            let depth = Float(pose.depth)
             let position = SIMD2<Float>(Float(pose.position.x), Float(pose.position.y))
             let direction = SIMD2<Float>(Float(pose.tangent.x), Float(pose.tangent.y))
             let rgba = SIMD4<Float>(color(for: actor, palette: scene.palette), 1)
@@ -305,10 +301,8 @@ struct DayObjectRenderFrame: Equatable {
         envelopeScale: Double
     ) -> SIMD2<Float> {
         let aspect = DayObjectActorGeometry.aspectRatio(for: actor)
-        let leaderDiameter = 0.265
-            + 0.07 * stableUnit(actor.seed, salt: 0x1319_8A2E_0370_7344)
-        let influence = pow(min(max(leadership, 0), 1), 2)
-        let renderedDiameter = pose.scale + (leaderDiameter - pose.scale) * influence
+        _ = leadership
+        let renderedDiameter = pose.scale
         let major = renderedDiameter * 0.5
         let baseHalfSize = SIMD2<Float>(Float(major), Float(major * aspect))
         return baseHalfSize * Float(envelopeScale)

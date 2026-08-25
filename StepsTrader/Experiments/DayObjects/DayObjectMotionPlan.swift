@@ -104,18 +104,29 @@ struct DayObjectMotionPlan: Equatable {
 
         for eventID in ids {
             let seed = eventSeed(rootSeed: rootSeed, eventID: eventID)
+            let depthOrdinal = numericSuffix(eventID)
+                ?? Int(mixed(seed ^ 0x1319_8A2E_0370_7344) % 10)
+            let encounterOrdinal = numericSuffix(eventID)
+                ?? Int(mixed(seed ^ 0xBE54_66CF_34E9_0C6C) % 10)
+            let encounterChannel = (encounterOrdinal / 2) % 3
+            let encounterSeed = mixed(
+                rootSeed ^ UInt64(encounterChannel) &* 0x9E37_79B9_7F4A_7C15
+            )
             routes[eventID] = makeRoute(seed: seed, family: family, eventID: eventID)
             depths[eventID] = DayObjectDepthSchedule(
-                baseDepth: 0.18 + 0.64 * stableUnit(seed, salt: 0x1319_8A2E_0370_7344),
-                amplitude: 0.12 + 0.24 * stableUnit(seed, salt: 0xA409_3822_299F_31D0),
+                baseDepth: 0.5,
+                amplitude: 0.38 + 0.08 * stableUnit(seed, salt: 0xA409_3822_299F_31D0),
                 period: 60 + 80 * stableUnit(seed, salt: 0x082E_FA98_EC4E_6C89),
-                phase: stableUnit(seed, salt: 0x4528_21E6_38D0_1377)
+                phase: normalizedPhase(
+                    (Double(depthOrdinal % 10) + 0.5) / 10
+                        + 0.04 * (stableUnit(seed, salt: 0x4528_21E6_38D0_1377) - 0.5)
+                )
             )
             encounters[eventID] = DayObjectEncounter(
-                channel: Int(mixed(seed ^ 0xBE54_66CF_34E9_0C6C) % 3),
-                phase: stableUnit(seed, salt: 0xC0AC_29B7_C97C_50DD),
-                durationFraction: 0.05 + 0.13 * stableUnit(seed, salt: 0x3F84_D5B5_B547_0917),
-                overlapFraction: 0.15 + 0.25 * stableUnit(seed, salt: 0x9216_D5D9_8979_FB1B)
+                channel: encounterChannel,
+                phase: stableUnit(encounterSeed, salt: 0xC0AC_29B7_C97C_50DD),
+                durationFraction: 0.05 + 0.13 * stableUnit(encounterSeed, salt: 0x3F84_D5B5_B547_0917),
+                overlapFraction: 0.15 + 0.25 * stableUnit(encounterSeed, salt: 0x9216_D5D9_8979_FB1B)
             )
         }
 
@@ -125,6 +136,11 @@ struct DayObjectMotionPlan: Equatable {
             depths: depths,
             encounters: encounters
         )
+    }
+
+    private static func normalizedPhase(_ value: Double) -> Double {
+        let remainder = value.truncatingRemainder(dividingBy: 1)
+        return remainder >= 0 ? remainder : remainder + 1
     }
 
     private static func makeRoute(
@@ -183,7 +199,7 @@ struct DayObjectMotionPlan: Equatable {
             period: 45 + 75 * stableUnit(seed, salt: 0xF6BB_4B60_9FBC_CEAE),
             phase: stableUnit(seed, salt: 0x2D7E_9E3B_0912_1F40),
             direction: direction(for: eventID, seed: seed),
-            sector: sector(for: eventID, seed: seed)
+            sector: sector(for: eventID, seed: seed, family: family)
         )
     }
 
@@ -194,8 +210,16 @@ struct DayObjectMotionPlan: Equatable {
         return mixed(seed ^ 0xD1B5_4A32_D192_ED03).isMultiple(of: 2) ? 1 : -1
     }
 
-    private static func sector(for eventID: String, seed: UInt64) -> Int {
+    private static func sector(
+        for eventID: String,
+        seed: UInt64,
+        family: DayObjectChoreographyFamily
+    ) -> Int {
         if let suffix = numericSuffix(eventID) {
+            if family == .softEncounters {
+                let encounterSectors = [1, 1, 0, 2, 3, 4, 5, 0, 2, 3]
+                return encounterSectors[suffix % encounterSectors.count]
+            }
             return (suffix * 5 + 1) % 9
         }
         return Int(mixed(seed ^ 0x94D0_49BB_1331_11EB) % 9)

@@ -39,12 +39,12 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 insertions: [:]
             )
             let diameters = frame.actors.map { Double($0.halfSize.x * 2) }
-            XCTAssertTrue(diameters.contains { (0.26...0.34).contains($0) }, "elapsed=\(elapsed)")
-            XCTAssertTrue(diameters.allSatisfy { (0.08...0.34).contains($0) }, "elapsed=\(elapsed) \(diameters)")
+            XCTAssertGreaterThan((diameters.max() ?? 0) - (diameters.min() ?? 0), 0.025)
+            XCTAssertTrue(diameters.allSatisfy { (0.12...0.25).contains($0) }, "elapsed=\(elapsed) \(diameters)")
         }
     }
 
-    func testVisualLeadershipMovesBetweenActorsWithoutRerollingTheScene() throws {
+    func testContinuousDepthMovesScaleLeadershipWithoutRerollingTheScene() throws {
         let scene = fixtureScene(ids: (0..<8).map { "orb-\($0)" })
         let environment = DayObjectEnvironment(
             motionEnergy: 1,
@@ -60,13 +60,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 elapsed: elapsed,
                 insertions: [:]
             )
-            let envelopes = DayObjectRenderFrame.leadershipEnvelopes(
-                for: scene.actors,
-                at: frame.choreographyTime,
-                duration: scene.score.duration
-            )
-            XCTAssertEqual(try XCTUnwrap(envelopes.values.max()), 1, accuracy: 0.000_001)
-            XCTAssertTrue(envelopes.values.allSatisfy { (0...1).contains($0) })
             leaders.insert(try XCTUnwrap(frame.actors.max { $0.halfSize.x < $1.halfSize.x }).actorID)
         }
 
@@ -78,6 +71,38 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(DayObjectEnvironment(motionEnergy: 0, visualClarity: 1, reduceMotion: false).tempoScale, 0.035, accuracy: 0.0001)
         XCTAssertEqual(DayObjectEnvironment(motionEnergy: 1, visualClarity: 1, reduceMotion: false).tempoScale, 1.25, accuracy: 0.0001)
         XCTAssertEqual(DayObjectEnvironment(motionEnergy: 1, visualClarity: 1, reduceMotion: true).tempoScale, 0.02, accuracy: 0.0001)
+    }
+
+    func testReduceMotionFreezesPositionDepthAndMaterialPhase() throws {
+        let scene = fixtureScene(ids: (0..<10).map { "event-\($0)" })
+        let environment = DayObjectEnvironment(
+            motionEnergy: 1,
+            visualClarity: 1,
+            reduceMotion: true
+        )
+        let early = DayObjectRenderFrame.make(
+            scene: scene, environment: environment, elapsed: 5, insertions: [:]
+        )
+        let late = DayObjectRenderFrame.make(
+            scene: scene, environment: environment, elapsed: 95, insertions: [:]
+        )
+
+        XCTAssertEqual(early.choreographyTime, 0)
+        XCTAssertEqual(late.choreographyTime, 0)
+        XCTAssertEqual(early.actors, late.actors)
+        for actor in scene.actors {
+            let earlyPose = scene.score.pose(
+                for: actor, at: early.choreographyTime, canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            )
+            let latePose = scene.score.pose(
+                for: actor, at: late.choreographyTime, canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            )
+            XCTAssertEqual(earlyPose.position, latePose.position)
+            XCTAssertEqual(earlyPose.depth, latePose.depth)
+            XCTAssertEqual(earlyPose.materialPhase, latePose.materialPhase)
+        }
     }
 
     func testEnvironmentClampsNonFiniteInputs() {
@@ -386,7 +411,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
             insertions: [:]
         )
         XCTAssertEqual(earlyFrame.postProcess.grainPhase, lateFrame.postProcess.grainPhase)
-        XCTAssertGreaterThan(lateFrame.choreographyTime, earlyFrame.choreographyTime)
+        XCTAssertEqual(earlyFrame.choreographyTime, 0)
+        XCTAssertEqual(lateFrame.choreographyTime, 0)
     }
 
     func testPostUniformGrainSeedUsesSceneRootRatherThanActorCount() {

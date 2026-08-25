@@ -95,7 +95,11 @@ struct DayObjectPose: Equatable {
     let rotation: Double
     let scale: Double
     let opacity: Double
+    let depth: Double
     let depthBand: Int
+    let localDepthSoftness: Double
+    let materialPhase: Double
+    let intentionalCropFraction: Double
     let bodyRadius: Double
     let trailReach: Double
     let footprintHalfExtents: SIMD2<Double>
@@ -129,26 +133,21 @@ struct DayObjectChoreographyScore: Equatable {
     ) -> DayObjectPose {
         let time = rawTime.isFinite ? rawTime : 0
         let aspect = rawAspect.isFinite && rawAspect > 0 ? rawAspect : 1
-        let scale = renderDiameter(for: actor, compositionPlan: compositionPlan)
+        let depth = depthValue(for: actor, at: time)
+        let baseScale = renderDiameter(for: actor, compositionPlan: compositionPlan)
+        let scale = baseScale * (0.75 + 0.50 * depth)
         let trailReach = 0.008
         let rawTangent = routeTangent(for: actor, at: time)
         let halfSize = SIMD2<Double>(
             scale * 0.5,
             scale * 0.5 * DayObjectActorGeometry.aspectRatio(for: actor)
         )
-        let planningReach = planningReach(for: actor, diameter: scale)
-        let position: SIMD2<Double>
-        if let compositionPlan {
-            position = compositionPlan.distributedRoutePosition(
-                sector: actor.route.sector,
-                actorSeed: actor.seed,
-                localPosition: actor.route.position(at: time),
-                footprintReach: planningReach,
-                canvasAspect: aspect
-            )
-        } else {
-            position = unplannedPosition(for: actor, at: time, canvasAspect: aspect)
-        }
+        let position = position(
+            for: actor,
+            at: time,
+            canvasAspect: aspect,
+            compositionPlan: compositionPlan
+        )
         let tangent = finalTangent(
             for: actor,
             at: time,
@@ -192,8 +191,14 @@ struct DayObjectChoreographyScore: Equatable {
             tangent: tangent,
             rotation: rotation,
             scale: scale,
-            opacity: 1,
-            depthBand: min(max(Int(actor.depthSchedule.baseDepth * 4), 0), 3),
+            opacity: 0.62 + 0.38 * depth,
+            depth: depth,
+            depthBand: min(max(Int(depth * 4), 0), 3),
+            localDepthSoftness: 0.008 + 0.055 * depth,
+            materialPhase: normalizedPhase(
+                actor.appearance.radialPhase + time / 120
+            ),
+            intentionalCropFraction: 0,
             bodyRadius: bodyRadius,
             trailReach: trailReach,
             footprintHalfExtents: footprint.axisAlignedHalfExtents,
@@ -216,17 +221,71 @@ struct DayObjectChoreographyScore: Equatable {
         if let compositionPlan {
             let planningReach = planningReach(
                 for: actor,
-                diameter: renderDiameter(for: actor, compositionPlan: compositionPlan)
+                diameter: renderDiameter(for: actor, compositionPlan: compositionPlan) * 1.25
             )
-            return compositionPlan.distributedRoutePosition(
+            let base = compositionPlan.distributedRoutePosition(
                 sector: actor.route.sector,
                 actorSeed: actor.seed,
                 localPosition: actor.route.position(at: time),
                 footprintReach: planningReach,
                 canvasAspect: canvasAspect
             )
+            guard family == .softEncounters,
+                  compositionPlan.uiExclusionRegion == .dayObjectsLabControls else {
+                return base
+            }
+            let envelope = encounterEnvelope(for: actor.encounter, at: time)
+            guard envelope > 0 else { return base }
+            let angle = Double(actor.encounter.channel) * 2 * Double.pi / 3 + 0.35
+            let sign = encounterSide(for: actor)
+            let target = compositionPlan.distributedRoutePosition(
+                sector: actor.route.sector,
+                actorSeed: actor.seed,
+                localPosition: SIMD2(cos(angle), sin(angle))
+                    * (renderDiameter(for: actor, compositionPlan: compositionPlan) * 0.42 * sign),
+                footprintReach: planningReach,
+                canvasAspect: canvasAspect
+            )
+            let displacement = target - base
+            let distance = simd_length(displacement)
+            let boundedTarget = distance > 0.18
+                ? base + displacement / distance * 0.18
+                : target
+            return base + (boundedTarget - base) * envelope
         }
         return unplannedPosition(for: actor, at: time, canvasAspect: canvasAspect)
+    }
+
+    private func encounterEnvelope(
+        for encounter: DayObjectEncounter,
+        at time: Double
+    ) -> Double {
+        let rawCycle = time / 90
+        let cycle = rawCycle - floor(rawCycle)
+        let delta = cycle >= encounter.phase
+            ? cycle - encounter.phase
+            : cycle + 1 - encounter.phase
+        guard delta <= encounter.durationFraction else { return 0 }
+        let progress = delta / max(encounter.durationFraction, 0.000_001)
+        if progress < 0.25 {
+            return smoothstep(progress / 0.25)
+        }
+        if progress > 0.75 {
+            return smoothstep((1 - progress) / 0.25)
+        }
+        return 1
+    }
+
+    private func encounterSide(for actor: DayObjectActor) -> Double {
+        if let suffix = Int(actor.eventID.split(separator: "-").last ?? "") {
+            return suffix.isMultiple(of: 2) ? -1 : 1
+        }
+        return actor.seed.isMultiple(of: 2) ? -1 : 1
+    }
+
+    private func smoothstep(_ rawValue: Double) -> Double {
+        let value = min(max(rawValue, 0), 1)
+        return value * value * (3 - 2 * value)
     }
 
     private func unplannedPosition(
@@ -278,7 +337,18 @@ struct DayObjectChoreographyScore: Equatable {
     }
 
     private func baseDiameter(for actor: DayObjectActor) -> Double {
-        0.15 + 0.09 * stableUnit(actor.seed, salt: 0xA409_3822_299F_31D0)
+        0.16 + 0.035 * stableUnit(actor.seed, salt: 0xA409_3822_299F_31D0)
+    }
+
+    private func depthValue(for actor: DayObjectActor, at time: Double) -> Double {
+        let schedule = actor.depthSchedule
+        let phase = 2 * Double.pi * (time / schedule.period + schedule.phase)
+        return min(max(schedule.baseDepth + schedule.amplitude * cos(phase), 0), 1)
+    }
+
+    private func normalizedPhase(_ value: Double) -> Double {
+        let remainder = value.truncatingRemainder(dividingBy: 1)
+        return remainder >= 0 ? remainder : remainder + 1
     }
 
     private func renderDiameter(

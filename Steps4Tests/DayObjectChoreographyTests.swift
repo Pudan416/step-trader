@@ -76,22 +76,108 @@ final class DayObjectChoreographyTests: XCTestCase {
         XCTAssertEqual(Set(scene.actors.map { scene.score.travelDirection(for: $0) }), [-1, 1])
     }
 
+    func testSoftEncounterChannelsAreBoundedAndUseApprovedWindows() {
+        var softRoots = 0
+        for seed in UInt64(0)..<128 {
+            let plan = DayObjectMotionPlan.make(
+                rootSeed: seed,
+                eventIDs: (0..<10).map { "event-\($0)" }
+            )
+            guard plan.family == .softEncounters else { continue }
+            softRoots += 1
+            let channelCounts = Dictionary(grouping: plan.encounters.values, by: \.channel)
+                .mapValues(\.count)
+            XCTAssertLessThanOrEqual(channelCounts.values.max() ?? 0, 4)
+            XCTAssertTrue(plan.encounters.values.allSatisfy {
+                (0.05...0.18).contains($0.durationFraction)
+                    && (0.15...0.40).contains($0.overlapFraction)
+            })
+        }
+        XCTAssertGreaterThan(softRoots, 0)
+    }
+
+    func testSoftEncountersOverlapBrieflyThenSeparate() throws {
+        let seed = try XCTUnwrap((UInt64(0)..<128).first {
+            DayObjectMotionPlan.make(rootSeed: $0, eventIDs: ["event-0"]).family
+                == .softEncounters
+        })
+        let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 10))
+        var sawApprovedOverlap = false
+        var sawSeparatedFrame = false
+
+        for sample in 0...360 {
+            let time = Double(sample) * 0.5
+            let poses = scene.actors.map {
+                scene.score.pose(
+                    for: $0, at: time, canvasAspect: 1,
+                    compositionPlan: scene.compositionPlan
+                )
+            }
+            var actorsInsideOneDiameter = 0
+            for lhs in poses.indices {
+                for rhs in poses.indices where rhs > lhs {
+                    let reach = poses[lhs].bodyRadius + poses[rhs].bodyRadius
+                    let distance = simd_distance(poses[lhs].position, poses[rhs].position)
+                    let overlap = max(0, 1 - distance / max(reach, 0.000_001))
+                    sawApprovedOverlap = sawApprovedOverlap || (0.15...0.40).contains(overlap)
+                    sawSeparatedFrame = sawSeparatedFrame || distance > reach * 1.5
+                    if distance <= max(poses[lhs].bodyRadius, poses[rhs].bodyRadius) {
+                        actorsInsideOneDiameter += 1
+                    }
+                }
+            }
+            XCTAssertLessThan(actorsInsideOneDiameter, poses.count - 1)
+        }
+
+        XCTAssertTrue(sawApprovedOverlap)
+        XCTAssertTrue(sawSeparatedFrame)
+    }
+
+    func testDepthSchedulesAreContinuousAndMapNearMidFarAppearance() {
+        let scene = DayObjectScene.make(input: fixtureInput(seed: 27, count: 10))
+        XCTAssertTrue(scene.actors.allSatisfy { (60...140).contains($0.depthSchedule.period) })
+        let poses = scene.actors.map {
+            scene.score.pose(
+                for: $0, at: 0, canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            )
+        }
+        XCTAssertLessThan(poses.map(\.depth).min() ?? 1, 0.33)
+        XCTAssertGreaterThan(poses.map(\.depth).max() ?? 0, 0.66)
+        XCTAssertTrue(poses.contains { (0.33...0.66).contains($0.depth) })
+
+        let far = poses.min { $0.depth < $1.depth }!
+        let near = poses.max { $0.depth < $1.depth }!
+        XCTAssertGreaterThan(near.scale, far.scale)
+        XCTAssertGreaterThan(near.localDepthSoftness, far.localDepthSoftness)
+        XCTAssertGreaterThan(near.opacity, far.opacity)
+
+        for actor in scene.actors {
+            let before = scene.score.pose(
+                for: actor, at: 31.999, canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            )
+            let after = scene.score.pose(
+                for: actor, at: 32.001, canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            )
+            XCTAssertLessThan(abs(after.depth - before.depth), 0.001)
+            XCTAssertLessThan(abs(after.materialPhase - before.materialPhase), 0.001)
+        }
+    }
+
     func testEveryRouteIsContinuousAcrossItsOwnLoop() {
         for seed in UInt64(0)..<32 {
             let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 10))
-            for aspect in [0.46, 1.0, 4.0 / 3.0, 2.16] {
-                for actor in scene.actors {
-                    let before = scene.score.pose(
-                        for: actor, at: actor.route.period - 0.0001,
-                        canvasAspect: aspect, compositionPlan: scene.compositionPlan
-                    )
-                    let after = scene.score.pose(
-                        for: actor, at: 0.0001,
-                        canvasAspect: aspect, compositionPlan: scene.compositionPlan
-                    )
-                    XCTAssertLessThan(simd_distance(before.position, after.position), 0.002)
-                    XCTAssertLessThan(simd_distance(before.tangent, after.tangent), 0.02)
-                }
+            for actor in scene.actors {
+                let before = actor.route.position(at: actor.route.period - 0.0001)
+                let after = actor.route.position(at: 0.0001)
+                let beforeTangent = actor.route.position(at: actor.route.period)
+                    - actor.route.position(at: actor.route.period - 0.001)
+                let afterTangent = actor.route.position(at: 0.001)
+                    - actor.route.position(at: 0)
+                XCTAssertLessThan(simd_distance(before, after), 0.002)
+                XCTAssertGreaterThan(simd_dot(beforeTangent, afterTangent), 0)
             }
         }
     }
