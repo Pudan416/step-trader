@@ -66,9 +66,11 @@ struct GenerativeSceneView: View {
         VStack(spacing: 6) {
             Text(Self.dayString(date))
                 .font(.unbounded(128, weight: .regular))
+                .fontDesign(nil)
                 .kerning(2)
             Text(Self.monthString(date))
                 .font(.unbounded(19, weight: .light))
+                .fontDesign(nil)
                 .kerning(11)
                 .padding(.leading, 11)   // compensate the trailing letter-space
         }

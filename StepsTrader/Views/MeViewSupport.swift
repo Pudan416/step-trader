@@ -184,6 +184,7 @@ struct MeGalleryPoster<Content: View>: View {
 
                 Text(formattedDate)
                     .font(.unbounded(width * (40.0 / 604.0), weight: .black))
+                    .fontDesign(nil)
                     .foregroundStyle(.black)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -219,6 +220,7 @@ struct MeGalleryPoster<Content: View>: View {
 
                 Text("NOWHERE")
                     .font(.unbounded(width * (24.0 / 604.0), weight: .black))
+                    .fontDesign(nil)
                     .foregroundStyle(.black)
                     .lineLimit(1)
                     .frame(

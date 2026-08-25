@@ -11,6 +11,7 @@
 		91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F0A0013100000000000001 /* AppTypographyTests.swift */; };
 		91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0033100000000000003 /* Unbounded[wght].ttf */; };
 		91F0A0063100000000000006 /* Unbounded-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0053100000000000005 /* Unbounded-OFL.txt */; };
+		91F0A0083100000000000008 /* Unbounded-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0073100000000000007 /* Unbounded-Black.ttf */; };
 		A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000001 /* ExperimentalFeatures.swift */; };
 		A16C90010000000000000002 /* RichFigureModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000002 /* RichFigureModels.swift */; };
 		A16C90010000000000000003 /* RichFigureAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000003 /* RichFigureAssignment.swift */; };
@@ -431,6 +432,7 @@
 		91F0A0013100000000000001 /* AppTypographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTypographyTests.swift; path = Steps4Tests/AppTypographyTests.swift; sourceTree = SOURCE_ROOT; };
 		91F0A0033100000000000003 /* Unbounded[wght].ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded[wght].ttf"; sourceTree = "<group>"; };
 		91F0A0053100000000000005 /* Unbounded-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Unbounded-OFL.txt"; sourceTree = "<group>"; };
+		91F0A0073100000000000007 /* Unbounded-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded-Black.ttf"; sourceTree = "<group>"; };
 		A16C80010000000000000001 /* ExperimentalFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperimentalFeatures.swift; sourceTree = "<group>"; };
 		A16C80010000000000000002 /* RichFigureModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureModels.swift; sourceTree = "<group>"; };
 		A16C80010000000000000003 /* RichFigureAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureAssignment.swift; sourceTree = "<group>"; };
@@ -1316,6 +1318,7 @@
 			isa = PBXGroup;
 			children = (
 				91F0A0033100000000000003 /* Unbounded[wght].ttf */,
+				91F0A0073100000000000007 /* Unbounded-Black.ttf */,
 				91F0A0053100000000000005 /* Unbounded-OFL.txt */,
 			);
 			path = Fonts;
@@ -1737,6 +1740,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */,
+				91F0A0083100000000000008 /* Unbounded-Black.ttf in Resources */,
 				91F0A0063100000000000006 /* Unbounded-OFL.txt in Resources */,
 				2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */,
 				20E3AE142F3F6C1C007CF1EC /* Assets.xcassets in Resources */,

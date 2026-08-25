@@ -146,6 +146,7 @@ struct PayGateView: View {
             VStack(spacing: 6) {
                 Text(String(localized: "spend what you lived", comment: "PayGate title"))
                     .font(.unbounded(24, weight: .medium, relativeTo: .title2))
+                    .fontDesign(nil)
                     .foregroundStyle(PayGatePalette.textPrimary)
                     .multilineTextAlignment(.center)
 

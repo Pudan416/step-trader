@@ -46,7 +46,7 @@ extension Font {
         .semibold: "Unbounded-Regular_SemiBold",
         .bold: "Unbounded-Regular_Bold",
         .heavy: "Unbounded-Regular_ExtraBold",
-        .black: "Unbounded-Regular_Black",
+        .black: "Unbounded-Black",
     ]
 
     private static func unboundedPostScriptName(for weight: Font.Weight) -> String {

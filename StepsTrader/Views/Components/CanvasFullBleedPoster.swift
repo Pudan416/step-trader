@@ -66,6 +66,7 @@ struct CanvasFullBleedPoster<Content: View>: View {
                 if let name = userName, !name.isEmpty {
                     Text(name)
                         .font(.unbounded(max(6, w * Self.nameSizeR), weight: .medium))
+                        .fontDesign(nil)
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
                         .lineLimit(1)
@@ -83,6 +84,7 @@ struct CanvasFullBleedPoster<Content: View>: View {
                 // Date — bottom area, 96px Unbounded Bold, centered
                 Text(formattedDate)
                     .font(.unbounded(max(10, w * Self.nowhereSizeR), weight: .black))
+                    .fontDesign(nil)
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
                     .lineLimit(1)
@@ -93,6 +95,7 @@ struct CanvasFullBleedPoster<Content: View>: View {
                 // "NOWHERE" — bottom-left, 12px Unbounded Bold
                 Text("NOWHERE")
                     .font(.unbounded(max(5, w * Self.dateSizeR), weight: .black))
+                    .fontDesign(nil)
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
                     .lineLimit(1)

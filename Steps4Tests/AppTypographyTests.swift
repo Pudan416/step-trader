@@ -10,8 +10,34 @@ final class AppTypographyTests: XCTestCase {
             "The regular Unbounded instance must be bundled and registered by the app target."
         )
         XCTAssertNotNil(
-            UIFont(name: "Unbounded-Regular_Black", size: 24),
-            "The Black Unbounded instance used by posters must be registered by the app target."
+            UIFont(name: "Unbounded-Black", size: 24),
+            "The exact static Unbounded Black face used by posters must be registered by the app target."
+        )
+    }
+
+    @MainActor
+    func testAppBlackBrandFontRendersTheStaticUnboundedBlackFace() throws {
+        XCTAssertNotNil(
+            UIFont(name: "Unbounded-Black", size: 80),
+            "The static Unbounded Black face must be available before SwiftUI can render it."
+        )
+
+        let actual = try renderedImage(
+            Text("0")
+                .font(.unbounded(80, weight: .black))
+        )
+        let expected = try renderedImage(
+            Text("0")
+                .font(.custom("Unbounded-Black", fixedSize: 80))
+        )
+
+        let actualImage = try XCTUnwrap(actual.cgImage)
+        let expectedImage = try XCTUnwrap(expected.cgImage)
+        XCTAssertEqual(actualImage.width, expectedImage.width)
+        XCTAssertEqual(actualImage.height, expectedImage.height)
+        XCTAssertTrue(
+            try rgbaPixels(in: actualImage) == rgbaPixels(in: expectedImage),
+            "The app's .black brand font must render the exact static Unbounded Black face."
         )
     }
 
@@ -29,6 +55,7 @@ final class AppTypographyTests: XCTestCase {
             Color.clear
         }
         .frame(width: 604, height: 842)
+        .fontDesign(.rounded)
 
         let posterImage = try renderedImage(poster)
         let posterTop = try XCTUnwrap(
@@ -38,7 +65,7 @@ final class AppTypographyTests: XCTestCase {
 
         let referenceImage = try renderedImage(
             Text("22/08/26")
-                .font(.unbounded(40, weight: .black))
+                .font(.custom("Unbounded-Black", fixedSize: 40))
         )
         let expectedBounds = try darkPixelBounds(in: try XCTUnwrap(referenceImage.cgImage))
 
@@ -64,7 +91,7 @@ final class AppTypographyTests: XCTestCase {
 
         let blackReference = try renderedImage(
             Text("22/08/26")
-                .font(.custom("Unbounded-Regular_Black", fixedSize: 48))
+                .font(.custom("Unbounded-Black", fixedSize: 48))
         )
         let expectedInk = try darkPixelCount(in: try XCTUnwrap(blackReference.cgImage))
 
@@ -217,6 +244,26 @@ final class AppTypographyTests: XCTestCase {
             throw XCTSkip("No dark text pixels found in rendered typography fixture")
         }
         return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+    }
+
+    private func rgbaPixels(in image: CGImage) throws -> [UInt8] {
+        let width = image.width
+        let height = image.height
+        let bytesPerRow = width * 4
+        var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+        let context = try XCTUnwrap(
+            CGContext(
+                data: &pixels,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        )
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return pixels
     }
 
     private func darkPixelCount(in image: CGImage) throws -> Int {

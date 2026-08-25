@@ -39,6 +39,7 @@ struct SettingsAboutPage: View {
                     VStack(spacing: 12) {
                         Text(Identity.brandName)
                             .font(.unbounded(28, weight: .semibold, relativeTo: .title2))
+                            .fontDesign(nil)
                             .foregroundStyle(theme.adaptivePrimaryText)
 
                         Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))

@@ -1319,6 +1319,7 @@ struct OnboardingStoriesView: View {
                 HStack(spacing: 0) {
                     Text("NOW")
                         .font(.unbounded(48, weight: .light, relativeTo: .largeTitle))
+                        .fontDesign(nil)
                         .foregroundStyle(revealPhase >= 2 ? accent : .white.opacity(0.74))
                         .offset(x: -nowhereSplit)
                     
@@ -1328,6 +1329,7 @@ struct OnboardingStoriesView: View {
                     
                     Text("HERE")
                         .font(.unbounded(48, weight: .light, relativeTo: .largeTitle))
+                        .fontDesign(nil)
                         .foregroundStyle(revealPhase >= 2 ? accent : .white.opacity(0.74))
                         .offset(x: nowhereSplit)
                 }
@@ -1497,6 +1499,7 @@ struct OnboardingStoriesView: View {
             VStack(spacing: 16) {
                 Text(String(localized: "welcome to nowhere"))
                     .font(.unbounded(24, weight: .regular, relativeTo: .title2))
+                    .fontDesign(nil)
                     .foregroundStyle(.white.opacity(0.7))
                 
                 if let name = authService?.currentUser?.displayName,
@@ -1895,6 +1898,7 @@ struct OnboardingStoriesView: View {
                 HStack(spacing: 0) {
                     Text("NOW")
                         .font(.unbounded(48, weight: .light, relativeTo: .largeTitle))
+                        .fontDesign(nil)
                         .foregroundStyle(welcomeV8Phase >= 2 ? accent : .white.opacity(0.74))
                         .offset(x: -welcomeV8Split)
 
@@ -1904,6 +1908,7 @@ struct OnboardingStoriesView: View {
 
                     Text("HERE")
                         .font(.unbounded(48, weight: .light, relativeTo: .largeTitle))
+                        .fontDesign(nil)
                         .foregroundStyle(welcomeV8Phase >= 2 ? accent : .white.opacity(0.74))
                         .offset(x: welcomeV8Split)
                 }

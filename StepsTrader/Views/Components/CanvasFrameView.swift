@@ -88,6 +88,7 @@ struct CanvasFrameView<Content: View>: View {
                     HStack(alignment: .lastTextBaseline) {
                         Text(formattedDate)
                             .font(.unbounded(max(6, w * Self.brandSizeR), weight: .black))
+                            .fontDesign(nil)
                             .foregroundStyle(Color.black)
                             .lineLimit(1)
 
@@ -96,6 +97,7 @@ struct CanvasFrameView<Content: View>: View {
                         if let name = userName, !name.isEmpty {
                             Text(name)
                                 .font(.unbounded(max(5, w * Self.dateSizeR), weight: .regular))
+                                .fontDesign(nil)
                                 .foregroundStyle(Color.black)
                                 .lineLimit(1)
                         }
@@ -135,6 +137,7 @@ struct CanvasFrameView<Content: View>: View {
                     HStack(alignment: .firstTextBaseline) {
                         Text("NOWHERE")
                             .font(.unbounded(max(5, w * Self.nameSizeR), weight: .black))
+                            .fontDesign(nil)
                             .foregroundStyle(Color.black)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)

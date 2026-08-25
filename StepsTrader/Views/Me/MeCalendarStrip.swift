@@ -274,6 +274,7 @@ struct DayHistoryTile: View {
 
                 Text(dayNumber)
                     .font(.unbounded(18, weight: .medium, relativeTo: .title3))
+                    .fontDesign(nil)
                     .foregroundStyle(isSelected ? AppColors.brandAccent : theme.textPrimary.opacity(0.9))
             }
             .padding(.horizontal, 5)
@@ -551,6 +552,7 @@ struct MeFullCalendarView: View {
 
                 Text(day.formatted())
                     .font(.unbounded(15, weight: isToday ? .bold : .medium, relativeTo: .body))
+                    .fontDesign(nil)
                     .monospacedDigit()
                     .foregroundStyle(
                         isToday
